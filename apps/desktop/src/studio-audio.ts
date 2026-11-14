@@ -1,5 +1,5 @@
 import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
-import { songBeat, type Cycle } from './studio-view';
+import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
 /**
  * A small synthesiser for playing a song in the window: a few simple voices made with Web Audio, scheduled ahead of
@@ -319,5 +319,86 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
   return {
     stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
     beat() { return songBeat(Math.max(0, (ctx.currentTime - start) / spb), fromBeat, cycle); },
+  };
+}
+
+/** What each track of the Session view is playing: the clip in that slot, since `start` (in beats played). */
+export type SessionPlaying = Record<string, { slot: number; start: number }>;
+/** A launch waiting for the next bar: a slot to start, or null to stop the track. */
+export type SessionQueued = Record<string, number | null>;
+export interface SessionPlayer extends Player {
+  /** Start a track's clip (or stop the track, with null) at the next bar. */
+  launch(trackId: string, slot: number | null): void;
+  /** The song as it is now, so a change to a clip is heard the next time round. */
+  update(song: Song): void;
+  playing(): SessionPlaying;
+  queued(): SessionQueued;
+}
+
+/**
+ * Plays the Session view: each track loops the clip launched on it, every launch landing on the next bar line. Nothing
+ * plays until a clip is launched; the clock runs from Play, counting bars as the metronome does.
+ */
+export function playSession(songIn: Song, click = false, launches: SessionQueued = {}): SessionPlayer {
+  let song = songIn;
+  const ctx = new AudioContext();
+  void ctx.resume().catch(() => {});
+  const master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+  const noiseBuf = noise(ctx);
+  const spb = 60 / song.tempo;
+  const start = ctx.currentTime + 0.08;
+  const strips = new Map<string, AudioNode>();
+  const strip = (t: Track) => { let s = strips.get(t.id); if (!s) { s = trackStrip(ctx, t, master, spb); strips.set(t.id, s); } return s; };
+  const playing: SessionPlaying = {};
+  const queued: SessionQueued = { ...launches };
+  let scheduled = 0;
+  let stopped = false;
+  // Launches asked for before Play land on the first beat.
+  const land = (at: number) => {
+    for (const [id, slot] of Object.entries(queued)) {
+      if (slot === null) delete playing[id]; else playing[id] = { slot, start: at };
+      delete queued[id];
+    }
+  };
+  land(0);
+  const schedule = () => {
+    if (stopped) return;
+    const until = (ctx.currentTime - start) / spb + 2;
+    while (scheduled < until - 1e-9) {
+      // Up to the next bar line, where any waiting launch lands.
+      const bar = nextBar(scheduled + 1e-6);
+      const to = Math.min(until, bar);
+      const at = (b: number) => start + b * spb;
+      if (click) for (let b = Math.ceil(scheduled - 1e-6); b < to - 1e-9; b++) if (at(b) >= ctx.currentTime) tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
+      const heard = new Set(audible(song).map((t) => t.id));
+      for (const t of song.tracks) {
+        const now = playing[t.id];
+        const clip = now ? t.slots?.[now.slot] : null;
+        if (!now || !clip || !heard.has(t.id) || t.instrumentOn === false) continue;
+        const length = clip.bars * BEATS_PER_BAR;
+        const out = strip(t);
+        for (const { note: n, at: b } of clipHits(clip.notes, length, now.start, scheduled, to)) {
+          if (at(b) < ctx.currentTime) continue;
+          // A note is cut at the clip's end, so it does not ring over the next time round.
+          const lengthIn = Math.min(n.length, length - n.start);
+          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(b), n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
+          else tone(ctx, out, t.instrument, n.pitch, at(b), lengthIn * spb, n.velocity, t.sound);
+        }
+      }
+      scheduled = to;
+      if (Math.abs(scheduled - bar) < 1e-6) land(bar);
+    }
+  };
+  schedule();
+  const timer = window.setInterval(schedule, 250);
+  return {
+    stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
+    beat() { return Math.max(0, (ctx.currentTime - start) / spb); },
+    launch(trackId, slot) { queued[trackId] = slot; },
+    update(next) { song = next; },
+    playing() { return { ...playing }; },
+    queued() { return { ...queued }; },
   };
 }

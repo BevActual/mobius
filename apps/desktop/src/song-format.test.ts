@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -87,6 +87,26 @@ describe('a track\'s mix and instrument settings', () => {
     expect(again.tracks.map((t) => [t.pan, t.kit])).toEqual(s.tracks.map((t) => [t.pan, t.kit]));
     expect(again.tracks[0]!.sound).toEqual(s.tracks[0]!.sound);
     expect(writeSong(s)).not.toContain('"pan":0');
+  });
+});
+
+describe('the Session view\'s clips', () => {
+  it('keeps clips in their slots, kept to a clip\'s lengths and to their notes inside it, and scene names', () => {
+    const read = parseSong(JSON.stringify({ version: 1, scenes: ['Verse', '', 'Chorus'], tracks: [{ id: 't1', instrument: 'bass', name: 'Bass', notes: [], slots: [null, { bars: 3, notes: [{ pitch: 40, start: 1, length: 1 }, { pitch: 41, start: 9, length: 1 }] }, null, 'nonsense'] }] }));
+    if (!('song' in read)) throw new Error('not read');
+    const t = read.song.tracks[0]!;
+    expect(t.slots).toEqual([null, { name: 'Bass', bars: 2, notes: [{ pitch: 40, start: 1, length: 1, velocity: 0.8 }] }]);
+    expect(sceneCount(read.song)).toBe(4);
+    expect([0, 1, 2, 3].map((i) => sceneName(read.song, i))).toEqual(['Verse', '2', 'Chorus', '4']);
+    const again = parseSong(writeSong(read.song));
+    if (!('song' in again)) throw new Error('not read');
+    expect(again.song).toEqual(read.song);
+  });
+  it('leaves slots out of a song with no clips', () => {
+    const read = parseSong(JSON.stringify({ version: 1, tracks: [{ id: 't1', instrument: 'bass', notes: [], slots: [null, null] }] }));
+    if (!('song' in read)) throw new Error('not read');
+    expect(read.song.tracks[0]!.slots).toBeUndefined();
+    expect(writeSong(read.song)).not.toContain('slots');
   });
 });
 

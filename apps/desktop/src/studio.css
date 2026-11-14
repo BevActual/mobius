@@ -182,3 +182,37 @@
 .studio-fx-body { display: grid; gap: var(--sp-3); }
 .studio-fx-chain > .ui-button { flex: none; }
 .studio-steps { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-2) var(--sp-3); }
+
+/* ---------- Session view: a column per track, a row per scene, and the scenes' own column at the end ---------- */
+.studio-session { display: grid; grid-template-columns: repeat(var(--cols), minmax(calc(var(--sp-8) * 4), calc(var(--sp-8) * 5))) calc(var(--sp-8) * 5); align-content: start; min-width: min-content; }
+.studio-session-row { display: grid; grid-column: 1 / -1; grid-template-columns: subgrid; border-bottom: var(--hairline-w) solid var(--line); }
+.studio-session-heads { position: sticky; top: 0; z-index: 2; background: var(--paper); height: var(--row-h); }
+.studio-session-head { display: flex; align-items: center; min-width: 0; padding: 0 var(--sp-1); border-right: var(--hairline-w) solid var(--line); }
+.studio-session-head[aria-current] { background: var(--sel); }
+.studio-session-head[data-muted] { opacity: 0.55; }
+.studio-session-name { display: flex; align-items: center; gap: var(--sp-2); min-width: 0; width: 100%; height: 100%; padding: 0 var(--sp-1); border: 0; background: none; color: var(--ink); font: inherit; font-weight: var(--fw-semibold); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: default; }
+.studio-scene-head { display: flex; align-items: center; padding: 0 var(--sp-2); color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.studio-slot { position: relative; display: flex; align-items: stretch; min-width: 0; height: var(--row-list); padding: 2px; border-right: var(--hairline-w) solid var(--line); }
+.studio-slot-empty { flex: 1; border: 0; border-radius: var(--radius-small); background: none; cursor: default; }
+.studio-slot-empty:hover, .studio-slot-empty:focus-visible { background: color-mix(in srgb, var(--tc) 14%, transparent); outline: none; }
+.studio-slot-empty:hover::after, .studio-slot-empty:focus-visible::after { content: "+"; color: var(--muted); }
+/* A clip: its colour, a launch button at its start, and how far round it is while it plays. */
+.studio-slot > .studio-clip-launch { flex: none; width: var(--row-list); height: auto; border-radius: var(--radius-small) 0 0 var(--radius-small); background: color-mix(in srgb, var(--tc) 70%, var(--paper)); color: var(--on-content); }
+.studio-slot > .studio-clip-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
+.studio-slot[data-playing] > .studio-clip-launch { background: var(--ink); color: var(--paper); }
+.studio-clip-body { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; padding: 0 var(--sp-2); border: 0; border-radius: 0 var(--radius-small) var(--radius-small) 0; background: var(--tc); color: var(--on-content); font: inherit; text-align: left; overflow: hidden; cursor: default; }
+.studio-clip-body:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.studio-slot[aria-selected="true"] .studio-clip-body { box-shadow: inset 0 0 0 calc(var(--hairline-w) * 2) var(--ink); }
+.studio-slot[data-queued] .studio-clip-body { outline: calc(var(--hairline-w) * 1.5) dashed var(--ink); outline-offset: -3px; }
+.studio-clip-round { position: absolute; left: 0; bottom: 0; height: 3px; width: calc(var(--p) * 100%); background: var(--on-content); }
+.studio-slot > .studio-clip-stop { flex: 1; width: auto; height: auto; color: var(--muted); }
+.studio-slot > .studio-clip-stop svg, .studio-scene-launch svg { width: var(--sp-3); height: var(--sp-3); fill: currentColor; stroke: none; }
+.studio-scene { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; height: var(--row-list); padding: 0 var(--sp-1); }
+.studio-scene-name { flex: 1; min-width: 0; height: calc(var(--row-list) - 6px); padding: 0 var(--sp-1); border: var(--hairline-w) solid transparent; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; }
+.studio-scene-name:hover { border-color: var(--line); }
+.studio-scene-name:focus { border-color: var(--ink); outline: none; }
+.studio-session-stops .studio-slot { border-right-color: transparent; }
+.studio-clip-title { flex: none; min-width: 0; width: calc(var(--sp-8) * 4); height: calc(var(--row-list) - 8px); padding: 0 var(--sp-1); border: var(--hairline-w) solid transparent; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; }
+.studio-clip-title:hover { border-color: var(--line); }
+.studio-clip-title:focus { border-color: var(--ink); outline: none; }
+.studio-pick-clip { margin: var(--sp-4) var(--sp-3); }

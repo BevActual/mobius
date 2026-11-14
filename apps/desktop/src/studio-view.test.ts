@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -143,5 +143,21 @@ describe('drum steps', () => {
     expect(on.find((n) => n.pitch === 38 && n.start === 4.5)).toEqual({ pitch: 38, start: 4.5, length: 0.25, velocity: 1 });
     expect(setStep(on, 1, 38, 2, 0.5).filter((n) => n.start === 4.5)).toHaveLength(1);
     expect(setStep(on, 1, 38, 2, 0)).toEqual(setStep(hits, 9, 99, 0, 0));
+  });
+});
+
+describe('a clip in the Session view', () => {
+  const notes = [{ start: 0 }, { start: 2 }];
+  it('goes round its own length from where it was launched', () => {
+    expect(clipHits(notes, 4, 8, 8, 16).map((h) => h.at)).toEqual([8, 10, 12, 14]);
+    // Asked for partway round: only the hits still to come, at their place in the loop.
+    expect(clipHits(notes, 4, 8, 13, 18).map((h) => h.at)).toEqual([14, 16]);
+    expect(clipHits(notes, 4, 8, 4, 8)).toEqual([]);
+  });
+  it('lands a launch on the next bar line', () => {
+    expect(nextBar(0)).toBe(0);
+    expect(nextBar(0.5)).toBe(4);
+    expect(nextBar(4)).toBe(4);
+    expect(nextBar(7.99)).toBe(8);
   });
 });

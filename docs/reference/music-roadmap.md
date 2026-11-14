@@ -23,6 +23,7 @@ not designs to copy.
 
 | Habit | In Music | Status |
 | --- | --- | --- |
+| Two views of a song | **Session** is a grid of clips, a column per track and a row per scene, for trying parts against each other live: a clip loops from the next bar when launched, and a scene launches its whole row. **Arrange** is the song from start to end. The switch is in the toolbar. | Building |
 | One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Building |
 | The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Next |
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
@@ -113,7 +114,8 @@ notes for good, so the file always shows what you hear.
 | Mobius's parts | Parts Mobius writes are dashed until you keep them. | Have |
 | Sections | Named parts of the song (verse, chorus) to move and repeat. | Next |
 | Time signature and tempo changes | Changes partway through a song. | Next |
-| Scenes | Short loops for each track that you start and stop live, to try ideas before arranging. | Later |
+| Scenes | Short loops for each track that you start and stop live, to try ideas before arranging (the Session view). | Building |
+| Session to song | Recording what you launch in Session into the Arrange view, and dragging clips between the two. | Next |
 | Groups | Tracks folded into a group with one level. | Later |
 | Edit many tracks | Editing notes on several tracks at once. | Later |
 | Swing | A feel applied to any part. | Later |

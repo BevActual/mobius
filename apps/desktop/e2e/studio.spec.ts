@@ -223,6 +223,39 @@ test('a drum kit has a pad per drum with its own settings, and its notes can be 
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 38)).toMatchObject({ start: 1, length: 0.25 });
 });
 
+test('the Session view has clips to launch in scenes, each with its own notes, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start();
+  await shell().getByRole('radio', { name: 'Session' }).click();
+  const grid = shell().getByRole('grid', { name: 'Clips' });
+  // A click on an empty slot makes a one-bar clip there and opens its notes in the bottom area.
+  await grid.getByRole('button', { name: 'New clip on Keys, scene 1' }).click();
+  await expect.poll(() => (saved().tracks[0] as { slots?: unknown[] }).slots).toEqual([{ name: 'Keys 1', bars: 1, notes: [] }]);
+  await shell().getByRole('grid', { name: 'Notes of Keys' }).getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 5, y: 6 } });
+  await expect.poll(() => (saved().tracks[0] as { slots?: { notes: unknown[] }[] }).slots?.[0]?.notes).toEqual([{ pitch: 64, start: 0, length: 1, velocity: 0.8 }]);
+  // The arrangement's own notes are left as they were.
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
+  await shell().getByRole('combobox', { name: 'Clip length' }).click();
+  await shell().getByRole('option', { name: '2 bars' }).click();
+  await expect.poll(() => (saved().tracks[0] as { slots?: { bars: number }[] }).slots?.[0]?.bars).toBe(2);
+  // A scene is named, and launching it plays its row.
+  await grid.getByRole('button', { name: 'New clip on Bass, scene 1' }).click();
+  await grid.getByRole('textbox', { name: 'Scene 1 name' }).fill('Verse');
+  await expect.poll(() => (saved() as { scenes?: string[] }).scenes).toEqual(['Verse']);
+  await grid.getByRole('button', { name: 'Launch scene Verse' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'true');
+  await grid.getByRole('button', { name: 'Stop all clips' }).click();
+  await expect(grid.getByRole('button', { name: 'Launch Keys 1, scene Verse' })).toHaveAttribute('aria-pressed', 'false', { timeout: 6000 });
+  await shell().getByRole('button', { name: 'Stop', exact: true }).click();
+  // A clip's menu duplicates it into the slot below.
+  await grid.getByRole('button', { name: 'Bass 1, 1 bar' }).click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Bass 1' }).getByRole('menuitem', { name: 'Duplicate' }).click();
+  await expect.poll(() => (saved().tracks[1] as { slots?: { name: string }[] }).slots?.map((c) => c.name)).toEqual(['Bass 1', 'Bass 1']);
+  // Arrange is the song from start to end again.
+  await shell().getByRole('radio', { name: 'Arrange' }).click();
+  await expect(tracks()).toBeVisible();
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

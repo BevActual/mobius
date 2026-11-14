@@ -89,9 +89,19 @@ export function freshEffectId(track: { fx?: readonly { id: string }[] }): string
   return `fx${n}`;
 }
 
+/**
+ * A clip in the Session view: a short loop of notes for one track, started and stopped live. Its notes start from the
+ * clip's own beat 0 and it goes round every `bars` bars.
+ */
+export interface Clip { name: string; bars: number; notes: SongNote[] }
+export const CLIP_BARS = [1, 2, 4, 8, 16] as const;
+/** The rows of the Session view are scenes: one clip slot per track in each. */
+export const MIN_SCENES = 4;
+export const MAX_SCENES = 64;
+
 /** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[] }
-export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[] }
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
+export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
   { pitch: 46, name: 'Open hat' }, { pitch: 42, name: 'Closed hat' }, { pitch: 45, name: 'Tom' }, { pitch: 39, name: 'Clap' }, { pitch: 38, name: 'Snare' }, { pitch: 36, name: 'Kick' },
@@ -133,6 +143,24 @@ export const drumKit = (kit: KitSound, pad: DrumPad): KitSound => ({ tune: Math.
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const num = (v: unknown, fallback: number, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v * 1000) / 1000)) : fallback);
 
+/** Notes from a file, kept to `beats`; a note may also be written [pitch, start, length, velocity]. */
+function readNotes(list: unknown, beats: number): SongNote[] {
+  return (Array.isArray(list) ? list : []).slice(0, 5000).flatMap((n): SongNote[] => {
+    const v = Array.isArray(n) ? { pitch: n[0], start: n[1], length: n[2], velocity: n[3] } : obj(n);
+    if (typeof v.pitch !== 'number' || typeof v.start !== 'number') return [];
+    return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, beats), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1) }];
+  }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}
+
+/** A clip from a file: its length snapped to the lengths a clip can be, and its notes kept inside it. */
+function readClip(v: unknown, fallbackName: string): Clip | null {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return null;
+  const c = obj(v);
+  const asked = num(c.bars, 1, 1, 16);
+  const bars = [...CLIP_BARS].reverse().find((b) => b <= asked) ?? 1;
+  return { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * BEATS_PER_BAR).filter((n) => n.start < bars * BEATS_PER_BAR) };
+}
+
 export function parseSong(text: string): { song: Song } | { error: string } {
   let raw: unknown;
   try { raw = JSON.parse(text || '{}'); } catch (e) { return { error: e instanceof Error ? e.message : 'not JSON' }; }
@@ -145,12 +173,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     while (taken.has(id)) id = `${id}-${i}`;
     taken.add(id);
     const instrument = INSTRUMENTS.includes(to.instrument as Instrument) ? (to.instrument as Instrument) : 'piano';
-    const notes = (Array.isArray(to.notes) ? to.notes : []).slice(0, 5000).flatMap((n): SongNote[] => {
-      // A note may also be written [pitch, start, length, velocity].
-      const v = Array.isArray(n) ? { pitch: n[0], start: n[1], length: n[2], velocity: n[3] } : obj(n);
-      if (typeof v.pitch !== 'number' || typeof v.start !== 'number') return [];
-      return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, bars * BEATS_PER_BAR), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1) }];
-    }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+    const notes = readNotes(to.notes, bars * BEATS_PER_BAR);
     const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
     const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, notes };
     if (to.instrumentOn === false) track.instrumentOn = false;
@@ -167,6 +190,9 @@ export function parseSong(text: string): { song: Song } | { error: string } {
       return [{ id: typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`, kind, on: eo.on !== false, ...params } as Effect];
     });
     if (fx.length > 0) track.fx = fx;
+    const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name));
+    while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
+    if (slots.length > 0) track.slots = slots;
     const ko = obj(to.kit);
     if (instrument === 'drums' && Object.keys(ko).length > 0) {
       track.kit = Object.fromEntries((Object.keys(KIT_RANGE) as (keyof KitSound)[]).map((k) => [k, num(ko[k], KIT_DEFAULTS[k], KIT_RANGE[k].lo, KIT_RANGE[k].hi)])) as unknown as KitSound;
@@ -183,12 +209,19 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     return track;
   });
-  return { song: { version: 1, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks } };
+  const song: Song = { version: 1, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
+  if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
+  return { song };
 }
+
+/** How many scenes the Session view shows: the named ones, the deepest clip, and never fewer than four. */
+export const sceneCount = (song: Song): number => Math.min(MAX_SCENES, Math.max(MIN_SCENES, song.scenes?.length ?? 0, ...song.tracks.map((t) => t.slots?.length ?? 0)));
+/** A scene's name, or its number when it has none. */
+export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || String(i + 1);
 
 /** One note to a line, so a change reads as the notes it touched. */
 export function writeSong(song: Song): string {
-  const lines = ['{', '  "version": 1,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, '  "tracks": ['];
+  const lines = ['{', '  "version": 1,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []), '  "tracks": ['];
   song.tracks.forEach((t, i) => {
     const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
@@ -202,6 +235,7 @@ export function writeSong(song: Song): string {
       if (Object.keys(pads).length > 0) head.pads = pads;
     }
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
+    if (t.slots && t.slots.some((c) => c !== null)) head.slots = t.slots;
     const last = i === song.tracks.length - 1;
     if (t.notes.length === 0) { lines.push(`    ${JSON.stringify({ ...head, notes: [] })}${last ? '' : ','}`); return; }
     lines.push(`    ${JSON.stringify(head).slice(0, -1)}, "notes": [`);

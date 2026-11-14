@@ -2,11 +2,12 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { play, previewNote, type Player } from './studio-audio';
+import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { SessionGrid } from './StudioSession';
 import { GRIDS, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -219,6 +220,9 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
 }
 
 const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Devices' }] as const;
+/** The song's two views: its clips to launch and try against each other, and the song laid out from start to end. */
+const VIEWS = [{ id: 'session', name: 'Session' }, { id: 'arrange', name: 'Arrange' }] as const;
+const LENGTH_CHOICES = CLIP_BARS.map((b) => ({ value: String(b), label: `${b} ${b === 1 ? 'bar' : 'bars'}` }));
 const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
@@ -388,6 +392,12 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [editing, setEditing] = useState(false);
   /** What the bottom area shows for the chosen track: its notes or its devices. */
   const [detail, setDetail] = useState<'notes' | 'device'>('notes');
+  /** Which view of the song is shown: its clips (Session) or the song from start to end (Arrange). */
+  const [view, setView] = useState<'session' | 'arrange'>('arrange');
+  /** The chosen clip's slot on the chosen track, in the Session view; its notes are the ones in the bottom area. */
+  const [clipAt, setClipAt] = useState<number | null>(null);
+  const session = useRef<SessionPlayer | null>(null);
+  const [sessionNow, setSessionNow] = useState<{ playing: SessionPlaying; queued: SessionQueued }>({ playing: {}, queued: {} });
   const [undoText, setUndoText] = useState<string | null>(null);
   useEffect(() => {
     const el = page.current;
@@ -462,14 +472,28 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
 
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
   const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
-  const stop = useCallback(() => { player.current?.stop(); player.current = null; setPlaying(false); }, []);
+  const stop = useCallback(() => {
+    player.current?.stop(); player.current = null;
+    session.current?.stop(); session.current = null;
+    setSessionNow({ playing: {}, queued: {} });
+    setPlaying(false);
+  }, []);
+  /** Starts the Session view's clock, with any clips to launch on its first beat. */
+  const startSession = useCallback((launches: SessionQueued = {}) => {
+    if (!song) return;
+    player.current?.stop(); player.current = null;
+    session.current?.stop();
+    session.current = playSession(song, click, launches);
+    setBeat(0);
+    setPlaying(true);
+  }, [song, click]);
   const startAt = useCallback((from: number) => {
     if (!song) return;
     player.current?.stop();
     player.current = play(song, from >= song.bars * BEATS_PER_BAR ? 0 : from, cycleFor(song), click);
     setPlaying(true);
   }, [song, cycleFor, click]);
-  const start = useCallback(() => startAt(Math.floor(beat)), [startAt, beat]);
+  const start = useCallback(() => (view === 'session' ? startSession() : startAt(Math.floor(beat))), [view, startSession, startAt, beat]);
   const seek = useCallback((to: number) => {
     setBeat(to);
     if (playing && song) { player.current?.stop(); player.current = play(song, to, cycleFor(song), click); }
@@ -479,6 +503,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!playing) return;
     let id = 0;
     const tick = () => {
+      const live = session.current;
+      if (live) {
+        setBeat(live.beat());
+        setSessionNow({ playing: live.playing(), queued: live.queued() });
+        id = requestAnimationFrame(tick);
+        return;
+      }
       const p = player.current;
       if (!p || !song) return;
       const b = p.beat();
@@ -490,10 +521,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     return () => cancelAnimationFrame(id);
   }, [playing, song, loop, stop]);
   useEffect(() => () => player.current?.stop(), []);
-  useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); }, [songs.page?.path, stop]);
+  useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
+  // Each view plays its own way, so switching stops what is playing.
+  useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
   useEffect(() => { setPicked(new Set()); }, [selected]);
   // Restart from where it is when the notes or the loop and click change, so what is heard is what is shown.
   useEffect(() => {
+    if (session.current && song) { session.current.update(song); return; }
     if (playing && song) { const b = player.current?.beat() ?? 0; player.current?.stop(); player.current = play(song, Math.floor(b), cycleFor(song), click); }
   }, [songs.text, cycleFor, click]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -557,11 +591,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
 
   const track = song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null;
   const total = song.bars * BEATS_PER_BAR;
+  // In the Session view the bottom area edits the chosen clip, which goes round on its own length.
+  const clip: Clip | null = view === 'session' && track && clipAt !== null ? (track.slots?.[clipAt] ?? null) : null;
+  const span = clip ? clip.bars * BEATS_PER_BAR : total;
+  const spanBars = span / BEATS_PER_BAR;
+  // Where the playhead is in what the bottom area shows: the clip's own time round, or nowhere when it is not playing.
+  const clipPlaying = clip && track ? sessionNow.playing[track.id] : undefined;
+  const rollBeat = view === 'arrange' ? beat : clip && clipPlaying && clipPlaying.slot === clipAt ? (((beat - clipPlaying.start) % span) + span) % span : -1;
   const inKey = keyPitches(song.key);
   const drums = track?.instrument === 'drums';
   // Drum rows grow to fill the editor (there are only six), up to a comfortable pad size.
   // The list fits its tracks and the row for adding one after them.
-  const listFor = Math.max(96, Math.min(arrangeH ?? fitTracks(song.tracks.length + 1, rowSize.ruler + 1, rowSize.lane + 1) + 1, Math.max(96, pageH - EDITOR_MIN)));
+  const listFor = Math.max(96, Math.min(arrangeH ?? fitTracks(view === 'session' ? sceneCount(song) + 2 : song.tracks.length + 1, rowSize.ruler + 1, rowSize.lane + 1) + 1, Math.max(96, pageH - EDITOR_MIN)));
   const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((pageH - listFor - 1 - 38 - VEL_H - 2) / DRUMS.length))) : ROW_H;
   const keysW = drums ? DRUM_KEYS_W : KEYS_W;
   const rows = drums ? DRUMS.map((d) => ({ pitch: d.pitch, label: d.name, shade: false, black: false, c: true })) : Array.from({ length: MELODY_TOP - MELODY_BOTTOM + 1 }, (_, i) => MELODY_TOP - i).map((p) => ({ pitch: p, label: noteName(p), shade: !inKey.has(p % 12), black: isBlack(p), c: p % 12 === 0 }));
@@ -569,7 +610,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const rbw = ROLL_BEAT_W * zoom;
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
-  const notes = track?.notes ?? [];
+  const notes = clip ? clip.notes : (track?.notes ?? []);
   const pickedNotes = notes.filter((_, i) => picked.has(i));
 
   const setNotes = (fn: (n: SongNote[]) => { notes: SongNote[]; picked: Set<number> } | SongNote[], tag = '') => {
@@ -578,14 +619,16 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     change((s) => {
       const t = s.tracks.find((x) => x.id === track.id);
       if (!t) return;
-      const out = fn(t.notes);
-      if (Array.isArray(out)) t.notes = out; else { t.notes = out.notes; after.picked = out.picked; }
+      const c = clip && clipAt !== null ? t.slots?.[clipAt] : null;
+      const out = fn(c ? c.notes : t.notes);
+      const put = (v: SongNote[]) => { if (c) c.notes = v; else t.notes = v; };
+      if (Array.isArray(out)) put(out); else { put(out.notes); after.picked = out.picked; }
     }, tag);
     if (after.picked) setPicked(after.picked);
   };
   /** Moves by rows rather than semitones, so drums step from one drum to the next. */
   const moveByRows = (db: number, dr: number) => setNotes((n) => {
-    const moved = moveNotes(n, picked, db, 0, total);
+    const moved = moveNotes(n, picked, db, 0, span);
     if (dr === 0) return moved;
     const can = moved.notes.every((x, i) => !moved.picked.has(i) || (rowOf(x.pitch) + dr >= 0 && rowOf(x.pitch) + dr < rows.length));
     if (!can) return moved;
@@ -609,12 +652,75 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   /** Opens the notes editor on a track, scrolled to `fromBeat`. */
   const openNotes = (id: string, fromBeat = 0) => {
     setSelected(id);
+    setClipAt(null);
     setEditing(true);
     setDetail('notes');
     requestAnimationFrame(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
   };
   /** Opens the bottom area on a track's devices, as double-clicking a track's name does in a studio. */
   const openDevice = (id: string) => { setSelected(id); setEditing(true); setDetail('device'); };
+
+  // The Session view: clips in slots, launched on the next bar.
+  /** Opens a clip's notes in the bottom area, as clicking a clip does in a studio. */
+  const chooseClip = (id: string, slot: number) => { setSelected(id); setClipAt(slot); setPicked(new Set()); setEditing(true); setDetail('notes'); };
+  const setSlot = (id: string, slot: number, c: Clip | null) => setTrack(id, (t) => {
+    const slots = [...(t.slots ?? [])];
+    while (slots.length <= slot) slots.push(null);
+    slots[slot] = c;
+    while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
+    if (slots.length > 0) t.slots = slots; else delete t.slots;
+  });
+  const createClip = (id: string, slot: number) => {
+    const t = song.tracks.find((x) => x.id === id);
+    if (!t) return;
+    setSlot(id, slot, { name: `${t.name} ${slot + 1}`.slice(0, 60), bars: 1, notes: [] });
+    chooseClip(id, slot);
+  };
+  const setClip = (id: string, slot: number, fn: (c: Clip) => void, tag = '') => setTrack(id, (t) => { const c = t.slots?.[slot]; if (c) fn(c); }, tag);
+  const launch = (id: string, slot: number | null) => {
+    if (session.current) session.current.launch(id, slot);
+    else if (slot !== null) startSession({ [id]: slot });
+  };
+  /** Launches a row: each track plays its clip in that scene, and a track with none there stops. */
+  const launchScene = (slot: number) => {
+    const row = Object.fromEntries(song.tracks.map((t) => [t.id, t.slots?.[slot] ? slot : null]));
+    if (session.current) for (const [id, at] of Object.entries(row)) session.current.launch(id, at);
+    else startSession(Object.fromEntries(Object.entries(row).filter(([, at]) => at !== null)));
+  };
+  const stopAll = () => { for (const t of song.tracks) session.current?.launch(t.id, null); };
+  const deleteClip = (id: string, slot: number) => {
+    if (sessionNow.playing[id]?.slot === slot) session.current?.launch(id, null);
+    setSlot(id, slot, null);
+    if (selected === id && clipAt === slot) setClipAt(null);
+  };
+  /** Copies a clip into the next empty slot below it on the same track. */
+  const duplicateClip = (id: string, slot: number) => {
+    const t = song.tracks.find((x) => x.id === id);
+    const c = t?.slots?.[slot];
+    if (!t || !c) return;
+    let to = slot + 1;
+    while (to < MAX_SCENES && t.slots?.[to]) to++;
+    if (to >= MAX_SCENES) return;
+    setSlot(id, to, structuredClone(c));
+    chooseClip(id, to);
+  };
+  const clipMenu = (id: string, slot: number, x: number, y: number) => {
+    const c = song.tracks.find((t) => t.id === id)?.slots?.[slot];
+    if (!c) return;
+    chooseClip(id, slot);
+    setMenu({ x, y, label: c.name, items: [
+      { label: 'Launch', run: () => launch(id, slot) },
+      { label: 'Duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateClip(id, slot) },
+      { label: 'Delete', keys: 'Delete', run: () => deleteClip(id, slot) },
+    ] });
+  };
+  const setSceneName = (slot: number, name: string) => change((s) => {
+    const names = [...(s.scenes ?? [])];
+    while (names.length <= slot) names.push('');
+    names[slot] = name;
+    s.scenes = names;
+  }, `scene:${slot}`);
+  const addScene = () => change((s) => { const names = [...(s.scenes ?? [])]; const n = sceneCount(s); while (names.length < n + 1) names.push(''); s.scenes = names; });
   const cycle = cycleFor(song);
   const loopWords = cycle && range ? (cycle.to - cycle.from === BEATS_PER_BAR ? `bar ${cycle.from / BEATS_PER_BAR + 1}` : `bars ${cycle.from / BEATS_PER_BAR + 1} to ${cycle.to / BEATS_PER_BAR}`) : 'the whole song';
   /** A press on the ruler: along its top it picks the bars to loop (twice quickly loops the whole song); below, it moves the playhead. */
@@ -664,7 +770,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // ---------- The piano roll's pointer ----------
   const at = (e: { clientX: number; clientY: number }) => {
     const r = inner.current!.getBoundingClientRect();
-    return { beat: Math.max(0, Math.min(total - 1e-6, (e.clientX - r.left - keysW) / rbw)), row: Math.max(0, Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / rowH))) };
+    return { beat: Math.max(0, Math.min(span - 1e-6, (e.clientX - r.left - keysW) / rbw)), row: Math.max(0, Math.min(rows.length - 1, Math.floor((e.clientY - r.top) / rowH))) };
   };
   const onRollDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !track) return;
@@ -727,7 +833,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       else if (!g.moved && g.wasPicked && g.shift) setPicked(new Set([...picked].filter((i) => i !== g.hit)));
       else if (!g.moved && g.wasPicked && !g.shift) setPicked(new Set([g.hit]));
     } else if (g.kind === 'stretch') {
-      if (g.dl !== 0) setNotes((n) => stretchNotes(n, g.these, g.dl, total, Math.min(grid, 0.25)));
+      if (g.dl !== 0) setNotes((n) => stretchNotes(n, g.these, g.dl, span, Math.min(grid, 0.25)));
     } else if (g.box) {
       const p = at(e);
       const box = { b0: g.beat, b1: p.beat, r0: g.row, r1: p.row };
@@ -743,7 +849,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     } else {
       const pitch = rows[g.row]!.pitch;
       const length = drums ? Math.min(grid, 0.25) : drawLength;
-      setNotes((n) => addNote(n, { pitch, start: snap(g.beat, grid), length: Math.min(length, total - snap(g.beat, grid)), velocity: 0.8 }));
+      setNotes((n) => addNote(n, { pitch, start: snap(g.beat, grid), length: Math.min(length, span - snap(g.beat, grid)), velocity: 0.8 }));
       previewNote(track.instrument, pitch, undefined, undefined, track.sound, track.kit);
     }
   };
@@ -754,13 +860,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if ((k === 'Delete' || k === 'Backspace') && picked.size) { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (k === 'ArrowLeft' || k === 'ArrowRight') {
       if (!picked.size) return;
       const d = (k === 'ArrowLeft' ? -1 : 1) * (e.shiftKey ? BEATS_PER_BAR : grid);
-      if (e.altKey) setNotes((n) => stretchNotes(n, picked, d, total, Math.min(grid, 0.25))); else moveByRows(d, 0);
+      if (e.altKey) setNotes((n) => stretchNotes(n, picked, d, span, Math.min(grid, 0.25))); else moveByRows(d, 0);
     } else if (k === 'ArrowUp' || k === 'ArrowDown') {
       if (!picked.size) return;
       const dir = k === 'ArrowUp' ? -1 : 1;
       if (drums) moveByRows(0, dir);
-      else setNotes((n) => moveNotes(n, picked, 0, -dir * (e.shiftKey ? 12 : 1), total));
-    } else if (mod && k.toLowerCase() === 'a') { setPicked(new Set(notes.map((_, i) => i))); } else if (mod && k.toLowerCase() === 'd') { setNotes((n) => duplicateNotes(n, picked, total)); } else if (mod && k.toLowerCase() === 'c') { copied.current = pickedNotes; } else if (mod && k.toLowerCase() === 'x') { copied.current = pickedNotes; setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (mod && k.toLowerCase() === 'v') { const from = snap(beat, grid); setNotes((n) => pasteNotes(n, copied.current, from, total)); } else if (!mod && k.toLowerCase() === 'q') { setNotes((n) => quantizeNotes(n, picked, grid, total)); } else if (k === 'Escape') { setPicked(new Set()); } else return;
+      else setNotes((n) => moveNotes(n, picked, 0, -dir * (e.shiftKey ? 12 : 1), span));
+    } else if (mod && k.toLowerCase() === 'a') { setPicked(new Set(notes.map((_, i) => i))); } else if (mod && k.toLowerCase() === 'd') { setNotes((n) => duplicateNotes(n, picked, span)); } else if (mod && k.toLowerCase() === 'c') { copied.current = pickedNotes; } else if (mod && k.toLowerCase() === 'x') { copied.current = pickedNotes; setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); } else if (mod && k.toLowerCase() === 'v') { const from = snap(beat, grid); setNotes((n) => pasteNotes(n, copied.current, from, span)); } else if (!mod && k.toLowerCase() === 'q') { setNotes((n) => quantizeNotes(n, picked, grid, span)); } else if (k === 'Escape') { setPicked(new Set()); } else return;
     e.preventDefault();
     e.stopPropagation();
   };
@@ -819,6 +925,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
     // Shift+Tab switches the bottom area between the chosen track's notes and its devices, opening it if it's shut.
     if (e.key === 'Tab' && e.shiftKey && !mod && !e.altKey && track) { if (!editing) { setEditing(true); setDetail('device'); } else setDetail((d) => (d === 'notes' ? 'device' : 'notes')); return true; }
+    if (track && clip && clipAt !== null && t.closest('.studio-session')) {
+      if (mod && k === 'd') { duplicateClip(track.id, clipAt); return true; }
+      if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) { deleteClip(track.id, clipAt); return true; }
+    }
     if (!track || !t.closest('.studio-tracks')) return false;
     if (mod && k === 'd') { duplicateTrack(track.id); return true; }
     if (!mod && (e.key === 'Delete' || e.key === 'Backspace')) { deleteTrack(track.id); return true; }
@@ -832,7 +942,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   return (
     <section className="studio-page" aria-label="Music" ref={page} data-editing={editing || undefined}>
       <ToolbarControls label="Transport">
-        <IconButton className="studio-play" label={playing ? 'Pause' : 'Play'} keys="Space" pressed={playing} icon={<Icon d={playing ? 'M6.5 4.5v11M13.5 4.5v11' : ICONS.play} />} onClick={() => (playing ? stop() : start())} />
+        <IconButton className="studio-play" label={playing ? 'Pause' : 'Play'} keys="Space" pressed={playing} icon={<Icon d={playing ? 'M5.5 4.5h3.5v11H5.5zM11 4.5h3.5v11H11z' : ICONS.play} />} onClick={() => (playing ? stop() : start())} />
         <IconButton label="Stop" title={playing ? 'Stop' : 'Back to the start'} keys={playing ? 'Space' : 'Enter'} icon={<Icon d={ICONS.stop} />} onClick={stopOrRewind} />
         <span className="studio-sep" aria-hidden="true" />
         <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
@@ -842,11 +952,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
         </label>
         <span className="studio-readout studio-meter" aria-label="Meter: 4 beats to a bar" title="Every song is in 4 / 4 for now">4 / 4</span>
         <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
+        <span className="studio-sep" aria-hidden="true" />
+        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing && !(fitDevices) ? { height: listH, flex: 'none' } : {}) }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
+          {view === 'session' ? (
+            <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
+              onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
+              onStopAll={stopAll} onSceneName={setSceneName} onAddScene={addScene} onClipMenu={clipMenu} />
+          ) : <>
           <div className="studio-ruler-row">
             <div className="studio-ruler-head" />
             <div
@@ -903,6 +1020,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             </div>
             <span className="studio-playhead" style={{ left: HEAD_W + beat * bw }} aria-hidden="true" />
           </div>
+          </>}
         </div>
         {editing && track && (
           <>
@@ -922,14 +1040,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <div className="studio-editor" data-fit={fitDevices || undefined} data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
               <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Devices'}>
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
+                {clip && clipAt !== null && detail === 'notes' && <>
+                  <input className="studio-clip-title" aria-label="Clip name" value={clip.name} maxLength={60} onChange={(e) => setClip(track.id, clipAt, (c) => { c.name = e.target.value; }, `clip-name:${track.id}:${clipAt}`)} />
+                  <Select inline label="Clip length" value={String(clip.bars)} choices={LENGTH_CHOICES} onChange={(b) => setClip(track.id, clipAt, (c) => { c.bars = Number(b); c.notes = c.notes.filter((n) => n.start < c.bars * BEATS_PER_BAR); })} />
+                </>}
                 <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
-                {detail === 'notes' && <>
+                {detail === 'notes' && (view === 'arrange' || clip) && <>
                 {drums && <Segmented label="View" value={drumView} choices={DRUM_VIEWS} onChange={setDrumView} />}
                 {drums && drumView === 'steps' ? (
-                  <Select inline label="Bar" value={String(Math.min(stepBar, song.bars - 1))} choices={Array.from({ length: song.bars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
+                  <Select inline label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
                 ) : <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
-                {!(drums && drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>}
+                {!(drums && drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
                 <span className="studio-gap" />
                 {velocity !== null && !(drums && drumView === 'steps') ? (
                   <>
@@ -943,18 +1065,20 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               </div>
           {detail === 'device' ? (
             <StudioDevice track={track} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+          ) : view === 'session' && !clip ? (
+            <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
           ) : drums && drumView === 'steps' ? (
             <div className="studio-steps">
-              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, song.bars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, song.bars - 1), STEP_ROWS.map((r) => Number(r.id)))}
-                now={playing && Math.floor(beat / BEATS_PER_BAR) === Math.min(stepBar, song.bars - 1) ? Math.floor((beat % BEATS_PER_BAR) * 4) : undefined}
-                onChange={(row, step, v) => { const pitch = Number(STEP_ROWS[row]!.id); if (v > 0) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); setNotes((n) => setStep(n, Math.min(stepBar, song.bars - 1), pitch, step, v), 'steps'); }} />
+              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), STEP_ROWS.map((r) => Number(r.id)))}
+                now={playing && rollBeat >= 0 && Math.floor(rollBeat / BEATS_PER_BAR) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat % BEATS_PER_BAR) * 4) : undefined}
+                onChange={(row, step, v) => { const pitch = Number(STEP_ROWS[row]!.id); if (v > 0) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v), 'steps'); }} />
             </div>
           ) : <>
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
               className="studio-roll-inner"
               ref={inner}
-              style={{ width: keysW + total * rbw, height: rows.length * rowH, ['--row' as string]: `${rowH}px`, ['--keys' as string]: `${keysW}px` }}
+              style={{ width: keysW + span * rbw, height: rows.length * rowH, ['--row' as string]: `${rowH}px`, ['--keys' as string]: `${keysW}px` }}
               onPointerDown={onRollDown}
               onPointerMove={onRollMove}
               onPointerUp={onRollUp}
@@ -967,7 +1091,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                     className="studio-row-cells"
                     role="gridcell"
                     aria-label={`${r.label} row`}
-                    style={{ width: total * rbw, backgroundSize: `${rbw * grid}px 100%, ${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }}
+                    style={{ width: span * rbw, backgroundSize: `${rbw * grid}px 100%, ${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }}
                   >
                     {notes.map((n, j) => {
                       if (n.pitch !== r.pitch) return null;
@@ -996,12 +1120,12 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 const [r0, r1] = box.r0 < box.r1 ? [box.r0, box.r1] : [box.r1, box.r0];
                 return <span className="studio-box" style={{ left: keysW + b0 * rbw, width: (b1 - b0) * rbw, top: r0 * rowH, height: (r1 - r0 + 1) * rowH }} aria-hidden="true" />;
               })()}
-              <span className="studio-playhead" style={{ left: keysW + beat * rbw }} aria-hidden="true" />
+              {rollBeat >= 0 && <span className="studio-playhead" style={{ left: keysW + rollBeat * rbw }} aria-hidden="true" />}
             </div>
           </div>
           <div className="studio-vel" role="group" aria-label={`Velocity of ${track.name}`} style={{ height: VEL_H, ['--keys' as string]: `${keysW}px` }}>
             <span className="studio-vel-label" aria-hidden="true">Velocity</span>
-            <div className="studio-vel-inner" style={{ width: total * rbw, transform: `translateX(${-scrollX}px)`, backgroundSize: `${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }} onPointerMove={onVelMove} onPointerUp={onVelUp} onPointerCancel={() => setVelDrag(null)}>
+            <div className="studio-vel-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)`, backgroundSize: `${rbw}px 100%, ${rbw * BEATS_PER_BAR}px 100%` }} onPointerMove={onVelMove} onPointerUp={onVelUp} onPointerCancel={() => setVelDrag(null)}>
               {notes.map((n, j) => {
                 const v = shownVelocity(j, n.velocity);
                 const label = drums ? (DRUMS.find((d) => d.pitch === n.pitch)?.name ?? noteName(n.pitch)) : noteName(n.pitch);
@@ -1022,7 +1146,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                   />
                 );
               })}
-              <span className="studio-playhead" style={{ left: beat * rbw }} aria-hidden="true" />
+              {rollBeat >= 0 && <span className="studio-playhead" style={{ left: rollBeat * rbw }} aria-hidden="true" />}
             </div>
           </div>
           </>}

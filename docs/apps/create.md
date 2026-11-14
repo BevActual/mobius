@@ -92,6 +92,13 @@ A small studio for writing songs as notes.
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
   (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
+- **Two views**, switched in the toolbar. **Arrange** is the song from start to end, as below. **Session** is a grid
+  of clips, a column per track and a row per scene. Click an empty slot to make a clip there; its notes open in the
+  bottom area, where Clip length sets how long it goes round (1 to 16 bars). Press a clip's triangle to launch it: it
+  starts on the next bar and loops until the track is stopped or another of its clips is launched. A scene's triangle
+  launches its whole row, and a scene's name is yours to type. The squares under the grid stop a track, or every clip.
+  Right-click a clip to duplicate it into the slot below or delete it (Ctrl+D and Delete work on the chosen clip).
+  Clips are saved in the song as each track's `slots`, and scene names as `scenes`.
 - **Tracks** are numbered rows in compact sizes: the number in the track's colour, the name and instrument on the left,
   the notes as solid clips in the track's colour along the bars. The whole song fits across the window; Ctrl and the
   scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to edit the notes (Enter),

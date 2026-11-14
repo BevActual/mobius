@@ -246,3 +246,21 @@ export function setStep(notes: readonly SongNote[], bar: number, pitch: number, 
   if (velocity > 0) kept.push({ pitch, start: at, length: 0.25, velocity: Math.min(1, velocity) });
   return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
+
+/**
+ * Where a looping clip's notes fall in [from, to): the clip started at `start` (in beats played) and goes round every
+ * `length` beats. Each hit is the note and the beat it plays on.
+ */
+export function clipHits<N extends { start: number }>(notes: readonly N[], length: number, start: number, from: number, to: number): { note: N; at: number }[] {
+  if (length <= 0 || to <= from) return [];
+  const hits: { note: N; at: number }[] = [];
+  for (const note of notes) {
+    // The first time round that this note is at or after `from`.
+    let at = start + note.start + Math.max(0, Math.ceil((from - start - note.start) / length - 1e-9)) * length;
+    for (; at < to - 1e-9; at += length) if (at >= from - 1e-9) hits.push({ note, at });
+  }
+  return hits.sort((a, b) => a.at - b.at);
+}
+
+/** The next bar line at or after `beat`, where a launched clip starts, so it lands in time with what is playing. */
+export const nextBar = (beat: number): number => Math.max(0, Math.ceil(beat / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR);
