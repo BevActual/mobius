@@ -45,11 +45,11 @@
 .agent-meta { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .agent-muted { color: var(--muted); }
 .agent-lede { margin: 0 0 var(--sp-3); color: var(--muted); }
-.agent-part .act-list { margin: 0 calc(-1 * var(--sp-2)); }
+.agent-part .act-list { margin: 0; border-top: 1px solid var(--line); }
 /* From Mobius in the sidebar: how many agents' runs wait for you, in Mobius's colour, as Mail's Suggested replies. */
 .agent-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
 /* Times and counts are tabular figures (Instrument). */
-.agent-page .act-state, .agent-when { font-variant-numeric: tabular-nums; }
+.agent-when { font-variant-numeric: tabular-nums; }
 /* An empty Recent runs: one plain line and the New action. */
 .agent-empty { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
 /* Loading: placeholder bars in the page's column, no spinner. */

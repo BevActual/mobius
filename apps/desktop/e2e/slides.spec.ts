@@ -28,6 +28,8 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().locator('.slides-page');
 const nav = (): Locator => page().getByRole('navigation', { name: 'Slides' });
+// The Format inspector is a tab in the right panel, before Mobius; Slides' buttons are in the shared toolbar.
+const format = (): Locator => shell().getByRole('complementary', { name: 'Format' });
 function file() { return path.join(userData, 'workspace', 'slides', 'Presentations', 'Offsite kickoff.md'); }
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -50,14 +52,14 @@ test('a deck is a Markdown file of slides, edited on the slide and played full s
   await title.fill('Plan 2027 together');
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('## Plan 2027 together\n- Three days, eight people');
   await page().getByRole('textbox', { name: 'Presenter notes' }).fill('Keep it short.');
-  await page().getByRole('button', { name: 'Add slide' }).click();
+  await shell().getByRole('button', { name: 'Add slide' }).click();
   await expect(nav().getByRole('button')).toHaveCount(3);
   await page().getByRole('textbox', { name: 'Title' }).fill('Questions?');
-  await page().getByRole('radiogroup', { name: 'Slide style' }).getByRole('radio', { name: 'Accent' }).click();
+  await format().getByRole('radiogroup', { name: 'Slide style' }).getByRole('radio', { name: 'Accent' }).click();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('---\n\n<!-- style: accent -->\n## Questions?');
   expect(fs.readFileSync(file(), 'utf8')).toContain('Notes:\nKeep it short.');
 
-  await page().getByRole('button', { name: 'Play', exact: true }).click();
+  await shell().getByRole('button', { name: 'Play', exact: true }).click();
   const play = shell().getByRole('dialog', { name: /^Playing slide 3 of 3/ });
   await expect(play).toContainText('Questions?');
   await shell().keyboard.press('ArrowLeft');
@@ -71,9 +73,9 @@ test('a deck is a Markdown file of slides, edited on the slide and played full s
   await shell().keyboard.press('Escape');
   await expect(shell().getByRole('dialog', { name: /^Playing/ })).toHaveCount(0);
   // The inspector's Deck pane holds the deck's length and Play from the start.
-  await page().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
-  await expect(page().getByRole('complementary', { name: 'Format' })).toContainText('3 slides');
-  await page().getByRole('button', { name: 'Play from the start' }).click();
+  await format().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
+  await expect(format()).toContainText('3 slides');
+  await format().getByRole('button', { name: 'Play from the start' }).click();
   await expect(shell().getByRole('dialog', { name: /^Playing slide 1 of 3/ })).toBeVisible();
   await shell().keyboard.press('Escape');
 });
@@ -95,12 +97,12 @@ test('slides are picked, moved and duplicated from the navigator by key, and Und
   await shell().keyboard.press('Control+z');
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toBe(DECK);
   // Undo puts the pick back on the slide first picked (slide 2); a new slide from a layout comes in after it.
-  await page().getByRole('button', { name: 'Choose a layout' }).click();
+  await shell().getByRole('button', { name: 'Choose a layout' }).click();
   await shell().getByRole('menu', { name: 'Slide layouts' }).getByRole('menuitem', { name: 'Section' }).click();
   await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toContain('<!-- style: dark -->\n### Part 2\n## Section title');
   // Delete is one click because Undo brings the slide back.
-  await page().getByRole('button', { name: 'Delete slide' }).click();
+  await shell().getByRole('button', { name: 'Delete slide' }).click();
   await expect(nav().getByRole('button')).toHaveCount(2);
   await shell().keyboard.press('Control+z');
   await expect(nav().getByRole('button', { name: /^Slide 3: Section title/ })).toBeVisible();
@@ -111,6 +113,8 @@ test('slides Mobius adds are dashed in the navigator until kept', async () => {
     callsTool('files-edit', { path: 'slides/Presentations/Offsite kickoff.md', old: '- No laptops on day two\n', new: '- No laptops on day two\n\n---\n\n### Agenda\n## Three days\n- 12: arrive\n- 13: plan on the terrace\n- 14: wrap up\n' }),
     says(['I added an agenda slide.']),
   ]);
+  // The right panel opens on Slides' Format tab; Mobius is the tab after it.
+  await shell().getByRole('tablist', { name: 'Panel' }).getByRole('tab', { name: 'Mobius' }).click();
   const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
   await composer.fill('Add an agenda slide');
   await composer.press('Enter');
@@ -135,13 +139,13 @@ test('a picture is kept beside the deck, a skipped slide is left out of Play, an
   await expect(page().locator('.slides-canvas img.slide-picture')).toBeVisible();
   // Slide 1 is skipped and moves on with Push.
   await nav().getByRole('button', { name: /^Slide 1: Lisbon/ }).click();
-  await page().getByRole('switch', { name: 'Skip this slide' }).check();
-  await page().getByRole('combobox', { name: 'Transition' }).selectOption('push');
+  await format().getByRole('switch', { name: 'Skip this slide' }).check();
+  await format().getByRole('combobox', { name: 'Transition' }).selectOption('push');
   await expect.poll(() => fs.readFileSync(file(), 'utf8')).toMatch(/^<!-- style: warm -->\n<!-- skip -->\n<!-- transition: push -->\n### Offsite 2027/);
   await expect(nav().getByRole('button', { name: /^Slide 1: Lisbon, together \(skipped\)/ })).toBeVisible();
   // Play from the start begins on the first slide not skipped.
-  await page().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
-  await page().getByRole('button', { name: 'Play from the start' }).click();
+  await format().getByRole('radiogroup', { name: 'Show' }).getByRole('radio', { name: 'Deck' }).click();
+  await format().getByRole('button', { name: 'Play from the start' }).click();
   await expect(shell().getByRole('dialog', { name: /^Playing slide 2 of 2/ })).toContainText('Plan next year');
   await shell().keyboard.press('Escape');
 });

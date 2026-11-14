@@ -66,12 +66,13 @@ function headingsOf(editor: Editor | null): { level: number; text: string; pos: 
   return out;
 }
 
+/** The paragraph styles, with the editor's own keys for each (Ctrl+Alt and a number, or C for code). */
 const STYLES = [
-  { id: 'p', label: 'Body' },
-  { id: 'h1', label: 'Title' },
-  { id: 'h2', label: 'Heading' },
-  { id: 'h3', label: 'Subheading' },
-  { id: 'code', label: 'Code' },
+  { id: 'p', label: 'Body', key: '0' },
+  { id: 'h1', label: 'Title', key: '1' },
+  { id: 'h2', label: 'Heading', key: '2' },
+  { id: 'h3', label: 'Subheading', key: '3' },
+  { id: 'code', label: 'Code', key: 'C' },
 ] as const;
 
 /** The document's typeface: the app's sans-serif, as in Notes, or a serif for those who write long pieces in one. Per device. */
@@ -245,7 +246,6 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     // less often is at the top of the window's one ⋯ (AppMenu): the other lists and marks, Insert, Mobius's writing tools
     // and the document's options.
     const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
-    const tick = (on: boolean) => (on ? <Icon d="m5 10.5 3.2 3L15 6.5" /> : undefined);
     const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
     const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => (
       <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
@@ -262,7 +262,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       { label: 'Insert a table', icon: tableIcon, run: run((c) => c.insertTable({ rows: 3, cols: 3, withHeaderRow: true })) },
       ...(extras.onFile ? [{ label: 'Insert a picture or file…', run: extras.onFile }] : []),
       { label: 'Insert a divider', run: run((c) => c.setHorizontalRule()) },
-      { label: 'Insert a code block', run: run((c) => c.toggleCodeBlock()) },
+      { label: 'Insert a code block', keys: `${mod}Alt+C`, run: run((c) => c.toggleCodeBlock()) },
       // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
       ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
       ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
@@ -275,8 +275,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       <ToolbarControls label="Docs">
         <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
           <span className="doc-bar-group">
-            <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, icon: tick(state.style === s.id), run: () => setStyle(s.id) }))}
-              trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="The paragraph's style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
+            <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, checked: state.style === s.id, keys: `${mod}Alt+${s.key}`, run: () => setStyle(s.id) }))}
+              trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="Paragraph style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
             {btn('Bold', `Bold (${mod}B)`, state.bold, run((c) => c.toggleBold()), <b>B</b>)}
             {btn('Italic', `Italic (${mod}I)`, state.italic, run((c) => c.toggleItalic()), <i>I</i>)}
             {btn('Underline', `Underline (${mod}U)`, state.underline, run((c) => c.toggleUnderline()), <u>U</u>, { gives: true })}

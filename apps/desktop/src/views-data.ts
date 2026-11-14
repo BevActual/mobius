@@ -1,7 +1,8 @@
 import type { CalendarEvent, ConversationInfo, MailMessage, Notebook, ScheduleInfo, TaskItem } from '@mobius/shared';
 import type { AppId } from './apps';
-import { eventsOn, localDate } from './calendar-view';
+import { calendarColor, eventsOn, localDate } from './calendar-view';
 import { upcoming, whenLabel } from './desk-view';
+import { timeLabel, weekdayLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { dueLabel, smartView } from './tasks-view';
 import { tileKind, type Tile } from './views-format';
@@ -10,6 +11,8 @@ import { tileKind, type Tile } from './views-format';
 export interface ViewSources {
   tasks: Record<string, TaskItem[]>;
   events: readonly CalendarEvent[];
+  /** The calendars' names, in the Calendar app's order: an event's dot takes its calendar's colour from it. */
+  calendars: readonly string[];
   mail: { messages: readonly MailMessage[]; unread: number; accounts: number };
   notes: readonly Notebook[];
   conversations: readonly ConversationInfo[];
@@ -23,7 +26,7 @@ export type TileTarget =
   | { kind: 'conversation'; id: string }
   | { kind: 'schedules' };
 
-export interface TileRow { key: string; text: string; detail?: string; tone?: 'accent' | 'late'; target: TileTarget }
+export interface TileRow { key: string; text: string; detail?: string; tone?: 'mobius' | 'late'; /** Content colour, as a dot: an event's calendar. */ color?: string; target: TileTarget }
 export interface TileContent {
   app: AppId;
   /** The big number, with what it counts ("3 due"), or nothing for a tile that is a list only. */
@@ -39,7 +42,6 @@ export interface TileContent {
 
 const ROWS = { small: 4, wide: 6 } as const;
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 function take<T>(list: readonly T[], tile: Tile): { shown: T[]; more: number } {
   const n = ROWS[tile.size];
@@ -85,9 +87,9 @@ export function tileContent(tile: Tile, src: ViewSources, now: Date): TileConten
         app, more, target: { kind: 'app', app: 'calendar' },
         count: { value: found.length, label: week ? (found.length === 1 ? 'event this week' : 'events this week') : found.length === 1 ? 'event left today' : 'events left today' },
         rows: shown.map(({ e, day }) => {
-          const time = e.allDay ? 'All day' : hhmm(localDate(e.start));
-          const when = week && day.getDate() !== now.getDate() ? `${day.toLocaleDateString('en-GB', { weekday: 'short' })} ${time}` : time;
-          return { key: `${e.id}@${e.start}`, text: e.title || 'Untitled event', detail: when, target: { kind: 'app' as const, app: 'calendar' as const } };
+          const time = e.allDay ? 'All day' : timeLabel(localDate(e.start));
+          const when = week && day.getDate() !== now.getDate() ? `${weekdayLabel(day)} ${time}` : time;
+          return { key: `${e.id}@${e.start}`, text: e.title || 'Untitled event', detail: when, color: calendarColor(src.calendars, e.calendar), target: { kind: 'app' as const, app: 'calendar' as const } };
         }),
         empty: week ? 'Nothing in the next seven days.' : 'Nothing else today.',
       };
@@ -122,7 +124,7 @@ export function tileContent(tile: Tile, src: ViewSources, now: Date): TileConten
       return {
         app, more, target: { kind: 'app', app: 'agent' },
         count: waiting.length > 0 ? { value: waiting.length, label: 'waiting for you' } : null,
-        rows: shown.map(({ c, needs }) => ({ key: c.id, text: c.title.trim() || 'New conversation', detail: needs ? 'Needs you' : 'Working', ...(needs ? { tone: 'accent' as const } : {}), target: { kind: 'conversation' as const, id: c.id } })),
+        rows: shown.map(({ c, needs }) => ({ key: c.id, text: c.title.trim() || 'New conversation', detail: needs ? 'Needs you' : 'Working', ...(needs ? { tone: 'mobius' as const } : {}), target: { kind: 'conversation' as const, id: c.id } })),
         empty: working.length === 0 && waiting.length === 0 ? 'All quiet. Nothing is waiting for you.' : '',
       };
     }

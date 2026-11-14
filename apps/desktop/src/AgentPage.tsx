@@ -1,7 +1,10 @@
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, type Bot, type BotDraft, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
 import { describeWhen } from './settings/Schedules';
-import { ConversationRow } from './ActivityApp';
+import { relativeTime } from './relative-time';
+import { dateTimeLabel } from './dates';
+import { APP_ICONS } from './Rail';
+import './activity.css';
 import { agentSchedules, mayTouch, modelChoices } from './bot-view';
 import { modeOf } from './approval-modes';
 import { usePreferences } from './usePreferences';
@@ -125,6 +128,28 @@ export function agentWhen(bot: { id: string; name: string }, schedules: readonly
   return runs.length === 0 ? 'When you ask' : `When you ask, and ${runs.map((s) => `${describeWhen(s.days, s.time).replace(/^(Every day|Weekdays|Weekends)/, (m) => m.toLowerCase())}${s.enabled ? '' : ' (off)'}`).join('; ')}`;
 }
 
+/**
+ * One of an agent's runs, as a row of Activity: a mark while it waits on you or is working, the line icon, its title
+ * with its state under it, and when it was last active at the trailing edge. Open opens the session.
+ */
+function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => void }) {
+  const waiting = c.activity === 'needs_you' || c.waiting > 0;
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : 'Finished';
+  return (
+    <li className="act-row">
+      <button type="button" className="act-main" onClick={() => onOpen(c.id)}>
+        <span className="act-mark" data-state={waiting ? 'needs' : c.activity} aria-hidden="true" />
+        <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS.agent}</svg>
+        <span className="act-text">
+          <span className="act-what">{c.title || 'A session'}</span>
+          <span className="act-sub">{state}</span>
+        </span>
+        <time className="act-time" dateTime={new Date(c.updated_ms).toISOString()} title={dateTimeLabel(c.updated_ms)}>{relativeTime(c.updated_ms, Date.now())}</time>
+      </button>
+    </li>
+  );
+}
+
 /** One titled part of the page: a plain heading over its content, parts divided by hairlines (no cards). */
 function Part({ title, action, children, label }: { title: string; action?: ReactNode; children: ReactNode; label?: string }) {
   return (
@@ -190,7 +215,7 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
           <p className="agent-text agent-muted agent-empty">No runs yet.<button type="button" className="btn" onClick={() => onNewSession(bot.id)}>New session</button></p>
         ) : (
           <ul className="act-list" role="list" aria-label={`Sessions with ${bot.name}`}>
-            {sessions.slice(0, 20).map((c) => <ConversationRow key={c.id} c={c} onOpen={onOpenSession} />)}
+            {sessions.slice(0, 20).map((c) => <RunRow key={c.id} c={c} onOpen={onOpenSession} />)}
           </ul>
         )}
       </Part>

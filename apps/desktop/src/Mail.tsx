@@ -1,6 +1,6 @@
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppMenu, AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppMenu, AppSidebar, KeyHintBar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
 import { TryAnotherContext } from './ReviewBar';
@@ -18,6 +18,9 @@ const CATEGORIES: { id: MailCategory | 'all'; label: string }[] = [
 ];
 
 /** "9:02" today, "Thu" this week, "3 Nov" before. */
+/** The message list's keys, shown in the key-hint bar until they are learned. */
+const MAIL_KEYS = [{ keys: 'E', label: 'Archive' }, { keys: 'R', label: 'Reply' }, { keys: 'H', label: 'Later' }] as const;
+
 export function when(ms: number, now = new Date()): string {
   if (!ms) return '';
   const d = new Date(ms);
@@ -383,6 +386,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
           <div role="listbox" aria-label="Messages" className="mail-list" title="E archives, R replies, H reminds you later" aria-keyshortcuts="E R H">
             {mail.messages.length === 0 && <p className="side-empty">{mail.query ? 'Nothing matches.' : v.kind === 'box' && v.box === 'flagged' ? 'No flagged mail. Flag a message to keep it here.' : v.kind === 'box' && v.box === 'archive' ? 'Nothing archived. Press E on a message to archive it.' : 'Nothing here.'}</p>}
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
+            {mail.messages.length > 0 && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
           </div>
         )}
       </div>
