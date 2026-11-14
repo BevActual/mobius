@@ -2595,3 +2595,6 @@ body { font-variant-numeric: tabular-nums; }
 .chat .approval-actions .approval-quiet { padding: 0 6px; }
 .chat .approval-actions .btn { flex: none; white-space: nowrap; }
 .chat .approval .approval-head { color: var(--mobius); font-weight: var(--fw-medium); letter-spacing: 0; }
+/* While it waits, the step's own line goes: the card's bold line already says what it is. It returns once answered. */
+.chat .tool[data-status="waiting"]:has(.approval) > .tool-line { display: none; }
+.chat .tool[data-status="waiting"]:has(.approval) > .approval { margin-top: 0; }
