@@ -3,7 +3,7 @@
 //! It is a state machine, not a loop, because a turn has to be able to stop and wait for a person to answer a
 //! permission question while everything else keeps running. The caller does the model calls (on worker threads) and
 //! feeds the results back in.
-use std::collections::VecDeque;
+use std::collections::{HashSet, VecDeque};
 
 use mobius_core::core::{Core, CoreError, InvokeOutcome};
 use mobius_core::model::{Duration, Principal};
@@ -241,6 +241,37 @@ pub struct Turn {
     plan: Option<(u32, u32)>,
     /// The person had control for a while: the next request tells the model to read what is there again.
     reread: bool,
+    /// Calls of the model call in flight that ran as soon as the model finished writing each one.
+    early: Early,
+}
+
+/// A model round's calls that run while the model is still writing the rest, so the person sees each change as soon
+/// as it is made rather than after the whole answer. Only a call that would run without asking anyone does; the first
+/// one that would not stops this for the round, so calls still happen in the order the model wrote them.
+#[derive(Default)]
+struct Early {
+    /// Calls that ran or are running, in order, with what came back (already wrapped for the model) once it has.
+    calls: Vec<(ToolCall, Option<(String, bool)>)>,
+    /// Calls whose start the window was told about, so they are not announced twice.
+    announced: HashSet<String>,
+    /// The call the application is running.
+    running: Option<String>,
+    /// Calls that arrived while another was running, to start after it.
+    waiting: VecDeque<ToolCall>,
+    /// A call could not run early: the rest of this round waits for the model's whole answer.
+    stopped: bool,
+    /// The model's answer is in and is waiting for the running call: these are the round's calls still to go through.
+    held: Option<VecDeque<ToolCall>>,
+}
+
+impl Early {
+    fn result(&self, call_id: &str) -> Option<&(String, bool)> {
+        self.calls.iter().find(|(c, _)| c.id == call_id).and_then(|(_, r)| r.as_ref())
+    }
+
+    fn has(&self, call_id: &str) -> bool {
+        self.calls.iter().any(|(c, _)| c.id == call_id)
+    }
 }
 
 impl Turn {
@@ -366,7 +397,7 @@ impl Engine {
         let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
         let at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_millis()).ok());
         history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup), at_ms });
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default() };
         let step = self.next_model_call(core, &mut turn);
         (turn, step)
     }
@@ -387,17 +418,102 @@ impl Engine {
                     None => self.fail(turn, error.to_string()),
                 }
             }
+            // Calls already ran while the answer was coming: they happened, so they are kept, and the model is asked
+            // again with their results rather than the turn failing with changes it cannot account for.
+            Err(_) if !turn.early.calls.is_empty() => self.on_model(turn, core, Ok(Completion { text: String::new(), tool_calls: Vec::new(), stop: crate::provider::StopReason::ToolUse, usage: None })),
             Err(error) => self.fail(turn, error.to_string()),
             Ok(completion) => {
                 if !completion.text.is_empty() {
                     turn.events.push(AgentEvent::Message { text: completion.text.clone() });
                 }
-                turn.messages.push(Message::Assistant { text: completion.text, tool_calls: completion.tool_calls.clone() });
-                if completion.tool_calls.is_empty() {
+                // Every call that ran early is in the answer, even if the finished answer somehow lost it.
+                let mut calls: Vec<ToolCall> = turn.early.calls.iter().filter(|(c, _)| !completion.tool_calls.iter().any(|t| t.id == c.id)).map(|(c, _)| c.clone()).collect();
+                calls.extend(completion.tool_calls);
+                turn.early.waiting.clear();
+                turn.messages.push(Message::Assistant { text: completion.text, tool_calls: calls.clone() });
+                if calls.is_empty() {
                     return self.finish(turn);
                 }
-                self.run_calls(turn, core, completion.tool_calls.into(), true)
+                self.run_calls(turn, core, calls.into(), true)
             }
+        }
+    }
+
+    /// The model finished writing one call of the answer it is still giving. It runs now if it can run without asking
+    /// anyone; otherwise it, and every call after it in this answer, waits for the whole answer as before.
+    pub fn on_early_call(&self, turn: &mut Turn, core: &mut Core, call: ToolCall) -> Step {
+        if turn.finished || turn.summarizing.is_some() || turn.early.stopped || turn.early.held.is_some() || turn.early.has(&call.id) {
+            return Step::Idle;
+        }
+        if !self.runs_early(turn, core, &call) {
+            turn.early.stopped = true;
+            return Step::Idle;
+        }
+        if turn.early.running.is_some() {
+            turn.early.waiting.push_back(call);
+            return Step::Idle;
+        }
+        self.start_early(turn, core, call)
+    }
+
+    /// A call that changes nothing the person has not already allowed, and is not one the engine itself has to stop for.
+    fn runs_early(&self, turn: &Turn, core: &Core, call: &ToolCall) -> bool {
+        if call.name == ASK_TOOL || !call.arguments.is_object() || turn.setup.plan_only {
+            return false;
+        }
+        if call.name == TODO_TOOL {
+            return true;
+        }
+        let Some(capability) = core.capability_of(&call.name) else { return false };
+        if turn.setup.read_only && !is_reading(capability.as_str()) {
+            return false;
+        }
+        if untrusted::is_consequential(&call.name, capability.as_str(), &call.arguments) && untrusted::came_from(&turn.messages, &call.arguments).is_some() {
+            return false;
+        }
+        core.would_run_in(&self.config.principal, &call.name, &call.arguments, turn.setup.project.as_deref())
+    }
+
+    fn start_early(&self, turn: &mut Turn, core: &mut Core, first: ToolCall) -> Step {
+        let mut next = Some(first);
+        while let Some(call) = next.take().or_else(|| turn.early.waiting.pop_front()) {
+            turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
+            turn.early.announced.insert(call.id.clone());
+            if call.name == TODO_TOOL {
+                let (content, is_error) = self.todo(turn, &call);
+                self.early_done(turn, call, content, is_error);
+                continue;
+            }
+            match self.execute(core, &call, false, turn.setup.project.as_deref()) {
+                Executed::Result { content, is_error } => self.early_done(turn, call, content, is_error),
+                Executed::Dispatch => {
+                    let step = Step::RunTool { call_id: call.id.clone(), name: call.name.clone(), arguments: call.arguments.clone() };
+                    turn.early.running = Some(call.id.clone());
+                    turn.early.calls.push((call, None));
+                    return step;
+                }
+                // Not expected, as it was checked first; the rules changed meanwhile. Nobody is asked mid-answer: the
+                // question is taken back and the call goes through as usual once the answer is in.
+                Executed::Park(request_id) => {
+                    core.withdraw(request_id).ok();
+                    turn.early.stopped = true;
+                    turn.early.waiting.clear();
+                }
+                Executed::Fatal(_) => {
+                    turn.early.stopped = true;
+                    turn.early.waiting.clear();
+                }
+            }
+        }
+        Step::Idle
+    }
+
+    fn early_done(&self, turn: &mut Turn, call: ToolCall, content: String, is_error: bool) {
+        turn.events.push(AgentEvent::ToolResult { call_id: call.id.clone(), name: call.name.clone(), is_error });
+        if let Some(entry) = turn.early.calls.iter_mut().find(|(c, _)| c.id == call.id) {
+            entry.1 = Some((content, is_error));
+        } else {
+            turn.early.calls.push((call, Some((content, is_error))));
         }
     }
 
@@ -405,6 +521,23 @@ impl Engine {
     pub fn on_tool_result(&self, turn: &mut Turn, core: &mut Core, call_id: &str, result: Result<String, String>) -> Step {
         if turn.finished {
             return Step::Done;
+        }
+        if turn.early.running.as_deref() == Some(call_id) {
+            turn.early.running = None;
+            let Some(call) = turn.early.calls.iter().find(|(c, _)| c.id == call_id).map(|(c, _)| c.clone()) else { return Step::Idle };
+            core.record_external_result(&self.config.principal, &call.name, result.is_ok()).ok();
+            let (content, is_error) = match result {
+                Ok(content) => (untrusted::wrap(&call.name, &call.arguments, &truncate(content)), false),
+                Err(message) => (untrusted::wrap(&call.name, &call.arguments, &truncate(message)), true),
+            };
+            self.early_done(turn, call, content, is_error);
+            if let Some(queue) = turn.early.held.take() {
+                return self.run_calls(turn, core, queue, true);
+            }
+            return match turn.early.waiting.pop_front() {
+                Some(next) => self.start_early(turn, core, next),
+                None => Step::Idle,
+            };
         }
         if turn.dispatched.as_ref().is_none_or(|d| d.call.id != call_id) {
             return Step::Idle;
@@ -492,11 +625,25 @@ impl Engine {
         if turn.finished {
             return;
         }
-        let open: Vec<ToolCall> = match (turn.parked.take(), turn.dispatched.take().or_else(|| turn.asking.take())) {
+        let mut open: Vec<ToolCall> = match (turn.parked.take(), turn.dispatched.take().or_else(|| turn.asking.take())) {
             (Some(parked), _) => std::iter::once(parked.call).chain(parked.remaining).collect(),
             (None, Some(dispatched)) => std::iter::once(dispatched.call).chain(dispatched.remaining).collect(),
             (None, None) => Vec::new(),
         };
+        let early = std::mem::take(&mut turn.early);
+        match early.held {
+            // The answer is in and waits on a call still running: it and the rest of the round are closed.
+            Some(held) => open.extend(held),
+            // Stopped while the model was still answering: what already ran is kept, with what came back.
+            None if !early.calls.is_empty() => {
+                turn.messages.push(Message::Assistant { text: String::new(), tool_calls: early.calls.iter().map(|(c, _)| c.clone()).collect() });
+                for (call, result) in early.calls {
+                    let (content, is_error) = result.unwrap_or_else(|| ("cancelled".to_owned(), true));
+                    turn.messages.push(Message::Tool { call_id: call.id, name: call.name, content, is_error });
+                }
+            }
+            None => {}
+        }
         for call in open {
             turn.messages.push(Message::Tool { call_id: call.id, name: call.name, content: "cancelled".to_owned(), is_error: true });
         }
@@ -516,6 +663,7 @@ impl Engine {
 
     fn call_model(&self, core: &Core, turn: &mut Turn) -> Step {
         turn.steps += 1;
+        turn.early = Early::default();
         let request = self.request(core, turn);
         let used = compaction::tokens_of(&request.system, &request.messages, &request.tools);
         turn.events.push(AgentEvent::Context { used, limit: self.budget.context_tokens });
@@ -588,21 +736,25 @@ impl Engine {
 
     fn run_calls(&self, turn: &mut Turn, core: &mut Core, mut queue: VecDeque<ToolCall>, mut announce: bool) -> Step {
         while let Some(call) = queue.pop_front() {
-            if announce {
+            // It ran while the model was still answering: its result is ready, or it is still with the application.
+            if turn.early.has(&call.id) {
+                match turn.early.result(&call.id).cloned() {
+                    Some((content, is_error)) => turn.messages.push(Message::Tool { call_id: call.id.clone(), name: call.name.clone(), content, is_error }),
+                    None => {
+                        queue.push_front(call);
+                        turn.early.held = Some(queue);
+                        return Step::Idle;
+                    }
+                }
+                continue;
+            }
+            if announce && !turn.early.announced.contains(&call.id) {
                 turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
             }
             announce = true;
             if call.name == TODO_TOOL {
-                match parse_todo(&call.arguments) {
-                    Ok(items) => {
-                        let done = items.iter().filter(|i| i.status == "done").count();
-                        let summary = format!("Plan updated: {done} of {} done.", items.len());
-                        turn.plan = Some((u32::try_from(done).unwrap_or(u32::MAX), u32::try_from(items.len()).unwrap_or(u32::MAX)));
-                        turn.events.push(AgentEvent::Todo { items });
-                        self.push_result(turn, &call, summary, false);
-                    }
-                    Err(message) => self.push_result(turn, &call, message, true),
-                }
+                let (content, is_error) = self.todo(turn, &call);
+                self.push_result(turn, &call, content, is_error);
                 continue;
             }
             if call.name == ASK_TOOL {
@@ -711,6 +863,20 @@ impl Engine {
                 eprintln!("mobius-agent: core error during a tool call: {other}");
                 Executed::Fatal("the core failed while running a tool".to_owned())
             }
+        }
+    }
+
+    /// The model's plan, written with todo.write: shown, and counted for the turn's progress.
+    fn todo(&self, turn: &mut Turn, call: &ToolCall) -> (String, bool) {
+        match parse_todo(&call.arguments) {
+            Ok(items) => {
+                let done = items.iter().filter(|i| i.status == "done").count();
+                let summary = format!("Plan updated: {done} of {} done.", items.len());
+                turn.plan = Some((u32::try_from(done).unwrap_or(u32::MAX), u32::try_from(items.len()).unwrap_or(u32::MAX)));
+                turn.events.push(AgentEvent::Todo { items });
+                (summary, false)
+            }
+            Err(message) => (message, true),
         }
     }
 
