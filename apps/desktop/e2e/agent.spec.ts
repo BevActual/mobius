@@ -167,10 +167,10 @@ test('a new person is welcomed, and chooses how much Mobius does before choosing
   mobius = await launch(fixture.origin + '/', { newPerson: true });
   await expect(mobius.shell.getByRole('heading', { name: 'Hello.' })).toBeVisible({ timeout: 15_000 });
   const levels = mobius.shell.getByRole('radiogroup', { name: 'How much should Mobius do?' });
-  // Propose is where a new person starts: Mobius changes the workspace, and the changes wait to be kept.
-  await expect(levels.getByRole('radio', { name: /^Propose/ })).toHaveAttribute('aria-checked', 'true');
-  await levels.getByRole('radio', { name: /^Act/ }).click();
-  await expect(levels.getByRole('radio', { name: /^Act/ })).toHaveAttribute('aria-checked', 'true');
+  // Review changes is where a new person starts: Mobius changes the workspace, and the changes wait to be kept.
+  await expect(levels.getByRole('radio', { name: /^Review changes/ })).toHaveAttribute('aria-checked', 'true');
+  await levels.getByRole('radio', { name: /^Auto/ }).click();
+  await expect(levels.getByRole('radio', { name: /^Auto/ })).toHaveAttribute('aria-checked', 'true');
   expect((await mobius.shell.evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
   await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
 });

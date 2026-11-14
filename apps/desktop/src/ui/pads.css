@@ -42,3 +42,8 @@
 .ui-pad-cell[data-color="stone"] { --swatch: var(--c-stone); }
 .ui-pads-detail { display: grid; gap: var(--sp-2); padding-top: var(--sp-2); border-top: var(--hairline-w) solid var(--line-soft); }
 .ui-pads-detail-name { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+
+/* Fill: the columns share the width equally (each up to --pad-max) and the pads stay square. */
+.ui-pads[data-fill] { justify-content: stretch; }
+.ui-pads[data-fill] .ui-pads-grid { grid-template-columns: repeat(var(--pad-columns), minmax(var(--pad-cell), var(--pad-max))); }
+.ui-pads[data-fill] .ui-pad-cell { width: 100%; height: auto; aspect-ratio: 1; }

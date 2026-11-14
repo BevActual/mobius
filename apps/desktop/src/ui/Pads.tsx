@@ -21,7 +21,7 @@ export interface Pad {
   proposed?: boolean;
 }
 
-export function PadGrid({ label, pads, chosen, onChoose, onPlay, onRelease, lit = [], columns = 4, children, disabled, className }: {
+export function PadGrid({ label, pads, chosen, onChoose, onPlay, onRelease, lit = [], columns = 4, fill, children, disabled, className }: {
   label: string;
   pads: readonly Pad[];
   /** The chosen pad's index. */
@@ -34,6 +34,8 @@ export function PadGrid({ label, pads, chosen, onChoose, onPlay, onRelease, lit 
   /** Pads sounding right now. */
   lit?: readonly number[];
   columns?: number;
+  /** Share the container's width equally between the columns (pads stay square) instead of a fixed pad size. */
+  fill?: boolean;
   /** The chosen pad's settings, shown under the grid. */
   children?: ReactNode;
   disabled?: boolean;
@@ -71,7 +73,7 @@ export function PadGrid({ label, pads, chosen, onChoose, onPlay, onRelease, lit 
   const keyUp = () => { if (pressed !== null) { onRelease?.(pressed); setPressed(null); } };
   const focusable = chosen >= 0 && chosen < pads.length ? chosen : 0;
   return (
-    <div className={className ? `ui-pads ${className}` : 'ui-pads'} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-pads ${className}` : 'ui-pads'} data-disabled={disabled || undefined} data-fill={fill || undefined}>
       <div ref={grid} className="ui-pads-grid" role="group" aria-label={label} style={{ '--pad-columns': columns } as CSSProperties}>
         {pads.map((pad, i) => (
           <button

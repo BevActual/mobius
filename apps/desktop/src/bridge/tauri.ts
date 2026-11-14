@@ -169,7 +169,7 @@ export function createTauriBridge(): MobiusBridge {
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),
     },
     agent: {
-      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
+      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.mode || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
