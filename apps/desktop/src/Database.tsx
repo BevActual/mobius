@@ -11,6 +11,7 @@ import { EmptyState } from './EmptyState';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import './database.css';
+import { afterPaint } from './ui/frame';
 
 /** The empty page's Import asks the sidebar, which holds the file picker. */
 const IMPORT_CSV = 'mobius-database-import-csv';
@@ -282,7 +283,7 @@ function Grid({ columns, rows, sort, onSort, edit }: { columns: string[]; rows: 
                   {typing ? <CellInput start={editText(v)} onDone={(text, byKey) => {
                     edit.setEditing(null);
                     // Finished from the keyboard, the cell keeps focus, so the keys go on working in the grid.
-                    if (byKey) window.requestAnimationFrame(() => table.current?.querySelector<HTMLElement>('td[tabindex="0"]')?.focus());
+                    if (byKey) afterPaint(() => table.current?.querySelector<HTMLElement>('td[tabindex="0"]')?.focus());
                     if (text !== null) void edit.save(i, j, text);
                   }} /> : showCellIn(v, decimals[j] ?? 0)}
                 </td>

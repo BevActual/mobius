@@ -15,6 +15,7 @@ import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { Chart, Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
+import { afterPaint } from './ui/frame';
 
 /** The open sheet's selection, for the Glance in the Mobius panel: the grid publishes it, the panel's Glance reads it. */
 type GlanceSelection = { range: string; facts: { label: string; value: string }[] } | null;
@@ -564,7 +565,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const matchKeys = new Set(matches.map((m) => `${m.r}:${m.c}`));
   const openFind = () => {
     setFinding((f) => f ?? { query: '', at: 0 });
-    requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
+    afterPaint(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const goMatch = (at: number) => {
     if (!finding || matches.length === 0) return;
