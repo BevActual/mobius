@@ -13,6 +13,7 @@ import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult,
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
+import { GlanceSlotContext, ResultSlotContext } from './PanelSlots';
 import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
@@ -614,6 +615,13 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
   const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
   const actionsHere = resting ? appSlot : null;
+  // The Glance and Result slots: Glance at the top of the resting panel and after a result; Result under the last
+  // reply once the turn is done. One host element each, placed where the panel is now (null when there is no place).
+  const [glanceSlot, setGlanceSlot] = useState<HTMLDivElement | null>(null);
+  const [resultSlot, setResultSlot] = useState<HTMLDivElement | null>(null);
+  const done = variant === 'panel' && !desk && settled && lastAssistant >= 0 && lastAssistant === state.items.length - 1 && (state.items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming !== true;
+  const glanceHere = resting || done ? glanceSlot : null;
+  const resultHere = done ? resultSlot : null;
   // Number keys pick an action while the panel has the focus and nothing is being typed.
   useEffect(() => {
     if (!resting) return undefined;
@@ -710,7 +718,11 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </div>
       ) : (
         <>
-          <ActionsSlotContext.Provider value={actionsHere}>{appCard}</ActionsSlotContext.Provider>
+          <ActionsSlotContext.Provider value={actionsHere}>
+            <GlanceSlotContext.Provider value={glanceHere}>
+              <ResultSlotContext.Provider value={resultHere}>{appCard}</ResultSlotContext.Provider>
+            </GlanceSlotContext.Provider>
+          </ActionsSlotContext.Provider>
           <div
             ref={log}
             className="chat-scroll messages"
@@ -728,6 +740,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               ) : configured && variant === 'panel' ? (
                 // Beside an app, never empty: what waits for you, ideas for what is open, then earlier chats.
                 <RestingPanel conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onOpenItem={onOpenItem}
+                  glance={<div ref={setGlanceSlot} className="glance-slot" />}
                   ideas={<ActionsList title={here ? `For ${here.what}` : 'Ideas'} appSlot={setAppSlot} ideaSlot={setStarterSlot} />} />
               ) : (
                 <div className="empty">
@@ -782,6 +795,12 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                       {/* Honesty: the model that answered, in small grey text (a switch to the second model says so above). */}
                       {(() => { const asked = state.items.slice(0, index).findLast((i) => i.kind === 'user'); return asked?.kind === 'user' && asked.model ? <span className="msg-model" title="The model this was sent to">{asked.model}</span> : null; })()}
                     </div>
+                  )}
+                  {done && index === lastAssistant && (
+                    <>
+                      <div ref={setResultSlot} className="result-slot" />
+                      <div ref={setGlanceSlot} className="glance-slot" />
+                    </>
                   )}
                   {speech.state === 'failed' && speech.id === item.id && (
                     <p className="msg-voice-problem" role="alert">
