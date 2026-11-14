@@ -106,13 +106,13 @@
 .cal-editor-group > .cal-editor-row > span { width: 72px; color: var(--ink); font-size: var(--fs-sm); }
 .cal-editor-group input:not([type="checkbox"]), .cal-editor-group select { background: var(--bg) !important; }
 .cal-editor-group > .cal-editor-check { justify-content: space-between; }
+/* The shared day and time fields: the day takes the room, the time keeps enough for "11:45 PM" and its length. */
+.cal-editor-row > .ui-date-field { flex: 1 1 0; min-width: 0; }
+.cal-editor-row > .ui-time-field { flex: 0 0 150px; }
+.cal-editor-row > .ui-field:has(.ui-select) { flex: 0 1 auto; min-width: 0; }
+.cal-editor-group > .ui-switch-row.cal-editor-row > label > span { width: auto; }
 /* All day as a switch. */
-.cal-editor-check input[type="checkbox"] { appearance: none; position: relative; width: 38px; height: 22px; margin: 0 0 0 auto; border-radius: var(--radius-control); background: var(--line); cursor: pointer; transition: background-color var(--dur-med) var(--ease); }
-.cal-editor-check input[type="checkbox"]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: var(--radius-small); background: var(--paper); box-shadow: var(--shadow-2); transition: transform var(--dur-med) var(--ease); }
-.cal-editor-check input[type="checkbox"]:checked { background: var(--ink); }
-.cal-editor-check input[type="checkbox"]:checked::after { transform: translateX(16px); }
-.cal-editor-check input[type="checkbox"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-@media (prefers-reduced-motion: reduce) { .cal-editor-check input, .cal-editor-check input::after, .calendar-page .cal-event { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .calendar-page .cal-event { transition: none; } }
 
 /* The mini month in the sidebar. */
 
@@ -128,23 +128,6 @@
 .cal-suggest-pop .cal-suggestion-actions { margin-top: 6px; display: flex; gap: 4px; justify-content: flex-end; }
 
 /* The event sheet's day and time, written as the person writes them, with a small month to pick from. */
-.cal-editor .cal-field { position: relative; flex: 1; display: flex; align-items: center; min-width: 0; }
-.cal-editor .cal-field-day { flex: 1; min-width: 0; padding-right: 28px !important; }
-.cal-editor .cal-field-time { width: 92px; flex: none; text-align: center; font-variant-numeric: tabular-nums; }
-.cal-editor .cal-field-pick { position: absolute; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); }
-.cal-editor .cal-field-pick:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
-.cal-editor .cal-field-pick svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.cal-editor .cal-field-month { position: absolute; z-index: 5; top: calc(100% + 6px); left: 0; width: 236px; padding: 10px; border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-3); }
-.cal-editor .cal-field-month-head { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
-.cal-editor .cal-field-month-head b { flex: 1; font-size: var(--fs-sm); }
-.cal-editor .cal-field-month-head svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.cal-editor .cal-field-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; text-align: center; }
-.cal-editor .cal-field-days > span { font-size: var(--fs-floor); font-weight: var(--fw-semibold); color: var(--muted); padding-bottom: 4px; }
-.cal-editor .cal-field-days button { height: var(--control-h); border-radius: var(--radius-control); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--ink); }
-.cal-editor .cal-field-days button[data-out] { color: var(--muted); opacity: 0.6; }
-.cal-editor .cal-field-days button[data-today] { color: var(--ink); font-weight: var(--fw-semibold); text-decoration: underline; text-underline-offset: 3px; }
-.cal-editor .cal-field-days button:hover { background: color-mix(in srgb, var(--ink) 7%, transparent); }
-.cal-editor .cal-field-days button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: var(--fw-semibold); }
 .cal-suggest-pop .review-why { white-space: normal; overflow: visible; text-overflow: clip; font-size: var(--fs-sm); color: var(--ink); }
 
 /* A suggestion kept turns solid where it is, then becomes the event. */
@@ -181,7 +164,6 @@
 .calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--danger); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
 /* In the popover the row names take less room, so a whole date fits beside its time. */
 .cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
-.cal-editor[data-pop] .cal-field-time { width: 84px; }
 /* The popover's title and place read as text being written, without a ring around them. */
 .cal-editor[data-pop] .cal-editor-title:focus, .cal-editor[data-pop] .cal-editor-place:focus { outline: none; box-shadow: none !important; }
 /* Undo keeps an edge in dark, where the page and the toast are the same colour. */

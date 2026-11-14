@@ -31,6 +31,19 @@ const pad = (n: number) => String(n).padStart(2, '0');
 const day = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const ics = (d: string) => d.replace(/-/g, '');
 const today = () => day(new Date());
+/** The event sheet's shared day field: open its month, type the day and press Enter. */
+async function pickDay(sheet: Locator, label: string, iso: string): Promise<void> {
+  await sheet.getByRole('button', { name: label, exact: true }).click();
+  const typed = shell().getByRole('textbox', { name: 'Type a date' });
+  await typed.fill(iso);
+  await typed.press('Enter');
+  await expect(typed).toHaveCount(0);
+}
+/** The event sheet's shared pop-ups (Repeat, Calendar): open one and pick a choice by its words. */
+async function choose(sheet: Locator, label: string, choice: string): Promise<void> {
+  await sheet.getByRole('combobox', { name: label, exact: true }).click();
+  await shell().getByRole('option', { name: choice, exact: true }).click();
+}
 /** A time as the app writes it, following the computer's clock: "13:00", or "1:00 PM" on the 12-hour clock. */
 const at = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number) as [number, number];
@@ -70,10 +83,11 @@ test('a calendar file from another app shows in the week, and events are added, 
   await shell().getByRole('button', { name: 'Create' }).click();
   const editor = shell().getByRole('dialog', { name: 'New event' });
   await editor.getByRole('textbox', { name: 'Title' }).fill('Water the plants');
-  await editor.getByRole('checkbox', { name: 'All day' }).check();
-  await editor.getByLabel('Start day').fill(today());
-  await editor.getByLabel('End day').fill(today());
-  await editor.getByRole('combobox', { name: 'Calendar' }).selectOption('Calendar');
+  await editor.getByRole('switch', { name: 'All day' }).click();
+  await expect(editor.getByRole('switch', { name: 'All day' })).toBeChecked();
+  await pickDay(editor, 'Start day', today());
+  await pickDay(editor, 'End day', today());
+  await choose(editor, 'Calendar', 'Calendar');
   await editor.getByRole('button', { name: 'Add' }).click();
   await expect(editor).toHaveCount(0);
   const plants = page().getByRole('button', { name: /^Water the plants, All day/ });
@@ -157,7 +171,7 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
 
   await walk(span('10:00', '10:30')).click();
   const editor = shell().getByRole('dialog', { name: 'Edit event' });
-  await editor.getByRole('combobox', { name: 'Repeat' }).selectOption('Every day');
+  await choose(editor, 'Repeat', 'Every day');
   await editor.getByRole('textbox', { name: 'Title' }).press('Enter');
   await expect(editor).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
@@ -364,7 +378,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   await shell().getByRole('menu').getByRole('menuitem', { name: new RegExp(`^New event at ${at('14:00')}$`) }).click();
   const made = shell().getByRole('dialog', { name: 'New event' });
   await expect(made).toHaveAttribute('data-pop', 'true');
-  await expect(made.getByRole('textbox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
+  await expect(made.getByRole('combobox', { name: 'Start time' })).toHaveValue(/2(:00)?\s?PM|14:00/);
   await expect(made.getByRole('button', { name: /Cancel|Save|Add/ })).toHaveCount(0);
   await shell().keyboard.press('Escape');
   await expect(made).toHaveCount(0);

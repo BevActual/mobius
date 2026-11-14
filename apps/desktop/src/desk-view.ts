@@ -20,13 +20,13 @@ export function deskTitle(now: Date, counts: { waiting: number; working: number;
   ].filter(Boolean);
 }
 
-/** When a conversation was last active, in words: "Just now", "25 min ago", "3 h ago", "Yesterday", "Monday", "2 Nov" (in the system's order). */
+/** When a conversation was last active, in words: "Just now", "25 min ago", "3 hr ago" (as relative-time.ts says it), "Yesterday", "Monday", "2 Nov" (in the system's order). */
 export function agoLabel(ms: number, now: Date): string {
   const minutes = Math.floor((now.getTime() - ms) / 60_000);
   if (minutes < 1) return 'Just now';
   if (minutes < 60) return `${minutes} min ago`;
   const days = -daysFrom(ms, now);
-  if (days <= 0) return `${Math.floor(minutes / 60)} h ago`;
+  if (days <= 0) return `${Math.floor(minutes / 60)} hr ago`;
   if (days === 1) return 'Yesterday';
   if (days < 7) return weekdayLabel(ms, 'long');
   return dayLabel(ms, { now });
