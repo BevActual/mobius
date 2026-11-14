@@ -16,8 +16,7 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
   sends `Overwrite: F`, so it never replaces what is at the destination. A delete with a version is refused the same way.
 - **Accounts** are kept in `drives.json` in the data folder; passwords in the system's secret store, only once the
   account was checked. Passwords go only to the same site, also after a redirect.
-- **The bridge** (`drives.*`) is the person's own requests from the window. The agent's drive tools are a separate step;
-  every change they make on a server asks first, whatever the permission mode.
+- **The bridge** (`drives.*`) is the person's own requests from the window. The agent has its own tools, below.
 
 | Bridge call | Does |
 | --- | --- |
@@ -28,6 +27,20 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 | `mkdir id path`, `move id from to`, `delete id path etag?` | As named |
 
 Changes are announced as `mobius:drives-changed { drive, path, by }`.
+
+### The agent's tools
+
+| Tool | Capability | Does |
+| --- | --- | --- |
+| `drives.list` | `drives.read` | The person's drives, or a folder's contents with sizes, dates and versions |
+| `drives.read` | `drives.read` | A text file with its version (up to 200 KB); other files are described |
+| `drives.fetch` | `files.write` | Copies a drive file into the workspace, never replacing one, so the turn's review can discard it |
+| `drives.write` | `drives.write` | Writes text or a workspace file. Replaces only at the version given; makes missing folders |
+| `drives.move`, `drives.delete` | `drives.write` | As named; a move never replaces |
+
+`drives.write` is a **floor** in the core's policy, like `process.exec`: the person approves each change on a server,
+in every approval mode, because nothing in Mobius can undo it there. Read text from a drive counts as untrusted, and a
+`drives.write` that it asks for is treated as consequential.
 
 ## Servers
 

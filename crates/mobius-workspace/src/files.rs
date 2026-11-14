@@ -402,6 +402,39 @@ impl Workspace {
         Ok(relative.to_owned())
     }
 
+    /// Puts a file brought from elsewhere (a drive) at a new workspace path, making its folders. It never replaces a
+    /// file: the turn's checkpoint can then take it away again.
+    pub fn add_file(&self, relative: &str, bytes: &[u8]) -> Res<String> {
+        let target = self.inside(relative)?;
+        if target.exists() {
+            return Err(format!("{relative} is already in the workspace; choose another name"));
+        }
+        if let Some(parent) = target.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+            self.inside(relative)?;
+        }
+        let temp = target.with_extension("mobius-tmp");
+        fs::write(&temp, bytes).map_err(|e| e.to_string())?;
+        fs::rename(&temp, &target).map_err(|e| {
+            let _ = fs::remove_file(&temp);
+            e.to_string()
+        })?;
+        Ok(relative.to_owned())
+    }
+
+    /// A workspace file's bytes, to send elsewhere (a drive); refused when bigger than `max`.
+    pub fn read_bytes(&self, relative: &str, max: usize) -> Res<Vec<u8>> {
+        let target = self.inside(relative)?;
+        let size = fs::metadata(&target).map_err(|_| format!("{relative} is not in the workspace"))?.len();
+        if target.is_dir() {
+            return Err(format!("{relative} is a folder"));
+        }
+        if size > u64::try_from(max).unwrap_or(u64::MAX) {
+            return Err(format!("{relative} is bigger than {} MB", max / (1024 * 1024)));
+        }
+        fs::read(&target).map_err(|e| e.to_string())
+    }
+
     /// Where a workspace path really is on this computer, for showing it in Explorer or Finder.
     pub fn locate(&self, relative: &str) -> Res<PathBuf> {
         let target = self.inside(relative)?;

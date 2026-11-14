@@ -74,6 +74,7 @@ fn kind_of(tool: &str) -> &'static str {
     match ns {
         "mail" => "an email",
         "calendar" => "a calendar invite",
+        "drives" => "a file on a drive",
         "browser" | "web" => "a web page",
         "files" | "notes" | "docs" | "sheets" | "skills" => "a file",
         "bots" => "another agent's answer",
@@ -87,7 +88,7 @@ fn kind_of(tool: &str) -> &'static str {
 #[must_use]
 pub fn is_consequential(tool: &str, capability: &str, arguments: &Value) -> bool {
     // Not code.test: it runs only the test command the person chose, and its arguments only name the project.
-    const CAPS: [&str; 10] = ["process.exec", "fs.delete", "mail.draft", "mail.send", "code.push", "code.run", "browser.navigate", "browser.interact", "payments.pay", "db.write"];
+    const CAPS: [&str; 11] = ["process.exec", "fs.delete", "mail.draft", "mail.send", "code.push", "code.run", "browser.navigate", "browser.interact", "payments.pay", "db.write", "drives.write"];
     if CAPS.contains(&capability) || capability.starts_with("payments.") {
         return true;
     }

@@ -77,11 +77,11 @@ export function appOfFile(resource: string | null): { app: AppId; name: string }
   return { app, name };
 }
 
-/** Paying, sending, deleting and running commands always ask first, because none of them can be undone. */
+/** Paying, sending, deleting, running commands and changing a drive always ask first, because none of them can be undone. */
 export function isFinal(capability: string | null): boolean {
   if (!capability) return false;
   const [area = '', verb = ''] = capability.split('.');
-  return verb === 'send' || verb === 'pay' || verb === 'push' || verb === 'delete' || verb === 'run' || area === 'payments' || area === 'terminal' || area === 'shell';
+  return verb === 'send' || verb === 'pay' || verb === 'push' || verb === 'delete' || verb === 'run' || area === 'payments' || area === 'terminal' || area === 'shell' || capability === 'drives.write';
 }
 
 /** What a finished capability did, in a few words, with the thing it did it to when there is one. */
@@ -129,6 +129,8 @@ const DID: Record<string, (on: string) => string> = {
   'memory.write': () => 'Remembered something about you',
   'memory.forget': () => 'Forgot something it had remembered',
   'images.generate': () => 'Made a picture',
+  'drives.read': (on) => (on ? `Read ${on} on a drive` : 'Looked on a drive'),
+  'drives.write': (on) => (on ? `Changed ${on} on a drive` : 'Changed a drive'),
   'payments.pay': (on) => (on ? `Paid ${on}` : 'Made a payment'),
   'clock.read': () => 'Checked the time',
   'clock.now': () => 'Checked the time',
@@ -143,6 +145,7 @@ const ASKED: Record<string, string> = {
   'files.delete': 'delete files', 'fs.delete': 'delete files', 'code.run': 'run commands', 'code.push': 'push code',
   'code.commit': 'commit code', 'db.write': 'change a database', 'db.execute': 'change a database', 'payments.pay': 'pay',
   'memory.remember': 'remember things', 'memory.write': 'remember things', 'images.generate': 'make pictures',
+  'drives.read': 'look on your drives', 'drives.write': 'change files on your drive',
 };
 function about(capability: string | null, tool: string | null): string {
   return (capability && ASKED[capability]) || `use ${tool ?? capability ?? 'a tool'}`;
