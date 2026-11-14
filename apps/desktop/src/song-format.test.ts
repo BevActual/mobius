@@ -102,7 +102,7 @@ describe('a track\'s effects', () => {
     ] }));
     expect(s.tracks[0]!.fx).toEqual([
       { id: 'fx1', kind: 'delay', on: true, time: 2, feedback: 0.5, mix: EFFECT_PARAMS.delay.mix!.start },
-      { id: 'fx3', kind: 'eq', on: false, low: -18, mid: 0, midFreq: 1000, high: 0 },
+      { id: 'fx3', kind: 'eq', on: false, low: -18, lowFreq: 120, mid: 0, midFreq: 1000, midQ: 1, high: 0, highFreq: 6000 },
     ]);
     expect(s.tracks[1]!.fx).toBeUndefined();
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, effectText, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipsOf, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -117,5 +117,15 @@ describe('the Device panel\'s words for an effect', () => {
     expect([effectText('eq', 'midFreq', 1000), effectText('eq', 'midFreq', 450)]).toEqual(['1.0 kHz', '450 Hz']);
     expect([effectText('compressor', 'threshold', -18), effectText('compressor', 'ratio', 4), effectText('compressor', 'attack', 0.01)]).toEqual(['−18 dB', '4:1', '10 ms']);
     expect([effectText('reverb', 'size', 2), effectText('delay', 'mix', 0.25)]).toEqual(['2.0 s', '25%']);
+  });
+});
+
+describe('a track EQ on the graph', () => {
+  it('is three bands, and a moved band comes back as the EQ\'s settings, kept to their ranges', () => {
+    const eq = { id: 'fx1', kind: 'eq' as const, on: true, low: 2, lowFreq: 120, mid: -3, midFreq: 1000, midQ: 1, high: 0, highFreq: 6000 };
+    expect(eqBands(eq).map((b) => [b.type, b.freq, b.gain])).toEqual([['lowshelf', 120, 2], ['peak', 1000, -3], ['highshelf', 6000, 0]]);
+    expect(eqFromBand(1, { type: 'peak', freq: 450, gain: 30, q: 2 })).toEqual({ mid: 18, midFreq: 450, midQ: 2 });
+    expect(eqFromBand(0, { type: 'lowshelf', freq: 5, gain: -4, q: 0.7 })).toEqual({ low: -4, lowFreq: 30 });
+    expect(eqFromBand(2, { type: 'highshelf', freq: 9000, gain: 1.5, q: 0.7 })).toEqual({ high: 1.5, highFreq: 9000 });
   });
 });
