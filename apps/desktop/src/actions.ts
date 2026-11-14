@@ -85,6 +85,7 @@ export function describeAction(name: string, args: unknown): string | null {
     }
     case 'calendar.list': return 'read your calendar';
     case 'calendar.add': return `add ${s('title') ? quote(s('title')) : 'an event'} to ${which()}${s('start') ? ` on ${when(s('start'))}` : ''}`;
+    case 'calendar.free': { const people = Array.isArray(a.with) ? (a.with as unknown[]).filter((p): p is string => typeof p === 'string' && p.trim() !== '') : []; return people.length ? `look for a time when you and ${people.join(', ')} are free` : 'look for a free time in your calendar'; }
     case 'calendar.suggest': return `suggest ${s('title') ? quote(s('title')) : 'an event'} for ${which()}`;
     case 'calendar.update': return s('title') ? `change the event ${quote(s('title'))} in ${which()}` : `change an event in ${which()}`;
     case 'memory.remember': return s('text') ? `remember that ${quote(s('text'))}` : 'remember something about you';
