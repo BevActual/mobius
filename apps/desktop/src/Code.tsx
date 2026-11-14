@@ -6,6 +6,7 @@ import { FromMobius } from './FromMobius';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
 import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
@@ -647,10 +648,8 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     // while it ran cannot leave its change hidden.
   }, [review?.conversation, review?.settled, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file) { setBefore(undefined); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => { if (live) setBefore(was && was.ok ? was.text : undefined); }).catch(() => {});
-    return () => { live = false; };
+    return readBefore(review.conversation, file, setBefore, () => setBefore(undefined));
   }, [review?.conversation, review?.settled, kept, file, code.open?.modified]); // eslint-disable-line react-hooks/exhaustive-deps
   const rows = useMemo(() => (before !== undefined && code.open?.text != null ? lineDiff(before ?? '', code.open.text) : null), [before, code.open?.text]);
   const showSuggestion = rows !== null && rows.some((r) => r.kind !== 'same') && !code.dirty;

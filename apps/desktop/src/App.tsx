@@ -770,6 +770,8 @@ export function App() {
     else if (top === 'code') { openApp('code'); void code.openProject(rest[0] ?? '', rest.slice(1).join('/') || null); }
     else if (top === 'skills') { openApp('skills'); setExtPlace('skills'); void skills.openSkill(rest[0] ?? ''); }
     else if (top === 'calendar') openApp('calendar');
+    // A saved web page opens as a Browser tab the agent may read, being the person's own file.
+    else if (top === 'pages' && /\.html?$/i.test(path)) { openApp('browser'); void window.mobius.browser.openPage?.(path); }
   };
   const openTarget = (target: HubTarget) => {
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
