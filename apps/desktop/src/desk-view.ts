@@ -62,3 +62,12 @@ export function upcoming(schedules: readonly ScheduleInfo[], now: Date, limit = 
     .sort((a, b) => a.at.getTime() - b.at.getTime())
     .slice(0, limit);
 }
+
+/**
+ * What the Desk's title says when Mobius has nothing waiting: what the apps hold for the person (unread mail, tasks
+ * due today), or that nothing is waiting when they hold nothing. Never "nothing waiting" over a full inbox.
+ */
+export function deskQuiet(rows: readonly { app: string; text: string }[]): string {
+  const needs = rows.filter((r) => r.app === 'mail' || r.app === 'tasks').map((r) => r.text);
+  return needs.length > 0 ? needs.join(' · ') : 'Nothing waiting for you';
+}

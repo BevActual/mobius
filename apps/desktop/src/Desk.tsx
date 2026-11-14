@@ -5,7 +5,7 @@ import { describeAction } from './actions';
 import { appName, type AppId } from './apps';
 import type { DeskRow } from './desk-apps';
 import type { HubTarget } from './search-hub';
-import { agoLabel, deskGreeting, deskTitle, recent, upcoming, whenLabel } from './desk-view';
+import { agoLabel, deskGreeting, deskQuiet, deskTitle, recent, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
 import './desk.css';
 
@@ -86,7 +86,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
     <section className="desk" aria-label="Desk">
       <header className="desk-hello">
         <h2 className="greeting">{deskGreeting(now)}</h2>
-        <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}{quiet && <span><span aria-hidden="true"> · </span>Nothing waiting for you</span>}</p>
+        <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}{quiet && <span><span aria-hidden="true"> · </span>{deskQuiet(rows)}</span>}</p>
         {starters}
       </header>
       {(waiting.length > 0 || working.length > 0) && (
