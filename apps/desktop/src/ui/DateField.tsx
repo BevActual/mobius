@@ -23,6 +23,7 @@ const CHEVRON_RIGHT = <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.
 const CALENDAR = (
   <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.5" y="3.5" width="11" height="10" rx="1.5" /><path d="M2.5 6.5h11M5.5 2v3M10.5 2v3" /></svg>
 );
+const CHECK = <svg className="ui-choice-check" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
 const CLOCK = <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3.25l2 1.25" /></svg>;
 
 const useGrow = () => useCallback((node: HTMLElement | null) => { if (node) growFrom(node, 'left'); }, []);
@@ -377,6 +378,7 @@ export function TimeField({ label, hideLabel, value, onChange, from = null, prop
                     onMouseDown={(e) => e.preventDefault()}
                     onClick={() => commit(m)}
                   >
+                    <span className="ui-choice-mark" data-checked={value !== null && m % DAY_MINUTES === value ? true : undefined}>{CHECK}</span>
                     <span className="ui-menu-label">{clockWords(m)}</span>
                     {from !== null && <span className="ui-time-length">{lengthLabel(m - from)}</span>}
                   </div>

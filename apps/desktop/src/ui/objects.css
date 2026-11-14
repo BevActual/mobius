@@ -257,9 +257,11 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-time-menu { padding: var(--sp-1); background: var(--raised); }
 .ui-time-list { max-height: var(--time-list-h); overflow-y: auto; min-width: calc(var(--card-w) / 2); }
 .ui-time-option { height: var(--button-h); font-variant-numeric: tabular-nums; }
+/* The row under the pointer or the keyboard gets the grey hover fill (indigo is Mobius's alone); the chosen time has
+   the check, as in a choice menu. */
+.ui-time-option { gap: var(--sp-2); }
 .ui-time-option[aria-selected="true"] .ui-menu-label { font-weight: var(--fw-medium); }
-.ui-time-option[aria-selected="true"] { background: var(--sel); }
-.ui-time-option:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-time-list .ui-time-option:hover, .ui-time-list .ui-time-option[data-highlighted] { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .ui-time-length { margin-left: auto; padding-left: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
 .ui-time-field .ui-field-box { min-width: calc(var(--card-w) / 2.5); }
 .ui-time-range { display: flex; align-items: center; gap: var(--sp-2); }

@@ -304,3 +304,6 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }
 /* The field's box shows focus (an ink border); the input inside draws no ring of its own. */
 .ui-field-box .ui-field-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+
+/* Typed-over text in a field uses the theme's selection grey, not the browser's blue. */
+.ui-field-input::selection { background: var(--sel); color: var(--ink); }
