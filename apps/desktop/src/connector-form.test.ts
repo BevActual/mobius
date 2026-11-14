@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isConnectorName, splitArgs, suggestName } from './connector-form';
+import { connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
 
 describe('Add a Connector', () => {
   it('splits the arguments as a terminal would, keeping quoted spaces', () => {
@@ -25,5 +25,18 @@ describe('Add a Connector', () => {
     expect(suggestName('npx', ['-y', '@notionhq/notion-mcp-server'])).toBe('notion');
     expect(suggestName('npx', ['-y', 'brave-search-server'])).toBe('brave_search');
     expect(suggestName('', [])).toBe('');
+  });
+});
+
+describe('a connector row', () => {
+  it('shows a known service by its name and anything else by its id', () => {
+    expect(connectorDisplayName('github')).toBe('GitHub');
+    expect(connectorDisplayName('my_tools')).toBe('my_tools');
+  });
+  it('says why it could not start as one sentence, with the fix when it is known', () => {
+    expect(connectorProblem('could not start npx: No such file or directory (os error 2)')).toBe('the command wasn’t found. Check it in mcp.json');
+    expect(connectorProblem('The command was not found')).toBe('the command wasn’t found. Check it in mcp.json');
+    expect(connectorProblem('Timed out waiting for the server')).toBe('timed out waiting for the server');
+    expect(connectorProblem(undefined)).toBe('unknown problem');
   });
 });

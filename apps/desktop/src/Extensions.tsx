@@ -10,7 +10,7 @@ import { ContextMenu } from './ContextMenu';
 import { FromMobius } from './FromMobius';
 import { RowMark } from './RowMark';
 import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
-import { isConnectorName, splitArgs, suggestName } from './connector-form';
+import { connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
 import { dateTimeLabel } from './dates';
 import { EmptyState } from './EmptyState';
 import './abilities.css';
@@ -324,14 +324,14 @@ function Connectors() {
       },
     });
   };
-  const sub = (r: (typeof rows)[number]) => (starting === r.name ? 'Starting…' : r.state === 'waiting' ? 'Not started' : r.state === 'failed' ? `Couldn’t start: ${r.error ?? 'unknown problem'}` : 'Connected');
+  const sub = (r: (typeof rows)[number]) => (starting === r.name ? 'Starting…' : r.state === 'waiting' ? 'Not started' : r.state === 'failed' ? `Couldn’t start: ${connectorProblem(r.error)}` : 'Connected');
   // Start it now (one added by hand in mcp.json), again after it failed, or restart one that runs. Remove stops it.
   const startLabel = (state: (typeof rows)[number]['state']) => (state === 'on' ? 'Restart' : state === 'failed' ? 'Start again' : 'Start now');
   const entries = (name: string) => {
     const state = rows.find((r) => r.name === name)?.state ?? 'waiting';
     return [
       ...(api?.startConnector ? [{ label: startLabel(state), disabled: starting !== null, run: () => void start(name) }] : []),
-      { label: 'Remove', keys: 'Delete', danger: true, run: () => void remove(name) },
+      { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void remove(name) },
     ];
   };
   return (
@@ -353,7 +353,7 @@ function Connectors() {
             <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
               <span className="abl-main">
                 <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{(r.state !== 'on' || starting === r.name) && <span className="abl-dot" data-state={starting === r.name ? 'waiting' : r.state} aria-hidden="true" />}</span>
-                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' && starting !== r.name ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
+                <span className="abl-text"><span className="abl-name" title={connectorDisplayName(r.name) === r.name ? undefined : r.name}>{connectorDisplayName(r.name)}</span><span className={r.state === 'failed' && starting !== r.name ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
               </span>
               {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
             </li>
