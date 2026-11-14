@@ -40,10 +40,9 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%238e8e93' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center; background-size: 8px 12px;
   color: var(--ink); font: inherit; font-size: 13px; text-overflow: ellipsis;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); cursor: default;
+  cursor: default;
 }
 .settings-page select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
-@media (prefers-color-scheme: dark) { .settings-page select, .settings-page .popup { background-color: color-mix(in srgb, var(--ink) 10%, var(--bg)); } }
 
 /* Text and number fields in a row: the same height and corners as the pop-ups beside them. */
 .settings-page .settings-card .srow-body input:not([type="checkbox"]):not([type="radio"]):not([role="switch"]):not([type="range"]) { height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
@@ -99,15 +98,14 @@
 .saved-servers-foot { display: flex; justify-content: flex-end; }
 
 /* A small sheet over Settings: a title, a line of help, one field, Cancel and the default button. */
-.settings-sheet { width: min(360px, calc(100vw - 32px)); padding: 18px; border: 0.5px solid var(--hairline); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
-.settings-sheet::backdrop { background: rgba(0, 0, 0, 0.18); }
+.settings-sheet { width: min(360px, calc(100vw - 32px)); padding: 18px; border: 0.5px solid var(--hairline); border-radius: 12px; background: var(--raised); color: var(--ink); box-shadow: var(--shadow-3); }
+.settings-sheet::backdrop { background: color-mix(in srgb, black 18%, transparent); }
 .settings-sheet-title { margin: 0 0 4px; font-size: 13px; font-weight: 650; }
 .settings-sheet-text { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
 .settings-sheet-field { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .settings-sheet-field input { flex: 1; height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
 .settings-sheet-field input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
 .settings-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-@media (prefers-color-scheme: dark) { .settings-sheet { background: color-mix(in srgb, var(--ink) 8%, var(--bg)); } }
 
 /* Usage: three totals as tiles, tokens by day as thin bars, and the breakdown as a plain table. */
 .settings-page .settings-card .srow.usage-summary { padding: 12px 0; }
@@ -171,3 +169,7 @@
 /* An empty list's line reads as help under the name, at the left. */
 .settings-page .settings-card .srow-body:has(> .srow-empty) { flex: 1 1 100%; margin-left: 0; align-items: stretch; }
 .settings-page .settings-card .srow-body > .srow-empty { margin: 0; text-align: left; color: var(--muted); font-size: 12px; }
+
+/* Loading: placeholder bars, not "Loading…" text or a spinner. */
+.settings-placeholder { display: flex; flex-direction: column; gap: 12px; padding: 12px 0; width: 100%; }
+.settings-placeholder-bar { display: block; height: 10px; border-radius: 3px; background: var(--field); }

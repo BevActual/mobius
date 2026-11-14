@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { UndoToast } from './ui';
 import { EmptyState } from './EmptyState';
 import { NotesSidebar, newItemIn, type SidebarWords } from './NotesSidebar';
 import { ReviewActions, WhyThis } from './ReviewBar';
@@ -32,8 +33,24 @@ export function viewReviewText(changed: number, removed: number): string {
 }
 
 const AppIcon = ({ app }: { app: string }) => (
-  <svg viewBox="0 0 20 20" aria-hidden="true" className="view-tile-icon" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>
+  <svg viewBox="0 0 20 20" aria-hidden="true" className="view-tile-icon">{APP_ICONS[app]}</svg>
 );
+
+/** Grey bars the shape of the tiles that are coming, while the views are read (Instrument: no spinners in content). */
+function Placeholder() {
+  return (
+    <ul className="views-grid" role="list" aria-label="Loading" aria-busy="true">
+      {['wide', 'small', 'small', 'small'].map((size, i) => (
+        <li key={i} className="view-tile" data-size={size} data-placeholder>
+          <span className="view-bar" data-w="40" />
+          <span className="view-bar" data-w="20" data-tall />
+          <span className="view-bar" data-w="90" />
+          <span className="view-bar" data-w="70" />
+        </li>
+      ))}
+    </ul>
+  );
+}
 
 /** Mobius's schedules, for the Next tile, kept current. */
 function useSchedules(): ViewSources['schedules'] {
@@ -89,10 +106,11 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
   const gone = useMemo(() => (view && beforeView !== undefined ? removedTiles(beforeView, view) : []), [view, beforeView]);
 
   if (!views.page) {
+    if (!views.loaded) return <section className="views-page" aria-label="Views"><div className="views-scroll"><Placeholder /></div></section>;
     const none = views.notebooks.every((nb) => nb.pages.length === 0);
     return (
       <section className="views-page" aria-label="Views">
-        <EmptyState app="views" title={none ? 'No views yet' : 'No view open'} line={none ? 'A view is a dashboard of live tiles from your apps: tasks, calendar, mail, notes and what Mobius is doing.' : 'Choose a view on the left, or make a new one.'} action={{ label: 'New view', run: () => newView(views) }} />
+        <EmptyState app="views" title={none ? 'No views yet' : 'Choose a view on the left'} action={{ label: 'New view', run: () => newView(views) }} />
       </section>
     );
   }
@@ -119,7 +137,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
   const menuItems = (tile: Tile): ContextMenuItem[] => {
     const at = view.tiles.findIndex((t) => t.id === tile.id);
     const items: ContextMenuItem[] = [
-      { action: 'open', label: `Open in ${tileKind(tile.kind).name === 'Next' ? 'Settings' : tileKind(tile.kind).name}`, run: () => onOpen(tileContent(tile, sources, now).target) },
+      { label: `Open in ${tileKind(tile.kind).name === 'Next' ? 'Settings' : tileKind(tile.kind).name}`, keys: 'Enter', run: () => onOpen(tileContent(tile, sources, now).target) },
       { label: tile.size === 'wide' ? 'Make small' : 'Make wide', run: () => save(changeTile(view, tile.id, { size: tile.size === 'wide' ? 'small' : 'wide' })), separated: true },
     ];
     if (tile.kind === 'tasks') for (const s of TASKS_SHOW) items.push({ label: `Show ${s.name}`, disabled: (tile.show ?? 'today') === s.id, run: () => save(changeTile(view, tile.id, { show: s.id })) });
@@ -127,7 +145,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
     items.push(
       { label: 'Move earlier', keys: 'Alt+←', disabled: at <= 0, run: () => move(tile, -1), separated: true },
       { label: 'Move later', keys: 'Alt+→', disabled: at >= view.tiles.length - 1, run: () => move(tile, 1) },
-      { action: 'delete', label: 'Remove tile', danger: true, run: () => remove(tile) },
+      { label: 'Remove tile', keys: 'Delete', danger: true, run: () => remove(tile) },
     );
     return items;
   };
@@ -155,7 +173,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
       <div className="views-scroll">
       {view.tiles.length === 0 ? (
         <div className="views-empty">
-          <EmptyState app="views" title="This view is empty" line="Add tiles from your apps, or start with the usual ones." action={{ label: 'Add the usual tiles', run: () => save(starterView()) }} />
+          <EmptyState app="views" title="This view is empty" action={{ label: 'Add the usual tiles', run: () => save(starterView()) }} />
         </div>
       ) : (
         <ul className="views-grid" role="list" aria-label="Tiles">
@@ -177,23 +195,27 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
                 onDragOver={(e) => { if (dragging && dragging !== tile.id) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; } }}
                 onDrop={(e) => { e.preventDefault(); if (dragging && dragging !== tile.id) save(moveTile(view, dragging, index)); setDragging(null); }}
                 onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, tile }); }}
+                tabIndex={0}
                 onKeyDown={(e) => {
-                  if (!e.altKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
-                  e.preventDefault();
-                  move(tile, e.key === 'ArrowLeft' ? -1 : 1);
+                  if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) { e.preventDefault(); move(tile, e.key === 'ArrowLeft' ? -1 : 1); return; }
+                  // The rest are the tile's own keys: only when the tile itself has focus, not a row inside it.
+                  if (e.target !== e.currentTarget) return;
+                  if (e.key === 'Enter') { e.preventDefault(); onOpen(content.target); }
+                  else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); remove(tile); }
+                  else if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left + 12, y: r.top + 40, tile }); }
                 }}
               >
                 <header className="view-tile-head">
-                  <button type="button" className="view-tile-name" onClick={() => onOpen(content.target)} title={`Open ${tileKind(tile.kind).name === 'Next' ? 'Settings › Schedules' : tileKind(tile.kind).name}`}>
+                  <button type="button" className="view-tile-name" onClick={() => onOpen(content.target)} title={`Open ${tileKind(tile.kind).name === 'Next' ? 'Settings › Schedules' : tileKind(tile.kind).name} (Enter)`}>
                     <AppIcon app={content.app} />
                     <span>{title}</span>
                   </button>
                   {editing ? (
-                    <button type="button" className="view-tile-remove" aria-label={`Remove ${title}`} onClick={() => remove(tile)}>
+                    <button type="button" className="view-tile-remove" aria-label={`Remove ${title}`} title={`Remove ${title} (Delete)`} onClick={() => remove(tile)}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 10h8" /></svg>
                     </button>
                   ) : (
-                    <button type="button" className="view-tile-more" aria-label={`More for ${title}`} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4, tile }); }}>
+                    <button type="button" className="view-tile-more" aria-label={`More for ${title}`} title={`More for ${title} (Shift+F10)`} aria-haspopup="menu" aria-expanded={menu?.tile.id === tile.id} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4, tile }); }}>
                       <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
                     </button>
                   )}
@@ -206,6 +228,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
                     {content.rows.map((row) => (
                       <li key={row.key}>
                         <button type="button" className="view-tile-row" data-tone={row.tone} disabled={editing} onClick={() => onOpen(row.target)}>
+                          {row.color && <span className="view-tile-dot" aria-hidden="true" style={{ background: row.color }} />}
                           <span className="view-tile-text">{row.text}</span>
                           {row.detail && <span className="view-tile-detail">{row.detail}</span>}
                         </button>
@@ -224,11 +247,7 @@ export function ViewPage({ views, apps, review, onOpen, now: fixedNow }: Props) 
       </div>
       {menu && <ContextMenu x={menu.x} y={menu.y} label={tileTitle(menu.tile)} items={menuItems(menu.tile)} onClose={() => setMenu(null)} />}
       {removed && removed.path === views.page.path && (
-        <div className="views-undo" role="status">
-          <span>Removed {tileTitle(removed.tile)}</span>
-          <button type="button" className="btn" onClick={undoRemove}>Undo</button>
-          <button type="button" className="views-undo-x" aria-label="Dismiss" onClick={() => setRemoved(null)}>×</button>
-        </div>
+        <UndoToast text={`Removed ${tileTitle(removed.tile)}`} onUndo={undoRemove} onDismiss={() => setRemoved(null)} />
       )}
       {anyChange && (
         <div className="design-review views-review" role="group" aria-label="Mobius's change">

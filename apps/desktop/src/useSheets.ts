@@ -19,6 +19,9 @@ export function useSheets(active = true) {
   const [workbooks, setWorkbooks] = useState<WorkbookInfo[]>([]);
   const [data, setData] = useState<SheetData | null>(null);
   const [message, setMessage] = useState('');
+  // False until the first look has found the workbooks and opened the one to show, so the grid shows placeholder bars
+  // rather than "No workbook open" for a moment.
+  const [settled, setSettled] = useState(false);
   // Cells the agent just changed, marked for a moment.
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const live = useRef(data);
@@ -56,10 +59,11 @@ export function useSheets(active = true) {
       if (live.current) return;
       const last = remembered();
       const found = last && list.find((w) => w.name === last.workbook && w.sheets.includes(last.sheet));
-      if (found && last) void open(last.workbook, last.sheet);
+      if (found && last) return open(last.workbook, last.sheet);
       // With nothing remembered, a lone workbook opens, so a first visit never lands on an empty window.
-      else if (list.length === 1) void open(list[0]!.name, list[0]!.sheets[0] ?? 'Sheet 1');
-    });
+      if (list.length === 1) return open(list[0]!.name, list[0]!.sheets[0] ?? 'Sheet 1');
+      return undefined;
+    }).finally(() => setSettled(true));
     return api?.onChanged((change) => {
       const listed = refresh();
       // A workbook Mobius made or changed opens when none is open, so it can be seen and reviewed.
@@ -175,7 +179,7 @@ export function useSheets(active = true) {
     void open(workbook, sheet);
   }, [open]);
 
-  return { available: api !== undefined, openIfIdle, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, refresh, reload };
+  return { available: api !== undefined, settled, openIfIdle, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, refresh, reload };
 }
 
 export type SheetsState = ReturnType<typeof useSheets>;
