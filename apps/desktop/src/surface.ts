@@ -46,13 +46,19 @@ export interface SurfaceState {
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
  * linked to the words on the page it came from.
  */
-export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs and read each with browser.read (its tabId). Write the comparison as a new note in my Notes called "Compare: <what they are>": one table with a column for each page, headed by its title linked to its address, and a row for each thing worth comparing (such as price, size, what is included, delivery). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where a page does not say, write "not stated". Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs. Read a tab that has a file (one of my own pages) with files.read on that file, and any other with browser.read (its tabId). Write the comparison as a new note in my Notes called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
 
 /**
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
 export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+
+/** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
+export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.';
+
+/** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
+export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
@@ -83,7 +89,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'docs':
       return state.note
         ? [
-            { label: 'Proofread', prompt: 'Proofread this document: fix spelling, grammar and punctuation only, in the document itself, and tell me what you changed.', attach: 'note' },
+            // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. At most 450 words, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
+            { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
@@ -223,7 +232,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'code':
       return state.code
         ? [
-            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.', attach: 'code' as const }] : []),
+            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: DEBUG_TEST, attach: 'code' as const }] : []),
             { label: 'Explain this file', prompt: 'Explain what the attached file does, in plain words: its parts and how they fit together.', attach: 'code' },
             { label: 'Write tests for this', prompt: 'Write tests for the attached file, in the style the project already uses, run code.test, and tell me what they cover.', attach: 'code' },
             { label: 'Change…', prompt: 'In the attached file, ', attach: 'code' },

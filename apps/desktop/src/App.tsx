@@ -7,7 +7,7 @@ import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES,
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
-import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
+import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
@@ -44,7 +44,7 @@ import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
 import { useCode } from './useCode';
-import { CodeEditor, CodeSidebar } from './Code';
+import { CodeEditor, CodeGlance, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
@@ -102,7 +102,7 @@ import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
 import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
-import { loadPanes, savePanes, companionFor, followPane, loadShare, saveShare } from './split';
+import { loadPanes, savePanes, loadByMobius, saveByMobius, leavesSplit, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
@@ -243,11 +243,21 @@ export function App() {
   }, [app, other]);
   const panesNow = useRef({ panes, focused });
   panesNow.current = { panes, focused };
+  // Whether Mobius opened the second pane itself, beside the conversation, rather than the person choosing a split.
+  const splitByMobius = useRef(loadByMobius(panes));
   /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
   const setApp = useCallback((id: AppId) => {
     const { panes: [a, b], focused: f } = panesNow.current;
     if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
-    // The conversation stays in a split: another app goes in the other pane, which then has the focus.
+    // Leaving a split Mobius opened beside the conversation goes to the app alone, with Mobius in its panel again.
+    if (leavesSplit([a, b], splitByMobius.current, id)) {
+      splitByMobius.current = false;
+      saveByMobius(false);
+      setPanes([id, null]);
+      setFocused(0);
+      return;
+    }
+    // The conversation stays in a split the person chose: another app goes in the other pane, which then has the focus.
     if (b !== null && (f === 0 ? a : b) === 'agent' && id !== 'agent') {
       setPanes(f === 0 ? [a, id] : [id, b]);
       setFocused(f === 0 ? 1 : 0);
@@ -263,17 +273,23 @@ export function App() {
   const openSplit = useCallback(() => {
     const { panes: [a], focused: f } = panesNow.current;
     const here = f === 1 ? panesNow.current.panes[1] ?? a : a;
+    splitByMobius.current = false;
+    saveByMobius(false);
     setPanes([here, companionFor(here)]);
     setFocused(0);
   }, []);
   const closePane = useCallback((index: 0 | 1) => {
     const { panes: [a, b] } = panesNow.current;
+    splitByMobius.current = false;
+    saveByMobius(false);
     setPanes([index === 0 ? (b ?? a) : a, null]);
     setFocused(0);
   }, []);
   const choosePane = useCallback((index: 0 | 1, id: AppId) => {
     const { panes: [a, b] } = panesNow.current;
     if (b === null) return;
+    splitByMobius.current = false;
+    saveByMobius(false);
     // Choosing what the other pane shows swaps them, so the same app is never open twice.
     if (index === 0) setPanes(id === b ? [b, a] : [id, b]);
     else setPanes(id === a ? [b, a] : [a, id]);
@@ -351,6 +367,8 @@ export function App() {
     if (focusedApp !== 'agent') return false;
     if (otherApp === id) return true;
     if (otherApp !== null) return false;
+    splitByMobius.current = true;
+    saveByMobius(true);
     setPanes([a, id]);
     return true;
   }, []);
@@ -770,6 +788,8 @@ export function App() {
     else if (top === 'code') { openApp('code'); void code.openProject(rest[0] ?? '', rest.slice(1).join('/') || null); }
     else if (top === 'skills') { openApp('skills'); setExtPlace('skills'); void skills.openSkill(rest[0] ?? ''); }
     else if (top === 'calendar') openApp('calendar');
+    // A saved web page opens as a Browser tab the agent may read, being the person's own file.
+    else if (top === 'pages' && /\.html?$/i.test(path)) { openApp('browser'); void window.mobius.browser.openPage?.(path); }
   };
   const openTarget = (target: HubTarget) => {
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
@@ -1032,6 +1052,8 @@ export function App() {
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
   // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
   // Triage from Mail's panel action: the composer switches to Triage too, so the next turns stay in it until changed.
+  // Code's Glance: Find the cause sends the failing test, with the open file and its output, to Mobius.
+  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(DEBUG_TEST, surface.code ? [sheetItem(surface.code)] : []); };
   const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setChatMode('triage'); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
@@ -1272,7 +1294,7 @@ export function App() {
     const prompt = {
       proofread: `Proofread ${what}: fix spelling, grammar and punctuation only. ${inPlace}`,
       friendlier: `Rewrite ${what} so it reads friendlier and warmer, keeping its meaning and my voice. ${inPlace}`,
-      shorter: `Make ${what} about half as long, with the same meaning. ${inPlace}`,
+      shorter: `Make ${what} about half as long, with the same meaning, by cutting what it can do without: keep my own words and phrases where they stay, and do not reword what you keep. ${inPlace}`,
       summarise: `Summarise ${what} in a few short lines. Do not change the document.`,
       comment: `Answer this comment on "${title}" with comments.reply (page ${where}; its id is in brackets, or find it with comments.list):\n${selection ?? ''}\nIf it asks for a change, make it with files.edit and say in the reply what you changed.`,
     }[tool];
@@ -1491,7 +1513,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1536,7 +1558,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
