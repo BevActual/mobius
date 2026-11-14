@@ -190,6 +190,18 @@ impl Core {
         self.register_tool(spec, Box::new(|_| Err("this tool is run by the application".to_owned())))
     }
 
+    /// Take back an application tool (a connector that was stopped). Tools the core runs itself are never removed, and
+    /// a question already waiting about the tool stays as it is: answering it finds the tool gone.
+    pub fn unregister_external_tool(&mut self, name: &str) -> Result<(), CoreError> {
+        match self.tools.get(name) {
+            Some(entry) if entry.spec.external => {
+                self.tools.remove(name);
+                Ok(())
+            }
+            _ => Err(CoreError::UnknownTool(name.to_owned())),
+        }
+    }
+
     /// Note how an application tool went, for the event log. Arguments and results are never recorded.
     pub fn record_external_result(&mut self, principal: &Principal, tool: &str, succeeded: bool) -> Result<(), CoreError> {
         principal.validate()?;

@@ -583,9 +583,11 @@ export interface MobiusBridge {
   extensions?: {
     /** The MCP servers from mcp.json: which run, which did not start and why. */
     connectors(): Promise<ConnectorStatus>;
-    /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
-    addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
-    /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
+    /** Abilities › Add a Connector: written to mcp.json and started at once; `started` says whether it started. */
+    addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus; started?: boolean }>>;
+    /** Start a connector from mcp.json now, or start a running one again. A failure still answers with the status. */
+    startConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }> & { status?: ConnectorStatus }>;
+    /** Take a connector out of mcp.json; a running one stops at once. */
     removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command: string; args?: string[]; env?: Record<string, string> } }>>;
   };
   share?: {

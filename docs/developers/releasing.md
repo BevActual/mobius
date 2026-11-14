@@ -20,18 +20,19 @@ The Chromium (CEF) build is not packaged yet (it would add about 330 MB); releas
 
 1. Push a version tag: `git tag v0.2.0 && git push origin v0.2.0`.
 2. The **Release** workflow ([`release.yml`](../../.github/workflows/release.yml)) builds the installer on Windows,
-   signs it through SignPath when that is set up, creates the updater files from the installer as shipped, and puts
+   signs it through Azure Artifact Signing when that is set up, creates the updater files from the installer as shipped, and puts
    everything in a **draft** GitHub Release for the tag.
 3. Check the draft and **Publish** it. The updater only sees published releases.
 
 ## Code signing
 
-Windows installers are signed under the [code signing policy](../CODE_SIGNING_POLICY.md): free code signing provided by
-SignPath.io, certificate by SignPath Foundation. Only installers built by the Release workflow from a tag in this
-repository are signed, and each signing request must be approved.
+Windows installers are signed under the [code signing policy](../CODE_SIGNING_POLICY.md) with Azure Artifact
+Signing. Only installers built by the Release workflow from a tag in this repository are signed.
 
-The workflow needs the repository variable `SIGNPATH_ORGANIZATION_ID` and the secret `SIGNPATH_API_TOKEN`. Until the
-variable is set, the installer is released unsigned and SmartScreen warns about it.
+The workflow needs the repository variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT` and
+`AZURE_CERTIFICATE_PROFILE`, and the secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID`. Until
+`AZURE_SIGNING_ACCOUNT` is set, the installer is released unsigned and SmartScreen warns about it. Setting it up is in
+[Code signing options](../reference/code-signing-options.md#setting-up-azure-artifact-signing).
 
 ## The updater
 

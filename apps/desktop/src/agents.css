@@ -5,15 +5,11 @@
 .botform label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); font-size: var(--fs-sm); }
 .botform input, .botform textarea { padding: 6px 9px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); resize: vertical; }
 .botform-actions { display: flex; justify-content: flex-end; gap: 6px; }
-.botform-starts { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-sm); }
+.botform-starts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; font-size: var(--fs-sm); }
 .botform-label { color: var(--muted); }
 .botform-hint { font-size: var(--fs-xs); color: var(--muted); }
 /* How it starts: a segmented control, both halves the same width, as in Apple's pickers. */
-.botform .botform-seg { display: flex; min-width: 0; max-width: 320px; }
-.botform-seg .seg-btn { flex: 1; min-width: 0; padding: 3px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.botform-seg .seg-btn[aria-checked="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 1px var(--line); }
-.botform-when { display: flex; gap: 6px; max-width: 320px; }
-.botform-when select, .botform-when input { flex: 1; min-width: 0; height: 28px; padding: 0 7px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; }
+.botform-when { display: flex; align-items: center; gap: 6px; }
 .botform-touch { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
 .botform-touch b { color: var(--ink); font-weight: var(--fw-medium); }
 .botform-touch .link-btn { margin-left: 2px; }

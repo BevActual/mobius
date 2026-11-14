@@ -8,7 +8,7 @@ your team. You can always see, correct and forget what it remembers.
 - What Mobius remembers is kept in one plain Markdown file, `memory.md` in the
   [data folder](../getting-started/install.md#where-your-things-are-kept), one fact per line.
 - Every remembered fact is added to Mobius's instructions at the start of each turn.
-- Remembering and forgetting are tools like any other and follow your [mode](working-with-mobius.md#the-three-modes).
+- Remembering and forgetting are tools like any other and follow your [permission](working-with-mobius.md#permission).
   By default Mobius asks before it remembers something ("Mobius would like to remember…").
 
 ## How I work

@@ -120,7 +120,7 @@ export function quickKey(catalog: ModelCatalog, quick: string): string {
 }
 
 /**
- * The model for quick jobs, such as checking a step in Act mode before it runs: a pop-up of the models the connected
+ * The model for quick jobs, such as checking a step in Auto before it runs: a pop-up of the models the connected
  * gateways offer, or Same as chat. A small, fast model fits. Its address and key come from the gateway, in the core.
  */
 export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: () => void }) {

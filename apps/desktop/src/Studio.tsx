@@ -2,11 +2,11 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, clipsOf, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { GRIDS, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -218,6 +218,18 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
   );
 }
 
+const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
+/** The drums bottom to top, as pads and step rows read them: kick first. */
+const DRUMS_UP = [...DRUMS].reverse();
+/** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
+const PAD_KEYS = ['Q', 'W', 'E', 'A', 'S', 'D'];
+const STEP_ROWS = DRUMS.map((d) => ({ id: String(d.pitch), name: d.name }));
+const PAD_CELLS: readonly { k: keyof DrumPad; name: string; step: number; log?: boolean; format: (v: number) => string }[] = [
+  { k: 'tune', name: 'Tune', step: 1, format: (v) => kitText('tune', v) },
+  { k: 'decay', name: 'Decay', step: 0.01, log: true, format: (v) => kitText('decay', v) },
+  { k: 'level', name: 'Level', step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
+  { k: 'pan', name: 'Pan', step: 0.01, format: panText },
+];
 const INSTRUMENT_CHOICES = INSTRUMENTS.map((i) => ({ value: i, label: INSTRUMENT_NAMES[i] }));
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
@@ -236,6 +248,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
   const kit = track ? kitOf(track) : null;
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
+  const [pad, setPad] = useState(0);
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
   return (
     <div className="studio-device" aria-label="Device" role="region">
@@ -278,9 +291,28 @@ export function StudioDevice({ track, onTrack, proposal }: {
               <ParamGrid label="Kit" columns={4}>
                 {KIT_CELLS.map(({ k, name, step, log }) => <Knob key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
-              <p className="studio-dev-note">Every drum in the kit, together. Each drum has its own row in the notes.</p>
+              <p className="studio-dev-note">Every drum in the kit, together. Each drum also has its own pad below.</p>
             </section>
           )}
+          {kit && track && (() => {
+            const drum = DRUMS_UP[Math.min(pad, DRUMS_UP.length - 1)]!;
+            const own = padOf(track, drum.pitch);
+            return (
+              <section className="studio-dev-section" aria-label="Pads">
+                <h4 className="studio-dev-head">Pads</h4>
+                <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
+                  pads={DRUMS_UP.map((d, i) => ({ id: String(d.pitch), name: d.name, color: track.color, key: PAD_KEYS[i] }))}
+                  onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }}>
+                  <ParamGrid label={`${drum.name} settings`} columns={4}>
+                    {PAD_CELLS.map(({ k, name, step, log, format }) => (
+                      <Knob key={k} label={name} value={own[k]} min={PAD_RANGE[k].lo} max={PAD_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={PAD_DEFAULTS[k]} reset={PAD_DEFAULTS[k]} format={format}
+                        onChange={(v) => onTrack((t) => { t.pads = { ...(t.pads ?? {}), [drum.pitch]: { ...padOf(t, drum.pitch), [k]: v } }; }, `pad:${drum.pitch}:${k}`)} />
+                    ))}
+                  </ParamGrid>
+                </PadGrid>
+              </section>
+            );
+          })()}
         </>
       ) : <p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p>}
       {track && (
@@ -329,6 +361,9 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [click, setClick] = useState(false);
   const [beat, setBeat] = useState(0);
   const [grid, setGrid] = useState(0.25);
+  /** A drums track's notes as a piano roll, or as a bar of steps. */
+  const [drumView, setDrumView] = useState<'notes' | 'steps'>('notes');
+  const [stepBar, setStepBar] = useState(0);
   const [drawLength, setDrawLength] = useState(1);
   const [zoom, setZoom] = useState(1);
   const [gesture, setGestureState] = useState<Gesture | null>(null);
@@ -880,19 +915,29 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
               <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
-                <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
+                {drums && <Segmented label="View" value={drumView} choices={DRUM_VIEWS} onChange={setDrumView} />}
+                {drums && drumView === 'steps' ? (
+                  <Select inline label="Bar" value={String(Math.min(stepBar, song.bars - 1))} choices={Array.from({ length: song.bars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
+                ) : <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
-                <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>
+                {!(drums && drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>}
                 <span className="studio-gap" />
-                {velocity !== null ? (
+                {velocity !== null && !(drums && drumView === 'steps') ? (
                   <>
                     <span className="studio-picked">{pickedNotes.length === 1 ? `${drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at ${position(pickedNotes[0]!.start, song.tempo).bars}` : `${pickedNotes.length} notes`}</span>
                     <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
-                ) : <span className="studio-hint">Click to draw a note, drag to move it, drag its end to stretch it.</span>}
+                ) : <span className="studio-hint">{drums && drumView === 'steps' ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
                 <IconButton className="studio-roll-close" label="Hide notes" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
+          {drums && drumView === 'steps' ? (
+            <div className="studio-steps">
+              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, song.bars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, song.bars - 1), STEP_ROWS.map((r) => Number(r.id)))}
+                now={playing && Math.floor(beat / BEATS_PER_BAR) === Math.min(stepBar, song.bars - 1) ? Math.floor((beat % BEATS_PER_BAR) * 4) : undefined}
+                onChange={(row, step, v) => { const pitch = Number(STEP_ROWS[row]!.id); if (v > 0) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); setNotes((n) => setStep(n, Math.min(stepBar, song.bars - 1), pitch, step, v), 'steps'); }} />
+            </div>
+          ) : <>
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
               className="studio-roll-inner"
@@ -905,7 +950,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             >
               {rows.map((r, i) => (
                 <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * rowH, height: rowH }}>
-                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit); }}>{r.label}</span>
+                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit, track.pads?.[r.pitch]); }}>{r.label}</span>
                   <div
                     className="studio-row-cells"
                     role="gridcell"
@@ -968,6 +1013,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               <span className="studio-playhead" style={{ left: beat * rbw }} aria-hidden="true" />
             </div>
           </div>
+          </>}
             </div>
           </>
         )}

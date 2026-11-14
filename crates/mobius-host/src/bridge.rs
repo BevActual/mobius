@@ -602,7 +602,12 @@ impl Bridge {
             ("changes", _) => self.changes_call(method, args),
             ("signins", _) => Ok(self.signins_call(method, args)),
             ("extensions", "connectors") => Ok(self.mcp_status()),
-            // Abilities › Add a Connector: written to mcp.json, started the next time Mobius opens.
+            // Abilities: start a connector from mcp.json now (again, if it runs or failed), or stop one that runs.
+            ("extensions", "startConnector") => Ok(match self.mcp.start_one(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or(""), &self.core) {
+                Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                Err(error) => json!({ "ok": false, "error": error, "status": self.mcp_status() }),
+            }),
+            // Abilities › Add a Connector: written to mcp.json and started at once.
             ("extensions", "addConnector") => {
                 let draft = arg(0);
                 let text = |k: &str| draft.get(k).and_then(Value::as_str).unwrap_or("").to_owned();
@@ -612,12 +617,19 @@ impl Bridge {
                     return Ok(json!({ "ok": false, "error": "Every key's value must be text." }));
                 }
                 Ok(match crate::mcp::add_server(&self.data_dir.join("mcp.json"), &text("name"), &text("command"), &words, &env) {
-                    Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                    // Saved either way: one that cannot start yet is listed with why, to fix and start again.
+                    Ok(()) => {
+                        let started = self.mcp.start_one(&self.data_dir.join("mcp.json"), &text("name"), &self.core);
+                        json!({ "ok": true, "started": started.is_ok(), "status": self.mcp_status() })
+                    }
                     Err(error) => json!({ "ok": false, "error": error }),
                 })
             }
             ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
-                Ok(entry) => json!({ "ok": true, "status": self.mcp_status(), "removed": entry }),
+                Ok(entry) => {
+                    self.mcp.stop_one(arg(0).as_str().unwrap_or(""), &self.core);
+                    json!({ "ok": true, "status": self.mcp_status(), "removed": entry })
+                }
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
