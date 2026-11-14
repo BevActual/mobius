@@ -203,6 +203,11 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await device.getByRole('switch', { name: 'Instrument on' }).click();
   await expect.poll(() => (saved().tracks[0] as { instrumentOn?: boolean }).instrumentOn).toBe(false);
   expect((saved().tracks[0] as { muted?: boolean }).muted).toBeUndefined();
+  // A device folds to its head, and opens again.
+  await device.getByRole('button', { name: 'Fold Instrument' }).click();
+  await expect(device.getByRole('region', { name: 'Oscillator' })).toHaveCount(0);
+  await device.getByRole('button', { name: 'Show Instrument' }).click();
+  await expect(device.getByRole('region', { name: 'Oscillator' })).toBeVisible();
 });
 
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {

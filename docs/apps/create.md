@@ -109,7 +109,7 @@ A small studio for writing songs as notes.
 - **The bottom area** shows the chosen track: its notes or its devices. **Shift+Tab** switches between them (or pick
   Notes or Devices at the left of its bar), double-clicking a clip opens the notes and double-clicking a track's header
   opens its devices.
-- **Devices** run left to right in the order the sound flows. A small Track strip comes first, with the track's
+- **Devices** run left to right in the order the sound flows. The arrow in a device's head folds it to that head, so a long chain fits, and opens it again. A small Track strip comes first, with the track's
   colour, Volume and Pan. Then comes the instrument, with a switch that bypasses it alone (saved as `instrumentOn`) and a
   menu at its end to change it, and its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
