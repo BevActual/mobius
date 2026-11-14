@@ -1,5 +1,5 @@
 import { MobiusMark } from '../MobiusMark';
-import { useId, useRef, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react';
 
 /**
  * Sliders, parameter cells and meters (Instrument, "Slider and meter", "Parameter cell"; the Adjust card's controls).
@@ -38,11 +38,46 @@ export interface SliderProps {
   remake?: boolean;
   hideLabel?: boolean;
   hideValue?: boolean;
+  /** Mobius set this value and nobody has kept it yet: the value reads in indigo inside a dashed indigo edge. */
+  proposed?: boolean;
   disabled?: boolean;
   className?: string;
 }
 
 const SPAN = 1000;
+
+/**
+ * The value to draw: the real value at once when this control set it (a drag, a key), and a 300 ms glide to it when it
+ * changed from outside (Mobius turning a knob, an undo), so a viewer sees it move. Instant with reduced motion.
+ * `own` holds the last value the control itself sent.
+ */
+export function useGlide(target: number, own: { current: number | null }, ms = 300): number {
+  const [shown, setShown] = useState(target);
+  const now = useRef(target);
+  const frame = useRef(0);
+  useEffect(() => {
+    if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(frame.current);
+    const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mine = own.current !== null && Math.abs(own.current - target) < 1e-9;
+    if (mine || still || typeof requestAnimationFrame === 'undefined' || now.current === target) {
+      now.current = target;
+      setShown(target);
+      return;
+    }
+    const start = performance.now();
+    const from = now.current;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / ms);
+      const v = from + (target - from) * (1 - Math.pow(1 - k, 3));
+      now.current = v;
+      setShown(v);
+      if (k < 1) frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame.current);
+  }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
+  return shown;
+}
 
 function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
 function snap(v: number, step: number, min: number) {
@@ -74,10 +109,10 @@ export function logNudge(value: number, by: number, octaves: number, step: numbe
   return by > 0 ? Math.max(next, value + step) : Math.min(next, value - step);
 }
 
-function Track({ id, label, value, onChange, onCommit, min, max, step, bigStep, origin, reset, scale, format, disabled, thin, describedBy }: Required<Pick<SliderProps, 'label' | 'value' | 'onChange' | 'min' | 'max' | 'step' | 'scale'>> & Pick<SliderProps, 'onCommit' | 'bigStep' | 'origin' | 'reset' | 'format' | 'disabled'> & { id: string; thin?: boolean; describedBy?: string }) {
+function Track({ id, label, value, display = value, onChange, onCommit, min, max, step, bigStep, origin, reset, scale, format, disabled, thin, describedBy }: Required<Pick<SliderProps, 'label' | 'value' | 'onChange' | 'min' | 'max' | 'step' | 'scale'>> & Pick<SliderProps, 'onCommit' | 'bigStep' | 'origin' | 'reset' | 'format' | 'disabled'> & { id: string; thin?: boolean; describedBy?: string; /** Where to draw it while it glides. */ display?: number }) {
   const zero = origin ?? (min < 0 && max > 0 ? 0 : min);
   const back = reset ?? zero;
-  const at = toPosition(value, min, max, scale), from = toPosition(zero, min, max, scale);
+  const at = toPosition(display, min, max, scale), from = toPosition(zero, min, max, scale);
   const last = useRef(value);
   const set = (next: number) => onChange(snap(clamp(next, min, max), step, min));
   const commit = () => { if (onCommit && last.current !== value) { last.current = value; onCommit(value); } };
@@ -106,7 +141,7 @@ function Track({ id, label, value, onChange, onCommit, min, max, step, bigStep, 
       min={log ? 0 : min}
       max={log ? SPAN : max}
       step={log ? 1 : step}
-      value={log ? Math.round(at * SPAN) : value}
+      value={log ? Math.round(at * SPAN) : display}
       disabled={disabled}
       style={style}
       onChange={(e) => set(log ? fromPosition(Number(e.target.value) / SPAN, min, max, scale) : Number(e.target.value))}
@@ -118,15 +153,19 @@ function Track({ id, label, value, onChange, onCommit, min, max, step, bigStep, 
   );
 }
 
-export function Slider({ label, value, onChange, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, ends, remake, hideLabel, hideValue, disabled, className }: SliderProps) {
+export function Slider({ label, value, onChange, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, ends, remake, hideLabel, hideValue, proposed, disabled, className }: SliderProps) {
   const id = useId();
   const zero = origin ?? (min < 0 && max > 0 ? 0 : min);
-  const shown = format ? format(value) : value > 0 && min < 0 ? `+${value}` : String(value);
+  const own = useRef<number | null>(null);
+  const send = (v: number) => { own.current = v; onChange(v); };
+  const display = useGlide(value, own);
+  const seen = display === value ? value : snap(display, step, min);
+  const shown = format ? format(seen) : seen > 0 && min < 0 ? `+${seen}` : String(seen);
   const endsId = ends ? `${id}-ends` : undefined;
   return (
-    <div className={className ? `ui-slider ${className}` : 'ui-slider'} data-changed={value !== zero || undefined} data-disabled={disabled || undefined} data-bare={hideLabel || undefined}>
+    <div className={className ? `ui-slider ${className}` : 'ui-slider'} data-changed={value !== zero || undefined} data-proposed={proposed || undefined} data-disabled={disabled || undefined} data-bare={hideLabel || undefined}>
       {!hideLabel && <label className="ui-slider-name" htmlFor={id}>{label}{remake && <RemakeMark />}</label>}
-      <Track id={id} label={label} value={value} onChange={onChange} onCommit={onCommit} min={min} max={max} step={step} bigStep={bigStep} origin={origin} reset={reset} scale={scale} format={format} disabled={disabled} describedBy={endsId} />
+      <Track id={id} label={label} value={value} display={display} onChange={send} onCommit={onCommit} min={min} max={max} step={step} bigStep={bigStep} origin={origin} reset={reset} scale={scale} format={format} disabled={disabled} describedBy={endsId} />
       {!hideValue && <output className="ui-slider-value" htmlFor={id}>{shown}</output>}
       {ends && <div id={endsId} className="ui-slider-ends"><span>{ends[0]}</span><span>{ends[1]}</span></div>}
     </div>
@@ -144,14 +183,18 @@ export function ParamCell({ label, unit, keyHint, wide, size, ...slider }: Omit<
   size?: 'regular' | 'compact';
 }) {
   const id = useId();
-  const { value, format, min = 0, max = 100, step = 1, scale = 'linear', className, disabled } = slider;
-  const shown = format ? format(value) : String(value);
+  const { value, format, min = 0, max = 100, step = 1, scale = 'linear', className, disabled, proposed, onChange } = slider;
+  const own = useRef<number | null>(null);
+  const send = (v: number) => { own.current = v; onChange(v); };
+  const display = useGlide(value, own);
+  const seen = display === value ? value : snap(display, step, min);
+  const shown = format ? format(seen) : String(seen);
   return (
-    <div className={className ? `ui-param ${className}` : 'ui-param'} data-disabled={disabled || undefined} data-wide={wide || undefined} data-size={size === 'compact' ? 'compact' : undefined}>
+    <div className={className ? `ui-param ${className}` : 'ui-param'} data-proposed={proposed || undefined} data-disabled={disabled || undefined} data-wide={wide || undefined} data-size={size === 'compact' ? 'compact' : undefined}>
       <label className="ui-param-name" htmlFor={id}>{label}</label>
       {keyHint && <span className="ui-param-key" aria-hidden="true">{keyHint}</span>}
       <output className="ui-param-value" htmlFor={id}>{shown}{unit && <span className="ui-param-unit">{unit}</span>}</output>
-      <Track id={id} {...slider} min={min} max={max} step={step} scale={scale} label={label} format={format ? (v) => `${format(v)}${unit ? ` ${unit}` : ''}` : unit ? (v) => `${v} ${unit}` : undefined} thin />
+      <Track id={id} {...slider} display={display} onChange={send} min={min} max={max} step={step} scale={scale} label={label} format={format ? (v) => `${format(v)}${unit ? ` ${unit}` : ''}` : unit ? (v) => `${v} ${unit}` : undefined} thin />
     </div>
   );
 }

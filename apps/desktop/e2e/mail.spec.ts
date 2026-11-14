@@ -155,6 +155,8 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await list.getByRole('option').first().click();
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
   await shell().getByRole('menuitem', { name: 'Mark as Unread' }).click();
+  // Mark as Unread closes the message, so a failure below is about what the list shows, not which row ran.
+  await expect(tools).toHaveCount(0);
   await expect(list.locator('.mail-row[data-unread]')).toHaveCount(1);
 
   await labels().getByRole('button', { name: /^Primary/ }).click();
