@@ -54,9 +54,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'notes':
       return state.note
         ? [
+            // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
+            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up at the top of the note, above what is there: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items. Keep the words below exactly as they are. Show me the change before saving.', attach: 'note' },
+            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks in my Tasks Inbox with tasks.add, with any dates the note gives, and list them back as a short to-do list. Change nothing in the note.', attach: 'note' },
             { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
-            { label: 'Continue writing', prompt: 'Continue this note where it ends, in the same style. Show me what you would add before saving.', attach: 'note' },
-            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into a short to-do list.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
