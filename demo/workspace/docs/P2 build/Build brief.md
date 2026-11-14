@@ -41,7 +41,7 @@ Eight 60 kWh packs from Veltro, six weeks from order, at 6,000 GBP each with del
 and if the slot goes then the next one is, as far as we know, not until the new year, which would obviously be a
 disaster for the build week.
 
-There was some talk of Ardent as a second source, which might be cheaper, their quote was 5,400 GBP a pack for a 58 kWh
+There was some talk of Ardent as a second source, which might be cheaper, their quote was 5,800 GBP a pack for a 58 kWh
 pack, but it is a week slower to deliver and we have not tested their cells at all, so for now it is Veltro, although
 that could change if the price moves, which it might, because Veltro have been a bit vague about whether the price is
 fixed past this week. I have also had a look at a third option, Kore, who do a 62 kWh pack, but they could not give us

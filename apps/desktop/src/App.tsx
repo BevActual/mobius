@@ -538,7 +538,8 @@ export function App() {
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
   const activity = activityOf(conversation.state);
-  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
+  const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
   /** The views Mobius changed in its last turn and that wait for Keep. */
   const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
   // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
