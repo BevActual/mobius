@@ -2657,3 +2657,5 @@ body { font-variant-numeric: tabular-nums; }
 .result-body { min-width: 0; }
 .result-buttons { display: flex; align-items: center; gap: var(--sp-1); margin: 0 -6px -6px; }
 .result-keep { margin-left: auto; }
+/* The app's actions after a finished turn: only when the app has some. */
+.actions-after:not(:has(.action-row)) { display: none; }

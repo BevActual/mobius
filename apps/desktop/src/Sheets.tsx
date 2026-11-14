@@ -723,6 +723,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
         </div>
       )}
       {sheets.message && <p className="tasks-message" role="alert">{sheets.message}</p>}
+      {/* The grid and its charts: charts under the grid, or beside it when the page is wide. */}
+      <div className="sheet-body">
       <div
         className="sheet-scroll"
         ref={grid}
@@ -862,6 +864,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           })}
         </div>
       )}
+      </div>
       {edit && popupAt && (fnMatches.length > 0 || fnHint) && createPortal(
         <div className="sheet-suggest" style={{ top: popupAt.bottom + 4, left: Math.min(popupAt.left, window.innerWidth - 300) }} onMouseDown={keep}>
           {fnMatches.length > 0

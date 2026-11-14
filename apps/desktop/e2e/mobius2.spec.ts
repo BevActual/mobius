@@ -286,10 +286,13 @@ test('Rewind to here in Activity puts the apps back as they were after that turn
   await expect(first.getByRole('group', { name: 'Rewind' })).toContainText('Rewind 1 later turn? Notes will change.');
   await first.getByRole('button', { name: 'Rewind', exact: true }).click();
   await expect(activity.getByRole('status').filter({ hasText: 'Rewound to' })).toBeVisible();
-  await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+  // Read while it settles: putting files back rewrites each one (git's checkout removes it, then writes it), so for a
+  // moment on Windows it is not there, and a read then threw rather than waited (#332's run).
+  const plan = () => { try { return fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8'); } catch { return ''; } };
+  await expect.poll(plan).toBe('# Plan\n');
   expect(fs.existsSync(workspace('notes', 'Work', 'Ideas.md'))).toBe(true);
   await expect(turns.getByRole('listitem')).toHaveCount(1);
   await activity.getByRole('status').filter({ hasText: 'Rewound to' }).getByRole('button', { name: 'Undo' }).click();
-  await expect.poll(() => fs.readFileSync(workspace('notes', 'Work', 'Plan.md'), 'utf8')).toContain('Venue');
+  await expect.poll(plan).toContain('Venue');
   await expect(turns.getByRole('listitem')).toHaveCount(2);
 });

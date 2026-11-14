@@ -614,12 +614,14 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   // The resting panel's Actions list: an app's own actions go in first (Mail's Get to zero), then the ideas.
   const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
   const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
-  const actionsHere = resting ? appSlot : null;
   // The Glance and Result slots: Glance at the top of the resting panel and after a result; Result under the last
   // reply once the turn is done. One host element each, placed where the panel is now (null when there is no place).
   const [glanceSlot, setGlanceSlot] = useState<HTMLDivElement | null>(null);
   const [resultSlot, setResultSlot] = useState<HTMLDivElement | null>(null);
   const done = variant === 'panel' && !desk && settled && lastAssistant >= 0 && lastAssistant === state.items.length - 1 && (state.items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming !== true;
+  // Once a turn is done the app's own actions follow its reply too, so another app's work waiting for Keep never hides
+  // them (Plan my day, then Mail's Triage).
+  const actionsHere = resting || done ? appSlot : null;
   const glanceHere = resting || done ? glanceSlot : null;
   // Once the last turn's changes are all kept or discarded, the ideas come back as chips, so the next one is a press
   // away without a new chat. A new message (or another conversation) waits for its own review again.
@@ -809,6 +811,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                     <>
                       <div ref={setResultSlot} className="result-slot" />
                       <div ref={setGlanceSlot} className="glance-slot" />
+                      <div className="actions actions-after" role="group" aria-label="Actions"><div className="actions-list"><div ref={setAppSlot} className="actions-app" /></div></div>
                     </>
                   )}
                   {speech.state === 'failed' && speech.id === item.id && (

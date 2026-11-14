@@ -220,7 +220,11 @@ struct Metered {
 
 impl Provider for Metered {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
-        let mut completion = self.inner.complete(request, on_text)?;
+        self.complete_with_calls(request, on_text, &mut |_| {})
+    }
+
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&mobius_agent::message::ToolCall)) -> Result<Completion, ProviderError> {
+        let mut completion = self.inner.complete_with_calls(request, on_text, on_call)?;
         let mut usage = completion.usage.take().unwrap_or_default();
         usage.model = request.model.clone();
         usage.endpoint = self.endpoint.clone();
@@ -298,6 +302,10 @@ impl Agent {
     /// A second model took over a turn.
     pub fn on_switched(&mut self, turn_id: u64, model: &str, why: &str) -> Vec<Out> {
         self.host.notice(turn_id, "fallback", model, why)
+    }
+
+    pub fn on_call_ready(&mut self, core: &mut Core, turn_id: u64, call: mobius_agent::message::ToolCall) -> Vec<Out> {
+        self.host.call_ready(core, turn_id, call)
     }
 
     pub fn on_model_done(&mut self, core: &mut Core, turn_id: u64, result: Result<Completion, ProviderError>) -> Vec<Out> {
@@ -394,14 +402,39 @@ impl Agent {
                             }),
                         ));
                     }
+                    let conversation = self.host.conversation_of(turn_id).unwrap_or_default().to_owned();
                     std::thread::spawn(move || {
                         let streaming = inbox.clone();
+                        // Where a round's time goes: how long to the first word, and to the end. The application keeps
+                        // these with the turn's other steps (turn-timings.jsonl), so a slow turn can be taken apart.
+                        let asked = std::time::Instant::now();
+                        let mut first_text: Option<u128> = None;
+                        let (tools, model) = (request.tools.len(), request.model.clone());
+                        let early = inbox.clone();
                         let result = catch_unwind(AssertUnwindSafe(|| {
-                            provider.complete(&request, &mut |text| {
-                                !cancel.load(Ordering::SeqCst) && streaming.send(Inbox::Text { turn_id, text: text.to_owned() }).is_ok()
-                            })
+                            provider.complete_with_calls(
+                                &request,
+                                &mut |text| {
+                                    first_text.get_or_insert_with(|| asked.elapsed().as_millis());
+                                    !cancel.load(Ordering::SeqCst) && streaming.send(Inbox::Text { turn_id, text: text.to_owned() }).is_ok()
+                                },
+                                // Each call as soon as it is written, to run while the model writes the rest.
+                                &mut |call| {
+                                    if !cancel.load(Ordering::SeqCst) {
+                                        early.send(Inbox::CallReady { turn_id, call: call.clone() }).ok();
+                                    }
+                                },
+                            )
                         }))
                         .unwrap_or_else(|_| Err(ProviderError::Protocol("the model connection failed unexpectedly".to_owned())));
+                        let usage = result.as_ref().ok().and_then(|c| c.usage.clone()).unwrap_or_default();
+                        let calls = result.as_ref().map_or(0, |c| c.tool_calls.len());
+                        inbox.send(Inbox::Notify(json!({ "jsonrpc": "2.0", "method": "agent.timing", "params": {
+                            "conversation": conversation, "turn": turn_id, "step": "model", "model": model,
+                            "startup_ms": usage.startup_ms, "first_text_ms": first_text, "ms": asked.elapsed().as_millis(),
+                            "input": usage.input, "cached": usage.cached, "output": usage.output, "tools_offered": tools, "tool_calls": calls,
+                            "ok": result.is_ok(),
+                        } }))).ok();
                         if let Ok(Completion { usage: Some(usage), .. }) = &result {
                             inbox.send(Inbox::Usage { turn_id, kind: "chat", usage: usage.clone() }).ok();
                         }
