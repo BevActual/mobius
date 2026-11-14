@@ -82,7 +82,7 @@ Music asked for these, and they work everywhere:
 
 - `Select inline` puts the name beside the box, for toolbars and bars.
 - `Select quiet` is text with chevrons, with a grey fill on hover and while open, for a toolbar's sub line.
-- `ParamGrid columns={1}` takes a lone cell such as Volume. `columns={3}` also works, and a `wide` ParamCell spans its row.
+- `ParamGrid columns={1}` takes a lone cell such as Volume. `columns={3}` also works, `columns={4}` sets knobs four across (a 340-wide side panel), and a `wide` ParamCell spans its row.
 - On a log scale (Cutoff, Attack, Release), the arrows move a twelfth of an octave and Shift+arrows half an octave, always at least one `step`.
 - `Swatches` picks a content colour: round swatches in a radio group, a ring on the chosen one, names as tooltips, and arrows to move. Use it for track, list and calendar colours.
 
@@ -187,6 +187,8 @@ Music uses these first, and then Video, Photo, Design and Code. Live values use 
 | `LetterToggle` | M (mute), S (solo) and R (record) on a track, and lock and hide on a layer. `label` is its full name ("Mute Drums"). `armed` turns an R red while it is on. `dimmed` greys the letter of a track that another track's solo silences |
 | `Transport` | Play/Pause, Stop, then the latching Record, Loop and Metronome. The app binds the keys itself, so pass `keys` to make the tooltips match (Space, Enter, R, L and K by default) |
 | `LevelMeter` | A vertical level meter per track and on the master, stereo by default, from -60 to +6 dB. Feed it through a ref, with `ref.current.set(leftDb, rightDb)` about 30 times a second. It writes straight to the bars, so nothing re-renders. The peak holds for 1.5 seconds and then falls. Only the part over 0 dB is red, and the clip light stays lit until it is clicked (or `reset()` is called) |
+| `LevelMeter` threshold | Give a compressor's or gate's input meter `threshold` (dB) with `onThreshold` and `onThresholdCommit`. It draws an ink line across the bars, edged in paper so it shows over a full bar, and a tab at the right to drag. Up and Down move it 1 dB, and Shift moves it 6. Home, or two quick presses, puts it back to `thresholdReset`. It is a vertical slider for screen readers ("−18 dB"). `decibelLabel` writes the figure with a true minus |
+| `GainReductionMeter` | How much a compressor, limiter or gate is turning the sound down: one bar from 0 dB at the top down to `range` (24 dB by default), fed through a ref with `ref.current.set(dbTakenOff)`. A line holds the most it took off for 1.5 seconds, and underneath, the most so far reads in mono ("−6.4"). A click on that figure clears it (`readout={false}` hides it). Set it beside the input meter that shows the threshold |
 
 A step grid and the timeline pieces (ruler, playhead, clip, lane) come next, shaped by what Music needs.
 
@@ -216,7 +218,7 @@ Instruments and effects sit in devices, and devices sit in a chain in signal ord
 
 | Control | Use it for |
 | --- | --- |
-| `DeviceChain` | The row of devices: `label`, `count` and `onMove(from, to)`. It scrolls sideways when the devices don't fit |
+| `DeviceChain` | The row of devices: `label`, `count` and `onMove(from, to)`. It scrolls sideways when the devices don't fit. `orientation="vertical"` stacks them top to bottom for a narrow side panel: it fills the panel's width, grips drag up and down, and scrolls down when they don't fit. In a narrow panel the EQ's values go two to a row |
 | `DeviceFrame` | One device. The head has a grip, an on/off `Switch`, the title, optional `actions` and a fold. To move a device, drag its grip along the chain, or focus the grip and use the arrow keys (Home and End go to the ends). Off dims the controls but keeps them editable, as a bypass does. `collapsed` shows the head alone. `proposed` gives the dashed indigo edge for a device Mobius added that waits for Keep |
 | `EqGraph` | Three or four bands (`{ type: 'lowshelf' \| 'peak' \| 'highshelf', freq, gain, q, on? }`) over 20 Hz to 20 kHz and ±18 dB. Each band has a numbered dot: across is frequency and up is gain (a shelf's dot sits halfway up its step). The wheel or Alt+drag sets Q, and on a focused dot Alt+Up and Alt+Down do. The chosen band's own shape shows faintly under the whole curve, and every band's values read in a column underneath. `bandLevel` and `eqLevel` give the curve in dB, the same way Web Audio's BiquadFilter computes it |
 

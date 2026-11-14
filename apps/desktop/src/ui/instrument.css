@@ -17,7 +17,7 @@
 .ui-knob-tick { stroke: var(--muted); stroke-width: 2.7; stroke-linecap: round; }
 .ui-knob[data-changed] .ui-knob-tick, .ui-knob-dial[data-dragging] .ui-knob-tick { stroke: var(--ink); }
 .ui-knob-value {
-  display: flex; align-items: baseline; gap: calc(var(--sp-1) / 2); font: var(--fw-regular) var(--fs-sm) / 1.2 var(--font-mono);
+  display: flex; align-items: baseline; gap: 1ch; font: var(--fw-regular) var(--fs-sm) / 1.2 var(--font-mono);
   color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .ui-knob[data-changed] .ui-knob-value { color: var(--ink); }
@@ -94,6 +94,8 @@
 
 /* Device chain: devices in a row, in signal order; the row scrolls sideways. */
 .ui-chain { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; overflow-x: auto; padding-bottom: var(--sp-1); }
+.ui-chain[data-orientation='vertical'] { flex-direction: column; align-items: stretch; width: 100%; overflow: hidden auto; padding-bottom: 0; }
+.ui-chain[data-orientation='vertical'] .ui-device { min-width: 0; }
 .ui-device {
   display: flex; flex-direction: column; flex: none; min-width: var(--device-min-w); border: var(--hairline-w) solid var(--line);
   border-radius: var(--radius-control); background: var(--paper);
@@ -123,5 +125,16 @@
 .ui-device-fold svg { width: 50%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ui-device-body { padding: var(--sp-3); }
 .ui-device[data-off] .ui-device-body { opacity: 0.45; }
+/* Off dims every value the same: the grey for a value still at its reset would read as dimmer still. */
+.ui-device[data-off] .ui-knob-value, .ui-device[data-off] .ui-knob-tick { color: var(--ink); stroke: var(--ink); }
 /* An EQ needs more height than an envelope: ±18 dB has to read. */
 .ui-eq .ui-graph-surface { height: var(--eq-h); }
+
+/* In a narrow side panel the four bands' values go two to a row, so no column runs into the next. */
+.ui-eq { container-type: inline-size; }
+/* Containment drops the values' own width, so a sideways chain keeps the EQ wide enough for four columns. */
+.ui-chain:not([data-orientation='vertical']) .ui-eq { min-width: 26rem; }
+.ui-graph-readout dt { overflow: hidden; text-overflow: ellipsis; }
+@container (width < 24rem) {
+  .ui-eq-readout { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--sp-3); }
+}
