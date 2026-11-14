@@ -1,92 +1,122 @@
-/* The Mail app. */
-.stage .mail-page { position: absolute; z-index: 1; inset: 0; display: flex; background: var(--paper, var(--bg)); }
+/* The Mail app. Comfortable density: every size, row height and colour comes from tokens.css (Instrument). */
+.stage .mail-page { position: absolute; z-index: 1; inset: 0; display: flex; background: var(--paper); container-type: inline-size; font-size: var(--fs-md); }
 .mail-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); text-align: center; }
-.mail-list-pane { flex: 0 0 320px; min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--line); }
-/* Each message a full-width row between hairlines: sender, subject, then the first words, as in the mock. */
-.mail-list { flex: 1; min-height: 0; overflow: auto; padding: 0; display: flex; flex-direction: column; gap: 0; }
-.mail-row { flex: none; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 12px 16px 12px 16px; border-radius: 0; border-bottom: 1px solid var(--line); position: relative; min-width: 0; }
-.mail-row:hover { background: var(--line-soft, var(--soft)); }
-.mail-row[aria-selected="true"] { background: var(--sel, var(--wash)); }
-.mail-row[data-unread]::before { content: ""; position: absolute; left: 5px; top: 18px; width: 6px; height: 6px; border-radius: 3px; background: var(--mobius, var(--accent)); }
-.mail-row[data-suggested] { outline: 1px dashed var(--mobius, var(--accent)); outline-offset: -4px; }
-.mail-row-top { display: flex; gap: var(--sp-2); align-items: baseline; }
-.mail-row-top b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; color: var(--ink); }
-.mail-row-subject { color: var(--body, var(--ink)); }
-.mail-when { font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
-.mail-row-subject, .mail-row-preview { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); }
-.mail-row-preview { color: var(--muted); }
+
+/* The list beside the reading pane: one fixed two-line row per message (the rule for a master list beside a reading
+   pane): the sender and the date on the first line, the subject and its first words in grey on the second. */
+.mail-list-pane { flex: 0 0 360px; min-width: 0; display: flex; flex-direction: column; overflow: auto; border-right: var(--hairline-w) solid var(--line); }
+.mail-list { flex: none; display: flex; flex-direction: column; }
+.mail-page { --mail-row: 56px; }
+html[data-density='compact'] .mail-page { --mail-row: 48px; }
+.mail-row {
+  --list-side: 22px;
+  flex: none; height: var(--mail-row); display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "who end" "what what"; align-content: center; align-items: center; column-gap: var(--sp-2); row-gap: 2px;
+  padding: 0 var(--list-side); border: 0; border-bottom: var(--hairline-w) solid var(--line); border-radius: 0; background: none;
+  position: relative; min-width: 0; text-align: left; font: inherit; font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--ink); cursor: default;
+}
+.mail-row-who { grid-area: who; }
+.mail-row-what { grid-area: what; }
+.mail-row-end { grid-area: end; }
+.mail-row:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.mail-row[aria-selected="true"] { background: var(--sel); }
+.mail-row[aria-selected="true"] .mail-row-who { font-weight: var(--fw-medium); }
+.mail-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.mail-row-who, .mail-row-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mail-row-subject { color: var(--ink); }
+.mail-row-preview { color: var(--muted); font-weight: var(--fw-regular); }
+.mail-row-preview::before { content: " — "; }
+.mail-row-preview:empty { display: none; }
+/* Unread: the sender in semibold, and a small ink dot in the margin. Not a colour. */
+.mail-row[data-unread] .mail-row-who { font-weight: var(--fw-semibold); }
+.mail-row[data-unread]::before { content: ""; position: absolute; left: calc(var(--list-side) / 2 - 3px); top: calc(50% - 3px - 0.7em); width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+/* A reply Mobius wrote: the dashed indigo edge until it is kept or discarded. */
+.mail-row[data-suggested] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(-1 * var(--sp-1)); }
+.mail-row-end { min-width: 4.5em; display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
+.mail-row-flag { display: inline-flex; color: var(--c-amber); }
+.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
+.mail-when { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mail-needs-reply { color: var(--muted); }
+
+/* A short list ends with one quiet line and New message; an empty one says it in the middle of the pane. */
+.mail-list-end { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4) 22px; color: var(--muted); font-size: var(--fs-sm); }
+.mail-list-end p { margin: 0; }
+.mail-list-end[data-empty] { flex: 1; align-items: center; justify-content: center; text-align: center; }
+
+/* Loading: grey bars the shape of the rows that are coming. */
+.mail-loading { display: flex; flex-direction: column; }
+.mail-loading-row { height: var(--mail-row); display: flex; align-items: center; gap: var(--sp-3); padding: 0 22px; border-bottom: var(--hairline-w) solid var(--line); }
+.mail-bar { height: 8px; border-radius: 4px; background: var(--sel); }
+.mail-bar-when { width: 36px; margin-left: auto; }
+
+/* The message: a reading column of 680px, a large subject, the body at reading size. */
 .mail-reading-pane { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-8) var(--sp-6); }
-.mail-reading-pane > .note-empty { margin-top: 30vh; text-align: center; }
 .mail-reader { max-width: 680px; margin: 0; display: flex; flex-direction: column; gap: var(--sp-4); outline: none; }
 .mail-reader-head { display: flex; gap: var(--sp-3); align-items: center; }
 .mail-reader-head .mail-format { margin-left: auto; }
-.mail-avatar { flex: 0 0 30px; height: 30px; border-radius: 15px; display: grid; place-items: center; background: var(--sel, var(--soft)); color: var(--ink); font-size: var(--fs-xs); font-weight: 600; }
+.mail-avatar { flex: 0 0 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sel); color: var(--ink); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
 .mail-reader-who { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.mail-subject { margin: 0; font-size: var(--fs-2xl); line-height: var(--lh-tight); font-weight: 650; letter-spacing: -0.015em; color: var(--ink); }
-.mail-reader-who b { color: var(--ink); font-weight: 600; }
-.mail-reader-who .mail-when { font-size: var(--fs-md); }
+.mail-subject { margin: 0; font-size: var(--fs-2xl); line-height: var(--lh-tight); font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--ink); }
+.mail-reader-who b { color: var(--ink); font-weight: var(--fw-semibold); }
 .mail-to { color: var(--muted); }
 .mail-reader-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
+/* An email's own HTML is drawn on white, as its sender designed it, in every theme. */
+.mail-html { width: 100%; border: 0; border-radius: var(--radius-panel); background: white; }
+.mail-text { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: inherit; font-size: var(--fs-reading); line-height: 1.6; color: var(--body); }
+.mail-attachments { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
+
+/* The toolbar's message actions: two groups of 18px line icons. */
 .mail-tools { display: flex; align-items: center; gap: var(--sp-2); }
 .mail-tools-group { display: inline-flex; align-items: center; gap: 2px; }
-.mail-tools-group + .mail-tools-group { padding-left: var(--sp-2); border-left: 1px solid var(--line); }
-.mail-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
+.mail-tools-group + .mail-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
+.mail-tools .strip-btn { border-radius: var(--radius-control); color: var(--body); }
 .mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
 .mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--flag, #f59e0b); }
-.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); stroke: none; }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--c-amber); }
+.mail-tools .strip-btn svg [data-dot] { fill: var(--ink); stroke: none; }
 .mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
-.mail-row-flag { display: inline-flex; color: var(--flag, #f59e0b); }
-.mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
-.mail-row[data-flagged]:not([data-unread])::before { content: none; }
-.btn.mail-draft-it { color: var(--accent); }
-.mail-reader-actions select { height: 30px; padding: 0 24px 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--bg) var(--chevron) no-repeat right 8px center / 12px; appearance: none; font: inherit; font-size: var(--fs-sm); color: inherit; }
-.mail-html { width: 100%; border: 0; border-radius: var(--radius-group); background: #fff; }
-.mail-text { margin: 0; white-space: pre-wrap; word-wrap: break-word; font: inherit; font-size: var(--fs-lg); line-height: 1.6; color: var(--body, var(--ink)); }
-.mail-attachments { margin: 0; font-size: var(--fs-sm); color: var(--muted); }
-.mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
-.mail-suggested-head { font-size: var(--fs-md); font-weight: 500; color: var(--mobius, var(--accent)); cursor: help; }
+
 /* Mobius's draft: one dashed indigo block, its text as the person would send it. */
-.mail-suggested-body { margin: 0; padding: var(--sp-4) var(--sp-5); border: 1px dashed var(--mobius, var(--accent)); border-radius: var(--radius-panel); white-space: pre-wrap; font-size: var(--fs-lg); line-height: 1.6; color: var(--body, var(--ink)); }
-/* The four stay on one row: Draft from Mobius, Discard, Try another, Keep and edit. */
-.mail-suggested-actions { display: flex; gap: 6px; align-items: center; flex-wrap: nowrap; white-space: nowrap; }
+.mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
+.mail-suggested-head { font-weight: var(--fw-medium); color: var(--mobius); cursor: help; }
+.mail-suggested-body { margin: 0; padding: var(--sp-4) var(--sp-5); border: var(--hairline-w) dashed var(--mobius); border-radius: var(--radius-panel); white-space: pre-wrap; font-size: var(--fs-reading); line-height: 1.6; color: var(--body); }
+/* Draft from Mobius, then the shared change block's Discard and Try another as plain text and a filled Keep and edit. */
+.mail-suggested-actions { display: flex; gap: var(--sp-1); align-items: center; flex-wrap: wrap; white-space: nowrap; }
 .mail-suggested-actions > * { flex: none; }
-.mail-suggested-actions .mail-suggested-head { margin-right: var(--sp-1); white-space: nowrap; }
-.btn.mail-keep { background: var(--ink); border-color: var(--ink); color: var(--on-ink, #fff); }
-.btn.mail-keep:hover { background: color-mix(in srgb, var(--ink) 85%, var(--paper, #fff)); }
+.mail-suggested-actions .mail-suggested-head { margin-right: var(--sp-1); }
+/* A reply the person kept, under the message it answers: theirs now, so a plain edge, with Send right there. */
+.mail-kept { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-radius: var(--radius-panel); border: var(--hairline-w) solid var(--line); background: var(--paper); }
+.mail-kept .mail-suggested-body { padding: 0; border: 0; }
+.mail-kept-head { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.mail-kept-problem { margin: 0; font-size: var(--fs-sm); color: var(--red); }
+
+/* Writing: plain fields on hairlines, the body at reading size. */
 .mail-compose { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
-.mail-field { display: flex; align-items: center; gap: var(--sp-2); border-bottom: 1px solid var(--line); }
+.mail-field { display: flex; align-items: center; gap: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
 .mail-field span { width: 60px; color: var(--muted); font-size: var(--fs-sm); }
-.mail-field input { flex: 1; height: 34px; border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
-.mail-compose textarea { min-height: 260px; padding: var(--sp-2) 0; border: 0; resize: vertical; font: inherit; line-height: 1.55; background: transparent; color: inherit; outline: none; }
-@container (max-width: 700px) { .mail-list-pane { flex-basis: 260px; } }
-.stage .mail-page { container-type: inline-size; }
+.mail-field input { flex: 1; height: var(--row-list); border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
+.mail-compose textarea { min-height: 260px; padding: var(--sp-2) 0; border: 0; resize: vertical; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
+.mail-later { position: relative; display: inline-flex; }
+.mail-later-menu { position: absolute; bottom: calc(100% + var(--sp-1)); right: 0; z-index: 5; display: grid; gap: var(--sp-1); padding: var(--sp-1); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-1); white-space: nowrap; }
+.mail-later-suggested[data-proposed] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: -1px; color: var(--mobius); }
+.mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+
+@container (max-width: 760px) { .mail-list-pane { flex-basis: 280px; } }
+
+/* Empty places in Mail: a plain line icon, not a coloured tile. */
+.mail-page .empty-state-icon { background: none; box-shadow: none; color: var(--faint); }
+
+/* Get to zero, in the Mobius panel: Mobius's plan with a dashed indigo edge. */
 .mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
 .mail-plan-start { justify-self: start; }
-.mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: 1px dashed var(--accent); outline-offset: -1px; background: color-mix(in srgb, var(--accent) 5%, transparent); }
-.mail-plan-head { margin: 0; font-weight: 600; font-size: var(--fs-sm); }
+.mail-plan-card { display: grid; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); outline: var(--hairline-w) dashed var(--mobius); outline-offset: -1px; background: var(--mobius-wash); }
+.mail-plan-head { margin: 0; font-weight: var(--fw-semibold); font-size: var(--fs-sm); }
 .mail-plan-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
-.mail-plan-row { display: flex; width: 100%; justify-content: space-between; padding: 4px 6px; border: 0; border-radius: 6px; background: none; color: inherit; font: inherit; cursor: pointer; }
-.mail-plan-row:hover { background: var(--wash); }
+.mail-plan-row { display: flex; width: 100%; justify-content: space-between; padding: var(--sp-1) var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: inherit; font: inherit; cursor: pointer; }
+.mail-plan-row:hover { background: var(--soft); }
 .mail-plan-count { color: var(--muted); font-variant-numeric: tabular-nums; }
-.mail-plan-items { margin: 0 0 4px; padding: 0 6px 0 16px; font-size: var(--fs-sm); color: var(--muted); }
+.mail-plan-items { margin: 0 0 var(--sp-1); padding: 0 var(--sp-2) 0 var(--sp-4); font-size: var(--fs-sm); color: var(--muted); }
 .mail-plan-actions { display: flex; gap: var(--sp-2); justify-content: flex-end; }
-.mail-plan-done, .mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); }
+.mail-plan-done { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); }
 .mail-sources { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; gap: 2px; }
-.mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: 4px 8px; border: 1px solid var(--hairline); border-radius: 8px; background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
+.mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: var(--sp-1) var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
 .mail-source span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.mail-later { position: relative; display: inline-flex; }
-.mail-later-menu { position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: var(--radius-panel); background: var(--bg); box-shadow: var(--shadow-1); white-space: nowrap; }
-.mail-later-suggested[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; color: var(--accent); }
-.mail-needs-reply { color: var(--accent); }
-.mail-tools .strip-btn svg [data-dot] { fill: var(--accent); }
-/* A reply the person kept, under the message it answers: theirs now, so a plain edge, with Send right there. */
-.mail-kept { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-radius: var(--radius-panel); border: 1px solid var(--line); background: var(--paper, var(--bg)); }
-.mail-kept .mail-suggested-body { padding: 0; border: 0; }
-.mail-kept-head { font-size: var(--fs-xs); font-weight: 600; color: var(--muted); }
-.mail-kept-problem { margin: 0; font-size: var(--fs-xs); color: var(--danger, #b3261e); }
-/* From Mobius in the sidebar: how many suggested replies wait. */
-.mail-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius, var(--accent)); white-space: nowrap; align-self: center; }
-/* Empty places in Mail: a plain line icon, not a coloured tile. */
-.mail-page .empty-state-icon { background: none; box-shadow: none; color: var(--faint, var(--muted)); }
-.mail-suggested-actions .btn { height: 28px; padding: 0 10px; font-size: var(--fs-md); }
