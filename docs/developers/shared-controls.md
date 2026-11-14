@@ -45,7 +45,7 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 | Control | Use it for |
 | --- | --- |
 | `Button` | `kind="primary"` (solid ink, one per view at most), `"secondary"` (the default: paper with a hairline) or `"quiet"` (text only: toolbars, rows, and Discard and Try another beside one primary Keep). Optional `icon`, `keys` (added to the tooltip), `pressed` for a toggle, `danger` for red text |
-| `IconButton` | A line icon with no border. `label` is required: it is the accessible name and the tooltip, with `keys` after it |
+| `IconButton` | A line icon with no border. `label` is required: it is the accessible name and the tooltip, with `keys` after it. `primary` makes the one ink icon button of an area (the composer's Send) |
 | `TextField` | A field with its `label` above (or `hideLabel`), a grey `unit` or key hint at the trailing end, and `error`: one plain sentence under it with a red dot. `onChange` gets the text |
 | `Select` | A pop-up: a field with up and down chevrons that opens the shared menu, the chosen row ticked. Pass `choices` (`{ value, label }`) |
 | `Segmented` | A small set of choices all worth seeing: a grey track, the chosen one on paper. `iconOnly` for icons (the label becomes the tooltip), `wide` to fill a panel's width. Arrow keys move it. The toolbar's views keep using `ViewSwitch` |
@@ -110,7 +110,7 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
 
 | Control | Use it for |
 | --- | --- |
-| `Popover` | A small floating panel of controls opened from a button: the composer's plus menu (switches, a row or two, a link onward). Pass `trigger`, `label` and the content; `side="top"` opens it upward. `PopoverTitle` is its sentence-case heading |
+| `Popover` | A small floating panel of controls opened from a button: the composer's plus menu (switches, a row or two, a link onward). Pass `trigger`, `label` and the content; `side="top"` opens it upward. `PopoverTitle` is its sentence-case heading; `PopoverLink` is the way out at the bottom ("Manage in Abilities": a row with a hairline above and an arrow) |
 | `ChoiceMenu` | Pick one of a few choices from a button (Mode, Permission, model). `choices` are `{ value, label, meaning?, keys? }`: the current one has a check, keys show as caps, and a `meaning` makes a two-line row (name, then a grey line on what it means). `side` is `'top'` by default, for the composer. `footer` adds plain rows after a line ("Manage in Abilities") |
 
 ```tsx
