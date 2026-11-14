@@ -40,6 +40,12 @@ export interface SurfaceState {
   settings?: boolean;
 }
 
+/**
+ * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
+ * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
+ */
+export const PLAN_MY_DAY = 'Plan my day. Read my open tasks with tasks.list and keep the ones due today or overdue, and any flagged. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task worth doing today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. For unread mail that needs an answer from me today, suggest a short reply in my voice with mail.draft. Do not send anything and do not move my events. End with the day as a short list in time order, then one line on what can wait.';
+
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
   switch (state.app) {
@@ -61,7 +67,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
       return [
-        { label: 'Plan my day', prompt: 'Look at my tasks and help me plan today: what to do first, and what can wait. Keep it short.', attach: 'tasks' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks' },
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
@@ -223,7 +229,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       ];
     case 'agent':
       return [
-        { label: 'Plan my week', prompt: 'Help me plan my week. Ask me what matters most first.' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY },
         { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];
