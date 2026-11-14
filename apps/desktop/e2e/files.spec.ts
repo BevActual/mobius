@@ -103,6 +103,28 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toContain('From Mobius.');
 });
 
+test('a file Mobius makes in the open folder shows dashed as the call lands, before the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the file is there.
+  await start([
+    callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n' }),
+    says(['I wrote ', 'a brief.'], 3000),
+  ]);
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await expect(page.getByRole('row', { name: /^Plan\.md/ })).toBeVisible();
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Write a brief');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
+  await expect(log.locator('.msg.assistant')).not.toHaveText('I wrote a brief.');
+  await expect(log.locator('.msg.assistant')).toHaveText('I wrote a brief.', { timeout: 15_000 });
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
+});
+
 test('a new folder is named in place, a file renamed with F2, and Delete moves it to the Trash with Undo', async () => {
   await start();
   await openFiles();
