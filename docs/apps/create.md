@@ -90,22 +90,25 @@ A small studio for writing songs as notes.
 - **Songs** in the sidebar, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back.
-- **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play, Stop (twice to
-  go back to the start), the position, the tempo, the meter and Loop.
-- **Tracks** are rows: the name and instrument on the left, the notes as clips along the bars. The whole song fits
-  across the window; Ctrl and the scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to
-  edit the notes, duplicate, mute, solo or delete it. Deleting says what went, with Undo.
-- **A part from Mobius** is drawn dashed in indigo until you keep it. Keep, Discard and Try another are in the Device
-  panel.
-- **The Device panel** sets how the chosen track sounds: its instrument and volume, then the oscillator (Shape and
-  Detune), the filter (Cutoff and Resonance) and the envelope (Attack and Release). Double-click a setting to put it
-  back. The settings are saved in the song.
+- **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
+  (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
+- **Tracks** are numbered rows in compact sizes: the number in the track's colour, the name and instrument on the left,
+  the notes as solid clips in the track's colour along the bars. The whole song fits across the window; Ctrl and the
+  scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to edit the notes (Enter),
+  duplicate (Ctrl+D), mute (M), solo (S) or delete it (Delete); the keys work on the chosen track. Deleting says what
+  went, with Undo. **Add track** after the last track adds one from the same sounds.
+- **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
+  the Device panel.
+- **The Device panel** sets how the chosen track sounds: its instrument and colour, then its volume, the oscillator
+  (Shape and Detune), the filter (Cutoff and Resonance) and the envelope (Attack and Release), each a labelled cell
+  with its value in mono and a slider under it. Double-click a cell to put it back. The settings and colour are saved
+  in the song.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
   a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
-  to loop the whole song again; its menu also turns the metronome on, adds or removes four bars, and zooms.
+  to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes.
