@@ -44,3 +44,5 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat.full .composer, html .chat.full .composer { border: 0; border-radius: var(--radius-panel); background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
 .chat.full .composer:focus-within { box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--accent) 45%, var(--line)); }
 .chat.full .composer[data-working="agent"] { box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 55%, var(--line)); }
+/* The desk's last line on a short day: plain and warm, the same grey as the date line. */
+.desk-end { margin: var(--sp-6) 0 0; font-size: var(--fs-md); color: var(--muted); }

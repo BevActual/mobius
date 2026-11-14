@@ -181,7 +181,7 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onNew, onUpdate, 
         <span className="clist-title">{bot.name}</span>
         <span className="clist-sub">{main ? 'Built in' : bot.model || 'Model from settings'} · {sessionCount(sessions)}</span>
       </button>
-      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+      <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More (Shift+F10)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
       </button>
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}
