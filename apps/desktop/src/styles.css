@@ -2625,9 +2625,10 @@ body { font-variant-numeric: tabular-nums; }
    buttons on the left. */
 .chat .review-strip .review-dot { display: none; }
 .chat .review-strip .review-head { flex-wrap: nowrap; row-gap: 0; }
-.chat .review-strip .review-toggle { flex: 1 1 auto; min-width: 0; }
+.chat .review-strip .review-toggle { flex: 1 1 auto; min-width: 0; position: relative; }
 .chat .review-strip .review-toggle .review-summary { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.chat .review-strip .review-toggle > span:not(.review-summary) { display: none; }
+/* Out of sight but still part of the button's name ("1 change in Notes · Review"). */
+.chat .review-strip .review-toggle > span:not(.review-summary) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .chat .review-strip .review-head .review-actions { flex: none; flex-basis: auto; flex-wrap: nowrap; }
 .chat .review-strip .review-head .review-actions .review-btn { flex: none; }
 .chat .review-strip .review-kind { padding: 0; background: none; color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-regular); text-transform: none; font-variant: normal; letter-spacing: 0; min-width: 4.5em; }
