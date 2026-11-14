@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
@@ -538,8 +538,7 @@ export function App() {
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
   const activity = activityOf(conversation.state);
-  const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
-  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
   /** The views Mobius changed in its last turn and that wait for Keep. */
   const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
   // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
@@ -1055,7 +1054,7 @@ export function App() {
   // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
   // Triage from Mail's panel action: the composer switches to Triage too, so the next turns stay in it until changed.
   // Code's Glance: Find the cause sends the failing test, with the open file and its output, to Mobius.
-  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(DEBUG_TEST, surface.code ? [sheetItem(surface.code)] : []); };
+  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(withSteps('Find the cause of the failing test', DEBUG_TEST), surface.code ? [sheetItem(surface.code)] : []); };
   const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setChatMode('triage'); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
