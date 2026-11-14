@@ -63,6 +63,7 @@ import { SkillEditor } from './Skills';
 // Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
 import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
+import { setChatMode } from './chat-mode';
 import { MailActions } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
 import { HowIWork, SharedQueue, WikiPage, WikiSidebar, useWikiIncoming, type WikiPlace } from './Wiki';
@@ -1015,7 +1016,8 @@ export function App() {
   /** A start from an app's New row: its words go in the message box, for the person to finish and send. */
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
   // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
-  const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); void conversation.send(prompt, [], { mode: 'triage' }); };
+  // Triage from Mail's panel action: the composer switches to Triage too, so the next turns stay in it until changed.
+  const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setChatMode('triage'); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
   // Pinned favourites: notes and task lists one click away in the sidebar.
