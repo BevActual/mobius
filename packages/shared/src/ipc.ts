@@ -305,6 +305,8 @@ export interface MobiusBridge {
     lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
     undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+    /** Several of the last turn's files back at once; all of them also moves back what its moves left behind. */
+    undoFiles?(conversation: string, paths: readonly string[]): Promise<{ ok: true; kept?: string[] } | AgentFailure>;
     /** A file as it was before the last turn: `text` is null when the turn made it. */
     before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
     /** Every turn of the conversation, newest first, with what each changed between its start and its end. */

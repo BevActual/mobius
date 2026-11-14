@@ -3360,6 +3360,27 @@ impl Bridge {
                 }
                 (Some(_), Err(e)) => failed(e),
             },
+            // Several of the turn's files back at once (a Discard), with one checkpoint rather than one each. When they are
+            // all its files, what its moves left behind (archives, the folders it made) goes back too, as Undo does.
+            "undoFiles" => {
+                let asked: Vec<String> = arg(1).as_array().map(|l| l.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
+                match (&end, turn_files()) {
+                    (Some(end), Ok(files)) => {
+                        let (kept, back): (Vec<String>, Vec<String>) = files.iter().filter(|f| asked.contains(f)).cloned().partition(|path| changed_later(path));
+                        let whole = files.iter().all(|f| asked.contains(f) || changed_later(f) || f.starts_with(".comments/"));
+                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back) };
+                        match done {
+                            Ok(()) => {
+                                self.reload_after_undo(None);
+                                json!({ "ok": true, "kept": kept })
+                            }
+                            Err(e) => failed(e),
+                        }
+                    }
+                    (None, _) => failed("Mobius is still working on that turn."),
+                    (Some(_), Err(e)) => failed(e),
+                }
+            }
             // The file as it was before the turn, to show what changed. `null` when the turn made it.
             "before" => match arg(1).as_str() {
                 Some(path) => match self.workspace.read_at(&mark, path) {

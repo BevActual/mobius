@@ -209,8 +209,8 @@ impl Policy {
 /// person to keep, change and send it; what always asks is paying, sending, deleting and running commands), and read
 /// what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
 /// is a floor, and sending, browsing and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 17] = [
-    "clock.read", "schedules.read", "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+const REVERSIBLE: [&str; 18] = [
+    "clock.read", "schedules.read", "files.read", "files.list", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
     "calendar.read", "calendar.write", "skills.read", "document.write", "mail.read", "mail.draft", "browser.list",
 ];
 
@@ -447,6 +447,8 @@ mod tests {
         let a = agent("mobius");
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::Allow { consume: None });
+        // Listing a folder only reads, so a tidy asks nothing before its moves (it once asked twice just to look).
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.list"), Some("Downloads")), Verdict::Allow { consume: None });
         // Reading the time asks nothing in Propose.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("clock.read"), None), Verdict::Allow { consume: None });
         // Reading mail changes nothing, so Propose does not stop for it; sending still asks.

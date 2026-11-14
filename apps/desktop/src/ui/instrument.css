@@ -112,6 +112,8 @@
   flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
 }
+.ui-device-head:has(.ui-device-lead) .ui-device-title { flex: 0 1 auto; }
+.ui-device-lead { display: inline-flex; flex: 1; align-items: center; min-width: 0; }
 .ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
   display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
@@ -211,3 +213,12 @@
 :is(.ui-param, .ui-slider)[data-proposed] {
   outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: var(--sp-1); border-radius: var(--radius-control);
 }
+
+/* Graphs (EnvelopeGraph, FilterGraph, EqGraph `proposed`): the settings Mobius moved read in indigo, their handles
+   wear a dashed indigo ring, and the shape is drawn in dashed indigo until it is kept. */
+.ui-graph[data-proposed] .ui-graph-line:not([data-ghost]) { stroke: var(--mobius); stroke-dasharray: 5 3; }
+.ui-graph[data-proposed] .ui-graph-area { fill: color-mix(in srgb, var(--mobius) 10%, transparent); }
+.ui-graph-handle[data-proposed] { box-shadow: none; outline: calc(var(--hairline-w) * 2) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -2); }
+.ui-graph-handle[data-proposed][data-mark] { color: var(--mobius); }
+.ui-graph-handle[data-proposed]:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-graph-readout [data-proposed] dd, .ui-graph-readout dd[data-proposed] { color: var(--mobius); }

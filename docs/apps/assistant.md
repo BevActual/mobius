@@ -33,7 +33,7 @@ Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your ag
 
 - Choosing an agent opens **its page**. The toolbar shows its name, when it runs, and **Run now**, which starts a new
   session with it and sends its instructions. The page has four parts: **What it does** (its instructions and model,
-  with **Edit**), **When it runs**, **What it can use** (from Settings › Safety) and **Recent runs**, its sessions,
+  with **Edit**), **When it runs**, **What it can use** (from Settings › Approvals and safety) and **Recent runs**, its sessions,
   each opening with one press.
 - **+** beside the list makes a new agent, on the same page.
 - Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
