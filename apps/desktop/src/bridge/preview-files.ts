@@ -67,6 +67,15 @@ export const PREVIEW_FILES: Record<string, (...args: never[]) => unknown> = {
     move(path, to);
     return { ok: true, path: to };
   }) as never,
+  'files.move': ((path: string, folder: string): FilesActionResult => {
+    if (folder === path || folder.startsWith(`${path}/`)) return fail('a folder cannot go inside itself');
+    if (folder && TREE.get(folder)?.type !== 'folder') return fail('that folder is not there');
+    if (parentOf(path) === folder) return fail('it is already there');
+    const to = join(folder, nameOf(path));
+    if (TREE.has(to)) return fail(`there is already something called ${nameOf(path)} there`);
+    move(path, to);
+    return { ok: true, path: to };
+  }) as never,
   'files.trash': ((path: string): FilesActionResult => {
     const held = `.trash/${Date.now()}-${nameOf(path)}`;
     move(path, held);
