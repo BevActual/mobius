@@ -88,13 +88,17 @@ export function useMail() {
   useEffect(() => { void refresh(); }, [view, query, refresh]);
   useEffect(() => api?.onChanged(() => void refresh()), [api, refresh]);
 
+  // Counts Flag and Mark as Unread / Read. A message opening shows as read only if neither came while it opened:
+  // Mark as Unread pressed then is the person's last word, and the open must not paint it read again.
+  const marking = useRef(0);
   const read = useCallback(async (id: string) => {
+    const before = marking.current;
     const got = await api?.read(id);
     if (!got) return;
     if (isNotesFailure(got)) { setMessage(got.message); return; }
     setOpen(got);
     setEditing(null);
-    setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, seen: true } : m)));
+    if (marking.current === before) setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, seen: true } : m)));
     void api?.counts().then((c) => { if (!isNotesFailure(c)) setCounts(c); });
   }, [api]);
 
@@ -116,6 +120,7 @@ export function useMail() {
   const sort = useCallback(async (id: string, category: MailCategory) => { await api?.sort(id, category); await refresh(); }, [api, refresh]);
   /** Flag, or Mark as Unread / Read: shown at once, then kept. */
   const flag = useCallback(async (id: string, which: 'flagged' | 'seen', on: boolean) => {
+    marking.current += 1;
     setMessages((cur) => cur.map((m) => (m.id === id ? { ...m, [which]: on } : m)));
     const done = await api?.flag(id, which, on);
     if (done && isNotesFailure(done)) setMessage(done.message);
