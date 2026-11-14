@@ -7,16 +7,41 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day (#293, #334) | 14 Nov, 42bae04 + #339, chip | Sonnet 5.5 | 29.2 / 37.4 / 48.9 s | Content nearly, time no | No Focus hour; moves a task due tomorrow to today |
-| Mail: Triage (#291, #334) | 14 Nov, 42bae04 + #339, after Plan my day, no New chat | Sonnet 5.5 | 35.1 / 38.1 / 51.4 s | Content nearly, time no | 36 of 40 covered; Veltro draft commits; unasked meeting and task |
-| Calendar: Find a time with… (local, after #289) | 14 Nov, 62b8354, typed (suggestion read "Find time for…") | Sonnet 5.5 | 17.6 s, nothing dashed | No | 8 slots, none dashed, no invite drafted |
-| Notes: Meeting notes (#333) | 14 Nov, 13c5b55 (#333), chips | Sonnet 5.5 | 17.0 / 17.5 / 17.0 s; to-dos 23.3 / 24.1 s | Content nearly, time no | Extra "jigs" action; "end of week" left undated; spares wrong on main's older seed |
+| Home and Tasks: Plan my day (#341, #344) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.2 / 31.8 / 44.7 s | Content nearly, time no | No Focus hour |
+| Mail: Triage (#341, #344) | 14 Nov, f469b56, after Plan my day | Sonnet 5.5 | 27.8 / 36.6 / 50.8 s | Content nearly, time no | Archive hides a sign-in alert, a rival quote and the jigs; unasked event and tasks |
+| Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
+| Notes: Meeting notes (#340) | 14 Nov, f469b56, chips | Sonnet 5.5 | 17.1 / 17.1 / 17.3 s; to-dos 8.2 / 9.4 / 18.4 s | Content yes on #282's seed, time no | Change written at 6.8 s, drawn at 17 s |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
 | Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
 | Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
-| Files: Tidy this folder (#305) | 14 Nov, db616da, chip | Sonnet 5.5 | 24.2 / 24.2 / 32.1 s | Content yes, time no | Listing asks first; moves not shown before; muddled counts |
-| Sheets: What stands out? (#338) | 14 Nov, db616da, chip | Sonnet 5.5 | 14.1 / 22.7 / 22.4 s | Content yes, time no | Chart below the grid at 1440 wide |
-| Code: a failing test in Glance (local) | 14 Nov, a99e095, Glance card | Sonnet 5.5 | 14.7 s to passing | Yes | Explanation twice; raw prompt shown as the person's turn |
+| Files: Tidy this folder (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.8 / 20.8 / 30.8 s | Content yes, time no | Listing asks; step and bar counts wrong (50, 108 for 60) |
+| Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
+| Code: a failing test in Glance (#327) | 14 Nov, f469b56 | Sonnet 5.5 | Not run | Blocked | Main still has the Python seed; Node seed is in #282 |
+
+## Round 12 (f469b56: #340, #341, #343, #304, #327, #344, #345)
+
+Run on main's seed (Saturday, `{{date:}}`, older spares line, Python code project). Each turn is two to four model rounds
+at about 0.8 s of Claude Code start-up each; app tools are under 4 s in every turn. Since #344 the tools run while the
+model is still writing (Plan my day's first update at 20.2 s, round 2 ending at 31.6 s), but a drawn change still only
+shows when the turn ends: Notes writes at 6.8 s and draws at 17 s; Sheets writes at 10.0 s and draws at 20.3 s.
+Printouts: `mobius-moments-shots\round12\*-turn-timings.txt` on Andrew's PC.
+
+- **Plan my day:** 20.2 / 31.8 / 44.7 s. No task due later retimed (the deposit stays due tomorrow, only suggested).
+  Seven blocks, no overlaps, all by 18:00; one reply; one-line Can wait. Weak: still no Focus hour, with 3 h 38 min free.
+- **Triage** (no New chat): 27.8 / 36.6 / 50.8 s, two cards. Counts add up (3 + 4 + 33 = 40); the Veltro draft commits to
+  nothing; "end of week" is Friday 20 Nov. Weak: Archive takes the Security sign-in alert, the Ardent quote, Ana's hiring
+  mails and Dana's jigs; unasked "Re-plan test order with Sam" event, a Finance task and a gate-code task that overlaps one
+  already there.
+- **Notes:** written under the heading, no jigs action, every action dated. To-dos: three tasks, deposit skipped as already
+  there. Weak: "Eight spares for now" (main's older line; #282 has the clear one); drawn 10 s after it's written.
+- **Files:** six folders including "Invoices and quotes" (14); 60 files, names unchanged. Weak: listing asks; the reply
+  gives no count ("It reported no total"), the step says 50 and the bar 108.
+- **Sheets:** names B10, B15, B5, C5 and B2:D3; rounded averages; "1 chart, 1 sheet"; chart beside the grid at 1440 by
+  900. Weak: the narrower grid cuts off column E, so the Stands out notes are a sliver.
+- **Calendar:** three dashed slots free for both (Mon 13:30, Tue 12:00, Wed 12:00) and an invite drafted to Sam, nothing
+  sent. Weak: the chip pastes the raw internal prompt into the composer instead of asking who; "only one afternoon hour you
+  both have free" is wrong (Wednesday 16:00 and Friday afternoon are free); a stray "Today is Saturday…" message mid-turn.
+- **Code:** not run. Main's seed is still Python, with no pytest on the PC; the Node project is in #282.
 
 ## Home and Tasks: Plan my day (#293)
 
