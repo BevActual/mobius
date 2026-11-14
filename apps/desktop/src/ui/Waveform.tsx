@@ -148,6 +148,7 @@ export function WaveformView({ label, peaks, duration, value, onChange, onCommit
             aria-valuemax={limits(edge, value)[1]}
             aria-valuenow={s}
             aria-valuetext={sampleTime(s)}
+            data-at={(edge === 'start' || edge === 'end') && s <= 0 ? 'first' : (edge === 'start' || edge === 'end') && s >= duration ? 'last' : undefined}
             style={{ left: at(s) }}
             onPointerDown={grab(edge)}
             onKeyDown={key(edge)}

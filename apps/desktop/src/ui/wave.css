@@ -9,7 +9,8 @@
   border-radius: var(--radius-control); background: var(--paper); overflow: hidden; touch-action: none; user-select: none;
 }
 .ui-wave-strip { position: relative; border-bottom: var(--hairline-w) solid var(--line-soft); background: var(--frame); cursor: copy; }
-.ui-wave-loop { position: absolute; top: 0; bottom: 0; background: var(--ink); opacity: 0.85; cursor: default; }
+/* The loop: a slim ink bar along the foot of the strip, a brace over the band below. */
+.ui-wave-loop { position: absolute; bottom: 0; height: var(--wave-loop-h); background: var(--ink); cursor: default; }
 .ui-wave-body { position: relative; }
 .ui-wave-body svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .ui-wave-shape { fill: var(--ink); stroke: none; }
@@ -19,21 +20,28 @@
 .ui-wave-trim { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--paper) 72%, transparent); pointer-events: none; }
 .ui-wave-trim[data-side="start"] { left: 0; }
 .ui-wave-trim[data-side="end"] { right: 0; }
+/* The playhead is the 2px moving line with no tab; start and end are 1px markers with a tab. */
 .ui-wave-playhead { position: absolute; top: 0; bottom: 0; width: var(--focus-w); margin-left: calc(var(--focus-w) / -2); background: var(--ink); pointer-events: none; }
 /* Edges: a hairline the full height, a wider invisible hit area, and a tab where it is held. */
 .ui-wave-edge {
   position: absolute; top: 0; bottom: 0; width: var(--hit-min); margin-left: calc(var(--hit-min) / -2); cursor: ew-resize; outline: 0;
-  background: linear-gradient(var(--ink), var(--ink)) center / var(--focus-w) 100% no-repeat;
+  background: linear-gradient(var(--ink), var(--ink)) center / var(--hairline-w) 100% no-repeat;
 }
 .ui-wave-edge[data-edge^="loop"] { bottom: auto; height: var(--wave-strip); background: none; }
+/* At the very start or end a tab stays whole inside the frame. */
+.ui-wave-edge[data-at="first"]::after { left: calc(var(--hit-min) / 2); translate: 0 0; }
+.ui-wave-edge[data-at="last"]::after { left: auto; right: calc(var(--hit-min) / 2); translate: 0 0; }
 .ui-wave-edge::after {
   content: ''; position: absolute; left: 50%; width: var(--wave-tab); height: var(--wave-strip); translate: -50% 0; background: var(--ink);
   border-radius: var(--radius-small);
 }
 .ui-wave-edge[data-edge="start"]::after, .ui-wave-edge[data-edge="end"]::after { bottom: 0; }
-.ui-wave-edge[data-edge^="loop"]::after { top: 0; width: var(--focus-w); background: var(--paper); border-radius: 0; }
+/* Loop edges: small ink tabs at each end of the loop bar, always shown. */
+.ui-wave-edge[data-edge^="loop"]::after { top: auto; bottom: 0; width: var(--wave-loop-tab); height: calc(var(--wave-loop-h) * 2); background: var(--ink); }
+.ui-wave-edge[data-edge="loopStart"]::after { translate: 0 0; }
+.ui-wave-edge[data-edge="loopEnd"]::after { translate: -100% 0; }
 .ui-wave-edge:hover::after, .ui-wave-edge[data-held]::after { width: calc(var(--wave-tab) * 1.5); }
-.ui-wave-edge[data-edge^="loop"]:hover::after, .ui-wave-edge[data-edge^="loop"][data-held]::after { width: var(--wave-tab); background: var(--ink); box-shadow: 0 0 0 var(--hairline-w) var(--paper); }
+.ui-wave-edge[data-edge^="loop"]:hover::after, .ui-wave-edge[data-edge^="loop"][data-held]::after { width: calc(var(--wave-loop-tab) * 1.5); }
 .ui-wave-edge:focus-visible::before {
   content: ''; position: absolute; inset: 0 calc(var(--hit-min) / 2 - var(--focus-w) * 2); border: var(--focus-w) solid var(--ink); border-radius: var(--radius-small);
 }
