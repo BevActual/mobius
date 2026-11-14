@@ -538,6 +538,10 @@ pub struct Calendar {
 }
 
 pub fn tool_descriptions() -> Vec<Value> {
+    crate::batch::with_more(tool_list(), &["calendar.add", "calendar.suggest"], "calendar")
+}
+
+fn tool_list() -> Vec<Value> {
     let when = "A day as YYYY-MM-DD for an all-day event, or a local time as YYYY-MM-DDTHH:MM.";
     vec![
         json!({ "name": "calendar.list", "capability": "calendar.read",
@@ -926,6 +930,12 @@ impl Calendar {
 
     /// The agent's tools. Each change is checkpointed first, so it can be reviewed and put back.
     pub fn run(&self, tool: &str, args: &Value) -> Res<String> {
+        // Several events in one call (`more`, see batch.rs): a day's suggested blocks are one call, not one each.
+        if matches!(tool, "calendar.add" | "calendar.suggest") {
+            if let Some(all) = crate::batch::run_more(args, "calendar", |one| self.run(tool, one)) {
+                return Ok(all);
+            }
+        }
         let text = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
         let calendar = text("calendar").unwrap_or(DEFAULT_CALENDAR);
         let result = match tool {
@@ -1192,6 +1202,14 @@ mod tests {
         c.set_remote(refusing);
         assert!(c.update("Work (iCloud)", "w", &Draft { title: Some("Nope".into()), ..Draft::default() }).is_err());
         assert!(!std::fs::read_to_string(&work).unwrap().contains("Nope"));
+    }
+
+    #[test]
+    fn a_days_blocks_are_suggested_in_one_call() {
+        let (_d, c) = store();
+        let got: Value = serde_json::from_str(&c.run("calendar.suggest", &json!({ "title": "Report", "start": "2026-11-12T09:00", "why": "Due today.", "more": [{ "title": "Van", "start": "2026-11-12T11:00", "why": "Before lunch." }] })).unwrap()).unwrap();
+        assert_eq!(got.as_array().map(Vec::len), Some(2), "{got}");
+        assert_eq!((got[0]["title"].as_str(), got[1]["title"].as_str()), (Some("Report"), Some("Van")));
     }
 
     #[test]
