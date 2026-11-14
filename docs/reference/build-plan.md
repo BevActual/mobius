@@ -37,8 +37,9 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 1. **Keep `main` green and the queue short.** An open pull request that is green and reviewed lands before new work
    starts. A flaky test is fixed, never skipped.
-2. **The launch workflow: Mail, Tasks, Calendar, then Home.** One real job across those apps is what Mobius is shown
-   with, so their rounds and the shell pieces they need go first.
+2. **The demo: one moment for every app.** Each app is shown by the one thing that makes someone want to use it,
+   listed in the [demo plan](demo-plan.md). The round that builds an app's moment comes before that app's other
+   rounds, in the demo plan's order: Home, Mail, Calendar, Tasks, Notes, Docs, Browser and Files first.
 3. **One wording and one set of controls everywhere.** The Permission names, shared selects and shared date fields
    replace what is left of the old ones, in the apps and in the docs.
 4. **The shell pieces apps are waiting on,** in the order under [Shell queue](#shell-queue).
@@ -52,7 +53,8 @@ Work is taken in this order. A lower line never holds up a higher one.
 | --- | --- | --- | --- |
 | App panels out of the Mobius panel: the rule, in `docs/design/` | Design lead | Building | The shell change, then one round per app with a panel |
 | App panels out of the Mobius panel: the shell | Builder | Next, ahead of the rest of the shell queue | Docs, Reader, Slides, Design, Photo, Video, Code, Sheets and Music moving their panels |
-| Mail's Triage mode, on the app modes now in the composer | Apps lead | Next | The launch workflow |
+| The demo workspace and its profile | Launch, Builder | Next | Every clip in the [demo plan](demo-plan.md) |
+| A pass over every app's moment in the demo plan | Every lead | Next | Knowing what is left to build |
 | Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
 | Permission wording and shared selects: Settings, then Agents | Apps lead | Building | Old wording gone from the apps |
 | Row sizes for Home and Activity (#245) | Builder | Building | Home's and Activity's next rounds |
@@ -123,10 +125,10 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 
 | Step | Owner | Waiting on |
 | --- | --- | --- |
-| The launch workflow works end to end on real accounts: mail in, tasks made, time blocked, drafts ready | Apps lead, Builder | App modes; the Mail, Tasks and Calendar rounds |
+| The cross-app run works end to end on real accounts: mail in, tasks made, time blocked, drafts ready | Apps lead, Builder | App modes; the Mail, Tasks and Calendar rounds |
 | README shows every app in the current look | Launch | Nothing |
 | First run takes five minutes or less from install to a first answer | Builder, Launch | Nothing |
-| A 60 to 90 second uncut video of the launch workflow | Launch | The first step |
+| A clip of each app's moment and a 60 to 90 second reel of the best ([demo plan](demo-plan.md)) | Launch | The demo workspace; each app's moment |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
 | Google and Microsoft calendar sign-in | Builder | Andrew: registering Mobius with each ([what it needs](calendar-sign-in.md)) |
