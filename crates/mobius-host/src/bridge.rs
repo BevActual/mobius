@@ -356,7 +356,7 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
-            pages: Arc::new(crate::pages::Pages::new(data_dir.join("workspace").join(crate::pages::FOLDER))),
+            pages: Arc::new(crate::pages::Pages::kept_in(data_dir.join("workspace").join(crate::pages::FOLDER), data_dir.join("pages-address.json"))),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
             rewound: Mutex::new(None),

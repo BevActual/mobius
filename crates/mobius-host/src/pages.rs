@@ -13,6 +13,8 @@ const MAX_HEAD: usize = 16 * 1024;
 
 pub struct Pages {
     root: PathBuf,
+    /// Where the address is kept, so a link to a page (in a note, say) still opens after Mobius starts again.
+    kept: Option<PathBuf>,
     /// `http://127.0.0.1:<port>/<secret>`, once the first page has been asked for.
     origin: OnceLock<Result<String, String>>,
 }
@@ -21,11 +23,17 @@ impl Pages {
     /// Pages served from `root`, the workspace's `pages` folder. Nothing listens until a page is asked for.
     #[must_use]
     pub fn new(root: PathBuf) -> Self {
-        Self { root, origin: OnceLock::new() }
+        Self { root, kept: None, origin: OnceLock::new() }
+    }
+
+    /// As [`Pages::new`], keeping the address in `kept` and using it again on the next start when its port is free.
+    #[must_use]
+    pub fn kept_in(root: PathBuf, kept: PathBuf) -> Self {
+        Self { root, kept: Some(kept), origin: OnceLock::new() }
     }
 
     fn origin(&self) -> Result<&str, String> {
-        self.origin.get_or_init(|| start(self.root.clone())).as_ref().map(String::as_str).map_err(Clone::clone)
+        self.origin.get_or_init(|| start(self.root.clone(), self.kept.as_deref())).as_ref().map(String::as_str).map_err(Clone::clone)
     }
 
     /// The address a workspace file (`pages/…`) opens at in the Browser.
@@ -55,10 +63,26 @@ fn secret() -> Result<String, String> {
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 
-fn start(root: PathBuf) -> Result<String, String> {
-    let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("the pages could not be served: {e}"))?;
+fn start(root: PathBuf, kept: Option<&Path>) -> Result<String, String> {
+    // The last address, when there is one: the same secret, and the same port if nothing else has taken it.
+    let before: Option<(u16, String)> = kept.and_then(|k| std::fs::read_to_string(k).ok()).and_then(|t| serde_json::from_str::<serde_json::Value>(&t).ok()).and_then(|v| {
+        let port = u16::try_from(v.get("port")?.as_u64()?).ok()?;
+        let secret = v.get("secret")?.as_str().filter(|s| s.len() == 32 && s.bytes().all(|b| b.is_ascii_hexdigit()))?.to_owned();
+        Some((port, secret))
+    });
+    let listener = before
+        .as_ref()
+        .and_then(|(port, _)| TcpListener::bind(("127.0.0.1", *port)).ok())
+        .map_or_else(|| TcpListener::bind("127.0.0.1:0"), Ok)
+        .map_err(|e| format!("the pages could not be served: {e}"))?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-    let secret = secret()?;
+    let secret = match before {
+        Some((_, secret)) => secret,
+        None => secret()?,
+    };
+    if let Some(kept) = kept {
+        let _ = std::fs::write(kept, serde_json::json!({ "port": port, "secret": secret }).to_string());
+    }
     let (root, prefix) = (Arc::new(root), Arc::new(format!("/{secret}/")));
     std::thread::Builder::new()
         .name("mobius-pages".into())
@@ -161,6 +185,21 @@ mod tests {
         stream.read_to_string(&mut text).unwrap();
         let (head, body) = text.split_once("\r\n\r\n").unwrap();
         (head.to_owned(), body.to_owned())
+    }
+
+    #[test]
+    fn the_address_is_the_same_after_a_restart_so_links_keep_working() {
+        let dir = tempfile::tempdir().unwrap();
+        let pages = dir.path().join("pages");
+        std::fs::create_dir_all(&pages).unwrap();
+        std::fs::write(pages.join("a.html"), "a").unwrap();
+        let kept = dir.path().join("pages-address.json");
+        let first = Pages::kept_in(pages.clone(), kept.clone()).url("pages/a.html").unwrap();
+        // The first server still holds its port here, so the second takes another one but keeps the secret.
+        let second = Pages::kept_in(pages, kept).url("pages/a.html").unwrap();
+        let secret = |u: &str| u.split('/').nth(3).unwrap().to_owned();
+        assert_eq!(secret(&first), secret(&second));
+        assert_eq!(get(&second).1, "a");
     }
 
     #[test]

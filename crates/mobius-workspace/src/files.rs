@@ -485,6 +485,9 @@ impl Workspace {
                 if relative.is_empty() {
                     return Err("path must name a file".into());
                 }
+                // A name Windows cannot hold ("Kore vs Veltro: notes.md") is written with its colon and the like
+                // swapped, everywhere alike; the result says the path it went to.
+                let relative = &safe_name(relative);
                 Ok(self.save(relative, content, &format!("before the assistant wrote {relative}"))?.to_string())
             }
             "files.edit" => {
@@ -591,6 +594,26 @@ impl Workspace {
 /// Where `old` is in `text` when the words must match exactly but any run of spaces and line breaks between them may
 /// be any other such run: byte ranges, in order, not overlapping. Spaces before the first word and after the last are
 /// not part of what is matched.
+/// A relative path whose file and folder names every system can hold: `:` becomes ` -`, the other characters Windows
+/// refuses (`< > " | ? *`) are left out or made plain, and a name does not end in a space or a dot.
+fn safe_name(relative: &str) -> String {
+    relative
+        .split(['/', '\\'])
+        .map(|part| {
+            let swapped: String = part.replace(':', " -").chars().filter_map(|c| match c {
+                '"' => Some('\''),
+                '<' | '>' | '|' | '?' | '*' => None,
+                c if c.is_control() => None,
+                c => Some(c),
+            }).collect();
+            let tidy = swapped.split(' ').filter(|w| !w.is_empty()).collect::<Vec<_>>().join(" ");
+            tidy.trim_end_matches(['.', ' ']).to_owned()
+        })
+        .map(|p| if p.is_empty() { "-".to_owned() } else { p })
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 fn loose_find(text: &str, old: &str) -> Vec<(usize, usize)> {
     let words: Vec<&str> = old.split_whitespace().collect();
     let Some(first) = words.first() else { return Vec::new() };
@@ -962,5 +985,16 @@ mod tests {
         // later move goes back now.
         ws.restore(&start).unwrap();
         assert!(root.join("Downloads/setup.zip").is_file() && root.join("Downloads/later.zip").is_file() && !root.join("Downloads/Later").exists());
+    }
+
+    #[test]
+    fn a_title_with_a_colon_is_written_under_a_name_every_system_can_hold() {
+        let (_d, ws) = setup();
+        let out = call(&ws, "files.write", json!({ "path": "notes/Comparisons/Kore vs Veltro: what differs?.md", "content": "x" })).unwrap();
+        assert_eq!(out["path"], "notes/Comparisons/Kore vs Veltro - what differs.md");
+        assert_eq!(call(&ws, "files.read", json!({ "path": "notes/Comparisons/Kore vs Veltro - what differs.md" })).unwrap()["content"], "x");
+        assert_eq!(safe_name("docs/Plain name.md"), "docs/Plain name.md");
+        assert_eq!(safe_name("a/\"quoted\" <b>|c*.md"), "a/'quoted' bc.md");
+        assert_eq!(safe_name("trailing./x"), "trailing/x");
     }
 }
