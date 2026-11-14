@@ -20,6 +20,11 @@ describe('what each app suggests', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
   });
+  it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
+    const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
+    expect(brief).toMatchObject({ label: 'One-page brief', attach: 'note' });
+    expect(brief?.prompt).toContain('Leave this document as it is.');
+  });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
   });

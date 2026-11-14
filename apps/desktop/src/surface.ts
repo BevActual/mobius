@@ -68,7 +68,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'docs':
       return state.note
         ? [
-            { label: 'Proofread', prompt: 'Proofread this document: fix spelling, grammar and punctuation only, in the document itself, and tell me what you changed.', attach: 'note' },
+            // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. About 400 words. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
