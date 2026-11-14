@@ -13,7 +13,7 @@ import { emptyHistory, recorded, redone, undone, type History } from './photo-vi
 import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
 import { isNotesFailure } from '@mobius/shared';
-import { AppSidebar, PanelTab, SidebarRow, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
+import { AppSidebar, PanelTab, SidebarRow, SidebarSection, ToolbarControls, ToolbarItem, useShowPanelTab } from './ui';
 import './video.css';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -511,16 +511,33 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   return (
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ToolbarControls label="Edit">
-        <div className="video-tools">
+        {/* Each group on its own, so a short toolbar moves them into the ⋯ menu: zoom first, then undo and redo, then the
+            cut's tools. Export always stays. */}
+        <ToolbarItem priority="low" menu={[
+          { label: 'Undo', keys: `${MOD()}Z`, disabled: history.current.past.length === 0, run: undo },
+          { label: 'Redo', keys: `${MOD()}Y`, disabled: history.current.future.length === 0, run: redo },
+        ]}>
         <div className="ui-toolbar-group video-history">
           <button type="button" className="strip-btn" aria-label="Undo" title={`Undo (${MOD()}Z)`} disabled={history.current.past.length === 0} onClick={undo}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></button>
           <button type="button" className="strip-btn" aria-label="Redo" title={`Redo (${MOD()}Y)`} disabled={history.current.future.length === 0} onClick={redo}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></button>
         </div>
+        </ToolbarItem>
+        <ToolbarItem menu={[
+          { label: 'Split at the playhead', keys: 'S', disabled: !canSplit, run: split },
+          { label: 'Duplicate shot', keys: `${MOD()}D`, disabled: !sel, run: () => { if (sel) duplicate(sel.id); } },
+          { label: 'Remove shot', keys: 'Delete', disabled: !sel, run: () => { if (sel) remove(sel.id); } },
+        ]}>
         <div className="ui-toolbar-group video-cut-tools">
           <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
           <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
           <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
         </div>
+        </ToolbarItem>
+        <ToolbarItem priority="low" menu={[
+          { label: 'Zoom in', run: () => setZoom(Math.min(240, Math.round(pxPerSec * 1.5))) },
+          { label: 'Zoom out', run: () => setZoom(Math.max(10, Math.round(pxPerSec / 1.5))) },
+          { label: 'Fit the cut', disabled: zoom === null, run: () => setZoom(null) },
+        ]}>
         <div className="ui-toolbar-group video-zoom-group">
           <label className="video-zoom" title="Zoom the timeline">
             <Icon d="M4 10h12" />
@@ -529,6 +546,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           </label>
           <button type="button" className="btn" disabled={zoom === null} onClick={() => setZoom(null)} title="Fit the cut to the timeline">Fit</button>
         </div>
+        </ToolbarItem>
+        <ToolbarItem priority="keep">
         <div className="ui-toolbar-group">
           {exporting === null ? (
             <button type="button" className="btn primary video-export" disabled={!format || cut.shots.length === 0} onClick={() => void exportFilm()}
@@ -543,7 +562,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
             </span>
           )}
         </div>
-        </div>
+        </ToolbarItem>
       </ToolbarControls>
       <div ref={viewer} className="video-viewer" data-full={full || undefined}>
         <div className="video-screen">
