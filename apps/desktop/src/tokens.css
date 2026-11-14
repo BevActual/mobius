@@ -229,6 +229,7 @@
   --letter-size: 20px;
   --level-w: 4px;
   --level-h: 120px;
+  --level-tab: 8px;
 }
 
 @media (prefers-color-scheme: dark) {

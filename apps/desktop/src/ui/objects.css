@@ -336,3 +336,37 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
 .ui-level-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(min(var(--level), var(--zero)) * 100%); background: var(--ink); }
 .ui-level-over { position: absolute; left: 0; right: 0; bottom: calc(var(--zero) * 100%); height: calc(max(var(--level) - var(--zero), 0) * 100%); background: var(--red); }
 .ui-level-peak { position: absolute; left: 0; right: 0; bottom: calc(var(--peak) * 100%); height: var(--hairline-w); margin-bottom: calc(var(--hairline-w) * -1); background: var(--ink); }
+
+/* Threshold: an ink hairline across the bars at --at (0 to 1), dragged by a small tab at the right. Over the line the
+   compressor works, so nothing else changes colour; the line is the only mark, edged in paper so it shows across a full bar. */
+.ui-level-bars { position: relative; }
+.ui-level:has(.ui-level-threshold) { padding-inline: calc(var(--level-tab) * 1.5); }
+.ui-level-threshold {
+  position: absolute; left: calc(var(--level-tab) * -0.5); right: calc(var(--level-tab) * -1.5);
+  bottom: calc(var(--at) * 100%); height: var(--level-tab); margin-bottom: calc(var(--level-tab) * -0.5);
+  cursor: ns-resize; touch-action: none; outline: none;
+}
+.ui-level-threshold::before {
+  content: ''; position: absolute; left: 0; right: var(--level-tab); top: 50%; height: var(--hairline-w);
+  margin-top: calc(var(--hairline-w) * -0.5); background: var(--ink);
+  box-shadow: 0 var(--hairline-w) 0 var(--paper), 0 calc(var(--hairline-w) * -1) 0 var(--paper);
+}
+.ui-level-threshold-tab {
+  position: absolute; right: 0; top: 0; width: var(--level-tab); height: var(--level-tab);
+  border-radius: var(--hairline-w); background: var(--ink);
+}
+.ui-level-threshold:focus-visible .ui-level-threshold-tab { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
+
+/* Gain reduction: one bar that fills down from the top as the sound is turned down, a line where it held most, and the
+   most it took off in mono underneath. */
+.ui-reduce { display: inline-flex; flex-direction: column; align-items: center; gap: var(--sp-1); height: var(--level-h); }
+.ui-reduce-bar { position: relative; flex: 1; min-height: 0; width: var(--level-w); border-radius: var(--radius-pill); background: var(--line); overflow: hidden; --reduce: 0; --hold: 0; }
+.ui-reduce-fill { position: absolute; left: 0; right: 0; top: 0; height: calc(var(--reduce) * 100%); background: var(--ink); }
+.ui-reduce-hold { position: absolute; left: 0; right: 0; top: calc(var(--hold) * 100%); height: var(--hairline-w); margin-top: calc(var(--hairline-w) * -1); background: var(--ink); }
+.ui-reduce-figure {
+  flex: none; padding: 0; border: 0; background: none; color: var(--muted); cursor: default;
+  font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; min-width: 7ch; text-align: center;
+}
+.ui-reduce-figure:hover { color: var(--body); }
+.ui-reduce-unit { font-family: var(--font); color: var(--muted); }
+.ui-reduce-figure { white-space: pre; }
