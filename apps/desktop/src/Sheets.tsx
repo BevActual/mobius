@@ -1,18 +1,39 @@
 import { RowMark } from './RowMark';
 import { EmptyState } from './EmptyState';
 import { ContextMenu } from './ContextMenu';
-import { useEffect, useLayoutEffect, useRef, useState, type ClipboardEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ClipboardEvent, type FormEvent, type KeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
+
+/** The open sheet's selection, for the Glance in the Mobius panel: the grid publishes it, the panel's Glance reads it. */
+type GlanceSelection = { range: string; facts: { label: string; value: string }[] } | null;
+let glanceSelection: GlanceSelection = null;
+const glanceListeners = new Set<() => void>();
+const publishSelection = (next: GlanceSelection) => {
+  if (JSON.stringify(next) === JSON.stringify(glanceSelection)) return;
+  glanceSelection = next;
+  glanceListeners.forEach((l) => l());
+};
+const watchSelection = (l: () => void) => { glanceListeners.add(l); return () => { glanceListeners.delete(l); }; };
+
+/** Sheets' Glance (Instrument, "The Mobius panel: slots"): the sum, average and count of the selected cells, shown
+ * while more than one cell is selected. */
+export function SheetsGlance() {
+  const slot = useGlanceSlot();
+  const selection = useSyncExternalStore(watchSelection, () => glanceSelection);
+  if (!slot || !selection) return null;
+  return <AppGlance slot={slot} title={`Selected ${selection.range}`} facts={selection.facts} />;
+}
 
 const NEW_WORKBOOK = 'mobius-sheets-new-workbook';
 /** Whether a sidebar is shown to ask for the name; with the sidebar hidden, the workbook is made as "Workbook". */
@@ -192,6 +213,11 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const findInput = useRef<HTMLInputElement>(null);
   const [suggest, setSuggest] = useState(0);
   const [, setTick] = useState(0);
+  // What the panel's Glance shows: worked out below for this render (nothing while there is no sheet), sent after it.
+  const glance = useRef<GlanceSelection>(null);
+  glance.current = null;
+  useEffect(() => publishSelection(glance.current));
+  useEffect(() => () => publishSelection(null), []);
   const drag = useRef<'select' | 'ref' | 'fill' | null>(null);
   const grid = useRef<HTMLDivElement>(null);
   const cellInput = useRef<HTMLInputElement>(null);
@@ -563,6 +589,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const refs = edit ? refsIn(edit.text) : [];
   const showReview = review && !kept && changed.size > 0;
   const stats = rangeSize(sel) > 1 ? selectionStats(valuesIn(sel)) : null;
+  glance.current = stats ? { range: rangeName(sel), facts: selectionGlance(stats) } : null;
   const fillRange = fillTo ? rangeOf({ r: sel.r0, c: sel.c0 }, fillTo) : null;
   const edges = (g: Range, r: number, c: number, color: string, w = 2) => (!inRange(g, r, c) ? [] : [
     r === g.r0 ? `inset 0 ${w}px 0 0 ${color}` : '', r === g.r1 ? `inset 0 -${w}px 0 0 ${color}` : '',

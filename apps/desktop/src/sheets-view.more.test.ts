@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { closeFormula, fillSeries, hasFooter, jump, quickTarget, refsIn, selectionStats, shiftFormula, sortedRows, typingFunction, wantsRef } from './sheets-view';
+import { closeFormula, fillSeries, hasFooter, jump, quickTarget, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, typingFunction, wantsRef } from './sheets-view';
 
 describe('formulas moved and read', () => {
   it('moves relative references and keeps $ ones, other sheets and quoted text', () => {
@@ -46,6 +46,12 @@ describe('filling, sorting and the status bar', () => {
   });
   it('sums, averages and counts what is selected', () => {
     expect(selectionStats(['10', '$20', 'x', ''])).toMatchObject({ count: 3, numbers: 2, sum: 30, average: 15, min: 10, max: 20 });
+  });
+  it('gives the panel Glance the sum, average and count, or only the count when nothing is a number', () => {
+    expect(selectionGlance(selectionStats(['10', '$20', 'x', '']))).toEqual([
+      { label: 'Sum', value: '30' }, { label: 'Average', value: '15' }, { label: 'Count', value: '3' },
+    ]);
+    expect(selectionGlance(selectionStats(['Sled', 'Packs', '']))).toEqual([{ label: 'Count', value: '2' }]);
   });
 });
 
