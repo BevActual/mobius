@@ -1,6 +1,7 @@
 import { SIDEBAR_WIDTH } from '@mobius/shared';
 
-export type Side = 'left' | 'right';
+/** The inspector's handle is on its left edge, like Mobius's: dragging left grows it. */
+export type Side = 'left' | 'right' | 'inspector';
 
 /** The width a drag gives: the left list grows when dragged right, the agent panel when dragged left. Always inside the side's range. */
 export function draggedWidth(side: Side, startWidth: number, startX: number, x: number): number {

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // A 4 × 4 picture: sky on top, hills below.
@@ -37,6 +37,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // Wide enough for the photo, Adjust in the inspector and Mobius side by side (narrower, they take turns over the page).
+  await resizeWindow(mobius.app, 1440, 900);
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Photo');
   await shell().keyboard.press('Enter');
@@ -45,6 +47,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('adjustments are kept beside the photo, which never changes, and Export saves a new picture', async () => {
   await start();
+  // Adjust, from the toolbar, brings the inspector forward (in a narrow window it takes turns with Mobius).
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   await panel().getByRole('button', { name: 'Add adjustment' }).click();
   await panel().getByRole('slider', { name: 'Warmth' }).fill('30');
   await panel().getByRole('combobox', { name: 'Applies to' }).selectOption('below');
@@ -63,6 +67,7 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await expect(shell().getByRole('status').filter({ hasText: 'Saved as coastline edited.jpg' })).toBeVisible();
   expect(fs.readFileSync(path.join(album(), 'coastline edited.jpg')).subarray(0, 2)).toEqual(Buffer.from([0xff, 0xd8]));
   // Escape goes back to the album, which now has the exported picture in it.
+  // In a narrow window the inspector floats over the right of the page, so the photo is clicked at its corner.
   await shell().getByRole('img', { name: 'The photo with edits' }).click();
   await shell().keyboard.press('Escape');
   const grid = shell().getByRole('list', { name: 'Photos in Lisbon' });
@@ -115,6 +120,7 @@ test('a filter and a turn are kept with the edits, and undo takes them back one 
   await crop.getByRole('button', { name: 'Rotate left' }).click();
   await expect.poll(() => read()?.geometry?.turns).toBe(1);
   await crop.getByRole('button', { name: 'Done' }).click();
+  // In a narrow window the inspector floats over the right of the page, so the photo is clicked at its corner.
   await shell().getByRole('img', { name: 'The photo with edits' }).click();
   await shell().keyboard.press('Control+z');
   await expect.poll(() => read()?.geometry).toBeUndefined();
@@ -131,8 +137,7 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
     callsTool('files-write', { path: 'photos/Lisbon/coastline.png.edits.json', content: JSON.stringify(WARM) }),
     says(['Added Warm the hills, below the middle; the sky is untouched.']),
   ]);
-  // The right panel opens on Photo's Adjust tab; Mobius's suggestions are in the tab beside it.
-  await shell().getByRole('tab', { name: 'Mobius', exact: true }).click();
+  // Photo's Adjust is in the inspector; Mobius's suggestions are in the Mobius panel beside it.
   await shell().getByRole('button', { name: 'Warm it up' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
@@ -140,7 +145,7 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
   // The picture itself goes too, for models that read pictures.
   const sent = (model!.requests[0]!.messages as Array<{ role: string; content: unknown }>).filter((m) => m.role === 'user').pop()!.content as Array<{ type: string }>;
   expect(sent.map((p) => p.type)).toEqual(['text', 'image_url']);
-  // The change is waiting, dashed, at the top of the Adjust tab.
+  // The change is waiting, dashed, at the top of Adjust in the inspector.
   await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Warm the hills');
