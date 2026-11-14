@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { AppAction, useActionsSlot } from './ActionsSlot';
 import { APP_ICONS } from './Rail';
-import { isNotesFailure, type MailMessage, type MailPlan, type MailPlanRow, type Message } from '@mobius/shared';
+import { isNotesFailure, type MailContent, type MailMessage, type MailPlan, type MailPlanRow, type Message } from '@mobius/shared';
 
 const GROUPS: readonly { key: keyof MailPlan; verb: string }[] = [
   { key: 'archive', verb: 'Archive' },
@@ -86,6 +86,34 @@ export function MailPlanCard({ onChanged }: { onChanged?: () => void }) {
     </section>
   );
 }
+
+/** What a Triage turn is asked: the open message, or the unread ones in the list. */
+export function triagePrompt(open: { subject: string; from: { name?: string; email: string } } | null, unread: number): string | null {
+  if (open) return `Triage this message: “${open.subject || '(no subject)'}” from ${open.from.name || open.from.email}.`;
+  if (unread === 0) return null;
+  return unread === 1 ? 'Triage my unread message.' : `Triage my ${unread} unread messages.`;
+}
+
+/**
+ * Mail's actions in the Mobius panel: Get to zero while no message is open, then Triage (a turn in Mail's Triage mode,
+ * which sorts into Reply, Later or Archive and leaves drafts, never sending) for the unread or the open message.
+ */
+export function MailActions({ open, unread, onTriage, onChanged }: { open: MailContent | null; unread: number; onTriage?: ((prompt: string) => void) | undefined; onChanged?: () => void }) {
+  const slot = useActionsSlot();
+  const prompt = triagePrompt(open, unread);
+  return (
+    <>
+      {!open && <MailPlanCard {...(onChanged ? { onChanged } : {})} />}
+      {slot && onTriage && prompt && (
+        <AppAction slot={slot} icon={TRIAGE_ICON} label={open ? 'Triage this message' : 'Triage the unread'}
+          title="Triage: Mobius sorts into Reply, Later or Archive, and drafts the replies without sending" onRun={() => onTriage(prompt)} />
+      )}
+    </>
+  );
+}
+
+/** Triage: three lines sorted into trays. */
+const TRIAGE_ICON = <path d="M4 5.5h12M4 10h8M4 14.5h5M14 12.5l2 2 2-2M16 9.5v5" />;
 
 /** The emails a reply was based on: the ones Mobius read in that turn, newest read first. */
 export function mailReadIn(history: readonly Message[]): string[] {
