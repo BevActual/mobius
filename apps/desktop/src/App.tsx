@@ -102,7 +102,7 @@ import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
 import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
-import { loadPanes, savePanes, companionFor, followPane, loadShare, saveShare } from './split';
+import { loadPanes, savePanes, loadByMobius, saveByMobius, leavesSplit, companionFor, followPane, loadShare, saveShare } from './split';
 import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
@@ -244,14 +244,15 @@ export function App() {
   const panesNow = useRef({ panes, focused });
   panesNow.current = { panes, focused };
   // Whether Mobius opened the second pane itself, beside the conversation, rather than the person choosing a split.
-  const splitByMobius = useRef(false);
+  const splitByMobius = useRef(loadByMobius(panes));
   /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
   const setApp = useCallback((id: AppId) => {
     const { panes: [a, b], focused: f } = panesNow.current;
     if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
     // Leaving a split Mobius opened beside the conversation goes to the app alone, with Mobius in its panel again.
-    if (b !== null && splitByMobius.current && (f === 0 ? a : b) === 'agent' && id !== 'agent') {
+    if (leavesSplit([a, b], splitByMobius.current, id)) {
       splitByMobius.current = false;
+      saveByMobius(false);
       setPanes([id, null]);
       setFocused(0);
       return;
@@ -273,12 +274,14 @@ export function App() {
     const { panes: [a], focused: f } = panesNow.current;
     const here = f === 1 ? panesNow.current.panes[1] ?? a : a;
     splitByMobius.current = false;
+    saveByMobius(false);
     setPanes([here, companionFor(here)]);
     setFocused(0);
   }, []);
   const closePane = useCallback((index: 0 | 1) => {
     const { panes: [a, b] } = panesNow.current;
     splitByMobius.current = false;
+    saveByMobius(false);
     setPanes([index === 0 ? (b ?? a) : a, null]);
     setFocused(0);
   }, []);
@@ -286,6 +289,7 @@ export function App() {
     const { panes: [a, b] } = panesNow.current;
     if (b === null) return;
     splitByMobius.current = false;
+    saveByMobius(false);
     // Choosing what the other pane shows swaps them, so the same app is never open twice.
     if (index === 0) setPanes(id === b ? [b, a] : [id, b]);
     else setPanes(id === a ? [b, a] : [a, id]);
@@ -364,6 +368,7 @@ export function App() {
     if (otherApp === id) return true;
     if (otherApp !== null) return false;
     splitByMobius.current = true;
+    saveByMobius(true);
     setPanes([a, id]);
     return true;
   }, []);
