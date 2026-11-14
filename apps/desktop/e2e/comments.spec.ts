@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { startMailServers, type MailFixture } from './mail-fixture';
 import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
@@ -35,6 +35,8 @@ const comments = (): Locator => shell().getByRole('button', { name: 'Comments', 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar: in a narrow window its controls move into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
 }
 async function openApp(name: string): Promise<void> {
