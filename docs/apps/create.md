@@ -91,16 +91,27 @@ A small studio for writing songs as notes.
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
-  (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
+  (twice, or Enter, to go back to the start), Record (F9), Loop (L) and the metronome (K), the position and tempo in mono figures, the computer keyboard, and the Session and Arrange switch. Every song is in 4 / 4 for now.
+- **Two views**, switched in the toolbar. **Arrange** is the song from start to end, as below. **Session** is a grid
+  of clips, a column per track and a row per scene. Click an empty slot to make a clip there; its notes open in the
+  bottom area, where Clip length sets how long it goes round (1 to 16 bars). Press a clip's triangle to launch it: it
+  starts on the next bar and loops until the track is stopped or another of its clips is launched. A scene's triangle
+  launches its whole row, and a scene's name is yours to type. The squares under the grid stop a track, or every clip.
+  Right-click a clip to duplicate it into the slot below or delete it (Ctrl+D and Delete work on the chosen clip).
+  Clips are saved in the song as each track's `slots`, and scene names as `scenes`.
 - **Tracks** are numbered rows in compact sizes: the number in the track's colour, the name and instrument on the left,
   the notes as solid clips in the track's colour along the bars. The whole song fits across the window; Ctrl and the
   scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to edit the notes (Enter),
   duplicate (Ctrl+D), mute (M), solo (S) or delete it (Delete); the keys work on the chosen track. Deleting says what
   went, with Undo. **Add track** after the last track adds one from the same sounds.
 - **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
-  the Device panel.
-- **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
-  (Volume and Pan), and then its sound in four groups:
+  the bar above the tracks. The panel on the right is always Mobius.
+- **The bottom area** shows the chosen track: its notes or its devices. **Shift+Tab** switches between them (or pick
+  Notes or Devices at the left of its bar), double-clicking a clip opens the notes and double-clicking a track's header
+  opens its devices.
+- **Devices** run left to right in the order the sound flows. The arrow in a device's head folds it to that head, so a long chain fits, and opens it again. A small Track strip comes first, with the track's
+  colour, Volume and Pan. Then comes the instrument, with a switch that bypasses it alone (saved as `instrumentOn`) and a
+  menu at its end to change it, and its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
   - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
     it (drag it or type), opens the filter at each note's start and closes it over the decay; the thin line and Opens to
@@ -112,24 +123,46 @@ A small studio for writing songs as notes.
   **Pads** has a pad per drum: press one to hear it (higher on the pad is louder, or Q W E and A S D once the pads
   have focus), and the chosen pad's Tune, Decay, Level and Pan set that drum alone.
 
-  Volume is a slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob
+  Volume is a slider; the other settings are knobs, two to a row, with their value in mono under each. Drag a knob
   up or down (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song
   (`pan`, `sound`, `kit`, `pads`), so Mobius can read and set it too.
-- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (three numbered bands on a curve: drag a
+- **Effects** follow the instrument, to its right. **Add effect** puts an EQ (three numbered bands on a curve: drag a
   band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
-  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it up or down the
+  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
-- **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
-  a box, snap to the grid. Drums get a tall row per drum, named in full. For drums, **Steps** shows one bar as sixteen steps per drum:
+- **The notes editor** draws, moves and stretches notes, selects with
+  a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
+  started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
+  its middle), Ctrl+J joins those of a pitch into one, and Ctrl+L loops the bars they are in. When a note is picked, its name, Velocity
+  and Delete join the bar, on a second line if the bar is narrow. Drums get a tall row per drum, named in full. **Steps** shows one bar as sixteen steps, the step sequencer: a row per
+  drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Range, and how long each step plays with Note length). Rows are named as the song's key spells
+  them, so B♭ in F major. Piano roll and Steps switch how you edit the notes. In Steps,
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
+- **The computer keyboard** plays the chosen track: turn it on with the keys button in the toolbar. A S D F G H J K
+  play the white keys from C and W E T Y U the black ones; Z and X move down or up an octave and C and V make it
+  softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the
+  top. The keys you hold light up on the notes editor's keyboard. **Record** (the dot after Stop, or F9) plays from the playhead with the computer
+  keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
+  and one Undo takes the take back. It records in the Arrange view for now.
+- **Automation** (the line button in the toolbar, or A): a Volume line under each track in the Arrange view. Click it
+  to add a point and drag to place it, drag a point to move it, double-click it (or Delete) to take it out. With points,
+  the track's volume follows the line as it plays; with none, it stays at its Volume. Saved as each track's
+  `volumeAuto`.
+- **Export as WAV** (the arrow button in the toolbar, or Ctrl+Shift+E): plays the whole song into a file, every track
+  through its sound, devices, pan and volume line, plus two seconds for echoes to ring out. 44.1 kHz stereo, saved in
+  the workspace's `Exports` folder (Show in folder opens it), never over an earlier export.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
   to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
+- **Ask Mobius** for a part ("a bassline under this") or a sound ("make the pad warmer", "more space on the keys").
+  Its change is a proposal: new parts are dashed, and a sound change opens the track's devices, with the bar above
+  the tracks naming each setting it moved ("Pad: cutoff 4.2 kHz → 1.8 kHz"). Keep, Discard or Try another. While the
+  song plays, a change is heard within a beat or two without stopping it.
 
-**Kept in:** `workspace/studio/`, each song a JSON file of notes.
+**Kept in:** `workspace/studio/`, each song a JSON file of notes; exported sound in `workspace/Exports/`.
 
 ## Video
 

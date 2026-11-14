@@ -35,6 +35,11 @@
   animation: ui-undo-in var(--dur-med) var(--ease) both;
 }
 .ui-undo-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* While something runs: the share in mono, and a thin bar along the bottom edge (clipped to the pill). */
+.ui-undo[data-progress] { overflow: hidden; }
+.ui-undo-share { flex: none; font: var(--fw-regular) var(--fs-sm) / 1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+.ui-undo-bar { position: absolute; left: 0; bottom: 0; height: calc(var(--hairline-w) * 2); width: calc(var(--p) * 100%); background: var(--ink); transition: width var(--dur-fast) linear; }
+@media (prefers-reduced-motion: reduce) { .ui-undo-bar { transition: none; } }
 .ui-undo-btn {
   flex: none; height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-pill);
   color: var(--accent); font-weight: var(--fw-semibold);

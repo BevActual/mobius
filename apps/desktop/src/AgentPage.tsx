@@ -97,7 +97,7 @@ export function BotForm({ initial, submitLabel, onSubmit, onSaved, onCancel, onO
         </div>
       )}
       <p className="botform-touch"><b>What it may touch</b> {mayTouch(preferences.value.appAccess, permissionOf(preferences.value.approvalMode, loadApply()).name)}{' '}
-        {onOpenSafety ? <button type="button" className="link-btn" onClick={onOpenSafety}>Change in Safety settings</button> : 'Change it in Settings › Safety.'}
+        {onOpenSafety ? <button type="button" className="link-btn" onClick={onOpenSafety}>Change in Approvals and safety</button> : 'Change it in Settings › Approvals and safety.'}
       </p>
       {problem && <span className="field-error" role="alert">{problem}</span>}
       <span className="botform-actions">
@@ -210,7 +210,7 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
       <Part title="When it runs" action={runs.length > 0 && onOpenSchedules && <button type="button" className="link-btn" onClick={onOpenSchedules}>Schedules</button>}>
         <p className="agent-text agent-when">{agentWhen(bot, schedules)}</p>
       </Part>
-      <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Safety settings</button>}>
+      <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Approvals and safety</button>}>
         <p className="agent-text">{mayTouch(preferences.value.appAccess, permissionOf(preferences.value.approvalMode, loadApply()).name)}</p>
       </Part>
       <Part title="Recent runs" label="Recent runs" action={sessions.length > 0 && <button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>

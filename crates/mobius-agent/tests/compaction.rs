@@ -74,6 +74,19 @@ fn a_short_conversation_is_sent_as_it_is() {
 }
 
 #[test]
+fn tools_that_fill_most_of_a_small_window_do_not_make_every_turn_ask_for_a_summary() {
+    // A model on this computer: the tools alone come to nearly the share kept for a request (~2,048 tokens here).
+    let (mut core, engine) = setup(5);
+    core.register_tool(ToolSpec::new("demo.big", &"Does many things. ".repeat(440), "demo.echo").unwrap(), Box::new(|_| Ok(json!({})))).unwrap();
+    let (turn, step) = engine.start(&core, chat(1, 50), "second question", 1);
+    assert!(!is_summary_request(request(&step)), "a two-line conversation is sent as it is");
+    assert!(turn.compaction().is_none());
+    // A conversation that does outgrow the room left is still summarised.
+    let (_, step) = engine.start(&core, chat(6, 1_000), "what next?", 2);
+    assert!(is_summary_request(request(&step)));
+}
+
+#[test]
 fn old_tool_output_is_dropped_first_without_asking_the_model_for_a_summary() {
     let (core, engine) = setup(5);
     let (mut turn, step) = engine.start(&core, with_tool_output(3, 4_000), "and now?", 1);

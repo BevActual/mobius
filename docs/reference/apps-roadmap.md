@@ -25,27 +25,27 @@ Status words: **Have** (on `main`), **Building** (in a pull request), **Next** (
 
 ## Where every app stands
 
-All apps except Projects have passed the Instrument round. Mobius's own panel is only for Mobius: no round adds an app's tab beside it. The second column is the newest round on `main`.
+Every app has passed the Instrument round. Mobius's own panel is only for Mobius: no round adds an app's tab beside it. The second column is the newest round on `main`.
 
 | App | Last round on `main` | Next round | Waiting on |
 | --- | --- | --- | --- |
 | Home | Instrument (#181), sidebar head and toolbar line (#213) | Conversations grouped by day | Builder: Home's reading column and row sizes |
-| Mail | Instrument (#189), shared two-line rows (#212) | Triage in the panel, **Building** (#251); then Triage's own Glance and Result | Builder: an app reading the composer's mode |
-| Calendar | Shared fields in the event sheet (#246) | Find a time in Actions; free time in Glance | |
-| Tasks | Instrument (#196) | Shared fields in Details, **Building** (#248); then "+" on group heads, Plan my day in Actions, overdue and today in Glance | |
+| Mail | Triage in the panel (#251), and it switches the composer to Triage (#278) | Triage's own Glance and Result | |
+| Calendar | Rest of today in Glance: still to come, next, free time (#272) | Find a time in Actions | |
+| Tasks | Shared fields in Details (#248); overdue, due today and flagged in Glance (#271) | "+" on group heads; Plan my day in Actions | |
 | Notes | Instrument (#152) | Review mode in the panel | |
 | Docs | Instrument (#188) | Find and replace (Ctrl+F, Ctrl+H) | |
 | Files | Drag to move (#206) | Actions in the panel (Tidy this folder, Find duplicates); preview pane | Preview pane: where app panels go |
 | Browser | Instrument (#163) | One idea of "keep" (bookmark, pin, pinned tab); one New tab button | |
-| Settings | Instrument (#193) | Permission wording, **Building** (#241); then shared selects | |
-| Agents | Instrument (#70); failed runs in red (Builder, #250) | Permission wording and shared controls, **Building** (#243) | |
-| Projects | Instrument round and Permission names, **Building** (#186) | Projects in Ctrl+K; drag a conversation onto a project | |
-| Sheets | Instrument (#192) | Analyse mode: sum, average and count of the selection in Glance | Builder: the Glance slot (#249) |
+| Settings | Permission wording (#241) | Shared selects | |
+| Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
+| Projects | Instrument round and Permission names (#186) | Projects in Ctrl+K; drag a conversation onto a project | |
+| Sheets | Sum, average and count of the selection in Glance (#261) | Analyse mode reachable from the panel | |
 | Slides | Instrument (#201) | Shared selects; Rehearse mode later | |
 | Design | Instrument (#185) | Pen tool; Assets panel | Assets panel: where app panels go |
-| Code | Instrument (#150) | Debug mode; failing tests in Glance | Builder: the Glance slot (#249) |
-| Photo | Instrument (#197) | Shared select in Adjust; Remove background later | |
-| Video | Instrument (#190) | Track lanes with mute and solo (library `LetterToggle`); clip inspector sliders | |
+| Code | Instrument (#150) | Debug mode; failing tests in Glance | |
+| Photo | Base layer row and shared select in Adjust, **Building** | Toolbar split so it folds into ⋯; Remove background later | Toolbar split: Builder, toolbar fit (#264) |
+| Video | Instrument (#190) | Toolbar split so it folds into ⋯; track lanes with mute and solo (library `LetterToggle`); clip inspector sliders | Toolbar split: Builder, toolbar fit (#264) |
 | Knowledge | Instrument (#194) | Check against sources; Rename and Delete with Undo on pages | |
 | Reader | Instrument (#184) | Shared empty state for the list | |
 | Database | Instrument (#187) | Analyse mode in the panel | |
@@ -61,12 +61,12 @@ These are the same change made in many apps. Each still lands as one pull reques
 
 | Round | What changes | Apps | Status |
 | --- | --- | --- | --- |
-| Permission wording | "Ask first, Propose, Act" and "Follow the mode" become the composer's Permission names: Ask each time, Review changes, Apply changes, Auto. | Settings, Agents, Projects | Building (#241, #243, #186) |
-| Shared selects | Native `<select>` becomes the library's `Select` or `ChoiceMenu`. | Settings, Calendar, Tasks, Slides, Design, Photo, Knowledge, Projects, Agents, Canvas | Next |
-| Shared date fields | Native date and time inputs become `DateField` and `TimeField`. | Calendar (Have, #246), Tasks and Agents (Building), Settings (Schedules) | Next |
+| Permission wording | "Ask first, Propose, Act" and "Follow the mode" become the composer's Permission names: Ask each time, Review changes, Apply changes, Auto. | Settings, Agents, Projects | Have (#241, #243, #186) |
+| Shared selects | Native `<select>` becomes the library's `Select` or `ChoiceMenu`. | Calendar, Tasks and Agents (Have); Photo (Building); Settings, Slides, Design, Knowledge, Projects, Canvas | Next |
+| Shared date fields | Native date and time inputs become `DateField` and `TimeField`. | Calendar (#246), Tasks (#248) and Agents (#243) Have; Settings (Schedules) | Next |
 | Actions in the panel | Each app puts its own actions in the panel's Actions slot with `AppAction`, as Mail does with Get to zero. | Calendar, Tasks, Files, Docs, Notes, then the rest | Next, one app at a time |
-| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Building, #251), then Docs and Notes, Sheets and Database, Code | Next |
-| Glance and Result slots | What each app shows in the panel's Glance and Result slots. | Sheets, Tasks, Calendar first, then every app | Waiting: Builder, the slots (#249) |
+| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Have, #251, #278), then Docs and Notes, Sheets and Database, Code | Next |
+| Glance and Result slots | What each app shows in the panel's Glance and Result slots. | Sheets (#261), Tasks (#271) and Calendar (#272) Have; then every app | Next |
 | App panels out of the Mobius panel | The Mobius panel is just Mobius (Andrew, 14 November). Each app's own panel (Docs outline, Reader highlights, the Design, Photo, Video and Slides inspectors, Code and Sheets panels) moves out of the tabs beside Mobius to where the design lead's rule puts it. No app adds a tab beside Mobius meanwhile. | Docs, Reader, Design, Photo, Video, Slides, Code, Sheets | Waiting: the design lead's rule, then the Builder's shell change |
 
 ## Order
