@@ -3,6 +3,7 @@ import { RichText } from './RichText';
 import { appName, isAvailable, type AppId } from './apps';
 import { TOPICS, editUrl, searchLessons, type LearnTopic, type Lesson } from './learn';
 import './learn.css';
+import { afterPaint } from './ui/frame';
 
 const Chevron = ({ back = false }: { back?: boolean }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true"><path d={back ? 'M12 4l-6 6 6 6' : 'M8 4l6 6-6 6'} /></svg>
@@ -28,8 +29,8 @@ export function LearnPanel({ lessons, app, onClose, onOpenApp }: { lessons: read
   // After a frame: opened from the launcher or a menu, those put focus back where it was as they close, and Learn
   // should have it.
   useEffect(() => {
-    const frame = requestAnimationFrame(() => root.current?.querySelector<HTMLElement>(lesson ? '.learn-lesson h2' : 'input[type="search"]')?.focus());
-    return () => cancelAnimationFrame(frame);
+    const cancel = afterPaint(() => root.current?.querySelector<HTMLElement>(lesson ? '.learn-lesson h2' : 'input[type="search"]')?.focus());
+    return cancel;
   }, [lesson]);
   useEffect(() => { reading.current?.scrollTo?.({ top: 0 }); }, [openId]);
 

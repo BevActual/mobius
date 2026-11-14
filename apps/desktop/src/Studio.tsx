@@ -16,6 +16,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import './studio.css';
+import { afterPaint } from './ui/frame';
 
 export const STUDIO_WORDS: SidebarWords = { app: 'Music', group: 'folder', groups: 'Folders', item: 'song', items: 'songs', about: 'Songs are kept as JSON files in your workspace: tracks of notes, never audio, so the agent can read and write them like a score.', defaultGroup: 'Songs' };
 
@@ -610,7 +611,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const openNotes = (id: string, fromBeat = 0) => {
     setSelected(id);
     setEditing(true);
-    requestAnimationFrame(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
+    afterPaint(() => { if (roll.current) roll.current.scrollLeft = Math.max(0, fromBeat * ROLL_BEAT_W * zoom - 8); });
   };
   const cycle = cycleFor(song);
   const loopWords = cycle && range ? (cycle.to - cycle.from === BEATS_PER_BAR ? `bar ${cycle.from / BEATS_PER_BAR + 1}` : `bars ${cycle.from / BEATS_PER_BAR + 1} to ${cycle.to / BEATS_PER_BAR}`) : 'the whole song';

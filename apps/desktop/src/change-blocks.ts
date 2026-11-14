@@ -7,6 +7,7 @@ import type { Node as PmNode } from '@tiptap/pm/model';
 import { changeGroups, type DiffLine } from './line-diff';
 import { placeChanges } from './docs-view';
 import './change-blocks.css';
+import { afterPaint } from './ui/frame';
 
 /*
  * Mobius's change block, shared by every page that is written in the editor (Docs, Notes): each change of the agent's
@@ -157,10 +158,10 @@ export function useTallChanges(editor: Editor | null, scroller: HTMLElement | nu
       if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
       editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
     };
-    const frame = requestAnimationFrame(measure);
+    const cancel = afterPaint(measure);
     const resized = new ResizeObserver(() => measure());
     resized.observe(scroller);
-    return () => { cancelAnimationFrame(frame); resized.disconnect(); };
+    return () => { cancel(); resized.disconnect(); };
   }, [editor, scroller, key]);
 
   return tallGroups;
