@@ -311,8 +311,11 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Solo' }).click();
   await expect.poll(() => (saved().tracks[0] as { solo?: boolean }).solo).toBe(true);
-  // The menu's keys work on the chosen track, and its colour is the person's to pick.
+  // The menu's keys work on the chosen track, and its colour is the person's to pick. The menu is gone before the track
+  // is clicked (while it closes, it can take the click), and the track has the focus before M is pressed.
+  await expect(shell().getByRole('menu', { name: 'Keys' })).toHaveCount(0);
   await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
+  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeFocused();
   await shell().keyboard.press('m');
   await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
   await (await openDevice('Keys')).getByRole('radio', { name: 'Coral' }).click();
