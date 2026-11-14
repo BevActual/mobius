@@ -186,6 +186,10 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   delay: [{ k: 'feedback', name: 'Feedback', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
   reverb: [{ k: 'size', name: 'Size', step: 0.1, log: true }, { k: 'damp', name: 'Damp', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
 };
+/** Which EQ setting each band's handle moves, low to high: what Mobius changed shows on the band it belongs to. */
+const EQ_FIELDS: readonly Partial<Record<'freq' | 'gain' | 'q', string>>[] = [
+  { freq: 'lowFreq', gain: 'low' }, { freq: 'midFreq', gain: 'mid', q: 'midQ' }, { freq: 'highFreq', gain: 'high' },
+];
 /** A delay's echo time, in beats, as note values (a beat is a quarter note). */
 const EFFECT_DETAILS: { [K in EffectKind]: string } = {
   eq: 'Lifts or cuts the lows, mids and highs',
@@ -215,6 +219,10 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed 
       )}
       {effect.kind === 'eq' && (
         <EqGraph label="EQ bands" bands={eqBands(effect)} reset={eqBands(newEffect('eq', effect.id) as EqEffect)}
+          proposed={proposed && EQ_FIELDS.map((band) => {
+            const on = Object.fromEntries(Object.entries(band).map(([field, k]) => [field, proposed.has(`fx:${effect.id}:${k}`)]));
+            return Object.values(on).some(Boolean) ? on : undefined;
+          })}
           onChange={(i, band) => onChange((e) => { Object.assign(e, eqFromBand(i, band)); }, `fx:band${i}`)} />
       )}
       {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
@@ -292,13 +300,15 @@ export function StudioDevice({ track, onTrack, proposed }: {
             <section key={g.name} className="studio-dev-section studio-dev-col" data-graph={g.name === 'Filter' || g.name === 'Envelope' || undefined} aria-label={g.name}>
               <h4 className="studio-dev-head">{g.name}</h4>
               {g.name === 'Filter' && (
-                <FilterGraph label="Filter curve" value={{ cutoff: sound.cutoff, resonance: sound.resonance }} reset={{ cutoff: base.cutoff, resonance: base.resonance }}
+                <FilterGraph label="Filter curve" value={{ cutoff: sound.cutoff, resonance: sound.resonance }}
+                  proposed={proposed && { cutoff: proposed.has('sound:cutoff'), resonance: proposed.has('sound:resonance') }} reset={{ cutoff: base.cutoff, resonance: base.resonance }}
                   min={SOUND_RANGE.cutoff.lo} max={SOUND_RANGE.cutoff.hi} envAmount={sound.envAmount}
                   onEnvAmount={(v) => set('envAmount', v)} envAmountReset={base.envAmount}
                   onChange={(f) => setMany({ cutoff: f.cutoff, resonance: f.resonance }, 'filter')} />
               )}
               {g.name === 'Envelope' && (
                 <EnvelopeGraph label="Envelope shape" value={sound} reset={base}
+                  proposed={proposed && { attack: proposed.has('sound:attack'), decay: proposed.has('sound:decay'), sustain: proposed.has('sound:sustain'), release: proposed.has('sound:release') }}
                   onChange={(env) => setMany({ attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release }, 'envelope')} />
               )}
               {g.cells.length > 0 && <ParamGrid label={g.name} columns={2}>
@@ -432,7 +442,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [undoText, setUndoText] = useState<string | null>(null);
   /** Export as WAV: busy while the song renders, then a line on where it went (or why not). */
   const [exporting, setExporting] = useState(false);
-  const [exported, setExported] = useState<{ text: string; kind: 'busy' | 'done' | 'note' } | null>(null);
+  const [exported, setExported] = useState<{ text: string; kind: 'busy' | 'done' | 'note'; progress?: number } | null>(null);
   const exportStop = useRef<AbortController | null>(null);
   // A finished or failed export says so for a few seconds, then the toast goes by itself.
   useEffect(() => {
@@ -1097,11 +1107,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!api?.saveExport) { setExported({ text: 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
     setExporting(true);
     const name = `${songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song'}.wav`;
-    setExported({ text: `Exporting “${name}”… 0%`, kind: 'busy' });
+    setExported({ text: `Exporting “${name}”…`, kind: 'busy', progress: 0 });
     const stop = new AbortController();
     exportStop.current = stop;
     try {
-      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was ? { text: `Exporting “${name}”… ${Math.round(done * 100)}%`, kind: 'busy' } : was)), stop.signal)));
+      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was?.kind === 'busy' ? { ...was, progress: done } : was)), stop.signal)));
       const done = await api.saveExport(songs.page.path, name, data);
       if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
@@ -1383,8 +1393,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </>
         )}
       </div>
-      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Cancel' : 'Dismiss'}
-        onUndo={() => { if (exported.kind === 'done') void window.mobius?.songs?.showExports?.(); if (exported.kind === 'busy') exportStop.current?.abort(); setExported(null); }} onDismiss={() => setExported(null)} />}
+      {exported && <UndoToast text={exported.text} progress={exported.progress}
+        undoLabel={exported.kind === 'done' ? 'Show in folder' : 'Cancel'}
+        onUndo={exported.kind === 'note' ? undefined : () => { if (exported.kind === 'done') void window.mobius?.songs?.showExports?.(); else exportStop.current?.abort(); setExported(null); }}
+        onDismiss={() => setExported(null)} />}
       {undoText && <UndoToast text={undoText} onUndo={() => { undo(); setUndoText(null); }} onDismiss={() => setUndoText(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
     </section>
