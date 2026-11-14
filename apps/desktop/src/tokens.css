@@ -204,6 +204,16 @@
   --pad-min: 120px;
   --pad-point: 14px;
   --pad-start: 8px;
+  --knob-size: 36px;
+  --graph-h: 96px;
+  --handle-size: 10px;
+  --step-size: 20px;
+  --step-gap: 2px;
+  --step-name-w: 72px;
+  --band-dot: 16px;
+  --eq-h: 144px;
+  --device-min-w: 220px;
+  --device-head-h: 32px;
   --pad-cell: 56px;
   --dialog-w: 480px;
   --z-dialog: 900;
@@ -314,6 +324,11 @@ html[data-density='compact'], .app[data-density='compact'] {
   --sidebar-w: 220px;
   --panel-w: 320px;
   --dock-h: 240px;
+  --knob-size: 32px;
+  --graph-h: 80px;
+  --step-size: 18px;
+  --device-head-h: 28px;
+  --eq-h: 120px;
   --pad-cell: 48px;
 }
 

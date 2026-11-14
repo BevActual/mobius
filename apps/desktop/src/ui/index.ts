@@ -6,6 +6,7 @@
 import './ui.css';
 import './controls.css';
 import './objects.css';
+import './instrument.css';
 import './pads.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
@@ -26,6 +27,11 @@ export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, Swatches, initials,
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
+export {
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, ENVELOPE_RANGES, musicQ, envelopePoints, filterLevel, secondsLabel, hertzLabel, panLabel,
+  type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,
+} from './Instrument';
+export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
 export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';

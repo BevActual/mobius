@@ -138,12 +138,16 @@ export function Slider({ label, value, onChange, onCommit, min = 0, max = 100, s
  * with its unit, and a thin slider under it. `keyHint` is the letter or number in the corner that matches its key. Put
  * cells in a `ParamGrid`, two to a row.
  */
-export function ParamCell({ label, unit, keyHint, wide, ...slider }: Omit<SliderProps, 'ends' | 'hideLabel' | 'hideValue' | 'remake'> & { unit?: string; keyHint?: string; /** Span the whole row of its grid. */ wide?: boolean }) {
+export function ParamCell({ label, unit, keyHint, wide, size, ...slider }: Omit<SliderProps, 'ends' | 'hideLabel' | 'hideValue' | 'remake'> & {
+  unit?: string; keyHint?: string; /** Span the whole row of its grid. */ wide?: boolean;
+  /** `compact` for a dense pro panel (Music's Device): a body-size mono value under a sentence-case name. */
+  size?: 'regular' | 'compact';
+}) {
   const id = useId();
   const { value, format, min = 0, max = 100, step = 1, scale = 'linear', className, disabled } = slider;
   const shown = format ? format(value) : String(value);
   return (
-    <div className={className ? `ui-param ${className}` : 'ui-param'} data-disabled={disabled || undefined} data-wide={wide || undefined}>
+    <div className={className ? `ui-param ${className}` : 'ui-param'} data-disabled={disabled || undefined} data-wide={wide || undefined} data-size={size === 'compact' ? 'compact' : undefined}>
       <label className="ui-param-name" htmlFor={id}>{label}</label>
       {keyHint && <span className="ui-param-key" aria-hidden="true">{keyHint}</span>}
       <output className="ui-param-value" htmlFor={id}>{shown}{unit && <span className="ui-param-unit">{unit}</span>}</output>

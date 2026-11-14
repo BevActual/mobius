@@ -133,8 +133,9 @@ test('a task due at a time sits at its hour in Day view, and a task due only on 
   });
   expect(Math.abs(top - 15.5 * hour)).toBeLessThan(3);
   await expect(page().locator('.cal-all-day').getByRole('checkbox', { name: 'Order the straps, task in Work' })).toBeVisible();
-  // Ticking it at its hour ticks it in Tasks: a repeating task moves on to its next day.
-  await timed.check();
+  // Ticking it at its hour ticks it in Tasks: a repeating task moves on to its next day. A click, not check(): the
+  // box leaves the day as the task moves on, so it is never seen ticked; the file says what happened.
+  await timed.click();
   await expect.poll(() => fs.readFileSync(path.join(tasks, 'Work.md'), 'utf8')).not.toContain(`Call the yard (due ${today()} 15:30)`);
 });
 

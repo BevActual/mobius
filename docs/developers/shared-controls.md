@@ -35,7 +35,9 @@ There is no Tailwind. Colours, sizes, spaces and timings come only from `tokens.
 | `AppFrame` | used by `App.tsx` only | The five zones every app sits in. Apps do not render it; they fill its parts with the pieces above |
 
 Each row (`MenuEntry`) has a `label`, a `run`, and optionally an `icon`, `keys` (its shortcut), `danger`, `disabled`
-and `separated` (a line before it), and `checked` for a row that is on or off (it then shows a tick). The chosen row runs at once as the menu goes (a copy of it fades out in place), so focus goes where the row sends it and keys typed straight after land there, not in the menu.
+and `separated` (a line before it), `checked` for a row that is on or off (it then shows a tick), and `detail` for a grey
+line under the label on what it does ("Echo: Repeats that fade"). Use `Menu` for commands; `ChoiceMenu` is for a setting
+that stays chosen. The chosen row runs at once as the menu goes (a copy of it fades out in place), so focus goes where the row sends it and keys typed straight after land there, not in the menu.
 
 ### Controls
 
@@ -52,7 +54,7 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 | `Switch` | On and off at the trailing end of its row, the label leading, an optional grey `detail` line. Use it in settings lists and Adjust cards |
 | `Checkbox` | A rounded square, ink when checked; `indeterminate` for "some of them". Tasks keeps its round circles |
 | `Slider` | Photo's slider: a grey track filled in ink from the `origin` (zero, or `min`) to the value, a slim tick, the value grey until it moves. `format` for units, `scale="log"` for Hz and times, `ends={['Shorter', 'Longer']}` to name the ends, `remake` for an Adjust control that makes the result again when let go (it shows the Mobius mark). `onChange` runs as it moves, `onCommit` once when let go. Shift+arrows nudge further; double-click goes back to `reset` |
-| `ParamCell`, `ParamGrid` | Pro app readouts: a small all-caps label, the value large in mono with its `unit`, a thin slider under it, and an optional `keyHint` letter in the corner. Same props as `Slider`. `ParamGrid` puts them two to a row |
+| `ParamCell`, `ParamGrid` | Pro app readouts: a small all-caps label, the value large in mono with its `unit`, a thin slider under it, and an optional `keyHint` letter in the corner. Same props as `Slider`. `ParamGrid` puts them two to a row. `size="compact"` is for a dense pro panel (Music's Device): the name in sentence case, small and grey, and the value at body size |
 | `Meter`, `Progress` | A level set elsewhere (storage, a track's level), `threshold` makes only the part past it red (clipping, nearly full); and known progress as a thin ink line. No spinners in content |
 | `Chip` | A label or tag: outlined pill, a content-colour dot, grey text. `onRemove` adds ×, `onClick` makes it a filter (`pressed` when on) |
 | `Dot`, `CONTENT_COLORS` | A content colour as a small dot (the one palette of eight plus stone), or `red` for overdue or failed |
@@ -180,6 +182,45 @@ A step grid and the timeline pieces (ruler, playhead, clip, lane) come next, sha
 
 Popovers that stay in place and toasts other than the undo pill are not shared yet; ask the library thread before
 building one in an app.
+
+### Instrument controls
+
+What a synth's or drum kit's Device panel draws. Music uses them first; Video's audio and any sound preview can use them later. They follow the same keys as the sliders. Arrows nudge, moving a twelfth of an octave on a log scale, and Shift nudges more. Double-click or Home puts a value back to `reset`. `onCommit` runs once when a drag or a key is let go.
+
+| Control | Use it for |
+| --- | --- |
+| `Knob` | A `ParamCell` drawn as a dial, with the same props (`label`, `value`, `min`, `max`, `step`, `scale`, `origin`, `reset`, `format`, `unit`), so swapping between them is one line. Use it for a dense row, such as pan or sends, where a slider is too wide. Drag up or down to turn it, with Shift for fine control. The arc fills from the origin. `panLabel` formats pan as "L 40", "C" and "R 40" |
+| `EnvelopeGraph` | Attack, decay, sustain and release drawn as one shape. It has three handles: the peak sets attack, the decay corner sets decay across and sustain up (Up and Down on the keyboard), and the end sets release. The four values read underneath, grey until they move from `reset`. `ranges` defaults to Music's: attack 1 ms to 2 s, decay 10 ms to 4 s and release 20 ms to 4 s, all log |
+| `FilterGraph` | A two-pole filter's curve across `min` to `max` Hz (log), with one point: across is cutoff, up is resonance, and the point sits on the curve's peak. `type` is `'lowpass'` (default), `'highpass'` or `'bandpass'`. `q` maps resonance (0 to 1) to Q, using Music's `musicQ` unless given. `envAmount` and `envOctaves` add a thin muted curve (solid: dashes mean Mobius made something) where a note's envelope opens it to |
+| `StepGrid` | Drum rows by steps. `cells[row][step]` is 0 for off, otherwise the velocity (0 to 1), drawn as an ink fill to that height, so every hit reads as on and an accent is a full cell. Click switches a step on or off, Shift+click sets an accent, and dragging across paints. With the keyboard, arrows move, Space or Enter switches, Shift+Enter sets an accent, and + and − change velocity. The grid takes one Tab stop. `now` outlines the playing step, and every other beat is shaded |
+
+```tsx
+<EnvelopeGraph value={sound.env} reset={base.env} onChange={(env) => set({ env })} />
+<FilterGraph value={{ cutoff, resonance }} min={80} max={12000} envAmount={sound.filterEnv} onChange={setFilter} />
+<StepGrid label="Drums" rows={DRUM_ROWS} cells={pattern} now={playingStep} onChange={setStep} />
+```
+
+### Devices
+
+Instruments and effects sit in devices, and devices sit in a chain in signal order.
+
+| Control | Use it for |
+| --- | --- |
+| `DeviceChain` | The row of devices: `label`, `count` and `onMove(from, to)`. It scrolls sideways when the devices don't fit |
+| `DeviceFrame` | One device. The head has a grip, an on/off `Switch`, the title, optional `actions` and a fold. To move a device, drag its grip along the chain, or focus the grip and use the arrow keys (Home and End go to the ends). Off dims the controls but keeps them editable, as a bypass does. `collapsed` shows the head alone. `proposed` gives the dashed indigo edge for a device Mobius added that waits for Keep |
+| `EqGraph` | Three or four bands (`{ type: 'lowshelf' \| 'peak' \| 'highshelf', freq, gain, q, on? }`) over 20 Hz to 20 kHz and ±18 dB. Each band has a numbered dot: across is frequency and up is gain (a shelf's dot sits halfway up its step). The wheel or Alt+drag sets Q, and on a focused dot Alt+Up and Alt+Down do. The chosen band's own shape shows faintly under the whole curve, and every band's values read in a column underneath. `bandLevel` and `eqLevel` give the curve in dB, the same way Web Audio's BiquadFilter computes it |
+
+```tsx
+<DeviceChain label="Bass effects" count={devices.length} onMove={moveDevice}>
+  {devices.map((d, i) => (
+    <DeviceFrame key={d.id} title={d.name} index={i} on={d.on} onToggle={(on) => setOn(d.id, on)} collapsed={d.folded} onCollapse={(f) => fold(d.id, f)}>
+      {d.kind === 'eq' && <EqGraph bands={d.bands} onChange={(i, band) => setBand(d.id, i, band)} />}
+    </DeviceFrame>
+  ))}
+</DeviceChain>
+```
+
+More controls are added one at a time.
 
 ## Adopting the frame
 

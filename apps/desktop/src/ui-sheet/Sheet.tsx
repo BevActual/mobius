@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
-  Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
+  Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   PadGrid, type Pad,
   DateField, TimeField, TimeRange, MonthPicker,
@@ -86,6 +88,74 @@ function Pads() {
       <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
       <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
       <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
+
+function Instruments() {
+  // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
+  const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
+  const [env, setEnv] = useState<Envelope>({ attack: 0.012, decay: 0.3, sustain: 0.55, release: 0.8 });
+  const [filt, setFilt] = useState<FilterValue>({ cutoff: 1800, resonance: 0.3 });
+  const [pan, setPan] = useState(-0.4);
+  const [drive, setDrive] = useState(0);
+  const [tune, setTune] = useState(0);
+  const [kitDecay, setKitDecay] = useState(1);
+  const drums = [['kick', 'Kick'], ['snare', 'Snare'], ['clap', 'Clap'], ['closed', 'Closed hat'], ['open', 'Open hat'], ['tom', 'Tom']].map(([id, name]) => ({ id: id!, name: name! }));
+  const bar = (on: number[], v = 0.7, acc: number[] = []) => Array.from({ length: 16 }, (_, s) => (acc.includes(s) ? 1 : on.includes(s) ? v : 0));
+  const [cells, setCells] = useState<number[][]>([
+    bar([0, 4, 8, 12], 0.7, [0]), bar([4, 12], 0.7), bar([12], 0.5), bar([0, 2, 4, 6, 8, 10, 12, 14], 0.5, [2, 10]), bar([7, 15], 0.6), bar([], 0.7),
+  ]);
+  return (
+    <div className="sheet-instruments">
+      <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
+        <EnvelopeGraph value={env} reset={base} onChange={setEnv} /></div>
+      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (thin muted curve)</span>
+        <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={0.35} onChange={setFilt} /></div>
+      <div className="sheet-col"><span className="sheet-note">Knobs: arcs fill from the origin (pan from C, tune from 0, decay from 1×); values ink once off their default, grey at it</span>
+        <div className="sheet-row">
+          <Knob label="Pan" value={pan} min={-1} max={1} step={0.01} format={panLabel} onChange={setPan} />
+          <Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} />
+          <Knob label="Tune" value={tune} min={-12} max={12} step={1} unit="st" format={(v) => (v > 0 ? `+${v}` : String(v))} onChange={setTune} />
+          <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
+          <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
+        </div></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
+        <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
+    </div>
+  );
+}
+
+function Devices() {
+  const startBands: EqBand[] = [
+    { type: 'lowshelf', freq: 120, gain: 0, q: 0.71 }, { type: 'peak', freq: 450, gain: 0, q: 1 },
+    { type: 'peak', freq: 2500, gain: 0, q: 1 }, { type: 'highshelf', freq: 8000, gain: 0, q: 0.71 },
+  ];
+  const [bands, setBands] = useState<EqBand[]>([
+    { type: 'lowshelf', freq: 120, gain: -4, q: 0.71 }, { type: 'peak', freq: 380, gain: -3, q: 2.2 },
+    { type: 'peak', freq: 2800, gain: 4.5, q: 1.2 }, { type: 'highshelf', freq: 9000, gain: 2, q: 0.71 },
+  ]);
+  type Dev = { id: string; title: string; on: boolean; folded: boolean; proposed?: boolean };
+  const [devs, setDevs] = useState<Dev[]>([
+    { id: 'eq', title: 'EQ', on: true, folded: false },
+    { id: 'drive', title: 'Drive', on: false, folded: false },
+    { id: 'echo', title: 'Echo', on: true, folded: true, proposed: true },
+  ]);
+  const [drive, setDrive] = useState(0.35);
+  const [tone, setTone] = useState(0.6);
+  const patch = (id: string, p: Partial<Dev>) => setDevs((d) => d.map((x) => (x.id === id ? { ...x, ...p } : x)));
+  const move = (from: number, to: number) => setDevs((d) => { const next = [...d]; const [x] = next.splice(from, 1); next.splice(to, 0, x!); return next; });
+  return (
+    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold shows the head alone; Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
+      <DeviceChain label="Bass effects" count={devs.length} onMove={move}>
+        {devs.map((d, i) => (
+          <DeviceFrame key={d.id} title={d.title} index={i} on={d.on} onToggle={(on) => patch(d.id, { on })} collapsed={d.folded} onCollapse={(folded) => patch(d.id, { folded })} proposed={d.proposed}>
+            {d.id === 'eq' && <div className="sheet-eq"><EqGraph bands={bands} reset={startBands} onChange={(i, b) => setBands((all) => all.map((x, j) => (j === i ? b : x)))} /></div>}
+            {d.id === 'drive' && <div className="sheet-row"><Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} /><Knob label="Tone" value={tone} min={0} max={1} step={0.01} origin={0.5} format={(v) => `${Math.round(v * 100)}%`} onChange={setTone} /></div>}
+            {d.id === 'echo' && <span className="sheet-note">Time, feedback, mix</span>}
+          </DeviceFrame>
+        ))}
+      </DeviceChain>
     </div>
   );
 }
@@ -290,6 +360,17 @@ export function Sheet() {
             <ParamGrid label="Track" columns={1}>
               <ParamCell label="Volume" unit="dB" min={-60} max={6} step={0.5} value={level} onChange={setLevel} format={(v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))} />
             </ParamGrid>
+            <span className="sheet-note">Compact (size=&quot;compact&quot;): a dense Device panel</span>
+            <ParamGrid label="Device, compact" columns={3}>
+              <ParamCell size="compact" label="Cutoff" unit="Hz" min={20} max={20000} scale="log" value={cutoff} onChange={setCutoff} format={(v) => String(Math.round(v))} />
+              <ParamCell size="compact" label="Decay" unit="s" min={0} max={2} step={0.01} value={decay} onChange={setDecay} format={(v) => v.toFixed(2)} />
+              <ParamCell size="compact" label="Level" unit="dB" min={-60} max={6} step={0.5} value={level} onChange={setLevel} format={(v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))} />
+            </ParamGrid>
+            <Menu label="Add effect" trigger={<Button>Add effect (menu with details)</Button>} entries={[
+              { label: 'EQ', detail: 'Shape the tone, band by band', run: () => {} },
+              { label: 'Echo', detail: 'Repeats that fade', run: () => {} },
+              { label: 'Drive', detail: 'Warmth and grit', run: () => {} },
+            ]} />
           </div>
         </Card>
 
@@ -351,6 +432,12 @@ export function Sheet() {
           <Pads />
         </Card>
 
+        <Card title="Instrument controls (Music's Device panel and drum kit)" wide>
+          <Instruments />
+        </Card>
+        <Card title="Devices: chain, frame and EQ" wide>
+          <Devices />
+        </Card>
         <Card title="Pad grid (Music's drum kit)">
           <DrumPads />
         </Card>

@@ -130,3 +130,12 @@ describe('Music gaps: inline and quiet pop-ups, swatches, one-column cells, log 
     expect(logNudge(2, -1, 1 / 12, 1)).toBe(1);
   });
 });
+
+describe('Music gaps, round 2', () => {
+  it('draws a compact parameter cell for dense pro panels', async () => {
+    const html = renderToStaticMarkup(<ParamCell label="Cutoff" size="compact" min={80} max={12000} value={1800} onChange={() => {}} />);
+    expect(html).toContain('data-size="compact"');
+    const plain = renderToStaticMarkup(<ParamCell label="Cutoff" min={80} max={12000} value={1800} onChange={() => {}} />);
+    expect(plain).not.toContain('data-size');
+  });
+});

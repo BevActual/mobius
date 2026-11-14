@@ -2464,8 +2464,7 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools > .popmenu:has(> .pill-model) { flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .composer-tools .pill-model { max-width: 100%; }
 .composer-tools .pill-model-icon { display: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
-/* In a narrow Mobius panel the model shows as a chip; its name is in the tooltip and the menu. */
-@container (max-width: 260px) { .composer-tools .pill-model .pill-text { display: none; } .composer-tools .pill-model-icon { display: block; } .composer-tools .pill.pill-model { min-width: 0; } }
+
 .composer-tools .pill { gap: 4px; }
 .composer-tools .pill .chev { display: block; }
 .chat .composer .composer-tools .pill-compact .pill-icon { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
@@ -2501,7 +2500,6 @@ body { font-variant-numeric: tabular-nums; }
 .composer:has(.composer-mic[data-recording]) .composer-tools > .popmenu:has(> .pill-model) { display: none; }
 .composer-actions { position: relative; z-index: 1; }
 /* At the narrowest panel the permission shows as its shield alone (its name is in the tooltip and the menu). */
-@container (max-width: 240px) { .chat .composer .composer-tools .pill-compact:has(.pill-icon) .pill-text { display: none; } }
 /* The change block in the Mobius panel (Instrument review, 2026-11-14): one header line (what changed, trimmed, then
    Keep all in ink), no lone dot, sentence-case kinds as plain grey words, and Discard all / Try another as quiet text
    buttons on the left. */
@@ -2570,6 +2568,20 @@ body { font-variant-numeric: tabular-nums; }
 /* In the resting panel the summary lines up with the headings and rows around it. */
 .chat .resting .turn-summary { margin-left: 0; margin-right: 0; }
 
+/* The plus menu (Instrument, Control 4): Add context first, then rows that lead elsewhere with an arrow at the right. */
+.popmenu-plus-heading { margin-left: 8px; }
+.popmenu-item.popmenu-arrow { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; }
+.popmenu-arrow-icon { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.popmenu-item.popmenu-separated { margin-top: 4px; border-top: 1px solid var(--hairline); border-radius: 0; }
+.popmenu-item.popmenu-one { flex-direction: row; align-items: center; text-align: start; }
+/* The plus menu holds a few more rows than the others: it grows to fit, up to what the window allows. */
+.popmenu-list:has(.popmenu-plus-heading) { max-height: min(460px, calc(100vh - 120px)); }
+/* The hairline under Dictate runs edge to edge, as the menu's other lines do. */
+.popmenu-item.popmenu-dictate { border-bottom: 1px solid var(--hairline); border-radius: 0; margin-bottom: 4px; }
+/* Under each reply, the model it was sent to, in small grey text at the right (Instrument, Control 3: Honesty). */
+.msg-actions .msg-model { margin-left: auto; color: var(--faint, var(--muted)); font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 45%; }
+/* The model menu is as wide as the composer, as the other composer menus are, so it never runs off the window. */
+.composer-tools .model-menu { width: auto; }
 /* The Asking state (Instrument): a question is a card of numbered choices, the suggested one outlined; your own words
    go in the message box. An approval is a dashed card that says what will happen and whether it can be undone, with
    quiet choices on the left and the one that goes ahead in ink on the right. */
@@ -2598,3 +2610,20 @@ body { font-variant-numeric: tabular-nums; }
 /* While it waits, the step's own line goes: the card's bold line already says what it is. It returns once answered. */
 .chat .tool[data-status="waiting"]:has(.approval) > .tool-line { display: none; }
 .chat .tool[data-status="waiting"]:has(.approval) > .approval { margin-top: 0; }
+/* The model menu (Instrument review): one edge-to-edge hairline between its parts, Effort as one row that opens in
+   place, and the pill's effort as a grey suffix when it is not Default. */
+.model-menu .popmenu-link { border-radius: 0; border-top: 1px solid var(--hairline); color: var(--ink); margin-top: 4px; }
+.model-menu .popmenu-section { border-top: 1px solid var(--hairline); margin-top: 4px; padding-top: 4px; }
+.model-menu .model-effort { border-top: 1px solid var(--hairline); border-radius: 0; margin-top: 4px; }
+.model-effort-value { margin-left: auto; margin-right: var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
+.model-effort-back { flex-direction: row; align-items: center; gap: var(--sp-1); color: var(--muted); }
+.model-best-fit-link { color: var(--muted); font-size: var(--fs-sm); }
+.pill-suffix { color: var(--muted); }
+/* The model's name is never cut short: the row measures itself and drops Permission's words, then the model's (Composer.tsx). */
+.composer-tools > .popmenu:has(> .pill-model) { flex: none; }
+.composer-tools .pill.pill-model { max-width: none; }
+.composer-tools .pill-model .pill-text { overflow: visible; text-overflow: clip; }
+.composer-tools[data-fit] .pill-compact:has(.pill-icon) .pill-text { display: none; }
+.composer-tools[data-fit="effort"] .pill-model .pill-suffix, .composer-tools[data-fit="model"] .pill-model .pill-suffix { display: none; }
+.composer-tools[data-fit="model"] .pill-model .pill-text { display: none; }
+.composer-tools[data-fit="model"] .pill-model-icon { display: block; }
