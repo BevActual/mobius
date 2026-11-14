@@ -4,7 +4,7 @@ import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   DateField, TimeField, TimeRange, MonthPicker,
-  NumberField, Readout, LetterToggle, Transport, LevelMeter, barsLabel, clockLabel, type LevelFeed,
+  NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
 } from '../ui';
 
 /**
@@ -401,11 +401,22 @@ function ProControls() {
   const beats = 45.25; // 12 . 2 . 2 at 4/4
   const meters = [useRef<LevelFeed>(null), useRef<LevelFeed>(null), useRef<LevelFeed>(null)];
   const levels = [[-14, -11], [-6, -7.5], [2.5, -1]];
+  const [threshold, setThreshold] = useState(-18);
+  const busIn = useRef<LevelFeed>(null);
+  const reduce = useRef<ReductionFeed>(null);
   useEffect(() => {
     // Fixed levels so the sheet and its shots hold still; ?live=1 moves them.
     meters.forEach((m, i) => m.current?.set(...levels[i]!));
+    busIn.current?.set(-9, -11);
+    reduce.current?.set(6.4);
+    reduce.current?.set(4.2);
     if (!new URLSearchParams(location.search).has('live')) return;
-    const timer = setInterval(() => meters.forEach((m, i) => m.current?.set(...levels[i]!.map((d) => d - Math.random() * 12))), 33);
+    const timer = setInterval(() => {
+      meters.forEach((m, i) => m.current?.set(...levels[i]!.map((d) => d - Math.random() * 12)));
+      const level = -6 - Math.random() * 14;
+      busIn.current?.set(level, level - 2);
+      reduce.current?.set(Math.max(0, (level + 18) * 0.75));
+    }, 33);
     return () => clearInterval(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
@@ -433,6 +444,12 @@ function ProControls() {
             <LevelMeter ref={meters[i]} label={`${t.name} level`} />
           </div>
         ))}
+        <div className="sheet-track">
+          <span className="sheet-track-name">Bus in</span>
+          <LevelMeter ref={busIn} label="Bus input" threshold={threshold} thresholdReset={-18} onThreshold={setThreshold} />
+          <span className="sheet-track-name sheet-gap">Reduction</span>
+          <GainReductionMeter ref={reduce} label="Bus gain reduction" />
+        </div>
       </div>
     </div>
   );
