@@ -45,6 +45,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('adjustments are kept beside the photo, which never changes, and Export saves a new picture', async () => {
   await start();
+  // Adjust, from the toolbar, brings the inspector forward (in a narrow window it takes turns with Mobius).
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   await panel().getByRole('button', { name: 'Add adjustment' }).click();
   await panel().getByRole('slider', { name: 'Warmth' }).fill('30');
   await panel().getByRole('combobox', { name: 'Applies to' }).selectOption('below');

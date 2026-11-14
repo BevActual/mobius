@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { SIDEBAR_WIDTH } from '@mobius/shared';
 import { Resizer } from '../Resizer';
@@ -25,6 +25,8 @@ interface TabsApi {
   choose: (id: string) => void;
   /** Bring a panel forward, opening the inspector; 'mobius' opens the Mobius panel instead. */
   show: (id: string) => void;
+  /** Which of the two was brought forward last, for a window too narrow to show both (under 1280px, styles.css). */
+  front: 'inspector' | 'mobius';
 }
 
 const PanelTabsContext = createContext<TabsApi | null>(null);
@@ -53,11 +55,12 @@ export function frontTab(tabs: readonly { id: string }[], kept: string | null): 
 }
 
 /** Held by the frame: the panels the open app has asked for, where each is drawn, and whether the inspector is open. */
-export function PanelTabsProvider({ children, open: openMobius }: {
+export function PanelTabsProvider({ children, open: openMobius, mobiusAsked }: {
   children: ReactNode;
   /** Opens the Mobius panel (for `useShowPanelTab('mobius')`). */
   open?: () => void;
-  /** No longer used: Mobius is never behind a tab. Kept so the frame's props stay the same. */
+  /** Changes whenever the person asks Mobius something: where the window has room for only one of the two, Mobius
+   * comes in front of the inspector. */
   mobiusAsked?: string | number;
 }) {
   const [tabs, setTabs] = useState<Tab[]>([]);
@@ -69,9 +72,18 @@ export function PanelTabsProvider({ children, open: openMobius }: {
   const [openNow, setOpenNow] = useState<Record<string, boolean>>({});
   const [chosen, setChosen] = useState<Record<string, string>>({});
   const open = key !== '' && (openNow[key] ?? inspectorStartsOpen(tabs, read(OPEN_KEY + key)));
+  // In a narrow window the inspector and Mobius take turns: the one brought forward last is shown.
+  const [front, setFront] = useState<'inspector' | 'mobius'>('mobius');
+  const asked = useRef(mobiusAsked);
+  useEffect(() => {
+    if (asked.current === mobiusAsked) return;
+    asked.current = mobiusAsked;
+    setFront('mobius');
+  }, [mobiusAsked]);
   const setOpen = useCallback((next: boolean) => {
     if (key === '') return;
     setOpenNow((all) => ({ ...all, [key]: next }));
+    setFront(next ? 'inspector' : 'mobius');
     write(OPEN_KEY + key, next ? 'open' : 'closed');
   }, [key]);
   const active = frontTab(tabs, chosen[key] ?? read(LAST_KEY + key));
@@ -79,7 +91,7 @@ export function PanelTabsProvider({ children, open: openMobius }: {
   // A panel asked for before it has registered (an app can ask in the same render) is brought forward when it comes.
   const [wanted, setWanted] = useState<string | null>(null);
   const show = useCallback((id: string) => {
-    if (id === 'mobius') { openMobius?.(); return; }
+    if (id === 'mobius') { setFront('mobius'); openMobius?.(); return; }
     setWanted(id);
   }, [openMobius]);
   useEffect(() => {
@@ -88,7 +100,7 @@ export function PanelTabsProvider({ children, open: openMobius }: {
     setOpen(true);
     setWanted(null);
   }, [wanted, tabs, choose, setOpen]);
-  const api = useMemo(() => ({ tabs, add, remove, hosts, setHost, open, setOpen, active, choose, show }), [tabs, add, remove, hosts, setHost, open, setOpen, active, choose, show]);
+  const api = useMemo(() => ({ tabs, add, remove, hosts, setHost, open, setOpen, active, choose, show, front }), [tabs, add, remove, hosts, setHost, open, setOpen, active, choose, show, front]);
   return <PanelTabsContext.Provider value={api}>{children}</PanelTabsContext.Provider>;
 }
 
@@ -143,10 +155,10 @@ export function InspectorDock() {
   const [drag, setDrag] = useState<number | null>(null);
   const tabs = api?.tabs ?? [];
   if (!api || tabs.length === 0) return null;
-  const { active, choose, open, setOpen } = api;
+  const { active, choose, open, setOpen, front } = api;
   const shown = drag ?? width;
   return (
-    <aside className="dock inspector" aria-label="Inspector" hidden={!open} style={{ width: shown }}>
+    <aside className="dock inspector" aria-label="Inspector" hidden={!open} data-front={front === 'inspector' || undefined} style={{ width: shown }}>
       <div className="panel-tabs-head">
         {tabs.length === 1 ? <h2 className="inspector-title">{tabs[0]!.name}</h2> : (
           <div className="panel-tabs" role="tablist" aria-label="Panel"

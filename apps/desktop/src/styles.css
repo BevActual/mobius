@@ -2440,7 +2440,8 @@ main.stage:focus { outline: none; }
 }
 @media (max-width: 1279px) {
   .body > .dock.inspector { position: absolute; top: 0; right: var(--col-right, 0px); bottom: 8px; z-index: 29; box-shadow: var(--shadow-3); }
-  .body:has(> .dock.right) > .dock.inspector { display: none; }
+  /* Room for one of the two: the inspector shows over Mobius only when it was brought forward last. */
+  .body:has(> .dock.right) > .dock.inspector:not([data-front]) { display: none; }
 }
 
 /* ---- Instrument: numbers and readouts (docs/design/instrument.md) -------------------------------------------------
