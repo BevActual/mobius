@@ -66,6 +66,18 @@ describe('instrument controls', () => {
     expect(plain).not.toContain('data-ghost');
   });
 
+  it('shows Sweep as a drag-number field between Resonance and Opens to when it can be changed', () => {
+    const html = renderToStaticMarkup(<FilterGraph value={{ cutoff: 1800, resonance: 0.3 }} min={80} max={12000} envAmount={0.5} envAmountReset={0.35} onEnvAmount={noop} onChange={noop} />);
+    const names = [...html.matchAll(/<dt>([^<]+)<\/dt>/g)].map((m) => m[1]);
+    expect(names).toEqual(['Cutoff', 'Resonance', 'Sweep', 'Opens to']);
+    expect(html).toContain('role="spinbutton"');
+    expect(html).toContain('aria-valuenow="50"');
+    expect(html).toContain('aria-valuetext="50 %"');
+    expect(html).toMatch(/data-changed="true"><dt>Sweep/);
+    const fixed = renderToStaticMarkup(<FilterGraph value={{ cutoff: 1800, resonance: 0.3 }} envAmount={0.5} onChange={noop} />);
+    expect(fixed).not.toContain('Sweep');
+  });
+
   it('draws a step grid with one tab stop, named steps, velocity and accents', () => {
     const rows = [{ id: 'kick', name: 'Kick' }, { id: 'snare', name: 'Snare' }];
     const cells = [[1, 0, 0.7, 0], [0, 0, 0, 0.5]];

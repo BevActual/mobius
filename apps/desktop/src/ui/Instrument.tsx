@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { fromPosition, logNudge, toPosition, type SliderProps } from './Slider';
+import { NumberField } from './Pro';
 
 /**
  * Instrument controls: what a synth's or a drum kit's Device panel draws (Music first; Video's audio and any sound
@@ -327,9 +328,11 @@ const dbY = (db: number) => clamp((db - DB_LO) / (DB_HI - DB_LO), 0, 1);
 /**
  * A filter's curve across the hearing range (log) with one point: across is cutoff, up is resonance (the point sits
  * on the curve's peak). `envAmount` and `envOctaves` add a thin muted curve where a note's envelope opens it to.
+ * With `onEnvAmount`, the readout also shows Sweep (the envelope amount, 0 to 100%) as a drag-number field between
+ * Resonance and Opens to, so the row reads Cutoff, Resonance, Sweep, Opens to and no separate knob is needed.
  * Arrows: Left and Right move cutoff a twelfth of an octave, Up and Down move resonance; Shift moves more.
  */
-export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset, type = 'lowpass', min = 20, max = 20000, q = musicQ, envAmount, envOctaves = 4, disabled, className }: {
+export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset, type = 'lowpass', min = 20, max = 20000, q = musicQ, envAmount, envOctaves = 4, onEnvAmount, onEnvAmountCommit, envAmountReset, disabled, className }: {
   label?: string;
   value: FilterValue;
   onChange: (next: FilterValue) => void;
@@ -343,6 +346,11 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
   /** How far, 0 to 1, a note's envelope opens the filter; drawn as a thin muted curve. */
   envAmount?: number;
   envOctaves?: number;
+  /** Makes Sweep (envAmount) editable in the readout as a drag-number field, 0 to 100%. */
+  onEnvAmount?: (next: number) => void;
+  onEnvAmountCommit?: (next: number) => void;
+  /** Sweep's default, 0 to 1; double-click puts it back. */
+  envAmountReset?: number;
   disabled?: boolean;
   className?: string;
 }) {
@@ -401,7 +409,21 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
       <dl className="ui-graph-readout">
         <div data-changed={(reset && value.cutoff !== reset.cutoff) || undefined}><dt>Cutoff</dt><dd>{hertzLabel(value.cutoff)}</dd></div>
         <div data-changed={(reset && value.resonance !== reset.resonance) || undefined}><dt>Resonance</dt><dd>{pct(value.resonance)}</dd></div>
-        {envAmount !== undefined && <div><dt>Opens to</dt><dd>{hertzLabel(opened || value.cutoff)}</dd></div>}
+        {onEnvAmount && (
+          <div data-changed={(envAmountReset !== undefined && (envAmount ?? 0) !== envAmountReset) || undefined}>
+            <dt>Sweep</dt>
+            <dd>
+              <NumberField
+                label="Sweep" hideLabel className="ui-graph-number" unit="%" min={0} max={100} width={3} disabled={disabled}
+                value={Math.round((envAmount ?? 0) * 100)}
+                reset={envAmountReset === undefined ? undefined : Math.round(envAmountReset * 100)}
+                onChange={(v) => onEnvAmount(v / 100)}
+                onCommit={onEnvAmountCommit && ((v) => onEnvAmountCommit(v / 100))}
+              />
+            </dd>
+          </div>
+        )}
+        {(envAmount !== undefined || onEnvAmount) && <div><dt>Opens to</dt><dd>{hertzLabel(opened || value.cutoff)}</dd></div>}
       </dl>
     </div>
   );

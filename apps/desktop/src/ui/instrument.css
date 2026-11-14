@@ -138,3 +138,18 @@
 @container (width < 24rem) {
   .ui-eq-readout { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: var(--sp-3); }
 }
+
+/* A drag-number field inside a graph's readout (FilterGraph's Sweep): reads like the values beside it, grey until
+   moved, with the field's line only on hover and the ink line for focus or typing. */
+.ui-graph-readout .ui-graph-number { display: flex; }
+.ui-graph-readout .ui-graph-number .ui-number-box {
+  align-self: flex-start; justify-content: flex-start; gap: 0; min-width: 0; height: auto; padding: 0 var(--sp-1);
+  margin-inline-start: calc(-1 * var(--sp-1)); border-color: transparent; background: transparent; color: inherit;
+  font-size: inherit; line-height: inherit;
+}
+/* The figure and its percent sign read as one value, like Resonance beside it. */
+.ui-graph-readout .ui-graph-number .ui-number-value { min-width: 0; text-align: left; }
+.ui-graph-readout .ui-graph-number .ui-number-unit { color: inherit; font: inherit; }
+.ui-graph-readout .ui-graph-number .ui-number-box:hover { border-color: var(--line-strong); }
+.ui-graph-readout .ui-graph-number .ui-number-box:focus-visible,
+.ui-graph-readout .ui-graph-number .ui-number-box[data-typing] { border-color: var(--ink); }
