@@ -88,8 +88,12 @@ impl Checkpoints {
 
     fn git(&self, folder: &Path, id: &str, args: &[&str]) -> Result<String, Error> {
         let index = self.store.join("indexes").join(id);
+        let started = std::time::Instant::now();
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
+            // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
+            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
+            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
@@ -103,6 +107,7 @@ impl Checkpoints {
             .stdin(Stdio::null())
             .output()
             .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
+        slow(&format!("git {}", args.first().copied().unwrap_or("")), started);
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).into_owned())
         } else {
@@ -145,6 +150,14 @@ impl Checkpoints {
     }
 
     fn tip(&self, folder: &Path, id: &str) -> Option<String> {
+        // The branch's ref is a small file of its own until git packs it (it never does here: gc is off). Read as a
+        // file it costs nothing; a git run costs a process start, which is slow on Windows.
+        if let Ok(text) = std::fs::read_to_string(self.store.join("refs").join("mobius").join(id))
+            && is_checkpoint_id(text.trim())
+            && text.trim().len() == 40
+        {
+            return Some(text.trim().to_owned());
+        }
         self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("refs/mobius/{id}^{{commit}}")]).ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty())
     }
 
@@ -174,8 +187,12 @@ impl Checkpoints {
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let parent = self.tip(&folder, &id);
         if let Some(parent) = parent.as_ref().filter(|_| !always) {
-            let before = self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?;
-            if before.trim() == tree {
+            let memo = format!("{}|{parent}", self.store.display());
+            let before = match memo_get(&TREE_OF, &memo) {
+                Some(tree) => tree,
+                None => self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?.trim().to_owned(),
+            };
+            if before == tree {
                 return Ok(None);
             }
         }
@@ -186,6 +203,7 @@ impl Checkpoints {
         }
         let commit = self.git(&folder, &id, &args)?.trim().to_owned();
         self.git(&folder, &id, &["update-ref", &format!("refs/mobius/{id}"), &commit])?;
+        memo_put(&TREE_OF, format!("{}|{commit}", self.store.display()), tree);
         Ok(Some(Checkpoint { id: commit, when: now(), reason: message }))
     }
 
@@ -426,6 +444,16 @@ type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
 static KNOWN: Memo<String> = std::sync::Mutex::new(None);
 static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
 static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+/// The tree of each checkpoint made here, so the next one can tell whether anything changed without asking git.
+static TREE_OF: Memo<String> = std::sync::Mutex::new(None);
+
+/// Said on stderr when a step took long (the e2e logs keep it), as the host says its own slow steps.
+fn slow(what: &str, started: std::time::Instant) {
+    let ms = started.elapsed().as_millis();
+    if ms >= 300 {
+        eprintln!("[slow] checkpoints {what}: {ms} ms");
+    }
+}
 
 fn memo_get<T: Clone>(memo: &'static Memo<T>, key: &str) -> Option<T> {
     memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key).cloned())
@@ -502,7 +530,9 @@ fn one_at_a_time() -> OneAtATime {
     if HELD.with(std::cell::Cell::get) {
         return OneAtATime(None);
     }
+    let waited = std::time::Instant::now();
     let guard = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    slow("waiting for another checkpoint step", waited);
     HELD.with(|h| h.set(true));
     OneAtATime(Some(guard))
 }
