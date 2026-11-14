@@ -18,29 +18,32 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 - The workspace: the five zones (a slim rail of apps, each app's own sidebar, one toolbar row, the content and the
   right panel), the launcher, the app hub, split view, the desk,
-  Mobius in the right panel beside the work, and Little Mobius.
-- The agent: modes (Agent, Ask, Plan) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
+  Mobius in the right panel beside the work (with a Glance at what is open and numbered actions), and Little Mobius.
+- The agent: modes (Agent, Ask, Plan, and app modes such as Triage in Mail) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
-- Models: sign-in with ChatGPT, Claude Pro or Max through Claude Code, OpenRouter, API keys for a dozen services, local
-  servers, and one-step local models with llama.cpp; a model for each job (chat, second, quick, images, listen, speak).
+- Models: sign-in with ChatGPT, Claude Pro or Max through Claude Code, GitHub Copilot, OpenRouter and Hugging Face; API
+  keys for about twenty services plus Azure OpenAI and Amazon Bedrock; local servers, and one-step local models with
+  llama.cpp; a model for each job (chat, second, quick, images, listen, speak), and Best fit.
 - Apps: Notes, Docs, Tasks, Calendar, Mail, Browser, Files, Search, Research, Reader, Sheets, Database, Slides, Design,
-  Photo, Music, Video, Code, Terminal, Canvas, Projects, Knowledge, Review and Abilities.
+  Photo, Music, Video, Code, Terminal, Canvas, Projects, Knowledge, Review, Views, Agents, Activity and Abilities.
 - Comments on anything, sent to Mobius or kept for people.
 - A Windows installer with automatic, signed updates.
 
 ## Next
 
+- **The Mobius panel holds only Mobius.** An app's own panels (an outline, an inspector) move to a column between the
+  content and Mobius, and wide ones, such as Music's devices, to a dock along the bottom.
 - **Polish the existing apps** against Instrument and against real workflows, one round per app. The
   [apps roadmap](reference/apps-roadmap.md) lists each app's state and its next round.
-- **Music as a full small studio**: more instruments (drum pads, a morph synth, a sampler), effects on every track,
-  note tools and automation, built on the shared controls. The [Music roadmap](reference/music-roadmap.md) lists each
+- **Music as a full small studio**: more instruments (a morph synth, a sampler), playing from the computer keyboard,
+  recording, note tools and automation, built on the shared controls. Drum pads and effects on every track are in. The [Music roadmap](reference/music-roadmap.md) lists each
   one and its status.
 - **Signed installers** through Azure Artifact Signing, so Windows names the publisher and its warning fades as
   people install.
 - **Google and Microsoft calendar sign-in**, once Mobius is registered with each
   ([what it needs](reference/calendar-sign-in.md)).
-- **Connectors**: a settings page, HTTP and OAuth transports, and reloading without a restart.
+- **Connectors**: a settings page, and HTTP and OAuth transports. (They already start and stop without a restart.)
 - **Plugins** in Abilities.
 - **The Chromium (CEF) engine** in the installer, so the Browser uses one engine everywhere.
 

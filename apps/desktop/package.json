@@ -12,6 +12,7 @@
     "build:tauri": "vite build --mode tauri",
     "app": "node scripts/app.mjs",
     "ui-shots": "node scripts/ui-shots.mjs",
+    "readme-shots": "node scripts/readme-shots.mjs",
     "typecheck": "tsc -p . --noEmit",
     "test": "vitest run --passWithNoTests",
     "e2e": "npm run build && playwright test"

@@ -20,7 +20,7 @@ you want to build or change Mobius, go to **Developers**.
 
 | Page | What it covers |
 | --- | --- |
-| [Working with Mobius](guide/working-with-mobius.md) | Mode and permission; Keep, Discard and Try another; Rewind; what always asks |
+| [Working with Mobius](guide/working-with-mobius.md) | Mode and permission, app modes, the Mobius panel; Keep, Discard and Try another; Rewind; what always asks |
 | [Abilities](guide/abilities.md) | Adding and removing apps, skills, connectors (MCP) and plugins |
 | [Models and gateways](guide/models-and-gateways.md) | Signing in to a plan, API keys, local models, and a model for each job |
 | [Voice](guide/voice.md) | Dictating, and having replies read aloud |
@@ -33,7 +33,7 @@ you want to build or change Mobius, go to **Developers**.
 
 [All apps](apps/README.md), grouped the way the app hub shows them:
 
-- [Assistant](apps/assistant.md): Agent (the desk and your conversations), Agents, Abilities
+- [Assistant](apps/assistant.md): Home (the desk and your conversations), Agents, Activity, Abilities
 - [Browse and find](apps/browse-and-find.md): Browser, Mail, Search, Research, Reader, Files
 - [Write and plan](apps/write-and-plan.md): Notes, Docs, Tasks, Calendar, Sheets, Database, Projects, Knowledge
 - [Create](apps/create.md): Slides, Design, Photo, Music, Video, Code, Terminal, Canvas

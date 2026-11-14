@@ -64,15 +64,18 @@ pick. A
 
 ## The Mobius panel
 
-The Mobius button at the top right of every app opens the Mobius panel beside your work. It holds only Mobius: the
-conversation, the message box, and a few places an app fills in for what is open. Each changes with what Mobius is
+The Mobius button at the top right of every app opens the Mobius panel beside your work. It holds the
+conversation, the message box, and a few places an app fills in for what is open. Some apps add tabs of their own
+beside it, such as the outline in Docs. Each changes with what Mobius is
 doing.
 
 - **Resting.** At the top, a **Glance** card: up to three live facts about what is open or selected. Tasks shows
   *Your day* (overdue, due today, flagged), Calendar the *Rest of today* (still to come, the next start, free time
-  until 6 pm), and Sheets the sum, average and count of the cells you selected. Under it, the **Actions** list for
-  this item: the app's own actions first (Mail's **Get to zero** and **Triage**), then Mobius's ideas, four at most.
-  Press 1 to 4 to pick one while the panel has the focus.
+  until 6 pm), and Sheets the sum, average and count of the cells you selected. Then **Waiting for you**: conversations
+  with a question or approval for you, and the changes from your last conversation, with **Keep all**, **Discard all**
+  and **Try another**. Then the **Actions** list: the app's own actions first (Mail's **Get to zero** and **Triage**),
+  then Mobius's ideas for what is open, four at most. Press 1 to 4 to pick one while the panel has the focus. Last,
+  **Earlier chats** to pick up again.
 - **Working.** Mobius's plan as a checklist and each tool it uses as a plain sentence, with **Stop**.
 - **Asking.** A question is a card of numbered choices, the first outlined as the suggestion; press its number, or
   type your own answer in the message box. An approval is a dashed card that says what will happen. **Allow once**

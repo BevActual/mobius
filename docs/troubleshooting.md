@@ -33,6 +33,13 @@ permission in the message box. See [Working with Mobius](guide/working-with-mobi
 **I don't want a change Mobius made.** Choose **Discard** in the app, or **Rewind to here** in the Activity
 app to go back further. The [Review](apps/review.md) app lists everything Mobius changed.
 
+**A request failed.** It is marked **Failed** in red. In [Activity](apps/assistant.md#activity), under what needs
+you, **Try again** sends the same request once more.
+
+**A connector won't start.** **Abilities › Connectors** shows it with a red dot and says why in one sentence, including
+where to fix a missing command. Fix that, then choose **Start again** in its menu. See
+[Connectors](guide/abilities.md#connectors-mcp).
+
 **An app is missing.** It may not be added yet. Add it from [Abilities](guide/abilities.md#apps).
 
 ## Something isn't working
