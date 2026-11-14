@@ -52,6 +52,8 @@ describe('sliders', () => {
   });
   it('gives a meter its role and value', () => {
     const html = renderToStaticMarkup(<Meter label="Storage" value={0.62} />);
+    expect(html).not.toContain('ui-meter-over');
+    expect(renderToStaticMarkup(<Meter label="Level" value={0.94} threshold={0.85} />)).toMatch(/ui-meter-over" style="left:85%;width:(8\.99|9)\d*%/);
     expect(html).toContain('role="meter"');
     expect(html).toContain('aria-valuetext="62%"');
   });

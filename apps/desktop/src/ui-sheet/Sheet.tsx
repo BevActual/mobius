@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from 'react';
+import { dayLabel, timeLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select,
   Slider, StatusLetter, StatusText, Switch, TextField, CONTENT_COLORS,
@@ -131,7 +132,7 @@ export function Sheet() {
         <Card title="Meters and progress">
           <div className="sheet-col">
             <Meter label="Storage" value={0.62} />
-            <Meter label="Level" value={0.94} tone="red" format={() => '−0.4 dB'} />
+            <Meter label="Level" value={0.94} threshold={0.85} format={() => '−0.4 dB'} />
             <Progress label="Exporting" value={0.4} />
           </div>
         </Card>
@@ -143,7 +144,9 @@ export function Sheet() {
             <Chip onClick={() => setFilter(!filter)} pressed={filter}>Unread</Chip>
           </div>
           <div className="sheet-row">
+            <span className="sheet-note">Content colours:</span>
             {CONTENT_COLORS.map((c) => <Dot key={c} color={c} label={c} />)}
+            <span className="sheet-note">Status (the one status colour):</span>
             <Dot color="red" label="Overdue" />
           </div>
           <div className="sheet-row">
@@ -164,16 +167,16 @@ export function Sheet() {
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
               {[
-                { t: 'Supplier quote for the P2 harness', m: '09:14', d: 'Maya Chen · The revised numbers are attached, with the longer lead time', u: true },
-                { t: 'Northway launch plan', m: 'Yesterday', d: 'Sam Okafor · Moved the dealer preview to the week after', u: false },
-                { t: 'Paint shop booking', m: 'Tue 11', d: 'Workshop · Confirmed for two bays', u: false, p: true },
+                { t: 'Supplier quote for the P2 harness', m: timeLabel(new Date(2026, 10, 14, 9, 14)), d: 'Maya Chen · The revised numbers are attached, with the longer lead time', u: true },
+                { t: 'Northway launch plan', m: dayLabel(Date.now() - 86_400_000), d: 'Sam Okafor · Moved the dealer preview to the week after', u: false },
+                { t: 'Paint shop booking', m: dayLabel(new Date(2026, 10, 11)), d: 'Workshop · Confirmed for two bays', u: false, p: true },
               ].map((r, i) => (
                 <ListRow key={r.t} title={r.t} meta={r.m} detail={r.d} unread={r.u} proposed={r.p} current={i === current} lead={<Avatar name={r.d.split(' · ')[0]!} />} onSelect={() => setCurrent(i)} />
               ))}
             </ul>
             <ul role="list" className="ui-list sheet-list">
               {['Order the harness samples', 'Book the paint shop', 'Send the dealer preview invite', 'Review the launch budget'].map((t, i) => (
-                <ListRow key={t} title={t} meta={['Today', 'Fri 14', '18 Nov', ''][i]} lead={<Checkbox label={t} hideLabel checked={i === 0} onChange={() => {}} />} trail={i === 1 ? <Chip color="teal">Workshop</Chip> : undefined} onSelect={() => {}} />
+                <ListRow key={t} title={t} meta={i === 3 ? undefined : dayLabel(new Date(2026, 10, [13, 14, 18][i]!))} lead={<Checkbox label={t} hideLabel checked={i === 0} onChange={() => {}} />} trail={i === 1 ? <Chip color="teal">Workshop</Chip> : undefined} onSelect={() => {}} />
               ))}
             </ul>
           </div>

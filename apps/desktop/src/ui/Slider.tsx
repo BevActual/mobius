@@ -152,18 +152,21 @@ export function ParamGrid({ label, children }: { label?: string; children: React
 
 /**
  * A meter shows a level that is not set here (a track's level, storage used): the same thin track with an ink fill, and
- * its value in tabular figures. `tone="red"` only when the level means trouble (clipping, nearly full).
+ * its value in tabular figures. With `threshold`, only the part past it is red (clipping, nearly full): red marks the
+ * overage, never the whole reading.
  */
-export function Meter({ label, value, min = 0, max = 1, format, tone, hideLabel, className }: {
-  label: string; value: number; min?: number; max?: number; format?: (value: number) => string; tone?: 'red'; hideLabel?: boolean; className?: string;
+export function Meter({ label, value, min = 0, max = 1, format, threshold, hideLabel, className }: {
+  label: string; value: number; min?: number; max?: number; format?: (value: number) => string; threshold?: number; hideLabel?: boolean; className?: string;
 }) {
   const at = toPosition(value, min, max);
+  const limit = threshold === undefined ? 1 : toPosition(threshold, min, max);
   const text = format ? format(value) : `${Math.round(at * 100)}%`;
   return (
     <div className={className ? `ui-meter ${className}` : 'ui-meter'} data-bare={hideLabel || undefined}>
       {!hideLabel && <span className="ui-meter-name">{label}</span>}
-      <div className="ui-meter-track" role="meter" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={text} data-tone={tone}>
-        <div className="ui-meter-fill" style={{ width: `${at * 100}%` }} />
+      <div className="ui-meter-track" role="meter" aria-label={label} aria-valuemin={min} aria-valuemax={max} aria-valuenow={value} aria-valuetext={text} data-over={at > limit || undefined}>
+        <div className="ui-meter-fill" style={{ width: `${Math.min(at, limit) * 100}%` }} />
+        {at > limit && <div className="ui-meter-over" style={{ left: `${limit * 100}%`, width: `${(at - limit) * 100}%` }} />}
       </div>
       {!hideLabel && <span className="ui-meter-value">{text}</span>}
     </div>

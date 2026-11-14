@@ -52,7 +52,7 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 | `Checkbox` | A rounded square, ink when checked; `indeterminate` for "some of them". Tasks keeps its round circles |
 | `Slider` | Photo's slider: a grey track filled in ink from the `origin` (zero, or `min`) to the value, a slim tick, the value grey until it moves. `format` for units, `scale="log"` for Hz and times, `ends={['Shorter', 'Longer']}` to name the ends, `remake` for an Adjust control that makes the result again when let go (it shows the Mobius mark). `onChange` runs as it moves, `onCommit` once when let go. Shift+arrows nudge further; double-click goes back to `reset` |
 | `ParamCell`, `ParamGrid` | Pro app readouts: a small all-caps label, the value large in mono with its `unit`, a thin slider under it, and an optional `keyHint` letter in the corner. Same props as `Slider`. `ParamGrid` puts them two to a row |
-| `Meter`, `Progress` | A level set elsewhere (storage, a track's level), `tone="red"` only for trouble; and known progress as a thin ink line. No spinners in content |
+| `Meter`, `Progress` | A level set elsewhere (storage, a track's level), `threshold` makes only the part past it red (clipping, nearly full); and known progress as a thin ink line. No spinners in content |
 | `Chip` | A label or tag: outlined pill, a content-colour dot, grey text. `onRemove` adds ×, `onClick` makes it a filter (`pressed` when on) |
 | `Dot`, `CONTENT_COLORS` | A content colour as a small dot (the one palette of eight plus stone), or `red` for overdue or failed |
 | `Count` | A plain grey tabular number at a row's end. Nothing for zero; never a badge |
