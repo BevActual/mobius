@@ -805,7 +805,7 @@ All of them share one card shell, so Compare, Check, Repeat and Adjust look like
 | Header | The card's name in semibold, and a close cross | 36px |
 | Body | The app's rows, built from shared controls (slider, segmented, switch, two-axis pad, object rows) | 12px inside |
 | Footer | Quiet text buttons on the left (Reset, Discard), one ink button on the right (Keep) | 40px |
-| How many | Two cards open at most. Opening a third closes the oldest. | |
+| How many | Two cards open at most. The rest fold to one line each, in the order Sources, Adjust, Compare, Check. | 36px folded |
 
 ### Rules for building it
 
