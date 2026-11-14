@@ -1142,8 +1142,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 <span className="studio-gap" />
                 {velocity !== null && !(drumView === 'steps') ? (
                   <span className="studio-picked-group">
-                    <span className="studio-picked">{pickedNotes.length === 1 ? `${drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at ${position(pickedNotes[0]!.start, song.tempo).bars}` : `${pickedNotes.length} notes`}</span>
-                    <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
+                    <span className="studio-picked">{pickedNotes.length === 1 ? <>{drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at <span className="studio-mono">{position(pickedNotes[0]!.start, song.tempo).bars}</span></> : <><span className="studio-mono">{pickedNotes.length}</span> notes</>}</span>
+                    <span className="ui-field-label" aria-hidden="true">Velocity</span>
+                    <Slider className="studio-velocity" label="Velocity" hideLabel hideValue value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
+                    <span className="studio-mono studio-vel-value" aria-hidden="true">{Math.round(velocity * 127)}</span>
+                    <span className="studio-picked-sep" aria-hidden="true" />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </span>
                 ) : null}
