@@ -50,7 +50,8 @@ async function openDevice(name: string): Promise<Locator> {
   return device;
 }
 
-async function start(replies: ModelReply[] = []): Promise<void> {
+/** Starts Mobius on Music's Night Drive, with the notes of `track` open. */
+async function start(replies: ModelReply[] = [], track = 'Keys'): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
@@ -58,8 +59,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
-  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();
-  await openNotes('Keys');
+  await expect(tracks().getByRole('listitem', { name: track })).toBeVisible();
+  await openNotes(track);
 }
 
 test('a song is tracks of notes: added by clicking, with tracks to add, mute and play', async () => {
@@ -207,7 +208,7 @@ test('effects are added to a track, switched off and moved, kept in the song', a
 
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
-  await start();
+  await start([], 'Drums');
   const device = await openDevice('Drums');
   // Each drum is a pad; the chosen pad's knobs set that drum alone, kept in the song by its pitch.
   await device.getByRole('group', { name: 'Drum pads' }).getByRole('button', { name: 'Snare', exact: true }).click();
