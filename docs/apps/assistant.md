@@ -26,9 +26,19 @@ The same conversation is available in every app in the right panel beside your w
 
 ## Agents
 
-Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail; **+** beside the list makes a new one.
+Agents are named helpers for jobs you repeat. Open them from **Agents** at the foot of the rail, or type "Agents" in
+Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your agents waiting for you to review.
 
-- Each agent has a name, its instructions, a model, and how it starts: **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too).
+![An agent's page in Mobius](../readme/apps/agents.png)
+
+- Choosing an agent opens **its page**. The toolbar shows its name, when it runs, and **Run now**, which starts a new
+  session with it and sends its instructions. The page has four parts: **What it does** (its instructions and model,
+  with **Edit**), **When it runs**, **What it can use** (from Settings › Safety) and **Recent runs**, its sessions,
+  each opening with one press.
+- **+** beside the list makes a new agent, on the same page.
+- Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
+  **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too). A
+  schedule runs as the agent, with its instructions and model.
 - An agent's **More** button (⋯), or a right-click on it, has New session, Edit, Move up, Move down and Remove. Mobius
   itself is built in, so its menu only starts a session.
 - **Make an agent from a conversation**: its name comes from the conversation's title and its instructions from what
@@ -45,13 +55,17 @@ or type "Activity" in the launcher (Ctrl+K).
 
 ![The Activity app in Mobius](../readme/apps/activity.png)
 
-- **The page** leads with what **needs you**, what is **running**, the **changes to review** (Keep or Discard), what
-  finished today and what is scheduled. Below that, everything that happened, grouped Today, Yesterday and earlier: each
-  line is the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. Something that failed is shown in
-  red.
-- **The open conversation's turns** are listed with [Rewind to here](../guide/working-with-mobius.md#rewind-to-here).
-- **The sidebar** narrows the list: **Everything**, **Needs you**, **By Mobius**, **By you**, **Can't be undone**
-  (sending, paying, deleting and running commands), then **By app**.
+- **The list** is laid out like Mail's inbox. In **Today** it leads with what **needs you**, what is **running**, the
+  **changes to review** (Keep or Discard), what finished today and what is scheduled, then what happened. Each line is
+  the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. An indigo dot marks a change Mobius made;
+  something that failed is shown in red. A changed file is listed under the app it belongs to (a sheet under
+  Sheets). **Open** on a line takes you to its app.
+- **The right side** shows what you chose: a line's app, who did it and when, with **Rewind to here** to undo a
+  change Mobius made, or a conversation with its turns and
+  [Rewind to here](../guide/working-with-mobius.md#rewind-to-here).
+- **The sidebar** chooses where to look: **Needs you**, **Today**, **This week**, **Everything**, then each app.
+- **The toolbar** chooses who did it: **All**, **Mobius**, **You**, or **Can't undo** (sending, paying, deleting and
+  running commands).
 - It reads the same log as **Settings › Approvals and safety › Activity**, which stays on this computer.
 
 ## Abilities

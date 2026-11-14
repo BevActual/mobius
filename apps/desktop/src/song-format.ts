@@ -2,7 +2,7 @@
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
  *     { "version": 1, "tempo": 112, "key": "A minor", "bars": 8,
- *       "tracks": [{ "id": "t1", "name": "Bass", "instrument": "bass", "volume": 0.8,
+ *       "tracks": [{ "id": "t1", "name": "Bass", "instrument": "bass", "color": "blue", "volume": 0.8,
  *         "notes": [{ "pitch": 45, "start": 0, "length": 1.5, "velocity": 0.9 }] }] }
  *
  * Bars are four beats. A note's `start` and `length` are in beats from the start of the song; `pitch` is a MIDI note
@@ -14,12 +14,78 @@ export const INSTRUMENTS: Instrument[] = ['piano', 'bass', 'pad', 'lead', 'drums
 export const INSTRUMENT_NAMES: Record<Instrument, string> = { piano: 'Piano', bass: 'Bass', pad: 'Pad', lead: 'Lead', drums: 'Drums' };
 export interface SongNote { pitch: number; start: number; length: number; velocity: number }
 /**
- * How a track's instrument sounds (the Device panel): the oscillator's shape (0 a pure sine, 1 a bright saw), two voices
- * detuned apart in cents, a low-pass filter's cutoff in Hz and resonance (0 to 1), and the envelope's attack and
- * release in seconds. A track without one sounds as its instrument always has.
+ * How a track's instrument sounds (the Device panel):
+ *
+ * - Oscillator: `shape` (0 a pure sine, 1 a bright saw), two voices `detune`d apart in cents, a `sub` one octave down
+ *   (0 to 1) and `drive` (0 clean to 1 saturated).
+ * - Filter: a low-pass `cutoff` in Hz and `resonance` (0 to 1); `envAmount` (0 to 1) opens it by up to four octaves at
+ *   each note's start, closing back over the envelope's decay.
+ * - Envelope: `attack`, `decay` and `release` in seconds, and `sustain` (0 to 1) as a share of the peak.
+ * - Motion: `vibrato` depth in cents at `rate` Hz.
+ *
+ * A track without one sounds as its instrument always has; a sound missing a setting takes its instrument's.
  */
-export interface Sound { shape: number; detune: number; cutoff: number; resonance: number; attack: number; release: number }
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; muted: boolean; solo: boolean; notes: SongNote[]; sound?: Sound }
+export interface Sound {
+  shape: number; detune: number; sub: number; drive: number;
+  cutoff: number; resonance: number; envAmount: number;
+  attack: number; decay: number; sustain: number; release: number;
+  vibrato: number; rate: number;
+}
+/**
+ * How a drums track's kit sounds: every drum `tune`d up or down in semitones, its `decay` as a multiple of how long it
+ * rings, and its `tone` from dark (0) to bright (1).
+ */
+export interface KitSound { tune: number; decay: number; tone: number }
+/**
+ * A track's colour: one of the shared content colours (tokens.css, --c-<name>), chosen by the person. Its clips are
+ * drawn in it. A track without one takes the next colour along by its place in the song.
+ */
+export const TRACK_COLOURS = ['blue', 'amber', 'green', 'violet', 'teal', 'pink', 'yellow', 'coral', 'stone'] as const;
+export type TrackColour = (typeof TRACK_COLOURS)[number];
+export const COLOUR_NAMES: Record<TrackColour, string> = { blue: 'Blue', amber: 'Amber', green: 'Green', violet: 'Violet', teal: 'Teal', pink: 'Pink', yellow: 'Yellow', coral: 'Coral', stone: 'Stone' };
+/** The colour a new track gets: the first one no other track has (coral and stone last), else by count. */
+export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColour {
+  const used = new Set(tracks.map((t) => t.color));
+  return TRACK_COLOURS.find((c) => !used.has(c)) ?? TRACK_COLOURS[tracks.length % TRACK_COLOURS.length]!;
+}
+/**
+ * An effect on a track, in the order the sound goes through them. Each can be switched off (`on`) and keeps its settings:
+ *
+ * - `eq`: `low` and `high` shelves and a `mid` bell at `midFreq` Hz, each in dB (-18 to +18).
+ * - `compressor`: above `threshold` dB it turns the level down by `ratio` to 1, reacting in `attack` and letting go in
+ *   `release` seconds, then lifts the whole track by `makeup` dB.
+ * - `delay`: echoes `time` beats apart, each `feedback` (0 to 0.9) as loud as the last, blended in by `mix` (0 to 1).
+ * - `reverb`: a room that rings for `size` seconds, its highs softened by `damp` (0 to 1), blended in by `mix`.
+ */
+export type Effect =
+  | { id: string; kind: 'eq'; on: boolean; low: number; mid: number; midFreq: number; high: number }
+  | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number }
+  | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
+  | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number };
+export type EffectKind = Effect['kind'];
+export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'delay', 'reverb'];
+export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', delay: 'Delay', reverb: 'Reverb' };
+/** Each effect's settings: range, and where a new one starts. */
+export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi: number; start: number }> } = {
+  eq: { low: { lo: -18, hi: 18, start: 0 }, mid: { lo: -18, hi: 18, start: 0 }, midFreq: { lo: 200, hi: 8000, start: 1000 }, high: { lo: -18, hi: 18, start: 0 } },
+  compressor: { threshold: { lo: -60, hi: 0, start: -18 }, ratio: { lo: 1, hi: 20, start: 4 }, attack: { lo: 0.001, hi: 0.5, start: 0.01 }, release: { lo: 0.02, hi: 1, start: 0.2 }, makeup: { lo: 0, hi: 24, start: 0 } },
+  delay: { time: { lo: 0.25, hi: 2, start: 0.75 }, feedback: { lo: 0, hi: 0.9, start: 0.35 }, mix: { lo: 0, hi: 1, start: 0.25 } },
+  reverb: { size: { lo: 0.3, hi: 8, start: 2 }, damp: { lo: 0, hi: 1, start: 0.4 }, mix: { lo: 0, hi: 1, start: 0.25 } },
+};
+/** A new effect of a kind, with its starting settings. */
+export function newEffect(kind: EffectKind, id: string): Effect {
+  return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])) } as Effect;
+}
+/** An effect id not yet on the track. */
+export function freshEffectId(track: { fx?: readonly { id: string }[] }): string {
+  const used = new Set((track.fx ?? []).map((e) => e.id));
+  let n = (track.fx?.length ?? 0) + 1;
+  while (used.has(`fx${n}`)) n++;
+  return `fx${n}`;
+}
+
+/** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; notes: SongNote[]; sound?: Sound; kit?: KitSound; fx?: Effect[] }
 export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
@@ -29,17 +95,24 @@ export const KEYS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb',
 
 /** Each setting's range, so a value from a file (or Mobius) is kept to what the panel can show. */
 export const SOUND_RANGE: Record<keyof Sound, { lo: number; hi: number }> = {
-  shape: { lo: 0, hi: 1 }, detune: { lo: 0, hi: 50 }, cutoff: { lo: 80, hi: 12000 }, resonance: { lo: 0, hi: 1 }, attack: { lo: 0.001, hi: 2 }, release: { lo: 0.02, hi: 4 },
+  shape: { lo: 0, hi: 1 }, detune: { lo: 0, hi: 50 }, sub: { lo: 0, hi: 1 }, drive: { lo: 0, hi: 1 },
+  cutoff: { lo: 80, hi: 12000 }, resonance: { lo: 0, hi: 1 }, envAmount: { lo: 0, hi: 1 },
+  attack: { lo: 0.001, hi: 2 }, decay: { lo: 0.01, hi: 4 }, sustain: { lo: 0, hi: 1 }, release: { lo: 0.02, hi: 4 },
+  vibrato: { lo: 0, hi: 50 }, rate: { lo: 0.1, hi: 12 },
 };
+export const KIT_RANGE: Record<keyof KitSound, { lo: number; hi: number }> = { tune: { lo: -12, hi: 12 }, decay: { lo: 0.5, hi: 2 }, tone: { lo: 0, hi: 1 } };
+export const KIT_DEFAULTS: KitSound = { tune: 0, decay: 1, tone: 0.5 };
 /** What each instrument starts as, close to how it sounded before it had settings. */
 export const SOUND_DEFAULTS: Record<Exclude<Instrument, 'drums'>, Sound> = {
-  piano: { shape: 0.2, detune: 0, cutoff: 5000, resonance: 0, attack: 0.005, release: 0.3 },
-  bass: { shape: 1, detune: 0, cutoff: 700, resonance: 0.1, attack: 0.005, release: 0.08 },
-  pad: { shape: 1, detune: 14, cutoff: 1800, resonance: 0.1, attack: 0.25, release: 0.5 },
-  lead: { shape: 0.7, detune: 0, cutoff: 5000, resonance: 0.1, attack: 0.005, release: 0.08 },
+  piano: { shape: 0.2, detune: 0, sub: 0, drive: 0, cutoff: 5000, resonance: 0, envAmount: 0, attack: 0.005, decay: 0.8, sustain: 0.3, release: 0.3, vibrato: 0, rate: 5 },
+  bass: { shape: 1, detune: 0, sub: 0, drive: 0, cutoff: 700, resonance: 0.1, envAmount: 0, attack: 0.005, decay: 0.3, sustain: 1, release: 0.08, vibrato: 0, rate: 5 },
+  pad: { shape: 1, detune: 14, sub: 0, drive: 0, cutoff: 1800, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 },
+  lead: { shape: 0.7, detune: 0, sub: 0, drive: 0, cutoff: 5000, resonance: 0.1, envAmount: 0, attack: 0.005, decay: 0.3, sustain: 1, release: 0.08, vibrato: 0, rate: 5 },
 };
-/** A track's sound as the panel shows it: its own settings, or its instrument's. Drums have none. */
+/** A track's sound as the panel shows it: its own settings, or its instrument's. Drums have a kit instead. */
 export const soundOf = (t: Track): Sound | null => (t.instrument === 'drums' ? null : (t.sound ?? SOUND_DEFAULTS[t.instrument]));
+/** A drums track's kit: its own, or the kit as it always sounded. */
+export const kitOf = (t: Track): KitSound | null => (t.instrument === 'drums' ? (t.kit ?? KIT_DEFAULTS) : null);
 
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const num = (v: unknown, fallback: number, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v * 1000) / 1000)) : fallback);
@@ -62,11 +135,24 @@ export function parseSong(text: string): { song: Song } | { error: string } {
       if (typeof v.pitch !== 'number' || typeof v.start !== 'number') return [];
       return [{ pitch: Math.round(num(v.pitch, 60, 0, 127)), start: num(v.start, 0, 0, bars * BEATS_PER_BAR), length: num(v.length, 1, 0.0625, 64), velocity: num(v.velocity, 0.8, 0, 1) }];
     }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), muted: to.muted === true, solo: to.solo === true, notes };
+    const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
+    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, notes };
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
       const base = SOUND_DEFAULTS[instrument];
       track.sound = Object.fromEntries((Object.keys(SOUND_RANGE) as (keyof Sound)[]).map((k) => [k, num(so[k], base[k], SOUND_RANGE[k].lo, SOUND_RANGE[k].hi)])) as unknown as Sound;
+    }
+    const fx = (Array.isArray(to.fx) ? to.fx : []).slice(0, 8).flatMap((e, j): Effect[] => {
+      const eo = obj(e);
+      const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
+      if (!kind) return [];
+      const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
+      return [{ id: typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`, kind, on: eo.on !== false, ...params } as Effect];
+    });
+    if (fx.length > 0) track.fx = fx;
+    const ko = obj(to.kit);
+    if (instrument === 'drums' && Object.keys(ko).length > 0) {
+      track.kit = Object.fromEntries((Object.keys(KIT_RANGE) as (keyof KitSound)[]).map((k) => [k, num(ko[k], KIT_DEFAULTS[k], KIT_RANGE[k].lo, KIT_RANGE[k].hi)])) as unknown as KitSound;
     }
     return track;
   });
@@ -77,10 +163,13 @@ export function parseSong(text: string): { song: Song } | { error: string } {
 export function writeSong(song: Song): string {
   const lines = ['{', '  "version": 1,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, '  "tracks": ['];
   song.tracks.forEach((t, i) => {
-    const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, volume: t.volume };
+    const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
     if (t.solo) head.solo = true;
+    if (t.pan) head.pan = t.pan;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
+    if (t.kit && t.instrument === 'drums') head.kit = t.kit;
+    if (t.fx && t.fx.length > 0) head.fx = t.fx;
     const last = i === song.tracks.length - 1;
     if (t.notes.length === 0) { lines.push(`    ${JSON.stringify({ ...head, notes: [] })}${last ? '' : ','}`); return; }
     lines.push(`    ${JSON.stringify(head).slice(0, -1)}, "notes": [`);

@@ -15,7 +15,7 @@ describe('dragging a sidebar edge', () => {
     expect(draggedWidth('right', 380, 0, 5000)).toBe(300);
     expect(draggedWidth('right', 380, 5000, 0)).toBe(640);
     expect(clampWidth('left', Number.NaN)).toBe(248);
-    expect(clampWidth('right', Number.POSITIVE_INFINITY)).toBe(320);
+    expect(clampWidth('right', Number.POSITIVE_INFINITY)).toBe(340);
     expect(clampWidth('left', 250.4)).toBe(250);
   });
 

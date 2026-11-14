@@ -1,116 +1,122 @@
-/* Music, timeless: a neutral frame and arrangement. Clips are plain blocks with a hairline; what Mobius proposes is
-   dashed indigo until it is kept. Notes are drawn in ink, louder ones darker. */
+/* Music, Instrument (docs/design/instrument.md): a compact pro app on a neutral frame. Colour comes from the tracks:
+   each clip is a solid block in its track's colour, and what Mobius proposes is dashed and unfilled until it is kept.
+   Readouts (position, tempo, device values) use the mono face. Sizes and colours are tokens only. */
 
-.studio-page, .studio-track, .studio-editor { --tc: color-mix(in srgb, var(--ink) 62%, var(--bg)); }
+/* Music is compact: 13px text, 32px rows, a 44px toolbar (the density tokens, set for this app in tokens.css). */
+.app[data-app="studio"] { font-size: var(--fs-md); }
 
-.stage .studio-page { background: var(--bg); }
+.studio-page, .studio-track, .studio-editor { --tc: var(--c-stone); }
+
+.stage .studio-page { background: var(--paper); }
 .stage .studio-page:not(.empty) { flex-direction: row; }
 .studio-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 .studio-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
+/* Loading: grey bars the shape of the tracks, still, until the song is open. */
+.stage .studio-page.studio-loading { flex-direction: column; gap: var(--sp-2); padding: calc(var(--row-h) + var(--sp-2)) var(--sp-3); }
+.studio-placeholder { display: block; width: var(--w, 60%); height: calc(var(--row-list) - var(--sp-2)); border-radius: var(--radius-small); background: var(--sel); }
+
 /* ---------- Toolbar: transport, position, tempo, meter, loop ---------- */
-.studio-play svg, .ui-toolbar-group .studio-play + .strip-btn svg { fill: currentColor; stroke: none; }
-.studio-sep { width: var(--hairline-w, 1px); height: 18px; margin: 0 var(--sp-2); background: var(--line); }
-.studio-readout { display: inline-flex; align-items: center; gap: 4px; height: 28px; padding: 0 10px; border: var(--hairline-w, 1px) solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.studio-pos { min-width: 72px; justify-content: center; }
-.studio-tempo input { width: 46px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: right; appearance: none; -moz-appearance: textfield; }
+/* Play and Stop are solid shapes; the shared icon button draws lines. */
+.studio-play svg, .studio-play + .ui-icon-button svg { fill: currentColor; stroke: none; }
+.studio-sep { width: var(--hairline-w); height: var(--fs-xl); margin: 0 var(--sp-2); background: var(--line); }
+.studio-readout { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h-lg); padding: 0 var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: var(--fs-md) / 1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.studio-pos { min-width: 9ch; justify-content: center; }
+.studio-tempo input { width: 4ch; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: right; appearance: none; -moz-appearance: textfield; }
 .studio-tempo input::-webkit-inner-spin-button { display: none; }
 .studio-tempo input:focus { outline: none; }
-.studio-tempo:focus-within { border-color: var(--line-strong); }
-.studio-tempo span { color: var(--muted); }
-/* The key, in the toolbar's grey line: a quiet choice that reads as text until it is pressed. */
-.studio-key-pick { field-sizing: content; height: auto; min-height: 0; line-height: inherit; font-size: inherit; padding: 0; border: 0; box-shadow: none; vertical-align: baseline; background: none; color: inherit; font: inherit; cursor: pointer; appearance: none; }
-.studio-key-pick:hover { color: var(--ink); }
-.studio-key-pick option { color: var(--ink); background: var(--bg); }
+.studio-tempo:focus-within { border-color: var(--ink); }
+.studio-tempo span { color: var(--muted); font-family: var(--font); font-size: var(--fs-sm); }
 
 /* ---------- Sidebar ---------- */
-.studio-side-when { align-self: center; padding-right: var(--sp-3); font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
-.studio-to-review { align-self: center; padding-right: var(--sp-3); font-size: var(--fs-sm); color: var(--mobius); white-space: nowrap; }
+.studio-side-when, .studio-to-review { align-self: center; padding-right: var(--sp-3); font-size: var(--fs-sm); white-space: nowrap; }
+.studio-side-when { color: var(--muted); }
+.studio-to-review { color: var(--mobius); }
+/* A song's row with its date after it: the selection and hover run under the date too, across the sidebar. */
+.studio-side .ui-side-row-trail { border-radius: var(--radius-control); }
+.studio-side .ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select); }
+.studio-side .ui-side-row-trail:has(> .list-row:hover):not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover); }
+.dock.left .studio-side .ui-side-row-trail > .list-row:is([aria-current="page"], :hover) { background: transparent; }
 
 /* ---------- Arrangement ---------- */
 .studio-page .studio-arrange { flex: 1 1 auto; min-height: 96px; overflow: auto; position: relative; }
-.studio-ruler-row { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: var(--head) max-content; height: 28px; background: var(--bg); border-bottom: var(--hairline-w, 1px) solid var(--line); }
-.studio-ruler-head { position: sticky; left: 0; z-index: 1; background: inherit; border-right: var(--hairline-w, 1px) solid var(--line); }
-.studio-ruler { position: relative; height: 28px; cursor: pointer; outline: none; }
-.studio-ruler:focus-visible { box-shadow: inset 0 0 0 2px var(--line-strong); }
-.studio-ruler-bar { position: absolute; top: 0; bottom: 0; padding: 9px 0 0 6px; border-left: var(--hairline-w, 1px) solid var(--line); font-size: var(--fs-xs, 11px); color: var(--muted); font-variant-numeric: tabular-nums; }
+.studio-ruler-row { position: sticky; top: 0; z-index: 4; display: grid; grid-template-columns: var(--head) max-content; height: var(--row-h); background: var(--paper); border-bottom: var(--hairline-w) solid var(--line); }
+.studio-ruler-head { position: sticky; left: 0; z-index: 1; background: inherit; border-right: var(--hairline-w) solid var(--line); }
+.studio-ruler { position: relative; height: var(--row-h); cursor: pointer; outline: none; }
+.studio-ruler:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
+.studio-ruler-bar { position: absolute; top: 0; bottom: 0; display: flex; align-items: flex-end; padding: 0 0 var(--sp-1) var(--sp-1); border-left: var(--hairline-w) solid var(--line); font: var(--fs-xs) / 1 var(--font-mono); color: var(--muted); }
 /* The loop: a dark bar along the top of the ruler, its ends marked when it is only some bars. */
-.studio-cycle { position: absolute; left: 0; top: 2px; height: 5px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 22%, transparent); pointer-events: none; }
+.studio-cycle { position: absolute; left: 0; top: 2px; height: 5px; border-radius: var(--radius-small); background: color-mix(in srgb, var(--ink) 22%, transparent); pointer-events: none; }
 .studio-cycle[data-part] { background: var(--ink); }
 .studio-cycle-zone { position: absolute; left: 0; right: 0; top: 0; height: 11px; cursor: ew-resize; }
-.studio-cycle-zone:hover { background: var(--soft); }
+.studio-cycle-zone:hover { background: var(--sel); }
 
 .studio-tracks { position: relative; min-width: max-content; }
-.studio-page .studio-track { display: grid; grid-template-columns: var(--head) max-content; border-bottom: var(--hairline-w, 1px) solid var(--line); cursor: default; }
-.studio-page .studio-track-head { position: sticky; left: 0; z-index: 2; display: grid; grid-template-columns: 1fr auto; grid-template-rows: auto auto; align-content: center; column-gap: 4px; height: 54px; padding: 0 8px 0 12px; background: var(--bg); border-right: var(--hairline-w, 1px) solid var(--line); }
-.studio-page .studio-track[aria-current] .studio-track-head { background: var(--soft); }
-.studio-page .studio-track-name { min-width: 0; height: 22px; margin-left: -4px; padding: 0 4px; border: 0; border-radius: var(--radius-small, 4px); background: none; color: var(--ink); font: inherit; font-size: var(--fs-md); font-weight: var(--fw-medium); text-overflow: ellipsis; }
-.studio-page .studio-track-name:focus { outline: none; background: var(--bg); box-shadow: inset 0 0 0 1px var(--line-strong); }
-.studio-track-sub { grid-column: 1; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.studio-track-buttons { grid-column: 2; grid-row: 1 / span 2; align-self: center; display: flex; gap: 2px; opacity: 0; }
+.studio-page .studio-track { display: grid; grid-template-columns: var(--head) max-content; border-bottom: var(--hairline-w) solid var(--line); cursor: default; outline: none; }
+.studio-page .studio-track:focus-visible .studio-track-head { box-shadow: inset 0 0 0 2px var(--ink); }
+/* A track's header: its number in a small cap, its name, its instrument when the name is different, then M and S. */
+.studio-page .studio-track-head { position: sticky; left: 0; z-index: 2; display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); background: var(--paper); border-right: var(--hairline-w) solid var(--line); }
+.studio-page .studio-track[aria-current] .studio-track-head { background: var(--sel); }
+.studio-track-no { flex: none; min-width: 2ch; padding: 0 var(--sp-1); border-radius: var(--radius-small); background: var(--tc); color: var(--on-content); font: var(--fs-floor) / 1.6 var(--font-mono); text-align: center; }
+.studio-page .studio-track-name { flex: 0 1 auto; field-sizing: content; min-width: 4ch; max-width: 100%; height: var(--control-h); margin-left: calc(-1 * var(--sp-1)); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; font-size: var(--fs-md); text-overflow: ellipsis; }
+.studio-page .studio-track[aria-current] .studio-track-name { font-weight: var(--fw-medium); }
+.studio-page .studio-track-name:focus { outline: none; background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+.studio-track-sub { flex: 1 1 0; min-width: 0; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-track-buttons { flex: none; display: flex; gap: 2px; opacity: 0; }
 .studio-track:hover .studio-track-buttons, .studio-track[aria-current] .studio-track-buttons, .studio-track-buttons[data-on], .studio-track-buttons:focus-within { opacity: 1; }
-.studio-page .studio-ms { width: 20px; height: 20px; padding: 0; border: var(--hairline-w, 1px) solid var(--line); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--muted); font-size: 10px; font-weight: var(--fw-semibold); }
-.studio-page .studio-ms[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.studio-page .studio-ms { width: var(--fs-xl); height: var(--fs-xl); padding: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); background: var(--paper); color: var(--muted); font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); }
+.studio-page .studio-ms[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
 .studio-track[data-muted] .studio-lane { opacity: 0.4; }
-.studio-none { margin: 0; padding: 18px; color: var(--muted); font-size: var(--fs-sm); }
+
+/* After the last track: Add track, so a short song never ends in a blank field. */
+.studio-add-row { position: sticky; left: 0; display: flex; align-items: center; gap: var(--sp-3); width: var(--head); height: var(--row-list); padding: 0 var(--sp-2); border-right: var(--hairline-w) solid var(--line); box-sizing: border-box; }
+.studio-none { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
+.studio-arrange[data-empty] .studio-add-row { width: auto; border-right: 0; }
 
 /* The lane: bar lines every few bars, then the clips. */
-.studio-page .studio-lane { position: relative; height: 54px; background-image: linear-gradient(90deg, var(--line-soft, var(--line)) var(--hairline-w, 1px), transparent var(--hairline-w, 1px)); background-size: var(--grid) 100%; }
-.studio-page .studio-clip { position: absolute; top: 6px; bottom: 6px; display: flex; flex-direction: column; gap: 3px; padding: 3px 7px 5px; border: var(--hairline-w, 1px) solid color-mix(in srgb, var(--ink) 45%, transparent); border-radius: var(--radius-small, 4px); background: color-mix(in srgb, var(--ink) 7%, var(--bg)); color: var(--ink); font: inherit; text-align: left; overflow: hidden; cursor: default; }
-.studio-page .studio-clip:focus-visible { outline: 2px solid var(--line-strong); outline-offset: 1px; }
-.studio-track[aria-current] .studio-clip { border-color: var(--ink); }
-.studio-clip-name { font-size: var(--fs-sm); line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.studio-clip-notes { position: relative; flex: 1; min-height: 0; }
-.studio-clip-notes span { position: absolute; height: 2px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 55%, transparent); }
-.studio-page .studio-clip[data-proposed] { border: 1px dashed var(--mobius); background: transparent; color: var(--mobius); }
+.studio-page .studio-lane { position: relative; height: var(--row-list); background-image: linear-gradient(90deg, var(--line-soft) var(--hairline-w), transparent var(--hairline-w)); background-size: var(--grid) 100%; }
+/* A clip: a solid block in the track's colour, the notes drawn small behind its name. */
+.studio-page .studio-clip { position: absolute; top: 3px; bottom: 3px; display: flex; align-items: flex-start; padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: var(--tc); color: var(--on-content); font: inherit; text-align: left; overflow: hidden; cursor: default; }
+.studio-page .studio-clip:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.studio-track[aria-current] .studio-clip { box-shadow: inset 0 0 0 var(--hairline-w) var(--on-content); }
+.studio-clip-name { position: relative; font-size: var(--fs-xs); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-clip-notes { position: absolute; inset: calc(var(--fs-xs) * 1.5) 0 2px; }
+.studio-clip-notes span { position: absolute; height: 2px; border-radius: 1px; background: color-mix(in srgb, var(--on-content) 45%, transparent); }
+.studio-page .studio-clip[data-proposed] { border: var(--hairline-w) dashed var(--mobius); background: transparent; color: var(--mobius); box-shadow: none; }
 .studio-page .studio-clip[data-proposed] .studio-clip-notes span { background: color-mix(in srgb, var(--mobius) 55%, transparent); }
 .studio-page .studio-playhead { position: absolute; top: 0; bottom: 0; width: 1.5px; margin-left: -0.75px; background: var(--ink); pointer-events: none; z-index: 3; }
 .studio-tracks > .studio-playhead { z-index: 1; }
 
 /* ---------- Device ---------- */
-.studio-device { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; padding: var(--sp-3) var(--sp-4) var(--sp-5); font-size: var(--fs-md); }
-.studio-dev-title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
-.studio-dev-head { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
-.studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w, 1px) solid var(--line); }
-.studio-dev-row { display: grid; grid-template-columns: 84px 1fr 64px; align-items: center; gap: var(--sp-2); min-height: 30px; }
-.studio-dev-plain { grid-template-columns: 84px 1fr; }
-.studio-dev-plain select { justify-self: end; max-width: 100%; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-align: right; cursor: pointer; }
-.studio-dev-name { color: var(--ink); }
-.studio-dev-value { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* A slider: a hairline, dark up to the value, with a short upright mark for the thumb. */
-.studio-dev-row input[type="range"] { width: 100%; height: 20px; margin: 0; background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
-.studio-dev-row input[type="range"]::-webkit-slider-runnable-track { height: 1.5px; background: linear-gradient(90deg, var(--ink) var(--at, 0%), var(--line) var(--at, 0%)); }
-.studio-dev-row input[type="range"]::-moz-range-track { height: 1.5px; background: linear-gradient(90deg, var(--ink) var(--at, 0%), var(--line) var(--at, 0%)); }
-.studio-dev-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: 14px; margin-top: -6px; border-radius: 1px; background: var(--ink); }
-.studio-dev-row input[type="range"]::-moz-range-thumb { width: 2px; height: 14px; border: 0; border-radius: 1px; background: var(--ink); }
-.studio-dev-row input[type="range"]:focus-visible { outline: 2px solid var(--line-strong); outline-offset: 2px; border-radius: 2px; }
+.studio-device { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-1); padding: var(--sp-3) var(--sp-4) var(--sp-5); font-size: var(--fs-md); }
+.studio-dev-title { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.studio-dev-dot { flex: none; display: inline-block; width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--tc); }
+.studio-dev-head { margin: var(--sp-4) 0 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
+.studio-dev-row { padding: var(--sp-1) 0; }
+.studio-colour-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--row-list); color: var(--ink); }
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
-.studio-dev-proposal { margin-top: var(--sp-4); }
-.studio-dev-proposal p { margin: 0 0 var(--sp-3); line-height: var(--lh-body, 1.5); }
+/* What Mobius proposes: the dashed indigo edge every Mobius change carries until it is kept. */
+.studio-dev-proposal { margin-top: var(--sp-4); padding: var(--sp-3); border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-panel); }
+.studio-dev-proposal .studio-dev-head { margin-top: 0; }
+.studio-dev-proposal p { margin: var(--sp-1) 0 var(--sp-3); line-height: var(--lh-body); }
 .studio-dev-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
 /* ---------- Piano roll ---------- */
 .studio-editor { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
-/* The divider between the tracks and the notes: a hairline with a wider grab area, as in Logic's split. */
-.studio-divider { flex: none; position: relative; height: 1px; background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
-.studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: -4px; bottom: -4px; }
-.studio-divider::after { content: ""; position: absolute; left: 50%; top: -2px; width: 36px; height: 5px; margin-left: -18px; border-radius: 3px; background: color-mix(in srgb, var(--ink) 18%, transparent); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
-.studio-divider:hover::after, .studio-divider:focus-visible::after { opacity: 1; }
-.studio-divider:focus-visible { background: var(--line-strong); }
-.studio-roll-bar { flex: none; display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w, 1px) solid var(--line); background: var(--bg); font-size: var(--fs-sm); }
+/* The divider between the tracks and the notes: a hairline with a wider grab area. */
+.studio-divider { flex: none; position: relative; height: var(--hairline-w); background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
+.studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--sp-1)); bottom: calc(-1 * var(--sp-1)); }
+.studio-divider:hover, .studio-divider:focus-visible { background: var(--ink); }
+.studio-roll-bar { flex: none; display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
 .studio-roll-close { margin-left: var(--sp-1); color: var(--muted); }
-.studio-roll-close svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.studio-roll-title { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; white-space: nowrap; }
-.studio-field { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); white-space: nowrap; }
-.studio-field select { height: 24px; padding: 0 6px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; }
-.studio-velocity input { width: 96px; accent-color: var(--tc); }
-.studio-velocity output { min-width: 24px; font-variant-numeric: tabular-nums; color: var(--ink); }
-.studio-chip { height: 24px; padding: 0 10px; border: 0; border-radius: 6px; background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); font: inherit; }
-.studio-chip:hover { background: color-mix(in srgb, var(--ink) 11%, transparent); }
-.studio-picked { font-weight: 600; white-space: nowrap; }
+.studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
+/* Where the velocity slider sits in the roll bar: its width only. */
+.studio-roll-bar .studio-velocity { width: calc(var(--sp-8) * 6); }
+.studio-picked { font-weight: var(--fw-semibold); white-space: nowrap; }
 .studio-hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-.studio-page .studio-roll { flex: 0 1 auto; min-height: 0; overflow: auto; border-top: 0; outline: none; background: var(--bg); }
+.studio-page .studio-roll { flex: 0 1 auto; min-height: 0; overflow: auto; border-top: 0; outline: none; background: var(--paper); }
 .studio-page .studio-roll-inner { position: relative; touch-action: none; user-select: none; }
 .studio-page .studio-row { position: absolute; left: 0; right: 0; display: flex; }
 .studio-page .studio-row[data-shade] .studio-row-cells { background-color: color-mix(in srgb, var(--ink) 3.5%, transparent); }
@@ -122,52 +128,49 @@
     linear-gradient(90deg, color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1px),
     linear-gradient(90deg, color-mix(in srgb, var(--ink) 22%, transparent) 1px, transparent 1px);
 }
-/* The keyboard: white keys with black ones short and dark, C named on each octave. */
-.studio-key { position: sticky; left: 0; z-index: 2; flex: none; width: var(--keys, 64px); height: 100%; padding-right: 6px; box-sizing: border-box; text-align: right; font: 600 9px/var(--row, 14px) var(--font); color: transparent; background: #fbfbfd; border-bottom: 0.5px solid #d2d2d7; border-right: 0.5px solid var(--line); cursor: pointer; }
-.studio-key[data-c] { color: #6e6e73; }
-.studio-key[data-black] { background: linear-gradient(90deg, #1d1d1f 0 62%, #fbfbfd 62%); border-bottom-color: #1d1d1f; }
-.studio-key:active { background: color-mix(in srgb, var(--tc) 30%, #fbfbfd); }
-.studio-key[data-drum] { padding: 0 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: 500 12px/var(--row, 26px) var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-bottom-color: var(--line); }
-.studio-page .studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: 3px; background: color-mix(in srgb, var(--tc) calc(45% + var(--vel, 0.8) * 55%), var(--bg)); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--tc) 70%, #000); cursor: grab; }
+/* The keyboard: paper keys with the black ones short and in ink, C named on each octave. It follows the theme. */
+.studio-key { position: sticky; left: 0; z-index: 2; flex: none; width: var(--keys, 64px); height: 100%; padding-right: var(--sp-1); box-sizing: border-box; text-align: right; font: var(--fw-semibold) var(--fs-floor) / var(--row, 14px) var(--font-mono); color: transparent; background: var(--paper); border-bottom: 0.5px solid var(--line); border-right: var(--hairline-w) solid var(--line); cursor: pointer; }
+.studio-key[data-c] { color: var(--muted); }
+.studio-key[data-black] { background: linear-gradient(90deg, var(--on-content) 0 62%, var(--paper) 62%); border-bottom-color: var(--on-content); }
+.studio-key:active { background: color-mix(in srgb, var(--tc) 40%, var(--paper)); }
+.studio-key[data-drum] { padding: 0 var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--fs-sm) / var(--row, 26px) var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-bottom-color: var(--line); }
+/* A note in the track's colour, stronger for louder. */
+.studio-page .studio-note { position: absolute; top: 1px; bottom: 1px; border-radius: var(--radius-small); background: color-mix(in srgb, var(--tc) calc(45% + var(--vel, 0.8) * 55%), var(--paper)); box-shadow: inset 0 0 0 0.5px color-mix(in srgb, var(--tc) 60%, var(--ink)); cursor: grab; }
 /* The end of a note, to drag to stretch it. */
 .studio-page .studio-note-end { position: absolute; top: 0; right: 0; bottom: 0; width: 7px; cursor: ew-resize; }
-.studio-page .studio-note[data-picked] { box-shadow: inset 0 0 0 1.5px var(--bg), 0 0 0 1.5px var(--tc); z-index: 1; }
-.studio-box { position: absolute; z-index: 4; border-radius: 3px; background: color-mix(in srgb, var(--ink) 8%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 50%, transparent); pointer-events: none; }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .studio-key { background: #3a3a3c; border-bottom-color: #1c1c1e; }
-  :root:not([data-theme="light"]) .studio-key[data-c] { color: #aeaeb2; }
-  :root:not([data-theme="light"]) .studio-key[data-black] { background: linear-gradient(90deg, #0b0b0c 0 62%, #3a3a3c 62%); }
-  :root:not([data-theme="light"]) .studio-key[data-drum] { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); color: var(--ink); }
-}
-:root[data-theme="dark"] .studio-key { background: #3a3a3c; border-bottom-color: #1c1c1e; }
-:root[data-theme="dark"] .studio-key[data-c] { color: #aeaeb2; }
-:root[data-theme="dark"] .studio-key[data-black] { background: linear-gradient(90deg, #0b0b0c 0 62%, #3a3a3c 62%); }
-:root[data-theme="dark"] .studio-key[data-drum] { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); color: var(--ink); }
+.studio-page .studio-note[data-picked] { box-shadow: inset 0 0 0 1.5px var(--paper), 0 0 0 1.5px var(--ink); z-index: 1; }
+.studio-box { position: absolute; z-index: 4; border-radius: var(--radius-small); background: color-mix(in srgb, var(--ink) 8%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--ink) 50%, transparent); pointer-events: none; }
 
 /* The velocity lane: one bar per note, taller for louder, under the roll and scrolled with it. */
-.studio-page .studio-vel { flex: none; position: relative; overflow: hidden; border-top: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); }
-.studio-vel-label { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: var(--keys, 64px); box-sizing: border-box; padding: 6px 8px 0 0; text-align: right; font: 600 10px/1 var(--font); color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, var(--bg)); border-right: 0.5px solid var(--line); }
+.studio-page .studio-vel { flex: none; position: relative; overflow: hidden; border-top: var(--hairline-w) solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--paper)); }
+.studio-vel-label { position: absolute; left: 0; top: 0; bottom: 0; z-index: 2; width: var(--keys, 64px); box-sizing: border-box; padding: var(--sp-2) var(--sp-2) 0 0; text-align: right; font-size: var(--fs-floor); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-right: var(--hairline-w) solid var(--line); }
 .studio-vel-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); background-image: linear-gradient(90deg, color-mix(in srgb, var(--ink) 6%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1px); }
-.studio-page .studio-vel-bar { position: absolute; bottom: 0; width: 3px; margin-left: 1px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tc) 55%, var(--bg)); cursor: ns-resize; touch-action: none; outline: none; }
-/* A round head on each bar, like Logic's velocity stems; a wider invisible grab area around the thin line. */
+.studio-page .studio-vel-bar { position: absolute; bottom: 0; width: 3px; margin-left: 1px; border-radius: 2px 2px 0 0; background: color-mix(in srgb, var(--tc) 70%, var(--paper)); cursor: ns-resize; touch-action: none; outline: none; }
+/* A round head on each bar; a wider invisible grab area around the thin line. */
 .studio-page .studio-vel-bar::before { content: ""; position: absolute; left: -5px; right: -5px; top: -6px; bottom: 0; }
-.studio-page .studio-vel-bar::after { content: ""; position: absolute; top: -3px; left: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
-.studio-page .studio-vel-bar[data-picked] { z-index: 1; background: var(--tc); }
-.studio-page .studio-vel-bar[data-picked]::after { box-shadow: 0 0 0 2px var(--bg), 0 0 0 3.5px var(--tc); }
+.studio-page .studio-vel-bar::after { content: ""; position: absolute; top: -3px; left: -2.5px; width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--tc); }
+.studio-page .studio-vel-bar[data-picked] { z-index: 1; background: var(--ink); }
+.studio-page .studio-vel-bar[data-picked]::after { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
 
 /* With no tracks there is nothing to scroll to: the ruler is cut off at the edge, not given a scrollbar. */
 .studio-page .studio-arrange[data-empty] { overflow-x: hidden; }
 
-/* A narrower window: the toolbar keeps Play, Stop, the tempo and Loop, and lets the meter and then the position go first (the ruler still shows where the song is), so it
-   never runs under the right panel. */
+/* A narrower window: the toolbar keeps Play, Stop, the tempo and Loop, and lets the meter and then the position go
+   first (the ruler still shows where the song is), so it never runs under the right panel. */
 @media (max-width: 1360px) {
   .studio-meter, .studio-sep { display: none; }
-  .studio-readout { padding: 0 6px; }
+  .studio-readout { padding: 0 var(--sp-2); }
   .studio-pos { min-width: 0; }
 }
 @media (max-width: 1240px) {
   .studio-pos { display: none; }
   .studio-tempo span { display: none; }
-  .studio-tempo input { width: 30px; }
 }
+
+/* ---------- Effects: each a block in the chain, its head a row of on/off, name and moves ---------- */
+.studio-fx { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3) var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); }
+.studio-fx[data-off] .ui-param-grid, .studio-fx[data-off] .ui-segmented { opacity: 0.45; }
+.studio-fx-head { display: flex; align-items: center; gap: var(--sp-1); }
+.studio-fx-name { flex: 1; margin: 0 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.studio-fx-chain { display: grid; }
+.studio-fx-chain > .ui-button { justify-self: start; margin-top: var(--sp-2); }

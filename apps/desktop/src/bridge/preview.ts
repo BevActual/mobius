@@ -64,9 +64,12 @@ const NOTES = () => [
 /** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
 const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
-const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv', 'studio/Songs/Night Drive.json'] };
+const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add the Veltro quote to my supplier notes', files: ['notes/P2 build/Supplier notes.md', 'tasks/P2 build.md', 'docs/P2 build/Build brief.md', 'sheets/P2 budget/Sheet 1.csv'] };
+/** Music (marked): the turn that added Night Drive's pad, so Music's "Why this" quotes its own ask. */
+const SONG_TURN = { start: 'abc1233', end: 'abc1234', when: now - 40 * 60_000, ask: 'Add a pad under the second half of Night Drive', files: ['studio/Songs/Night Drive.json'] };
 
 let previewLook = { ...DEFAULT_APPEARANCE };
+let previewPrefs = { ...DEFAULT_PREFERENCES };
 // Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
 const previewWaiting = new Set<string>();
 const previewLeaving = new Set<string>();
@@ -77,15 +80,17 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
   'extensions.connectors': () => previewConnectors(),
   'extensions.addConnector': (draft: { name: string }) => {
+    if (previewLeaving.delete(draft.name)) return { ok: true, status: previewConnectors() };
     if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
     previewWaiting.add(draft.name);
     return { ok: true, status: previewConnectors() };
   },
-  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors() }; },
+  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors(), removed: { command: 'npx', args: ['-y', name] } }; },
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
-  'preferences.get': () => DEFAULT_PREFERENCES,
+  'preferences.get': () => ({ ...previewPrefs }),
+  'preferences.set': ((change: Partial<typeof DEFAULT_PREFERENCES>) => { previewPrefs = { ...previewPrefs, ...change }; return { ...previewPrefs }; }) as never,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
   // Settings › Approvals and Browser list these: none are kept in the preview.
@@ -103,6 +108,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
     { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
     { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
   ] }),
+  // Agents app (marked): the weekly agent runs on Fridays, so its page and the toolbar show when.
+  'schedules.list': () => [{ id: 'sch-wkly', title: 'Weekly P2 summary', prompt: 'Summarise the week on the Kestrel P2 build.', time: '16:00', days: [5], enabled: true, bot: 'wkly01', lastRunMs: now - 7 * 86_400_000 }],
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
@@ -141,8 +148,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SHEETS,
   ...PREVIEW_DATABASES,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
-  'changes.lastTurn': () => ({ checkpoint: TURN.start, files: TURN.files }),
-  'changes.turns': () => ({ ok: true, turns: [TURN] }),
+  'changes.lastTurn': () => ({ checkpoint: TURN.start, files: [...TURN.files, ...SONG_TURN.files] }),
+  'changes.turns': () => ({ ok: true, turns: [TURN, SONG_TURN] }),
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.
   'changes.before': ((_conversation: string, path: string) => ({ ok: true, text: path.startsWith('studio/') ? PREVIEW_NIGHT_BEFORE /* Music (marked): the song before Mobius's pad */ : path.startsWith('tasks/') ? '# P2 build\n\n- [x] Confirm the build week with everyone\n- [ ] Hold 8 packs at Veltro\n- [ ] Book the sled for Friday\n- [x] Draft the build budget\n' : path.startsWith('sheets/') ? PREVIEW_BUDGET_BEFORE : path.startsWith('docs/') ? '# Build brief\n\nThe P2 build runs the week of the 23rd.\n' : '# Supplier notes\n' })) as never,
   'calendar.calendars': () => ['Kestrel P2', 'Work', 'Home'],

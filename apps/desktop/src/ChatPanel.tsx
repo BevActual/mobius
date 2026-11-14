@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
-import { describeAction, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
+import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
 import type { HubTarget } from './search-hub';
 import { APPS } from './apps';
 import { stepTag } from './step-access';
@@ -12,15 +12,17 @@ import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
-import { modeOf } from './approval-modes';
+import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
 import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
-import { appsSeen, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
+import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
+import { WorkingIndicator } from './Working';
 import { SettingsForm } from './settings/ModelForm';
 import { SignInForTask } from './SignIn';
 
@@ -144,30 +146,51 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
   );
 }
 
-/** A question the model asked: pick a choice or answer in your own words. */
+
+/** A question the model asked (the Asking state): its choices as numbered rows, the first one outlined as the
+ * suggestion, and number keys to pick one. Your own words go in the message box below. */
 function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question' }>; onReply: (callId: string, text: string) => Promise<string | null> }) {
-  const [text, setText] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  const card = useRef<HTMLElement>(null);
   const open = item.status === 'open';
   const reply = async (answer: string) => {
     if (!answer.trim()) return;
     setProblem(await onReply(item.callId, answer.trim()));
   };
+  const replyNow = useRef(reply);
+  replyNow.current = reply;
+  // Number keys pick a choice while the panel has the focus and nothing is being typed.
+  useEffect(() => {
+    if (!open || item.choices.length === 0) return undefined;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const panel = card.current?.closest('aside.chat');
+      if (!panel || !target || !(panel.contains(target) || target === document.body)) return;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+      const n = actionKey(event, typing);
+      const choice = n === null ? undefined : item.choices[n - 1];
+      if (choice === undefined) return;
+      event.preventDefault();
+      void replyNow.current(choice);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, item.choices]);
   return (
-    <section className="question-card" role="group" aria-label="Mobius asks" data-status={item.status}>
+    <section ref={card} className="question-card" role="group" aria-label="Mobius asks" data-status={item.status}>
       <p className="question-text">{item.question}</p>
       {open ? (
-        <>
-          {item.choices.length > 0 && (
-            <div className="question-choices">
-              {item.choices.map((c) => <button key={c} type="button" className="btn" onClick={() => void reply(c)}>{c}</button>)}
-            </div>
-          )}
-          <form className="question-own" onSubmit={(e) => { e.preventDefault(); void reply(text); }}>
-            <input className="input" aria-label="Your answer" placeholder={item.choices.length > 0 ? 'Or answer in your own words' : 'Your answer'} value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
-            <button type="submit" className="btn primary" disabled={!text.trim()}>Answer</button>
-          </form>
-        </>
+        item.choices.length > 0 ? (
+          <div className="question-choices">
+            {item.choices.map((c, k) => (
+              <button key={c} type="button" className="question-choice" data-suggested={k === 0 || undefined} onClick={() => void reply(c)}>
+                <span className="question-choice-text">{c}</span>
+                {k < 4 && <kbd className="ui-keycap question-key" aria-hidden="true">{k + 1}</kbd>}
+              </button>
+            ))}
+            <p className="question-note">{item.choices.length > 1 ? 'I suggest the first. ' : ''}Or type your own answer below.</p>
+          </div>
+        ) : <p className="question-note">Type your answer below.</p>
       ) : (
         <p className="question-answer" role="status">{item.status === 'cancelled' ? 'Not answered' : `You answered: ${item.answer ?? ''}`}</p>
       )}
@@ -287,7 +310,7 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
         </div>
       )}
       {item.status === 'waiting' && item.requestId !== undefined && (
-        <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
+        <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`} data-final={finalNote(item.name) ? 'true' : undefined}>
           <p className="approval-head">Needs you</p>
           {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
           <p className="approval-text" title={item.name}>Mobius wants to {plainUse(item.name, item.args)}.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
@@ -308,10 +331,13 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
               </>
             );
           })()}
+          {finalNote(item.name) && <p className="approval-final">{finalNote(item.name)}</p>}
+          {/* Quiet choices on the left, the one that goes ahead in ink on the right (Instrument, the Asking state). */}
           <div className="approval-actions">
-            <button type="button" className="btn primary" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>
-            {item.onceOnly ? null : <button type="button" className="btn" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
-            <button type="button" className="btn" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
+            <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
+            {item.onceOnly || finalVerb(item.name) ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
+            {/* Named by what it does when that can't be undone ("Send"); its full name still says it allows it once. */}
+            <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>{finalVerb(item.name) ? <><span className="sr-only">Allow once: </span>{finalVerb(item.name)}</> : 'Allow once'}</button>
           </div>
           {problem && <p className="field-error" role="alert">{problem}</p>}
         </div>
@@ -328,7 +354,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
@@ -350,7 +376,9 @@ export interface ChatPanelProps {
   activeConversation: string;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: 'safety') => void;
+  /** Abilities, from the plus menu. */
+  onOpenAbilities?: (() => void) | undefined;
   /** `full` is the Agent app: no conversation menu (the list is beside it) and a wide reading column. */
   variant?: 'panel' | 'full';
   /** Take back the last exchange and send it again. Resolves with a reason when it could not be done. */
@@ -368,6 +396,8 @@ export interface ChatPanelProps {
   place?: string;
   /** Put the panel away. */
   onHide?: () => void;
+  /** Little Mobius: the chat in a small window of its own. */
+  onPopOut?: () => void;
   /** Settings, Voice: where listening and speaking are chosen. */
   onOpenVoice?: () => void;
   /** What the message box suggests asking in the app beside it ("Ask about your mail"). */
@@ -434,8 +464,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
-        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>}
+      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={asTitle ? `All chats · now: ${title}` : 'History'} onClick={() => setOpen((value) => !value)}>
+        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
@@ -477,12 +507,11 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, onOpenAbilities, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, onPopOut, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [chatsToken, setChatsToken] = useState(0);
-  const [contextOpen, setContextOpen] = useState(false);
   const preferences = usePreferences();
   const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
@@ -528,7 +557,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
   const proposalAt = proposedPlan(state);
-  const seen = appsSeen(state);
   const settled = !state.busy;
   const copy = async (id: string, text: string) => {
     try {
@@ -580,11 +608,31 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const runs = toolRuns(state.items);
   const inRun = new Set([...runs].flatMap(([at, n]) => Array.from({ length: n - 1 }, (_, k) => at + k + 1)));
   const here = hereOf(surface);
+  // The Asking state: a question waits, so what you type in the message box answers it.
+  const openQuestion = state.items.find((item): item is Extract<Item, { kind: 'question' }> => item.kind === 'question' && item.status === 'open');
+  // The resting panel's Actions list: an app's own actions go in first (Mail's Get to zero), then the ideas.
+  const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
+  const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
+  const actionsHere = resting ? appSlot : null;
+  // Number keys pick an action while the panel has the focus and nothing is being typed.
+  useEffect(() => {
+    if (!resting) return undefined;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('aside.chat')) return;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+      const n = actionKey(event, typing);
+      if (n === null) return;
+      const row = target.closest('aside.chat')?.querySelectorAll<HTMLButtonElement>('.actions-list .action-row')[n - 1];
+      if (!row) return;
+      event.preventDefault();
+      row.click();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [resting]);
   const [hereOff, setHereOff] = useState<string | null>(null);
   const hereShown = here && here.key !== hereOff ? here : null;
-  // A page in the browser is seen (it can be added from Add context) but does not go by itself.
-  const inView = hereShown?.what ?? (surface?.app === 'browser' && surface.hasPage ? 'this page' : null);
-  const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -620,18 +668,24 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
-        ) : variant === 'panel' && !lead && (!needsSetup || menuItems.length > 0) ? (
-          // The panel's head is its name and close, nothing more: the name opens every chat (and what waits for you).
-          <span className="chat-titles">
-            <ConversationMenu asTitle conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />
-          </span>
         ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
           </span>
         )}
         <div className="chat-head-actions">
-          {variant === 'panel' && lead && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
+          {/* The head's four buttons (Instrument): New chat, History (every chat), Pop out, Close. */}
+          {variant === 'panel' && !needsSetup && (
+            <button type="button" className="head-icon" aria-label="New chat" title="New chat" onClick={onNewConversation}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+            </button>
+          )}
+          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
+          {variant === 'panel' && onPopOut && !lead && (
+            <button type="button" className="head-icon" aria-label="Pop out" title="Pop out Mobius into its own window" onClick={onPopOut}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4.5h4.5V9M15.5 4.5 9.5 10.5M8 5.5H5.5v9h9V12" /></svg>
+            </button>
+          )}
           {pin}
           {variant === 'panel' && onHide && !lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
@@ -641,22 +695,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </div>
       </div>
       {below}
-      {/* Nothing to see (no page, nothing open, nothing read yet): no line saying so. */}
-      {!showSettings && sees !== null && (
-        <div className="chat-context">
-          <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
-            <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>
-            <span className="chat-context-text">{sees} · {modeOf(preferences.value.approvalMode).name}</span>
-            <svg className="chat-context-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
-          </button>
-          {contextOpen && (
-            <div className="chat-context-more" role="group" aria-label="What Mobius sees">
-              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> <AppLinks names={seen} onOpenItem={onOpenItem} /></p>}
-              <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* What Mobius sees is the chip in the message box (Instrument: context lives in one place). */}
       {showSettings && settings ? (
         <div className="chat-scroll">
           <Welcome />
@@ -664,7 +703,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </div>
       ) : (
         <>
-          {appCard}
+          <ActionsSlotContext.Provider value={actionsHere}>{appCard}</ActionsSlotContext.Provider>
           <div
             ref={log}
             className="chat-scroll messages"
@@ -680,8 +719,9 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               configured && desk ? (
                 <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
               ) : configured && variant === 'panel' ? (
-                // Beside an app: no logo or greeting, only a few quiet things to ask about what is open.
-                <div className="empty empty-quiet"><div ref={setStarterSlot} className="empty-starters" /></div>
+                // Beside an app, never empty: what waits for you, ideas for what is open, then earlier chats.
+                <RestingPanel conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onOpenItem={onOpenItem}
+                  ideas={<ActionsList title={here ? `For ${here.what}` : 'Ideas'} appSlot={setAppSlot} ideaSlot={setStarterSlot} />} />
               ) : (
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />
@@ -732,6 +772,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                         {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'}
                       </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
+                      {/* Honesty: the model that answered, in small grey text (a switch to the second model says so above). */}
+                      {(() => { const asked = state.items.slice(0, index).findLast((i) => i.kind === 'user'); return asked?.kind === 'user' && asked.model ? <span className="msg-model" title="The model this was sent to">{asked.model}</span> : null; })()}
                     </div>
                   )}
                   {speech.state === 'failed' && speech.id === item.id && (
@@ -765,7 +807,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
+              <WorkingIndicator state={state} onStop={onStop} />
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
@@ -786,6 +828,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(onOpenVoice ? { onOpenVoice } : {})}
             {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
+            startersAs={resting ? 'rows' : 'chips'}
             started={state.items.length > 0}
             draft={draft}
             onDraft={setDraft}
@@ -804,11 +847,13 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}
+            onOpenAbilities={onOpenAbilities}
             fieldRef={field}
             surface={surface}
             here={hereShown}
             onRemoveHere={() => setHereOff(here?.key ?? null)}
             activity={activityOf(state)}
+            onAnswer={openQuestion ? (text) => { void onReply(openQuestion.callId, text).then((p) => { if (!p) setDraft(''); }); } : undefined}
           />
         </>
       )}

@@ -73,8 +73,11 @@ test('a question can be answered in your own words, and is still there when the 
   await shell().reload();
   const card = log().getByRole('group', { name: 'Mobius asks' });
   await expect(card).toContainText('What should the title be?', { timeout: 15_000 });
-  await card.getByRole('textbox', { name: 'Your answer' }).fill('Garden plans');
-  await card.getByRole('button', { name: 'Answer' }).click();
+  // Your own words go in the message box, which says so, and Enter answers.
+  const box = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await expect(box).toHaveAttribute('placeholder', 'Or type your own answer…');
+  await box.fill('Garden plans');
+  await box.press('Enter');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
   expect(JSON.stringify(model!.requests[1]!.messages)).toContain('The person answered: Garden plans');
 });
@@ -88,11 +91,11 @@ test('with Plan first, the assistant only proposes steps, and starts them when y
     says(['Here is the plan. Nothing happens until you start it.']),
     says(['Done.']),
   ]);
-  // Plan first is in the model's menu; while it is on, the composer says so.
-  await shell().getByRole('button', { name: 'Model' }).click();
-  await shell().getByRole('menu', { name: 'Model' }).getByRole('menuitemcheckbox', { name: 'Plan first' }).click();
-  const planFirst = shell().getByRole('button', { name: 'Plan first' });
-  await expect(planFirst).toHaveAttribute('aria-pressed', 'true');
+  // Plan is a mode, chosen in the message box; the Mode button says so.
+  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Plan/ }).click();
+  const planFirst = shell().getByRole('button', { name: 'Mode', exact: true });
+  await expect(planFirst).toContainText('Plan');
   await say('summarise my notes');
   const plan = log().getByRole('region', { name: 'Plan' });
   await expect(plan).toContainText('2 steps');
@@ -110,7 +113,7 @@ test('with Plan first, the assistant only proposes steps, and starts them when y
   // Once started, the plan no longer waits for you.
   await expect(plan.getByRole('button', { name: 'Start' })).toHaveCount(0);
   // The choice is kept.
-  await expect(planFirst).toHaveAttribute('aria-pressed', 'true');
+  await expect(planFirst).toContainText('Plan');
 });
 
 test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async () => {
@@ -118,8 +121,8 @@ test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async
     callsTool('todo-write', { items: [{ text: 'Book the room', status: 'pending' }, { text: 'Send the invite', status: 'pending' }] }),
     says(['Here is the plan.']),
   ]);
-  await shell().getByRole('button', { name: 'Model' }).click();
-  await shell().getByRole('menu', { name: 'Model' }).getByRole('menuitemcheckbox', { name: 'Plan first' }).click();
+  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Plan/ }).click();
   await say('plan the offsite');
   const plan = log().getByRole('region', { name: 'Plan' });
   await plan.getByRole('button', { name: 'I’ll Drive' }).click();

@@ -157,6 +157,41 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);
 });
 
+test('a track is panned and a drum kit is tuned in the Device panel, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
+  await start();
+  const device = shell().getByRole('region', { name: 'Device' });
+  const pan = device.getByRole('slider', { name: 'Pan' });
+  await pan.focus();
+  await shell().keyboard.press('Shift+ArrowLeft');
+  await expect.poll(() => (saved().tracks[0] as { pan?: number }).pan).toBeLessThan(0);
+  await expect(pan).toHaveAttribute('aria-valuetext', /^L \d+$/);
+  // A drums track has a kit instead of an oscillator: tuning it moves every drum together.
+  await tracks().getByRole('listitem', { name: 'Drums' }).click();
+  await expect(device.getByRole('slider', { name: 'Cutoff' })).toHaveCount(0);
+  const tune = device.getByRole('slider', { name: 'Tune' });
+  await tune.focus();
+  await shell().keyboard.press('ArrowRight');
+  await expect.poll(() => (saved().tracks[1] as { kit?: { tune: number } }).kit?.tune).toBe(1);
+  await expect(tune).toHaveAttribute('aria-valuetext', '+1 st');
+});
+
+test('effects are added to a track, switched off and moved, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify(SONG));
+  await start();
+  const device = shell().getByRole('region', { name: 'Device' });
+  for (const name of ['Delay', 'EQ']) {
+    await device.getByRole('button', { name: 'Add effect' }).click();
+    await shell().getByRole('menuitem', { name, exact: true }).click();
+  }
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay', 'eq']);
+  await device.getByRole('button', { name: 'Move EQ up' }).click();
+  await device.getByRole('switch', { name: 'Delay on' }).click();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
+  await device.getByRole('button', { name: 'Remove Delay' }).click();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();
@@ -212,10 +247,20 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Solo' }).click();
   await expect.poll(() => (saved().tracks[0] as { solo?: boolean }).solo).toBe(true);
+  // The menu's keys work on the chosen track, and its colour is the person's to pick.
+  await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
+  await shell().keyboard.press('m');
+  await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
+  await shell().getByRole('region', { name: 'Device' }).getByRole('radio', { name: 'Coral' }).click();
+  await expect.poll(() => (saved().tracks[0] as { color?: string }).color).toBe('coral');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
   await shell().getByRole('menu', { name: 'Keys' }).getByRole('menuitem', { name: 'Delete Track' }).click();
   await expect.poll(() => saved().tracks.length).toBe(0);
   // Deleting says what went, with Undo to bring it back.
   await shell().getByRole('status').filter({ hasText: 'Deleted “Keys”' }).getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys']);
+  // The row after the last track adds one.
+  await tracks().getByRole('button', { name: 'Add track' }).click();
+  await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Lead' }).click();
+  await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
 });

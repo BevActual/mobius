@@ -6,9 +6,10 @@ Presentations, played as Keynote plays them.
 
 ![The Slides app in Mobius](../readme/apps/slides.png)
 
-- **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector with two
-  panes: **Slide** (its style and layout) and **Deck** (how long it runs, Play from the start, and Ask Mobius). New
-  slides start from a menu of layouts. Bullets keep their dots while you type them.
+- **Slides** down the side, the chosen one at 16:9 to edit, and its presenter notes in the panel under it (Ctrl+J
+  shows and hides them). Add slide, Duplicate, Delete, Insert picture and Play sit in the toolbar; the arrow beside
+  Add slide starts a new slide from a layout. The **Format** tab, beside Mobius in the right panel, has two panes: **Slide** (its style and layout)
+  and **Deck** (how long it runs, Play from the start, and Ask Mobius). Bullets keep their dots while you type them.
 - **Pictures:** add one with the toolbar's **Insert picture** button, or paste or drop it on the slide. It sits beside the words, or
   fills a slide that has none, and is kept in a `<deck> files` folder beside the deck.
 - **In Play** (in the Slide pane): pick how Play moves on from a slide (None, Dissolve, Push or Move in), and **Skip**
@@ -88,23 +89,37 @@ A small studio for writing songs as notes.
 
 - **Songs** in the sidebar, newest first, with **Sounds** below them: pick Drums, Bass, Piano, Pad or Lead to add a
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
-  last song you had open opens when you come back.
-- **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play, Stop (twice to
-  go back to the start), the position, the tempo, the meter and Loop.
-- **Tracks** are rows: the name and instrument on the left, the notes as clips along the bars. The whole song fits
-  across the window; Ctrl and the scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to
-  edit the notes, duplicate, mute, solo or delete it. Deleting says what went, with Undo.
-- **A part from Mobius** is drawn dashed in indigo until you keep it. Keep, Discard and Try another are in the Device
-  panel.
-- **The Device panel** sets how the chosen track sounds: its instrument and volume, then the oscillator (Shape and
-  Detune), the filter (Cutoff and Resonance) and the envelope (Attack and Release). Double-click a setting to put it
-  back. The settings are saved in the song.
+  last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
+- **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
+  (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
+- **Tracks** are numbered rows in compact sizes: the number in the track's colour, the name and instrument on the left,
+  the notes as solid clips in the track's colour along the bars. The whole song fits across the window; Ctrl and the
+  scroll wheel zoom in. Hover a track for Mute and Solo, or right-click its header to edit the notes (Enter),
+  duplicate (Ctrl+D), mute (M), solo (S) or delete it (Delete); the keys work on the chosen track. Deleting says what
+  went, with Undo. **Add track** after the last track adds one from the same sounds.
+- **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
+  the Device panel.
+- **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
+  (Volume and Pan), and then its sound in four groups:
+  - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
+  - Filter: Cutoff, Resonance, and Sweep, which opens the filter at each note's start and closes it over the decay.
+  - Envelope: Attack, Decay, Sustain and Release.
+  - Motion: Vibrato and its Rate.
+
+  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Each setting
+  is a labelled cell with its value in mono and a slider under it. Arrows nudge it, Shift goes further, and
+  double-click puts it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
+  too.
+- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (Low, Mid and its frequency, High), a
+  Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
+  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, arrows to move it up or down the
+  chain, and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
   a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
-  to loop the whole song again; its menu also turns the metronome on, adds or removes four bars, and zooms.
+  to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
 **Kept in:** `workspace/studio/`, each song a JSON file of notes.
@@ -115,13 +130,14 @@ Cut footage into a short film.
 
 ![The Video app in Mobius](../readme/apps/video.png)
 
-- **Projects** in the sidebar, each with its footage. Add a clip to the cut or drag it into the timeline.
-- **The timeline** shows each shot as a filmstrip. Trim from either end, split, duplicate, move and remove shots.
+- **Projects** in the sidebar, each with its footage. Add footage with + beside Footage or by dropping files on the
+  window, then add a clip to the cut or drag it into the timeline.
+- **The timeline** shows each shot as a numbered filmstrip. Trim from either end, split, duplicate, move and remove shots.
   Right-click a shot for its menu, or a clip in Footage to add it or show its folder.
 - **The viewer** plays the shots in order, and full screen with F. Undo, split, duplicate, remove, zoom and Export sit
   in the toolbar.
-- **The Shot panel** on the right (Ctrl+Shift+I) shows the chosen shot: In and Out as timecode (type `0:02.5`, or plain
-  seconds), its title, and its place in the cut.
+- **The Shot tab** in the right panel, before Mobius, shows the chosen shot: In and Out as timecode (type `0:02.5`, or
+  plain seconds), its title, and its place in the cut.
 - **Keys** as in other editors: Space plays, S splits, I and O set the shot's start and end at the playhead,
   Ctrl+D (⌘D on a Mac) duplicates, the arrows step a frame and Up and Down jump between edits.
 - **Export** saves the film, titles and sound included, as a video file in the project's `Exports` folder (MP4
@@ -137,7 +153,8 @@ A code editor for projects in your workspace.
 
 ![The Code app in Mobius](../readme/apps/code.png)
 
-- **Projects** with their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
+- **The sidebar** lists your **Projects** as rows, then **Changes** (the branch, each changed file, and quiet **Commit…** and **Push**), then the open project's **Files** as a tree.
+- **Projects** keep their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
@@ -147,7 +164,8 @@ A code editor for projects in your workspace.
   Mobius asks before either.
 - **With no file open**, a start page shows the project, the files you opened lately, and Open a file, New file and
   Run tests.
-- **Shortcuts** show as your computer writes them: Ctrl on Windows and Linux, ⌘ on a Mac.
+- **Shortcuts** live in tooltips and Help, not the status bar, and show as your computer writes them: Ctrl on Windows
+  and Linux, ⌘ on a Mac. Files wear one grey line icon; colour is kept for git marks and Mobius's changes.
 - **Console**: Mobius can run a command in the project's folder (it asks every time, and stops after five minutes)
   beside your own.
 

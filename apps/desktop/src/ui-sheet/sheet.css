@@ -1,0 +1,41 @@
+/* The reference sheet's own page layout (dev only). */
+html, body, #root { height: auto; }
+body { overflow: auto; background: var(--frame); }
+.sheet { max-width: 1320px; margin: 0 auto; padding: 32px 32px 64px; display: grid; gap: 24px; }
+.sheet > header h1 { margin: 0; font-size: var(--fs-display); font-weight: 700; color: var(--ink); }
+.sheet > header p { margin: 4px 0 0; color: var(--muted); }
+.sheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.sheet-card { padding: 16px 20px 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--paper); min-width: 0; }
+.sheet-card[data-wide] { grid-column: 1 / -1; }
+.sheet-card h2 { margin: 0 0 12px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.sheet-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.sheet-row:last-child { margin-bottom: 0; }
+.sheet-col { display: grid; gap: 4px; }
+.sheet-note { font-size: var(--fs-xs); color: var(--muted); }
+.sheet-panel { width: 320px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--frame); }
+.sheet-list { border: 1px solid var(--line); border-radius: var(--radius-panel); overflow: hidden; background: var(--paper); }
+.sheet-list .ui-row:last-child { border-bottom: 0; }
+.sheet-objects { display: grid; gap: 20px; }
+.sheet-object { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) 280px minmax(0, 0.8fr); gap: 16px; align-items: start; }
+.sheet-object h3 { grid-column: 1 / -1; margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.sheet-chips { margin: 0; line-height: 2; color: var(--ink); }
+.sheet-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sheet-pads { align-items: start; }
+.sheet-composer { display: flex; align-items: center; gap: 4px; max-width: 520px; margin-top: 300px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+.sheet-spacer { flex: 1; }
+.sheet-stack { display: flex; flex-direction: column; gap: 16px; max-width: 320px; }
+.sheet-month { width: 248px; }
+.sheet-pro { display: flex; flex-direction: column; gap: 20px; }
+.sheet-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.sheet-tracks { align-items: stretch; gap: 32px; }
+.sheet-track { display: flex; align-items: center; gap: 6px; }
+.sheet-track-name { width: 48px; font-size: 13px; }
+.sheet-sub { font-size: 12px; color: var(--muted); }
+.sheet-instruments { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; }
+.sheet-instruments .sheet-wide { grid-column: 1 / -1; }
+.sheet-eq { width: 440px; }
+.sheet-bar { display: flex; align-items: center; gap: 12px; width: 400px; overflow: hidden; border: 1px dashed var(--line); padding: 4px; }
+.sheet-bar-fill { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.sheet-gap { margin-left: 16px; width: auto; }
+.sheet-waves { display: grid; gap: 24px; max-width: 720px; }
+.sheet-side { width: 340px; max-height: 560px; display: flex; border: 1px solid var(--line); padding: 8px; }

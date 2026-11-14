@@ -617,7 +617,7 @@ impl Bridge {
                 })
             }
             ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
-                Ok(()) => json!({ "ok": true, "status": self.mcp_status() }),
+                Ok(entry) => json!({ "ok": true, "status": self.mcp_status(), "removed": entry }),
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
             // Settings, Voice: try the server chosen for listening or speaking, as it is set now.
@@ -648,11 +648,12 @@ impl Bridge {
             // The person looking through their own workspace: read only, and inside it.
             ("files", "list") => Ok(self.workspace.browse(arg(0).as_str().unwrap_or("")).unwrap_or_else(|error| json!({ "error": error }))),
             // The person's own actions in Files. The agent has none of these: it only reads, writes and edits.
-            ("files", "newFolder" | "rename" | "trash" | "putBack") => {
+            ("files", "newFolder" | "rename" | "move" | "trash" | "putBack") => {
                 let text = |i: usize| arg(i).as_str().unwrap_or("").to_owned();
                 let done = match method {
                     "newFolder" => self.workspace.new_folder(&text(0), &text(1)),
                     "rename" => self.workspace.rename(&text(0), &text(1)),
+                    "move" => self.workspace.move_to(&text(0), &text(1)),
                     "trash" => self.workspace.trash(&text(0)),
                     _ => self.workspace.put_back(&text(0), &text(1)),
                 };
@@ -3296,6 +3297,14 @@ impl Bridge {
                 // The fourth argument is options: { plan: true } asks for a plan only.
                 if let Some(plan) = arg(3).get("plan") {
                     request["plan"] = plan.clone();
+                }
+                // { ask: true } is Ask mode: read and answer, change nothing.
+                if let Some(ask) = arg(3).get("ask") {
+                    request["ask"] = ask.clone();
+                }
+                // { quick: true } is Best fit choosing the quick model for a short question.
+                if let Some(quick) = arg(3).get("quick") {
+                    request["quick"] = quick.clone();
                 }
                 // and { app: "mail" } says where it was sent from, for Settings, Usage.
                 if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))) {

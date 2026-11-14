@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, openSettings, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -24,7 +24,7 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 const page = (): Locator => shell().locator('.calendar-page');
-/** Calendar's controls in the toolbar: where to go, the view, quick add and New. */
+/** Calendar's controls in the toolbar: where to go, the view, and quick add when it is open. */
 const tools = (): Locator => shell().getByRole('group', { name: 'Calendar' });
 const file = (name: string) => path.join(userData, 'workspace', 'calendar', `${name}.ics`);
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -36,6 +36,8 @@ const at = (hhmm: string) => {
   const [h, m] = hhmm.split(':').map(Number) as [number, number];
   return `(?:0?${h}:${pad(m)}|${((h + 11) % 12) + 1}:${pad(m)}\\s?${h < 12 ? 'AM' : 'PM'})`;
 };
+/** An hour's height on the grid, which follows the density. */
+const hourPx = async () => (await page().locator('.cal-grid').evaluate((g) => g.getBoundingClientRect().height)) / 24;
 /** From one time to another, as an event's name says it. */
 const span = (from: string, to: string) => `${at(from)}–${at(to)}`;
 
@@ -45,6 +47,11 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   // A known size, so the toolbar has room for Calendar's controls beside Mobius whatever the runner's screen is.
   await resizeWindow(mobius.app, 1440, 900);
+  await openCalendar();
+}
+
+/** Goes to Calendar, as a person does from anywhere: Ctrl+K and its name. */
+async function openCalendar(): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Calendar');
   await shell().keyboard.press('Enter');
@@ -91,20 +98,54 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
-  // Unticking a calendar hides its events; the month shows them too.
-  await shell().getByRole('region', { name: 'Calendars' }).getByRole('checkbox', { name: 'Work' }).uncheck();
+  // Pressing a calendar's row hides its events, and pressing it again shows them; the month shows them too.
+  const workRow = shell().getByRole('region', { name: 'Calendars' }).getByRole('button', { name: 'Work', exact: true });
+  await workRow.click();
+  await expect(workRow).toHaveAttribute('aria-pressed', 'false');
   await expect(page().getByRole('button', { name: /^Team standup/ })).toHaveCount(0);
-  await shell().getByRole('region', { name: 'Calendars' }).getByRole('checkbox', { name: 'Work' }).check();
+  await workRow.click();
+  await expect(workRow).toHaveAttribute('aria-pressed', 'true');
   await tools().getByRole('radio', { name: 'Month' }).click();
   await expect(page().locator('.cal-month-cell[data-today]').getByRole('button', { name: /^Team standup/ })).toBeVisible();
+
+  // Year view shows the twelve months; today says what it holds, and pressing it opens the day.
+  await tools().getByRole('radio', { name: 'Year' }).click();
+  await expect(page().locator('.cal-year').getByRole('listitem')).toHaveCount(12);
+  const todayInYear = page().locator('.cal-year-day[data-today]');
+  await expect(todayInYear).toHaveAttribute('aria-label', /\d+ events?/);
+  await todayInYear.click();
+  await expect(tools().getByRole('radio', { name: 'Day' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page().getByRole('button', { name: /^Team standup/ })).toBeVisible();
+});
+
+test('a task due at a time sits at its hour in Day view, and a task due only on the day waits in the all-day row', async () => {
+  const tasks = path.join(userData, 'workspace', 'tasks');
+  fs.mkdirSync(tasks, { recursive: true });
+  fs.writeFileSync(path.join(tasks, 'Work.md'), `# Work\n\n- [ ] Call the yard (due ${today()} 15:30) (every weekday)\n- [ ] Order the straps (due ${today()})\n`);
+  await start();
+  await tools().getByRole('radio', { name: 'Day' }).click();
+  const timed = page().locator('.cal-grid').getByRole('checkbox', { name: new RegExp(`^Call the yard, ${at('15:30')}, task in Work, repeats$`) });
+  await expect(timed).toBeVisible();
+  // Placed by the hour's own height, which the column carries (the grid's box also holds its border).
+  const [top, hour] = await timed.evaluate((box) => {
+    const chip = box.closest('.cal-task') as HTMLElement;
+    return [chip.offsetTop, parseFloat(getComputedStyle(chip.closest('.cal-column')!).getPropertyValue('--hour'))];
+  });
+  expect(Math.abs(top - 15.5 * hour)).toBeLessThan(3);
+  await expect(page().locator('.cal-all-day').getByRole('checkbox', { name: 'Order the straps, task in Work' })).toBeVisible();
+  // Ticking it at its hour ticks it in Tasks: a repeating task moves on to its next day. A click, not check(): the
+  // box leaves the day as the task moves on, so it is never seen ticked; the file says what happened.
+  await timed.click();
+  await expect.poll(() => fs.readFileSync(path.join(tasks, 'Work.md'), 'utf8')).not.toContain(`Call the yard (due ${today()} 15:30)`);
 });
 
 test('an event typed in words is set to repeat, then dragged an hour later, and every time it happens moves', async () => {
   await start();
   await tools().getByRole('radio', { name: 'Day' }).click();
   const tomorrow = day(new Date(Date.now() + 86_400_000));
-  // The toolbar's + opens a field to say the event in words.
-  await tools().getByRole('button', { name: 'Quick event' }).click();
+  // Q opens a field under the toolbar to say the event in words (from the page, not from inside the view switch).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('q');
   const quick = tools().getByRole('textbox', { name: 'Quick add an event' });
   await quick.fill('Site walk tomorrow 10am for 30m');
   await expect(tools().getByRole('status').filter({ hasText: 'Site walk' })).toContainText(new RegExp(span('10:00', '10:30')));
@@ -121,12 +162,13 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await expect(editor).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
-  // Dragged down an hour (48 pixels), the whole series moves, and Undo is offered.
+  // Dragged down an hour, the whole series moves, and Undo is offered.
+  const hour = await hourPx();
   const box = (await walk(span('10:00', '10:30')).boundingBox())!;
   await shell().mouse.move(box.x + box.width / 2, box.y + 8);
   await shell().mouse.down();
-  await shell().mouse.move(box.x + box.width / 2, box.y + 30, { steps: 4 });
-  await shell().mouse.move(box.x + box.width / 2, box.y + 56, { steps: 4 });
+  await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour / 2, { steps: 4 });
+  await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour, { steps: 4 });
   await shell().mouse.up();
   await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await expect(page().getByRole('status').filter({ hasText: 'Moved “Site walk”' })).toBeVisible();
@@ -199,6 +241,9 @@ test('an event the agent adds next week opens Calendar on that week, dashed, wit
 test('a subscribed calendar link shows beside the person\'s own, and its events can be read but not changed', async () => {
   await start();
   await tools().getByRole('radio', { name: 'Week' }).click();
+  // Accounts are added in Settings › Calendar, so the sidebar holds only calendars.
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Calendar', exact: true }).click();
   await shell().getByRole('button', { name: 'Add a calendar account…' }).click();
   const dialog = shell().getByRole('dialog', { name: 'Add a calendar account' });
   await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/page-that-is-not-a-calendar`);
@@ -208,9 +253,12 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await dialog.getByRole('textbox', { name: 'Calendar link' }).fill(`${fixture.origin}/holidays.ics`);
   await dialog.getByRole('button', { name: 'Subscribe' }).click();
   await expect(dialog).toHaveCount(0);
+  await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toContainText('Holidays');
+  await openCalendar();
 
   const group = shell().getByRole('region', { name: 'Holidays' });
-  await expect(group.getByRole('checkbox', { name: 'Holidays' })).toBeChecked();
+  // The row's name includes its lock ("Holidays Read only"), so match from the start.
+  await expect(group.getByRole('button', { name: /^Holidays/ })).toHaveAttribute('aria-pressed', 'true');
   await expect(group.getByRole('img', { name: 'Read only' })).toBeVisible();
   const event = page().getByRole('button', { name: /^Founders Day, All day, Holidays/ });
   await expect(event).toBeVisible();
@@ -227,7 +275,13 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
-  await group.getByRole('button', { name: 'Remove Holidays' }).click();
+  // Removed in Settings, after asking once more.
+  await openSettings(shell());
+  await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Calendar', exact: true }).click();
+  await shell().getByRole('button', { name: 'Remove Holidays' }).click();
+  await shell().getByRole('list', { name: 'Calendar accounts' }).getByRole('button', { name: 'Remove', exact: true }).click();
+  await expect(shell().getByRole('list', { name: 'Calendar accounts' })).toHaveCount(0);
+  await openCalendar();
   await expect(event).toHaveCount(0);
 });
 
@@ -306,7 +360,7 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   expect(fs.readFileSync(file('Work'), 'utf8')).not.toContain('Budget review Q4');
 
   // Empty time has a menu too: a new event there, edited beside it.
-  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * 48 + 10 } });
+  await page().locator('.cal-column').first().click({ button: 'right', position: { x: 20, y: 14 * (await hourPx()) + 10 } });
   await shell().getByRole('menu').getByRole('menuitem', { name: new RegExp(`^New event at ${at('14:00')}$`) }).click();
   const made = shell().getByRole('dialog', { name: 'New event' });
   await expect(made).toHaveAttribute('data-pop', 'true');

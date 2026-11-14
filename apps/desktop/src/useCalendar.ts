@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure, type TaskItem } from '@mobius/shared';
-import { daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
+import { CALENDAR_ACCOUNTS_EVENT, daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
 /** Whether tasks with a due date are shown on their days, per device; shown unless turned off. */
@@ -11,7 +11,7 @@ const FRESH_MS = 4000;
 function rememberedMode(): CalendarMode {
   try {
     const v = window.localStorage.getItem(MODE_KEY);
-    if (v === 'day' || v === 'week' || v === 'month') return v;
+    if (v === 'day' || v === 'week' || v === 'month' || v === 'year') return v;
   } catch { /* Nothing kept. */ }
   return 'week';
 }
@@ -38,8 +38,12 @@ export function useCalendar() {
   const live = useRef({ mode, anchor, events });
   live.current = { mode, anchor, events };
 
+  // Only the newest read may set the events: an add reads the old days, then going to the new event's day reads again,
+  // and the first answer can arrive last.
+  const reads = useRef(0);
   const refresh = useCallback(async () => {
     if (!api) return [];
+    const mine = ++reads.current;
     const days = daysFor(live.current.mode, live.current.anchor);
     const [names, got, where, kept, waiting] = await Promise.all([api.calendars(), api.events(isoDay(days[0]!), isoDay(days[days.length - 1]!)), api.sources(), api.accounts(), api.suggestions()]);
     if (!isNotesFailure(waiting)) setSuggestions(waiting);
@@ -47,7 +51,7 @@ export function useCalendar() {
     if (!isNotesFailure(where)) setSources(where);
     if (!isNotesFailure(kept)) setAccounts(kept);
     if (isNotesFailure(got)) { setMessage(got.message); return live.current.events; }
-    setEvents(got);
+    if (mine === reads.current) setEvents(got);
     return got;
   }, [api]);
 
@@ -82,6 +86,12 @@ export function useCalendar() {
       window.setTimeout(() => setFresh(new Set()), FRESH_MS);
     });
   }), [api, refresh]);
+  // An account added, removed or refreshed in Settings › Calendar: read the calendars again.
+  useEffect(() => {
+    const again = () => { void refresh(); };
+    window.addEventListener(CALENDAR_ACCOUNTS_EVENT, again);
+    return () => window.removeEventListener(CALENDAR_ACCOUNTS_EVENT, again);
+  }, [refresh]);
   // The calendars are ordinary files another app may change: read them again when the window comes back.
   useEffect(() => {
     const again = () => { if (document.visibilityState === 'visible') { void refresh(); void loadDue(); } };

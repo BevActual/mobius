@@ -169,7 +169,7 @@ export function createTauriBridge(): MobiusBridge {
       onStatus: (listener) => on<CoreStatus>('mobius:core-status', listener, () => call<CoreStatus>('core', 'getStatus', [], () => 'failed')),
     },
     agent: {
-      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
+      send: (conversation, text, context, options) => call('agent', 'send', options && (options.plan || options.ask || options.quick || options.app || (options.images && options.images.length > 0)) ? [conversation, text, context ?? null, options] : [conversation, text, context ?? null], () => refused),
       models: () => call('agent', 'models', [], () => refused),
       setModel: (model) => call('agent', 'setModel', [model], () => refused),
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
@@ -281,6 +281,7 @@ export function createTauriBridge(): MobiusBridge {
       list: (path) => call('files', 'list', [path], () => ({ error: 'Not available.' })),
       newFolder: (folder, name) => call('files', 'newFolder', [folder, name], () => ({ ok: false as const, error: 'Not here.' })),
       rename: (path, name) => call('files', 'rename', [path, name], () => ({ ok: false as const, error: 'Not here.' })),
+      move: (path, folder) => call('files', 'move', [path, folder], () => ({ ok: false as const, error: 'Not here.' })),
       trash: (path) => call('files', 'trash', [path], () => ({ ok: false as const, error: 'Not here.' })),
       putBack: (held, path) => call('files', 'putBack', [held, path], () => ({ ok: false as const, error: 'Not here.' })),
       trashList: () => call('files', 'trashList', [], () => ({ error: 'Not here.' })),

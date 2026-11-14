@@ -117,6 +117,8 @@
   --row-h: 36px;
   --row-side: 36px;
   --row-list: 40px;
+  /* A two-line row in a master list beside a reading pane (Mail, Notes): sender or title, then a line of preview. */
+  --row-list-2: 56px;
   --row-reading: 44px;
   --toolbar-h: 52px;
   --panel-head-h: 30px;
@@ -177,6 +179,57 @@
   --app-review: linear-gradient(140deg, #ff7a45, #e5484d);
   --app-files: linear-gradient(140deg, #64d2ff, #0a84ff);
   --app-connect: linear-gradient(140deg, #8e8e93, #636366);
+  /* Shared controls (src/ui, Instrument "Controls" and "Pro app readouts"). Owned by the component library; compact
+     values are in the compact block below. */
+  --button-h: 30px;
+  --icon-button: 32px;
+  --icon-size: 18px;
+  --check-size: 18px;
+  --switch-w: 32px;
+  --switch-h: 18px;
+  --track-h: 6px;
+  --tick-w: 4px;
+  --tick-h: 16px;
+  --hit-min: 24px;
+  --focus-w: 2px;
+  --avatar-size: 24px;
+  --param-value: 30px;
+  --progress-h: 2px;
+  --dot-size: 6px;
+  --round-check: 16px;
+  --edge-w: 3px;
+  --chip-h: 22px;
+  --card-w: 280px;
+  --pad-h: 240px;
+  --pad-min: 120px;
+  --pad-point: 14px;
+  --pad-start: 8px;
+  --wave-h: 120px;
+  --wave-strip: 14px;
+  --wave-tab: 6px;
+  --wave-loop-h: 4px;
+  --wave-loop-tab: 8px;
+  --knob-size: 36px;
+  --graph-h: 96px;
+  --handle-size: 10px;
+  --step-size: 20px;
+  --step-gap: 2px;
+  --step-name-w: 72px;
+  --band-dot: 16px;
+  --eq-h: 144px;
+  --device-min-w: 220px;
+  --device-head-h: 32px;
+  --pad-cell: 56px;
+  --dialog-w: 480px;
+  --z-dialog: 900;
+  --tab-h: 36px;
+  --day-cell: 32px;
+  --time-list-h: 240px;
+  --pro-h: 28px;
+  --letter-size: 20px;
+  --level-w: 4px;
+  --level-h: 120px;
+  --level-tab: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -251,7 +304,13 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%2397a1ae' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
-html[data-density='compact'] {
+/* Compact: chosen in Settings (on the page), or a pro app's own start (on the frame, from COMPACT_APPS). */
+html[data-density='compact'], .app[data-density='compact'] {
+  --pro-h: 24px;
+  --tab-h: 32px;
+  --button-h: 28px;
+  --icon-button: 28px;
+  --param-value: 26px;
   --fs-xs: 11px;
   --fs-sm: 12px;
   --fs-md: 13px;
@@ -260,6 +319,7 @@ html[data-density='compact'] {
   --row-h: 30px;
   --row-side: 30px;
   --row-list: 32px;
+  --row-list-2: 48px;
   --control-h: 24px;
   --control-h-lg: 30px;
   --menu-row-h: 26px;
@@ -269,6 +329,13 @@ html[data-density='compact'] {
   --sidebar-w: 220px;
   --panel-w: 320px;
   --dock-h: 240px;
+  --wave-h: 96px;
+  --knob-size: 32px;
+  --graph-h: 80px;
+  --step-size: 18px;
+  --device-head-h: 28px;
+  --eq-h: 120px;
+  --pad-cell: 48px;
 }
 
 /* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */

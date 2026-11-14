@@ -396,7 +396,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -566,6 +566,8 @@ export interface MobiusBridge {
     /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
     newFolder?(folder: string, name: string): Promise<FilesActionResult>;
     rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Into `folder` (empty: the workspace itself), keeping its name. */
+    move?(path: string, folder: string): Promise<FilesActionResult>;
     /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
     trash?(path: string): Promise<FilesActionResult>;
     /** `path` empty: back to where the Trash remembers it came from. */
@@ -584,7 +586,7 @@ export interface MobiusBridge {
     /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
     addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
     /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
-    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }>>;
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command: string; args?: string[]; env?: Record<string, string> } }>>;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -1002,6 +1004,8 @@ export interface AppearanceSettings {
   density: Density;
   /** Whether finished tool steps stay in the conversation. Steps waiting for you are always shown. */
   toolSteps: ToolSteps;
+  /** Whether list views show the small bar of their most useful keys (it also hides itself once the keys are used). */
+  keyHints: boolean;
   /** Whether the browser's side list is open when Mobius starts. */
   sidebarAtStart: boolean;
   /** Whether the conversation you were in is opened again when Mobius starts (otherwise it starts blank). */
@@ -1036,8 +1040,8 @@ const isFavourite = (v: unknown): v is Favourite => {
 export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'] as const;
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
-export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 320 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 } } as const;
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1328,6 +1332,7 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   textDirection: oneOf<TextDirection>('auto', 'ltr', 'rtl'),
   density: oneOf<Density>('comfortable', 'compact'),
   toolSteps: oneOf<ToolSteps>('show', 'hide-finished'),
+  keyHints: (v): v is boolean => typeof v === 'boolean',
   sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),

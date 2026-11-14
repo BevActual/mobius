@@ -230,6 +230,35 @@ impl Workspace {
         Ok(to_relative)
     }
 
+    /// Moves a file or folder into another folder (`folder` empty: the workspace itself), keeping its name. Returns
+    /// its new path. Never into itself, and never over something already there.
+    pub fn move_to(&self, relative: &str, folder: &str) -> Res<String> {
+        if relative.is_empty() {
+            return Err("the workspace itself cannot be moved".into());
+        }
+        let from = self.inside(relative)?;
+        if !from.exists() {
+            return Err("that is not there any more".into());
+        }
+        if folder == relative || folder.starts_with(&format!("{relative}/")) {
+            return Err("a folder cannot go inside itself".into());
+        }
+        if !self.inside(folder)?.is_dir() {
+            return Err("that folder is not there".into());
+        }
+        let (parent, name) = relative.rsplit_once('/').unwrap_or(("", relative));
+        if parent == folder {
+            return Err("it is already there".into());
+        }
+        let to_relative = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+        let to = self.inside(&to_relative)?;
+        if to.exists() {
+            return Err(format!("there is already something called {name} there"));
+        }
+        fs::rename(&from, &to).map_err(|e| e.to_string())?;
+        Ok(to_relative)
+    }
+
     /// Moves a file or folder to the workspace's Trash (`.trash/`, hidden from Files and the agent), so it can be put
     /// back. Returns where it went inside the Trash.
     pub fn trash(&self, relative: &str) -> Res<String> {
@@ -537,6 +566,25 @@ mod tests {
         assert!(ws.trash_list().unwrap()["entries"].as_array().unwrap().is_empty());
         assert!(ws.locate("notes/Work/Build plan.md").is_err());
         assert!(ws.trash("").is_err());
+    }
+
+    #[test]
+    fn the_person_moves_files_and_folders_between_folders_but_never_into_themselves_or_over_something() {
+        let (_d, ws) = setup();
+        call(&ws, "files.write", json!({ "path": "notes/Work/Plan.md", "content": "the plan" })).unwrap();
+        ws.new_folder("notes", "Archive").unwrap();
+        assert_eq!(ws.move_to("notes/Work/Plan.md", "notes/Archive").unwrap(), "notes/Archive/Plan.md");
+        assert_eq!(fs::read_to_string(ws.locate("notes/Archive/Plan.md").unwrap()).unwrap(), "the plan");
+        assert!(ws.move_to("notes/Archive/Plan.md", "notes/Archive").is_err(), "already there");
+        assert_eq!(ws.move_to("notes/Archive/Plan.md", "").unwrap(), "Plan.md", "to the workspace itself");
+        assert_eq!(ws.move_to("notes/Work", "notes/Archive").unwrap(), "notes/Archive/Work");
+        assert!(ws.move_to("notes/Archive", "notes/Archive/Work").is_err(), "not into itself");
+        assert!(ws.move_to("notes/Archive", "notes/Archive").is_err());
+        call(&ws, "files.write", json!({ "path": "notes/Plan.md", "content": "another" })).unwrap();
+        assert!(ws.move_to("Plan.md", "notes").is_err(), "no clobbering");
+        assert!(ws.move_to("Plan.md", "nowhere").is_err());
+        assert!(ws.move_to("Plan.md", "../out").is_err());
+        assert!(ws.move_to("", "notes").is_err());
     }
 
     #[test]

@@ -5,13 +5,14 @@ import { sendCommand } from './commands';
 import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
 import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
-import { ActivityPage, ActivitySidebar, useActivityFeed } from './ActivityApp';
+import { ActivityPage, ActivitySidebar, activitySub, useActivityFeed } from './ActivityApp';
+import { AgentPage, agentWhen, useSchedules, type AgentView } from './AgentPage';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
@@ -58,7 +59,8 @@ import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
-import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
+// Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
+import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
@@ -72,10 +74,11 @@ import { editsPathFor } from './photo-edit';
 import { sheetContext } from './sheets-view';
 import { openOnChanges } from './open-on-changes';
 import { changeTarget, toolTarget } from './actions';
-import { heading as calendarHeading, eventsOn } from './calendar-view';
+import { heading as calendarHeading, eventsOn, isoWeek } from './calendar-view';
 import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
+import { agoLabel } from './desk-view';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
 import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
@@ -143,6 +146,10 @@ export function App() {
   const conversation = useConversation(coreStatus, botIds);
   const archive = useArchive(conversation.list);
   const [sideMode, setSideMode] = useState<SideMode>('sessions');
+  // Agents app (marked): which agent's page shows while the sidebar is on Agents (null: the one you talk to), and a
+  // Run now waiting for its new session to open before it sends the agent's instructions.
+  const [agentView, setAgentView] = useState<AgentView | null>(null);
+  const [agentRun, setAgentRun] = useState<{ bot: string; text: string } | null>(null);
   const appearance = useAppearance();
   const downloads = useDownloads();
   const preferences = usePreferences();
@@ -269,6 +276,17 @@ export function App() {
   const inAgent = app === 'agent';
   // Activity: one of Mobius's own apps, shown in the Agent app's place with its own sidebar and page.
   const inActivity = inAgent && sideMode === 'activity';
+  // Agents app (marked): the agent whose page is open, if any.
+  const inAgents = inAgent && sideMode === 'bots';
+  const shownAgent = inAgents && agentView?.kind !== 'new' ? bots.bots.find((b) => b.id === (agentView?.kind === 'show' ? agentView.id : botOfConversation(conversation.id, botIds))) ?? null : null;
+  const agentSchedulesList = useSchedules();
+  useEffect(() => {
+    // Run now: once the agent's new session is the open one, send it the agent's instructions.
+    if (!agentRun || botOfConversation(conversation.id, botIds) !== agentRun.bot || conversation.state.items.length > 0 || conversation.state.busy) return;
+    const run = agentRun;
+    setAgentRun(null);
+    void conversation.send(run.text, []);
+  }, [agentRun, conversation, botIds]);
   const activityFeed = useActivityFeed(conversation.list, inActivity && !settingsOpen);
   const inNotes = app === 'notes';
   const inDocs = app === 'docs';
@@ -291,7 +309,7 @@ export function App() {
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
   const inSkills = app === 'skills';
-  const [extPlace, setExtPlace] = useState<ExtensionPlace>('apps');
+  const [extPlace, setExtPlace] = useState<ExtensionPlace>('installed');
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -420,7 +438,7 @@ export function App() {
   // An app not added yet opens Abilities, where it can be added.
   const openApp = useCallback((id: AppId) => {
     if (isAvailable(id)) { setApp(id); setSettingsOpen(false); }
-    else if (findApp(id)?.available) { setExtPlace('apps'); setApp('skills'); setSettingsOpen(false); }
+    else if (findApp(id)?.available) { setExtPlace('available'); setApp('skills'); setSettingsOpen(false); }
   }, []);
   // However an app was opened (the sidebar, the hub, a shortcut, a pinned item), it goes to the top of Recent.
   useEffect(() => noteOpened(app), [app]);
@@ -508,7 +526,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -564,7 +582,8 @@ export function App() {
   const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
+    || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -674,7 +693,9 @@ export function App() {
   const [selectionMenu, setSelectionMenu] = useState(false);
   // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
   const [menuOpen, setMenuOpen] = useState(false);
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen);
+  // Browser: the address bar's suggestions are open, so the page is covered by a picture of it.
+  const [addressSuggesting, setAddressSuggesting] = useState(false);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || addressSuggesting);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -698,7 +719,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -889,6 +910,7 @@ export function App() {
     { id: 'research', label: 'New research', app: 'research', run: () => { closeSettings(); openApp('research'); setAskingResearch(true); } },
     { id: 'song', label: 'New song', app: 'studio', run: () => { closeSettings(); openApp('studio'); void (async () => { const folder = songs.page?.path.split('/')[0] ?? songs.notebooks[0]?.name ?? (await songs.createNotebook('Songs')); if (folder) await songs.createPage(folder, 'Untitled song'); })(); } },
     { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
+    { id: 'skill', label: 'New skill', app: 'skills', run: () => { closeSettings(); openApp('skills'); setExtPlace('skills'); skills.close(); requestNewSkill(); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
@@ -912,19 +934,15 @@ export function App() {
                 {...(archive.archive ? { onArchive: archive.archive } : {})}
                 mode={sideMode}
                 onMode={setSideMode}
-                onOpenBot={(id) => {
-                  const latest = conversation.list.find((c) => botOfConversation(c.id, botIds) === id);
-                  if (latest) conversation.select(latest.id);
-                  else conversation.newConversation(id);
-                }}
+                agentView={agentView}
+                onShowAgent={setAgentView}
                 onNewWithBot={(id) => conversation.newConversation(id)}
-                onCreateBot={bots.create}
                 onMoveBot={bots.move}
-                onUpdateBot={bots.update}
                 onRemoveBot={async (id) => {
                   const wasHere = botOfConversation(conversation.id, botIds) === id;
                   const result = await bots.remove(id);
                   if (result.ok && wasHere) conversation.startFresh(MAIN_BOT_ID);
+                  if (result.ok && agentView?.kind === 'show' && agentView.id === id) setAgentView(null);
                   void conversation.refresh();
                   return result;
                 }}
@@ -976,13 +994,13 @@ export function App() {
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} />
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -1037,7 +1055,7 @@ export function App() {
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => isAvailable(a.id)),
@@ -1156,6 +1174,7 @@ export function App() {
       },
       calendar: {
         newEvent: () => createActions.find((a) => a.id === 'event')!.run(),
+        quickEvent: () => sendCommand('quick-event'),
         newCalendar: () => sendCommand('new-calendar'),
         today: () => calendar.setAnchor(new Date()),
         mode: (mode) => calendar.setMode(mode),
@@ -1172,6 +1191,8 @@ export function App() {
   // And everything you can start (New document, New deck…), wherever you are: the menus only hold the open app's.
   for (const a of createActions) if (!launcherCommands.some((c) => c.label === a.label)) launcherCommands.push({ id: `new-${a.id}`, label: a.label, detail: appName(a.app), run: a.run });
   // Activity: Mobius's own app, found by name.
+  // Agents app (marked): it is a side of the Agent app, so it is found here by name.
+  launcherCommands.push({ id: 'open-agents', label: 'Agents', detail: 'Your named agents', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
@@ -1320,7 +1341,10 @@ export function App() {
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
         if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
-        return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
+        return <>
+          <SkillsToolbar skills={skills} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />
+          {skills.open ? <SkillEditor skills={skills} review={turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} /> : <SkillList skills={skills} />}
+        </>;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
@@ -1362,7 +1386,7 @@ export function App() {
         return (
           <ViewPage
             views={views}
-            apps={{ tasks: tasks.all, events: calendar.events, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
+            apps={{ tasks: tasks.all, events: calendar.events, calendars: calendar.calendars, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
             review={views.page && viewMarks.has(views.page.path) ? { conversation: conversation.state.conversation } : null}
             onOpen={(t) => {
               if (t.kind === 'app') openApp(t.app);
@@ -1402,7 +1426,25 @@ export function App() {
           />
         );
       case 'agent':
-        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenSchedules={() => openSettingsAt('schedules')} />;
+        // Agents app (marked): while the sidebar is on Agents, the main area is the chosen agent's page.
+        if (inAgents) {
+          return (
+            <AgentPage
+              view={agentView ?? { kind: 'show', id: botOfConversation(conversation.id, botIds) }}
+              bots={bots.bots}
+              loading={!bots.loaded}
+              conversations={conversation.list}
+              onShow={setAgentView}
+              onCreate={bots.create}
+              onUpdate={bots.update}
+              onNewSession={(id) => { conversation.newConversation(id); setAgentView(null); setSideMode('sessions'); }}
+              onOpenSession={(id) => { conversation.select(id); setSideMode('sessions'); }}
+              onOpenSafety={() => openSettingsAt('safety')}
+              onOpenSchedules={() => openSettingsAt('schedules')}
+            />
+          );
+        }
+        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenApp={openApp} onOpenSchedules={() => openSettingsAt('schedules')} />;
         return (
           <ChatPanel
             surface={surface}
@@ -1441,7 +1483,8 @@ export function App() {
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
             onSelectConversation={conversation.select}
-            onOpenSettings={openSettings}
+            onOpenSettings={(section) => (section ? openSettingsAt(section) : openSettings())}
+            onOpenAbilities={() => { closeSettings(); openApp('skills'); }}
             onRetry={conversation.retry}
             onEdit={conversation.edit}
             onDetails={conversation.toolDetails}
@@ -1485,7 +1528,8 @@ export function App() {
             activeConversation={conversation.id}
             onNewConversation={() => conversation.newConversation()}
             onSelectConversation={conversation.select}
-            onOpenSettings={openSettings}
+            onOpenSettings={(section) => (section ? openSettingsAt(section) : openSettings())}
+            onOpenAbilities={() => { closeSettings(); openApp('skills'); }}
             onRetry={conversation.retry}
             onEdit={conversation.edit}
             onDetails={conversation.toolDetails}
@@ -1497,6 +1541,7 @@ export function App() {
             onPlace={openHub}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
+            {...(window.mobius.mini ? { onPopOut: toggleMini } : {})}
             onOpenVoice={() => openSettingsAt('voice')}
             {...(askHint ? { hint: askHint } : {})}
           />
@@ -1519,6 +1564,7 @@ export function App() {
       notice={notice}
       setNotice={setNotice}
       onSubmit={submit}
+      onSuggesting={setAddressSuggesting}
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
@@ -1550,7 +1596,7 @@ export function App() {
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
       style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
-      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
       rail={
         <Rail
           mobius={{ open: (rightOpen || !hasRight) && !settingsOpen, toggle: () => { if (settingsOpen) { closeSettings(); if (hasRight && !rightOpen) toggleMobius(); return; } if (hasRight) toggleMobius(); else openApp('agent'); } }}
@@ -1579,21 +1625,25 @@ export function App() {
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank.
         title: place || (!settingsOpen && appName(app)) || undefined,
-        sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+        sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
+          : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
+          // Home: when the open conversation was last active; the model lives in the composer.
+          : inAgent ? (!settings?.configured ? 'No model connected' : ((c) => (c ? agoLabel(c.updated_ms, new Date()) : undefined))(conversation.list.find((c) => c.id === conversation.id)))
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
           // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
           : inReader && reading.page ? readerSub(reading.text) // Reader: the site the article came from
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
           : inSheets && sheets.data ? sheets.data.sheet
-          : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
+          // Calendar: the week number in Week view (short, so it fits beside the controls), otherwise what today holds.
+          : inCalendar ? (calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)}` : eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
+          : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
           : inDatabase ? databaseSub(databases) // Database: the table's database and columns
           : undefined,
         middle: <>
-        {inBrowser && !settingsOpen && browserChrome}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
@@ -1611,6 +1661,10 @@ export function App() {
         ),
         trail: (appMenu) => <>
           <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
+          {/* Agents app (marked): Run now, the one filled button, before the More menu. */}
+          {shownAgent && agentView?.kind !== 'new' && !(agentView?.kind === 'show' && agentView.editing) && (shownAgent.id === MAIN_BOT_ID
+            ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
+            : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {menuBar(appMenu)}
           {hasRight && !settingsOpen && (
             <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={rightOpen} aria-label={rightOpen ? 'Hide Mobius' : 'Show Mobius'} title={rightOpen ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
@@ -1622,11 +1676,14 @@ export function App() {
       }}
     >
       <div className="body" style={layout}>
+        {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
+        {inBrowser && !settingsOpen && browserChrome}
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead
-              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : appName(app)}
-              create={settingsOpen || inActivity || createInList.includes(app) ? undefined : createFor(app)}
+              // Agents app (marked): its own name; New agent is the + by its list.
+              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : inAgents ? 'Agents' : app === 'agent' ? 'Home' /* Home: the rail's name */ : appName(app)}
+              create={settingsOpen || inActivity || inAgents || createInList.includes(app) ? undefined : createFor(app)}
               favourites={settingsOpen ? [] : favourites}
               onOpenFavourite={openFavourite}
               onUnpin={togglePin}
