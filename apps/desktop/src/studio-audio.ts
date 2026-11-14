@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, audible, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import { songBeat, type Cycle } from './studio-view';
 
 /**
@@ -15,9 +15,11 @@ function noise(ctx: AudioContext): AudioBuffer {
 }
 
 /** One drum hit through the kit: tuned up or down in semitones, its ring stretched by `decay`, brighter or darker by `tone`. */
-function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kit: KitSound = KIT_DEFAULTS) {
+function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kitIn: KitSound = KIT_DEFAULTS, pad: DrumPad = PAD_DEFAULTS) {
+  const kit = drumKit(kitIn, pad);
+  velocity *= pad.level;
   const gain = ctx.createGain();
-  gain.connect(out);
+  if (pad.pan) { const panner = ctx.createStereoPanner(); panner.pan.value = pad.pan; gain.connect(panner); panner.connect(out); } else gain.connect(out);
   const tune = 2 ** (kit.tune / 12);
   const bright = 2 ** ((kit.tone - 0.5) * 2);
   if (pitch === 36 || pitch === 45) {
@@ -248,12 +250,12 @@ function trackStrip(ctx: AudioContext, t: Track, master: AudioNode, secondsPerBe
 
 let sampler: AudioContext | null = null;
 /** One note heard at once, as a key is pressed or a note is put on the roll. */
-export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound, kit?: KitSound): void {
+export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound, kit?: KitSound, pad?: DrumPad): void {
   try {
     sampler ??= new AudioContext();
     void sampler.resume().catch(() => {});
     const at = sampler.currentTime + 0.01;
-    if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler), kit);
+    if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler), kit, pad);
     else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity, sound);
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
@@ -305,7 +307,7 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
-          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf, t.kit);
+          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
           else tone(ctx, out, t.instrument, n.pitch, at(n.start), length * spb, n.velocity, t.sound);
         }
       }

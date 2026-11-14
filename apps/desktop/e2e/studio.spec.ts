@@ -42,7 +42,8 @@ async function openNotes(name: string): Promise<void> {
   await expect(shell().getByRole('grid', { name: `Notes of ${name}` })).toBeVisible();
 }
 
-async function start(replies: ModelReply[] = []): Promise<void> {
+/** Starts Mobius on Music's Night Drive, with the notes of `track` open. */
+async function start(replies: ModelReply[] = [], track = 'Keys'): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
@@ -50,8 +51,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
   await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
-  await expect(tracks().getByRole('listitem', { name: 'Keys' })).toBeVisible();
-  await openNotes('Keys');
+  await expect(tracks().getByRole('listitem', { name: track })).toBeVisible();
+  await openNotes(track);
 }
 
 test('a song is tracks of notes: added by clicking, with tracks to add, mute and play', async () => {
@@ -169,7 +170,7 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
   // A drums track has a kit instead of an oscillator: tuning it moves every drum together.
   await tracks().getByRole('listitem', { name: 'Drums' }).click();
   await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
-  const tune = device.getByRole('slider', { name: 'Tune' });
+  const tune = device.getByRole('region', { name: 'Kit' }).getByRole('slider', { name: 'Tune' });
   await tune.focus();
   await shell().keyboard.press('ArrowRight');
   await expect.poll(() => (saved().tracks[1] as { kit?: { tune: number } }).kit?.tune).toBe(1);
@@ -192,6 +193,24 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
   await device.getByRole('button', { name: 'Remove Delay' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+});
+
+test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
+  await start([], 'Drums');
+  const device = shell().getByRole('region', { name: 'Device' });
+  // Each drum is a pad; the chosen pad's knobs set that drum alone, kept in the song by its pitch.
+  await device.getByRole('group', { name: 'Drum pads' }).getByRole('button', { name: 'Snare', exact: true }).click();
+  const tune = device.getByRole('region', { name: 'Snare settings' }).getByRole('slider', { name: 'Tune' });
+  await tune.focus();
+  await shell().keyboard.press('ArrowRight');
+  await expect.poll(() => (saved().tracks[0] as { pads?: Record<string, { tune: number }> }).pads?.['38']?.tune).toBe(1);
+  // In the notes, Steps shows a bar of the drums as steps: a click switches one on, as a sixteenth note.
+  await tracks().getByRole('listitem', { name: 'Drums' }).press('Enter');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  await expect(shell().getByRole('group', { name: 'Kick' }).getByRole('button', { name: /^Kick, step 1, velocity/ })).toBeVisible();
+  await shell().getByRole('group', { name: 'Snare' }).getByRole('button', { name: 'Snare, step 5', exact: true }).click();
+  await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 38)).toMatchObject({ start: 1, length: 0.25 });
 });
 
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {

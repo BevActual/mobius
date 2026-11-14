@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -127,5 +127,21 @@ describe('a track EQ on the graph', () => {
     expect(eqFromBand(1, { type: 'peak', freq: 450, gain: 30, q: 2 })).toEqual({ mid: 18, midFreq: 450, midQ: 2 });
     expect(eqFromBand(0, { type: 'lowshelf', freq: 5, gain: -4, q: 0.7 })).toEqual({ low: -4, lowFreq: 30 });
     expect(eqFromBand(2, { type: 'highshelf', freq: 9000, gain: 1.5, q: 0.7 })).toEqual({ high: 1.5, highFreq: 9000 });
+  });
+});
+
+describe('drum steps', () => {
+  const hits = [{ pitch: 36, start: 4, length: 0.25, velocity: 0.9 }, { pitch: 38, start: 5, length: 0.25, velocity: 0.7 }, { pitch: 36, start: 0, length: 1, velocity: 0.8 }];
+  it('reads a bar of hits as steps, one row per drum', () => {
+    const cells = stepCells(hits, 1, [36, 38]);
+    expect(cells[0]![0]).toBe(0.9);
+    expect(cells[1]![4]).toBe(0.7);
+    expect(cells.flat().filter(Boolean)).toHaveLength(2);
+  });
+  it('switches a step on, changes it, and off again', () => {
+    const on = setStep(hits, 1, 38, 2, 1);
+    expect(on.find((n) => n.pitch === 38 && n.start === 4.5)).toEqual({ pitch: 38, start: 4.5, length: 0.25, velocity: 1 });
+    expect(setStep(on, 1, 38, 2, 0.5).filter((n) => n.start === 4.5)).toHaveLength(1);
+    expect(setStep(on, 1, 38, 2, 0)).toEqual(setStep(hits, 9, 99, 0, 0));
   });
 });
