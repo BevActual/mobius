@@ -201,9 +201,9 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
   for (const e of fx) {
     if (!e.on) continue;
     if (e.kind === 'eq') {
-      const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = 120; low.gain.value = e.low;
-      const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = e.midFreq; mid.Q.value = 1; mid.gain.value = e.mid;
-      const high = ctx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = 6000; high.gain.value = e.high;
+      const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = e.lowFreq; low.gain.value = e.low;
+      const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = e.midFreq; mid.Q.value = e.midQ; mid.gain.value = e.mid;
+      const high = ctx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = e.highFreq; high.gain.value = e.high;
       at.connect(low); low.connect(mid); mid.connect(high); at = high;
     } else if (e.kind === 'compressor') {
       const comp = ctx.createDynamicsCompressor();

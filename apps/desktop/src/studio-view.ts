@@ -1,4 +1,5 @@
-import { BEATS_PER_BAR, type EffectKind, type KitSound, type SongNote, type Sound } from './song-format';
+import type { EqBand } from './ui';
+import { BEATS_PER_BAR, EFFECT_PARAMS, type Effect, type EffectKind, type KitSound, type SongNote, type Sound } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -207,4 +208,21 @@ export function effectText(kind: EffectKind, k: string, v: number): string {
   if (k === 'attack' || k === 'release') return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
   if (k === 'size') return `${v.toFixed(1)} s`;
   return `${Math.round(v * 100)}%`;
+}
+
+export type EqEffect = Extract<Effect, { kind: 'eq' }>;
+/** A track EQ as the shared graph's three bands: low shelf, bell, high shelf. */
+export function eqBands(e: EqEffect): EqBand[] {
+  return [
+    { type: 'lowshelf', freq: e.lowFreq, gain: e.low, q: 0.7 },
+    { type: 'peak', freq: e.midFreq, gain: e.mid, q: e.midQ },
+    { type: 'highshelf', freq: e.highFreq, gain: e.high, q: 0.7 },
+  ];
+}
+/** A band moved on the graph, back as the EQ's own settings, kept to their ranges. */
+export function eqFromBand(i: number, band: EqBand): Partial<EqEffect> {
+  const r = EFFECT_PARAMS.eq, c = (k: string, v: number) => Math.min(r[k]!.hi, Math.max(r[k]!.lo, v));
+  if (i === 0) return { low: c('low', band.gain), lowFreq: c('lowFreq', band.freq) };
+  if (i === 1) return { mid: c('mid', band.gain), midFreq: c('midFreq', band.freq), midQ: c('midQ', band.q) };
+  return { high: c('high', band.gain), highFreq: c('highFreq', band.freq) };
 }

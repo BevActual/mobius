@@ -102,18 +102,21 @@ A small studio for writing songs as notes.
 - **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
   (Volume and Pan), and then its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
-  - Filter: Cutoff, Resonance, and Sweep, which opens the filter at each note's start and closes it over the decay.
-  - Envelope: Attack, Decay, Sustain and Release.
+  - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
+    it (drag it or type), opens the filter at each note's start and closes it over the decay; the thin line and Opens to
+    show how far.
+  - Envelope: Attack, Decay, Sustain and Release drawn as one shape, with a handle at each corner to drag.
   - Motion: Vibrato and its Rate.
 
-  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Each setting
-  is a labelled cell with its value in mono and a slider under it. Arrows nudge it, Shift goes further, and
-  double-click puts it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
+  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Volume is a
+  slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob up or down
+  (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
   too.
-- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (Low, Mid and its frequency, High), a
+- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (three numbered bands on a curve: drag a
+  band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
-  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, arrows to move it up or down the
-  chain, and a button to remove it. They are saved in the song as `fx`.
+  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it up or down the
+  chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
   a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
