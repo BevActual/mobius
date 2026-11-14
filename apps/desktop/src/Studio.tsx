@@ -221,6 +221,8 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
 const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
+/** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
+const PAD_KEYS = ['Q', 'W', 'E', 'A', 'S', 'D'];
 const STEP_ROWS = DRUMS.map((d) => ({ id: String(d.pitch), name: d.name }));
 const PAD_CELLS: readonly { k: keyof DrumPad; name: string; step: number; log?: boolean; format: (v: number) => string }[] = [
   { k: 'tune', name: 'Tune', step: 1, format: (v) => kitText('tune', v) },
@@ -299,7 +301,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
               <section className="studio-dev-section" aria-label="Pads">
                 <h4 className="studio-dev-head">Pads</h4>
                 <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
-                  pads={DRUMS_UP.map((d) => ({ id: String(d.pitch), name: d.name, color: track.color }))}
+                  pads={DRUMS_UP.map((d, i) => ({ id: String(d.pitch), name: d.name, color: track.color, key: PAD_KEYS[i] }))}
                   onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }}>
                   <ParamGrid label={`${drum.name} settings`} columns={4}>
                     {PAD_CELLS.map(({ k, name, step, log, format }) => (
