@@ -298,7 +298,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
             return (
               <section className="studio-dev-section" aria-label="Pads">
                 <h4 className="studio-dev-head">Pads</h4>
-                <PadGrid label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
+                <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
                   pads={DRUMS_UP.map((d) => ({ id: String(d.pitch), name: d.name, color: track.color }))}
                   onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }}>
                   <ParamGrid label={`${drum.name} settings`} columns={4}>
@@ -931,7 +931,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               </div>
           {drums && drumView === 'steps' ? (
             <div className="studio-steps">
-              <StepGrid label={`Steps of ${track.name}, bar ${Math.min(stepBar, song.bars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, song.bars - 1), STEP_ROWS.map((r) => Number(r.id)))}
+              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, song.bars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, song.bars - 1), STEP_ROWS.map((r) => Number(r.id)))}
                 now={playing && Math.floor(beat / BEATS_PER_BAR) === Math.min(stepBar, song.bars - 1) ? Math.floor((beat % BEATS_PER_BAR) * 4) : undefined}
                 onChange={(row, step, v) => { const pitch = Number(STEP_ROWS[row]!.id); if (v > 0) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); setNotes((n) => setStep(n, Math.min(stepBar, song.bars - 1), pitch, step, v), 'steps'); }} />
             </div>
