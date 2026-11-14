@@ -121,6 +121,9 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await shell().mouse.up();
   await expect(shell().getByLabel('Selected cell')).toHaveText('B2:B3');
   await expect(shell().getByRole('status', { name: 'Selection' })).toContainText('Sum 15');
+  // The Mobius panel's Glance says the same: sum, average and count of what is selected.
+  const glance = shell().getByRole('region', { name: 'Selected B2:B3' });
+  await expect(glance.locator('.glance-fact')).toHaveText([/Sum\s*15/, /Average\s*7\.5/, /Count\s*2/]);
 
   // A formula from the function list, with a reference put in by clicking a cell.
   await cell('E2').click();
