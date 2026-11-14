@@ -38,9 +38,14 @@ export interface SurfaceState {
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** The folder open in Files, relative to the workspace ('' is the workspace itself), if a folder is open there. */
+  folder?: string | null;
   /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
   settings?: boolean;
 }
+
+/** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines what went where, with the number of files moved as files.move answers it.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
@@ -52,16 +57,16 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
-export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, making all those calls together in one step, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
 
 /**
  * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them
  * as a chart and says why, every figure a formula in the sheet.
  */
-export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers, and in the first empty column a heading "Stands out" with a few words beside each row that is far from the average, such as "2.1× the average". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells.';
+export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers (each average inside ROUND(…, 1)), and in the first empty column a heading "Stands out" with a few plain words and its number beside each row that is far from the average, such as "high: 412 units" or "low: 41 units". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells.';
 
 /** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
-export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.';
+export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, and run code.test to check, saying nothing until then. Then tell me once, in a sentence or two, what was wrong. I keep or discard the change.';
 
 /** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
 export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
@@ -82,8 +87,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       return state.note
         ? [
             // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
-            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up at the top of the note, above what is there: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items. Keep the words below exactly as they are. Show me the change before saving.', attach: 'note' },
-            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks in my Tasks Inbox with tasks.add, with any dates the note gives, and list them back as a short to-do list. Change nothing in the note.', attach: 'note' },
+            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up in the note itself with files.edit, under its first heading and above the rest: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items: only things someone agreed to do (an arrival or a piece of news is not one), each day as its date. Keep the heading and the words below exactly as they are. Make the change without asking first: I keep or discard it.', attach: 'note' },
+            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks with tasks.add, each with its date (a day like "end of week" or "Friday" as YYYY-MM-DD); an arrival or a piece of news is not an action. Look at tasks.list first: put them in the list for the note\'s project if there is one, otherwise in my Inbox, and leave out any action a task there already covers. Word each as something to do with no name in front; for an action someone else owns, end it with their name in brackets. List them back as a short to-do list, and say which you left out because they were already there. Change nothing in the note.', attach: 'note' },
             { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
@@ -196,9 +201,11 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
           ];
     case 'files':
       return [
+        // The demo's Files moment: a messy folder sorted in one undoable step, each move shown before it is kept.
+        ...(state.folder ? [{ label: 'Tidy this folder', prompt: tidyFolder(state.folder) }] : []),
         { label: 'What changed lately?', prompt: 'Look through my workspace with files.list and tell me which files changed most recently, and where they are. Change nothing.' },
         { label: 'Find a file…', prompt: 'Find the file in my workspace that ' },
-        { label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' },
+        ...(state.folder ? [] : [{ label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' }]),
       ];
     case 'wiki':
       return [

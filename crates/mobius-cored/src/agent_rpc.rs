@@ -394,14 +394,29 @@ impl Agent {
                             }),
                         ));
                     }
+                    let conversation = self.host.conversation_of(turn_id).unwrap_or_default().to_owned();
                     std::thread::spawn(move || {
                         let streaming = inbox.clone();
+                        // Where a round's time goes: how long to the first word, and to the end. The application keeps
+                        // these with the turn's other steps (turn-timings.jsonl), so a slow turn can be taken apart.
+                        let asked = std::time::Instant::now();
+                        let mut first_text: Option<u128> = None;
+                        let (tools, model) = (request.tools.len(), request.model.clone());
                         let result = catch_unwind(AssertUnwindSafe(|| {
                             provider.complete(&request, &mut |text| {
+                                first_text.get_or_insert_with(|| asked.elapsed().as_millis());
                                 !cancel.load(Ordering::SeqCst) && streaming.send(Inbox::Text { turn_id, text: text.to_owned() }).is_ok()
                             })
                         }))
                         .unwrap_or_else(|_| Err(ProviderError::Protocol("the model connection failed unexpectedly".to_owned())));
+                        let usage = result.as_ref().ok().and_then(|c| c.usage.clone()).unwrap_or_default();
+                        let calls = result.as_ref().map_or(0, |c| c.tool_calls.len());
+                        inbox.send(Inbox::Notify(json!({ "jsonrpc": "2.0", "method": "agent.timing", "params": {
+                            "conversation": conversation, "turn": turn_id, "step": "model", "model": model,
+                            "startup_ms": usage.startup_ms, "first_text_ms": first_text, "ms": asked.elapsed().as_millis(),
+                            "input": usage.input, "cached": usage.cached, "output": usage.output, "tools_offered": tools, "tool_calls": calls,
+                            "ok": result.is_ok(),
+                        } }))).ok();
                         if let Ok(Completion { usage: Some(usage), .. }) = &result {
                             inbox.send(Inbox::Usage { turn_id, kind: "chat", usage: usage.clone() }).ok();
                         }

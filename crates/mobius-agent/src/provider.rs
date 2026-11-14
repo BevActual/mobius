@@ -55,6 +55,9 @@ pub struct Usage {
     pub input: u64,
     pub output: u64,
     pub cached: u64,
+    /// For a model reached through another program (Claude Code), how long that program took to start and be ready
+    /// before it asked the model, in ms: part of every round's wait that is not the model's.
+    pub startup_ms: Option<u64>,
 }
 
 impl Usage {

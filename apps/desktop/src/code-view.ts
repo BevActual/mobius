@@ -188,7 +188,9 @@ export function gitMarks(changes: readonly { status: string; path: string }[]): 
 export function testsGlance(last: { passed: boolean; output: string; seconds: number; timedOut: boolean } | null, command: string | null): { label: string; value: string }[] | null {
   if (!last || last.passed) return null;
   const lines = last.output.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const said = last.timedOut ? 'Took too long' : lines.find((l) => /\b(fail(ed|ure)?|error|assert|expected|panicked)\b/i.test(l)) ?? lines.at(-1) ?? 'It failed';
+  // node --test names the failing test: "not ok 2 - pack temperature" (TAP) or "✖ pack temperature (2.1ms)" (spec).
+  const named = lines.map((l) => /^not ok \d+ - (.+?)(?:\s+#.*)?$/.exec(l)?.[1] ?? /^✖\s+(.+?)\s+\([\d.]+m?s\)$/.exec(l)?.[1]).find(Boolean);
+  const said = last.timedOut ? 'Took too long' : named ? `${named} fails` : lines.find((l) => /\b(fail(ed|ure)?|error|assert|expected|panicked)\b/i.test(l)) ?? lines.at(-1) ?? 'It failed';
   return [
     { label: 'Failed', value: said.length > 60 ? `${said.slice(0, 59)}…` : said },
     { label: 'Command', value: command ?? '' },
