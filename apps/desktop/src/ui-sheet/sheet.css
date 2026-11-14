@@ -36,4 +36,5 @@ body { overflow: auto; background: var(--frame); }
 .sheet-eq { width: 440px; }
 .sheet-bar { display: flex; align-items: center; gap: 12px; width: 400px; overflow: hidden; border: 1px dashed var(--line); padding: 4px; }
 .sheet-bar-fill { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
+.sheet-gap { margin-left: 16px; width: auto; }
 .sheet-waves { display: grid; gap: 24px; max-width: 720px; }

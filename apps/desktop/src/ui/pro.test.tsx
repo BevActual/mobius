@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { LetterToggle, LevelMeter, NumberField, Readout, Transport, barsLabel, clockLabel, levelPosition } from './Pro';
+import { GainReductionMeter, LetterToggle, LevelMeter, decibelLabel, NumberField, Readout, Transport, barsLabel, clockLabel, levelPosition } from './Pro';
 
 const noop = () => {};
 
@@ -49,6 +49,23 @@ describe('pro controls', () => {
     expect(levelPosition(0)).toBeCloseTo(60 / 66);
     expect(levelPosition(-90)).toBe(0);
     expect(levelPosition(12)).toBe(1);
+  });
+  it('draws a threshold you can drag only when one is given', () => {
+    expect(renderToStaticMarkup(<LevelMeter label="Bus" />)).not.toContain('role="slider"');
+    const html = renderToStaticMarkup(<LevelMeter label="Bus" threshold={-18} onThreshold={noop} />);
+    expect(html).toContain('role="slider"');
+    expect(html).toContain('aria-label="Bus threshold"');
+    expect(html).toContain('aria-valuetext="\u221218 dB"');
+    expect(html).toContain(`--at:${levelPosition(-18)}`);
+    expect(decibelLabel(-4.25, 1)).toBe('\u22124.3 dB');
+    expect(decibelLabel(3)).toBe('3 dB');
+  });
+  it('draws gain reduction as one meter from 0 down to its range, with the most taken off underneath', () => {
+    const html = renderToStaticMarkup(<GainReductionMeter label="Bus gain reduction" range={20} />);
+    expect(html).toContain('role="meter"');
+    expect(html).toContain('aria-valuemax="20"');
+    expect(html).toContain('>0.0</span><span class="ui-reduce-unit"> dB</span></button>');
+    expect(renderToStaticMarkup(<GainReductionMeter label="GR" readout={false} />)).not.toContain('<button');
   });
   it('writes positions in bars and in time', () => {
     expect(barsLabel(0)).toBe('1 . 1 . 1');

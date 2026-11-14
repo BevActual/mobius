@@ -312,8 +312,25 @@ const FALL_DB_PER_S = 20;
  * anything. The peak line holds for 1.5 seconds and then falls; only the part over 0 dB is red, and the clip light
  * above stays lit until clicked.
  */
-export const LevelMeter = forwardRef<LevelFeed, { label: string; channels?: number; floor?: number; ceiling?: number; className?: string }>(function LevelMeter(
-  { label, channels = 2, floor = -60, ceiling = 6, className },
+export interface LevelMeterProps {
+  label: string;
+  channels?: number;
+  floor?: number;
+  ceiling?: number;
+  className?: string;
+  /**
+   * A compressor's or gate's threshold in dB, drawn as a line across the bars with a tab at the right to drag. Up and
+   * Down move it a decibel, Shift six; Home or two quick presses put it back to `thresholdReset`.
+   */
+  threshold?: number;
+  onThreshold?: (db: number) => void;
+  /** Called once when a drag or a key is done (for undo). */
+  onThresholdCommit?: (db: number) => void;
+  thresholdReset?: number;
+}
+
+export const LevelMeter = forwardRef<LevelFeed, LevelMeterProps>(function LevelMeter(
+  { label, channels = 2, floor = -60, ceiling = 6, className, threshold, onThreshold, onThresholdCommit, thresholdReset = 0 },
   ref,
 ) {
   const root = useRef<HTMLDivElement>(null);
@@ -363,7 +380,139 @@ export const LevelMeter = forwardRef<LevelFeed, { label: string; channels?: numb
             <div className="ui-level-peak" />
           </div>
         ))}
+        {threshold !== undefined && (
+          <Threshold label={`${label} threshold`} value={threshold} floor={floor} ceiling={ceiling} reset={thresholdReset} onChange={onThreshold} onCommit={onThresholdCommit} />
+        )}
       </div>
+    </div>
+  );
+});
+
+/** "−18 dB", with a true minus. */
+export const decibelLabel = (db: number, digits = 0): string => `${db < 0 ? '\u2212' : ''}${Math.abs(db).toFixed(digits)} dB`;
+
+const RESET_MS = 400;
+
+/** The threshold line on a level meter: a slider across the bars, dragged by its tab. */
+function Threshold({ label, value, floor, ceiling, reset, onChange, onCommit }: {
+  label: string; value: number; floor: number; ceiling: number; reset: number;
+  onChange?: (db: number) => void; onCommit?: (db: number) => void;
+}) {
+  const last = useRef(0);
+  const moved = useRef(value);
+  const put = (db: number) => { const next = Math.round(clamp(db, floor, ceiling) * 10) / 10; moved.current = next; onChange?.(next); return next; };
+  const fromY = (el: HTMLElement, y: number) => {
+    const box = (el.parentElement ?? el).getBoundingClientRect();
+    return floor + (1 - (y - box.top) / box.height) * (ceiling - floor);
+  };
+  const twice = () => { const now = performance.now(); const yes = now - last.current < RESET_MS; last.current = yes ? 0 : now; return yes; };
+  const down = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    const el = event.currentTarget;
+    el.focus();
+    if (twice()) { const back = put(reset); onCommit?.(back); return; }
+    el.setPointerCapture(event.pointerId);
+    put(fromY(el, event.clientY));
+  };
+  const move = (event: PointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) put(fromY(event.currentTarget, event.clientY));
+  };
+  const up = (event: PointerEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    onCommit?.(moved.current);
+  };
+  const key = (event: KeyboardEvent<HTMLDivElement>) => {
+    const by = event.shiftKey ? 6 : 1;
+    const to = event.key === 'ArrowUp' || event.key === 'ArrowRight' ? value + by
+      : event.key === 'ArrowDown' || event.key === 'ArrowLeft' ? value - by
+      : event.key === 'PageUp' ? value + 6 : event.key === 'PageDown' ? value - 6
+      : event.key === 'Home' ? reset : event.key === 'End' ? floor : undefined;
+    if (to === undefined) return;
+    event.preventDefault();
+    const next = put(to);
+    onCommit?.(next);
+  };
+  return (
+    <div
+      className="ui-level-threshold"
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-orientation="vertical"
+      aria-valuemin={floor}
+      aria-valuemax={ceiling}
+      aria-valuenow={value}
+      aria-valuetext={decibelLabel(value, Number.isInteger(value) ? 0 : 1)}
+      title={`${decibelLabel(value, Number.isInteger(value) ? 0 : 1)}. Drag to set; double-click to reset`}
+      style={{ ['--at' as string]: levelPosition(value, floor, ceiling) }}
+      onPointerDown={down}
+      onPointerMove={move}
+      onPointerUp={up}
+      onPointerCancel={up}
+      onKeyDown={key}
+    >
+      <span className="ui-level-threshold-tab" aria-hidden="true" />
+    </div>
+  );
+}
+
+/** Feed for a GainReductionMeter: call `set` with how many dB the compressor is taking off now (0 or more). */
+export interface ReductionFeed {
+  set: (db: number) => void;
+  reset: () => void;
+}
+
+/**
+ * How much a compressor, limiter or gate is turning the sound down, as one bar that fills down from the top (0 dB) to
+ * `range` dB. Fed through a ref like LevelMeter, so it never re-renders; the most it took off holds for 1.5 seconds as
+ * a line, and `readout` shows that figure underneath in mono ("−4.2"), which a click clears.
+ */
+export const GainReductionMeter = forwardRef<ReductionFeed, { label: string; range?: number; readout?: boolean; className?: string }>(function GainReductionMeter(
+  { label, range = 24, readout = true, className },
+  ref,
+) {
+  const bar = useRef<HTMLDivElement>(null);
+  const figure = useRef<HTMLSpanElement>(null);
+  const held = useRef({ db: 0, at: 0 });
+  const most = useRef(0);
+
+  const set = useCallback((db: number) => {
+    const el = bar.current;
+    if (!el) return;
+    const now = performance.now();
+    const amount = clamp(Number.isFinite(db) ? Math.abs(db) : 0, 0, range);
+    const age = now - held.current.at;
+    const fallen = age > HOLD_MS ? Math.max(0, held.current.db - ((age - HOLD_MS) / 1000) * FALL_DB_PER_S) : held.current.db;
+    if (amount >= fallen) held.current = { db: amount, at: now };
+    el.style.setProperty('--reduce', String(amount / range));
+    el.style.setProperty('--hold', String(Math.max(amount, fallen) / range));
+    el.setAttribute('aria-valuenow', String(Math.round(amount * 10) / 10));
+    if (amount > most.current) {
+      most.current = amount;
+      if (figure.current) figure.current.textContent = amount >= 0.05 ? `\u2212${amount.toFixed(1)}` : '0.0';
+    }
+  }, [range]);
+
+  const reset = useCallback(() => {
+    held.current = { db: 0, at: 0 };
+    most.current = 0;
+    bar.current?.style.setProperty('--hold', '0');
+    if (figure.current) figure.current.textContent = '0.0';
+  }, []);
+
+  useImperativeHandle(ref, () => ({ set, reset }), [set, reset]);
+
+  return (
+    <div className={className ? `ui-reduce ${className}` : 'ui-reduce'}>
+      <div ref={bar} className="ui-reduce-bar" role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={range} aria-valuenow={0} aria-valuetext="dB of gain reduction">
+        <div className="ui-reduce-fill" />
+        <div className="ui-reduce-hold" />
+      </div>
+      {readout && (
+        <button type="button" className="ui-reduce-figure" aria-label={`${label}, most taken off. Clear`} title="Most taken off. Click to clear" onClick={reset}><span ref={figure}>0.0</span><span className="ui-reduce-unit"> dB</span></button>
+      )}
     </div>
   );
 });
