@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
+import { loadApply } from './chat-mode';
 import { APP_ICONS } from './Rail';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
@@ -274,6 +275,13 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
   const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
+  // Apply changes: what the turn just changed is kept at once (Undo and Rewind still put it back). Only in the
+  // conversation's own strip, never for an earlier chat's changes listed in the resting panel.
+  const keepNow = useRef(keep);
+  keepNow.current = keep;
+  useEffect(() => {
+    if (shown && since !== undefined && loadApply()) void keepNow.current();
+  }, [shown, since]);
   const discardNow = useRef(undoAll);
   discardNow.current = undoAll;
   useEffect(() => {

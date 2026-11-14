@@ -2406,8 +2406,6 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .composer-tools { flex-wrap: nowrap; }
 .composer-tools .pill { height: 24px; padding: 0 4px; background: none; box-shadow: none; color: var(--muted); font-weight: 400; }
 .composer-tools .pill:hover:not(:disabled), .composer-tools .pill[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
-.composer-tools .pill .chev { display: none; }
-.composer-tools .pill-compact::before { content: "·"; margin-right: 6px; color: var(--faint); }
 .empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
 /* Sidebar pieces as in the timeless mocks. */
 /* Quiet section headers: their tools (float, refresh, +) stay out of sight until the header is hovered or focused. */
@@ -2479,6 +2477,57 @@ body { font-variant-numeric: tabular-nums; }
 .resting-changes:empty { display: none; }
 .resting-changes .review-strip { margin: 0; border: var(--hairline-w) dashed var(--mobius); }
 
+/* Composer menus: a two-line row (the name, then a grey line on what it means), with the check before it. */
+.popmenu-item.popmenu-two { align-items: flex-start; padding-top: var(--sp-2); padding-bottom: var(--sp-2); }
+.popmenu-two-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.popmenu-two .check { margin-top: 2px; }
+
+/* Composer row (Instrument): plus, Mode, Permission keep their words; the model sits at the right and gives way first. */
+.composer-tools { flex: 1 1 auto; }
+.composer-tools > .popmenu:has(> .pill-compact) { flex: none; }
+.composer-tools .pill-compact { min-width: 0; }
+.composer-tools .pill-compact .pill-text { overflow: visible; }
+.composer-tools > .popmenu:has(> .pill-model) { flex: 0 1 auto; min-width: 0; margin-left: auto; }
+.composer-tools .pill-model { max-width: 100%; }
+.composer-tools .pill-model-icon { display: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+/* In a narrow Mobius panel the model shows as a chip; its name is in the tooltip and the menu. */
+@container (max-width: 260px) { .composer-tools .pill-model .pill-text { display: none; } .composer-tools .pill-model-icon { display: block; } .composer-tools .pill.pill-model { min-width: 0; } }
+.composer-tools .pill { gap: 4px; }
+.composer-tools .pill .chev { display: block; }
+.chat .composer .composer-tools .pill-compact .pill-icon { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.popmenu-two .popmenu-hint { white-space: nowrap; }
+.composer-tools .popmenu-list:has(.popmenu-two) { min-width: max-content; }
+.popmenu-keys { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.composer-tools > .popmenu:first-child { flex: none; }
+
+/* Selected text uses the theme's selection grey: indigo is for Mobius alone. */
+::selection { background: var(--sel); color: inherit; }
+.composer-tools .pill.pill-model { min-width: 28px; }
+.composer-tools { gap: 2px; }
+.composer-tools .pill { gap: 3px; padding: 0 4px; }
+.composer-tools .pill-model .chev { display: none; }
+.chat .composer .composer-actions { gap: 2px; }
+.chat .composer { margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 4px; }
+.chat .composer .composer-bar .round { width: 26px; height: 26px; }
+.chat .composer .composer-bar .round.send, .chat .composer .composer-bar .round.stop { width: 28px; height: 28px; }
+/* Under 380px of panel the mic moves into the plus menu, so the model keeps its words (Instrument build sheet). */
+.popmenu-item.popmenu-dictate { display: none; }
+@container (max-width: 315px) {
+  .composer-tools .popmenu-item.popmenu-dictate { display: flex; }
+  .composer-actions .composer-mic:not([data-recording]) { display: none; }
+}
+.composer-tools .pill-model .chev { display: block; }
+.composer-tools .pill { padding: 0 3px; }
+.chat .composer .composer-bar { gap: 2px; }
+.composer-tools .pill-model .pill-text { flex: 0 1 auto; }
+@container (max-width: 315px) { .composer-tools .popmenu-item.popmenu-dictate { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; } }
+.composer-tools .pill { gap: 2px; }
+.chat .composer .composer-tools .pill { padding: 0 3px; }
+/* While dictating, the recording readout takes the model's place; the row never runs under Stop. */
+.composer:has(.composer-mic[data-recording]) .composer-tools > .popmenu:has(> .pill-model) { display: none; }
+.composer-actions { position: relative; z-index: 1; }
+/* At the narrowest panel the permission shows as its shield alone (its name is in the tooltip and the menu). */
+@container (max-width: 240px) { .chat .composer .composer-tools .pill-compact:has(.pill-icon) .pill-text { display: none; } }
 /* The change block in the Mobius panel (Instrument review, 2026-11-14): one header line (what changed, trimmed, then
    Keep all in ink), no lone dot, sentence-case kinds as plain grey words, and Discard all / Try another as quiet text
    buttons on the left. */

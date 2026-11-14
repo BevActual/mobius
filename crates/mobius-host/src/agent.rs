@@ -138,6 +138,8 @@ pub struct SendRequest {
     pub context: Vec<context::Item>,
     /// Plan first: the agent only proposes a plan this turn.
     pub plan: bool,
+    /// Ask mode: the agent only reads and answers this turn, and changes nothing.
+    pub ask: bool,
     /// Pictures attached to the message, as `data:` URLs: at most four, each a PNG, JPEG, WebP or GIF of a few MB.
     pub images: Vec<String>,
     /// The project the conversation belongs to: its rules count for the turn. Set by the host, never by the window.
@@ -161,6 +163,10 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => false,
         Some(p) => p.as_bool()?,
     };
+    let ask = match v.get("ask") {
+        None | Some(Value::Null) => false,
+        Some(a) => a.as_bool()?,
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -168,7 +174,7 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, images, project: None })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, project: None })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -436,6 +442,9 @@ impl AgentService {
         }
         if request.plan {
             params.insert("plan".into(), json!(true));
+        }
+        if request.ask {
+            params.insert("ask".into(), json!(true));
         }
         if !request.images.is_empty() {
             params.insert("images".into(), json!(request.images));
