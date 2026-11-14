@@ -21,10 +21,11 @@ request that makes it true. Nothing is posted publicly until Andrew says so.
        Launch times it*
 4. - [ ] **A 60 to 90 second uncut video** of the launch workflow. Waits on app modes (Builder) and the Mail round
        (Apps lead). *Launch writes the script, Andrew records on his PC*
-5. - [ ] **Signed installer.** *Builder, waiting on Andrew's SignPath application*
-     - [ ] SignPath Foundation approved, `SIGNPATH_ORGANIZATION_ID` variable and `SIGNPATH_API_TOKEN` secret set, so
-           the [Release workflow](../.github/workflows/release.yml) signs the installer. See the
-           [code signing policy](CODE_SIGNING_POLICY.md).
+5. - [ ] **Signed installer.** *Builder, waiting on Andrew's choice*
+     - [ ] Choose how to sign. **SignPath is on hold** (Andrew, 14 November 2026) while he looks at the options:
+           see [Code signing options](reference/code-signing-options.md). *Andrew decides*
+     - [ ] Set up the chosen service and wire it into the [Release workflow](../.github/workflows/release.yml)
+           (it has a SignPath step that stays skipped until its settings exist). *Builder*
      - [ ] Update-signing secrets: `TAURI_SIGNING_PRIVATE_KEY` and an empty `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
      - [ ] Installed on a clean Windows account: no SmartScreen warning, the app opens, an update installs. *Launch*
 6. - [ ] **v0.1.0 published.** The `v0.1.0` tag points at 1443e30 from 2026-11-11, before the new frame and
