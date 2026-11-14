@@ -423,6 +423,23 @@ impl Bridge {
             lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
         }
         let _ = bridge.restore_quick();
+        // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
+        // first turn's checkpoint only has to save. Counted as a mark, so what waits for marks (Remove all data among
+        // them) waits for it too.
+        let workspace = mobius_workspace::files::Workspace::new(bridge.data_dir.join("workspace"), bridge.data_dir.join("checkpoints"));
+        let marking = Arc::clone(&bridge.marking);
+        *lock(&marking.0) += 1;
+        std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            if let Err(error) = workspace.warm() {
+                eprintln!("[changes] checkpoints not readied: {error}");
+            }
+            slow("checkpoints", "readied at start", started);
+            let (count, done) = &*marking;
+            let mut n = lock(count);
+            *n = n.saturating_sub(1);
+            done.notify_all();
+        });
         bridge
     }
 
@@ -772,6 +789,8 @@ impl Bridge {
         lock(&self.chatgpt).clone().sign_out();
         self.mcp_server.forget();
         self.core.stop_shared();
+        // A checkpoint still being taken would write into the folder while it is emptied.
+        wait_for_marks(&self.marking);
         let mut failures = 0;
         let mut removed = 0;
         if let Ok(entries) = std::fs::read_dir(&self.data_dir) {

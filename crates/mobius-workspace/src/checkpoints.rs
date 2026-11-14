@@ -176,6 +176,17 @@ impl Checkpoints {
         self.commit_locked(&folder, &id, reason, true)?.ok_or_else(|| Error::Git("no checkpoint was made".into()))
     }
 
+    /// Brings the folder's index up to date without saving a checkpoint, so the next one (the first turn's, at the
+    /// start of a session) only has to save. The first look at a folder hashes every file and writes its objects,
+    /// which took over 4 s on a Windows runner, while the person waited on the turn.
+    pub fn warm(&self, folder: &Path) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        self.git(&folder, &id, &["add", "-A", "--", "."])?;
+        self.git(&folder, &id, &["write-tree"])?;
+        Ok(())
+    }
+
     /// [`Checkpoints::snapshot`], with the lock already held and the folder prepared.
     fn snapshot_locked(&self, folder: &Path, id: &str, reason: &str) -> Result<Option<Checkpoint>, Error> {
         self.commit_locked(folder, id, reason, false)
