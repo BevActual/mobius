@@ -10,6 +10,7 @@ import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, Voic
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from '../ui';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
+import { CalendarAccountsSettings } from '../CalendarAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
@@ -28,6 +29,8 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   browser: BrowserSection,
   // Mail's accounts (from the Mail app).
   mail: ({ highlight }) => <MailAccountsSettings highlight={highlight === 'mail-accounts'} />,
+  // Calendar's accounts (from the Calendar app).
+  calendar: ({ highlight }) => <CalendarAccountsSettings highlight={highlight === 'calendar-accounts'} />,
   notifications: NotificationsSection,
   sessions: SessionsSection,
   keyboard: KeyboardSection,

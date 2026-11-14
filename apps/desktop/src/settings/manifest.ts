@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -132,6 +132,15 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'The accounts Mail reads and sends from.',
     subpages: [
       { id: 'accounts', label: 'Accounts', rows: [row('mail-accounts', 'Mail accounts', 'Add a mail account, or remove one. Its mail stays with your provider.', 'email', 'imap', 'smtp', 'icloud', 'gmail', 'fastmail', 'yahoo', 'app password', 'add account', 'remove account')] },
+    ],
+  },
+  // Calendar: its accounts live here, so the Calendar app's sidebar holds only calendars.
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    description: 'The calendars Calendar reads from elsewhere.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('calendar-accounts', 'Calendar accounts', 'Subscribe to a calendar link, or connect iCloud, Fastmail or Nextcloud. Refresh or remove one.', 'calendar', 'caldav', 'subscribe', 'webcal', 'ics', 'icloud', 'fastmail', 'nextcloud', 'google calendar', 'outlook', 'add account', 'remove account', 'refresh')] },
     ],
   },
   {
@@ -291,7 +300,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
   ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 
