@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, fromSlider, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipsOf, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -96,5 +96,17 @@ describe('the arrangement and the Device panel', () => {
     expect(fromSlider(1, 80, 12000, true)).toBe(12000);
     expect(fromSlider(toSlider(1200, 80, 12000, true), 80, 12000, true)).toBeCloseTo(1200, 0);
     expect(fromSlider(0.5, 0, 50, false)).toBe(25);
+  });
+});
+
+describe('the Device panel\'s words for a setting', () => {
+  it('names times, rates, cents, pan and the kit as a player reads them', () => {
+    expect(soundText('decay', 0.25)).toBe('250 ms');
+    expect(soundText('rate', 5)).toBe('5.0 Hz');
+    expect(soundText('vibrato', 12.4)).toBe('12 ct');
+    expect(soundText('sustain', 0.3)).toBe('30%');
+    expect([panText(0), panText(-0.4), panText(0.25)]).toEqual(['C', 'L 40', 'R 25']);
+    expect([kitText('tune', 3), kitText('tune', -2), kitText('tune', 0)]).toEqual(['+3 st', '−2 st', '0 st']);
+    expect([kitText('decay', 1.5), kitText('decay', 1)]).toEqual(['1.5×', '1×']);
   });
 });
