@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
 import { ARROW, clamp, useGraphDrag, type Handle } from './Instrument';
+import type { ContentColor } from './Bits';
 
 /**
  * AutomationLane: one setting's breakpoint line under a track, as wide as the arrangement (`beats` × `pxPerBeat`), so
@@ -36,7 +37,7 @@ const roundBeat = (b: number) => Math.round(b * 1e4) / 1e4;
 const roundValue = (v: number) => Math.round(clamp(v, 0, 1) * 1000) / 1000;
 const pctLabel = (v: number) => `${Math.round(v * 100)}%`;
 
-export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCommit, format = pctLabel, grid = 1, beatsPerBar = 4, empty = 0, disabled, className }: {
+export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCommit, format = pctLabel, grid = 1, beatsPerBar = 4, empty = 0, color, head = true, disabled, className }: {
   /** The setting it automates, such as "Volume" or "Filter cutoff". */
   label: string;
   /** Sorted by beat. Values run 0 to 1; `format` turns one into words for the readout. */
@@ -51,11 +52,17 @@ export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCo
   beatsPerBar?: number;
   /** Where the line sits with no points (the setting's own value), drawn faint. */
   empty?: number;
+  /** The track's content colour for the line and its fill (ink when left out). Points stay ink. */
+  color?: ContentColor;
+  /** The name and readout above the plot. Pass false when the app shows the name in its own track head: the place and
+   * value of a point then show beside it only while it is dragged or focused. */
+  head?: boolean;
   disabled?: boolean;
   className?: string;
 }) {
   const [focus, setFocus] = useState(0);
   const [focusNext, setFocusNext] = useState<number | null>(null);
+  const [tagged, setTagged] = useState(false);
   const plot = useRef<HTMLDivElement | null>(null);
   const latest = useRef<AutomationPoint[]>([...points]);
   latest.current = [...points];
@@ -162,13 +169,17 @@ export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCo
       aria-label={`${label} automation`}
       data-disabled={disabled || undefined}
       data-empty={!points.length || undefined}
+      data-headless={!head || undefined}
+      data-color={color}
       style={{ width: `${beats * pxPerBeat}px` } as CSSProperties}
       onKeyUp={keyUp}
     >
-      <div className="ui-lane-head" aria-hidden="true">
-        <span className="ui-lane-name">{label}</span>
-        <span className="ui-lane-value">{shown ? `${beatLabel(shown.beat, beatsPerBar)}  ${format(shown.value)}` : format(empty)}</span>
-      </div>
+      {head && (
+        <div className="ui-lane-head" aria-hidden="true">
+          <span className="ui-lane-name">{label}</span>
+          <span className="ui-lane-value">{shown ? `${beatLabel(shown.beat, beatsPerBar)}  ${format(shown.value)}` : format(empty)}</span>
+        </div>
+      )}
       <div
         className="ui-lane-plot"
         data-held={held || undefined}
@@ -190,6 +201,11 @@ export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCo
           {points.length > 0 && <path className="ui-graph-area" d={`${line} L 100 100 L 0 100 Z`} />}
           <path className="ui-graph-line" data-ghost={!points.length || undefined} d={line} />
         </svg>
+        {!head && shown && (held || tagged) && (
+          <span className="ui-lane-tag" aria-hidden="true" style={{ left: `${X(shown.beat)}%`, top: `${Y(shown.value)}%` } as CSSProperties} data-low={shown.value < 0.5 || undefined}>
+            {beatLabel(shown.beat, beatsPerBar)}  {format(shown.value)}
+          </span>
+        )}
         {handles.map((h, i) => (
           <span
             key={h.key}
@@ -207,7 +223,8 @@ export function AutomationLane({ label, points, beats, pxPerBeat, onChange, onCo
             style={{ left: `${h.x * 100}%`, top: `${(1 - h.y) * 100}%` } as CSSProperties}
             onPointerDown={disabled ? undefined : grab(h.key)}
             onKeyDown={(e) => { if (!disabled) key(h.key, e); }}
-            onFocus={() => setFocus(i)}
+            onFocus={() => { setFocus(i); setTagged(true); }}
+            onBlur={() => setTagged(false)}
           />
         ))}
       </div>
