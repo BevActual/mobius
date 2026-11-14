@@ -1,7 +1,8 @@
 /*
  * Database, in the manner of Apple's own data apps: a table's name and Data / Structure / SQL, the filter and Add row
  * in the window's toolbar, the page of rows under it, and the rows themselves as a quiet grid. Everything comes from the tokens,
- * so light and dark both follow. The older rules for the list, editor and grid are in styles.css.
+ * so light and dark both follow. Database is a compact app (Instrument): the frame marks it compact (COMPACT_APPS),
+ * so the tokens give 13px text and 32px rows. The older rules for the list, editor and grid are in styles.css.
  */
 
 /* Sidebar: a row's More button shows on hover or focus, as in Tasks; the open table is marked like a page. */
@@ -10,61 +11,61 @@
 .db-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-row[data-open] .db-name { font-weight: var(--fw-semibold); }
 .db-table { align-items: center; }
-.db-table > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.4; }
-.db-table[aria-current="page"] { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
-.db-table[aria-current="page"] > svg, .db-table[aria-current="page"] .db-count { color: inherit; stroke: currentColor; }
-.db-more { position: absolute; right: 2px; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: var(--radius-pill); color: var(--muted); opacity: 0; }
-.db-more svg { width: 16px; height: 16px; fill: currentColor; }
-.db-more:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); color: var(--ink); }
+.db-table > svg { width: var(--sp-4); height: var(--sp-4); flex: none; fill: none; stroke: var(--muted); stroke-width: 1.4; }
+/* Selected, as in every sidebar: a grey fill with medium-weight ink. */
+.db-table[aria-current="page"] { background: var(--sel); color: var(--ink); font-weight: var(--fw-medium); }
+.db-more { position: absolute; right: calc(var(--sp-1) / 2); display: inline-flex; align-items: center; justify-content: center; width: var(--control-h); height: var(--control-h); border-radius: var(--radius-pill); color: var(--muted); opacity: 0; }
+.db-more svg { width: var(--sp-4); height: var(--sp-4); fill: currentColor; }
+.db-more:hover { background: var(--soft); color: var(--ink); }
 .db-line:hover > .db-more, .db-more:focus-visible, .db-more[aria-expanded="true"] { opacity: 1; }
 .db-line:hover > .db-table .db-count, .db-line:has(> .db-more[aria-expanded="true"]) .db-count { visibility: hidden; }
-.db-rename { margin: 2px 0; }
+.db-rename { margin: calc(var(--sp-1) / 2) 0; }
 
 /* Asking before a delete: a small card under the row. */
-.db-confirm { margin: 4px 4px 6px; padding: 12px; border: 0.5px solid var(--line); border-radius: 12px; background: var(--bg); box-shadow: var(--shadow-2); animation: db-pop var(--dur-fast) var(--ease); }
-.db-confirm p { margin: 0 0 10px; font-size: var(--fs-sm); line-height: 1.4; color: var(--muted); }
+.db-confirm { margin: var(--sp-1) var(--sp-1) var(--sp-2); padding: var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-2); animation: db-pop var(--dur-fast) var(--ease); }
+.db-confirm p { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); line-height: var(--lh-tight); color: var(--muted); }
 .db-confirm p b { color: var(--ink); font-weight: var(--fw-semibold); }
-.db-confirm-actions { display: flex; justify-content: flex-end; gap: 6px; }
-@keyframes db-pop { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+.db-confirm-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
+@keyframes db-pop { from { opacity: 0; transform: translateY(calc(-1 * var(--sp-1))); } to { opacity: 1; transform: none; } }
 
 /* The toolbar's middle: the Data view's filter and Add row, a hairline, then the view switch. */
-.db-tools-sep { width: var(--hairline-w, 1px); height: 18px; margin: 0 var(--sp-2); background: var(--line); }
-.db-filter { width: 160px; height: 28px; margin: 0; }
+.db-tools-sep { width: var(--hairline-w); height: var(--sp-4); margin: 0 var(--sp-2); background: var(--line); }
+.db-filter { width: calc(8 * var(--sp-4)); height: var(--control-h); margin: 0; }
 .db-side > .side-search { margin: 0 var(--sp-2) var(--sp-2); }
 
 /* Under the rows, one quiet line: which rows these are, and the pager when there is more than one page. */
-.db-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: 32px; padding: 0 var(--sp-2) 0 var(--sp-4); border-top: var(--hairline-w, 1px) solid var(--line); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.db-foot { flex: none; display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--info-h); padding: 0 var(--sp-2) 0 var(--sp-4); border-top: var(--hairline-w) solid var(--line); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .db-foot-line { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.db-pager { display: inline-flex; gap: 2px; }
-.db-pager .strip-btn { width: 24px; min-width: 24px; height: 24px; padding: 0; }
-.db-pager .strip-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.db-pager { display: inline-flex; gap: calc(var(--sp-1) / 2); }
+.db-pager .strip-btn { width: var(--info-h); min-width: var(--info-h); height: var(--info-h); padding: 0; }
+.db-pager .strip-btn svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .db-pager .strip-btn:disabled { opacity: 0.4; cursor: default; }
 
 /* A column's heading sorts by it: the arrows show which way. */
 .db-grid th:has(> .db-sort) { padding: 0; }
-.db-sort { display: flex; align-items: center; gap: 4px; width: 100%; padding: 6px 10px; border-radius: 0; color: inherit; font: inherit; font-weight: 600; text-align: left; }
-.db-sort:hover { background: color-mix(in srgb, var(--ink) 5%, transparent); }
-.db-sort svg { width: 12px; height: 12px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
+.db-sort { display: flex; align-items: center; gap: var(--sp-1); width: 100%; height: var(--row-list); padding: 0 var(--sp-3); border-radius: 0; color: inherit; font: inherit; font-weight: var(--fw-semibold); text-align: left; }
+.db-sort:hover { background: var(--soft); }
+.db-sort svg { width: var(--sp-3); height: var(--sp-3); flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; opacity: 0; }
 .db-sort:hover svg, .db-sort svg[data-dir] { opacity: 1; }
 .db-sort svg[data-dir="ascending"] path { d: path("m6.5 11.5 3.5-3.5 3.5 3.5"); }
 .db-sort svg[data-dir="descending"] path { d: path("m6.5 8.5 3.5 3.5 3.5-3.5"); }
-.db-sort svg[data-dir] { stroke: var(--accent); }
-.db-grid tbody tr:nth-child(even) td { background: color-mix(in srgb, var(--ink) 2.5%, transparent); }
-.db-grid tbody tr:hover td { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.db-sort svg[data-dir] { stroke: var(--ink); }
+.db-grid tbody tr:hover td { background: var(--soft); }
 
 /* Structure: the columns as a short list, and the statement that made the table. */
-.db-structure { flex: 1; min-height: 0; overflow: auto; padding: 0 var(--sp-4) var(--sp-4); }
-.db-columns { width: 100%; max-width: 760px; border-collapse: separate; border-spacing: 0; border: 0.5px solid var(--line); border-radius: 10px; overflow: hidden; font-size: var(--fs-sm); }
-.db-columns th { padding: 7px 12px; background: var(--panel); border-bottom: 1px solid var(--line); color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-align: left; }
-.db-columns td { padding: 7px 12px; border-bottom: 1px solid var(--hairline, var(--line)); }
+.db-structure { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-4); }
+.db-columns { width: 100%; max-width: var(--reading-w); border-collapse: separate; border-spacing: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); overflow: hidden; font-size: var(--fs-md); }
+.db-columns th { height: var(--row-list); padding: 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); color: var(--muted); font-weight: var(--fw-semibold); text-align: left; }
+.db-columns td { height: var(--row-list); padding: 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line-soft); }
 .db-columns tr:last-child td { border-bottom: 0; }
 .db-col-name { font-weight: var(--fw-medium); }
-.db-type { display: inline-block; padding: 1px 7px; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--accent) 10%, transparent); color: var(--accent); font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.2px; }
-.db-mono { font: 12.5px/1.5 var(--font-mono); }
-.db-made { max-width: 760px; margin-top: var(--sp-4); }
-.db-made-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
-.db-made-head h3 { margin: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; }
-.db-made pre { margin: 0; padding: 10px 12px; border-radius: 10px; background: var(--field); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* A column's type is a label, not content: grey, with no colour of its own. */
+.db-type { color: var(--muted); font-size: var(--fs-sm); }
+.db-mono { font-family: var(--font-mono); font-size: var(--fs-sm); line-height: var(--lh-body); }
+.db-made { max-width: var(--reading-w); margin-top: var(--sp-4); }
+.db-made-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-1); }
+.db-made-head h3 { margin: 0; color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.db-made pre { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); background: var(--field); white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* SQL: a line before anything has run. */
 .db-hint { margin-top: var(--sp-3); }
@@ -72,14 +73,23 @@
 /* Changing rows: a double-click types into a cell; Add row in the bar; the last change can be undone, as in Tasks. */
 .db-grid[data-editable] tbody td { cursor: default; }
 /* Room under the last row, so the Undo toast never covers it. */
-.db-grid-wrap:has(> .db-grid[data-editable]) { padding-bottom: 64px; }
+.db-grid-wrap:has(> .db-grid[data-editable]) { padding-bottom: calc(2 * var(--sp-8)); }
 .db-grid td[data-editing] { padding: 0; overflow: visible; }
 /* The active cell: marked while the grid has focus, as the keys move it. */
 .db-grid td[tabindex] { outline: none; }
-.db-grid:focus-within td[data-active]:not([data-editing]) { box-shadow: inset 0 0 0 2px var(--accent); }
-.db-cell-input { width: 100%; min-width: 80px; height: 28px; padding: 0 9px; border: 0; outline: 2px solid var(--accent); outline-offset: -2px; background: var(--bg); color: var(--ink); font: inherit; }
+/* The selected cell has an ink outline. */
+.db-grid:focus-within td[data-active]:not([data-editing]) { box-shadow: inset 0 0 0 calc(2 * var(--hairline-w)) var(--ink); }
+.db-cell-input { width: 100%; min-width: calc(5 * var(--sp-4)); height: var(--row-list); padding: 0 var(--sp-3); border: 0; outline: calc(2 * var(--hairline-w)) solid var(--ink); outline-offset: calc(-2 * var(--hairline-w)); background: var(--bg); color: var(--ink); font: inherit; }
 .db-add svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 
 @media (prefers-reduced-motion: reduce) {
   .db-confirm { animation: none; }
 }
+
+/* An empty table: one plain line and Add row. Loading: grey bars the shape of the rows coming. */
+.db-empty { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4); color: var(--muted); font-size: var(--fs-md); }
+.db-empty p { margin: 0; }
+.db-result:has(> .db-empty) > .db-grid-wrap:has(> .db-grid) { flex: none; padding-bottom: 0; }
+.db-loading { display: flex; flex-direction: column; padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); }
+.db-loading span { height: var(--row-list); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.db-loading span::before { content: ""; display: block; width: var(--w, 60%); height: var(--sp-2); margin-top: var(--sp-3); border-radius: var(--radius-small); background: var(--field); }

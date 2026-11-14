@@ -19,8 +19,10 @@ import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
 import { appsSeen, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
+import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
+import { WorkingIndicator } from './Working';
 import { SettingsForm } from './settings/ModelForm';
 import { SignInForTask } from './SignIn';
 
@@ -368,6 +370,8 @@ export interface ChatPanelProps {
   place?: string;
   /** Put the panel away. */
   onHide?: () => void;
+  /** Little Mobius: the chat in a small window of its own. */
+  onPopOut?: () => void;
   /** Settings, Voice: where listening and speaking are chosen. */
   onOpenVoice?: () => void;
   /** What the message box suggests asking in the app beside it ("Ask about your mail"). */
@@ -434,8 +438,8 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={`All chats · now: ${title}`} onClick={() => setOpen((value) => !value)}>
-        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5h9M7 10h9M7 14.5h9" /><circle cx="4" cy="5.5" r="0.6" /><circle cx="4" cy="10" r="0.6" /><circle cx="4" cy="14.5" r="0.6" /></svg>}
+      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={asTitle ? `All chats · now: ${title}` : 'History'} onClick={() => setOpen((value) => !value)}>
+        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
@@ -477,7 +481,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, onPopOut, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -620,18 +624,24 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
-        ) : variant === 'panel' && !lead && (!needsSetup || menuItems.length > 0) ? (
-          // The panel's head is its name and close, nothing more: the name opens every chat (and what waits for you).
-          <span className="chat-titles">
-            <ConversationMenu asTitle conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />
-          </span>
         ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
           </span>
         )}
         <div className="chat-head-actions">
-          {variant === 'panel' && lead && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
+          {/* The head's four buttons (Instrument): New chat, History (every chat), Pop out, Close. */}
+          {variant === 'panel' && !needsSetup && (
+            <button type="button" className="head-icon" aria-label="New chat" title="New chat" onClick={onNewConversation}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
+            </button>
+          )}
+          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
+          {variant === 'panel' && onPopOut && !lead && (
+            <button type="button" className="head-icon" aria-label="Pop out" title="Pop out Mobius into its own window" onClick={onPopOut}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4.5h4.5V9M15.5 4.5 9.5 10.5M8 5.5H5.5v9h9V12" /></svg>
+            </button>
+          )}
           {pin}
           {variant === 'panel' && onHide && !lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
@@ -680,8 +690,9 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               configured && desk ? (
                 <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
               ) : configured && variant === 'panel' ? (
-                // Beside an app: no logo or greeting, only a few quiet things to ask about what is open.
-                <div className="empty empty-quiet"><div ref={setStarterSlot} className="empty-starters" /></div>
+                // Beside an app, never empty: what waits for you, ideas for what is open, then earlier chats.
+                <RestingPanel conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onOpenItem={onOpenItem}
+                  ideas={<div className="empty empty-quiet"><div ref={setStarterSlot} className="empty-starters" /></div>} />
               ) : (
                 <div className="empty">
                   <MobiusMark size={44} turning={!configured} className="empty-mark" />
@@ -765,7 +776,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
-              <div className="thinking" role="status" aria-label="Mobius is working"><MobiusMark size={22} turning /></div>
+              <WorkingIndicator state={state} onStop={onStop} />
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />

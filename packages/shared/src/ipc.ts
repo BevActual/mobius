@@ -566,6 +566,8 @@ export interface MobiusBridge {
     /** The person's own actions in Files; the agent has none of these. Each answers with the item's new path. */
     newFolder?(folder: string, name: string): Promise<FilesActionResult>;
     rename?(path: string, name: string): Promise<FilesActionResult>;
+    /** Into `folder` (empty: the workspace itself), keeping its name. */
+    move?(path: string, folder: string): Promise<FilesActionResult>;
     /** Moves to the workspace's Trash; `path` in the answer is where it is held, for putBack. */
     trash?(path: string): Promise<FilesActionResult>;
     /** `path` empty: back to where the Trash remembers it came from. */
@@ -584,7 +586,7 @@ export interface MobiusBridge {
     /** Abilities › Add a Connector: written to mcp.json; it starts the next time Mobius opens. */
     addConnector?(draft: ConnectorDraft): Promise<AgentResult<{ status: ConnectorStatus }>>;
     /** Take a connector out of mcp.json; a running one stops the next time Mobius opens. */
-    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }>>;
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command: string; args?: string[]; env?: Record<string, string> } }>>;
   };
   share?: {
     status(): Promise<ShareStatus>;

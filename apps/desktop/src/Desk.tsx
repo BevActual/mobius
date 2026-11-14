@@ -167,6 +167,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           </ul>
         </div>
       )}
+      {/* A short day still ends composed: one plain line, not leftover grey. */}
+      {waiting.length === 0 && working.length === 0 && <p className="desk-end">That's everything for today.</p>}
     </section>
   );
 }

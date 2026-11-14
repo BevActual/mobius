@@ -27,11 +27,12 @@ const openIn = async (path: string) => {
   await address.press('Enter');
 };
 
-test('a tab can be pinned to the front, and unpinned', async () => {
+test('a tab can be pinned, and unpinned', async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await shell().getByRole('button', { name: 'Pin Second page' }).click();
-  await expect(titles()).toHaveText(['Second page', 'Fixture home']);
+  await expect(shell().getByRole('list', { name: 'Pinned tabs' }).locator('.tab-title')).toHaveText(['Second page']);
+  await expect(shell().getByRole('list', { name: 'Open tabs' }).locator('.tab-title')).toHaveText(['Fixture home']);
   await expect(shell().getByRole('button', { name: 'Unpin Second page' })).toHaveAttribute('aria-pressed', 'true');
   await shell().getByRole('button', { name: 'Unpin Second page' }).click();
   await expect(shell().getByRole('button', { name: 'Pin Second page' })).toHaveAttribute('aria-pressed', 'false');
@@ -44,6 +45,8 @@ test('a tab can be duplicated and a closed one brought back', async () => {
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home', 'Second page']);
   await shell().getByRole('button', { name: 'Close Second page' }).click();
   await expect(titles()).toHaveCount(2);
-  await shell().getByRole('button', { name: 'Reopen closed tab' }).click();
+  // Reopen closed tab is in a tab's right-click menu (and the Browser menu, Ctrl+Shift+T).
+  await shell().locator('.tab', { hasText: 'Fixture home' }).first().click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Reopen closed tab' }).click();
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home', 'Second page']);
 });

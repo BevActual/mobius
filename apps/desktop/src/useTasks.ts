@@ -35,6 +35,8 @@ export function useTasks() {
   const [view, setViewState] = useState<TasksView>(rememberedView);
   useEffect(() => { try { window.localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch { /* Not kept. */ } }, [view]);
   const [message, setMessage] = useState('');
+  // False until the lists are first read, so the page shows placeholder rows, not "nothing here".
+  const [loaded, setLoaded] = useState(false);
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Picked | null>(null);
   const [deleted, setDeleted] = useState<Deleted | null>(null);
@@ -62,7 +64,7 @@ export function useTasks() {
 
   const refresh = useCallback(async (): Promise<Record<string, TaskItem[]>> => {
     const got = await api?.lists();
-    if (!got || isNotesFailure(got)) return live.current;
+    if (!got || isNotesFailure(got)) { setLoaded(true); return live.current; }
     const next: Record<string, TaskItem[]> = {};
     await Promise.all(got.map(async (l) => {
       const one = await api!.read(l.name);
@@ -71,6 +73,7 @@ export function useTasks() {
     for (const l of Object.keys(next)) next[l] = withPending(l, next[l]!);
     setLists(got);
     setAll(next);
+    setLoaded(true);
     return next;
   }, [api, withPending]);
 
@@ -203,7 +206,7 @@ export function useTasks() {
   const pickedTask = picked ? (all[picked.list] ?? []).find((t) => t.text === picked.text) ?? null : null;
 
   return {
-    available: api !== undefined, lists, all, view, setView, message, query, setQuery, picked: pickedTask ? { list: picked!.list, task: pickedTask } : null, pick: setPicked,
+    available: api !== undefined, loaded: loaded || api === undefined, lists, all, view, setView, message, query, setQuery, picked: pickedTask ? { list: picked!.list, task: pickedTask } : null, pick: setPicked,
     deleted, undoDelete, dismissDeleted: () => setDeleted(null), ask,
     add, change, remove, move, clearDone, createList, renameList, deleteList, isFresh, refresh,
   };
