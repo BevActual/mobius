@@ -106,7 +106,19 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
 ```
 
-More controls (Popover, Dialog, Tabs) are added one at a time.
+### Popover and choice menus
+
+| Control | Use it for |
+| --- | --- |
+| `Popover` | A small floating panel of controls opened from a button: the composer's plus menu (switches, a row or two, a link onward). Pass `trigger`, `label` and the content; `side="top"` opens it upward. `PopoverTitle` is its sentence-case heading |
+| `ChoiceMenu` | Pick one of a few choices from a button (Mode, Permission, model). `choices` are `{ value, label, meaning?, keys? }`: the current one has a check, keys show as caps, and a `meaning` makes a two-line row (name, then a grey line on what it means). `side` is `'top'` by default, for the composer. `footer` adds plain rows after a line ("Manage in Abilities") |
+
+```tsx
+<ChoiceMenu label="Permission" value={permission} onChange={setPermission} trigger={<Button kind="quiet">{name}</Button>}
+  choices={[{ value: 'review', label: 'Review changes', meaning: 'Changes show dashed until you keep them' }, …]} />
+```
+
+More controls (Dialog, Tabs) are added one at a time.
 
 ## Adopting the frame
 

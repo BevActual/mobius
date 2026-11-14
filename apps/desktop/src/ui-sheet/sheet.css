@@ -21,3 +21,5 @@ body { overflow: auto; background: var(--frame); }
 .sheet-chips { margin: 0; line-height: 2; color: var(--ink); }
 .sheet-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .sheet-pads { align-items: start; }
+.sheet-composer { display: flex; align-items: center; gap: 4px; max-width: 520px; margin-top: 300px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
+.sheet-spacer { flex: 1; }
