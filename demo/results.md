@@ -10,7 +10,7 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Home and Tasks: Plan my day (#293) | 14 Nov, 22ff2bd (#307), chip | Sonnet 5.5 | 39 s to last block, 54 s to end | Content yes, time no | Slower than before |
 | Mail: Triage (#291) | 14 Nov, 22ff2bd (#307), after Plan my day | Sonnet 5.5 | 41 s to last draft, 62 s to end | Content nearly, time no | Second Priya draft; extras not asked for |
 | Calendar: Find a time with… (local, after #289) | 14 Nov, 62b8354, typed (suggestion read "Find time for…") | Sonnet 5.5 | 17.6 s, nothing dashed | No | 8 slots, none dashed, no invite drafted |
-| Notes: Meeting notes (local) | 14 Nov, 8a146d9, chips | Sonnet 5.5 | 35 s with a typed yes; to-dos 9.6 s | No | Asks before writing; tasks duplicate existing ones |
+| Notes: Meeting notes (#333) | 14 Nov, 13c5b55 (#333), chips | Sonnet 5.5 | 17.0 / 17.5 / 17.0 s; to-dos 23.3 / 24.1 s | Content nearly, time no | Extra "jigs" action; "end of week" left undated; spares wrong on main's older seed |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
 | Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
 | Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
@@ -131,7 +131,29 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
      weekends, or runs and recordings happen on weekdays.
 - **Screenshot:** Andrew's PC, `mobius-moments-shots\round2\`.
 
-## Notes: Meeting notes (local)
+## Notes: Meeting notes (#333)
+
+### Round 10 (13c5b55, main's seed)
+
+- **Time:** Meeting notes: nothing real before 17.0 s, then the change and Keep together at 17.0 s, panel reply 17.5 s,
+  end 21.2 s, no cards. Make a to-do list (after Keep): tasks and reply 23.3 s, Keep 24.1 s, end 28.5 s, no cards.
+- **What appeared:** it drew the change straight away, under "# Kestrel P2 stand-up": Summary, Decisions, Actions, then
+  the transcript unchanged (additions only). Three of four decisions right; four actions right with owners, "tomorrow"
+  and "two days" worked out. To-dos: it read the task lists first, added to Kestrel P2, skipped the Veltro deposit
+  (already a task) and flagged the overlap with "Send Priya the updated parts list".
+- **Fixed since round 9:** no longer asks before writing; the write-up sits under the heading; to-dos go to Kestrel P2
+  without duplicating the existing deposit task.
+- **Weak:**
+  1. Over the bar: nothing real for 17 s.
+  2. "Order eight spares for now": main still has the older, ambiguous spares line ("Eight or ten?"); the clearer line
+     ("Just the eight, no spares for now") is in this branch (#282) and not yet on main.
+  3. An extra fifth action, "Dana: jigs expected to arrive around 2026-11-16", which is an arrival, not a task; it also
+     became a to-do.
+  4. "End of week" left as words, so two tasks have no date (should be Friday).
+  5. Run on a Saturday with main's `{{date:}}` seed, so the meeting is dated Saturday.
+- **Screenshot:** Andrew's PC, `mobius-moments-shots\round10\notes-*`.
+
+### Round 9 (8a146d9)
 
 - **Run on:** 14 November 2026 (Saturday), 8a146d9 (#306). Notes › Meetings › Kestrel P2 stand-up, first chip.
 - **Model:** Sonnet 5.5 through Claude Code.
