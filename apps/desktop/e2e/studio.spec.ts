@@ -350,9 +350,9 @@ test('Record plays from the playhead and writes what is played on the computer k
 });
 
 test('automation draws a volume line under a track with points, kept in the song', async () => {
+  await start();
   // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
   await resizeWindow(mobius!.app, 1600, 900);
-  await start();
   await shell().getByRole('button', { name: 'Automation' }).click();
   const lane = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Volume automation' });
   await expect(lane).toBeVisible();
