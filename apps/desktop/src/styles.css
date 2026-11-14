@@ -2569,3 +2569,13 @@ body { font-variant-numeric: tabular-nums; }
 .turn-summary-icon path[fill="currentColor"] { fill: var(--muted); }
 /* In the resting panel the summary lines up with the headings and rows around it. */
 .chat .resting .turn-summary { margin-left: 0; margin-right: 0; }
+
+/* The plus menu (Instrument, Control 4): Add context first, then rows that lead elsewhere with an arrow at the right. */
+.popmenu-plus-heading { margin-left: 8px; }
+.popmenu-item.popmenu-arrow { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; }
+.popmenu-arrow-icon { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.popmenu-item.popmenu-separated { margin-top: 4px; border-top: 1px solid var(--hairline); border-radius: 0; }
+.popmenu-item.popmenu-one { flex-direction: row; align-items: center; text-align: start; }
+/* The plus menu holds a few more rows than the others: it grows to fit, up to what the window allows. */
+.popmenu-list:has(.popmenu-plus-heading) { max-height: min(460px, calc(100vh - 120px)); }
+.popmenu-item.popmenu-dictate + .popmenu-plus-heading { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--hairline); }
