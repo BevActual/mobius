@@ -207,4 +207,4 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-tab-close[data-unsaved]::before { content: ""; width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-pill); background: var(--muted); }
 .ui-tab:hover .ui-tab-close[data-unsaved] svg { display: block; }
 .ui-tab:hover .ui-tab-close[data-unsaved]::before { display: none; }
-.ui-tab-button:hover, .ui-tab-button:active { background: transparent; }
+.ui-tab .ui-tab-button:is(:hover, :active):not(:disabled) { background: transparent; }
