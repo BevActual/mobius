@@ -7,10 +7,15 @@ use crate::page_actions::{ActionResult, as_action_result, click_script, type_scr
 use crate::tabs::Browser;
 use crate::tools::{TabInfo, ToolDeps};
 
+/// The workspace file an address serves, when it is one of the person's own pages.
+pub type OwnFile = Box<dyn Fn(&str) -> Option<String> + Send + Sync>;
+
 pub struct BrowserTools {
     pub browser: Arc<Browser>,
     /// Whether the person has allowed the agent to use addresses on this computer or the local network.
     pub allow_private: Box<dyn Fn() -> bool + Send + Sync>,
+    /// The workspace file an address serves, when it is one of the person's own pages served by the shell.
+    pub own_file: OwnFile,
 }
 
 impl ToolDeps for BrowserTools {
@@ -20,6 +25,10 @@ impl ToolDeps for BrowserTools {
 
     fn allow_private(&self) -> bool {
         (self.allow_private)()
+    }
+
+    fn own_file(&self, url: &str) -> Option<String> {
+        (self.own_file)(url)
     }
 
     fn resolve(&self, host: &str) -> Option<Vec<String>> {

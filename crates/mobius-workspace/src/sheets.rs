@@ -1,6 +1,7 @@
 //! Sheets: each workbook is a folder in `<workspace>/sheets`, each of its sheets a CSV file (`Budget.csv`), so any
 //! spreadsheet app can open them and the agent can read them as text. A cell starting with `=` is a formula, worked out
-//! by [`crate::formula`]. The order of the sheets is kept in `.order` inside the folder.
+//! by [`crate::formula`]. The order of the sheets is kept in `.order` inside the folder, and the workbook's charts in
+//! `.charts.json`: each one on a sheet, drawn from a range of it, placed at a cell.
 //!
 //! As with notes and tasks, a checkpoint is taken before the agent changes a workbook, so it can be put back.
 use std::fs;
@@ -21,6 +22,9 @@ const MAX_ROWS: usize = 10_000;
 const MAX_COLS: usize = 200;
 const MAX_CELL: usize = 10_000;
 const MAX_WRITE: usize = 2_000;
+const CHARTS: &str = ".charts.json";
+const MAX_CHARTS: usize = 20;
+const CHART_KINDS: [&str; 3] = ["column", "line", "area"];
 
 // ---- CSV ------------------------------------------------------------------------------------------------------------
 
@@ -118,11 +122,16 @@ pub fn tool_descriptions() -> Vec<Value> {
             "input_schema": { "type": "object", "properties": {
                 "workbook": { "type": "string" }, "sheet": { "type": "string", "description": "Leave out for the first sheet." } }, "required": ["workbook"] } }),
         json!({ "name": "sheets.write", "capability": "sheets.write", "resource_arg": "workbook",
-            "description": "Set cells in a sheet of the Sheets app, making the workbook or sheet if it is not there. A value starting with = is a formula (SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, ROUND, ABS, IF, AND, OR, NOT, SUMIF, COUNTIF, CONCAT, LEN, UPPER, LOWER, TRIM; other sheets as Sheet!A1 or 'My sheet'!A1). Prefer a formula to a typed number when a value depends on other cells, so it stays right when they change. An empty value clears a cell.",
+            "description": "Set cells, and add or change charts, in a sheet of the Sheets app, making the workbook or sheet if it is not there. A value starting with = is a formula (SUM, AVERAGE, MIN, MAX, COUNT, COUNTA, ROUND, ABS, IF, AND, OR, NOT, SUMIF, COUNTIF, CONCAT, LEN, UPPER, LOWER, TRIM; other sheets as Sheet!A1 or 'My sheet'!A1). Prefer a formula to a typed number when a value depends on other cells, so it stays right when they change. An empty value clears a cell.",
             "input_schema": { "type": "object", "properties": {
                 "workbook": { "type": "string" }, "sheet": { "type": "string", "description": "Leave out for the first sheet (or Sheet 1 in a new workbook)." },
-                "cells": { "type": "object", "description": "Address to value, such as {\"E1\": \"Per person\", \"E2\": \"=D2/People!B1\"}.", "additionalProperties": { "type": "string" } } },
-                "required": ["workbook", "cells"] } }),
+                "cells": { "type": "object", "description": "Address to value, such as {\"E1\": \"Per person\", \"E2\": \"=D2/People!B1\"}.", "additionalProperties": { "type": "string" } },
+                "charts": { "type": "array", "description": "Charts on this sheet, each drawn from a range whose first column names the categories, first row names the series, and other cells are numbers. One placed at a cell where a chart already is replaces it; remove: true takes it away.",
+                    "items": { "type": "object", "properties": {
+                        "kind": { "type": "string", "enum": ["column", "line", "area"] }, "range": { "type": "string", "description": "Such as A1:C7." },
+                        "title": { "type": "string" }, "at": { "type": "string", "description": "The cell its top left corner sits on, such as E2." },
+                        "remove": { "type": "boolean" } }, "required": ["at"] } } },
+                "required": ["workbook"] } }),
     ]
 }
 
@@ -218,7 +227,55 @@ impl Sheets {
         let (rows, version) = self.load(workbook, sheet)?;
         let map: Book = book.iter().map(|(n, r)| (n.as_str(), r.as_slice())).collect();
         let values = compute(&map, sheet);
-        Ok(json!({ "workbook": workbook, "sheet": sheet, "sheets": book.iter().map(|(n, _)| n).collect::<Vec<_>>(), "cells": rows, "values": values, "version": version }))
+        let charts: Vec<Value> = self.charts(workbook).into_iter().filter(|c| c["sheet"] == sheet).collect();
+        Ok(json!({ "workbook": workbook, "sheet": sheet, "sheets": book.iter().map(|(n, _)| n).collect::<Vec<_>>(), "cells": rows, "values": values, "version": version, "charts": charts }))
+    }
+
+    /// Every chart in a workbook, each with the sheet it is on.
+    pub fn charts(&self, workbook: &str) -> Vec<Value> {
+        self.folder(workbook).ok().and_then(|d| fs::read_to_string(d.join(CHARTS)).ok()).and_then(|t| serde_json::from_str::<Vec<Value>>(&t).ok()).unwrap_or_default()
+    }
+
+    fn set_charts(&self, workbook: &str, charts: &[Value]) -> Res<()> {
+        let file = self.folder(workbook)?.join(CHARTS);
+        if charts.is_empty() {
+            return match fs::remove_file(&file) { Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()), _ => Ok(()) };
+        }
+        fs::write(file, serde_json::to_string_pretty(charts).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    }
+
+    /// Adds, replaces (by the cell it is placed at) or removes charts on one sheet, checked before anything is kept.
+    fn change_charts(&self, workbook: &str, sheet: &str, asked: &[Value]) -> Res<Vec<Value>> {
+        let mut charts = self.charts(workbook);
+        for want in asked {
+            let text = |k: &str| want.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
+            let at = text("at").ok_or("each chart needs at, the cell it is placed at")?.to_uppercase();
+            parse_cell(&at).ok_or_else(|| format!("{at} is not a cell address"))?;
+            charts.retain(|c| !(c["sheet"] == sheet && c["at"] == at.as_str()));
+            if want.get("remove").and_then(Value::as_bool).unwrap_or(false) {
+                continue;
+            }
+            let kind = text("kind").unwrap_or("column");
+            if !CHART_KINDS.contains(&kind) {
+                return Err(format!("{kind} is not a chart kind; use column, line or area"));
+            }
+            let range = text("range").ok_or("each chart needs range, such as A1:C7")?.to_uppercase();
+            let (from, to) = range.split_once(':').ok_or_else(|| format!("{range} is not a range such as A1:C7"))?;
+            let ((r1, c1), (r2, c2)) = (parse_cell(from).ok_or_else(|| format!("{from} is not a cell address"))?, parse_cell(to).ok_or_else(|| format!("{to} is not a cell address"))?);
+            if r2 <= r1 || c2 <= c1 {
+                return Err(format!("{range} needs a row of names and a column of categories, and at least one value"));
+            }
+            let mut chart = json!({ "sheet": sheet, "kind": kind, "range": range, "at": at });
+            if let Some(title) = text("title") {
+                chart["title"] = json!(title.chars().take(200).collect::<String>());
+            }
+            charts.push(chart);
+        }
+        if charts.len() > MAX_CHARTS {
+            return Err(format!("a workbook holds at most {MAX_CHARTS} charts"));
+        }
+        self.set_charts(workbook, &charts)?;
+        Ok(charts.into_iter().filter(|c| c["sheet"] == sheet).collect())
     }
 
     /// Sets cells, each `(row, column, text)`. Refused when the sheet changed since `expect` (its version when read),
@@ -315,6 +372,15 @@ impl Sheets {
             }
         }
         self.set_order(workbook, &order)?;
+        let mut charts = self.charts(workbook);
+        if charts.iter().any(|c| c["sheet"] == sheet) {
+            for c in &mut charts {
+                if c["sheet"] == sheet {
+                    c["sheet"] = json!(name);
+                }
+            }
+            self.set_charts(workbook, &charts)?;
+        }
         Ok(json!({ "workbook": workbook, "sheet": name }))
     }
 
@@ -328,6 +394,12 @@ impl Sheets {
         fs::remove_file(self.file(workbook, sheet)?).map_err(|e| e.to_string())?;
         order.retain(|s| s != sheet);
         self.set_order(workbook, &order)?;
+        let mut charts = self.charts(workbook);
+        let before = charts.len();
+        charts.retain(|c| c["sheet"] != sheet);
+        if charts.len() != before {
+            self.set_charts(workbook, &charts)?;
+        }
         Ok(json!({ "workbook": workbook, "removed": sheet }))
     }
 
@@ -363,7 +435,13 @@ impl Sheets {
             }
             "sheets.write" => {
                 let workbook = file_name_for(text("workbook").ok_or("which workbook?")?);
-                let cells = args.get("cells").and_then(Value::as_object).ok_or("cells is an object of address to value")?;
+                let empty = serde_json::Map::new();
+                let charts = args.get("charts").and_then(Value::as_array);
+                let cells = match args.get("cells") {
+                    Some(c) => c.as_object().ok_or("cells is an object of address to value")?,
+                    None if charts.is_some() => &empty,
+                    None => return Err("cells is an object of address to value".into()),
+                };
                 let mut changes = Vec::new();
                 for (address, value) in cells {
                     let (r, c) = parse_cell(address).ok_or_else(|| format!("{address} is not a cell address"))?;
@@ -384,10 +462,18 @@ impl Sheets {
                     Some(s) => s.to_owned(),
                     None => sheets.into_iter().next().ok_or("that workbook has no sheets")?,
                 };
-                let after = self.set_cells(&workbook, &sheet, &changes, None)?;
-                // What the changed cells came to, so the agent can check its formulas.
-                let shown: serde_json::Map<String, Value> = changes.iter().map(|(r, c, _)| (cell_name(*r, *c), after["values"][*r][*c].clone())).collect();
-                json!({ "workbook": workbook, "sheet": sheet, "values": shown })
+                let mut out = json!({ "workbook": workbook, "sheet": sheet });
+                // Charts first: they are checked whole before anything is kept, so a wrong one changes nothing.
+                if let Some(charts) = charts {
+                    out["charts"] = json!(self.change_charts(&workbook, &sheet, charts)?);
+                }
+                if !changes.is_empty() {
+                    let after = self.set_cells(&workbook, &sheet, &changes, None)?;
+                    // What the changed cells came to, so the agent can check its formulas.
+                    let shown: serde_json::Map<String, Value> = changes.iter().map(|(r, c, _)| (cell_name(*r, *c), after["values"][*r][*c].clone())).collect();
+                    out["values"] = Value::Object(shown);
+                }
+                out
             }
             _ => return Err("unknown tool".into()),
         };
@@ -407,6 +493,32 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let s = Sheets::new(dir.path().join("workspace"), dir.path().join("checkpoints"));
         (dir, s)
+    }
+
+    #[test]
+    fn charts_are_set_by_where_they_sit_moved_with_their_sheet_and_checked_before_anything_is_kept() {
+        let (_d, s) = store();
+        let wrote: Value = serde_json::from_str(&s.run("sheets.write", &json!({ "workbook": "Trip", "cells": { "A1": "Month", "B1": "Spend", "A2": "Jan", "B2": "10", "A3": "Feb", "B3": "12" },
+            "charts": [{ "kind": "line", "range": "a1:b3", "title": "Spend by month", "at": "d2" }] })).unwrap()).unwrap();
+        assert_eq!(wrote["charts"], json!([{ "sheet": "Sheet 1", "kind": "line", "range": "A1:B3", "at": "D2", "title": "Spend by month" }]));
+        assert_eq!(wrote["values"]["B3"], "12");
+        // Read back with the sheet; another at the same cell replaces it; charts alone need no cells.
+        s.run("sheets.write", &json!({ "workbook": "Trip", "charts": [{ "range": "A1:B3", "at": "D2" }] })).unwrap();
+        let read = s.read("Trip", "Sheet 1").unwrap();
+        assert_eq!(read["charts"], json!([{ "sheet": "Sheet 1", "kind": "column", "range": "A1:B3", "at": "D2" }]));
+        // A wrong chart changes nothing, cells included.
+        for bad in [json!({ "range": "A1:B3" }), json!({ "kind": "pie", "range": "A1:B3", "at": "D9" }), json!({ "range": "A1:A3", "at": "D9" }), json!({ "range": "B3", "at": "D9" })] {
+            assert!(s.run("sheets.write", &json!({ "workbook": "Trip", "cells": { "B2": "99" }, "charts": [bad] })).is_err());
+        }
+        assert_eq!(s.read("Trip", "Sheet 1").unwrap()["values"][1][1], "10");
+        // Renaming the sheet carries its charts; removing them leaves no file.
+        s.add_sheet("Trip", "Notes").unwrap();
+        s.rename_sheet("Trip", "Sheet 1", "Spend").unwrap();
+        assert_eq!(s.read("Trip", "Spend").unwrap()["charts"].as_array().unwrap().len(), 1);
+        assert_eq!(s.read("Trip", "Notes").unwrap()["charts"], json!([]));
+        s.run("sheets.write", &json!({ "workbook": "Trip", "sheet": "Spend", "charts": [{ "at": "D2", "remove": true }] })).unwrap();
+        assert!(!s.root.join("Trip").join(CHARTS).exists());
+        assert!(s.run("sheets.write", &json!({ "workbook": "Trip" })).is_err());
     }
 
     #[test]

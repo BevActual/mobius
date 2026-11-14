@@ -152,10 +152,28 @@ impl Checkpoints {
     pub fn snapshot(&self, folder: &Path, reason: &str) -> Result<Option<Checkpoint>, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
+        self.snapshot_locked(&folder, &id, reason)
+    }
+
+    /// Saves the folder as it is now even when nothing changed since the last checkpoint, so that what happens next
+    /// has a checkpoint of its own to be counted from (moves of files checkpoints leave out change nothing they keep).
+    pub fn snapshot_always(&self, folder: &Path, reason: &str) -> Result<Checkpoint, Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        self.commit_locked(&folder, &id, reason, true)?.ok_or_else(|| Error::Git("no checkpoint was made".into()))
+    }
+
+    /// [`Checkpoints::snapshot`], with the lock already held and the folder prepared.
+    fn snapshot_locked(&self, folder: &Path, id: &str, reason: &str) -> Result<Option<Checkpoint>, Error> {
+        self.commit_locked(folder, id, reason, false)
+    }
+
+    fn commit_locked(&self, folder: &Path, id: &str, reason: &str, always: bool) -> Result<Option<Checkpoint>, Error> {
+        let (folder, id) = (folder.to_path_buf(), id.to_owned());
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let parent = self.tip(&folder, &id);
-        if let Some(parent) = &parent {
+        if let Some(parent) = parent.as_ref().filter(|_| !always) {
             let before = self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?;
             if before.trim() == tree {
                 return Ok(None);
@@ -210,41 +228,139 @@ impl Checkpoints {
     }
 
     /// Puts the whole folder back as it was at `checkpoint`. What is there now is saved first, so this can be undone too.
+    /// Only the files that differ are written. Moves noted with [`Checkpoints::note_moves`] since then are turned back
+    /// too, for the files checkpoints leave out (archives, videos), and folders left empty are taken away.
     pub fn restore(&self, folder: &Path, checkpoint: &str) -> Result<(), Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
-        let before = self.snapshot(&folder, "before restoring an earlier checkpoint")?;
+        let before = self.snapshot_locked(&folder, &id, "before restoring an earlier checkpoint")?;
         let head = before.map(|c| c.id).or_else(|| self.tip(&folder, &id)).ok_or_else(|| Error::Git("nothing to compare with".into()))?;
-        let now_files = self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &head])?;
-        let then_files: std::collections::HashSet<String> = self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &target])?.split('\0').map(str::to_owned).collect();
-        for path in now_files.split('\0').filter(|p| !p.is_empty() && !then_files.contains(*p)) {
-            if is_inner_path(path) {
-                let _ = std::fs::remove_file(folder.join(path));
+        let list = |tree: &str| self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", tree]);
+        let now_files: Vec<String> = list(&head)?.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
+        let then_files: std::collections::HashSet<String> = list(&target)?.split('\0').map(str::to_owned).collect();
+        let mut emptied: Vec<PathBuf> = Vec::new();
+        for path in now_files.iter().filter(|p| !then_files.contains(*p)) {
+            if is_inner_path(path) && std::fs::remove_file(folder.join(path)).is_ok() {
+                emptied.extend(folder.join(path).parent().map(Path::to_path_buf));
             }
         }
         self.git(&folder, &id, &["read-tree", &target])?;
-        self.git(&folder, &id, &["checkout-index", "-a", "-f"])?;
+        // Only what differs is written again: on a big folder, writing every file took most of a minute.
+        let differ = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "--no-renames", "-z", &head, &target])?;
+        let changed: Vec<&str> = differ.split('\0').filter(|p| !p.is_empty() && then_files.contains(*p)).collect();
+        for chunk in changed.chunks(200) {
+            let mut args = vec!["checkout-index", "-f", "--"];
+            args.extend(chunk.iter().copied());
+            self.git(&folder, &id, &args)?;
+        }
+        emptied.extend(self.undo_moves(&folder, &id, &target, None));
+        prune_empty(&folder, emptied);
         Ok(())
+    }
+
+    /// Notes moves made in `folder` after `checkpoint`, so restoring to it or before also moves back the files that
+    /// checkpoints leave out. Paths are relative to `folder`.
+    pub fn note_moves(&self, folder: &Path, checkpoint: &str, moves: &[(String, String)]) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (_, id) = self.prepare(folder)?;
+        let dir = self.store.join("moves");
+        std::fs::create_dir_all(&dir).map_err(|e| Error::Git(e.to_string()))?;
+        let line = serde_json::json!({ "after": checkpoint, "moves": moves }).to_string();
+        let mut file = std::fs::OpenOptions::new().create(true).append(true).open(dir.join(format!("{id}.jsonl"))).map_err(|e| Error::Git(e.to_string()))?;
+        std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes()).map_err(|e| Error::Git(e.to_string()))
+    }
+
+    /// Moves back, newest first, what moves noted since `target` (and up to `until`, when given) left where they went:
+    /// the files the checkpoint did not keep. Those moves are then forgotten. Returns the folders they were moved out of.
+    fn undo_moves(&self, folder: &Path, id: &str, target: &str, until: Option<&str>) -> Vec<PathBuf> {
+        let file = self.store.join("moves").join(format!("{id}.jsonl"));
+        let Ok(text) = std::fs::read_to_string(&file) else { return Vec::new() };
+        let mut keep = Vec::new();
+        let mut undo = Vec::new();
+        for line in text.lines().filter(|l| !l.trim().is_empty()) {
+            let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) else { continue };
+            let after = entry["after"].as_str().unwrap_or_default();
+            // Made at or after the checkpoint being restored: `target` is that move's checkpoint or older.
+            let since = self.git(folder, id, &["merge-base", "--is-ancestor", target, after]).is_ok()
+                && until.is_none_or(|until| self.git(folder, id, &["merge-base", "--is-ancestor", after, until]).is_ok());
+            if since { undo.push(entry) } else { keep.push(line.to_owned()) }
+        }
+        let mut left = Vec::new();
+        for entry in undo.iter().rev() {
+            let moves = entry["moves"].as_array().cloned().unwrap_or_default();
+            for pair in moves.iter().rev() {
+                let (Some(from), Some(to)) = (pair[0].as_str(), pair[1].as_str()) else { continue };
+                if !is_inner_path(from) || !is_inner_path(to) {
+                    continue;
+                }
+                let (from, to) = (folder.join(from), folder.join(to));
+                for (rest, at) in files_under(&to) {
+                    let back = if rest.as_os_str().is_empty() { from.clone() } else { from.join(&rest) };
+                    if back.exists() {
+                        continue;
+                    }
+                    let moved = back.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::rename(&at, &back));
+                    if moved.is_ok() {
+                        left.extend(at.parent().map(Path::to_path_buf));
+                    }
+                }
+                left.push(to);
+            }
+        }
+        let rest = if keep.is_empty() { String::new() } else { keep.join("\n") + "\n" };
+        let _ = if rest.is_empty() { std::fs::remove_file(&file) } else { std::fs::write(&file, rest) };
+        left
     }
 
     /// Puts one file back as it was at `checkpoint`: recreated if it was deleted since, removed if it was made since.
     pub fn restore_file(&self, folder: &Path, checkpoint: &str, path: &str) -> Result<(), Error> {
+        self.restore_files(folder, checkpoint, &[path.to_owned()], None)
+    }
+
+    /// Puts each of `paths` back as it was at `checkpoint`, with one checkpoint of what is there now first. With
+    /// `moves_until`, what moves noted from then until that checkpoint (a turn's end) left behind, the files
+    /// checkpoints do not keep, is moved back too. Folders left empty are taken away.
+    pub fn restore_files(&self, folder: &Path, checkpoint: &str, paths: &[String], moves_until: Option<&str>) -> Result<(), Error> {
         let _one = one_at_a_time();
-        if !is_inner_path(path) {
-            return Err(Error::BadInput("That path is not inside the folder.".into()));
+        if let Some(bad) = paths.iter().find(|p| !is_inner_path(p)) {
+            return Err(Error::BadInput(format!("{bad} is not inside the folder.")));
         }
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
-        self.snapshot(&folder, &format!("before restoring {path}"))?;
-        if self.git(&folder, &id, &["cat-file", "-e", &format!("{target}:{path}")]).is_err() {
-            let file = folder.join(path);
-            if file.is_file() {
-                std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+        let reason = match paths {
+            [one] => format!("before restoring {one}"),
+            _ => format!("before restoring {} files", paths.len()),
+        };
+        self.snapshot_locked(&folder, &id, &reason)?;
+        let then: std::collections::HashSet<String> = if paths.is_empty() {
+            std::collections::HashSet::new()
+        } else {
+            self.git(&folder, &id, &["ls-tree", "-r", "--name-only", "-z", &target])?.split('\0').map(str::to_owned).collect()
+        };
+        let mut emptied = Vec::new();
+        let mut back = Vec::new();
+        for path in paths {
+            if then.contains(path) {
+                back.push(path.as_str());
+            } else {
+                let file = folder.join(path);
+                if file.is_file() {
+                    std::fs::remove_file(&file).map_err(|e| Error::Git(e.to_string()))?;
+                    emptied.extend(file.parent().map(Path::to_path_buf));
+                }
             }
-            return Ok(());
         }
-        self.git(&folder, &id, &["checkout", &target, "--", path])?;
+        for chunk in back.chunks(200) {
+            let mut args = vec!["checkout", target.as_str(), "--"];
+            args.extend(chunk.iter().copied());
+            self.git(&folder, &id, &args)?;
+        }
+        if let Some(until) = moves_until {
+            let until = self.known(&folder, &id, until)?;
+            emptied.extend(self.undo_moves(&folder, &id, &target, Some(&until)));
+        }
+        prune_empty(&folder, emptied);
         Ok(())
     }
 
@@ -339,6 +455,48 @@ fn quiet(mut command: Command) -> Command {
 }
 
 struct OneAtATime(Option<std::sync::MutexGuard<'static, ()>>);
+
+/// Every file at `path` (itself, when it is a file), with its path relative to `path`.
+fn files_under(path: &Path) -> Vec<(PathBuf, PathBuf)> {
+    let mut out = Vec::new();
+    if path.is_file() {
+        out.push((PathBuf::new(), path.to_path_buf()));
+        return out;
+    }
+    let mut stack = vec![path.to_path_buf()];
+    while let Some(dir) = stack.pop() {
+        let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+        for entry in entries.flatten() {
+            let at = entry.path();
+            if at.is_dir() {
+                stack.push(at);
+            } else if let Ok(rest) = at.strip_prefix(path) {
+                out.push((rest.to_path_buf(), at.clone()));
+            }
+        }
+        if out.len() > 10_000 {
+            break;
+        }
+    }
+    out
+}
+
+/// Takes away each of `dirs`, and the folders above it inside `folder`, while they are empty.
+fn prune_empty(folder: &Path, dirs: Vec<PathBuf>) {
+    let mut dirs = dirs;
+    // Deepest first, so a folder emptied by taking away the one inside it goes too.
+    dirs.sort_by_key(|d| std::cmp::Reverse(d.components().count()));
+    dirs.dedup();
+    for dir in dirs {
+        let mut at = Some(dir.as_path());
+        while let Some(d) = at {
+            if d == folder || !d.starts_with(folder) || std::fs::remove_dir(d).is_err() {
+                break;
+            }
+            at = d.parent();
+        }
+    }
+}
 
 fn one_at_a_time() -> OneAtATime {
     if HELD.with(std::cell::Cell::get) {

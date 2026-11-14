@@ -51,7 +51,10 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
+    const asked = performance.now();
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
+    // Said on the console (the e2e logs print it), so a change that never shows dashed can be traced to this read.
+    console.log(`[mobius] marks: ${result && 'files' in result ? `${result.files.length} file(s) changed` : 'no turn'} in ${Math.round(performance.now() - asked)} ms${n !== reads.current ? ', a newer read is coming' : ''}`);
     if (n !== reads.current) return;
     // A kept turn's changes are the person's now: they lose their dashed edge.
     const id = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;

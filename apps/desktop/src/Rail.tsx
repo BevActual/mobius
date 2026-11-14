@@ -4,6 +4,7 @@ import type { Activity } from './activity';
 import { appName, isInstalled, type AppId } from './apps';
 import { describeCombo } from '@mobius/shared';
 import { PointMenu } from './ui';
+import { afterPaint } from './ui/frame';
 
 /** One icon per app, shared by the rail and the app hub. */
 export const APP_ICONS: Record<string, ReactNode> = {
@@ -160,7 +161,7 @@ export function Rail({ app, ownApps = [], mobius, onOpen, activity, changed, nee
             event.preventDefault();
             move(id, event.key === 'ArrowUp' ? -1 : 1);
             const button = event.currentTarget;
-            requestAnimationFrame(() => button.focus());
+            afterPaint(() => button.focus());
           } : undefined}
           aria-keyshortcuts={onApps ? 'Alt+ArrowUp Alt+ArrowDown' : undefined}
           onContextMenu={onApps ? (event) => { event.preventDefault(); const r = event.currentTarget.getBoundingClientRect(); setMenu({ id, x: event.clientX || r.right, y: event.clientY || r.top }); } : undefined}

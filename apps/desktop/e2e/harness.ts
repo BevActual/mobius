@@ -189,7 +189,16 @@ async function launchTauri(startUrl: string, userData: string, env: Record<strin
   const port = await freePort();
   const child = spawn(exe, [], {
     env: { ...process.env, MOBIUS_TEST: '1', MOBIUS_USER_DATA: userData, MOBIUS_START_URL: startUrl, MOBIUS_HIDE_WINDOW: '1', WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port} --disable-features=msSmartScreenProtection --safebrowsing-disable-download-protection --use-fake-device-for-media-stream --use-fake-ui-for-media-stream`, WEBVIEW2_USER_DATA_FOLDER: path.join(userData, 'webview'), ...env },
-    stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'ignore'],
+    stdio: ['ignore', 'ignore', process.env.MOBIUS_TAURI_LOG ? fs.openSync(process.env.MOBIUS_TAURI_LOG, 'a') : 'pipe'],
+  });
+  // The host's own word on a step that took a second or more ("[slow] changes lastTurn: 2400 ms"), shown with the
+  // test, so a change that showed late says where the time went.
+  let heard = '';
+  child.stderr?.on('data', (chunk: Buffer) => {
+    heard += chunk.toString();
+    const lines = heard.split('\n');
+    heard = lines.pop() ?? '';
+    for (const line of lines) if (line.startsWith('[slow]')) console.log(`[e2e host] ${test.info().titlePath.slice(1).join(' › ')}: ${line.trim()}`);
   });
   let browser: Awaited<ReturnType<typeof chromium.connectOverCDP>> | null = null;
   // How long each phase of starting takes, printed per test, so a slow machine shows where the time goes.

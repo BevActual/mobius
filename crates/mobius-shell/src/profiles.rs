@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 pub const DEFAULT_ID: &str = "default";
+/// The agent's model and gateway, in each profile's folder.
+const AGENT_SETTINGS: &str = "agent-settings.json";
 /// The demo workspace: a profile like the others, but built from the seed shipped with Mobius each time it is opened.
 pub const DEMO_ID: &str = "demo";
 const DEMO_NAME: &str = "Demo workspace";
@@ -117,6 +119,12 @@ impl Profiles {
             let _ = remove_folder(&next);
             return Err(e);
         }
+        // The demo answers with the model of the profile it was opened from, so it works at once. Opened from the
+        // demo itself (Reset), it keeps its own.
+        let from = if self.current == DEMO_ID { base.join("profiles").join(DEMO_ID) } else { self.folder(base) };
+        if let Ok(settings) = std::fs::read(from.join(AGENT_SETTINGS)) {
+            let _ = std::fs::write(next.join(AGENT_SETTINGS), settings);
+        }
         if !self.list.iter().any(|p| p.id == DEMO_ID) {
             if self.list.len() >= MAX_PROFILES {
                 return Err(format!("There can be at most {MAX_PROFILES} profiles."));
@@ -204,6 +212,8 @@ mod tests {
         let seed = tempfile::tempdir().unwrap();
         std::fs::create_dir_all(seed.path().join("workspace/notes/Team")).unwrap();
         std::fs::write(seed.path().join("workspace/notes/Team/Plan.md"), "# Plan\n").unwrap();
+        // Personal's model goes with it.
+        std::fs::write(dir.path().join(AGENT_SETTINGS), r#"{"model":"sonnet"}"#).unwrap();
         let mut p = Profiles::read(dir.path());
         p.open_demo(dir.path(), seed.path()).unwrap();
         p.write(dir.path()).unwrap();
@@ -213,6 +223,9 @@ mod tests {
         let demo = Profiles::read(dir.path()).folder(dir.path());
         assert_eq!(demo, dir.path().join("profiles/demo"));
         assert!(demo.join("workspace/notes/Team/Plan.md").is_file());
+        assert_eq!(std::fs::read_to_string(demo.join(AGENT_SETTINGS)).unwrap(), r#"{"model":"sonnet"}"#);
+        // Reset from inside the demo keeps the model chosen there.
+        std::fs::write(demo.join(AGENT_SETTINGS), r#"{"model":"local"}"#).unwrap();
         // What a run changed goes on Reset.
         std::fs::write(demo.join("workspace/notes/Team/Plan.md"), "changed").unwrap();
         std::fs::write(demo.join("workspace/notes/Team/New.md"), "new").unwrap();
@@ -221,6 +234,7 @@ mod tests {
         settle_demo(dir.path()).unwrap();
         assert_eq!(std::fs::read_to_string(demo.join("workspace/notes/Team/Plan.md")).unwrap(), "# Plan\n");
         assert!(!demo.join("workspace/notes/Team/New.md").exists());
+        assert_eq!(std::fs::read_to_string(demo.join(AGENT_SETTINGS)).unwrap(), r#"{"model":"local"}"#);
         assert_eq!(p.list.iter().filter(|q| q.id == DEMO_ID).count(), 1);
         // A build without the seed says so and changes nothing.
         let mut q = Profiles::read(dir.path());
