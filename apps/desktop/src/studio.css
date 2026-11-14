@@ -222,7 +222,7 @@
 .studio-slot[aria-selected="true"] > .studio-clip-launch, .studio-slot[aria-selected="true"] > .studio-clip-body { border-color: var(--ink); }
 .studio-slot[data-queued] .studio-clip-body { outline: var(--hairline-w) solid var(--tc); outline-offset: calc(var(--hairline-w) * -1); }
 /* A queued clip's launch triangle blinks in the track colour until the next bar starts it (dashed is kept for Mobius's proposals). */
-.studio-slot[data-queued] > .studio-clip-launch { animation: studio-queued 0.5s steps(1, end) infinite; }
+.studio-slot[data-queued] > .studio-clip-launch { animation: studio-queued var(--dur-slow) steps(1, end) infinite; }
 @keyframes studio-queued { 50% { color: var(--paper); background: var(--tc); } }
 @media (prefers-reduced-motion: reduce) { .studio-slot[data-queued] > .studio-clip-launch { animation: none; color: var(--paper); background: var(--tc); } }
 .studio-clip-round { position: absolute; left: 0; bottom: 0; height: calc(var(--sp-1) * 0.75); width: calc(var(--p) * 100%); background: var(--tc); }
