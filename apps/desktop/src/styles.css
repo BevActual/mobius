@@ -2578,4 +2578,5 @@ body { font-variant-numeric: tabular-nums; }
 .popmenu-item.popmenu-one { flex-direction: row; align-items: center; text-align: start; }
 /* The plus menu holds a few more rows than the others: it grows to fit, up to what the window allows. */
 .popmenu-list:has(.popmenu-plus-heading) { max-height: min(460px, calc(100vh - 120px)); }
-.popmenu-item.popmenu-dictate + .popmenu-plus-heading { margin-top: 4px; padding-top: 6px; border-top: 1px solid var(--hairline); }
+/* The hairline under Dictate runs edge to edge, as the menu's other lines do. */
+.popmenu-item.popmenu-dictate { border-bottom: 1px solid var(--hairline); border-radius: 0; margin-bottom: 4px; }

@@ -447,8 +447,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                   <span>Look at a window…</span>
                 </button>
                 <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="One still from the camera" onClick={() => { close(); setCamera(true); }}>
-                  <span>Show Mobius…</span>
+                  <span>A camera photo…</span>
                 </button>
+                <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
                 <button type="button" role="menuitem" className="popmenu-item popmenu-arrow popmenu-separated" onClick={() => { close(); onOpenSettings('safety'); }}>
                   <span>Apps Mobius can use</span>{ARROW}
                 </button>
@@ -460,7 +461,6 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                     <span>Manage in Abilities</span>{ARROW}
                   </button>
                 )}
-                <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
               </>
             )}
           </PopMenu>
