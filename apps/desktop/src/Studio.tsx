@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { GRIDS, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, Transport, UndoToast, useKeyboardClaim, ViewSwitch } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -1059,16 +1059,21 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     <section className="studio-page" aria-label="Music" ref={page} tabIndex={-1} data-editing={editing || undefined}>
       {keyboard && <span className="studio-sr" role="status">{`Computer keyboard from C${keyOctave}, velocity ${keyVelocity}`}</span>}
       <ToolbarControls label="Transport">
-        <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
-          recording={recording} onRecord={view === 'arrange' && track ? record : undefined}
-          loop={loop} onLoop={() => setLoop((l) => !l)} metronome={click} onMetronome={() => setClick((c) => !c)}
-          keys={{ play: 'Space', stop: 'Enter', record: 'F9', loop: 'L', metronome: 'K' }} />
+        {/* The transport and the tempo never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
+        <ToolbarItem priority="keep">
+          <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
+            recording={recording} onRecord={view === 'arrange' && track ? record : undefined}
+            loop={loop} onLoop={() => setLoop((l) => !l)} metronome={click} onMetronome={() => setClick((c) => !c)}
+            keys={{ play: 'Space', stop: 'Enter', record: 'F9', loop: 'L', metronome: 'K' }} />
+        </ToolbarItem>
         <span className="studio-sep" aria-hidden="true" />
         <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
-        <label className="studio-readout studio-tempo" title="Tempo, in beats per minute (every song is in 4 / 4 for now)">
-          <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
-          <span aria-hidden="true">bpm</span>
-        </label>
+        <ToolbarItem priority="keep">
+          <label className="studio-readout studio-tempo" title="Tempo, in beats per minute (every song is in 4 / 4 for now)">
+            <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
+            <span aria-hidden="true">bpm</span>
+          </label>
+        </ToolbarItem>
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
