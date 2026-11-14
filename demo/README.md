@@ -35,7 +35,7 @@ Everything is dated from the day the demo is opened, with `{{date:+N}}` and `{{d
 | App | Files | For the moment |
 | --- | --- | --- |
 | Home | everything below | Unread mail, tasks due today, a half-full week. |
-| Mail | `../mail/` | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (price holds until Friday), Sam's "find us an hour". |
+| Mail | `../mail/` | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (the price holds until the end of the week), Sam's "find us an hour". |
 | Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/Sam Okafor.ics` | Andrew's busy week and Sam's, for "Find an hour with Sam this week". The dates in `.ics` need the profile to write them without dashes (asked of the Builder). |
 | Tasks | `tasks/Kestrel P2.md`, `tasks/Home.md` | Sixteen tasks: three overdue, some due today with times, one repeating. |
 | Notes | `notes/Meetings/`, `notes/P2 build/` | A notebook of meeting notes. |
