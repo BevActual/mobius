@@ -54,5 +54,3 @@ html .chat.full :is(.chat-scroll, .composer, .review-strip, .chat-sees, .turn-su
 .chat.full .turn-history { width: 100%; margin-left: auto; margin-right: auto; box-sizing: border-box; }
 .desk-row { height: var(--row-reading); }
 .desk-name, .desk-item, .desk .starter, .desk-end { font-size: var(--fs-reading); }
-/* A reading page starts with room under the toolbar. */
-.chat.full[data-empty] .desk { padding-top: var(--sp-6); }

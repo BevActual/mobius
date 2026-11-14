@@ -634,10 +634,17 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const [hereOff, setHereOff] = useState<string | null>(null);
   const hereShown = here && here.key !== hereOff ? here : null;
 
+  // An empty conversation opens at the top, so the desk is the first thing seen; once there are messages it follows the
+  // newest, as any chat does.
+  const blank = state.items.length === 0;
+  const wasBlank = useRef(blank);
   useLayoutEffect(() => {
     const element = log.current;
-    if (element && stuck.current) element.scrollTop = element.scrollHeight;
-  }, [state.items]);
+    if (!element) return;
+    if (blank) { element.scrollTop = 0; stuck.current = false; wasBlank.current = true; return; }
+    if (wasBlank.current) { stuck.current = true; wasBlank.current = false; }
+    if (stuck.current) element.scrollTop = element.scrollHeight;
+  }, [state.items, blank]);
   // What arrives after the reply (the review strip, a tool row filling in) keeps the end in view too, when it was.
   useEffect(() => {
     const element = log.current;
