@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
+import { APP_ICONS } from './Rail';
 import { changeTarget } from './actions';
 import type { HubTarget } from './search-hub';
 import { dateTimeLabel, nearDayLabel, timeLabel } from './dates';
@@ -324,11 +325,11 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
             const target = onOpenItem ? first.target : null;
             return (
               <li key={g.app} className="turn-summary-row">
+                <svg className="turn-summary-icon" viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[APP_IDS[g.app] ?? 'files']}</svg>
                 <span className="turn-summary-app">{g.app}</span>
                 <span className="turn-summary-sep" aria-hidden="true">·</span>
-                {single && target
-                  ? <button type="button" className="turn-summary-name link-btn" title={`Open ${first.name} (${first.title})`} onClick={() => onOpenItem?.(target)}>{first.name}</button>
-                  : <span className="turn-summary-name" title={g.entries.map((e) => e.name).join(', ')}>{single ? first.name : countOf(g.entries)}</span>}
+                {/* What changed, counted; the names and paths are in the tooltip. */}
+                <span className="turn-summary-name" title={g.entries.map((e) => (e.title && e.title !== e.name ? `${e.name} (${e.title})` : e.name)).join('\n')}>{countOf(g.entries)}</span>
                 <button type="button" className="turn-summary-undo" aria-label={single ? `Undo the change to ${first.name}` : `Undo the changes in ${g.app}`} onClick={() => g.entries.forEach((e) => e.undo())}>Undo</button>
                 {target && <button type="button" className="turn-summary-show" aria-label={`Show in ${g.app}`} title={`Show ${first.name} in ${g.app}`} onClick={() => onOpenItem?.(target)}>Show<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg></button>}
               </li>
@@ -343,6 +344,9 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since }: { convers
     </section>
   );
 }
+
+/** The rail's icon for each app the summary names. */
+const APP_IDS: Record<string, string> = { Notes: 'notes', Docs: 'docs', Slides: 'slides', Sheets: 'sheets', Tasks: 'tasks', Calendar: 'calendar', Code: 'code', Design: 'design', Canvas: 'canvas', Research: 'research', Reader: 'reader', Database: 'database', Photo: 'photo', Music: 'studio', Video: 'video', Abilities: 'skills', Files: 'files', Mail: 'mail' };
 
 interface SummaryEntry { key: string; app: string; name: string; count: number; unit: string; title: string; target: HubTarget | null; undo: () => void }
 

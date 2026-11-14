@@ -2528,3 +2528,7 @@ body { font-variant-numeric: tabular-nums; }
 .turn-summary-foot .review-btn[data-kind="keep"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, var(--bg)); color: var(--bg); }
 .turn-summary .review-problem { margin: 0; padding: 0 var(--sp-3) var(--sp-2); }
 .resting .turn-summary { margin-left: 0; margin-right: 0; }
+.turn-summary-icon { flex: none; width: 14px; height: 14px; margin-right: var(--sp-1); fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.turn-summary-icon path[fill="currentColor"] { fill: var(--muted); }
+/* In the resting panel the summary lines up with the headings and rows around it. */
+.chat .resting .turn-summary { margin-left: 0; margin-right: 0; }
