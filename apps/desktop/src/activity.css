@@ -64,3 +64,9 @@
 .act-detail-empty p { margin: 0; }
 
 @container (max-width: 700px) { .act-scroll { flex-basis: 300px; } .act-detail { padding: var(--sp-6) var(--sp-4); } }
+
+/* One row height in the list (Instrument, density): every row beside the reading pane is the two-line row, 56px
+   comfortable and 48px compact, whatever it holds, its hairline included. */
+.act-main { min-height: calc(var(--row-list-2) - 1px); padding-top: 0; padding-bottom: 0; }
+.act-embed .clist-item { min-height: var(--row-list-2); box-sizing: border-box; align-items: center; padding-top: 0; padding-bottom: 0; }
+.act-loading .act-row { min-height: var(--row-list-2); }
