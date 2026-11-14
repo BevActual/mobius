@@ -3,14 +3,14 @@ VERSION:2.0
 PRODID:-//Mobius demo//EN
 BEGIN:VEVENT
 UID:dentist
-DTSTART:{{date:+1}}T080000
-DTEND:{{date:+1}}T083000
+DTSTART:{{workday:+1}}T080000
+DTEND:{{workday:+1}}T083000
 SUMMARY:Dentist
 END:VEVENT
 BEGIN:VEVENT
 UID:parents
-DTSTART:{{date:+2}}T170000
-DTEND:{{date:+2}}T200000
+DTSTART:{{workday:+2}}T170000
+DTEND:{{workday:+2}}T200000
 SUMMARY:Dinner at Mum and Dad's
 END:VEVENT
 END:VCALENDAR

@@ -1,6 +1,6 @@
 # Kestrel P2 stand-up
 
-{{date:+0}}, 9:00. Andrew, Priya, Sam, Dana. Typed up as it was said.
+{{workday:+0}}, 9:00. Andrew, Priya, Sam, Dana. Typed up as it was said.
 
 **Andrew:** Morning, everyone. Quick one today, mostly the build week. Sam, where are we with the bench run?
 
