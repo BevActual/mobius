@@ -145,7 +145,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
   await shell().keyboard.press('Enter');
   await side.getByRole('button', { name: /^Connectors/ }).click();
-  const page = shell().getByRole('region', { name: 'Connectors' });
+  const page = shell().getByRole('region', { name: 'Connectors', exact: true });
   await expect(page).toContainText('No connectors yet');
   // Add a connector (in the toolbar, and beside the empty list) writes the server into mcp.json; it waits for Mobius to open again.
   await page.getByRole('button', { name: 'Add a connector…' }).click();
