@@ -583,6 +583,12 @@ switch, a count or an arrow.
 Anything switched away from its default shows as a small chip above the composer ("Web search off", "3 skills"), so the
 state is always visible without opening the menu. Dropping or pasting a file onto the panel is the same as Add context.
 
+An item appears only once real per-chat state stands behind it; never show a switch that does nothing. The first build
+has Dictate (narrow panel), Add context, Apps Mobius can use, Permissions and Manage in Abilities. Skills, Plugins and
+connectors, Web search, Knowledge and Instructions join as they become real. The "up to 5 things" limits note belongs to
+Add context, so it sits in grey under that group, not at the foot of the menu. Every hairline in the menu runs the same
+width.
+
 ### How the composer is laid out
 
 Left to right on the bottom row: the plus button, Mode, Permission, then at the right the model and Send. Context chips
