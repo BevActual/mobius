@@ -210,6 +210,10 @@
   --tab-h: 36px;
   --day-cell: 32px;
   --time-list-h: 240px;
+  --pro-h: 28px;
+  --letter-size: 20px;
+  --level-w: 4px;
+  --level-h: 120px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -286,6 +290,7 @@
 
 /* Compact: chosen in Settings (on the page), or a pro app's own start (on the frame, from COMPACT_APPS). */
 html[data-density='compact'], .app[data-density='compact'] {
+  --pro-h: 24px;
   --tab-h: 32px;
   --button-h: 28px;
   --icon-button: 28px;
