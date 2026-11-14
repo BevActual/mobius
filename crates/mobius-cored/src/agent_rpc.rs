@@ -109,6 +109,9 @@ struct SendParams {
     /// Done once a round's calls all went through and changed things: no closing answer is asked for.
     #[serde(default)]
     finish: bool,
+    /// Only these kinds of tools are offered (`tasks`, `mail`): the part of a tool's name before the dot.
+    #[serde(default)]
+    tools: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -572,8 +575,11 @@ impl Extension for Agent {
                 if p.reads.len() > mobius_agent::engine::MAX_READS || p.reads.iter().any(|r| r.tool.is_empty() || r.tool.len() > 64 || !(r.arguments.is_object() || r.arguments.is_null())) {
                     return Err(ExtensionError::invalid_params("reads are at most six tools, each with an object of arguments"));
                 }
+                if p.tools.len() > 12 || p.tools.iter().any(|k| k.is_empty() || k.len() > 32 || !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')) {
+                    return Err(ExtensionError::invalid_params("tools are at most twelve kinds, each a plain name such as tasks"));
+                }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone() };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.
