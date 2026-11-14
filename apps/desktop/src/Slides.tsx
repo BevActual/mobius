@@ -9,6 +9,7 @@ import { LAYOUTS, clock, layoutOf, playOrder, dropIndex, jumpTarget, moveSlide, 
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
+import { Menu, PanelLayout, PanelTab, ToolbarControls, type PanelSpec } from './ui';
 import './slides.css';
 
 export const SLIDES_WORDS: SidebarWords = { app: 'Slides', group: 'folder', groups: 'Folders', item: 'deck', items: 'decks', about: 'Decks are kept as Markdown files in your workspace, a slide between each line of ---, so other apps and the agent can open them too.', defaultGroup: 'Presentations' };
@@ -28,7 +29,6 @@ const TOOLS: { id: SlidesTool; label: string }[] = [
 ];
 const STYLE_NAMES: Record<SlideStyle, string> = { light: 'Light', dark: 'Dark', warm: 'Warm', accent: 'Accent' };
 const TRANSITION_NAMES: Record<Transition, string> = { none: 'None', dissolve: 'Dissolve', push: 'Push', 'move-in': 'Move in' };
-const FORMAT_KEY = 'mobius.slides.format';
 const PANE_KEY = 'mobius.slides.pane';
 type Pane = 'slide' | 'deck';
 const PANES: { id: Pane; name: string }[] = [{ id: 'slide', name: 'Slide' }, { id: 'deck', name: 'Deck' }];
@@ -40,7 +40,6 @@ const ICON = {
   duplicate: 'M7 7h9v9H7zM4 13V4h9',
   trash: 'M4 6h12M8 6V4h4v2M6 6l1 10h6l1-10',
   play: 'M6 4.5v11l9-5.5z',
-  format: 'M3 4h14v12H3zM12 4v12',
   skipped: 'M3 10s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5zM8 10a2 2 0 1 0 4 0 2 2 0 1 0-4 0M3 3l14 14',
   picture: 'M3 5h14v10H3zM3 13l4-4 3 3 2-2 5 5M13 8.5a1 1 0 1 0 0-.01',
 };
@@ -193,31 +192,85 @@ function Play({ slides, start, onClose }: { slides: Slide[]; start: number; onCl
   );
 }
 
-/** The menu of layouts a new slide starts from. */
-function LayoutMenu({ anchor, onPick, onClose }: { anchor: DOMRect; onPick: (l: Layout) => void; onClose: () => void }) {
-  const first = useRef<HTMLButtonElement>(null);
-  useEffect(() => { first.current?.focus(); }, []);
-  return createPortal(
-    <>
-      <div className="slides-scrim" onMouseDown={onClose} />
-      <div className="slides-menu slides-layouts glass" role="menu" aria-label="Slide layouts" style={{ top: anchor.bottom + 6, left: anchor.left }}
-        onKeyDown={(e) => {
-          if (e.key === 'Escape') { onClose(); return; }
-          if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-          e.preventDefault();
-          const items = [...e.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')];
-          const i = items.indexOf(document.activeElement as HTMLButtonElement);
-          items[(i + (e.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
-        }}>
-        {LAYOUTS.map((l, i) => (
-          <button key={l.id} ref={i === 0 ? first : undefined} type="button" role="menuitem" onClick={() => onPick(l)}>
-            <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
-            <span>{l.name}</span>
-          </button>
-        ))}
+/**
+ * The Format inspector, as Keynote's: one segmented control at the top (Slide | Deck), and only what belongs to that
+ * choice below it. It is a tab in the right panel, before Mobius.
+ */
+function SlidesFormat({ slides, at, current, change, toggleSkip, adding, onReplace, onPlay, onTool, busy }: {
+  slides: readonly Slide[]; at: number; current: Slide; change: (patch: Partial<Slide>) => void; toggleSkip: () => void;
+  adding: boolean; onReplace: () => void; onPlay: (from: number) => void; onTool?: ((tool: SlidesTool, slide: number) => void) | undefined; busy: boolean;
+}) {
+  const [pane, setPane] = useState<Pane>(() => { try { return localStorage.getItem(PANE_KEY) === 'deck' ? 'deck' : 'slide'; } catch { return 'slide'; } });
+  useEffect(() => { try { localStorage.setItem(PANE_KEY, pane); } catch { /* the choice is only for this session */ } }, [pane]);
+  return (
+    <aside className="slides-format" aria-label="Format">
+      <div className="segmented slides-panes" role="radiogroup" aria-label="Show">
+        {PANES.map((p) => <button key={p.id} type="button" role="radio" aria-checked={pane === p.id} onClick={() => setPane(p.id)}>{p.name}</button>)}
       </div>
-    </>,
-    document.body,
+      {pane === 'slide' ? (
+        <>
+          <section className="slides-section">
+            <div className="slides-section-title">Style</div>
+            <div className="slides-swatches" role="radiogroup" aria-label="Slide style">
+              {SLIDE_STYLES.map((s) => (
+                <button key={s} type="button" role="radio" aria-checked={current.style === s} aria-label={STYLE_NAMES[s]} className="slides-swatch" onClick={() => change({ style: s })}>
+                  <span className="slide-face" data-style={s}><span className="slide-title">Aa</span></span>
+                  <span className="slides-swatch-name">{STYLE_NAMES[s]}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          <section className="slides-section">
+            <div className="slides-section-title">Layout</div>
+            <div className="slides-layout-grid">
+              {LAYOUTS.map((l) => (
+                <button key={l.id} type="button" className="slides-layout-pick" aria-pressed={layoutOf(current) === l.id} title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change({ ...l.make(), skip: current.skip, transition: current.transition, picture: current.picture })}>
+                  <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
+                  <span>{l.name}</span>
+                </button>
+              ))}
+            </div>
+          </section>
+          {current.picture && (
+            <section className="slides-section" aria-label="Picture">
+              <div className="slides-section-title">Picture</div>
+              <div className="slides-pair">
+                <button type="button" className="btn" disabled={adding} onClick={() => onReplace()}>Replace…</button>
+                <button type="button" className="btn" onClick={() => change({ picture: '' })}>Remove</button>
+              </div>
+            </section>
+          )}
+          <section className="slides-section">
+            <div className="slides-section-title">In Play</div>
+            <label className="slides-row"><span>Transition</span>
+              <select className="slides-popup" aria-label="Transition" value={current.transition} onChange={(e) => change({ transition: e.target.value as Transition })}>
+                {TRANSITIONS.map((t) => <option key={t} value={t}>{TRANSITION_NAMES[t]}</option>)}
+              </select>
+            </label>
+            <label className="slides-row switch-line"><span>Skip this slide</span>
+              <input type="checkbox" role="switch" className="slides-switch" aria-label="Skip this slide" checked={current.skip} onChange={() => toggleSkip()} />
+            </label>
+          </section>
+        </>
+      ) : (
+        <>
+          <section className="slides-section">
+            <div className="slides-section-title">Length</div>
+            <p className="slides-deck-facts">{slides.length === 1 ? '1 slide' : `${slides.length} slides`} · about {talkMinutes(slides)} min</p>
+            <button type="button" className="btn" title="Play from slide 1" onClick={() => onPlay(0)}>Play from the start</button>
+          </section>
+          {onTool && (
+            <section className="slides-section" aria-label="Ask Mobius">
+              {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
+              <div className="slides-section-title">Ask Mobius to</div>
+              <div className="slides-tool-list">
+                {TOOLS.map((t) => <button key={t.id} type="button" className="slides-ask" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </aside>
   );
 }
 
@@ -231,14 +284,10 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const [chosen, setAt] = useState(0);
   const at = Math.max(0, Math.min(chosen, slides.length - 1));
   const [playing, setPlaying] = useState<number | null>(null);
-  const [layoutsAt, setLayoutsAt] = useState<DOMRect | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; i: number } | null>(null);
   const [dragFrom, setDragFrom] = useState<number | null>(null);
   const [dropAt, setDropAt] = useState<number | null>(null);
   const [dropPicture, setDropPicture] = useState(false);
-  const [formatOpen, setFormatOpen] = useState(() => { try { return localStorage.getItem(FORMAT_KEY) !== '0'; } catch { return true; } });
-  const [pane, setPane] = useState<Pane>(() => { try { return localStorage.getItem(PANE_KEY) === 'deck' ? 'deck' : 'slide'; } catch { return 'slide'; } });
-  useEffect(() => { try { localStorage.setItem(PANE_KEY, pane); } catch { /* the choice is only for this session */ } }, [pane]);
   const saved = slides[Math.min(at, slides.length - 1)]!;
   // The slide being typed in, as typed: an empty new bullet line stays until the person leaves the slide.
   // It belongs to one slide of one deck: once another slide is shown, it no longer stands in for that one.
@@ -248,9 +297,10 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const current = draft ?? saved;
   const navRef = useRef<HTMLElement>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  const notesView = useRef<ReactNode>(null);
+  const NOTES_PANEL = useMemo<PanelSpec[]>(() => [{ id: 'notes', name: 'Presenter notes', dock: 'bottom', shown: true, size: 120, render: () => notesView.current }], []);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
-  useEffect(() => { try { localStorage.setItem(FORMAT_KEY, formatOpen ? '1' : '0'); } catch { /* the choice is only for this session */ } }, [formatOpen]);
 
   // Undo and redo for the whole deck; a run of typing in one field undoes together.
   const history = useRef(new Map<string, { undo: string[]; redo: string[]; tag: string; when: number }>());
@@ -318,7 +368,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     return files.find((f) => f.type.startsWith('image/'));
   };
   const toggleSkip = (i = at) => { if (i === at) change({ skip: !current.skip }); else save(slides.map((s, j) => (j === i ? { ...s, skip: !s.skip } : s))); };
-  const pickLayout = (l: Layout) => { setLayoutsAt(null); insert(l.make()); window.setTimeout(() => titleRef.current?.select(), 0); };
+  const pickLayout = (l: Layout) => { insert(l.make()); window.setTimeout(() => titleRef.current?.select(), 0); };
 
   // What the agent's last turn changed, dashed in the navigator until kept or discarded.
   const [changed, setChanged] = useState<Set<number>>(new Set());
@@ -432,6 +482,9 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
     { label: 'Play from here', keys: 'Ctrl+Enter', run: () => setPlaying(i) },
     { action: 'delete', label: 'Delete slide', keys: 'Delete', danger: true, disabled: slides.length <= 1, run: () => remove(i), separated: true },
   ];
+  // The presenter notes sit in the bottom detail area under the slide, as in Keynote; the panel draws what is here.
+  notesView.current = <textarea className="slides-notes" aria-label="Presenter notes" value={current.notes} placeholder="What to say on this slide" onChange={(e) => change({ notes: e.target.value }, 'notes')} />;
+
   return (
     <DeckPath.Provider value={path}>
     <section ref={pageRef} className="slides-page" aria-label={`Deck: ${deck.page.title}`} onKeyDown={onPageKey}>
@@ -442,31 +495,24 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
           <button type="button" className="btn primary" onClick={() => void deck.resolve(true)}>Keep mine</button>
         </div>
       )}
-      <div className="slides-bar" role="toolbar" aria-label="Slides">
-        <div className="slides-add">
-          <button type="button" className="slides-tool" aria-label="Add slide" title="Add a slide in this style" onClick={() => insert({ ...blankSlide(), style: current.style })}>
-            <Icon d={ICON.add} /><span>Add slide</span>
-          </button>
-          <button type="button" className="slides-tool slides-add-more" aria-label="Choose a layout" aria-haspopup="menu" aria-expanded={layoutsAt !== null} onClick={(e) => setLayoutsAt(e.currentTarget.parentElement!.getBoundingClientRect())}>
-            <Icon d={ICON.chevron} />
-          </button>
-        </div>
-        <div className="slides-group" role="group" aria-label="Slide">
-          <button type="button" className="slides-tool icon" aria-label="Duplicate slide" title="Duplicate (Ctrl+D)" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
-          <button type="button" className="slides-tool icon" aria-label="Delete slide" title="Delete slide (Delete). Ctrl+Z brings it back" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
-        </div>
+      <ToolbarControls label="Slides">
+        <span className="slides-tools-group">
+          <button type="button" className="strip-btn" aria-label="Add slide" title="Add slide" onClick={() => insert({ ...blankSlide(), style: current.style })}><Icon d={ICON.add} /></button>
+          <Menu label="Slide layouts" entries={LAYOUTS.map((l) => ({ label: l.name, icon: <span className="slides-layout-icon" aria-hidden="true"><SlideFace slide={l.make()} /></span>, run: () => pickLayout(l) }))}
+            trigger={<button type="button" className="strip-btn slides-more" aria-label="Choose a layout" title="Add a slide from a layout"><Icon d={ICON.chevron} /></button>} />
+        </span>
+        <span className="slides-tools-group">
+          <button type="button" className="strip-btn" aria-label="Duplicate slide" title="Duplicate slide (Ctrl+D)" aria-keyshortcuts="Control+D" onClick={() => duplicate()}><Icon d={ICON.duplicate} /></button>
+          <button type="button" className="strip-btn" aria-label="Delete slide" title="Delete slide (Delete)" aria-keyshortcuts="Delete" disabled={slides.length <= 1} onClick={() => remove()}><Icon d={ICON.trash} /></button>
+        </span>
         {canPicture && (
-          <div className="slides-group" role="group" aria-label="Insert">
-            <button type="button" className="slides-tool icon" aria-label="Insert picture" title={adding ? 'Adding…' : 'Insert picture (or paste or drop one on the slide)'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}>
-              <Icon d={ICON.picture} />
-            </button>
-          </div>
+          <span className="slides-tools-group">
+            <button type="button" className="strip-btn" aria-label="Insert picture" title={adding ? 'Adding a picture' : 'Insert picture'} aria-busy={adding || undefined} disabled={adding} onClick={() => picker.current?.click()}><Icon d={ICON.picture} /></button>
+          </span>
         )}
-        <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { void addPicture(e.target.files?.[0]); e.target.value = ''; }} />
-        <span className="spacer" />
-        <button type="button" className="slides-tool icon" aria-label="Format" title="Format" aria-pressed={formatOpen} onClick={() => setFormatOpen((o) => !o)}><Icon d={ICON.format} /></button>
-        <button type="button" className="slides-play-btn" title="Play from this slide (Ctrl+Enter). While playing: P presenter view, B black, Esc stop" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
-      </div>
+        <button type="button" className="slides-play-btn" title="Play (Ctrl+Enter)" aria-keyshortcuts="Control+Enter" onClick={() => setPlaying(at)}><Icon d={ICON.play} /><span>Play</span></button>
+      </ToolbarControls>
+      <input ref={picker} type="file" accept="image/*" hidden onChange={(e) => { void addPicture(e.target.files?.[0]); e.target.value = ''; }} />
       {pictureProblem && <p className="slides-problem" role="alert">{pictureProblem}<button type="button" className="slides-tool" onClick={() => setPictureProblem(null)}>OK</button></p>}
       {proposing && (
         <div className="note-review sheet-review" role="status">
@@ -476,6 +522,8 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </div>
       )}
       <div className="slides-body">
+        <PanelLayout app="slides" panels={NOTES_PANEL}>
+        <div className="slides-work">
         <nav ref={navRef} className="slides-nav" aria-label="Slides" onKeyDown={onNavKey} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null); }}>
           {slides.map((s, i) => (
             <button key={i} type="button" className="slides-thumb" data-i={i} tabIndex={i === at ? 0 : -1}
@@ -519,83 +567,11 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
               </SlideFace>
             </div>
           </div>
-          <label className="slides-notes"><span>Presenter notes</span>
-            <textarea aria-label="Presenter notes" rows={3} value={current.notes} placeholder="What to say on this slide" onChange={(e) => change({ notes: e.target.value }, 'notes')} />
-          </label>
         </main>
-        {formatOpen && (
-          <aside className="slides-format" aria-label="Format">
-            {/* As Keynote's inspector: one segmented control at the top, and only what belongs to that choice below it. */}
-            <div className="segmented slides-panes" role="radiogroup" aria-label="Show">
-              {PANES.map((p) => <button key={p.id} type="button" role="radio" aria-checked={pane === p.id} onClick={() => setPane(p.id)}>{p.name}</button>)}
-            </div>
-            {pane === 'slide' ? (
-              <>
-                <section className="slides-section">
-                  <div className="slides-section-title">Style</div>
-                  <div className="slides-swatches" role="radiogroup" aria-label="Slide style">
-                    {SLIDE_STYLES.map((s) => (
-                      <button key={s} type="button" role="radio" aria-checked={current.style === s} aria-label={STYLE_NAMES[s]} className="slides-swatch" onClick={() => change({ style: s })}>
-                        <span className="slide-face" data-style={s}><span className="slide-title">Aa</span></span>
-                        <span className="slides-swatch-name">{STYLE_NAMES[s]}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-                <section className="slides-section">
-                  <div className="slides-section-title">Layout</div>
-                  <div className="slides-layout-grid">
-                    {LAYOUTS.map((l) => (
-                      <button key={l.id} type="button" className="slides-layout-pick" aria-pressed={layoutOf(current) === l.id} title={`Start slide ${at + 1} again as ${l.name}`} onClick={() => change({ ...l.make(), skip: current.skip, transition: current.transition, picture: current.picture })}>
-                        <span className="slides-layout-face"><SlideFace slide={l.make()} /></span>
-                        <span>{l.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </section>
-                {current.picture && (
-                  <section className="slides-section" aria-label="Picture">
-                    <div className="slides-section-title">Picture</div>
-                    <div className="slides-pair">
-                      <button type="button" className="btn" disabled={adding} onClick={() => picker.current?.click()}>Replace…</button>
-                      <button type="button" className="btn" onClick={() => change({ picture: '' })}>Remove</button>
-                    </div>
-                  </section>
-                )}
-                <section className="slides-section">
-                  <div className="slides-section-title">In Play</div>
-                  <label className="slides-row"><span>Transition</span>
-                    <select className="slides-popup" aria-label="Transition" value={current.transition} onChange={(e) => change({ transition: e.target.value as Transition })}>
-                      {TRANSITIONS.map((t) => <option key={t} value={t}>{TRANSITION_NAMES[t]}</option>)}
-                    </select>
-                  </label>
-                  <label className="slides-row switch-line"><span>Skip this slide</span>
-                    <input type="checkbox" role="switch" className="slides-switch" aria-label="Skip this slide" checked={current.skip} onChange={() => toggleSkip()} />
-                  </label>
-                </section>
-              </>
-            ) : (
-              <>
-                <section className="slides-section">
-                  <div className="slides-section-title">Length</div>
-                  <p className="slides-deck-facts">{slides.length === 1 ? '1 slide' : `${slides.length} slides`} · about {talkMinutes(slides)} min</p>
-                  <button type="button" className="btn" title="Play from slide 1" onClick={() => setPlaying(0)}>Play from the start</button>
-                </section>
-                {onTool && (
-                  <section className="slides-section" aria-label="Ask Mobius">
-                    {/* The one place in the deck to hand Mobius a job; anything else goes in the Ask field above. */}
-                    <div className="slides-section-title">Ask Mobius to</div>
-                    <div className="slides-tool-list">
-                      {TOOLS.map((t) => <button key={t.id} type="button" className="slides-ask" disabled={busy} onClick={() => onTool(t.id, at)}>{t.label}</button>)}
-                    </div>
-                  </section>
-                )}
-              </>
-            )}
-          </aside>
-        )}
+        </div>
+        </PanelLayout>
+        <PanelTab id="format" name="Format"><SlidesFormat slides={slides} at={at} current={current} change={change} toggleSkip={toggleSkip} adding={adding} onReplace={() => picker.current?.click()} onPlay={setPlaying} onTool={onTool} busy={busy} /></PanelTab>
       </div>
-      {layoutsAt && <LayoutMenu anchor={layoutsAt} onPick={pickLayout} onClose={() => setLayoutsAt(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Slide ${menu.i + 1}`} items={menuFor(menu.i)} onClose={() => setMenu(null)} />, document.body)}
       {playing !== null && <Play slides={slides} start={Math.min(playing, slides.length - 1)} onClose={() => setPlaying(null)} />}
     </section>

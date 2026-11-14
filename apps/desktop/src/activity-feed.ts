@@ -1,5 +1,6 @@
 import type { ActivityEntry } from '@mobius/shared';
 import type { AppId } from './apps';
+import { formatWith, weekdayLabel } from './dates';
 
 /** What the Activity app's sidebar can narrow the list to. */
 export type ActivityFilter = 'everything' | 'needs' | 'mobius' | 'you' | 'final' | `app:${AppId}`;
@@ -14,11 +15,34 @@ export interface FeedItem {
   by: 'mobius' | 'you' | 'other';
   /** Sending, paying, deleting and running commands: nothing puts these back. */
   final: boolean;
+  /** Mobius changed something in an app (wrote, added, sent, deleted), not only looked. */
+  changed: boolean;
   /** It went wrong. */
   warn: boolean;
 }
 
 export interface FeedDay { label: string; items: FeedItem[] }
+
+/** Where the sidebar looks: what needs you, a stretch of time, or one app. */
+export type ActivityPlace = 'needs' | 'today' | 'week' | 'all' | `app:${AppId}`;
+/** Who did it, from the toolbar: everything, Mobius alone, you alone, or only what cannot be undone. */
+export type ActivityWho = 'everything' | 'mobius' | 'you' | 'final';
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+
+/** The item is in that place: today since midnight, this week the last seven days counting today. */
+export function inPlace(item: FeedItem, place: ActivityPlace, now: Date): boolean {
+  if (place === 'all') return true;
+  if (place === 'needs') return false;
+  if (place === 'today') return item.when >= startOfDay(now);
+  if (place === 'week') return item.when >= startOfDay(now) - 6 * 86_400_000;
+  return item.app === place.slice(4);
+}
+
+/** The item was done by whom the toolbar asks for. */
+export function byWho(item: FeedItem, who: ActivityWho): boolean {
+  return who === 'everything' || matches(item, who);
+}
 
 /** The app a capability belongs to, by the part before its dot. */
 const APP_OF: Record<string, AppId> = {
@@ -31,6 +55,26 @@ const APP_OF: Record<string, AppId> = {
 export function appOfCapability(capability: string | null): AppId | null {
   if (!capability) return null;
   return APP_OF[capability.split('.')[0] ?? ''] ?? null;
+}
+
+/** The workspace folder a file lives in, and the app it belongs to: a write to notes/… happened in Notes. */
+const APP_OF_FOLDER: Record<string, AppId> = {
+  notes: 'notes', docs: 'docs', slides: 'slides', sheets: 'sheets', tasks: 'tasks', calendar: 'calendar', code: 'code',
+  designs: 'design', boards: 'canvas', research: 'research', reading: 'reader', databases: 'database', photos: 'photo',
+  studio: 'studio', video: 'video', skills: 'skills',
+};
+
+/**
+ * A file capability's resource, when it is a workspace path: the app it belongs to and its name as that app shows it
+ * ("notes/P2 build/Supplier notes.md" is Notes' "P2 build / Supplier notes"). Null for anything else.
+ */
+export function appOfFile(resource: string | null): { app: AppId; name: string } | null {
+  if (!resource) return null;
+  const parts = resource.replace(/\\/g, '/').split('/');
+  const app = parts.length > 1 ? APP_OF_FOLDER[parts[0]!] : undefined;
+  if (!app) return null;
+  const name = parts.slice(1).join(' / ').replace(/\.(md|csv|json|ics|sqlite)$/i, '');
+  return { app, name };
 }
 
 /** Paying, sending, deleting and running commands always ask first, because none of them can be undone. */
@@ -111,12 +155,16 @@ const WHO: Record<string, FeedItem['by']> = { agent: 'mobius', person: 'you' };
 export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
   const out: FeedItem[] = [];
   for (const e of entries) {
-    const on = e.resource ?? '';
-    const app = appOfCapability(e.capability);
+    // A file Mobius changed belongs to the app that shows it: a sheet to Sheets, a note to Notes.
+    const file = /^(files|fs)\./.test(e.capability ?? '') ? appOfFile(e.resource) : null;
+    const on = file?.name ?? e.resource ?? '';
+    const app = file?.app ?? appOfCapability(e.capability);
     // Only what actually happened (or was allowed to) is marked: a refused send changed nothing.
     const final = isFinal(e.capability) && (e.kind === 'tool.completed' || e.kind === 'permission.approved');
     const by = e.who ? (WHO[e.who] ?? 'other') : 'mobius';
-    const base = { seq: e.seq, when: e.tsMs, app, final, by } as const;
+    const verb = e.capability?.split('.')[1] ?? '';
+    const changed = by === 'mobius' && e.kind === 'tool.completed' && /^(write|edit|add|update|draft|send|delete|execute|remember|forget|generate|pay|push|commit|run)$/.test(verb);
+    const base = { seq: e.seq, when: e.tsMs, app, final, by, changed } as const;
     const tool = e.tool ?? e.capability ?? 'a tool';
     switch (e.kind) {
       case 'tool.completed': {
@@ -159,8 +207,8 @@ export function dayLabel(when: number, now: Date): string {
   if (days <= 0) return 'Today';
   if (days === 1) return 'Yesterday';
   const date = new Date(when);
-  if (days < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
-  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
+  if (days < 7) return weekdayLabel(date, 'long');
+  return formatWith(date, { month: 'long', day: 'numeric', ...(date.getFullYear() === now.getFullYear() ? {} : { year: 'numeric' }) });
 }
 
 /** The items, newest first, in one group per day. */

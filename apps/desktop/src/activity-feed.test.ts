@@ -1,6 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { setLocaleForTests } from './dates';
 import type { ActivityEntry } from '@mobius/shared';
-import { appOfCapability, appsIn, byDay, dayLabel, feedOf, isFinal, matches } from './activity-feed';
+import { appOfCapability, appsIn, byDay, byWho, dayLabel, feedOf, inPlace, isFinal, matches } from './activity-feed';
 
 const at = new Date(2026, 10, 12, 18, 0).getTime();
 let seq = 0;
@@ -32,6 +33,17 @@ describe('the Activity feed', () => {
 
   it('falls back to the tool’s name for a capability it does not know', () => {
     expect(feedOf([{ ...entry('tool.completed', 'demo.echo'), tool: 'echo' }])[0]!.text).toBe('Used echo');
+  });
+
+  it('puts a changed file in the app it belongs to, by its name there', () => {
+    const [sheet, note, plain] = feedOf([
+      entry('tool.completed', 'files.write', 'sheets/P2 budget/Sheet 1.csv', 'agent', at),
+      entry('tool.completed', 'files.write', 'notes/P2 build/Supplier notes.md', 'agent', at - 1),
+      entry('tool.completed', 'files.write', 'Downloads/quote.pdf', 'agent', at - 2),
+    ]);
+    expect(sheet).toMatchObject({ app: 'sheets', text: 'Changed P2 budget / Sheet 1' });
+    expect(note).toMatchObject({ app: 'notes', text: 'Changed P2 build / Supplier notes' });
+    expect(plain).toMatchObject({ app: 'files', text: 'Changed Downloads/quote.pdf' });
   });
 
   it('lists newest first', () => {
@@ -68,6 +80,8 @@ describe('filters', () => {
 });
 
 describe('days', () => {
+  beforeAll(() => setLocaleForTests('en-US'));
+  afterAll(() => setLocaleForTests(null));
   const now = new Date(2026, 10, 12, 18, 0);
   it('read Today, Yesterday, a weekday, then a date', () => {
     expect(dayLabel(now.getTime(), now)).toBe('Today');
@@ -79,5 +93,28 @@ describe('days', () => {
   it('group the feed a day at a time', () => {
     const items = feedOf([entry('tool.completed', 'mail.read', null, 'agent', now.getTime()), entry('tool.completed', 'mail.read', null, 'agent', now.getTime() - 86_400_000)]);
     expect(byDay(items, now).map((d) => [d.label, d.items.length])).toEqual([['Today', 1], ['Yesterday', 1]]);
+  });
+});
+
+describe('places and who', () => {
+  const now = new Date(2026, 10, 12, 18, 0);
+  const at = (days: number) => now.getTime() - days * 86_400_000;
+  const items = feedOf([
+    { ...entry('tool.completed', 'mail.send', 'Sam'), tsMs: at(0) },
+    { ...entry('permission.approved', 'mail.send', null, 'person'), tsMs: at(0) },
+    { ...entry('tool.completed', 'browser.read', 'a page'), tsMs: at(3) },
+    { ...entry('tool.completed', 'calendar.read'), tsMs: at(10) },
+  ]);
+  it('narrow to today, the last seven days, everything or one app', () => {
+    expect(items.filter((i) => inPlace(i, 'today', now))).toHaveLength(2);
+    expect(items.filter((i) => inPlace(i, 'week', now))).toHaveLength(3);
+    expect(items.filter((i) => inPlace(i, 'all', now))).toHaveLength(4);
+    expect(items.filter((i) => inPlace(i, 'app:browser', now))).toHaveLength(1);
+    expect(items.filter((i) => inPlace(i, 'needs', now))).toHaveLength(0);
+  });
+  it('narrow by who on top of the place', () => {
+    expect(items.filter((i) => byWho(i, 'everything'))).toHaveLength(4);
+    expect(items.filter((i) => byWho(i, 'you'))).toHaveLength(1);
+    expect(items.filter((i) => byWho(i, 'final'))).toHaveLength(2);
   });
 });

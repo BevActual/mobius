@@ -1,26 +1,29 @@
 import { useEffect, useRef, useState, useSyncExternalStore, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { ConnectorStatus } from '@mobius/shared';
-import { InstallDialog, SkillsSidebar } from './Skills';
+import { InstallDialog } from './Skills';
 import type { SkillsState } from './useSkills';
-import { OtherApps } from './settings/sections';
 import { APP_GROUPS, APPS, CORE_APPS, isInstalled, withApp, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
 import { usePreferences } from './usePreferences';
 import { ContextMenu } from './ContextMenu';
+import { FromMobius } from './FromMobius';
+import { RowMark } from './RowMark';
+import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
 import { isConnectorName, splitArgs, suggestName } from './connector-form';
+import { dateTimeLabel } from './dates';
+import { EmptyState } from './EmptyState';
 import './abilities.css';
 
 /**
- * The places in Abilities: the apps you add, and what gives Mobius more to work with, in one app. Plugins, and updates
- * to skills and connectors, come back as places once there are some (Mobius's own updates live in Settings); adding anything starts from the Add menu at the top of the sidebar.
+ * The places in Abilities, as plain rows in its sidebar: the apps that are installed and the ones that can be added,
+ * then the skills and connectors that give Mobius more to work with. Adding anything starts from its place: Add on an
+ * available app, New skill in the sidebar's head, Add a connector in the toolbar.
  */
-export type ExtensionPlace = 'apps' | 'skills' | 'connectors';
-export const EXTENSION_PLACES: readonly { id: ExtensionPlace; name: string; tint: string; icon: ReactNode }[] = [
-  { id: 'apps', name: 'Apps', tint: 'var(--app-skills, #8e8e93)', icon: <><rect x="4" y="4" width="5" height="5" rx="1.4" /><rect x="11" y="4" width="5" height="5" rx="1.4" /><rect x="4" y="11" width="5" height="5" rx="1.4" /><rect x="11" y="11" width="5" height="5" rx="1.4" /></> },
-  { id: 'skills', name: 'Skills', tint: '#5e5ce6', icon: <><path d="M6 5.5h8M6 10h8M6 14.5h5" /><path d="M3.5 5.5h.01M3.5 10h.01M3.5 14.5h.01" /></> },
-  { id: 'connectors', name: 'Connectors', tint: '#30b0c7', icon: <><path d="M8 4v3M12 4v3M6.5 7h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13.5V16" /></> },
-];
+export type ExtensionPlace = 'installed' | 'available' | 'skills' | 'connectors';
+const PLACE_NAMES: Record<ExtensionPlace, string> = { installed: 'Installed', available: 'Available', skills: 'Skills', connectors: 'Connectors' };
+/** The toolbar's title for a place (a skill that is open names itself). */
+export const abilitiesTitle = (place: ExtensionPlace): string => PLACE_NAMES[place];
 
 /** One sentence on what each app is for, shown in the library under its name. */
 const APP_PURPOSE: Partial<Record<AppId, string>> = {
@@ -46,23 +49,25 @@ const APP_PURPOSE: Partial<Record<AppId, string>> = {
   canvas: 'A whiteboard of stickies, shapes, arrows and pen lines.',
 };
 
-/** Whether the Add a Connector sheet is open: Add in the sidebar and the Connectors page both open it. */
-let addingConnector = false;
-const sheetListeners = new Set<() => void>();
-const setAddingConnector = (next: boolean) => { addingConnector = next; sheetListeners.forEach((l) => l()); };
-function useAddingConnector(): [boolean, (next: boolean) => void] {
-  const value = useSyncExternalStore((l) => { sheetListeners.add(l); return () => sheetListeners.delete(l); }, () => addingConnector);
-  return [value, setAddingConnector];
+/** Small signals between the shell and Abilities' own parts, which App.tsx does not hold. */
+function signal<T>(initial: T) {
+  let value = initial;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set: (next: T) => { value = next; listeners.forEach((l) => l()); },
+    use: (): T => useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => value),
+  };
 }
-
 /** What is typed in the sidebar's search: it narrows the apps, the skills and the connectors. */
-let query = '';
-const listeners = new Set<() => void>();
-const setQuery = (next: string) => { query = next; listeners.forEach((l) => l()); };
-export function useAbilitiesQuery(): [string, (next: string) => void] {
-  const value = useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l); }, () => query);
-  return [value, setQuery];
-}
+const query = signal('');
+export function useAbilitiesQuery(): [string, (next: string) => void] { return [query.use(), query.set]; }
+/** Each New skill (the sidebar head's New) opens the naming field in the Skills section. */
+const newSkill = signal(0);
+export const requestNewSkill = (): void => newSkill.set(newSkill.get() + 1);
+/** Whether Add a connector's sheet is open. */
+const addingConnector = signal(false);
+
 const matches = (q: string, ...words: (string | undefined)[]) => { const t = q.trim().toLowerCase(); return t === '' || words.some((w) => w?.toLowerCase().includes(t)); };
 /** Whether an app is found by the search: by its name, its other names or what it is for. */
 export const appMatches = (q: string, app: AppInfo) => matches(q, app.name, app.also, APP_PURPOSE[app.id]);
@@ -70,271 +75,275 @@ export const appMatches = (q: string, app: AppInfo) => matches(q, app.name, app.
 /** The apps the library lists: every app that can be added, leaving out Mobius's own apps, which are always there. */
 const LIBRARY = APPS.filter((a) => a.available && !(CORE_APPS as readonly string[]).includes(a.id));
 
-/** The connectors Mobius started, kept in one place so the sidebar's count and the page agree after a change. */
-let connectorStatus: ConnectorStatus | null = null;
-const connectorListeners = new Set<() => void>();
-const loadConnectors = () => {
-  void window.mobius.extensions?.connectors().then((next) => { connectorStatus = next; connectorListeners.forEach((l) => l()); }).catch(() => undefined);
-};
+/** The added apps, from the preferences, so a change shows at once everywhere. */
+function useInstalled(): { installed: AppInfo[]; available: AppInfo[]; change: (id: AppId, add: boolean) => Promise<boolean> } {
+  const preferences = usePreferences();
+  const list = preferences.value.installedApps;
+  const added = (a: AppInfo) => (Array.isArray(list) ? list.includes(a.id) : isInstalled(a.id));
+  const change = async (id: AppId, add: boolean) => {
+    try { await preferences.set({ installedApps: withApp(id, add) }); return true; } catch { return false; }
+  };
+  return { installed: LIBRARY.filter(added), available: LIBRARY.filter((a) => !added(a)), change };
+}
+
+/** The connectors Mobius started, kept in one place so the sidebar's count, the toolbar and the page agree. */
+const connectors = signal<ConnectorStatus | null>(null);
+const loadConnectors = () => { void window.mobius.extensions?.connectors().then(connectors.set).catch(() => undefined); };
 function useConnectors(): { status: ConnectorStatus | null; reload: () => void } {
-  const status = useSyncExternalStore((l) => { connectorListeners.add(l); return () => connectorListeners.delete(l); }, () => connectorStatus);
+  const status = connectors.use();
   // Servers start in the background: look now, and again once they have had a moment.
   useEffect(() => { loadConnectors(); const t = window.setTimeout(loadConnectors, 3000); return () => window.clearTimeout(t); }, []);
   return { status, reload: loadConnectors };
 }
+const connectorCount = (s: ConnectorStatus | null) => (s ? s.running.length + s.failed.length + (s.waiting?.length ?? 0) - (s.leaving?.length ?? 0) : 0);
 
-function PlaceIcon({ tint, children }: { tint: string; children: ReactNode }) {
-  return <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-place-icon" style={{ background: tint }}>{children}</svg>;
-}
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-function Places({ place, onPlace, skills }: { place: ExtensionPlace; onPlace: (p: ExtensionPlace) => void; skills: SkillsState }) {
-  const preferences = usePreferences();
+/** The toolbar's grey line beside the title: how many there are in the place showing. */
+export function AbilitiesSub({ place, skills }: { place: ExtensionPlace; skills: SkillsState }) {
+  const { installed, available } = useInstalled();
   const { status } = useConnectors();
-  // Counted from the preferences, so the number changes as soon as an app is added or removed.
-  const list = preferences.value.installedApps;
-  const added = LIBRARY.filter((a) => (Array.isArray(list) ? list.includes(a.id) : isInstalled(a.id))).length;
-  const counts: Record<ExtensionPlace, number | null> = {
-    apps: added,
-    skills: skills.available ? skills.list.length : null,
-    connectors: status ? status.running.length + status.failed.length + (status.waiting?.length ?? 0) - (status.leaving?.length ?? 0) : null,
-  };
-  return (
-    <nav className="task-lists ext-places" aria-label="Abilities">
-      <ul role="list">
-        {EXTENSION_PLACES.map((p) => (
-          <li key={p.id}>
-            <button type="button" className="list-row abl-place" aria-current={place === p.id ? 'page' : undefined} onClick={() => onPlace(p.id)}>
-              <PlaceIcon tint={p.tint}>{p.icon}</PlaceIcon>
-              <span className="list-name">{p.name}</span>
-              {counts[p.id] !== null && <span className="list-count" aria-hidden="true">{counts[p.id]}</span>}
-            </button>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  );
+  if (place === 'installed') return <>{plural(installed.length, 'app')}</>;
+  if (place === 'available') return <>{available.length === 0 ? 'Every app is installed' : plural(available.length, 'app')}</>;
+  if (place === 'connectors') return <>{plural(connectorCount(status), 'connector')}</>;
+  return skills.open ? <>{`Version ${skills.open.version}${skills.saved ? '' : ' · Saving…'}`}</> : <>{plural(skills.list.length, 'skill')}</>;
 }
 
-/**
- * Add, first in the sidebar as New is in every app: one menu for everything that can be added. A skill can be written
- * here or installed from a file; a connector is a server listed in mcp.json.
- */
-function AddMenu({ skills, onPlace, onNewSkill }: { skills: SkillsState; onPlace: (p: ExtensionPlace) => void; onNewSkill: () => void }) {
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
-  const picker = useRef<HTMLInputElement>(null);
-  const [shared, setShared] = useState<string | null>(null);
-  return (
-    <div className="side-new">
-      <button
-        type="button"
-        className="side-new-row"
-        aria-label="Add"
-        aria-haspopup="menu"
-        aria-expanded={menu !== null}
-        title="Add an app, a skill or a connector"
-        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom + 4 }); }}
-      >
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-        <span>Add</span>
-        <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-chevron"><path d="m7 8.5 3 3 3-3" /></svg>
-      </button>
-      <input ref={picker} type="file" accept=".md,text/markdown,text/plain" hidden aria-label="Choose a SKILL.md" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void f.text().then(setShared); }} />
-      {shared !== null && <InstallDialog text={shared} skills={skills} onClose={() => { setShared(null); if (skills.open) onPlace('skills'); }} />}
-      {menu && createPortal(
-        <ContextMenu x={menu.x} y={menu.y} label="Add" onClose={() => setMenu(null)} items={[
-          { label: 'Add an app…', run: () => { setQuery(''); onPlace('apps'); } },
-          { label: 'New skill', run: onNewSkill, separated: true, disabled: !skills.available },
-          { label: 'Install a skill…', run: () => picker.current?.click(), disabled: !skills.available },
-          { label: 'Add a connector…', run: () => { onPlace('connectors'); setAddingConnector(true); }, separated: true },
-        ]} />,
-        document.body,
-      )}
-    </div>
-  );
-}
-
-/** Abilities' sidebar: Add, Search, its places, and under Skills the skills themselves. */
+/** Abilities' sidebar: Search, then Apps (Installed, Available), Mobius (Skills, Connectors), the skills, From Mobius. */
 export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { place: ExtensionPlace; onPlace: (p: ExtensionPlace) => void; skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
   const [q, setQ] = useAbilitiesQuery();
-  // New skill opens the naming field in the skills list, so it goes to Skills first.
-  const [naming, setNaming] = useState(0);
-  const newSkill = () => { onPlace('skills'); setNaming((n) => n + 1); };
-  const top = (
-    <>
-      <AddMenu skills={skills} onPlace={onPlace} onNewSkill={newSkill} />
-      <input className="side-search" type="search" aria-label="Search abilities" placeholder="Search" value={q} onChange={(e) => setQ(e.target.value)} />
-      <Places place={place} onPlace={onPlace} skills={skills} />
-    </>
-  );
-  if (place === 'skills') return <SkillsSidebar skills={skills} pin={pin} changed={changed} places={top} query={q} nameToken={naming} />;
+  const { installed, available } = useInstalled();
+  const { status } = useConnectors();
+  const nameToken = newSkill.use();
+  const [naming, setNaming] = useState(false);
+  const [name, setName] = useState('');
+  const [about, setAbout] = useState('');
+  useEffect(() => { if (nameToken > 0) { setNaming(true); onPlace('skills'); } }, [nameToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  const create = async (e: FormEvent) => { e.preventDefault(); if (await skills.create(name.trim() || 'New skill', about)) { setNaming(false); setName(''); setAbout(''); onPlace('skills'); } };
+  const shownSkills = skills.list.filter((s) => matches(q, s.name, s.description));
+  const row = (p: ExtensionPlace, count: number) => <SidebarRow label={PLACE_NAMES[p]} {...(count ? { count } : {})} current={place === p && !(p === 'skills' && skills.open)} onSelect={() => { onPlace(p); if (p === 'skills') skills.close(); }} />;
   return (
-    <aside className="side skills-side" aria-label="Abilities sidebar">
-      <div className="side-head">
-        <span className="side-title">Abilities</span>
-        <span className="side-actions">{pin}</span>
-      </div>
-      {top}
-    </aside>
+    <AppSidebar label="Abilities sidebar">
+      <SidebarSearch label="Search abilities" value={q} onChange={setQ} />
+      <SidebarSection title="Apps" action={pin}>
+        {row('installed', installed.length)}
+        {row('available', available.length)}
+      </SidebarSection>
+      <SidebarSection title="Tools">
+        {row('skills', skills.available ? skills.list.length : 0)}
+        {row('connectors', connectorCount(status))}
+      </SidebarSection>
+      {(skills.list.length > 0 || naming) && (
+        <SidebarSection title="Skills" action={<button type="button" className="strip-btn" aria-label="New skill" title="New skill (Ctrl+N)" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg></button>}>
+          {naming && (
+            <li>
+              <form className="skill-new" onSubmit={(e) => void create(e)}>
+                <input autoFocus aria-label="Skill name" placeholder="Compare stays" value={name} maxLength={64} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+                <input aria-label="When to use it" placeholder="When to use it, in one sentence" value={about} maxLength={300} onChange={(e) => setAbout(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+                <span className="skill-new-actions">
+                  <button type="button" className="btn" onClick={() => setNaming(false)}>Cancel</button>
+                  <button type="submit" className="btn primary">Create</button>
+                </span>
+              </form>
+            </li>
+          )}
+          {shownSkills.map((s) => (
+            <SidebarRow key={s.name} label={`/${s.name}`} current={place === 'skills' && skills.open?.name === s.name} proposed={changed?.has(s.name) === true} onSelect={() => { onPlace('skills'); void skills.openSkill(s.name); }}
+              trail={changed?.has(s.name) ? <RowMark changed changedTitle="Changed by Mobius in its last turn" /> : undefined} />
+          ))}
+        </SidebarSection>
+      )}
+      <FromMobius items={skills.list.filter((s) => changed?.has(s.name)).map((s) => ({ key: s.name, name: `/${s.name}`, current: skills.open?.name === s.name, onOpen: () => { onPlace('skills'); void skills.openSkill(s.name); } }))} />
+    </AppSidebar>
   );
 }
 
-/** Abilities' page for every place but Skills (which has its own editor). */
+/** Abilities' page for Installed, Available and Connectors (Skills has its own editor). */
 export function ExtensionsPage({ place, onOpenApp }: { place: Exclude<ExtensionPlace, 'skills'>; onOpenApp?: (id: AppId) => void }) {
-  const name = EXTENSION_PLACES.find((p) => p.id === place)?.name ?? 'Abilities';
   return (
-    <section className="skills-page abl-page" aria-label={name}>
-      <div className="abl-column">
-        <h1 className="abl-title">{name}</h1>
-        {place === 'apps' && <AppLibrary onOpenApp={onOpenApp} />}
-        {place === 'connectors' && <Connectors />}
-      </div>
+    <section className="skills-page abl-page" aria-label={PLACE_NAMES[place]}>
+      <div className="abl-scroll">{place === 'connectors' ? <Connectors /> : <AppLibrary which={place} onOpenApp={onOpenApp} />}</div>
     </section>
   );
 }
 
+/** Skills with none open: each skill as a plain row, its name and when it runs; a row opens it. */
+export function SkillList({ skills }: { skills: SkillsState }) {
+  const [q] = useAbilitiesQuery();
+  const shown = skills.list.filter((s) => matches(q, s.name, s.description));
+  return (
+    <section className="skills-page abl-page" aria-label="Skills">
+      {!skills.available && <p className="abl-empty">Skills are not available here.</p>}
+      {skills.available && skills.list.length === 0 && <EmptyState title="No skills yet" line="A skill is steps Mobius follows when you ask for it." action={{ label: 'New skill', run: requestNewSkill }} />}
+      {skills.list.length > 0 && shown.length === 0 && <p className="abl-empty">No skills match “{q.trim()}”.</p>}
+      {shown.length > 0 && (
+        <ul role="list" className="abl-rows" aria-label="Skills">
+          {shown.map((s) => (
+            <li key={s.name} className="abl-item">
+              <button type="button" className="abl-main" aria-label={`Open /${s.name}`} onClick={() => void skills.openSkill(s.name)}>
+                <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M6 4.5h8M6 8.5h8M6 12.5h5" /><path d="M4 16h12" /></svg>
+                <span className="abl-text"><span className="abl-name">/{s.name}</span><span className="abl-sub">{s.description || dateTimeLabel(s.modified)}</span></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+/** The toolbar's controls while Skills shows: New skill, Install a skill, and for an open skill Run and Delete. */
+export function SkillsToolbar({ skills, onRun }: { skills: SkillsState; onRun: (name: string) => void }) {
+  const [shared, setShared] = useState<string | null>(null);
+  const picker = useRef<HTMLInputElement>(null);
+  const pick = () => picker.current?.click();
+
+  const open = skills.open;
+  return (
+    <ToolbarControls label="Skills">
+      {open && <button type="button" className="strip-btn abl-tool" onClick={() => onRun(open.name)} title={`Run /${open.name}`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5v9l7-4.5z" /></svg><span>Run</span></button>}
+      {open && <button type="button" className="strip-btn abl-tool" onClick={() => void skills.remove()} aria-label="Delete skill" title={`Delete /${open.name}`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" /></svg></button>}
+      <button type="button" className="strip-btn abl-tool" onClick={pick} disabled={!skills.available} title="Install a skill from a file"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v8M6.5 8.5 10 12l3.5-3.5M4.5 13.5v2h11v-2" /></svg><span>Install a skill…</span></button>
+      <input ref={picker} type="file" accept=".md,text/markdown,text/plain" hidden aria-label="Choose a SKILL.md" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) void f.text().then(setShared); }} />
+      {shared !== null && <InstallDialog text={shared} skills={skills} onClose={() => setShared(null)} />}
+    </ToolbarControls>
+  );
+}
+
+function MoreGlyph() {
+  return <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-more-glyph"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>;
+}
+
+/** What was just done, and how to take it back, for the one UndoToast at the foot of the page. */
+interface Undoable { text: string; undo: () => void }
+function useUndo(): [Undoable | null, (u: Undoable | null) => void] {
+  const [undoable, setUndoable] = useState<Undoable | null>(null);
+  useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
+  return [undoable, setUndoable];
+}
+
 /**
- * The app library: every app Mobius has, by what it is for, each with what it does and one switch. Adding one puts it
- * in the switcher, the launcher and the sidebar; removing it takes it away and keeps its files, so adding it again
- * brings them back. An added app opens from its row.
+ * The app library, as plain rows: an installed app opens from its row and is removed from its ⋯ menu (its files are
+ * kept, and Undo puts it back); an available app has Add.
  */
-function AppLibrary({ onOpenApp }: { onOpenApp?: ((id: AppId) => void) | undefined }) {
-  const preferences = usePreferences();
+function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; onOpenApp?: ((id: AppId) => void) | undefined }) {
+  const { installed, available, change } = useInstalled();
   const [q] = useAbilitiesQuery();
   const [problem, setProblem] = useState<string | null>(null);
-  const change = async (id: AppId, add: boolean) => {
+  const [undoable, setUndoable] = useUndo();
+  const [menu, setMenu] = useState<{ app: AppInfo; x: number; y: number } | null>(null);
+  const list = (which === 'installed' ? installed : available).filter((a) => appMatches(q, a));
+  const groups = APP_GROUPS.map((group) => ({ group, members: list.filter((a) => a.group === group) })).filter((g) => g.members.length > 0);
+  const set = async (app: AppInfo, add: boolean) => {
     setProblem(null);
-    try { await preferences.set({ installedApps: withApp(id, add) }); } catch { setProblem('That could not be changed.'); }
+    if (!(await change(app.id, add))) { setProblem('That could not be changed.'); return; }
+    setUndoable({ text: add ? `Added ${app.name}` : `Removed ${app.name}. Its files are kept.`, undo: () => { void change(app.id, !add); setUndoable(null); } });
   };
-  const groups = APP_GROUPS.map((group) => ({ group, members: LIBRARY.filter((a) => a.group === group && appMatches(q, a)) })).filter((g) => g.members.length > 0);
+  const entries = (app: AppInfo) => [
+    { label: 'Open', keys: 'Enter', run: () => onOpenApp?.(app.id), disabled: !onOpenApp },
+    { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void set(app, false) },
+  ];
+  const icon = (app: AppInfo) => <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon">{APP_ICONS[app.id]}</svg>;
   return (
     <>
-      <p className="abl-lede">Add the apps you use. Removing one keeps its files: add it again and they are back.</p>
-      {problem && <p className="field-error" role="alert">{problem}</p>}
-      {groups.length === 0 && <p className="abl-empty">No apps match “{q.trim()}”.</p>}
+      {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
+      {list.length === 0 && <p className="abl-empty">{q.trim() ? `No apps match “${q.trim()}”.` : which === 'available' ? 'Every app is installed.' : 'No apps are installed.'}</p>}
       {groups.map(({ group, members }) => (
         <section key={group} className="abl-group" aria-label={group}>
           <h2 className="abl-group-title">{group}</h2>
-          <ul role="list" className="abl-list settings-card">
-            {members.map((app) => {
-              const added = isInstalled(app.id);
-              const body = (
-                <>
-                  <svg viewBox="0 0 20 20" aria-hidden="true" className="ability-icon" style={{ background: `var(--app-${app.id})` }}>{APP_ICONS[app.id]}</svg>
-                  <span className="abl-text">
-                    <span className="abl-name">{app.name}</span>
-                    {APP_PURPOSE[app.id] && <span className="abl-sub">{APP_PURPOSE[app.id]}</span>}
-                  </span>
-                </>
-              );
-              return (
-                <li key={app.id} className="abl-row" data-added={added || undefined}>
-                  {added && onOpenApp
-                    ? <button type="button" className="abl-open" aria-label={`Open ${app.name}`} title={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{body}</button>
-                    : <span className="abl-open">{body}</span>}
-                  <label className="switch-line abl-switch" title={added ? `Remove ${app.name} (its files are kept)` : `Add ${app.name}`}>
-                    <input type="checkbox" role="switch" aria-label={app.name} checked={added} onChange={(e) => void change(app.id, e.target.checked)} />
-                  </label>
-                </li>
-              );
-            })}
+          <ul role="list" className="abl-rows">
+            {members.map((app) => (
+              <li key={app.id} className="abl-item" onKeyDown={(e) => { if (which === 'installed' && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.abl-main')) { e.preventDefault(); void set(app, false); } }} onContextMenu={(e) => { if (which !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
+                {which === 'installed' && onOpenApp
+                  ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
+                  : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
+                {which === 'installed'
+                  ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
+                  : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
+              </li>
+            ))}
           </ul>
         </section>
       ))}
+      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.app.name} onClose={() => setMenu(null)} items={entries(menu.app)} />}
+      {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
     </>
   );
 }
 
-/** The MCP servers Mobius starts from mcp.json, and Mobius offered to other apps. */
+/** Two grey rows while the connectors load: no spinner in content. */
+function ConnectorsLoading() {
+  return (
+    <ul className="abl-rows abl-loading" role="list" aria-label="Loading connectors" aria-busy="true">
+      {[40, 56].map((w) => (
+        <li key={w} className="abl-item"><span className="abl-main"><span className="abl-bar abl-bar-icon" /><span className="abl-text"><span className="abl-bar" style={{ width: `${w}%` }} /><span className="abl-bar" style={{ width: `${w - 16}%` }} /></span></span></li>
+      ))}
+    </ul>
+  );
+}
+
+/** The MCP servers Mobius starts from mcp.json, as plain rows: what each is doing, and Remove in its ⋯ menu. */
 function Connectors() {
   const api = window.mobius.extensions;
   const { status, reload } = useConnectors();
   const [q] = useAbilitiesQuery();
-  const [adding, setAdding] = useAddingConnector();
-  const [details, setDetails] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ name: string; x: number; y: number } | null>(null);
+  const adding = addingConnector.use();
   const [problem, setProblem] = useState<string | null>(null);
+  const [undoable, setUndoable] = useUndo();
+  const [menu, setMenu] = useState<{ name: string; x: number; y: number } | null>(null);
   const leaving = new Set(status?.leaving ?? []);
   const rows: { name: string; state: 'on' | 'failed' | 'waiting'; error?: string }[] = [
     ...(status?.running ?? []).map((name) => ({ name, state: 'on' as const })),
     ...(status?.failed ?? []).map((f) => ({ name: f.server, state: 'failed' as const, error: f.error })),
     ...(status?.waiting ?? []).map((name) => ({ name, state: 'waiting' as const })),
-  ];
+  ].filter((r) => !leaving.has(r.name));
   const shown = rows.filter((r) => matches(q, r.name));
   const remove = async (name: string) => {
     setProblem(null);
     const done = await api?.removeConnector?.(name).catch(() => null);
     if (!done || !done.ok) { setProblem(done && !done.ok ? done.error : 'That connector could not be removed.'); return; }
-    setRemoving(null);
     reload();
+    const was = done.removed;
+    setUndoable({
+      text: `Removed ${name}`,
+      undo: () => {
+        setUndoable(null);
+        if (!was) return;
+        void api?.addConnector?.({ name, command: was.command, args: was.args ?? [], env: was.env ?? {} }).then((back) => { if (back && !back.ok) setProblem(back.error); reload(); });
+      },
+    });
   };
-  const sub = (r: (typeof rows)[number]) => {
-    if (leaving.has(r.name)) return 'Removed. It stops when Mobius reopens.';
-    if (r.state === 'waiting') return 'Added. It starts when Mobius reopens.';
-    if (r.state === 'failed') return 'Couldn’t start';
-    return 'Connected';
-  };
+  const sub = (r: (typeof rows)[number]) => (r.state === 'waiting' ? 'Starts when Mobius reopens' : r.state === 'failed' ? `Couldn’t start: ${r.error ?? 'unknown problem'}` : 'Connected');
+  const entries = (name: string) => [{ label: 'Remove', keys: 'Delete', danger: true, run: () => void remove(name) }];
   return (
     <>
-      <p className="abl-lede">Connectors give Mobius tools from other apps over MCP. Each one asks before it is used, as your approvals say.</p>
-      <section className="abl-group" aria-label="Tools from other apps">
-        <div className="abl-group-head">
-          <h2 className="abl-group-title">Tools from other apps</h2>
-          <button type="button" className="btn" onClick={() => setAdding(true)}>Add a connector…</button>
-        </div>
-        {!api && <p className="abl-empty settings-card">Only the desktop app runs connectors.</p>}
-        {status?.problem && <p className="field-error" role="alert">{status.problem}</p>}
-        {problem && <p className="field-error" role="alert">{problem}</p>}
-        {status && rows.length === 0 && <p className="abl-empty settings-card">No connectors yet. Add one to give Mobius tools from another app.</p>}
-        {shown.length > 0 && (
-          <ul className="abl-list settings-card" role="list" aria-label="Connectors">
-            {shown.map((r) => (
-              <li
-                key={r.name}
-                className="abl-row abl-row-wrap"
-                aria-label={r.name}
-                tabIndex={0}
-                onContextMenu={(e) => { if (leaving.has(r.name) || !api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}
-                onKeyDown={(e) => {
-                  if (e.target !== e.currentTarget || leaving.has(r.name) || !api?.removeConnector) return;
-                  if ((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu') { e.preventDefault(); const b = e.currentTarget.getBoundingClientRect(); setMenu({ name: r.name, x: b.right - 180, y: b.bottom - 6 }); }
-                }}
-              >
-                <span className="abl-dot" data-state={leaving.has(r.name) ? 'waiting' : r.state} aria-hidden="true" />
-                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' && !leaving.has(r.name) ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
-                {r.state === 'failed' && !leaving.has(r.name) && (
-                  <button type="button" className="btn" aria-expanded={details === r.name} onClick={() => setDetails((d) => (d === r.name ? null : r.name))}>{details === r.name ? 'Hide details' : 'Show details'}</button>
-                )}
-                {!leaving.has(r.name) && api?.removeConnector && removing !== r.name && (
-                  <button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More" aria-haspopup="menu" onClick={(e) => { const b = e.currentTarget.getBoundingClientRect(); setMenu({ name: r.name, x: b.left, y: b.bottom + 4 }); }}>
-                    <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
-                  </button>
-                )}
-                {removing === r.name && (
-                  <span className="abl-confirm" role="group" aria-label={`Remove ${r.name}?`}>
-                    <span className="abl-note" title="It is taken out of mcp.json in the data folder.">Remove {r.name}?</span>
-                    <button type="button" className="btn" onClick={() => setRemoving(null)}>Cancel</button>
-                    <button type="button" className="btn danger" onClick={() => void remove(r.name)}>Remove</button>
-                  </span>
-                )}
-                {details === r.name && r.error && <p className="abl-detail">{r.error}. Fix its entry in mcp.json, then reopen Mobius to start it again.</p>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {rows.length > 0 && shown.length === 0 && <p className="abl-empty settings-card">No connectors match “{q.trim()}”.</p>}
-      </section>
-      <section className="abl-group" aria-label="Mobius for other apps">
-        <h2 className="abl-group-title">Mobius for other apps</h2>
-        <div className="settings-card abl-card"><OtherApps subpage="other-apps" highlight={null} /></div>
-      </section>
-      {adding && <AddConnectorSheet onClose={() => setAdding(false)} onAdded={reload} />}
-      {menu && createPortal(
-        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
-          { label: 'Remove…', danger: true, run: () => setRemoving(menu.name) },
-        ]} />,
-        document.body,
+      {api?.addConnector && (
+        <ToolbarControls label="Connectors">
+          <button type="button" className="strip-btn abl-tool" onClick={() => addingConnector.set(true)} title="Add a connector"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg><span>Add a connector…</span></button>
+        </ToolbarControls>
       )}
+      {!api && <p className="abl-empty">Only the desktop app runs connectors.</p>}
+      {status?.problem && <p className="field-error abl-problem" role="alert">{status.problem}</p>}
+      {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
+      {api && !status && <ConnectorsLoading />}
+      {api && status && rows.length === 0 && <EmptyState title="No connectors yet" line="A connector gives Mobius another app’s tools." {...(api.addConnector ? { action: { label: 'Add a connector…', run: () => addingConnector.set(true) } } : {})} />}
+      {rows.length > 0 && shown.length === 0 && <p className="abl-empty">No connectors match “{q.trim()}”.</p>}
+      {shown.length > 0 && (
+        <ul className="abl-rows" role="list" aria-label="Connectors">
+          {shown.map((r) => (
+            <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
+              <span className="abl-main">
+                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{r.state !== 'on' && <span className="abl-dot" data-state={r.state} aria-hidden="true" />}</span>
+                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
+              </span>
+              {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
+            </li>
+          ))}
+        </ul>
+      )}
+      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={entries(menu.name)} />}
+      {adding && <AddConnectorSheet onClose={() => addingConnector.set(false)} onAdded={reload} />}
+      {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
     </>
   );
 }
