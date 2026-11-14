@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
@@ -7,9 +8,9 @@ import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
-import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, type DiffRow, type GitMark, type Lang } from './code-view';
+import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
-import type { CodeState } from './useCode';
+import type { CodeState, CodeTests } from './useCode';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
@@ -731,4 +732,12 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
       </div>
     </section>
   );
+}
+
+/** Code in Glance, after a test run fails: what failed, and Find the cause, which asks Mobius to fix it and run the tests again. */
+export function CodeGlance({ tests, onDebug }: { tests: CodeTests; onDebug: () => void }) {
+  const slot = useGlanceSlot();
+  const facts = testsGlance(tests.last, tests.command);
+  if (!slot || !facts || tests.running) return null;
+  return <AppGlance slot={slot} title="A test fails" facts={facts} action={{ label: 'Find the cause', run: onDebug }} />;
 }

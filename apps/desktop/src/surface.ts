@@ -60,6 +60,9 @@ export const PLAN_MY_DAY = 'Plan my day. Read my open tasks with tasks.list and 
  */
 export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers, and in the first empty column a heading "Stands out" with a few words beside each row that is far from the average, such as "2.1× the average". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells.';
 
+/** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
+export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.';
+
 /** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
 export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, a few words each), and after Notes: what to say, in my voice. Open with a title slide, give each main part of the document a section or a bullets slide, put its one key point on a statement slide, and end on what happens next. Keep its facts and numbers exactly. Leave this document as it is.';
 
@@ -237,7 +240,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'code':
       return state.code
         ? [
-            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.', attach: 'code' as const }] : []),
+            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: DEBUG_TEST, attach: 'code' as const }] : []),
             { label: 'Explain this file', prompt: 'Explain what the attached file does, in plain words: its parts and how they fit together.', attach: 'code' },
             { label: 'Write tests for this', prompt: 'Write tests for the attached file, in the style the project already uses, run code.test, and tell me what they cover.', attach: 'code' },
             { label: 'Change…', prompt: 'In the attached file, ', attach: 'code' },
