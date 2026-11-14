@@ -65,8 +65,8 @@ pick. A
 ## The Mobius panel
 
 The Mobius button at the top right of every app opens the Mobius panel beside your work. It holds the
-conversation, the message box, and a few places an app fills in for what is open. Some apps add tabs of their own
-beside it, such as the outline in Docs. Each changes with what Mobius is
+conversation, the message box, and a few places an app fills in for what is open, and nothing else: an app's own
+panels, such as the outline in Docs, sit in the [inspector](../getting-started/tour.md#the-inspector). Each changes with what Mobius is
 doing.
 
 - **Resting.** At the top, a **Glance** card: up to three live facts about what is open or selected. Tasks shows

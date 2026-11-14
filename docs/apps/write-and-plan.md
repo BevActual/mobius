@@ -39,7 +39,7 @@ Longer documents, with an outline and comments.
   link, then **Share**. While you are in a table, its button has the rows and columns. The window's **⋯** opens on
   the **Docs** menu with the rest: numbered lists, checklists, quotes, strikethrough and code; Insert (table, picture,
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
-- **Outline** is a tab in the right panel, beside **Mobius**: the document's headings, the one you are reading marked.
+- **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the Panels menu): the document's headings, the one you are reading marked.
   Click one to go there.
 - **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.

@@ -38,6 +38,13 @@ Mobius can do; see [The Mobius panel](../guide/working-with-mobius.md#the-mobius
 - The message box says what Mobius would ask about where you are ("Ask about this note"), and what is open goes
   with your message.
 
+## The inspector
+
+An app's own panels (Docs' Outline, Slides' Format, Photo's Adjust, Video's Shot, Reader's Highlights, Music's Device)
+sit in the **inspector**, a column between your work and Mobius. Several panels are tabs among themselves. Show or hide
+each from the **Panels** menu in the toolbar, and drag the inspector's edge to resize it. In a narrower window the
+inspector and Mobius take turns: the one you brought forward last shows.
+
 ## The desk
 
 **Home** opens on the **desk**. It greets you with the date and what is in flight, with a few suggestions to
