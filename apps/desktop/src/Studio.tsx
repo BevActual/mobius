@@ -1068,7 +1068,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                     <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
-                ) : <span className="studio-hint">{drumView === 'steps' ? (drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.') : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
+                ) : drumView === 'steps' ? null : <span className="studio-hint">Click to draw a note, drag to move it, drag its end to stretch it.</span>}
                 </>}
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
@@ -1078,6 +1078,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
           ) : drumView === 'steps' ? (
             <div className="studio-steps">
+              <p className="studio-dev-note studio-steps-hint">{drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.'}</p>
               <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)))}
                 now={playing && rollBeat >= 0 && Math.floor(rollBeat / BEATS_PER_BAR) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat % BEATS_PER_BAR) * 4) : undefined}
                 onChange={(row, step, v) => {

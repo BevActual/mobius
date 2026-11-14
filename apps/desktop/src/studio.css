@@ -184,7 +184,9 @@
 .studio-fx-chain .studio-fx-eq { width: calc(var(--sp-8) * 12); }
 .studio-fx-body { display: grid; gap: var(--sp-3); }
 .studio-fx-chain > .ui-button { flex: none; }
-.studio-steps { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-2) var(--sp-3); }
+.studio-steps { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: var(--sp-2) var(--sp-3); }
+.studio-steps > .studio-steps-hint { flex: none; margin: 0 0 var(--sp-2); }
+.studio-steps > :not(.studio-steps-hint) { flex: 1; min-height: 0; }
 
 /* ---------- Session view: a column per track, a row per scene, and the scenes' own column at the end ---------- */
 .studio-session { display: grid; grid-template-columns: repeat(var(--cols), minmax(calc(var(--sp-8) * 4), calc(var(--sp-8) * 5))) calc(var(--sp-8) * 5); align-content: start; min-width: min-content; }
