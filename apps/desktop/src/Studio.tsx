@@ -174,9 +174,9 @@ const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?:
 ];
 
 /** One of the Device panel's settings, as a shared knob. Double-click puts it back to the instrument's own. */
-function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
+function DeviceSlider({ name, k, value, base, proposed, onChange }: { name: string; k: keyof Sound; value: number; base: number; proposed?: boolean; onChange: (v: number) => void }) {
   const { lo, hi } = SOUND_RANGE[k];
-  return <Knob label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
+  return <Knob label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} proposed={proposed} onChange={onChange} />;
 }
 
 /** How an effect's setting reads: "+3.0 dB", "1.2 kHz", "4:1", "12 ms", "35%", "2.0 s". */
@@ -196,8 +196,10 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
 /** One effect on the track, as a shared device: on or off, dragged along the chain by its grip, taken off, and its settings. */
-function EffectBlock({ effect, at, onChange, onRemove, folded, onFold }: {
+function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed }: {
   effect: Effect; at: number;
+  /** What Mobius changed on this effect and nobody has kept yet: `fx:<id>` for the whole effect, `fx:<id>:<setting>`. */
+  proposed?: ReadonlySet<string>;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
@@ -205,7 +207,7 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold }: {
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
-    <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
+    <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
       actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
       <div className="studio-fx-body">
       {effect.kind === 'delay' && (
@@ -218,7 +220,7 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold }: {
       {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
-          return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
+          return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>}
       </div>
@@ -252,8 +254,10 @@ const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label 
  * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
  * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack }: {
+export function StudioDevice({ track, onTrack, proposed }: {
   track: Track | null;
+  /** The settings Mobius changed on this track and nobody has kept yet (soundChanges keys): marked, and turned to. */
+  proposed?: ReadonlySet<string>;
   onTrack: (fn: (t: Track) => void, tag?: string) => void;
 }) {
   const sound = track ? soundOf(track) : null;
@@ -275,8 +279,8 @@ export function StudioDevice({ track, onTrack }: {
         <h4 className="studio-dev-head">Track</h4>
         <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
         <ParamGrid label="Level" columns={2}>
-          <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-          <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+          <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} proposed={proposed?.has('volume')} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+          <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} proposed={proposed?.has('pan')} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
         </ParamGrid>
       </section>
       {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
@@ -298,7 +302,7 @@ export function StudioDevice({ track, onTrack }: {
                   onChange={(env) => setMany({ attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release }, 'envelope')} />
               )}
               {g.cells.length > 0 && <ParamGrid label={g.name} columns={2}>
-                {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} onChange={(v) => set(k, v)} />)}
+                {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} proposed={proposed?.has(`sound:${k}`)} onChange={(v) => set(k, v)} />)}
               </ParamGrid>}
             </section>
           ))}
@@ -306,7 +310,7 @@ export function StudioDevice({ track, onTrack }: {
             <section className="studio-dev-section studio-dev-col" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
               <ParamGrid label="Kit" columns={2}>
-                {KIT_CELLS.map(({ k, name, step, log }) => <Knob key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
+                {KIT_CELLS.map(({ k, name, step, log }) => <Knob key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} proposed={proposed?.has(`kit:${k}`)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
               <p className="studio-dev-note">Every drum together. Each drum also has its own pad.</p>
             </section>
@@ -339,7 +343,7 @@ export function StudioDevice({ track, onTrack }: {
           <DeviceChain label={`${track.name} effects`} count={fx.length}
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
-              <EffectBlock key={e.id} effect={e} at={i} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
+              <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
                 onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
@@ -429,6 +433,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   /** Export as WAV: busy while the song renders, then a line on where it went (or why not). */
   const [exporting, setExporting] = useState(false);
   const [exported, setExported] = useState<{ text: string; kind: 'busy' | 'done' | 'note' } | null>(null);
+  const exportStop = useRef<AbortController | null>(null);
+  // A finished or failed export says so for a few seconds, then the toast goes by itself.
+  useEffect(() => {
+    if (!exported || exported.kind === 'busy') return undefined;
+    const id = window.setTimeout(() => setExported(null), 6000);
+    return () => window.clearTimeout(id);
+  }, [exported]);
   useEffect(() => {
     const el = page.current;
     if (!el) return;
@@ -470,6 +481,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       return was && now && !notesDiffer(was, now) && soundChanges(was, now).length > 0;
     }) ?? null;
   }, [changed, song, wasSong]);
+  /** The chosen track's settings Mobius changed and nobody has kept yet: its devices mark them until Keep or Discard. */
+  const proposedKeys = useMemo(() => {
+    const id = selected;
+    if (!song || !wasSong || !id || !changed.has(id)) return undefined;
+    const now = song.tracks.find((t) => t.id === id);
+    return now ? new Set(soundChanges(wasSong.tracks.find((t) => t.id === id), now).map((c) => c.key)) : undefined;
+  }, [changed, song, wasSong, selected]);
   useEffect(() => {
     if (!soundOnly) return;
     setSelected(soundOnly); setEditing(true); setDetail('device');
@@ -1079,15 +1097,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!api?.saveExport) { setExported({ text: 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
     setExporting(true);
     const name = `${songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song'}.wav`;
-    setExported({ text: `Exporting “${name}”…`, kind: 'busy' });
+    setExported({ text: `Exporting “${name}”… 0%`, kind: 'busy' });
+    const stop = new AbortController();
+    exportStop.current = stop;
     try {
-      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was ? { text: `Exporting “${name}”… ${Math.round(done * 100)}%`, kind: 'busy' } : was)))));
+      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was ? { text: `Exporting “${name}”… ${Math.round(done * 100)}%`, kind: 'busy' } : was)), stop.signal)));
       const done = await api.saveExport(songs.page.path, name, data);
       if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
     } catch (err) {
-      setExported({ text: `Couldn’t export: ${err instanceof Error ? err.message : String(err)}`, kind: 'note' });
-    } finally { setExporting(false); }
+      if (stop.signal.aborted) setExported({ text: `Didn’t export “${name}”`, kind: 'note' });
+      else setExported({ text: `Couldn’t export: ${err instanceof Error ? err.message : String(err)}`, kind: 'note' });
+    } finally { setExporting(false); exportStop.current = null; }
   };
   pageKeys.current = (e, t) => {
     const mod = e.ctrlKey || e.metaKey;
@@ -1265,7 +1286,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
           {detail === 'device' ? (
-            <StudioDevice track={track} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+            <StudioDevice track={track} proposed={proposedKeys} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
           ) : view === 'session' && !clip ? (
             <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
           ) : drumView === 'steps' ? (
@@ -1362,7 +1383,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </>
         )}
       </div>
-      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Hide' : 'OK'} onUndo={() => { if (exported.kind === 'done') void window.mobius?.songs?.showExports?.(); setExported(null); }} onDismiss={() => setExported(null)} />}
+      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Cancel' : 'Dismiss'}
+        onUndo={() => { if (exported.kind === 'done') void window.mobius?.songs?.showExports?.(); if (exported.kind === 'busy') exportStop.current?.abort(); setExported(null); }} onDismiss={() => setExported(null)} />}
       {undoText && <UndoToast text={undoText} onUndo={() => { undo(); setUndoText(null); }} onDismiss={() => setUndoText(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
     </section>

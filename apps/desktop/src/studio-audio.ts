@@ -442,17 +442,25 @@ export const RENDER_TAIL = 2;
  * The whole song played into a buffer rather than the speakers, for Export: every audible track, its sound, effects,
  * pan and volume line, from the start to the last bar plus a short tail. 44.1 kHz stereo.
  */
-export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (done: number) => void): Promise<AudioBuffer> {
+export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (done: number) => void, signal?: AbortSignal): Promise<AudioBuffer> {
   const spb = 60 / song.tempo;
   const total = song.bars * BEATS_PER_BAR;
   const seconds = Math.max(0, total * spb) + RENDER_TAIL;
   const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
-  // Rendering takes a while on a long song: stop every few seconds of sound to say how far it has got.
-  if (onProgress) {
+  // Rendering takes a while on a long song: stop every few seconds of sound to say how far it has got, and to let it be
+  // cancelled (a cancelled render is left suspended, so it does no more work).
+  let cancelled: (() => void) | null = null;
+  const stopped = new Promise<never>((_, reject) => { cancelled = () => reject(new DOMException('Export cancelled', 'AbortError')); });
+  if (onProgress || signal) {
     for (let at = 4; at < seconds; at += 4) {
-      void ctx.suspend(at).then(() => { onProgress(at / seconds); return ctx.resume(); });
+      void ctx.suspend(at).then(() => {
+        if (signal?.aborted) { cancelled?.(); return undefined; }
+        onProgress?.(at / seconds);
+        return ctx.resume();
+      });
     }
   }
+  signal?.throwIfAborted();
   const master = ctx.createGain();
   master.gain.value = 0.8;
   master.connect(ctx.destination);
@@ -469,5 +477,5 @@ export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (d
       else tone(ctx, out, t.instrument, n.pitch, n.start * spb, n.length * spb, n.velocity, t.sound);
     }
   }
-  return ctx.startRendering();
+  return Promise.race([ctx.startRendering(), stopped]);
 }
