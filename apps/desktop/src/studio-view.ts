@@ -287,3 +287,24 @@ const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A'
 export function spellIn(pitch: number, key: string): string {
   return `${(FLAT_KEYS.has(key) ? FLAT_NAMES : SHARP_NAMES)[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
 }
+
+/**
+ * The computer keyboard as an instrument, the way desktop studios lay it out: the middle letter row is the white keys
+ * from C (A S D F G H J K L ;), the row above the black keys between them (W E, T Y U, O P). Gives the semitone above
+ * the octave's C, or null for a key that plays nothing.
+ */
+const KEY_SEMITONES: Record<string, number> = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
+export const KEYBOARD_KEYS = Object.keys(KEY_SEMITONES);
+export function keyboardPitch(key: string, octave: number): number | null {
+  const semi = KEY_SEMITONES[key.toLowerCase()];
+  if (semi === undefined) return null;
+  const pitch = 12 * (octave + 1) + semi;
+  return pitch >= 0 && pitch <= 127 ? pitch : null;
+}
+/** For drums, the white keys from A play the drums from the kick up; the others play nothing. */
+export function keyboardDrum(key: string, drumsUp: readonly number[]): number | null {
+  const i = ['a', 's', 'd', 'f', 'g', 'h'].indexOf(key.toLowerCase());
+  return i >= 0 && i < drumsUp.length ? drumsUp[i]! : null;
+}
+/** The keyboard's velocity moves in steps of 20 out of 127 (C softer, V louder), kept between 1 and 127. */
+export const nudgeKeyVelocity = (v: number, by: -1 | 1): number => Math.max(1, Math.min(127, v + by * 20));

@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip,
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -112,6 +112,7 @@ const ICONS = {
   play: 'M6.5 4.2v11.6L15.8 10z',
   stop: 'M5.5 5.5h9v9h-9z',
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
+  keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
 };
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
@@ -549,6 +550,17 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [playing, start, stop, seek, undo, redo]);
+  // The computer keyboard's keys, caught on the way down so nothing else on the window takes them first.
+  const playKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!t?.closest('.studio-page') || t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
+      if (playKeys.current?.(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, []);
 
   // The piano roll opens on the chosen track's highest notes.
   const shownTrack = song ? (song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null) : null;
@@ -572,6 +584,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     return () => window.removeEventListener(ADD_TRACK, onAdd);
   }, [change]);
   useEffect(() => { setUndoText(null); }, [songs.page?.path]);
+  // The computer keyboard as an instrument: which keys are down, so the roll's keyboard shows them, until let go.
+  const [keyboard, setKeyboard] = useState(false);
+  const [keyOctave, setKeyOctave] = useState(4);
+  const [keyVelocity, setKeyVelocity] = useState(100);
+  const [held, setHeld] = useState<ReadonlyMap<string, number>>(new Map());
+  useEffect(() => {
+    const up = (e: KeyboardEvent) => setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; });
+    const clear = () => setHeld(new Map());
+    window.addEventListener('keyup', up);
+    window.addEventListener('blur', clear);
+    return () => { window.removeEventListener('keyup', up); window.removeEventListener('blur', clear); };
+  }, []);
   // A short while for the last song to open before the page says none is open.
   const [settled, setSettled] = useState(false);
   useEffect(() => { const id = window.setTimeout(() => setSettled(true), 1500); return () => window.clearTimeout(id); }, []);
@@ -616,6 +640,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
   const notes = clip ? clip.notes : (track?.notes ?? []);
+  const heldPitches = new Set(held.values());
   // Steps: a row per drum, or for a melody a row per note of the key across two octaves, from the octave picked.
   const octave = track ? (stepOct[track.id] ?? stepOctave(notes, track.instrument === 'bass' ? 2 : 4)) : 4;
   const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: spellIn(p, song.key) }));
@@ -926,6 +951,20 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     </div>
   ) : null;
   const stopOrRewind = () => { if (playing) stop(); else seek(0); };
+  // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys and the window's C for comments.
+  playKeys.current = (e) => {
+    const k = e.key.toLowerCase();
+    if (!keyboard || !track || e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (k === 'z' || k === 'x') { setKeyOctave((o) => Math.max(0, Math.min(8, o + (k === 'z' ? -1 : 1)))); return true; }
+    if (k === 'c' || k === 'v') { setKeyVelocity((v) => nudgeKeyVelocity(v, k === 'c' ? -1 : 1)); return true; }
+    const pitch = drums ? keyboardDrum(k, DRUMS_UP.map((d) => d.pitch)) : keyboardPitch(k, keyOctave);
+    if (pitch === null) return false;
+    if (!e.repeat) {
+      previewNote(track.instrument, pitch, keyVelocity / 127, 0.45, track.sound, track.kit, track.pads?.[pitch]);
+      setHeld((h) => new Map(h).set(k, pitch));
+    }
+    return true;
+  };
   pageKeys.current = (e, t) => {
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
@@ -948,7 +987,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const ticks = Math.max(1, [1, 2, 4, 8, 16].find((n) => n * BEATS_PER_BAR * bw >= 56) ?? 16);
 
   return (
-    <section className="studio-page" aria-label="Music" ref={page} data-editing={editing || undefined}>
+    <section className="studio-page" aria-label="Music" ref={page} tabIndex={-1} data-editing={editing || undefined}>
+      {keyboard && <span className="studio-sr" role="status">{`Computer keyboard from C${keyOctave}, velocity ${keyVelocity}`}</span>}
       <ToolbarControls label="Transport">
         <IconButton className="studio-play" label={playing ? 'Pause' : 'Play'} keys="Space" pressed={playing} icon={<Icon d={playing ? 'M5.5 4.5h3.5v11H5.5zM11 4.5h3.5v11H11z' : ICONS.play} />} onClick={() => (playing ? stop() : start())} />
         <IconButton label="Stop" title={playing ? 'Stop' : 'Back to the start'} keys={playing ? 'Space' : 'Enter'} icon={<Icon d={ICONS.stop} />} onClick={stopOrRewind} />
@@ -959,6 +999,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <span aria-hidden="true">bpm</span>
         </label>
         <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
+        <IconButton label="Computer keyboard" pressed={keyboard}
+          title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
+          icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
+        {keyboard && <span className="studio-keys-at" aria-hidden="true" title="Z X move the octave, C V the velocity">C{keyOctave}<span>{keyVelocity}</span></span>}
         <span className="studio-sep" aria-hidden="true" />
         <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>
@@ -1068,7 +1112,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                     <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
-                ) : drumView === 'steps' ? null : <span className="studio-hint">Click to draw a note, drag to move it, drag its end to stretch it.</span>}
+                ) : null}
                 </>}
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
@@ -1088,6 +1132,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 }} />
             </div>
           ) : <>
+          {/* How to draw, while there is nothing drawn yet; the bar keeps to controls so none of them is cut short. */}
+          {notes.length === 0 && <p className="studio-dev-note studio-roll-hint">Click to draw a note, drag to move it, drag its end to stretch it.</p>}
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
               className="studio-roll-inner"
@@ -1100,7 +1146,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             >
               {rows.map((r, i) => (
                 <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * rowH, height: rowH }}>
-                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit, track.pads?.[r.pitch]); }}>{r.label}</span>
+                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} data-on={heldPitches.has(r.pitch) || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit, track.pads?.[r.pitch]); }}>{r.label}</span>
                   <div
                     className="studio-row-cells"
                     role="gridcell"

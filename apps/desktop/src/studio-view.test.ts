@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -179,5 +179,26 @@ describe('a melody as steps', () => {
   });
   it('writes a step as long as asked', () => {
     expect(setStep([], 0, 60, 4, 0.8, 0.5)).toEqual([{ pitch: 60, start: 1, length: 0.5, velocity: 0.8 }]);
+  });
+});
+
+describe('the computer keyboard as an instrument', () => {
+  it('plays white keys on the middle row and black keys above, from the octave\'s C', () => {
+    expect(keyboardPitch('a', 4)).toBe(60);
+    expect(keyboardPitch('W', 4)).toBe(61);
+    expect(keyboardPitch('k', 4)).toBe(72);
+    expect(keyboardPitch(';', 3)).toBe(64);
+    expect(keyboardPitch('q', 4)).toBeNull();
+  });
+  it('plays the drums from the kick up on the white keys', () => {
+    expect(keyboardDrum('a', [36, 38, 39])).toBe(36);
+    expect(keyboardDrum('d', [36, 38, 39])).toBe(39);
+    expect(keyboardDrum('f', [36, 38, 39])).toBeNull();
+    expect(keyboardDrum('w', [36, 38, 39])).toBeNull();
+  });
+  it('moves velocity in steps, kept in range', () => {
+    expect(nudgeKeyVelocity(100, 1)).toBe(120);
+    expect(nudgeKeyVelocity(120, 1)).toBe(127);
+    expect(nudgeKeyVelocity(10, -1)).toBe(1);
   });
 });

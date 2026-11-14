@@ -91,7 +91,7 @@ A small studio for writing songs as notes.
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
-  (twice, or Enter, to go back to the start), the position and tempo in mono figures, Loop (L), and the Session and Arrange switch. Every song is in 4 / 4 for now.
+  (twice, or Enter, to go back to the start), the position and tempo in mono figures, Loop (L), the computer keyboard, and the Session and Arrange switch. Every song is in 4 / 4 for now.
 - **Two views**, switched in the toolbar. **Arrange** is the song from start to end, as below. **Session** is a grid
   of clips, a column per track and a row per scene. Click an empty slot to make a clip there; its notes open in the
   bottom area, where Clip length sets how long it goes round (1 to 16 bars). Press a clip's triangle to launch it: it
@@ -138,6 +138,10 @@ A small studio for writing songs as notes.
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
+- **The computer keyboard** plays the chosen track: turn it on with the keys button in the toolbar. A S D F G H J K
+  play the white keys from C and W E T Y U the black ones; Z and X move down or up an octave and C and V make it
+  softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the
+  top. The keys you hold light up on the notes editor's keyboard. Playing does not write notes yet; recording is next.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
   to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.

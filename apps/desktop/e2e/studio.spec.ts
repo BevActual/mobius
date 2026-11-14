@@ -272,6 +272,24 @@ test('a melody is written as steps too, a row per note of the key', async () => 
   await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
 });
 
+test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
+  await start();
+  const play = shell().getByRole('button', { name: 'Computer keyboard' });
+  await play.click();
+  await expect(play).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('status').filter({ hasText: 'Computer keyboard from C4, velocity 100' })).toBeAttached();
+  // X goes up an octave and C down a velocity step; A plays C, H plays A.
+  await shell().keyboard.press('x');
+  await shell().keyboard.press('c');
+  await expect(shell().getByRole('status').filter({ hasText: 'Computer keyboard from C5, velocity 80' })).toBeAttached();
+  await shell().keyboard.down('h');
+  await expect(shell().locator('.studio-key[data-on]')).toHaveText('A5');
+  await shell().keyboard.up('h');
+  await expect(shell().locator('.studio-key[data-on]')).toHaveCount(0);
+  // Playing is not writing: the song is as it was.
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

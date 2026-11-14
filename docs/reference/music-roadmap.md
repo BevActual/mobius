@@ -25,7 +25,7 @@ not designs to copy.
 | --- | --- | --- |
 | Two views of a song | **Session** is a grid of clips, a column per track and a row per scene, for trying parts against each other live: a clip loops from the next bar when launched, and a scene launches its whole row. **Arrange** is the song from start to end. The switch is in the toolbar. | Building |
 | One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Building |
-| The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Next |
+| The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Building |
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
 | Draw mode | B switches the notes editor between drawing notes and picking them, so a click never does the wrong one. | Next |
 | Devices fold and switch off | Each device folds to its title bar and has its own on switch. Double-click the title to fold it. | Next (switches Have) |
@@ -135,7 +135,7 @@ notes for good, so the file always shows what you hear.
 
 | Feature | What it does | Status |
 | --- | --- | --- |
-| Play notes from a keyboard | A MIDI keyboard or the computer keys. | Next |
+| Play notes from a keyboard | The computer keys now; a MIDI keyboard next. | Building |
 | Record notes | Recording what you play into a clip. | Next |
 | Export | The song as an audio file in your workspace. | Next |
 | Catch what you played | Getting back notes you played while not recording. | Later |
