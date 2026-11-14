@@ -32,9 +32,9 @@ week slower. I'd rather not gamble on the slower one this close to the build.
 **Andrew:** Same. So we stay with Veltro for all eight packs. Let's call that decided too. I'll pay the Veltro deposit
 tomorrow.
 
-**Sam:** Do we want spares? Eight or ten?
+**Sam:** Do we want two spare packs on top, so ten in all, or just the eight?
 
-**Priya:** Eight for now. We can top up after the build if we need to.
+**Priya:** Just the eight, no spares for now. We can top up after the build if we need to.
 
 **Andrew:** And Priya, you wanted the brake test plan from me as well.
 
