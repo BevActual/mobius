@@ -105,7 +105,7 @@ $group = 'mobius-signing'; $account = '<account name>'; $endpoint = '<Account UR
 $app = az ad app create --display-name mobius-release-signing --query appId -o tsv
 az ad sp create --id $app | Out-Null
 @'
-{"name":"mobius-release","issuer":"https://token.actions.githubusercontent.com","subject":"repo:BevActual/mobius:environment:release","audiences":["api://AzureADTokenExchange"]}
+{"name":"mobius-release","issuer":"https://token.actions.githubusercontent.com","subject":"repo:BevActual@128940780/mobius@1449309987:environment:release","audiences":["api://AzureADTokenExchange"]}
 '@ | Set-Content "$env:TEMP\mobius-fic.json"
 az ad app federated-credential create --id $app --parameters "@$env:TEMP\mobius-fic.json"
 $scope = az resource show -g $group -n $account --resource-type Microsoft.CodeSigning/codeSigningAccounts --query id -o tsv
@@ -118,6 +118,12 @@ gh variable set AZURE_SIGNING_ENDPOINT -R $r -b $endpoint
 gh variable set AZURE_SIGNING_ACCOUNT -R $r -b $account
 gh variable set AZURE_CERTIFICATE_PROFILE -R $r -b 'mobius'
 ```
+
+The subject uses GitHub's newer form with the owner's and repository's ids (`BevActual@128940780/mobius@1449309987`),
+which is what this repository's tokens carry; the plain `repo:BevActual/mobius:…` form is refused (AADSTS700213).
+
+Keep `AZURE_SIGNING_ACCOUNT` unset until the identity is approved and the certificate profile exists: while it is set,
+every release tries to sign and fails if it can't.
 
 The next tag then produces a signed installer; the run's **Check the signature** step prints who it was signed by.
 

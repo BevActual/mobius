@@ -193,7 +193,9 @@ export interface MailDraft {
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
-export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
+/** A chart on a sheet, kept in the workbook's .charts.json: drawn from `range` (first row the series names, first column the categories), its corner at the cell `at`. */
+export interface SheetChart { sheet: string; kind: 'column' | 'line' | 'area'; range: string; at: string; title?: string }
+export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string; /** The sheet's charts (older cores send none). */ charts?: SheetChart[] }
 export interface WorkbookInfo { name: string; sheets: string[] }
 export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Code project's file or folder, as a path inside the project, folders first. */
@@ -206,7 +208,7 @@ export interface PhotosChanged { path: string | null; by: 'person' | 'assistant'
 export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
-export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[] }
+export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[]; moves?: { from: string; to: string }[] }
 /** A skill: a procedure Mobius follows, `skills/<name>/SKILL.md`, with its earlier versions kept. */
 export interface SkillInfo { name: string; description: string; modified: number; version: number }
 export interface SkillContent { name: string; text: string; modified: number; version: number; versions: { version: number; modified: number; description: string }[] }
@@ -399,7 +401,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean; /** Only the tools of these apps are offered (tasks, calendar): the part of a tool's name before the dot. */ tools?: readonly string[] }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -911,6 +913,8 @@ export interface MobiusBridge {
     /** Only the Tauri shell provides these four; the interface offers them when they are there. */
     reopenClosed?(): Promise<string | null>;
     duplicate?(tabId: string): Promise<string | null>;
+    /** Open a workspace web page (a path under pages/) in a new tab, at the address the shell serves it on. Its tab id, or null. */
+    openPage?(path: string): Promise<string | null>;
     pin?(tabId: string, pinned: boolean): void;
     moveTab?(tabId: string, index: number): void;
   };
@@ -1068,7 +1072,8 @@ export interface AboutInfo {
 
 /** What the settings panel may know. The key itself is never sent back to the renderer. */
 /** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
-export interface TurnChanges { checkpoint: string | null; files: string[] }
+/** A moved (or renamed) file is in `files` by both its paths, and in `moves` once. */
+export interface TurnChanges { checkpoint: string | null; files: string[]; moves?: { from: string; to: string }[] }
 export interface AgentFailure { ok: false; error: string }
 
 export interface AgentSettings {

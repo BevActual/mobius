@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
-import { fromPosition, logNudge, toPosition, type SliderProps } from './Slider';
+import { fromPosition, logNudge, toPosition, useGlide, type SliderProps } from './Slider';
 import { NumberField } from './Pro';
 
 /**
@@ -60,16 +60,21 @@ function arc(from: number, to: number) {
  * filled in ink from the origin (zero, or the lowest value) to the value. Drag up or down to turn it (Shift for fine),
  * arrows nudge, Home and End go to the ends, double-click resets.
  */
-export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, unit, disabled, className }: KnobProps) {
+export function Knob({ label, value, onChange: change, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, unit, proposed, disabled, className }: KnobProps) {
   const id = useId();
   const zero = origin ?? (min < 0 && max > 0 ? 0 : min);
   const back = reset ?? zero;
+  const own = useRef<number | null>(null);
+  const onChange = (v: number) => { own.current = v; change(v); };
+  const display = useGlide(value, own);
+  const seen = display === value ? value : snap(display, step, min);
   const at = toPosition(value, min, max, scale), from = toPosition(zero, min, max, scale);
+  const drawn = toPosition(display, min, max, scale);
   const drag = useRef<{ y: number; at: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const set = (next: number) => { const v = snap(clamp(next, min, max), step, min); if (v !== value) onChange(v); return v; };
-  const shown = format ? format(value) : String(value);
-  const text = `${shown}${unit ? ` ${unit}` : ''}`;
+  const shown = format ? format(seen) : String(seen);
+  const text = `${format ? format(value) : String(value)}${unit ? ` ${unit}` : ''}`;
 
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (disabled || e.button !== 0) return;
@@ -98,10 +103,10 @@ export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, ste
     e.preventDefault();
     set(next);
   };
-  const a0 = -SWEEP / 2, lo = a0 + SWEEP * Math.min(at, from), hi = a0 + SWEEP * Math.max(at, from), now = a0 + SWEEP * at;
+  const a0 = -SWEEP / 2, lo = a0 + SWEEP * Math.min(drawn, from), hi = a0 + SWEEP * Math.max(drawn, from), now = a0 + SWEEP * drawn;
   const r = ((now - 90) * Math.PI) / 180;
   return (
-    <div className={className ? `ui-knob ${className}` : 'ui-knob'} data-changed={value !== zero || undefined} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-knob ${className}` : 'ui-knob'} data-changed={value !== zero || undefined} data-proposed={proposed || undefined} data-disabled={disabled || undefined}>
       <span className="ui-knob-name" id={`${id}-name`}>{label}</span>
       <div
         className="ui-knob-dial"

@@ -5,8 +5,9 @@
 //!
 //! The seed is `workspace/`, copied as the profile's workspace (notes, tasks, calendar, docs, sheets…), and `mail/`, a
 //! mail account kept on this computer (see `Mail::import_local`). In text files, `{{date:+N}}` and `{{date:-N}}`
-//! become the date N days from the day it is opened (`YYYY-MM-DD`, or `YYYYMMDD` in an `.ics` file, as iCalendar
-//! writes dates), so a busy week is always this week.
+//! become the date N days from the day it is opened, and `{{workday:+N}}` and `{{workday:-N}}` N working days from it
+//! (from the Monday after, on a weekend), as `YYYY-MM-DD`, or `YYYYMMDD` in an `.ics` file, as iCalendar writes dates,
+//! so a busy week is always this week and never on a weekend.
 use std::path::Path;
 
 use crate::mail::store::Mail;
@@ -58,21 +59,47 @@ fn copy(from: &Path, to: &Path, today: chrono::NaiveDate, count: &mut usize) -> 
     Ok(())
 }
 
-/// `{{date:+N}}` and `{{date:-N}}` written as the date N days from `today`, in `format`.
+/// `{{date:+N}}` and `{{date:-N}}` written as the date N days from `today`, and `{{workday:+N}}` and
+/// `{{workday:-N}}` as N working days (Monday to Friday) from today, or from the Monday after when today is a
+/// weekend, so a busy week never lands on a Saturday. Both in `format`.
 fn with_dates(text: &str, today: chrono::NaiveDate, format: &str) -> String {
+    let text = with_tag(text, "{{workday:", |n| workdays(today, n), format);
+    with_tag(&text, "{{date:", |n| today + chrono::Duration::days(n), format)
+}
+
+/// The day `n` working days from `today` (from the Monday after, on a weekend).
+fn workdays(today: chrono::NaiveDate, n: i64) -> chrono::NaiveDate {
+    use chrono::{Datelike, Weekday};
+    let weekend = |d: chrono::NaiveDate| matches!(d.weekday(), Weekday::Sat | Weekday::Sun);
+    let mut day = today;
+    while weekend(day) {
+        day += chrono::Duration::days(1);
+    }
+    let step = chrono::Duration::days(n.signum());
+    for _ in 0..n.abs() {
+        day += step;
+        while weekend(day) {
+            day += step;
+        }
+    }
+    day
+}
+
+/// Each `{tag}N}}` written as `day(N)` in `format`; anything else after the tag is left as it was.
+fn with_tag(text: &str, tag: &str, day: impl Fn(i64) -> chrono::NaiveDate, format: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
-    while let Some(at) = rest.find("{{date:") {
+    while let Some(at) = rest.find(tag) {
         out.push_str(&rest[..at]);
-        let after = &rest[at + 7..];
+        let after = &rest[at + tag.len()..];
         let parsed = after.find("}}").and_then(|end| after[..end].trim().parse::<i64>().ok().map(|n| (n, end)));
         match parsed {
             Some((n, end)) if n.abs() <= 3660 => {
-                out.push_str(&(today + chrono::Duration::days(n)).format(format).to_string());
+                out.push_str(&day(n).format(format).to_string());
                 rest = &after[end + 2..];
             }
             _ => {
-                out.push_str("{{date:");
+                out.push_str(tag);
                 rest = after;
             }
         }
@@ -90,6 +117,16 @@ mod tests {
         let today = chrono::NaiveDate::from_ymd_opt(2026, 11, 14).unwrap();
         assert_eq!(with_dates("due {{date:+1}}, held {{date:-3}}T09:00, {{date:x}} {{date:+2", today, "%Y-%m-%d"), "due 2026-11-15, held 2026-11-11T09:00, {{date:x}} {{date:+2");
         assert_eq!(with_dates("DTSTART:{{date:-3}}T090000", today, "%Y%m%d"), "DTSTART:20261111T090000");
+    }
+
+    #[test]
+    fn workdays_skip_the_weekend_and_start_on_monday_when_opened_on_one() {
+        // 2026-11-14 is a Saturday: the working week starts on Monday the 16th.
+        let saturday = chrono::NaiveDate::from_ymd_opt(2026, 11, 14).unwrap();
+        assert_eq!(with_dates("{{workday:0}} {{workday:+1}} {{workday:+4}} {{workday:+5}} {{workday:-1}}", saturday, "%Y-%m-%d"), "2026-11-16 2026-11-17 2026-11-20 2026-11-23 2026-11-13");
+        // A Thursday: one working day on is Friday, two is Monday.
+        let thursday = chrono::NaiveDate::from_ymd_opt(2026, 11, 12).unwrap();
+        assert_eq!(with_dates("{{workday:0}} {{workday:+1}} {{workday:+2}} {{workday:-4}} {{workday:x}}", thursday, "%Y-%m-%d"), "2026-11-12 2026-11-13 2026-11-16 2026-11-06 {{workday:x}}");
     }
 
     #[test]

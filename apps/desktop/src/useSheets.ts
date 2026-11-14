@@ -80,6 +80,10 @@ export function useSheets(active = true) {
       const before = d.cells;
       void api.read(d.workbook, d.sheet).then((got) => {
         if (isNotesFailure(got)) { if (change.by !== 'person') void refresh(); return; }
+        // Another sheet may have opened while this one was read: its read is not put back over it.
+        const now = live.current;
+        if (!now || now.workbook !== d.workbook || now.sheet !== d.sheet) return;
+        live.current = got;
         setData(got);
         if (change.by === 'person' || change.by === 'undo') return;
         const marked = changedCells(before, got.cells);

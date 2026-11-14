@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CommentAnchor, CommentThread, ContextItem, Message } from '@mobius/shared';
 import { KEPT_EVENT } from './ReviewStrip';
+import { RichText } from './RichText';
 
 /**
  * Comments on anything in the shell, as in a design tool: a speech-bubble button (or C) turns comment mode on, a
@@ -18,18 +19,26 @@ export function useCommentThreads(app: string, doc: string | null) {
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const live = useRef({ app, doc });
   live.current = { app, doc };
+  // Saves go one after another, in the order they were made: two at once could land the wrong way round (a comment
+  // kept as a note going back to open). An answer that a later save has overtaken is not shown.
+  const writing = useRef<Promise<unknown>>(Promise.resolve());
+  const saves = useRef(0);
   const load = useCallback(async () => {
     if (!doc || !api()) { setThreads([]); return; }
+    const before = saves.current;
     const got = await api()!.list(app, doc).catch(() => []);
-    if (live.current.app === app && live.current.doc === doc) setThreads(isThreads(got) ? got : []);
+    if (live.current.app === app && live.current.doc === doc && saves.current === before) setThreads(isThreads(got) ? got : []);
   }, [app, doc]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api()?.onChanged((changed) => { if (!changed || changed === app) void load(); }), [app, load]);
   const save = useCallback(async (next: CommentThread[]) => {
     if (!doc || !api()) return;
+    const mine = ++saves.current;
     setThreads(next);
-    const kept = await api()!.set(app, doc, next).catch(() => null);
-    if (kept && 'threads' in kept) setThreads(kept.threads);
+    const run = writing.current.then(() => api()!.set(app, doc, next).catch(() => null));
+    writing.current = run;
+    const kept = await run;
+    if (mine === saves.current && kept && 'threads' in kept) setThreads(kept.threads);
   }, [app, doc]);
   return { threads, save };
 }
@@ -245,8 +254,8 @@ export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, conve
             <p className="comment-on">{t.anchor.label}</p>
             <p className="comment-text">{t.text}</p>
             {t.state === 'note' && <p className="comment-meta">A note for people. Mobius does not read it.</p>}
-            {t.state === 'sent' && <p className="comment-reply" role="status">{t.reply ?? 'Asked Mobius…'}</p>}
-            {t.state === 'resolved' && t.reply && <p className="comment-reply">{t.reply}</p>}
+            {t.state === 'sent' && <div className="comment-reply" role="status">{t.reply ? <RichText text={t.reply} /> : 'Asked Mobius…'}</div>}
+            {t.state === 'resolved' && t.reply && <div className="comment-reply"><RichText text={t.reply} /></div>}
             <div className="comment-actions">
               {(t.state === 'open' || t.state === 'note') && <button type="button" className="review-btn" data-kind="keep" onClick={() => void send(t)}>Send to Mobius</button>}
               {t.state === 'open' && <button type="button" className="review-btn" onClick={() => update(t.id, { state: 'note' })}>Keep as a note</button>}

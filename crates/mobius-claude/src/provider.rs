@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mobius_agent::message::ToolCall;
 use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError};
 use serde_json::{Value, json};
 
@@ -114,11 +115,18 @@ struct Run {
     events: Receiver<Option<Result<Value, String>>>,
     stderr: Arc<Mutex<VecDeque<String>>>,
     timeout: Duration,
+    spawned: Instant,
+    /// When Claude Code first said anything, in ms after it was started: how long it took to be ready.
+    ready_ms: std::cell::Cell<Option<u64>>,
 }
 
 impl Run {
     fn next(&self) -> Result<Option<Value>, ProviderError> {
-        match self.events.recv_timeout(self.timeout) {
+        let got = self.events.recv_timeout(self.timeout);
+        if self.ready_ms.get().is_none() && matches!(got, Ok(Some(_))) {
+            self.ready_ms.set(Some(u64::try_from(self.spawned.elapsed().as_millis()).unwrap_or(u64::MAX)));
+        }
+        match got {
             Ok(Some(Ok(v))) => Ok(Some(v)),
             Ok(Some(Err(line))) => Err(protocol(format!("Claude Code wrote something that is not stream-json: {}{}", line.chars().take(200).collect::<String>(), self.tail()))),
             Ok(None) | Err(RecvTimeoutError::Disconnected) => Ok(None),
@@ -142,6 +150,10 @@ impl Drop for Run {
 
 impl Provider for ClaudeCodeProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        self.complete_with_calls(request, on_text, &mut |_| {})
+    }
+
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&ToolCall)) -> Result<Completion, ProviderError> {
         let prepared = frames::prepare(request, &self.natives).map_err(protocol)?;
         let tmp = TempDir::new().map_err(|e| protocol(e.to_string()))?;
         let file = |name: &str, body: &str| -> Result<PathBuf, ProviderError> {
@@ -173,6 +185,7 @@ impl Provider for ClaudeCodeProvider {
         }
         args.extend(["--session-id".to_owned(), frames::session_id(&prepared.system, &prepared.frames)]);
 
+        let spawned = Instant::now();
         let mut command = Command::new(&self.program);
         command.args(&args).current_dir(&self.workdir).env_clear().envs(&env).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         #[cfg(windows)]
@@ -204,7 +217,7 @@ impl Provider for ClaudeCodeProvider {
             }
             let _ = tx.send(None);
         });
-        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout };
+        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout, spawned, ready_ms: std::cell::Cell::new(None) };
 
         // History first: every earlier user turn is replayed without asking the model, and acknowledged with no turn.
         let last = prepared.frames.len() - 1;
@@ -232,10 +245,35 @@ impl Provider for ClaudeCodeProvider {
         let started = Instant::now();
         let mut emitted = String::new();
         let mut native_error: Option<(String, String)> = None;
+        // Tool calls being written, by block index: the block (id and name) and its arguments so far.
+        let mut writing: BTreeMap<u64, (Value, String)> = BTreeMap::new();
         while let Some(event) = run.next()? {
             match event["type"].as_str() {
                 Some("stream_event") => {
-                    let delta = &event["event"]["delta"];
+                    let inner = &event["event"];
+                    let index = inner["index"].as_u64().unwrap_or(0);
+                    match inner["type"].as_str() {
+                        Some("message_start") => writing.clear(),
+                        Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
+                            writing.insert(index, (inner["content_block"].clone(), String::new()));
+                        }
+                        Some("content_block_stop") => {
+                            // A call is whole when its block closes: give it now, while the model writes the rest.
+                            if let Some((mut block, json)) = writing.remove(&index)
+                                && let Ok(input) = serde_json::from_str::<Value>(if json.is_empty() { "{}" } else { &json })
+                            {
+                                block["input"] = input;
+                                on_call(&frames::tool_call(&block, &prepared.names));
+                            }
+                        }
+                        _ => {}
+                    }
+                    let delta = &inner["delta"];
+                    if delta["type"] == "input_json_delta"
+                        && let (Some((_, json)), Some(piece)) = (writing.get_mut(&index), delta["partial_json"].as_str())
+                    {
+                        json.push_str(piece);
+                    }
                     if delta["type"] == "text_delta"
                         && let Some(t) = delta["text"].as_str()
                     {
@@ -271,7 +309,11 @@ impl Provider for ClaudeCodeProvider {
             });
         };
         drop(outcome);
-        let completion = frames::completion(&message, &prepared.names);
+        let mut completion = frames::completion(&message, &prepared.names);
+        // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
+        if let Some(ready) = run.ready_ms.get() {
+            completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
+        }
         // The relay's copy is the truth; say whatever the stream did not.
         if let Some(rest) = completion.text.strip_prefix(emitted.as_str())
             && !rest.is_empty()
