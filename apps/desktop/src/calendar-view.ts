@@ -2,7 +2,7 @@ import { formatWith, timeLabel as timeOf } from './dates';
 import type { CalendarEvent } from '@mobius/shared';
 
 /** What the Calendar app shows: one day, a week (Monday first), or a month as whole weeks. */
-export type CalendarMode = 'day' | 'week' | 'month';
+export type CalendarMode = 'day' | 'week' | 'month' | 'year';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 export const isoDay = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -21,9 +21,14 @@ export function weekStart(d: Date): Date {
   return addDays(d, -((d.getDay() + 6) % 7));
 }
 
-/** The days on screen for a view around `anchor`. A month is the whole weeks that hold it, Monday first. */
+/** The days on screen for a view around `anchor`. A month is the whole weeks that hold it, Monday first; a year is every day of it. */
 export function daysFor(mode: CalendarMode, anchor: Date): Date[] {
   if (mode === 'day') return [addDays(anchor, 0)];
+  if (mode === 'year') {
+    const year: Date[] = [];
+    for (let d = new Date(anchor.getFullYear(), 0, 1); d.getFullYear() === anchor.getFullYear(); d = addDays(d, 1)) year.push(d);
+    return year;
+  }
   if (mode === 'week') return Array.from({ length: 7 }, (_, i) => addDays(weekStart(anchor), i));
   const first = weekStart(new Date(anchor.getFullYear(), anchor.getMonth(), 1));
   const last = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
@@ -32,21 +37,22 @@ export function daysFor(mode: CalendarMode, anchor: Date): Date[] {
   return days;
 }
 
-/** Back or forward by one day, week or month. */
+/** Back or forward by one day, week, month or year. */
 export function step(mode: CalendarMode, anchor: Date, by: 1 | -1): Date {
   if (mode === 'day') return addDays(anchor, by);
   if (mode === 'week') return addDays(anchor, 7 * by);
-  // The 31st into a month without one lands on its last day.
-  const target = new Date(anchor.getFullYear(), anchor.getMonth() + by, 1);
+  // The 31st into a month without one lands on its last day, and 29 February into a year without one on the 28th.
+  const target = new Date(anchor.getFullYear() + (mode === 'year' ? by : 0), anchor.getMonth() + (mode === 'year' ? 0 : by), 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
   return new Date(target.getFullYear(), target.getMonth(), Math.min(anchor.getDate(), lastDay));
 }
 
-/** The heading: "November 2026", or the day itself in Day view. A week across two months names both. */
+/** The heading: "November 2026", the day itself in Day view, or "2026" in Year view. A week across two months names both. */
 export function heading(mode: CalendarMode, anchor: Date, locale?: string): string {
   // Written as this computer writes dates, unless a test names a locale.
   const say = (d: Date, o: Intl.DateTimeFormatOptions) => (locale ? d.toLocaleDateString(locale, o) : formatWith(d, o));
   if (mode === 'day') return say(anchor, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  if (mode === 'year') return say(anchor, { year: 'numeric' });
   const month = (d: Date) => say(d, { month: 'long', year: 'numeric' });
   if (mode === 'week') {
     const days = daysFor('week', anchor);
