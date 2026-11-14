@@ -2432,18 +2432,13 @@ main.stage:focus { outline: none; }
 .panel-tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--ink); }
 .dock.inspector .panel-tab-body { flex: 1; min-height: 0; overflow: auto; }
 .dock.inspector .panel-tab-body[hidden] { display: none; }
-/* Narrower windows (panel-layouts.md): from 1280 to 1439px, with both open, Mobius lies over the inspector instead of
-   pushing the content; under 1280px the inspector lies over the content, and gives way while Mobius is open. */
-@media (min-width: 1280px) and (max-width: 1439px) {
-  .body:has(> .dock.inspector:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto 0px; }
-  .body:has(> .dock.inspector:not([hidden])) > .dock.right:not([data-floating]) { position: absolute; top: 0; right: 0; bottom: 0; width: var(--right-w); z-index: 30; background: var(--frame); box-shadow: var(--shadow-3); }
-  /* They take turns: with the inspector brought forward last, Mobius steps aside until it is asked again. */
+/* Narrower windows (panel-layouts.md): under 1440px, with both open, the inspector and Mobius share one place and take
+   turns, never lying over the page: the one brought forward last shows (data-front, PanelTabs.tsx). An app's Show, the
+   Panels menu or opening the inspector bring it forward; asking Mobius, or closing the inspector, brings Mobius back. */
+@media (max-width: 1439px) {
+  .body:has(> .dock.inspector[data-front]:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto 0px; }
   .body:has(> .dock.inspector[data-front]:not([hidden])) > .dock.right:not([data-floating]) { display: none; }
-}
-@media (max-width: 1279px) {
-  .body > .dock.inspector { position: absolute; top: 0; right: var(--col-right, 0px); bottom: 8px; z-index: 29; box-shadow: var(--shadow-3); }
-  /* Room for one of the two: the inspector shows over Mobius only when it was brought forward last. */
-  .body:has(> .dock.right) > .dock.inspector:not([data-front]) { display: none; }
+  .body:has(> .dock.right:not([data-floating])) > .dock.inspector:not([data-front]) { display: none; }
 }
 
 /* ---- Instrument: numbers and readouts (docs/design/instrument.md) -------------------------------------------------
