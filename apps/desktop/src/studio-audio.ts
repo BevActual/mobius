@@ -303,7 +303,7 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
       }
       for (const t of tracks) {
         const out = strips.get(t.id)!;
-        for (const n of t.notes) {
+        for (const n of t.instrumentOn === false ? [] : t.notes) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;

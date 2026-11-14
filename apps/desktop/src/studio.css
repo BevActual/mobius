@@ -92,6 +92,8 @@
    goes. The row scrolls sideways when it's wider than the window. */
 .studio-device { flex: 1 1 0; min-height: 0; display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); overflow: auto; font-size: var(--fs-md); background: var(--paper); }
 .studio-device > .ui-device { flex: none; }
+/* The track's own colour and level, a small strip ahead of the instrument. */
+.studio-track-strip { flex: none; align-self: stretch; align-content: start; width: calc(var(--sp-8) * 5); padding: var(--sp-2) var(--sp-3) var(--sp-2) 0; border-right: var(--hairline-w) solid var(--line); }
 .studio-dev-cols { display: flex; align-items: flex-start; gap: var(--sp-5); }
 .studio-dev-col { flex: none; width: calc(var(--sp-8) * 5); }
 .studio-dev-col[data-graph] { width: calc(var(--sp-8) * 9); }
@@ -107,12 +109,15 @@
 
 /* ---------- Piano roll ---------- */
 .studio-editor { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* Devices at their own height: the editor wraps its row, and the arrangement above takes what is left. */
+.studio-editor[data-fit] { flex: 0 1 auto; }
+.studio-editor[data-fit] .studio-device { flex: 0 1 auto; }
 /* The divider between the tracks and the notes: a hairline with a wider grab area. */
 .studio-divider { flex: none; position: relative; height: var(--hairline-w); background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
 .studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--sp-1)); bottom: calc(-1 * var(--sp-1)); }
 .studio-divider:hover, .studio-divider:focus-visible { background: var(--ink); }
 .studio-roll-bar { flex: none; display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
-.studio-roll-close { margin-left: var(--sp-1); color: var(--muted); }
+.studio-roll-close { margin-left: auto; color: var(--muted); }
 .studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
 /* Where the velocity slider sits in the roll bar: its width only. */
 .studio-roll-bar .studio-velocity { width: calc(var(--sp-8) * 6); }

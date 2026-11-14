@@ -100,11 +100,11 @@ A small studio for writing songs as notes.
 - **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
   the bar above the tracks. The panel on the right is always Mobius.
 - **The bottom area** shows the chosen track: its notes or its devices. **Shift+Tab** switches between them (or pick
-  Notes or Device at the left of its bar), double-clicking a clip opens the notes and double-clicking a track's header
+  Notes or Devices at the left of its bar), double-clicking a clip opens the notes and double-clicking a track's header
   opens its devices.
-- **Devices** run left to right in the order the sound flows: the instrument first, then its effects. The instrument
-  has a switch to turn the track off and a menu to change it, then the track's colour, Volume and Pan, and then its
-  sound in four groups:
+- **Devices** run left to right in the order the sound flows. A small Track strip comes first, with the track's
+  colour, Volume and Pan. Then comes the instrument, with a switch that bypasses it alone (saved as `instrumentOn`) and a
+  menu at its end to change it, and its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
   - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
     it (drag it or type), opens the filter at each note's start and closes it over the decay; the thin line and Opens to

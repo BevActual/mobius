@@ -90,6 +90,20 @@ describe('a track\'s mix and instrument settings', () => {
   });
 });
 
+describe('a track\'s instrument switch', () => {
+  it('is kept only when the instrument is switched off', () => {
+    const read = (t: object) => parseSong(JSON.stringify({ version: 1, tracks: [{ id: 't1', instrument: 'piano', notes: [], ...t }] }));
+    const off = read({ instrumentOn: false });
+    if (!('song' in off)) throw new Error('not read');
+    expect(off.song.tracks[0]!.instrumentOn).toBe(false);
+    expect(writeSong(off.song)).toContain('"instrumentOn":false');
+    const on = read({ instrumentOn: true });
+    if (!('song' in on)) throw new Error('not read');
+    expect(on.song.tracks[0]!.instrumentOn).toBeUndefined();
+    expect(writeSong(on.song)).not.toContain('instrumentOn');
+  });
+});
+
 describe('a track\'s effects', () => {
   it('keeps known effects in order, kept to their ranges, and writes them back', () => {
     const s = song(JSON.stringify({ tracks: [

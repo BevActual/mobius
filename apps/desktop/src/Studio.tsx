@@ -218,7 +218,7 @@ function EffectBlock({ effect, at, onChange, onRemove }: {
   );
 }
 
-const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Device' }] as const;
+const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Devices' }] as const;
 const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
@@ -236,8 +236,8 @@ const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
 /**
- * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): its instrument first (the
- * track's colour and level, then how it sounds), then its effects, left to right in the order the sound goes.
+ * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
+ * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
 export function StudioDevice({ track, onTrack }: {
   track: Track | null;
@@ -250,22 +250,23 @@ export function StudioDevice({ track, onTrack }: {
   const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
   const [pad, setPad] = useState(0);
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
-  if (!track) return <div className="studio-device" aria-label="Device" role="region"><p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p></div>;
+  if (!track) return <div className="studio-device" aria-label="Devices" role="region"><p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p></div>;
   const fx = track.fx ?? [];
   return (
-    <div className="studio-device" aria-label="Device" role="region" style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
-      {/* The instrument comes first in the row, as sound flows: its switch turns the whole track on or off. */}
-      <DeviceFrame className="studio-instrument" title={INSTRUMENT_NAMES[track.instrument]} index={0} on={!track.muted} onToggle={(on) => onTrack((t) => { t.muted = !on; })}
+    <div className="studio-device" aria-label="Devices" role="region" style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
+      {/* The track's own settings lead the row: they belong to the track, whatever plays it. */}
+      <section className="studio-dev-section studio-track-strip" aria-label="Track">
+        <h4 className="studio-dev-head">Track</h4>
+        <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
+        <ParamGrid label="Level" columns={2}>
+          <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+          <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+        </ParamGrid>
+      </section>
+      {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
+      <DeviceFrame className="studio-instrument" title="Instrument" index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         actions={<Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
         <div className="studio-dev-cols">
-          <section className="studio-dev-section studio-dev-col" aria-label="Track">
-            <h4 className="studio-dev-head">Track</h4>
-            <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
-            <ParamGrid label="Level" columns={2}>
-              <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-              <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
-            </ParamGrid>
-          </section>
           {sound && base && SOUND_GROUPS.map((g) => (
             <section key={g.name} className="studio-dev-section studio-dev-col" data-graph={g.name === 'Filter' || g.name === 'Envelope' || undefined} aria-label={g.name}>
               <h4 className="studio-dev-head">{g.name}</h4>
@@ -373,6 +374,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [box, setBox] = useState<{ b0: number; b1: number; r0: number; r1: number } | null>(null);
   // How tall the track list is, once its divider has been dragged; until then it fits its tracks.
   const [arrangeH, setArrangeH] = useState<number | null>(null);
+  const arrangeEl = useRef<HTMLDivElement>(null);
   const [scrollX, setScrollX] = useState(0);
   // A drag on the velocity lane: which notes, and how much louder or softer so far.
   const [velDrag, setVelDrag] = useState<{ these: Picked; y: number; by: number } | null>(null);
@@ -769,11 +771,14 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // The track list fits its tracks unless its divider was dragged, and always leaves the editor some room.
   const room = pageH - EDITOR_MIN;
   const listH = listFor;
+  // Devices open at the height of their row, and the tracks take the rest, until the divider is dragged.
+  const fitDevices = editing && detail === 'device' && arrangeH === null;
   const onDividerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return;
     e.preventDefault();
     e.currentTarget.setPointerCapture(e.pointerId);
-    const y = e.clientY, h = listH;
+    // Devices open at their own height, so the list's height is read from the page rather than worked out.
+    const y = e.clientY, h = arrangeEl.current?.offsetHeight ?? listH;
     const el = e.currentTarget;
     const move = (m: PointerEvent) => setArrangeH(Math.max(96, Math.min(h + m.clientY - y, Math.max(96, room))));
     const up = () => { el.removeEventListener('pointermove', move); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); };
@@ -840,7 +845,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       </ToolbarControls>
       <div className="studio-main">
         {proposal}
-        <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing ? { height: listH, flex: 'none' } : {}) }}
+        <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing && !(fitDevices) ? { height: listH, flex: 'none' } : {}) }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           <div className="studio-ruler-row">
             <div className="studio-ruler-head" />
@@ -914,8 +919,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               onPointerDown={onDividerDown}
               onKeyDown={(e) => { if (e.key === 'ArrowUp' || e.key === 'ArrowDown') { e.preventDefault(); setArrangeH(Math.max(96, Math.min(listH + (e.key === 'ArrowUp' ? -24 : 24), Math.max(96, room)))); } else if (e.key === 'Home') { e.preventDefault(); setArrangeH(null); } }}
             />
-            <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
-              <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Device'}>
+            <div className="studio-editor" data-fit={fitDevices || undefined} data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
+              <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Devices'}>
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
                 <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
                 {detail === 'notes' && <>
@@ -934,8 +939,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                   </>
                 ) : <span className="studio-hint">{drums && drumView === 'steps' ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
                 </>}
-                {detail === 'device' && <span className="studio-gap" />}
-                <IconButton className="studio-roll-close" label="Hide notes" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
+                <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
           {detail === 'device' ? (
             <StudioDevice track={track} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />

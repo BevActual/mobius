@@ -45,7 +45,7 @@ async function openNotes(name: string): Promise<void> {
 /** Opens a track's devices in the bottom area, with a double-click on its header. */
 async function openDevice(name: string): Promise<Locator> {
   await tracks().getByRole('listitem', { name }).locator('.studio-track-no').dblclick();
-  const device = shell().getByRole('region', { name: 'Device' });
+  const device = shell().getByRole('region', { name: 'Devices' });
   await expect(device).toBeVisible();
   return device;
 }
@@ -82,7 +82,7 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   // The chosen track's devices set how it sounds, kept in the song. Shift+Tab switches the bottom area to them.
   await tracks().getByRole('listitem', { name: 'Keys' }).click({ position: { x: 6, y: 6 } });
   await shell().keyboard.press('Shift+Tab');
-  const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff and resonance' });
+  const cutoff = shell().getByRole('region', { name: 'Devices' }).getByRole('slider', { name: 'Cutoff and resonance' });
   await cutoff.focus();
   await shell().keyboard.press('ArrowLeft');
   await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBeLessThan(5000);
@@ -199,6 +199,10 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string; on: boolean }[] }).fx?.map((e) => `${e.kind} ${e.on}`)).toEqual(['eq true', 'delay false']);
   await device.getByRole('button', { name: 'Remove Delay' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['eq']);
+  // The instrument has its own switch too: it bypasses the instrument alone, and leaves the track unmuted.
+  await device.getByRole('switch', { name: 'Instrument on' }).click();
+  await expect.poll(() => (saved().tracks[0] as { instrumentOn?: boolean }).instrumentOn).toBe(false);
+  expect((saved().tracks[0] as { muted?: boolean }).muted).toBeUndefined();
 });
 
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {

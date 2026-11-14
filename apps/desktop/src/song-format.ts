@@ -90,7 +90,7 @@ export function freshEffectId(track: { fx?: readonly { id: string }[] }): string
 }
 
 /** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[] }
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[] }
 export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
@@ -153,6 +153,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
     const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
     const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, notes };
+    if (to.instrumentOn === false) track.instrumentOn = false;
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
       const base = SOUND_DEFAULTS[instrument];
@@ -192,6 +193,7 @@ export function writeSong(song: Song): string {
     const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
     if (t.solo) head.solo = true;
+    if (t.instrumentOn === false) head.instrumentOn = false;
     if (t.pan) head.pan = t.pan;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
     if (t.kit && t.instrument === 'drums') head.kit = t.kit;
