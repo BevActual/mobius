@@ -43,7 +43,7 @@ export function DeviceChain({ label, count, onMove, orientation = 'horizontal', 
  * One device: its head (grip, on/off, name, collapse, then any `actions`) over its controls. Off dims the controls but
  * keeps them editable, as a bypassed device does. Collapsed shows the head alone.
  */
-export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse, actions, proposed, children, className }: {
+export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse, lead, actions, proposed, children, className }: {
   title: string;
   /** Where it is in its chain, from 0. */
   index: number;
@@ -51,6 +51,8 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
   onToggle: (on: boolean) => void;
   collapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
+  /** A control right after the title, such as the quiet Select that changes an instrument, so it stays in view on a wide device. */
+  lead?: ReactNode;
   /** Small controls at the head's end (a preset menu, a ⋯). */
   actions?: ReactNode;
   /** Mobius added or changed it and it waits for Keep: a dashed indigo edge. */
@@ -125,6 +127,7 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
         )}
         <Switch label={`${title} on`} hideLabel checked={on} onChange={onToggle} />
         <h3 className="ui-device-title">{title}</h3>
+        {lead && <span className="ui-device-lead">{lead}</span>}
         {actions && <span className="ui-device-actions">{actions}</span>}
         {onCollapse && (
           <button type="button" className="ui-device-fold" aria-expanded={!collapsed} aria-label={collapsed ? `Show ${title}` : `Fold ${title}`} title={collapsed ? 'Show' : 'Fold'} onClick={() => onCollapse(!collapsed)}>
