@@ -84,6 +84,14 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
         title={title ?? label}
         disabled={disabled}
         onClick={() => {
+          // Pressed again while the menu is going away: it stays, as if it had never started to close.
+          if (open && leaving.current) {
+            opening.current += 1;
+            leaving.current = false;
+            const node = list.current;
+            if (node) { node.style.pointerEvents = ''; node.getAnimations?.().forEach((a) => a.cancel()); }
+            return;
+          }
           if (open) { shut(); return; }
           onOpen?.();
           setOpen(true);
