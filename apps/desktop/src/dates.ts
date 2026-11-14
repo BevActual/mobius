@@ -87,3 +87,32 @@ export function nearDayLabel(when: When, now: When = Date.now()): 'Today' | 'Yes
   const days = daysFrom(when, now);
   return days === 0 ? 'Today' : days === -1 ? 'Yesterday' : days === 1 ? 'Tomorrow' : null;
 }
+
+/** Regions whose weeks start on Sunday, for engines without `Intl.Locale` week info. */
+const SUNDAY_REGIONS = new Set(['US', 'CA', 'JP', 'BR', 'IL', 'PH', 'MX', 'KR', 'TW', 'IN', 'ZA', 'SA', 'AU', 'HK']);
+
+/** The first day of the week on this computer: 0 Sunday, 1 Monday, 6 Saturday. Calendars and date pickers start here. */
+export function weekStart(): number {
+  const tag = systemLocale() ?? new Intl.DateTimeFormat().resolvedOptions().locale;
+  try {
+    const locale = new Intl.Locale(tag) as Intl.Locale & { getWeekInfo?: () => { firstDay: number }; weekInfo?: { firstDay: number } };
+    const info = locale.getWeekInfo?.() ?? locale.weekInfo;
+    if (info) return info.firstDay % 7;
+    const region = locale.maximize().region;
+    return region && SUNDAY_REGIONS.has(region) ? 0 : 1;
+  } catch {
+    return 1;
+  }
+}
+
+/** True when this computer keeps a 12-hour clock (1:00 PM), false for 24 hours (13:00). */
+export function uses12Hour(): boolean {
+  const cycle = new Intl.DateTimeFormat(systemLocale(), { hour: 'numeric' }).resolvedOptions().hourCycle;
+  return cycle === 'h11' || cycle === 'h12';
+}
+
+/** Whether a short numeric date puts the day first ("20/11", 'dm') or the month first ("11/20", 'md'). */
+export function dayMonthOrder(): 'dm' | 'md' {
+  const parts = new Intl.DateTimeFormat(systemLocale(), { day: 'numeric', month: 'numeric' }).formatToParts(new Date(2026, 10, 20));
+  return parts.findIndex((p) => p.type === 'day') < parts.findIndex((p) => p.type === 'month') ? 'dm' : 'md';
+}

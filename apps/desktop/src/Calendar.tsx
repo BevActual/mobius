@@ -224,11 +224,14 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
 }
 
 /** A task due that day, ticked off here as in Tasks. */
-function TaskChip({ calendar, item }: { calendar: CalendarState; item: DueTask }) {
+function TaskChip({ calendar, item, style }: { calendar: CalendarState; item: DueTask; /** Placed at its hour in Day and Week. */ style?: React.CSSProperties }) {
+  const at = item.task.time && item.task.due ? clock(`${item.task.due}T${item.task.time}`) : null;
+  const repeats = item.task.repeat ? ', repeats' : '';
   return (
-    <label className="cal-task" data-done={item.task.done || undefined} title={`${item.task.text}\n${item.list}`}>
-      <input type="checkbox" checked={item.task.done} aria-label={`${item.task.text}, task in ${item.list}`} onChange={(e) => void calendar.tickTask(item, e.target.checked)} />
+    <label className="cal-task" data-done={item.task.done || undefined} data-timed={style ? true : undefined} style={style} title={`${item.task.text}${at ? ` · ${at}` : ''}\n${item.list}`}>
+      <input type="checkbox" checked={item.task.done} aria-label={`${item.task.text}${at ? `, ${at}` : ''}, task in ${item.list}${repeats}`} onChange={(e) => void calendar.tickTask(item, e.target.checked)} />
       <span>{item.task.text}</span>
+      {item.task.repeat && <svg className="cal-task-repeat" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9a6 6 0 0 1 10.5-4M16 11a6 6 0 0 1-10.5 4M14.5 2v3h-3M5.5 18v-3h3" /></svg>}
     </label>
   );
 }
@@ -242,7 +245,9 @@ function taskFor(due: readonly DueTask[], event: Shown): DueTask | undefined {
   return due.find((d) => d.task.due !== undefined && d.task.due !== null && d.task.due >= first && d.task.due <= last && words(d.task.text) === title);
 }
 
-const tasksOn = (due: readonly DueTask[], day: Date) => due.filter((d) => d.task.due === isoDay(day)).sort((a, b) => Number(a.task.done) - Number(b.task.done));
+const tasksOn = (due: readonly DueTask[], day: Date) => due.filter((d) => d.task.due === isoDay(day)).sort((a, b) => Number(a.task.done) - Number(b.task.done) || (a.task.time ?? '').localeCompare(b.task.time ?? ''));
+/** A task's due time in minutes from midnight, or null when it is due only on a day. */
+const taskMinutes = (item: DueTask) => (item.task.time && /^\d{2}:\d{2}$/.test(item.task.time) ? Number(item.task.time.slice(0, 2)) * 60 + Number(item.task.time.slice(3, 5)) : null);
 
 /** A day's cell takes an event carried from another day; the cell shows it will. */
 function useDrop(onMove: MoveEvent) {
@@ -384,7 +389,18 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   const columns = { gridTemplateColumns: `${GUTTER}px repeat(${days.length}, minmax(0, 1fr))` };
   const allDay = days.map((d) => allDayOn(shown, d));
   const [allDayOpen, setAllDayOpen] = useState(false);
-  const due = days.map((d) => tasksOn(calendar.due, d));
+  // Tasks with a time sit at their hour; the rest wait in the all-day row.
+  const dueAll = days.map((d) => tasksOn(calendar.due, d));
+  const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null));
+  const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null));
+  // Each timed task as a half-hour slot, so it is laid out beside the events it meets instead of over them.
+  const slotTask = new Map<string, DueTask>();
+  const asSlot = (t: DueTask): Shown => {
+    const id = `task:${t.list}:${t.task.line}`;
+    slotTask.set(id, t);
+    const start = `${t.task.due}T${t.task.time}`;
+    return { id, calendar: '', title: t.task.text, start, end: isoTime(new Date(localDate(start).getTime() + 30 * 60000)), allDay: false, location: '', notes: '', repeats: false };
+  };
   const slotAt = (day: Date, y: number) => {
     const minutes = Math.max(0, Math.min(23 * 60 + 30, Math.floor(y / HOUR_PX * 2) * 30));
     return isoTime(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes));
@@ -451,7 +467,10 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
                 onSlotMenu({ day: d, minutes, rect: slotRect(e.currentTarget, minutes, 60) }, e.clientX, e.clientY);
               }}
             >
-              {placeDay(shown, d, 30).map((p) => {
+              {placeDay([...shown, ...timed[i]!.map(asSlot)], d, 30).map((p) => {
+                // A timed task takes its place among the events, side by side with any it falls inside.
+                const task = slotTask.get(p.event.id);
+                if (task) return <TaskChip key={p.event.id} calendar={calendar} item={task} style={{ top: p.top / 60 * HOUR_PX + 1, left: `calc(${p.column / p.columns * 100}% + 2px)`, width: `calc(${100 / p.columns}% - 4px)` }} />;
                 const can = movable(calendar, p.event);
                 const key = keyOf(p.event);
                 const isDragged = drag?.moved === true && drag.key === key;

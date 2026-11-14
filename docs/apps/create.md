@@ -99,10 +99,17 @@ A small studio for writing songs as notes.
   went, with Undo. **Add track** after the last track adds one from the same sounds.
 - **A part from Mobius** is drawn dashed in indigo and unfilled until you keep it. Keep, Discard and Try another are in
   the Device panel.
-- **The Device panel** sets how the chosen track sounds: its instrument and colour, then its volume, the oscillator
-  (Shape and Detune), the filter (Cutoff and Resonance) and the envelope (Attack and Release), each a labelled cell
-  with its value in mono and a slider under it. Double-click a cell to put it back. The settings and colour are saved
-  in the song.
+- **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
+  (Volume and Pan), and then its sound in four groups:
+  - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
+  - Filter: Cutoff, Resonance, and Sweep, which opens the filter at each note's start and closes it over the decay.
+  - Envelope: Attack, Decay, Sustain and Release.
+  - Motion: Vibrato and its Rate.
+
+  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Each setting
+  is a labelled cell with its value in mono and a slider under it. Arrows nudge it, Shift goes further, and
+  double-click puts it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
+  too.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
   a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either

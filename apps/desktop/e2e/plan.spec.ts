@@ -73,8 +73,11 @@ test('a question can be answered in your own words, and is still there when the 
   await shell().reload();
   const card = log().getByRole('group', { name: 'Mobius asks' });
   await expect(card).toContainText('What should the title be?', { timeout: 15_000 });
-  await card.getByRole('textbox', { name: 'Your answer' }).fill('Garden plans');
-  await card.getByRole('button', { name: 'Answer' }).click();
+  // Your own words go in the message box, which says so, and Enter answers.
+  const box = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await expect(box).toHaveAttribute('placeholder', 'Or type your own answer…');
+  await box.fill('Garden plans');
+  await box.press('Enter');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
   expect(JSON.stringify(model!.requests[1]!.messages)).toContain('The person answered: Garden plans');
 });

@@ -77,13 +77,15 @@ export interface ComposerProps {
   activity?: Activity | null;
   /** What the empty box suggests asking where the person is ("Ask about your mail"); "Message Mobius" without one. */
   hint?: string;
+  /** While Mobius asks a question: what you type answers it (the Asking state), instead of sending or queueing. */
+  onAnswer?: ((text: string) => void) | undefined;
 }
 
 const ARROW = <svg className="popmenu-arrow-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>;
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
   // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
   // plan). Kept on this computer.
   const [mode, setModeState] = useState<ChatMode>(loadChatMode);
@@ -204,6 +206,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     event?.preventDefault();
     if (adding && canType && !listening && draft.trim().length > 0) {
       sendWhenAdded.current = true;
+      return;
+    }
+    if (onAnswer && canType && !listening && draft.trim().length > 0) {
+      onAnswer(draft.trim());
       return;
     }
     if (!canSend && !canQueue) return;
@@ -411,7 +417,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         value={draft}
         disabled={!canType}
         autoFocus={takeFocus}
-        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : hint ?? 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        placeholder={canType ? (onAnswer ? 'Or type your own answer…' : busy && onQueue ? 'Queue a message for when Mobius finishes' : hint ?? 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={(event) => {
@@ -527,12 +533,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
           </button>
           {busy && onTakeOver && <button type="button" className="btn take-over" title="Mobius pauses at the next safe point and the apps are yours" onClick={() => void onTakeOver()}>Take over</button>}
-          {busy ? (
+          {busy && !(onAnswer && draft.trim()) ? (
             <button type="button" className="round stop" aria-label="Stop" title="Stop" onClick={onStop}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" /></svg>
             </button>
           ) : (
-            <button type="submit" className="round send" aria-label="Send" title="Send" disabled={!canSend}>
+            <button type="submit" className="round send" aria-label={onAnswer ? 'Answer' : 'Send'} title={onAnswer ? 'Answer' : 'Send'} disabled={!canSend && !(onAnswer && draft.trim())}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15V5M5.5 9.5 10 5l4.5 4.5" /></svg>
             </button>
           )}

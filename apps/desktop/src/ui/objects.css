@@ -208,3 +208,61 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-tab:hover .ui-tab-close[data-unsaved] svg { display: block; }
 .ui-tab:hover .ui-tab-close[data-unsaved]::before { display: none; }
 .ui-tab .ui-tab-button:is(:hover, :active):not(:disabled) { background: transparent; }
+
+/* Date and time fields. The date field is a field-shaped button showing the day in words; its popover is the card
+   width: a line to type into, quick picks (name, the day in grey, the key), then the month. Days are square cells in
+   tabular figures: today an ink badge, the chosen day a grey fill, days of other months faint. */
+.ui-date-trigger { width: 100%; box-sizing: border-box; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default; }
+.ui-field-box.ui-date-trigger:hover:not(:disabled, [data-popup-open]) { border-color: var(--line-strong); background: var(--paper); }
+.ui-date-trigger:focus-visible, .ui-date-trigger[data-popup-open] { outline: none; border-color: var(--ink); }
+.ui-date-trigger[data-empty] .ui-date-value { color: var(--faint); }
+.ui-date-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ui-date-icon { display: inline-grid; place-items: center; flex: none; color: var(--muted); }
+.ui-date-icon svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ui-field-box[data-proposed] { border-style: dashed; border-color: var(--mobius); }
+.ui-date-popover { width: var(--card-w); min-width: 0; max-width: none; box-sizing: border-box; padding: var(--sp-2); gap: var(--sp-2); }
+.ui-date-type { display: flex; flex-direction: column; gap: var(--sp-1); padding: 0 var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); margin: 0 calc(var(--sp-2) * -1); padding-bottom: var(--sp-2); }
+.ui-date-type .ui-field-input { height: var(--button-h); padding: 0 var(--sp-2); }
+.ui-date-type .ui-field-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+.ui-date-read { padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-date-quick { display: flex; flex-direction: column; }
+.ui-date-pick {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--menu-row-h); padding: 0 var(--sp-2); border: 0;
+  border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default;
+}
+.ui-date-pick-label { flex: none; }
+.ui-date-pick-day { flex: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-date-quick .ui-date-pick:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-date-pick:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+
+.ui-month { display: flex; flex-direction: column; gap: var(--sp-1); padding-top: var(--sp-1); border-top: var(--hairline-w) solid var(--line); }
+.ui-month-head { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-2); }
+.ui-month-name { flex: 1; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.ui-month-grid { display: flex; flex-direction: column; align-items: center; }
+.ui-month-row { display: grid; grid-template-columns: repeat(7, var(--day-cell)); }
+.ui-month-weekday { display: grid; place-items: center; height: var(--day-cell); font-size: var(--fs-sm); color: var(--muted); }
+.ui-day {
+  display: grid; place-items: center; width: var(--day-cell); height: var(--day-cell); padding: 0; border: 0;
+  border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums; cursor: default;
+}
+.ui-month-grid .ui-day:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-day[data-outside] { color: var(--faint); }
+.ui-month-grid .ui-day[data-chosen], .ui-month-grid .ui-day[data-chosen]:hover:not(:disabled) { background: var(--sel); font-weight: var(--fw-medium); }
+.ui-month-grid .ui-day[data-today], .ui-month-grid .ui-day[data-today]:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); font-weight: var(--fw-semibold); border-radius: var(--radius-pill); }
+.ui-day:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.ui-day[data-today]:focus-visible { outline-offset: var(--hairline-w); }
+
+/* The time list: the shared menu, quarter hours in rows the height of a control, the length grey at the right. */
+.ui-time-menu { padding: var(--sp-1); background: var(--raised); }
+.ui-time-list { max-height: var(--time-list-h); overflow-y: auto; min-width: calc(var(--card-w) / 2); }
+.ui-time-option { height: var(--button-h); font-variant-numeric: tabular-nums; }
+/* The row under the pointer or the keyboard gets the grey hover fill (indigo is Mobius's alone); the chosen time has
+   the check, as in a choice menu. */
+.ui-time-option { gap: var(--sp-2); }
+.ui-time-option[aria-selected="true"] .ui-menu-label { font-weight: var(--fw-medium); }
+.ui-time-list .ui-time-option:hover, .ui-time-list .ui-time-option[data-highlighted] { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-time-length { margin-left: auto; padding-left: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.ui-time-field .ui-field-box { min-width: calc(var(--card-w) / 2.5); }
+.ui-time-range { display: flex; align-items: center; gap: var(--sp-2); }
+.ui-time-to { color: var(--muted); }

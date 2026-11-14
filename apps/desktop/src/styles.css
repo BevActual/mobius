@@ -2580,3 +2580,31 @@ body { font-variant-numeric: tabular-nums; }
 .popmenu-list:has(.popmenu-plus-heading) { max-height: min(460px, calc(100vh - 120px)); }
 /* The hairline under Dictate runs edge to edge, as the menu's other lines do. */
 .popmenu-item.popmenu-dictate { border-bottom: 1px solid var(--hairline); border-radius: 0; margin-bottom: 4px; }
+/* The Asking state (Instrument): a question is a card of numbered choices, the suggested one outlined; your own words
+   go in the message box. An approval is a dashed card that says what will happen and whether it can be undone, with
+   quiet choices on the left and the one that goes ahead in ink on the right. */
+.chat .question-card { gap: var(--sp-2); border: 1px solid var(--line); background: var(--bg); border-radius: var(--radius-panel); padding: var(--sp-3); }
+.chat .question-card:not([data-status="open"]) { background: none; }
+.chat .question-text { font-weight: var(--fw-semibold); }
+.chat .question-choices { display: flex; flex-direction: column; flex-wrap: nowrap; gap: var(--sp-1); }
+.question-choice { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-h); padding: 0 var(--sp-2) 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
+.question-choice[data-suggested] { border-color: var(--ink); }
+.question-choice:hover, .question-choice:focus-visible { background: var(--sel); }
+.question-choice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; padding: var(--sp-1) 0; }
+.question-key { flex: none; }
+.question-note { margin: var(--sp-1) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.chat .tool[data-status="waiting"]:has(.approval) { padding: var(--sp-3); border: var(--hairline-w, 1px) dashed var(--mobius); border-radius: var(--radius-panel); outline: 0; box-shadow: none; background: var(--bg); }
+.chat .approval { margin-top: var(--sp-2); padding: 0; border: 0; }
+.chat .approval-text { font-weight: var(--fw-semibold); color: var(--ink); }
+.approval-final { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.chat .approval-actions { align-items: center; gap: var(--sp-1); margin-top: var(--sp-3); }
+.chat .approval-actions .approval-quiet { border: 0; background: none; box-shadow: none; color: var(--muted); padding: 0 var(--sp-2); }
+.chat .approval-actions .approval-quiet:hover:not(:disabled), .chat .approval-actions .approval-quiet:focus-visible { background: var(--sel); color: var(--ink); }
+.chat .approval-actions .approval-go { margin-left: auto; background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.chat .approval-actions { flex-wrap: wrap; row-gap: var(--sp-1); }
+.chat .approval-actions .approval-quiet { padding: 0 6px; }
+.chat .approval-actions .btn { flex: none; white-space: nowrap; }
+.chat .approval .approval-head { color: var(--mobius); font-weight: var(--fw-medium); letter-spacing: 0; }
+/* While it waits, the step's own line goes: the card's bold line already says what it is. It returns once answered. */
+.chat .tool[data-status="waiting"]:has(.approval) > .tool-line { display: none; }
+.chat .tool[data-status="waiting"]:has(.approval) > .approval { margin-top: 0; }
