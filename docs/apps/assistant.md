@@ -34,7 +34,8 @@ Ctrl+K. The sidebar lists your agents, then **From Mobius**: the runs of your ag
 - Choosing an agent opens **its page**. The toolbar shows its name, when it runs, and **Run now**, which starts a new
   session with it and sends its instructions. The page has four parts: **What it does** (its instructions and model,
   with **Edit**), **When it runs**, **What it can use** (from Settings › Safety) and **Recent runs**, its sessions,
-  each opening with one press.
+  each opening with one press. Each run says where it stands: a question for you, Working…, Finished, or **Failed**
+  in red.
 - **+** beside the list makes a new agent, on the same page.
 - Each agent has a name, its instructions, a model (type one, or pick from the models you have), and how it starts:
   **When you ask**, or **On a schedule** (weekdays or every day, at a time; it still starts when you ask, too). A
@@ -58,7 +59,8 @@ or type "Activity" in the launcher (Ctrl+K).
 - **The list** is laid out like Mail's inbox. In **Today** it leads with what **needs you**, what is **running**, the
   **changes to review** (Keep or Discard), what finished today and what is scheduled, then what happened. Each line is
   the app's icon, one sentence ("Sent an email to Sam Okafor") and the time. An indigo dot marks a change Mobius made;
-  something that failed is shown in red. A changed file is listed under the app it belongs to (a sheet under
+  something that failed is shown in red, and a run that failed is listed with what needs you, with **Try again** to
+  send the same request once more. A changed file is listed under the app it belongs to (a sheet under
   Sheets). **Open** on a line takes you to its app.
 - **The right side** shows what you chose: a line's app, who did it and when, with **Rewind to here** to undo a
   change Mobius made, or a conversation with its turns and

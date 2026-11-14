@@ -10,7 +10,8 @@ The small x clears a shortcut, and **Reset** puts back the usual keys.
 | Ctrl+\ | Show two apps side by side, or one |
 | Ctrl+Shift+M | Open or close Little Mobius |
 | Ctrl+Space (hold) | Dictate in the message box; release to stop |
-| Shift+Tab (in the message box) | Next mode: Agent, Ask, Plan |
+| Shift+Tab (in the message box) | Next mode: Agent, Ask, Plan, then the app's own mode |
+| 1 to 4 (in the Mobius panel) | Pick one of the Actions, or answer a question by its number |
 | Ctrl+L | Go to the address bar (Browser) |
 | Ctrl+T | Open a new tab (Browser) |
 | Ctrl+W | Close the current tab (Browser) |

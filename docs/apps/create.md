@@ -166,6 +166,8 @@ A code editor for projects in your workspace.
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
 - **Review Mobius's change** as removed and added lines, keeping or putting back each one.
+- **Debug** mode (in the composer's Mode menu while you are in Code) has Mobius reproduce the bug first, then propose
+  the fix.
 - **Source control**: the branch, each file changed since the last commit with git's mark (M modified, A added,
   D deleted, R renamed, ? not tracked yet, C in conflict) in the list and in the file tree, **Commit** and **Push**.
   Mobius asks before either.

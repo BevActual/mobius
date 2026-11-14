@@ -56,16 +56,17 @@ Each server's tools appear to Mobius as `mcp.<server>.<tool>`. Each server has i
 as your mode says. Servers start with a minimal environment: only the variables you list under `env` are passed.
 Everything a server returns is treated as untrusted text.
 
-**Abilities › Connectors** shows each server with a dot on its icon: green when Mobius started it, red with the reason
-when it could not start, and a ring while it waits for Mobius to reopen.
+**Abilities › Connectors** shows each server by name (a known service such as GitHub or Linear by its own name) with a
+dot on its icon: green when it is running, and red with the reason in one sentence when it could not start, including
+where to fix a missing command. Each connector's menu has **Start now**, **Start again** or **Restart**.
 
 **Add a connector…** in the toolbar writes the server into `mcp.json` for you: give the **Command** and its
 **Arguments** from the server's own instructions (for example `npx` and `-y @modelcontextprotocol/server-github`),
 check the suggested **Name**, and add any **Keys** it needs, such as `GITHUB_TOKEN`. Keys are kept in `mcp.json` on this
-computer. The new connector shows *Starts when Mobius reopens* until you reopen Mobius.
+computer. The new connector starts at once; there is no need to reopen Mobius.
 
 **Remove** in a connector's menu (**⋯**, a right-click, or Shift+F10) takes it out of `mcp.json`; **Undo** writes the
-same entry back. A running one stops the next time Mobius opens.
+same entry back. A running one stops at once.
 **Edit mcp.json yourself…** in the sheet opens the data folder, for anything the form does not cover.
 
 ### Mobius for other apps

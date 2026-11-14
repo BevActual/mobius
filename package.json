@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "license": "MIT",
-  "description": "Mobius Agent: a morphing desktop environment for people and agents.",
+  "description": "Mobius, the AI workspace. Every app. One agent.",
   "type": "module",
   "workspaces": [
     "packages/*",

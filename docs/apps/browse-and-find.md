@@ -41,6 +41,7 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 - **Suggested replies** sit under the message as one dashed block, marked Draft from Mobius, until you choose **Keep and edit** (it opens as your draft), **Discard** or **Try another**. **From Mobius › Suggested replies** in the sidebar lists the ones waiting. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
 - **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for goes in Calendar (at the time the email names if you are free, otherwise at a free time it picks), and a reply is suggested. Each waits for you.
 - **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
+- **Triage** (in the Mobius panel: *Triage the unread*, or *Triage this message* with one open) sends its turn in Mail's [Triage mode](../guide/working-with-mobius.md#app-modes): Mobius sorts into Reply, Later and Archive and drafts the replies, and never sends. Triage is also in the composer's Mode menu while you are in Mail.
 - **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.
 - **Send later:** tomorrow at 8:00, Monday at 9:00, or when the person is usually on mail.
 
