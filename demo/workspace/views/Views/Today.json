@@ -1,0 +1,32 @@
+{
+ "version": 1,
+ "tiles": [
+  {
+   "id": "t1",
+   "kind": "mobius",
+   "size": "wide"
+  },
+  {
+   "id": "t2",
+   "kind": "tasks",
+   "size": "small",
+   "show": "today"
+  },
+  {
+   "id": "t3",
+   "kind": "calendar",
+   "size": "small",
+   "show": "week"
+  },
+  {
+   "id": "t4",
+   "kind": "mail",
+   "size": "small"
+  },
+  {
+   "id": "t5",
+   "kind": "next",
+   "size": "small"
+  }
+ ]
+}
