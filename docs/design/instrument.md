@@ -755,6 +755,68 @@ Repeat, and Watch for what should keep running.
 10. **At most two cards open at once** under a result. The rest fold to one line each, in the fixed order Sources,
     Adjust, Compare, Check.
 
+## Building the panel: each part's size and parts
+
+**This is the build sheet for everything above: the four states, the composer, the slots, Adjust and the cards. Every
+part is made from the shared controls in `src/ui/` and the shared object designs. Nothing here needs a new colour or
+size token.**
+
+### Resting panel, top to bottom
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Head | "Mobius" as the last tab, then New chat, History, Pop out and Close as icon buttons | 52px / 44px tall, 32px buttons |
+| Glance (slot) | One paper card: up to three facts as a grey label over a value (tabular figures), and at most one quiet button. Hidden when the app gives none. | 8px corners, 12px inside |
+| Section heading | "Waiting for you", "For this email", "Earlier chats": grey semibold, sentence case, a count at the right, a hairline under it | 12.5px, 20px above |
+| Waiting card | One per pending change. Dashed indigo edge (1.5px). Line 1: app icon and what changed, one line, ending in an ellipsis. Line 2: grey app name and time. Then Show and Discard as quiet text buttons and one small ink Keep at the right. Three at most, then a "2 more" row. | 8px corners, 26px buttons |
+| Other chat needing you | A list row: the chat's title, and "Needs your answer" in indigo text at the right. No dot. | 36px / 32px row |
+| Actions (slot) | The ideas list. Up to four rows that follow the selection: a 16px line icon, the action, and its number key cap at the right. Grey fill on hover. Never outlined buttons, and never a lone button above the list. | 36px / 32px rows |
+| Earlier chats | List rows: title with an ellipsis, time at the right in grey tabular figures. Five at most, then "All chats" opens History. | 36px / 32px rows |
+
+### Composer
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Box | Paper, 1px line, hint text in grey. Grows to six lines, then scrolls. | 9px corners, 12px inside |
+| Context chips | Inside the box, above the text: the shared chip with the app's icon and the thing's name ("Email: P2 build"). Selecting something adds its chip, the cross removes it. This replaces the "Sees" line. | 24px tall, 12px text |
+| Changed-setting chips | Under the context chips when anything in the plus menu is off its default ("Web search off", "3 skills") | 11.5px, 6px corners, frame fill |
+| Bottom row | Plus (icon button), Mode, Permission (shield and short label), then at the right the model and an ink Send. Mode, Permission and model are quiet buttons with a small chevron. | 28px controls |
+| Menus | Open upward from their button. Rows with a check on the current choice and a key cap at the right. Permission and model rows are two lines: the name, and a grey line on what it means. | 30px rows, two-line rows 7px inside |
+
+### Working, Done and Asking
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Steps | Numbered rows. The number in tabular grey, then the step naming its app ("Checking Calendar for the 23rd"). The current step is ink, done steps grey. | 28px rows |
+| Stop | A quiet button with Esc shown, always under the steps | 26px |
+| Reply | Plain 14px text, no bubble. Names of things it touched are indigo links. | 1.6 line height |
+| Under each reply | Rewind to here, Copy and one follow-up as grey text buttons. The model that answered in small grey text at the right. | 12.5px, model 11.5px |
+| Result (slot) | The real objects, drawn as shared object cards or rows | Shared object sizes |
+| Turn summary | One per turn that changed things. A paper card with a hairline between parts. Header: the title on one line with an ellipsis and "5 changes" in grey at the right. One row per app with its icon, what changed and Show. Footer: Discard all and Try another as quiet text on the left, one ink Keep all on the right, all on one line. | 8px corners, 36px header, 32px rows, 40px footer |
+| Question (Picker slot) | A paper card: the question, then up to three option rows with number keys. The suggested option has an ink edge. An approval for sending, paying or deleting is dashed and says it can't be undone. | 32px option rows |
+
+### Adjust and the cards
+
+All of them share one card shell, so Compare, Check, Repeat and Adjust look like one family.
+
+| Part | How it's built | Size |
+| --- | --- | --- |
+| Shell | Paper card with a 1px line | 8px corners |
+| Header | The card's name in semibold, and a close cross | 36px |
+| Body | The app's rows, built from shared controls (slider, segmented, switch, two-axis pad, object rows) | 12px inside |
+| Footer | Quiet text buttons on the left (Reset, Discard), one ink button on the right (Keep) | 40px |
+| How many | Two cards open at most. Opening a third closes the oldest. | |
+
+### Rules for building it
+
+1. **Sentence case in the panel.** The kind labels in small caps ("NOTES", "TASK") are for pro apps' own panels, not
+   for Mobius.
+2. **One ink button per card.** Everything else in a card is quiet text.
+3. **No stray marks.** No dot sits before a title unless it means a problem.
+4. **Titles never wrap into the buttons.** Text ends with an ellipsis, and the full text is in the tooltip.
+5. **Menus use the shared popover and menu rows** once the component library has them. Until then the existing menu
+   rows are fine.
+
 ## One app, not twenty
 
 Everything above unifies how Mobius looks. These three parts unify how it behaves and make the rules hold, which a look
