@@ -1,8 +1,10 @@
-import { createContext, useContext, useState, type CSSProperties, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { PanelRegistryContext, type PanelsOfApp } from './PanelLayout';
 import { PanelTabsProvider } from './PanelTabs';
 import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
+import type { MenuEntry } from './Menu';
+import { fitToolbar, menuRowsOf, type ToolbarPriority } from './toolbarFit';
 
 /**
  * The frame every app sits in: the five zones of docs/design/panel-layouts.md.
@@ -56,6 +58,13 @@ export function AppFrame({ rail, toolbar, children, style, data, openRight, mobi
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   const [appMenu, setAppMenu] = useAppMenuHost();
+  const dropped = useToolbarFit(slot);
+  // Controls that did not fit come first in the one ⋯, above the app's own commands, with a line after them.
+  const menu = useMemo<AppMenuState | null>(() => {
+    if (dropped.length === 0) return appMenu;
+    const own = appMenu?.entries ?? [];
+    return { label: appMenu?.label ?? 'View', entries: [...dropped, ...own.map((e, i) => (i === 0 ? { ...e, separated: true } : e))] };
+  }, [appMenu, dropped]);
   return (
     <AppMenuProvider value={setAppMenu}>
     <PanelRegistryContext.Provider value={setPanels}>
@@ -73,7 +82,7 @@ export function AppFrame({ rail, toolbar, children, style, data, openRight, mobi
           <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
           {toolbar.panels?.(panels)}
           {toolbar.status}
-          <div className="strip-right" role="group" aria-label="Applications">{typeof toolbar.trail === 'function' ? toolbar.trail(appMenu) : toolbar.trail}</div>
+          <div className="strip-right" role="group" aria-label="Applications">{typeof toolbar.trail === 'function' ? toolbar.trail(menu) : toolbar.trail}</div>
         </header>
         {children}
       </div>
@@ -93,3 +102,59 @@ export function ToolbarControls({ label, children }: { label: string; children: 
   if (!slot) return null;
   return createPortal(<div className="ui-toolbar-group" role="group" aria-label={label}>{children}</div>, slot);
 }
+
+/** Menu rows a ToolbarItem gives for itself when it drops into the ⋯ menu, by its element. */
+const itemMenus = new WeakMap<Element, () => MenuEntry[]>();
+
+/**
+ * One of an app's toolbar controls, with how much it matters when the toolbar is short of room: a "low" one drops into
+ * the ⋯ menu before the others, and a "keep" one never drops. `menu` is what it becomes there; without it, a plain
+ * button becomes one row that presses it.
+ */
+export function ToolbarItem({ priority = 'normal', menu, children }: { priority?: ToolbarPriority; menu?: MenuEntry[]; children: ReactNode }) {
+  const latest = useRef(menu);
+  latest.current = menu;
+  const ref = useCallback((el: HTMLDivElement | null) => { if (el) itemMenus.set(el, () => latest.current ?? []); }, []);
+  return <div ref={ref} className="ui-toolbar-item" data-priority={priority} data-menu={menu ? '' : undefined}>{children}</div>;
+}
+
+/** The menu form of each dropped control: run the newest row, so a row never runs a stale closure. */
+const rowsFor = (el: HTMLElement): MenuEntry[] => {
+  const given = el.hasAttribute('data-menu') ? itemMenus.get(el)?.() : undefined;
+  return menuRowsOf(el, given);
+};
+
+const sameRows = (a: MenuEntry[], b: MenuEntry[]) =>
+  a.length === b.length && a.every((e, i) => e.label === b[i]!.label && e.keys === b[i]!.keys && e.checked === b[i]!.checked && e.disabled === b[i]!.disabled);
+
+/**
+ * Keeps the app's controls inside the toolbar: fits them again whenever the toolbar changes size or the controls
+ * change, and returns the rows of those that dropped.
+ */
+function useToolbarFit(slot: HTMLElement | null): MenuEntry[] {
+  const [rows, setRows] = useState<MenuEntry[]>([]);
+  useEffect(() => {
+    if (!slot || typeof ResizeObserver === 'undefined') return undefined;
+    const strip = slot.parentElement ?? slot;
+    let timer = 0;
+    const fit = () => {
+      window.clearTimeout(timer);
+      mutations.disconnect();
+      const next = fitToolbar(slot).flatMap(rowsFor);
+      mutations.observe(strip, WATCH);
+      setRows((now) => (sameRows(now, next) ? now : next));
+    };
+    // A size change fits at once (before it is drawn); a change of the controls (a readout ticking while a song plays)
+    // waits a moment, so fitting is not done every frame.
+    const later = () => { window.clearTimeout(timer); timer = window.setTimeout(fit, 120); };
+    const sizes = new ResizeObserver(fit);
+    const mutations = new MutationObserver(later);
+    sizes.observe(strip);
+    mutations.observe(strip, WATCH);
+    fit();
+    return () => { window.clearTimeout(timer); sizes.disconnect(); mutations.disconnect(); };
+  }, [slot]);
+  return rows;
+}
+
+const WATCH: MutationObserverInit = { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ['aria-pressed', 'aria-checked', 'disabled', 'hidden', 'class'] };
