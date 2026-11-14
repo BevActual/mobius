@@ -141,6 +141,14 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-choice[data-checked] .ui-menu-label { font-weight: var(--fw-medium); }
 .ui-choice[data-two-line] .ui-menu-keys { margin-top: calc(var(--hairline-w) * 2); }
 .ui-choice-footer { color: var(--muted); }
-.ui-popover { padding: var(--sp-2) var(--sp-3); }
+.ui-popover { padding: var(--sp-2) var(--sp-3); min-width: calc(var(--card-w) + var(--sp-5)); }
 .ui-popover > .ui-popover-title { padding-inline: 0; }
-.ui-popover > .ui-button[data-kind="quiet"] { justify-content: flex-start; margin-inline: calc(var(--sp-2) * -1); }
+.ui-popover-link {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); height: var(--menu-row-h);
+  margin: var(--sp-1) calc(var(--sp-3) * -1) 0; padding: 0 var(--sp-3); border: 0; border-top: var(--hairline-w) solid var(--line);
+  border-radius: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default;
+}
+.ui-popover-link:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-popover-link:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.ui-popover-link svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ui-popover:has(> .ui-popover-link:last-child) { padding-bottom: 0; overflow: hidden; }

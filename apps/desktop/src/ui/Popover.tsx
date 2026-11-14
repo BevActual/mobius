@@ -52,6 +52,16 @@ export function PopoverTitle({ children }: { children: ReactNode }) {
   return <div className="ui-popover-title">{children}</div>;
 }
 
+/** The way out of a popover ("Manage in Abilities"): a full row with a hairline above it and an arrow at the right. */
+export function PopoverLink({ children, onClick }: { children: ReactNode; onClick: () => void }) {
+  return (
+    <button type="button" className="ui-popover-link" onClick={onClick}>
+      <span>{children}</span>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 3.5 10.5 8 6 12.5" /></svg>
+    </button>
+  );
+}
+
 export interface Choice<T extends string> {
   value: T;
   label: string;

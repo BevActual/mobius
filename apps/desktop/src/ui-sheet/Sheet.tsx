@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select,
-  Slider, StatusLetter, ChoiceMenu, Popover, PopoverTitle, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  Slider, StatusLetter, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
 } from '../ui';
 
 /**
@@ -18,6 +18,8 @@ const TRASH = 'M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-
 const SHARE = 'M12 3v12M7 8l5-5 5 5M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5';
 const LIST = 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01';
 const BOARD = 'M4 4h6v16H4zM14 4h6v10h-6z';
+const SHIELD = 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z';
+const SEND = 'M12 19V5M6 11l6-6 6 6';
 const CAL = 'M4 6h16v14H4zM4 10h16M9 3v4M15 3v4';
 
 const when = (d: number, h?: number, m = 0) => (h === undefined ? dayLabel(new Date(2026, 10, d)) : timeLabel(new Date(2026, 10, d, h, m)));
@@ -97,12 +99,12 @@ function Composer() {
       <Popover label="More for this chat" side="top" trigger={<IconButton label="More for this chat" icon={<Icon d={PLUS} />} />}>
         <PopoverTitle>This chat</PopoverTitle>
         <Switch label="Web search" checked={web} onChange={setWeb} />
-        <Switch label="Knowledge" detail="Reads and adds to your Knowledge pages" checked={know} onChange={setKnow} />
-        <Button kind="quiet">Manage in Abilities</Button>
+        <Switch label="Knowledge" detail="Reads and adds to Knowledge" checked={know} onChange={setKnow} />
+        <PopoverLink onClick={() => {}}>Manage in Abilities</PopoverLink>
       </Popover>
       <ChoiceMenu label="Mode" title="Mode" value={mode} onChange={setMode} trigger={quiet({ agent: 'Agent', ask: 'Ask', plan: 'Plan' }[mode], 'Mode')}
         choices={[{ value: 'agent', label: 'Agent', keys: 'Ctrl+1' }, { value: 'ask', label: 'Ask', keys: 'Ctrl+2' }, { value: 'plan', label: 'Plan', keys: 'Ctrl+3' }]} />
-      <ChoiceMenu label="Permission" title="Permission" value={perm} onChange={setPerm} trigger={quiet({ ask: 'Ask each time', review: 'Review changes', apply: 'Apply changes', auto: 'Auto' }[perm], 'Permission')}
+      <ChoiceMenu label="Permission" title="Permission" value={perm} onChange={setPerm} trigger={<Button kind="quiet" aria-label="Permission" icon={<Icon d={SHIELD} />}>{{ ask: 'Ask', review: 'Review', apply: 'Apply', auto: 'Auto' }[perm]} <span aria-hidden="true">⌄</span></Button>}
         choices={[
           { value: 'ask', label: 'Ask each time', meaning: 'Mobius asks before every step' },
           { value: 'review', label: 'Review changes', meaning: 'Changes show dashed until you keep them' },
@@ -110,9 +112,9 @@ function Composer() {
           { value: 'auto', label: 'Auto', meaning: 'Runs on its own in apps you switched on' },
         ]} footer={[{ label: 'Always ask and never lists', run: () => {} }]} />
       <span className="sheet-spacer" />
-      <ChoiceMenu label="Model" value={model} onChange={setModel} align="end" trigger={quiet({ best: 'Best fit', quick: 'Quick', deep: 'Deep' }[model], 'Model')}
+      <ChoiceMenu label="Model" title="Model" value={model} onChange={setModel} align="end" trigger={quiet({ best: 'Best fit', quick: 'Quick', deep: 'Deep' }[model], 'Model')}
         choices={[{ value: 'best', label: 'Best fit', meaning: 'Picks the model for each step' }, { value: 'quick', label: 'Quick', meaning: 'Fast answers for small jobs' }, { value: 'deep', label: 'Deep', meaning: 'Slower, for long and careful work' }]} />
-      <Button kind="primary">Send</Button>
+      <IconButton label="Send" keys="Enter" primary icon={<Icon d={SEND} />} />
     </div>
   );
 }

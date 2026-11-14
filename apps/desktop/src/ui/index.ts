@@ -26,4 +26,4 @@ export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
-export { Popover, PopoverTitle, ChoiceMenu, type Choice } from './Popover';
+export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
