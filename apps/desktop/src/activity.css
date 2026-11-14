@@ -70,3 +70,11 @@
 .act-main { min-height: calc(var(--row-list-2) - 1px); padding-top: 0; padding-bottom: 0; }
 .act-embed .clist-item { min-height: var(--row-list-2); box-sizing: border-box; align-items: center; padding-top: 0; padding-bottom: 0; }
 .act-loading .act-row { min-height: var(--row-list-2); }
+
+/* The borrowed rows line up with Activity's own: the icon in the same column, the text after it, left-aligned. */
+.act-embed .clist-item { padding-left: 28px; gap: var(--sp-3); }
+.act-embed .scheduled-item { flex-direction: row; justify-content: flex-start; text-align: left; }
+.act-embed .scheduled-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.act-embed .change-row .clist-main { padding-left: 0; }
+.act-icon-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.act-embed .act-icon { flex: none; }
