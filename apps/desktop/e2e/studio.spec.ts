@@ -272,9 +272,9 @@ test('a melody is written as steps too, a row per note of the key', async () => 
 });
 
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
+  await start();
   // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.
   await resizeWindow(mobius!.app, 1600, 900);
-  await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });
   await play.click();
   await expect(play).toHaveAttribute('aria-pressed', 'true');
