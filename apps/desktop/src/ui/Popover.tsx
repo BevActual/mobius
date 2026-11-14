@@ -1,6 +1,6 @@
 import { Menu as BaseMenu } from '@base-ui/react/menu';
 import { Popover as BasePopover } from '@base-ui/react/popover';
-import { useCallback, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useId, type ReactElement, type ReactNode } from 'react';
 import { growFrom } from '../motion';
 import { KeyCaps } from './Tooltip';
 
@@ -10,8 +10,9 @@ import { KeyCaps } from './Tooltip';
  * Escape or a click elsewhere, giving focus back to the button. Behaviour is Base UI's.
  *
  * - `Popover`: any small panel of controls (the composer's plus menu: switches, a few rows, a link onward).
- * - `ChoiceMenu`: pick one of a few choices (Mode, Permission, model). The current one has a check, each shows its key,
- *   and a choice with a `meaning` is a two-line row: its name, then a grey line on what it means.
+ * - `ChoiceMenu`: pick one of a few choices (Mode, Permission, model): a setting that stays chosen. For commands
+ *   ("Add effect", "Export") use `Menu` instead, whose rows run and close (`detail` gives each a grey line on what it
+ *   does). The current choice has a check, each shows its key, and a choice with a `meaning` is a two-line row: its name, then a grey line on what it means.
  */
 
 type Side = 'top' | 'bottom' | 'left' | 'right';
@@ -92,6 +93,7 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
   footer?: readonly { label: string; run: () => void; keys?: string }[];
 }) {
   const grow = useGrow();
+  const id = useId();
   const two = choices.some((c) => c.meaning);
   return (
     <BaseMenu.Root>
@@ -101,7 +103,7 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
           <BaseMenu.Popup ref={grow} className="ui-menu ui-choices glass" aria-label={label} data-two-line={two || undefined}>
             {title && <div className="ui-popover-title">{title}</div>}
             <BaseMenu.RadioGroup value={value} onValueChange={(next) => onChange(next as T)}>
-              {choices.map((c) => (
+              {choices.map((c, i) => (
                 <BaseMenu.RadioItem
                   key={c.value}
                   value={c.value}
@@ -111,12 +113,14 @@ export function ChoiceMenu<T extends string>({ label, title, trigger, value, cho
                   className="ui-menu-item ui-choice"
                   data-separated={c.separated || undefined}
                   data-two-line={c.meaning ? true : undefined}
+                  aria-label={c.meaning ? c.label : undefined}
+                  aria-describedby={c.meaning ? `${id}-${i}` : undefined}
                 >
                   <BaseMenu.RadioItemIndicator className="ui-choice-mark" keepMounted>{CHECK}</BaseMenu.RadioItemIndicator>
                   {c.icon && <span className="ui-menu-icon" aria-hidden="true">{c.icon}</span>}
                   <span className="ui-choice-text">
                     <span className="ui-menu-label">{c.label}</span>
-                    {c.meaning && <span className="ui-choice-meaning">{c.meaning}</span>}
+                    {c.meaning && <span className="ui-choice-meaning" id={`${id}-${i}`}>{c.meaning}</span>}
                   </span>
                   {c.keys && <KeyCaps className="ui-menu-keys" keys={c.keys} />}
                 </BaseMenu.RadioItem>
