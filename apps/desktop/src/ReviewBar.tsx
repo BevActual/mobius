@@ -8,7 +8,7 @@ import { linkedFrom } from './conversation';
 export const TryAnotherContext = createContext<(() => void) | null>(null);
 
 /** What Mobius is told when its change is discarded with Try another: a different take, not the same one made longer. */
-export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way: a clearly different approach from the one I discarded, not a reworded or longer version of it, and no longer than it was.';
+export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way: a clearly different approach from the one I discarded, not a reworded or longer version of it, and shorter than it was.';
 
 /**
  * "Why this": what was asked in the turn that made a proposal, so the change can be judged against it. Nothing is shown
