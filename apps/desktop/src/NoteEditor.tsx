@@ -35,6 +35,7 @@ import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
+import { afterPaint } from './ui/frame';
 
 /** How long a recording in a note may run: ten minutes. */
 const NOTE_RECORDING_SECONDS = 600;
@@ -358,7 +359,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   useEffect(() => {
     if (!path || !focusOnOpen.current) return;
     if (sourceNow.current) area.current?.focus();
-    else window.requestAnimationFrame(() => {
+    else afterPaint(() => {
       if (!editor || editor.isDestroyed) return;
       // A new page: its title is chosen, so what is typed first names it.
       const at = untitledHeading(editor);
@@ -395,7 +396,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     if (!page) return;
     if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
     if (how === 'formatted') { setShared((await copyFormatted(editor?.getHTML() ?? notes.text, notes.text)) ? 'Copied as formatted text.' : 'The page could not be copied.'); return; }
-    if (how === 'print') { window.requestAnimationFrame(() => window.print()); return; }
+    if (how === 'print') { afterPaint(() => window.print()); return; }
     const exportIt = window.mobius.notes?.export;
     if (!exportIt) return;
     if (notes.status !== 'saved') await new Promise((r) => window.setTimeout(r, 900));
@@ -411,7 +412,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     setSource(next);
     keepSource(next);
     if (!next) known.current = null; // the editor reads the Markdown again, with what was typed in it
-    window.requestAnimationFrame(() => { if (next) area.current?.focus(); else editor?.commands.focus(); });
+    afterPaint(() => { if (next) area.current?.focus(); else editor?.commands.focus(); });
   };
 
   // Where the cursor was last in the Markdown, so Insert puts things there even after its button took the focus.
@@ -432,7 +433,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const done = insertBlock(notes.text, at, text);
     notes.edit(done.page);
     caret.current = done.cursor;
-    window.requestAnimationFrame(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
+    afterPaint(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
   };
   // Files added to the page: kept beside it, then put in where the cursor is.
   const picker = useRef<HTMLInputElement>(null);

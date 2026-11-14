@@ -1,4 +1,5 @@
 import { useRef, type KeyboardEvent, type ReactNode } from 'react';
+import { afterPaint } from './frame';
 
 export interface TabItem<T extends string> {
   id: T;
@@ -29,7 +30,7 @@ export function ContentTabs<T extends string>({ label, tabs, value, onChange, on
   className?: string;
 }) {
   const list = useRef<HTMLDivElement>(null);
-  const focus = (id: T) => requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(id)}"]`)?.focus());
+  const focus = (id: T) => afterPaint(() => list.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(id)}"]`)?.focus());
   const key = (event: KeyboardEvent<HTMLDivElement>) => {
     const at = tabs.findIndex((t) => t.id === value);
     const go = (i: number) => { const next = tabs[(i + tabs.length) % tabs.length]; if (next) { event.preventDefault(); onChange(next.id); focus(next.id); } };

@@ -3263,7 +3263,9 @@ impl Bridge {
             return Ok(failed("That conversation is not known."));
         };
         // What a turn changed is counted from its start, once that is saved.
+        let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
+        slow("changes", "waiting for the turn's start to be saved", waited);
         let started = std::time::Instant::now();
         let out = self.changes_answer(method, conversation, args);
         slow("changes", method, started);

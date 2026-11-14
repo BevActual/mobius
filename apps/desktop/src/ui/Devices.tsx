@@ -2,6 +2,7 @@ import { createContext, useContext, useRef, useState, type KeyboardEvent, type P
 import { Switch } from './Switch';
 import { fromPosition, logNudge, toPosition } from './Slider';
 import { ARROW, HandleDot, clamp, hertzLabel, useGraphDrag, type Handle } from './Instrument';
+import { afterPaint } from './frame';
 
 /**
  * Devices: what an instrument or effect sits in, and the effects' own graphs (Music first).
@@ -94,7 +95,7 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
       e.preventDefault();
       chain.move(index, to);
       // Keep the grip in hand once the device has moved.
-      requestAnimationFrame(() => chain.row()?.children[to]?.querySelector<HTMLButtonElement>('.ui-device-grip')?.focus());
+      afterPaint(() => chain.row()?.children[to]?.querySelector<HTMLButtonElement>('.ui-device-grip')?.focus());
     }
   };
   return (
