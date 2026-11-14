@@ -18,7 +18,7 @@ const MAX_THREADS: usize = 200;
 pub struct Project {
     pub id: String,
     pub name: String,
-    /// App → `ask` (Ask first), `propose` or `act`. An app not listed follows the person's own settings.
+    /// App → `ask` (Ask each time), `propose` (Review changes) or `act` (Auto). An app not listed follows the person's own settings.
     #[serde(default)]
     pub rules: BTreeMap<String, String>,
     /// The project's conversations, newest last.
@@ -134,7 +134,7 @@ impl Projects {
             return Err("That is not an app.".into());
         }
         if !matches!(level, "ask" | "propose" | "act" | "follow") {
-            return Err("That is not a level: Ask first, Propose or Act.".into());
+            return Err("That is not a level: Ask each time, Review changes or Auto.".into());
         }
         self.change(|all| {
             let p = all.iter_mut().find(|p| p.id == id).ok_or("That project is not there.")?;

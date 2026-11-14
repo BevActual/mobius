@@ -1,6 +1,6 @@
 //! How much the agent may do in each app, as the person set it in Settings, turned into the core's standing rules.
 //!
-//! Each app has three levels: `follow` (the approval mode decides: Ask first, Propose or Act), `always` (the person is
+//! Each app has three levels: `follow` (the approval mode decides: Ask each time, Review changes or Auto), `always` (the person is
 //! asked each time, whatever the mode) and `off` (it may not read or change anything there). Risky actions, such as
 //! clicking or typing in a page, are asked about every time in every mode: the core never lets a rule cover those.
 use serde_json::{Value, json};

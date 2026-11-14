@@ -315,3 +315,29 @@ test('effort Off tells a model on this computer not to think', async () => {
   expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });
   expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
 });
+
+test('an app adds its own mode after the shared three, sent by name with the host\'s instructions, and only there', async () => {
+  await start([says(['Three to reply to.']), says(['Done.'])]);
+  const openApp = async (name: string) => {
+    await shell().keyboard.press('Control+k');
+    await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+    await shell().keyboard.press('Enter');
+  };
+  await openApp('Mail');
+  const mode = shell().getByRole('button', { name: 'Mode', exact: true });
+  await mode.click();
+  const modes = menu('Mode').getByRole('menuitemradio');
+  await expect(modes).toHaveText([/^Agent/, /^Ask/, /^Plan/, /^Triage/]);
+  await menu('Mode').getByRole('menuitemradio', { name: /^Triage/ }).click();
+  await expect(mode).toContainText('Triage');
+  await say('sort my inbox');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Three to reply to.');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Triage mode (Mail)');
+  // In Calendar, Mail's mode is not on offer: the message goes as Agent, without Triage's instructions.
+  await openApp('Calendar');
+  await expect(mode).toContainText('Agent');
+  await turnEnded(composer());
+  await say('anything today?');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Done.');
+  expect(JSON.stringify(model!.requests.at(-1))).not.toContain('Triage mode');
+});
