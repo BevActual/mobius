@@ -14,14 +14,17 @@ import { ARROW, HandleDot, clamp, hertzLabel, useGraphDrag, type Handle } from '
 
 /* ---------------------------------------------------------------------------------------------------- Device chain */
 
-const Chain = createContext<{ move: (from: number, to: number) => void; count: number; row: () => HTMLElement | null } | null>(null);
+const Chain = createContext<{ move: (from: number, to: number) => void; count: number; row: () => HTMLElement | null; vertical: boolean } | null>(null);
 
 /**
- * A device chain: devices left to right in the order sound passes through them. `onMove(from, to)` reorders; the
- * chain draws nothing of its own beyond the row, and scrolls sideways when the devices are wider than the panel.
+ * A device chain: devices in the order sound passes through them, left to right, or top to bottom with
+ * `orientation="vertical"` (a narrow side panel). `onMove(from, to)` reorders; the chain draws nothing of its own beyond
+ * the row, and scrolls along its length when the devices don't fit.
  */
-export function DeviceChain({ label, count, onMove, children, className }: {
+export function DeviceChain({ label, count, onMove, orientation = 'horizontal', children, className }: {
   label: string;
+  /** Sideways (default) or stacked, for a panel too narrow for devices side by side. */
+  orientation?: 'horizontal' | 'vertical';
   /** How many devices are in it (for the grips' keys and names). */
   count: number;
   onMove: (from: number, to: number) => void;
@@ -30,8 +33,8 @@ export function DeviceChain({ label, count, onMove, children, className }: {
 }) {
   const row = useRef<HTMLDivElement>(null);
   return (
-    <Chain.Provider value={{ move: onMove, count, row: () => row.current }}>
-      <div ref={row} className={className ? `ui-chain ${className}` : 'ui-chain'} role="list" aria-label={label}>{children}</div>
+    <Chain.Provider value={{ move: onMove, count, row: () => row.current, vertical: orientation === 'vertical' }}>
+      <div ref={row} className={className ? `ui-chain ${className}` : 'ui-chain'} role="list" aria-label={label} data-orientation={orientation === 'vertical' ? 'vertical' : undefined}>{children}</div>
     </Chain.Provider>
   );
 }
@@ -58,13 +61,17 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
   const chain = useContext(Chain);
   const [dragging, setDragging] = useState(false);
   const target = useRef(index);
-  // Where the pointer would drop it: past the middle of a neighbour moves it there.
-  const slot = (x: number) => {
+  // Where the pointer would drop it: past the middle of a neighbour (across, or down in a stacked chain) moves it there.
+  const slot = (at: number) => {
     const row = chain?.row();
     if (!row) return index;
     const items = Array.from(row.children) as HTMLElement[];
     let to = 0;
-    items.forEach((el, i) => { const box = el.getBoundingClientRect(); if (i !== index && x > box.left + box.width / 2) to = i < index ? i + 1 : i; });
+    items.forEach((el, i) => {
+      const box = el.getBoundingClientRect();
+      const middle = chain?.vertical ? box.top + box.height / 2 : box.left + box.width / 2;
+      if (i !== index && at > middle) to = i < index ? i + 1 : i;
+    });
     return clamp(to, 0, items.length - 1);
   };
   const down = (e: PointerEvent<HTMLButtonElement>) => {
@@ -73,7 +80,7 @@ export function DeviceFrame({ title, index, on, onToggle, collapsed, onCollapse,
     target.current = index;
     setDragging(true);
   };
-  const move = (e: PointerEvent<HTMLButtonElement>) => { if (dragging) target.current = slot(e.clientX); };
+  const move = (e: PointerEvent<HTMLButtonElement>) => { if (dragging) target.current = slot(chain?.vertical ? e.clientY : e.clientX); };
   const up = () => {
     if (!dragging) return;
     setDragging(false);

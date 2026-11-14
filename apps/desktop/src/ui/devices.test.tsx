@@ -24,6 +24,13 @@ describe('devices', () => {
     expect(html).not.toContain("echo-controls");
   });
 
+  it('stacks the chain when it runs vertically, and runs sideways by default', () => {
+    const noop = () => {};
+    const side = renderToStaticMarkup(<DeviceChain label="FX" count={1} onMove={noop}><DeviceFrame title="EQ" index={0} on onToggle={noop}>x</DeviceFrame></DeviceChain>);
+    expect(side).not.toContain('data-orientation');
+    const stack = renderToStaticMarkup(<DeviceChain label="FX" count={1} onMove={noop} orientation="vertical"><DeviceFrame title="EQ" index={0} on onToggle={noop}>x</DeviceFrame></DeviceChain>);
+    expect(stack).toContain('data-orientation="vertical"');
+  });
   it('draws a lone frame without a grip', () => {
     const html = renderToStaticMarkup(<DeviceFrame title="Reverb" index={0} on onToggle={noop}>x</DeviceFrame>);
     expect(html).not.toContain('Move Reverb');

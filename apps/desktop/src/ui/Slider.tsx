@@ -156,7 +156,7 @@ export function ParamCell({ label, unit, keyHint, wide, size, ...slider }: Omit<
   );
 }
 
-export function ParamGrid({ label, columns = 2, children }: { label?: string; /** Cells to a row: 2 by default, 1 for a lone cell such as Volume. */ columns?: 1 | 2 | 3; children: ReactNode }) {
+export function ParamGrid({ label, columns = 2, children }: { label?: string; /** Cells to a row: 2 by default, 1 for a lone cell such as Volume, 4 for a row of knobs. */ columns?: 1 | 2 | 3 | 4; children: ReactNode }) {
   return <div className="ui-param-grid" role="group" aria-label={label} data-columns={columns === 2 ? undefined : columns}>{children}</div>;
 }
 

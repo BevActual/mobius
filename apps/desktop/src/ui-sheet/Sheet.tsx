@@ -178,6 +178,25 @@ function Devices() {
           </DeviceFrame>
         ))}
       </DeviceChain>
+      <span className="sheet-note">Stacked (orientation=&quot;vertical&quot;) in a 340 wide panel: drag a grip up or down. Knobs four across with ParamGrid columns=4.</span>
+      <div className="sheet-side">
+        <DeviceChain label="Bass effects, stacked" count={devs.length} onMove={move} orientation="vertical">
+          {devs.map((d, i) => (
+            <DeviceFrame key={d.id} title={d.title} index={i} on={d.on} onToggle={(on) => patch(d.id, { on })} collapsed={d.folded} onCollapse={(folded) => patch(d.id, { folded })} proposed={d.proposed}>
+              {d.id === 'eq' && <EqGraph bands={bands} reset={startBands} onChange={(i, b) => setBands((all) => all.map((x, j) => (j === i ? b : x)))} />}
+              {d.id === 'drive' && (
+                <ParamGrid label="Drive" columns={4}>
+                  <Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} />
+                  <Knob label="Tone" value={tone} min={0} max={1} step={0.01} origin={0.5} format={(v) => `${Math.round(v * 100)}%`} onChange={setTone} />
+                  <Knob label="Mix" value={1} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} />
+                  <Knob label="Out" value={0} min={-12} max={12} step={0.1} origin={0} format={(v) => `${v.toFixed(1)}`} unit="dB" onChange={() => {}} />
+                </ParamGrid>
+              )}
+              {d.id === 'echo' && <span className="sheet-note">Time, feedback, mix</span>}
+            </DeviceFrame>
+          ))}
+        </DeviceChain>
+      </div>
     </div>
   );
 }
