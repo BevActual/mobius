@@ -410,7 +410,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             ))}
           </div>
         ) : (
-          <div role="listbox" aria-label="Messages" className="mail-list" aria-keyshortcuts="E R Shift+R F U H">
+          <div role="listbox" aria-label="Messages" className="mail-list" title="E archives, R replies, F forwards, U marks unread, H reminds you later" aria-keyshortcuts="E R Shift+R F U H">
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
           </div>
         )}
