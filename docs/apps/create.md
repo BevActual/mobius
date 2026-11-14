@@ -108,7 +108,9 @@ A small studio for writing songs as notes.
   - Envelope: Attack, Decay, Sustain and Release drawn as one shape, with a handle at each corner to drag.
   - Motion: Vibrato and its Rate.
 
-  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Volume is a
+  A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Under it,
+  **Pads** has a pad per drum: press one to hear it (higher on the pad is louder), and the chosen pad's Tune, Decay,
+  Level and Pan set that drum alone (saved as `pads`). Volume is a
   slider; the other settings are knobs, four to a row, with their value in mono under each. Drag a knob up or down
   (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
   too.
@@ -118,7 +120,8 @@ A small studio for writing songs as notes.
   Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it up or down the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** opens under the tracks when you double-click a clip: draw, move and stretch notes, select with
-  a box, snap to the grid. Drums get a tall row per drum, named in full. Under it, the **velocity lane** has one bar
+  a box, snap to the grid. Drums get a tall row per drum, named in full. For drums, **Steps** shows one bar as sixteen steps per drum:
+  click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)

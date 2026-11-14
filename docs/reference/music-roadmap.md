@@ -21,7 +21,7 @@ reason.
 | --- | --- | --- |
 | Drums | A kit of synthesised drums, with Tune, Decay and Tone for the whole kit. | Have |
 | Bass, Piano, Pad, Lead | One synth voice with four starting points: Oscillator (Shape, Detune, Sub, Drive), Filter (Cutoff, Resonance, Sweep), Envelope (ADSR) and Motion (Vibrato, Rate). | Have |
-| Drum pads | A pad for each drum, each with its own pitch, decay, tone, level and pan, played or stepped in a step grid. | Next |
+| Drum pads | A pad for each drum, each with its own pitch, decay, level and pan, played or stepped in a step grid. | Building |
 | Morph synth | A synth that blends between waves with an XY pad, for sounds that move. | Next |
 | Sampler | Plays your own audio files from your workspace across the keys, with start, loop and envelope. One-shot mode for drum hits. | Next |
 | Two-operator synth | One wave bending another's pitch, for bells, keys and metallic basses. | Later |
@@ -41,7 +41,7 @@ and Mobius can set them like anything else in the song (`fx`).
 | Compressor | Threshold, Ratio, Attack, Release and Makeup. | Have |
 | Delay | Echoes in step with the tempo, with Feedback and Mix. | Have |
 | Reverb | A room from short to long, with Damp and Mix. | Have |
-| Drawn EQ | Bands you drag on a curve: frequency, level and width. | Building |
+| Drawn EQ | Bands you drag on a curve: frequency, level and width. | Have |
 | Saturation and lo-fi | Warmth, clipping, fewer bits and a lower sample rate. | Next |
 | Moving filter | A filter that sweeps with the tempo or follows the level. | Next |
 | Chorus, phaser and flanger | Thickening and swirling. | Next |
@@ -64,7 +64,7 @@ notes for good, so the file always shows what you hear.
 | Keep to key | Moves stray notes into the song's key. | Next |
 | Chords | Plays a chord from each note, by degree in the key. | Next |
 | Arpeggio | Plays held chords as patterns in time. | Next |
-| Step grid | Sixteen steps per drum, for patterns. | Next (library `StepGrid`) |
+| Step grid | Sixteen steps per drum, for patterns. | Building |
 | Strum and humanise | Small timing and loudness changes so parts feel played. | Later |
 | Chance | Each note plays some of the time, for variation. | Later |
 | Echo notes | Repeats each note, softer, in time. | Later |

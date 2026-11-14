@@ -90,7 +90,7 @@ export function freshEffectId(track: { fx?: readonly { id: string }[] }): string
 }
 
 /** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; notes: SongNote[]; sound?: Sound; kit?: KitSound; fx?: Effect[] }
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[] }
 export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
@@ -118,6 +118,17 @@ export const SOUND_DEFAULTS: Record<Exclude<Instrument, 'drums'>, Sound> = {
 export const soundOf = (t: Track): Sound | null => (t.instrument === 'drums' ? null : (t.sound ?? SOUND_DEFAULTS[t.instrument]));
 /** A drums track's kit: its own, or the kit as it always sounded. */
 export const kitOf = (t: Track): KitSound | null => (t.instrument === 'drums' ? (t.kit ?? KIT_DEFAULTS) : null);
+/**
+ * One drum's own settings on top of the kit: `tune` in semitones (-12 to 12), `decay` as a multiple (0.25 to 4),
+ * `level` (0 to 1) and `pan` (-1 left to 1 right). Kept per drum pitch in `pads`; a drum at its defaults is left out.
+ */
+export interface DrumPad { tune: number; decay: number; level: number; pan: number }
+export const PAD_RANGE: Record<keyof DrumPad, { lo: number; hi: number }> = { tune: { lo: -12, hi: 12 }, decay: { lo: 0.25, hi: 4 }, level: { lo: 0, hi: 1 }, pan: { lo: -1, hi: 1 } };
+export const PAD_DEFAULTS: DrumPad = { tune: 0, decay: 1, level: 1, pan: 0 };
+/** A drum's own settings, or its defaults. */
+export const padOf = (t: Track, pitch: number): DrumPad => t.pads?.[pitch] ?? PAD_DEFAULTS;
+/** The kit as one drum hears it: the kit's tune and decay, moved by the drum's own. */
+export const drumKit = (kit: KitSound, pad: DrumPad): KitSound => ({ tune: Math.max(-24, Math.min(24, kit.tune + pad.tune)), decay: kit.decay * pad.decay, tone: kit.tone });
 
 const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Record<string, unknown>) : {});
 const num = (v: unknown, fallback: number, lo: number, hi: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v * 1000) / 1000)) : fallback);
@@ -159,6 +170,16 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     if (instrument === 'drums' && Object.keys(ko).length > 0) {
       track.kit = Object.fromEntries((Object.keys(KIT_RANGE) as (keyof KitSound)[]).map((k) => [k, num(ko[k], KIT_DEFAULTS[k], KIT_RANGE[k].lo, KIT_RANGE[k].hi)])) as unknown as KitSound;
     }
+    if (track.instrument === 'drums' && to.pads && typeof to.pads === 'object') {
+      const pads: Record<number, DrumPad> = {};
+      for (const d of DRUMS) {
+        const po = (to.pads as Record<string, unknown>)[String(d.pitch)];
+        if (!po || typeof po !== 'object') continue;
+        const o = po as Record<string, unknown>;
+        pads[d.pitch] = Object.fromEntries((Object.keys(PAD_RANGE) as (keyof DrumPad)[]).map((k) => [k, num(o[k], PAD_DEFAULTS[k], PAD_RANGE[k].lo, PAD_RANGE[k].hi)])) as unknown as DrumPad;
+      }
+      if (Object.keys(pads).length > 0) track.pads = pads;
+    }
     return track;
   });
   return { song: { version: 1, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks } };
@@ -174,6 +195,10 @@ export function writeSong(song: Song): string {
     if (t.pan) head.pan = t.pan;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
     if (t.kit && t.instrument === 'drums') head.kit = t.kit;
+    if (t.pads && t.instrument === 'drums') {
+      const pads = Object.fromEntries(Object.entries(t.pads).filter(([, p]) => (Object.keys(PAD_DEFAULTS) as (keyof DrumPad)[]).some((k) => p[k] !== PAD_DEFAULTS[k])));
+      if (Object.keys(pads).length > 0) head.pads = pads;
+    }
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
     const last = i === song.tracks.length - 1;
     if (t.notes.length === 0) { lines.push(`    ${JSON.stringify({ ...head, notes: [] })}${last ? '' : ','}`); return; }

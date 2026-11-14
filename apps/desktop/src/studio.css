@@ -172,3 +172,4 @@
 .studio-fx-chain { display: grid; }
 .studio-fx-body { display: grid; gap: var(--sp-3); }
 .studio-fx-chain > .ui-button { justify-self: start; margin-top: var(--sp-2); }
+.studio-steps { flex: 1; min-height: 0; overflow: auto; padding: var(--sp-2) var(--sp-3); }
