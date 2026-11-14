@@ -30,7 +30,7 @@ export interface MenuContext {
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
     notes: { hasPage: boolean; pinned: boolean; changed: boolean };
     tasks: { inList: boolean; done: number };
-    calendar: { mode: 'day' | 'week' | 'month' };
+    calendar: { mode: 'day' | 'week' | 'month' | 'year' };
     agent: { busy: boolean };
   };
   do: {
@@ -69,7 +69,7 @@ export interface MenuContext {
     sheets: { newWorkbook: () => void; newSheet: () => void; insertRow: () => void };
     mail: { newMessage: () => void; getMail: () => void };
     slides: { newDeck: () => void };
-    calendar: { newEvent: () => void; quickEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month') => void };
+    calendar: { newEvent: () => void; quickEvent: () => void; newCalendar: () => void; today: () => void; mode: (mode: 'day' | 'week' | 'month' | 'year') => void };
     agent: { stop: () => void };
   };
 }
@@ -258,6 +258,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('day', 'Day', () => d.calendar.mode('day'), { keys: 'd', checked: s.calendar.mode === 'day' }),
         item('week', 'Week', () => d.calendar.mode('week'), { keys: 'w', checked: s.calendar.mode === 'week' }),
         item('month', 'Month', () => d.calendar.mode('month'), { keys: 'm', checked: s.calendar.mode === 'month' }),
+        item('year', 'Year', () => d.calendar.mode('year'), { keys: 'y', checked: s.calendar.mode === 'year' }),
       ] };
     case 'agent':
       return { id: 'app', label: 'Conversation', items: [
