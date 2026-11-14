@@ -114,6 +114,21 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
 ```
 
+### Pad grid
+
+`PadGrid` is a drum kit's pads, four to a row (`columns` changes that). Each `Pad` is `{ id, name, color?, key?, empty?, proposed? }`.
+- Pressing a pad calls `onChoose(i)` and `onPlay(i, velocity)`. Higher on the pad plays louder, as on a hardware pad. `onRelease` runs when the press ends.
+- `lit` pads flash in ink as they sound, so a playing pattern shows on the pads.
+- The chosen pad has an ink ring, and its settings (`children`) show under the grid with its name.
+- Keys: arrows move between pads, Space or Enter plays, and a pad's own `key`, shown in its corner, plays it from anywhere in the grid.
+- An empty pad has a plain edge and says Empty. A pad Mobius changed has the dashed indigo edge.
+
+```tsx
+<PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={sounding} onChoose={setChosen} onPlay={(i, v) => kit.play(i, v)}>
+  <ParamGrid>…the chosen drum's Tune, Decay, Tone…</ParamGrid>
+</PadGrid>
+```
+
 ### Popover and choice menus
 
 | Control | Use it for |
