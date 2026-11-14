@@ -253,10 +253,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     // A suggested reply is discarded as Mail's own Discard does it: deleted, never sent.
     for (const d of drafts) await window.mobius.mail?.deleteDraft(d.id).catch(() => undefined);
     setDrafts([]);
-    for (const path of files) {
-      const result = await window.mobius.changes.undoFile(conversation, path).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
-      if (!result.ok) { setProblem(result.error); void load(); return result.error; }
-    }
+    const result = await undoAt(conversation, files);
+    if (!result.ok) { setProblem(result.error); void load(); return result.error; }
     // Say so at once: reading the turn again is slow on some computers. The core still lists a turn after it is put
     // back, so it is settled as a kept one is, and the strip does not return for it.
     setFiles([]);
@@ -322,7 +320,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
       const target = inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path);
       const from = moved.get(path);
       // A move is one change: both its paths go back together.
-      if (from !== undefined) return { key: path, app: appsOf([path])[0] ?? 'Files', name: described.name, count: 1, unit: 'moved file', title: `${from} to ${path}`, target, undo: () => void run(async () => { const back = await window.mobius.changes.undoFile(conversation, path); return back.ok ? window.mobius.changes.undoFile(conversation, from) : back; }) };
+      if (from !== undefined) return { key: path, app: appsOf([path])[0] ?? 'Files', name: described.name, count: 1, unit: 'moved file', title: `${from} to ${path}`, target, undo: () => void run(() => undoAt(conversation, [path, from])) };
       return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : /\/\.charts\.json$/i.test(path.replace(/\\/g, '/')) ? 'chart' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
     }),
     ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
@@ -384,6 +382,24 @@ export function countOf(entries: readonly { count: number; unit: string }[]): st
   const by = new Map<string, number>();
   for (const e of entries) by.set(e.unit, (by.get(e.unit) ?? 0) + e.count);
   return [...by].map(([unit, n]) => `${n} ${n === 1 ? unit : unit === 'draft reply' ? 'draft replies' : `${unit}s`}`).join(', ');
+}
+
+/**
+ * Puts these files of the conversation's last turn back, all at once (one checkpoint, not one per file: a tidy of a
+ * hundred files took most of a minute). All of the turn's files also moves back the archives and folders its moves
+ * left behind. One by one where the bridge cannot do it at once.
+ */
+export async function undoAt(conversation: string, paths: readonly string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const failed = { ok: false as const, error: 'That could not be undone.' };
+  if (window.mobius.changes.undoFiles) {
+    const result = await window.mobius.changes.undoFiles(conversation, paths).catch(() => failed);
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  for (const path of paths) {
+    const result = await window.mobius.changes.undoFile(conversation, path).catch(() => failed);
+    if (!result.ok) return { ok: false, error: result.error };
+  }
+  return { ok: true };
 }
 
 /** The turn's moves whose two paths are both still waiting, as new path to old, so each is listed and counted once. */

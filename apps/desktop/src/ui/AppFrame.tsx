@@ -151,8 +151,14 @@ function useToolbarFit(slot: HTMLElement | null): MenuEntry[] {
     const mutations = new MutationObserver(later);
     sizes.observe(strip);
     mutations.observe(strip, WATCH);
+    // Web fonts change every control's width without resizing the strip, so fit again once they load: a first fit on
+    // the wider fallback font would otherwise leave controls in the ⋯ menu.
+    const fonts = typeof document !== 'undefined' ? document.fonts : undefined;
+    let live = true;
+    void fonts?.ready.then(() => { if (live) fit(); });
+    fonts?.addEventListener?.('loadingdone', later);
     fit();
-    return () => { window.clearTimeout(timer); sizes.disconnect(); mutations.disconnect(); };
+    return () => { live = false; window.clearTimeout(timer); sizes.disconnect(); mutations.disconnect(); fonts?.removeEventListener?.('loadingdone', later); };
   }, [slot]);
   return rows;
 }
