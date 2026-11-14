@@ -1,0 +1,8 @@
+From: GitHub <noreply@github.example>
+To: Andrew <andrew@northway.example>
+Subject: [kestrel-telemetry] CI failed on main
+Message-ID: <demo-26@northway.example>
+Date: Mon, 09 Nov 2026 08:28:00 +0000
+Content-Type: text/plain; charset=utf-8
+
+test_pack_temperature failed.

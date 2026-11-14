@@ -4,8 +4,8 @@ One made-up small team, used for every demo clip and the reel, so they all agree
 them. Which moment each app shows is in the [demo plan](../docs/reference/demo-plan.md). Nothing here is real
 personal data: the people, companies and addresses are invented, and every domain ends in `.example`.
 
-`workspace/` mirrors a profile's workspace folder. The Builder's "Demo workspace" profile copies it to a fresh folder
-on open and on Reset, so a run never changes these files.
+How it is opened, reset and laid out (`workspace/`, `mail/`, and the `{{date:+N}}` dates) is described by the
+Builder's demo profile; this page is the content.
 
 ## The story
 
@@ -25,19 +25,18 @@ Suppliers: **Veltro Cells** (battery packs), **Ardent Cells** (the cheaper, slow
 150 kW motor), **Orbis Parts**, **Harlow Steel**, **Lumen Glass**, **Pike Fasteners**, **Brakes & Co**, and
 **Northfield** (the proving ground and its sled).
 
-## The demo day
+## Dates
 
-Everything is dated around **Thursday 12 November 2026, about 8:30 in the morning**. Record with the clock at that
-time, or have the profile shift every date by the days between then and today, so "overdue", "today" and "this week"
-stay true.
+Everything is dated from the day the demo is opened, with `{{date:+N}}` and `{{date:-N}}`, so "overdue", "today" and
+"this week" stay true. The mail moves with it, so no message names a weekday.
 
 ## What is here, by moment
 
 | App | Files | For the moment |
 | --- | --- | --- |
 | Home | everything below | Unread mail, tasks due today, a half-full week. |
-| Mail | *held, see below* | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (price holds until Friday), Sam's "find us an hour". |
-| Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/Sam Okafor.ics` | Andrew's busy week and Sam's, for "Find an hour with Sam this week". |
+| Mail | `../mail/` | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (price holds until Friday), Sam's "find us an hour". |
+| Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/Sam Okafor.ics` | Andrew's busy week and Sam's, for "Find an hour with Sam this week". The dates in `.ics` need the profile to write them without dashes (asked of the Builder). |
 | Tasks | `tasks/Kestrel P2.md`, `tasks/Home.md` | Sixteen tasks: three overdue, some due today with times, one repeating. |
 | Notes | `notes/Meetings/`, `notes/P2 build/` | A notebook of meeting notes. |
 | Docs | `docs/P2 build/Build brief.md` | A long, wordy draft to tighten, and the source for the deck. |
@@ -55,7 +54,6 @@ stay true.
 
 ## Still to add
 
-- **Mail.** Forty messages are written; they go in once the Builder documents the local mail account's layout.
 - **Photo:** twelve uneven photos from one shoot (an album "Chassis build"). Needs real, freely licensed photos.
 - **Video:** five short clips for a thirty-second cut. Needs real footage, a few seconds each.
 - **Notes:** a two-minute meeting recording.
