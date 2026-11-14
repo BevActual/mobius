@@ -3,6 +3,7 @@ import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  PadGrid, type Pad,
   DateField, TimeField, TimeRange, MonthPicker,
 } from '../ui';
 
@@ -84,6 +85,25 @@ function Pads() {
       <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
       <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
       <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
+
+function DrumPads() {
+  const names = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Tom', 'Rim', 'Shaker', 'Low tom', 'Crash', 'Cowbell', 'Perc'];
+  const keys = ['Z', 'X', 'C', 'V', 'A', 'S', 'D', 'F', 'Q', 'W', 'E', 'R', '1', '2', '3', '4'];
+  const colors = ['coral', 'amber', 'yellow', 'teal', 'teal', 'violet', 'stone', 'green', 'violet', 'blue', 'pink', 'stone'] as const;
+  const pads: Pad[] = keys.map((key, i) => (names[i]
+    ? { id: `p${i}`, name: names[i]!, key, color: colors[i], proposed: i === 7 }
+    : { id: `p${i}`, name: `Pad ${i + 1}`, key, empty: true }));
+  const [chosen, setChosen] = useState(1);
+  const [lit, setLit] = useState<number[]>([0]);
+  const [tune, setTune] = useState(0);
+  return (
+    <div className="sheet-col"><span className="sheet-note">Press to play and choose (higher on a pad is louder); arrows move, Space plays, a pad&apos;s key plays it. Kick is sounding; Shaker was changed by Mobius (dashed).</span>
+      <PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={lit} onChoose={setChosen} onPlay={(i) => { setLit([i]); setTimeout(() => setLit([]), 120); }}>
+        <div className="sheet-row"><Slider label="Tune" value={tune} min={-12} max={12} step={1} format={(v) => (v > 0 ? `+${v} st` : `${v} st`)} onChange={setTune} /></div>
+      </PadGrid>
     </div>
   );
 }
@@ -326,6 +346,9 @@ export function Sheet() {
           <Pads />
         </Card>
 
+        <Card title="Pad grid (Music's drum kit)">
+          <DrumPads />
+        </Card>
         <Card title="List rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
