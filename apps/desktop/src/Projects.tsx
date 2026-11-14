@@ -15,13 +15,13 @@ import { EmptyState } from './EmptyState';
 /** The empty page's New project opens the sidebar's naming field. */
 const NEW_PROJECT = 'mobius-projects-new';
 
-/** The apps a project can set a level for, as Settings lists them. */
+/** The apps a project can set a level for, as Settings lists them. Levels use the composer's Permission names. */
 const RULE_APPS: readonly AppId[] = ['notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar', 'mail', 'browser', 'research', 'reader', 'code', 'database', 'design', 'canvas', 'photo', 'studio', 'video', 'skills'];
 const LEVELS: readonly { id: ProjectLevel | 'follow'; name: string }[] = [
   { id: 'follow', name: 'As in Settings' },
-  { id: 'ask', name: 'Ask first' },
-  { id: 'propose', name: 'Propose' },
-  { id: 'act', name: 'Act' },
+  { id: 'ask', name: 'Ask each time' },
+  { id: 'propose', name: 'Review changes' },
+  { id: 'act', name: 'Auto' },
 ];
 
 /** A project's name being changed, or its deletion being confirmed, on the page. */
