@@ -4,8 +4,9 @@ One made-up small team, used for every demo clip and the reel, so they all agree
 them. Which moment each app shows is in the [demo plan](../docs/reference/demo-plan.md). Nothing here is real
 personal data: the people, companies and addresses are invented, and every domain ends in `.example`.
 
-How it is opened, reset and laid out (`workspace/`, `mail/`, and the `{{date:+N}}` dates) is described by the
-Builder's demo profile; this page is the content.
+Open it in Mobius from **Settings › Advanced › Profiles › Open the demo workspace**. Mobius starts again on a fresh
+copy, so a run never changes these files; **Reset the demo workspace** in the same place starts it over. It ships with
+every build, so it must stay small.
 
 ## The story
 
@@ -25,10 +26,23 @@ Suppliers: **Veltro Cells** (battery packs), **Ardent Cells** (the cheaper, slow
 150 kW motor), **Orbis Parts**, **Harlow Steel**, **Lumen Glass**, **Pike Fasteners**, **Brakes & Co**, and
 **Northfield** (the proving ground and its sled).
 
-## Dates
+## What goes where
 
-Everything is dated from the day the demo is opened, with `{{date:+N}}` and `{{date:-N}}`, so "overdue", "today" and
-"this week" stay true. The mail moves with it, so no message names a weekday.
+- `workspace/` is copied as the profile's workspace, so it is laid out the way the apps keep things: `notes/<notebook>/<page>.md`,
+  `docs/`, `slides/`, `tasks/`, `calendar/`, `studio/`, `designs/`, `video/`, `photos/`, `code/` and the rest (the
+  short guide in `crates/mobius-host/src/workspace_guide.rs` lists each app's files). Make a thing in the app, then copy
+  the file it wrote.
+- In any text file there (`.md`, `.json`, `.csv`, `.ics`, `.txt`, `.html`, `.yaml`, `.sql`), `{{date:+N}}` and
+  `{{date:-N}}` become the date N days from the day the demo is opened, as `YYYY-MM-DD` (as `YYYYMMDD` in an `.ics`
+  file, so `DTSTART:{{date:+1}}T090000` works). Use them for due dates and events, so "overdue", "today" and "this
+  week" stay true.
+- `mail/` is one mail account kept on this computer, with no sign-in: `account.json` (`{"name", "email"}`), then
+  `inbox/*.eml` and `sent/*.eml`, taken in file-name order. The messages are moved in time together, so the newest
+  arrived ten minutes before opening and the rest keep their spacing; avoid naming weekdays in them, which do not
+  move. `X-Mobius-Seen: yes` marks one as already read and `X-Mobius-Flagged: yes` flags it. Replies sent in the demo
+  stay in its Sent; nothing leaves the computer.
+
+The *Launch* thread writes the content; each lead adds what their app's moment needs.
 
 ## What is here, by moment
 
@@ -59,7 +73,7 @@ Everything is dated from the day the demo is opened, with `{{date:+N}}` and `{{d
 - **Notes:** a two-minute meeting recording.
 - **Projects, Agents, Abilities and Settings:** a project with different rules for Notes and Mail, a "Morning brief"
   agent with a finished run, a connector that runs offline, and a local model. These live in the profile's settings
-  rather than the workspace, so they come with the Builder's profile.
+  rather than the workspace, so the Builder adds them to the profile.
 - Whatever else the leads list in the demo plan's "Needs" column as they confirm their rows.
 
 Keep it small: short footage and audio, no file over a few megabytes.
