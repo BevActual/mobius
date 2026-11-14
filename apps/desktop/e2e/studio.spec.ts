@@ -71,8 +71,11 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   await shell().getByRole('spinbutton', { name: 'Tempo' }).fill('96');
   await expect.poll(() => saved().tempo).toBe(96);
 
-  // The Device panel sets how the chosen track sounds, kept in the song.
+  // The Device panel sets how the chosen track sounds, kept in the song. Until it moves to the bottom area it is in the
+  // inspector, shown from the Panels menu.
   await tracks().getByRole('listitem', { name: 'Keys' }).click();
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitem', { name: 'Device' }).click();
   const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff and resonance' });
   await cutoff.focus();
   await shell().keyboard.press('ArrowLeft');

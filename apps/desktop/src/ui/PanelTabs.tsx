@@ -29,8 +29,9 @@ interface TabsApi {
 
 const PanelTabsContext = createContext<TabsApi | null>(null);
 
-/** Panels that start shown the first time their app is opened (panel-layouts.md); the rest start hidden. */
-const STARTS_SHOWN = new Set(['format', 'adjust', 'shot', 'inspector', 'device']);
+/** Panels that start shown the first time their app is opened (panel-layouts.md); the rest start hidden. Music has no
+ * inspector: its devices go in the bottom area. */
+const STARTS_SHOWN = new Set(['format', 'adjust', 'shot', 'inspector']);
 
 const OPEN_KEY = 'mobius.inspector.';
 const LAST_KEY = 'mobius.panelTab.';
