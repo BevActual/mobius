@@ -487,7 +487,8 @@ impl Workspace {
                 }
                 // A name Windows cannot hold ("Kore vs Veltro: notes.md") is written with its colon and the like
                 // swapped, everywhere alike; the result says the path it went to.
-                let relative = &safe_name(relative);
+                // Only a path already inside the workspace: one that is not is refused as it was given.
+                let relative = &if is_inner_path(relative) { safe_name(relative) } else { relative.to_owned() };
                 Ok(self.save(relative, content, &format!("before the assistant wrote {relative}"))?.to_string())
             }
             "files.edit" => {
