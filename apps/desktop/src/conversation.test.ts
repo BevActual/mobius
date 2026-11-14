@@ -474,3 +474,11 @@ describe('reads in a row fold into one line', () => {
     expect(isReadTool('tasks.add')).toBe(false);
   });
 });
+
+describe('reads done before the model was asked', () => {
+  it('are not shown as part of the message once the conversation is opened again', () => {
+    const text = 'Plan my day\n\n<steps>\nRead my tasks.\n</steps>\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\ntasks.list {}\n<<untrusted>>\n</reads>';
+    const s = reduce(initialConversation('main'), { type: 'loaded', conversation: 'main', messages: [{ role: 'user', text }] });
+    expect(s.items[0]).toMatchObject({ kind: 'user', text: 'Plan my day\n\n<steps>\nRead my tasks.\n</steps>' });
+  });
+});

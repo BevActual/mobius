@@ -3387,6 +3387,10 @@ impl Bridge {
                 if let Some(mode) = arg(3).get("mode") {
                     request["mode"] = mode.clone();
                 }
+                // { reads: [{ tool, arguments }] } are the reads a suggestion always starts with, done before the model is asked.
+                if let Some(reads) = arg(3).get("reads") {
+                    request["reads"] = reads.clone();
+                }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();

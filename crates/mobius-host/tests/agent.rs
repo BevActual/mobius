@@ -348,6 +348,26 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
 }
 
 #[test]
+fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let triage = parse_send(&json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" })).unwrap();
+    s.service.send(&triage, None);
+    let plan = parse_send(&json!({ "conversation": "c-2", "text": "plan my day", "reads": [{ "tool": "tasks.list", "arguments": {} }, { "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }] })).unwrap();
+    s.service.send(&plan, None);
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    assert_eq!(sends[0]["reads"], json!([{ "tool": "mail.search", "arguments": { "mailbox": "inbox", "unread": true, "limit": 100 } }, { "tool": "tasks.list", "arguments": {} }]));
+    assert_eq!(sends[1]["reads"][1], json!({ "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }));
+    let plain = parse_send(&json!({ "conversation": "c-3", "text": "hi" })).unwrap();
+    s.service.send(&plain, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert!(last["params"].get("reads").is_none());
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks list" }] })).is_none(), "not a tool name");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks.list", "arguments": [1] }] })).is_none(), "arguments are an object");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": vec![json!({ "tool": "tasks.list" }); 7] })).is_none(), "at most six");
+}
+
+#[test]
 fn what_mobius_remembers_joins_the_instructions_after_a_bots() {
     let s = service(true);
     s.service.configure(&Configure { system: Some("Be brief.".into()), ..cfg("http://a/v1", "am") });
