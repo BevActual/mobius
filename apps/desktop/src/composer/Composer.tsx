@@ -12,7 +12,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { MODES, modeOf, nextMode } from '../approval-modes';
+import { CHAT_MODES, PERMISSIONS, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
@@ -23,7 +23,6 @@ const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
 ];
 
 
-const PLAN_FIRST_KEY = 'mobius.planFirst';
 const KIND_NOTE: Record<ModelGroup['kind'], string> = { subscription: 'Plan', provider: 'Key', local: 'On this computer', server: 'Server' };
 
 type ModelList = { state: 'idle' | 'loading' } | { state: 'ready'; catalog: ModelCatalog };
@@ -32,7 +31,7 @@ export interface ComposerProps {
   /** In an empty conversation: where three starters go, as plain text under the greeting, instead of chips here. */
   startersIn?: HTMLElement | null;
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
-  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -52,7 +51,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
   onStop: () => void;
   /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
   onTakeOver?: () => Promise<string | null>;
@@ -75,9 +74,12 @@ const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
 export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
-  // Plan first: the agent proposes the steps and nothing runs until you start them. Kept on this computer.
-  const [planFirst, setPlanFirst] = useState(() => { try { return window.localStorage.getItem(PLAN_FIRST_KEY) === '1'; } catch { return false; } });
-  const togglePlanFirst = () => setPlanFirst((on) => { try { window.localStorage.setItem(PLAN_FIRST_KEY, on ? '0' : '1'); } catch { /* Not kept. */ } return !on; });
+  // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
+  // plan). Kept on this computer.
+  const [mode, setModeState] = useState<ChatMode>(loadChatMode);
+  const setMode = (m: ChatMode) => { setModeState(m); saveChatMode(m); };
+  // Permission: the approval mode, with Apply changes as Review changes that keeps each turn at once.
+  const [apply, setApplyState] = useState(loadApply);
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
@@ -177,7 +179,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
   };
-  const go = (text: string, items: ContextItem[], options: { plan?: boolean; images?: string[] } | undefined, queue: boolean) => {
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; images?: string[] } | undefined, queue: boolean) => {
     if (going.current) return;
     going.current = true;
     void withHere(items).then((all) => {
@@ -196,7 +198,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     }
     if (!canSend && !canQueue) return;
     setProblem(null);
-    const options = { ...(planFirst ? { plan: true } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    const options = { ...sendOptionsOf(mode), ...(pictures.length > 0 ? { images: pictures } : {}) };
     go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
@@ -205,10 +207,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       event.preventDefault();
       submit();
     }
-    // Shift+Tab goes to the next way of working: Ask first, Propose, Act.
+    // Shift+Tab goes to the next mode: Agent, Ask, Plan.
     if (event.key === 'Tab' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
       event.preventDefault();
-      void preferences.set({ approvalMode: nextMode(preferences.value.approvalMode) });
+      setMode(nextChatMode(mode));
     }
   };
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
@@ -310,7 +312,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   const modelName = settings?.configured || settings?.model ? settings.model : '';
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
-  const approval = modeOf(preferences.value.approvalMode);
+  const permission = permissionOf(preferences.value.approvalMode, apply);
+  const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
+  const modeInfo = chatModeOf(mode);
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
@@ -422,7 +426,31 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Model" className="pill" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}` : 'Model'} trigger={<><span className="pill-text">{modelName || 'Model'}{effort ? ` · ${effortLabel}` : ''}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Mode" className="pill pill-compact" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`} trigger={<><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+            {(close) => (
+              <>
+                {CHAT_MODES.map((option) => (
+                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === mode} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); setMode(option.id); }}>
+                    <Check on={option.id === mode} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
+                  </button>
+                ))}
+                <p className="popmenu-note">Shift+Tab in the message box goes to the next mode.</p>
+              </>
+            )}
+          </PopMenu>
+          <PopMenu label="Permission" className="pill pill-compact" title={`${permission.name}: ${permission.hint}`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+            {(close) => (
+              <>
+                {PERMISSIONS.map((option) => (
+                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === permission.id} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); choosePermission(option); }}>
+                    <Check on={option.id === permission.id} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
+                  </button>
+                ))}
+                <p className="popmenu-note">Paying, sending, deleting and running commands ask every time, and what you blocked stays blocked.</p>
+              </>
+            )}
+          </PopMenu>
+          <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />
@@ -451,30 +479,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                       <Check on={option.id === effort} /><span>{option.label}</span>
                     </button>
                   ))}
-                  <button type="button" role="menuitemcheckbox" aria-checked={planFirst} className="popmenu-item popmenu-checkable popmenu-split" title="See the steps before Mobius does anything" onClick={() => { close(); togglePlanFirst(); }}>
-                    <Check on={planFirst} /><span>Plan first</span>
-                  </button>
                 </div>
               </div>
             )}
           </PopMenu>
-          <PopMenu label="Approvals" className="pill pill-compact" title={`${approval.name}: ${approval.hint}. Shift+Tab in the message box changes it.`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{approval.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {MODES.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === approval.id} className="popmenu-item popmenu-checkable" onClick={() => { close(); void preferences.set({ approvalMode: option.id }); }}>
-                    <Check on={option.id === approval.id} /><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span>
-                  </button>
-                ))}
-                <p className="popmenu-note">In every mode, paying, sending, deleting and running commands ask first, and what you blocked stays blocked. Shift+Tab in the message box changes it.</p>
-              </>
-            )}
-          </PopMenu>
-          {planFirst && (
-            <button type="button" className="pill pill-compact" aria-label="Plan first" aria-pressed="true" data-on disabled={busy} onClick={togglePlanFirst} title="Plan first is on: Mobius shows its steps, and nothing happens until you start them. Click to turn it off.">
-              <span className="pill-text">Plan first</span>
-            </button>
-          )}
         </div>
         <div className="composer-actions">
           {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}

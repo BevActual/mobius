@@ -95,7 +95,7 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   const thinking = menu('Model').getByRole('group', { name: 'Thinking' });
   await expect(thinking.getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
   await thinking.getByRole('menuitemradio', { name: /High/ }).click();
-  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('High');
+  await expect(shell().getByRole('button', { name: 'Model' })).toHaveAttribute('title', /High effort/);
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).reasoningEffort).toBe('high');
   await say('think hard');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
@@ -264,26 +264,45 @@ test('the model menu groups every provider with a key, can be searched, and swit
   }
 });
 
-test('approvals can be changed from the message box and match Settings', async () => {
+test('permission and mode are changed from the message box, and the permission matches Settings', async () => {
   await start();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
-  await shell().getByRole('button', { name: 'Approvals' }).click();
-  await menu('Approvals').getByRole('menuitemradio', { name: /^Act/ }).click();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Act');
+  const permission = shell().getByRole('button', { name: 'Permission' });
+  await expect(permission).toContainText('Each time');
+  await permission.click();
+  await menu('Permission').getByRole('menuitemradio', { name: /^Auto/ }).click();
+  await expect(permission).toContainText('Auto');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
-  // Shift+Tab in the message box goes on to the next: Ask first, Propose, Act.
-  await composer().press('Shift+Tab');
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
-  await composer().press('Shift+Tab');
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Propose');
+  await permission.click();
+  await menu('Permission').getByRole('menuitemradio', { name: /^Review changes/ }).click();
+  await expect(permission).toContainText('Review');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
+  // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan.
+  const mode = shell().getByRole('button', { name: 'Mode', exact: true });
+  await expect(mode).toContainText('Agent');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Ask');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Plan');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Agent');
+});
+
+test('in Ask mode the model is offered only what reads', async () => {
+  await start([says(['Here is what it says.'])]);
+  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Ask/ }).click();
+  await say('what is in my notes?');
+  await expect(log().locator('.msg.assistant')).toHaveText('Here is what it says.');
+  const offered = JSON.stringify(model!.requests.at(-1)!.tools ?? []);
+  expect(offered).not.toContain('files-write');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Ask mode');
 });
 
 test('effort Off tells a model on this computer not to think', async () => {
   await start([says(['quick'])]);
   await shell().getByRole('button', { name: 'Model' }).click();
   await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /^Off/ }).click();
-  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('Off');
+  await expect(shell().getByRole('button', { name: 'Model' })).toHaveAttribute('title', /Off effort/);
   await say('fast please');
   await expect(log().locator('.msg.assistant')).toHaveText('quick');
   expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });

@@ -3297,6 +3297,10 @@ impl Bridge {
                 if let Some(plan) = arg(3).get("plan") {
                     request["plan"] = plan.clone();
                 }
+                // { ask: true } is Ask mode: read and answer, change nothing.
+                if let Some(ask) = arg(3).get("ask") {
+                    request["ask"] = ask.clone();
+                }
                 // and { app: "mail" } says where it was sent from, for Settings, Usage.
                 if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))) {
                     lock(&self.sent_from).insert(c.to_owned(), app.to_owned());

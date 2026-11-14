@@ -396,7 +396,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */

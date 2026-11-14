@@ -199,6 +199,8 @@ pub struct TurnSetup {
     pub model: Option<String>,
     /// Plan first: the model may only write a plan and ask questions. Nothing else runs until the person starts it.
     pub plan_only: bool,
+    /// Ask mode: the model is offered only tools that read, and anything else it asks for is refused.
+    pub read_only: bool,
     /// Pictures the person attached to this message, as `data:` URLs.
     pub images: Vec<String>,
     /// The project the conversation belongs to: its rules count for the turn's calls.
@@ -209,6 +211,14 @@ pub struct TurnSetup {
 pub const HANDED_BACK: &str = "The person took over for a while and used the apps themself, then handed back. What you read before may have changed: read the current state again (the page, document or list you were working on) before your next step, and carry on from what is there now.";
 
 /// Added to the instructions of a plan-only turn.
+/// Ask mode: what the model is told. Only reading tools are offered, and the engine refuses anything else.
+pub const ASK_ONLY_INSTRUCTIONS: &str = "The person chose Ask mode: answer and explain, and change nothing. You can read what they have open and look things up, but do not write, send, add, move or delete anything. If a change would help, say what you would change; they can switch to Agent to have it done.";
+
+/// A capability that only reads: what Ask mode may use.
+pub fn is_reading(capability: &str) -> bool {
+    matches!(capability.rsplit('.').next(), Some("read" | "list" | "search" | "now" | "output"))
+}
+
 pub const PLAN_ONLY_INSTRUCTIONS: &str = "The person asked to see your plan before you do anything. Do not do the task yet: you can only write the plan and ask questions in this turn. Write the steps with the todo.write tool, all pending, in the order you would do them, each a short sentence that says what you will do and in which app. Ask with ask.person only if you cannot plan without an answer. Then say in one or two sentences what the plan does and that nothing will happen until they start it.";
 
 pub struct Turn {
@@ -521,6 +531,9 @@ impl Engine {
         // A plan-only turn offers the model nothing but its own tools.
         let (system, outside) = if turn.setup.plan_only {
             ([system.as_str(), PLAN_ONLY_INSTRUCTIONS].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n"), Vec::new())
+        } else if turn.setup.read_only {
+            let reading = core.tools().into_iter().filter(|t| is_reading(t.capability.as_str())).collect();
+            ([system.as_str(), ASK_ONLY_INSTRUCTIONS].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("\n\n"), reading)
         } else {
             (system, core.tools())
         };
@@ -605,6 +618,11 @@ impl Engine {
                         continue;
                     }
                 }
+            }
+            if turn.setup.read_only && !core.capability_of(&call.name).is_some_and(|c| is_reading(c.as_str())) {
+                // Ask mode: only reading runs, whatever the model asks for.
+                self.push_result(turn, &call, "Not in Ask mode: this turn only reads and answers. Say what you would change and the person can switch to Agent.".to_owned(), true);
+                continue;
             }
             if turn.setup.plan_only {
                 // Whatever the model asks for, nothing outside the conversation runs before the person starts the plan.
