@@ -13,6 +13,7 @@ import {
 import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flippedCrop, groupChanged, resetGroup, stepTo, turnedCrop, zoomStep, type AspectId, type Handle } from './photo-view';
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { useTurnFileChanged } from './liveMarks';
 import { onCommand } from './commands';
 import { AppSidebar, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useShowPanelTab } from './ui';
 
@@ -359,7 +360,8 @@ type Tab = 'adjust' | 'filters' | 'crop';
 const TABS: readonly { id: Tab; name: string }[] = [{ id: 'adjust', name: 'Adjust' }, { id: 'filters', name: 'Filters' }, { id: 'crop', name: 'Crop' }];
 
 /** The open photo: the album's grid, or one photo with Adjust, Filters and Crop beside it, and Mobius's change to keep. */
-export function PhotoEditor({ photos, review }: { photos: PhotosState; review?: { conversation: string } | null }) {
+/** `working`: Mobius's turn is still running, so its change shows as it lands and Keep and Discard wait for the end. */
+export function PhotoEditor({ photos, review, working = false }: { photos: PhotosState; review?: { conversation: string } | null; working?: boolean }) {
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     const files = [...e.dataTransfer.files].filter((f) => /^image\//.test(f.type));
@@ -368,10 +370,10 @@ export function PhotoEditor({ photos, review }: { photos: PhotosState; review?: 
   };
   if (!photos.available) return <section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section>;
   if (photos.browsing || !photos.open) return <PhotoGrid photos={photos} onDrop={onDrop} />;
-  return <PhotoView photos={photos} review={review} onDrop={onDrop} />;
+  return <PhotoView photos={photos} review={review} working={working} onDrop={onDrop} />;
 }
 
-function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: { conversation: string } | null; onDrop: (e: DragEvent) => void }) {
+function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; review?: { conversation: string } | null; working: boolean; onDrop: (e: DragEvent) => void }) {
   const shown = useRef<HTMLCanvasElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
@@ -451,7 +453,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   useEffect(() => {
     let live = true;
     const check = async () => {
-      if (!review) { setKept(false); return; }
+      // While the turn runs, the last turn may still be one already kept: this one is not kept yet.
+      if (!review || working) { setKept(false); return; }
       const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
       const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
       if (live) setKept(id !== null && keptTurns('photo').includes(id));
@@ -459,11 +462,14 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     void check();
     window.addEventListener(KEPT_EVENT, check);
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
-  }, [review?.conversation, file, open?.base]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [review?.conversation, file, open?.base, working]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Each call of a running turn that changes these edits reads what they were before the turn again.
+  const [asked, setAsked] = useState(0);
+  useTurnFileChanged(review?.conversation ?? null, file, () => setAsked((n) => n + 1));
   useEffect(() => {
     if (!review || kept || !file) { setWas(undefined); return; }
     return readBefore(review.conversation, file, (text) => setWas(parseEdits(text)));
-  }, [review?.conversation, kept, file, open?.base]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [review?.conversation, kept, file, open?.base, asked]); // eslint-disable-line react-hooks/exhaustive-deps
   // The base layer's thumbnail: the photo as it came, which no edit changes.
   const baseThumb = useMemo(() => (img ? render(img, 48, null).toDataURL('image/jpeg', 0.8) : null), [img]);
   const changed = useMemo(() => {
@@ -688,7 +694,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
             <div className="photo-proposal" role="group" aria-label="Mobius's change">
               <p className="photo-proposal-title">Mobius changed {named.join(', ') || 'the edits'}</p>
               <p className="photo-proposal-line">Nothing else in the photo was touched.{review && <WhyThis conversation={review.conversation} />}</p>
-              <div className="photo-proposal-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
+              {!working && <div className="photo-proposal-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>}
             </div>
           )}
           {tab === 'adjust' && (
