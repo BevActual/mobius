@@ -14,6 +14,10 @@ describe('what each app suggests', () => {
     const two = suggestionsFor({ app: 'browser', hasPage: true, pages: 2, note: null });
     expect(two[0]).toEqual({ label: 'Compare these', prompt: COMPARE_TABS });
     for (const tool of ['browser.tabs', 'browser.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
+    // What the fifth demo run showed: a colon in the name failed on Windows, and rows came from the prompt's examples.
+    expect(COMPARE_TABS).toContain('no colon or slash');
+    expect(COMPARE_TABS).not.toContain('Compare:');
+    expect(COMPARE_TABS).toContain('a row no page answers is left out');
   });
   it('offers note suggestions that attach the open note, and a search when none is open', () => {
     const open = suggestionsFor({ app: 'notes', hasPage: false, note: { path: 'work/plan.md', title: 'Plan', text: '# Plan' } });
@@ -30,6 +34,7 @@ describe('what each app suggests', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
     expect(brief).toMatchObject({ label: 'One-page brief', attach: 'note' });
     expect(brief?.prompt).toContain('Leave this document as it is.');
+    expect(brief?.prompt).toContain('At most 450 words');
   });
   it('leads Home and Tasks with Plan my day: the same ask, which times tasks and suggests blocks but sends nothing', () => {
     for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
