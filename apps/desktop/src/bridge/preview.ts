@@ -106,6 +106,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
     { id: 'rcpt01', name: 'File receipts', instructions: 'When a receipt arrives in Mail, add a row to the Expenses sheet.', model: '', createdMs: now - 6 * 86_400_000 },
     { id: 'wkly01', name: 'Weekly P2 summary', instructions: 'Every Friday, summarise the week on the Kestrel P2 build from Notes, Tasks and Mail.', model: 'Thorough', createdMs: now - 3 * 86_400_000 },
   ] }),
+  // Agents app (marked): the weekly agent runs on Fridays, so its page and the toolbar show when.
+  'schedules.list': () => [{ id: 'sch-wkly', title: 'Weekly P2 summary', prompt: 'Summarise the week on the Kestrel P2 build.', time: '16:00', days: [5], enabled: true, bot: 'wkly01', lastRunMs: now - 7 * 86_400_000 }],
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
