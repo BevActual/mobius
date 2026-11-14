@@ -121,7 +121,9 @@ test('Find a time with… puts only those words in the box: who you name finishe
   await composer().press('Enter');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here are the times.');
   await expect(log().locator('.msg.user').last()).toContainText('Find a time with Sam');
-  await expect(log().locator('.msg.user').last()).not.toContainText('calendar.free');
+  // The steps are there, folded behind Details.
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toBeHidden();
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toContainText('calendar.free');
   expect(sent()).toContain('check with calendar.free');
   expect(sent()).toContain('I want to meet with Sam');
 });
