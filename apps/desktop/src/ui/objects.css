@@ -153,7 +153,7 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-popover-link svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ui-popover:has(> .ui-popover-link:last-child) { padding-bottom: 0; overflow: hidden; }
 
-/* Dialogs: paper, 12px corners, the one soft shadow, over a dimmed window. Title, one sentence, buttons trailing. */
+/* Dialogs: paper, large corners, the one soft shadow, over a dimmed window. Title, one sentence, buttons trailing. */
 .ui-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-dialog); background: color-mix(in srgb, var(--ink) 24%, transparent); }
 .ui-dialog {
   position: fixed; z-index: var(--z-dialog); top: 50%; left: 50%; transform: translate(-50%, -50%);
@@ -175,7 +175,7 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
   .ui-dialog-backdrop[data-starting-style], .ui-dialog-backdrop[data-ending-style] { opacity: 0; }
 }
 
-/* Content tabs: plain text; the open one ink with a 2px ink underline; close on hover. */
+/* Content tabs: plain text; the open one ink with an ink underline; close on hover. */
 .ui-tabs { display: flex; align-items: stretch; min-width: 0; height: var(--tab-h); border-bottom: var(--hairline-w) solid var(--line); }
 .ui-tabs-list { display: flex; align-items: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .ui-tabs-trailing { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-1); }
