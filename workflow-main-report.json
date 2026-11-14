@@ -1,0 +1,119 @@
+{
+  "test": "main",
+  "started": "2026-11-14T13:07:42.261Z",
+  "steps": [
+    {
+      "n": 1,
+      "name": "mail-signed-in",
+      "ok": true,
+      "notes": [
+        "messages in the list: 2"
+      ],
+      "picture": "workflow-main-01-mail-signed-in.png",
+      "ms": 1047
+    },
+    {
+      "n": 2,
+      "name": "email-open",
+      "ok": true,
+      "notes": [
+        "sidebar buttons: "
+      ],
+      "picture": "workflow-main-02-email-open.png",
+      "ms": 565
+    },
+    {
+      "n": 3,
+      "name": "mobius-opened",
+      "ok": true,
+      "notes": [
+        "suggestions offered: Triage this message | Take care of this | Draft a reply | Add a reminder"
+      ],
+      "picture": "workflow-main-03-mobius-opened.png",
+      "ms": 499
+    },
+    {
+      "n": 4,
+      "name": "asked-mobius",
+      "ok": true,
+      "notes": [
+        "the open email was attached to the request: true",
+        "conversation: Today 1:07 PM Take care of this Details Email Kestrel P2: brake kit review Edit Read your calendar Done Details Added “Send Priya the updated P2 parts list” to Kestrel P2 in Tasks Done Details Added “P2 brake kit review with Priya” to your calendar on Tue, Nov 17 at 10:00 Done Details Drafted a reply for you to send Done Details Added the parts list to Kestrel P2, due Monday. Booked the brake kit review for Tuesday at 10:00, after your stand-up. Drafted a reply for you to check. Nothing is sent. Based on Mail · Calendar · Tasks Copy Read aloud Try again",
+        "approvals asked: none",
+        "tools the model was offered: calendar-add, calendar-list, calendar-suggest, calendar-update, mail-draft, mail-read, mail-search, tasks-add, tasks-list, tasks-update"
+      ],
+      "picture": "workflow-main-04-asked-mobius.png",
+      "ms": 1769
+    },
+    {
+      "n": 5,
+      "name": "changes-summary",
+      "ok": true,
+      "notes": [
+        "review strip: 3 changes in Calendar, Tasks, Mail · Review none sent yet Calendar · 1 calendar Undo Show Tasks · 1 list Undo Show Mail · 1 draft reply Undo Show Discard all Try another Keep all",
+        "expanded: 3 changes in Calendar, Tasks, Mail · Review none sent yet Calendar · 1 calendar Undo Show Tasks · 1 list Undo Show Mail · 1 draft reply Undo Show Discard all Try another Keep all",
+        "tasks file now: - [ ] Send Priya the updated P2 parts list (due 2026-11-16) (flagged)",
+        "calendar file has the review (a suggestion should not be there yet): true"
+      ],
+      "picture": "workflow-main-05-changes-summary.png",
+      "ms": 520
+    },
+    {
+      "n": 6,
+      "name": "suggested-reply-in-mail",
+      "ok": true,
+      "notes": [
+        "suggested reply: Hi Priya, Tuesday at 10 works. I've put it in for half an hour. You'll have the updated parts list by Monday. Andrew Draft from Mobius Discard Try another Keep and edit"
+      ],
+      "picture": "workflow-main-06-suggested-reply-in-mail.png",
+      "ms": 529
+    },
+    {
+      "n": 7,
+      "name": "task-in-tasks",
+      "ok": true,
+      "notes": [
+        "row: Send Priya the updated P2 parts list Monday; proposed (dashed): false",
+        "review strip still shown here: true"
+      ],
+      "picture": "workflow-main-07-task-in-tasks.png",
+      "ms": 699
+    },
+    {
+      "n": 8,
+      "name": "event-in-calendar",
+      "ok": true,
+      "notes": [
+        "the calendar change in the conversation is a link: true",
+        "event: P2 brake kit review with Priya, 10:00 AM–10:30 AM, Calendar",
+        "stand-up still there: true"
+      ],
+      "picture": "workflow-main-08-event-in-calendar.png",
+      "ms": 706
+    },
+    {
+      "n": 9,
+      "name": "kept-all",
+      "ok": true,
+      "notes": [
+        "after Keep all, calendar file has the review: true"
+      ],
+      "picture": "workflow-main-09-kept-all.png",
+      "ms": 622
+    },
+    {
+      "n": 10,
+      "name": "reply-sent",
+      "ok": true,
+      "notes": [
+        "after Keep all the reply waits under the email, ready to send",
+        "sent: as a reply to Priya"
+      ],
+      "picture": "workflow-main-10-reply-sent.png",
+      "ms": 1270
+    }
+  ],
+  "approvalsAsked": [],
+  "attachedEmail": true,
+  "requests": 5
+}
