@@ -13,7 +13,7 @@ describe('what each app suggests', () => {
     expect(suggestionsFor({ app: 'browser', hasPage: true, pages: 1, note: null }).map((s) => s.label)).not.toContain('Compare these');
     const two = suggestionsFor({ app: 'browser', hasPage: true, pages: 2, note: null });
     expect(two[0]).toEqual({ label: 'Compare these', prompt: COMPARE_TABS });
-    for (const tool of ['browser.tabs', 'browser.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
+    for (const tool of ['browser.tabs', 'browser.read', 'files.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
     // What the fifth demo run showed: a colon in the name failed on Windows, and rows came from the prompt's examples.
     expect(COMPARE_TABS).toContain('no colon or slash');
     expect(COMPARE_TABS).not.toContain('Compare:');
