@@ -114,6 +114,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'code.stop': return 'stop a running command';
     case 'code.commit': return s('message') ? `commit in ${quote(s('project') || 'a project')}: ${quote(s('message'), 60)}` : 'commit the changes';
     case 'code.push': return `push ${quote(s('project') || 'a project')} to its remote`;
+    case 'video.clips': return s('project') ? `see the clips in the Video project ${quote(s('project'))}` : 'see your Video projects and clips';
     case 'skills.list': return 'see your skills';
     case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
     default: return null;
