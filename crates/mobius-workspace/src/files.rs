@@ -140,6 +140,16 @@ impl Workspace {
         self.checkpoints.changed_between(&root, from, to).map_err(|e| e.to_string())
     }
 
+    /// What a turn changed, from its start to its end (or to now while it runs), with the files it moved paired up.
+    pub fn turn_diff(&self, from: &str, to: Option<&str>) -> Res<crate::checkpoints::Diff> {
+        let root = self.real_root()?;
+        match to {
+            Some(to) => self.checkpoints.diff_between(&root, from, to),
+            None => self.checkpoints.diff_since(&root, from),
+        }
+        .map_err(|e| e.to_string())
+    }
+
     /// A file's text as it was at `checkpoint`, or `None` when it was not there.
     pub fn read_at(&self, checkpoint: &str, path: &str) -> Res<Option<String>> {
         let root = self.real_root()?;
@@ -968,6 +978,17 @@ mod tests {
             { "from": "Old", "to": "Archive/2026/Old" },
         ] })).unwrap();
         let end = ws.mark("the turn ends").unwrap().expect("a checkpoint");
+        // Each moved file is one move, with its old path and its new one; both paths are still among the turn's files.
+        // (Archives are not kept in checkpoints, so they are not listed at all.)
+        let diff = ws.turn_diff(&start, Some(&end)).unwrap();
+        let mut moves = diff.moves.clone();
+        moves.sort();
+        let pair = |a: &str, b: &str| (a.to_owned(), b.to_owned());
+        assert_eq!(moves, vec![
+            pair("Downloads/Old/read.md", "Downloads/Archive/2026/Old/read.md"),
+            pair("Downloads/notes.md", "Downloads/Documents/notes.md"),
+        ]);
+        assert_eq!(diff.files.len(), 4, "{:?}", diff.files);
         // A later turn's move is its own: undoing this turn leaves it.
         fs::write(root.join("Downloads/later.zip"), b"later").unwrap();
         call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [{ "from": "later.zip", "to": "Later/later.zip" }] })).unwrap();

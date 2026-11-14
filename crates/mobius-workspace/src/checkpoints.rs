@@ -398,23 +398,32 @@ impl Checkpoints {
 
     /// Files that differ between two checkpoints.
     pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
+        self.diff_between(folder, from, to).map(|d| d.files)
+    }
+
+    /// What differs between two checkpoints, with the files that were moved paired up.
+    pub fn diff_between(&self, folder: &Path, from: &str, to: &str) -> Result<Diff, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let a = self.known(&folder, &id, from)?;
         let b = self.known(&folder, &id, to)?;
         // Two saved states never change, so neither does what differs between them.
         let memo = format!("{}|{a}|{b}", self.store.display());
-        if let Some(files) = memo_get(&BETWEEN, &memo) {
-            return Ok(files);
+        if let Some(diff) = memo_get(&BETWEEN, &memo) {
+            return Ok(diff);
         }
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&BETWEEN, memo, files.clone());
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([a.as_str(), b.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&BETWEEN, memo, diff.clone());
+        Ok(diff)
     }
 
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        self.diff_since(folder, checkpoint).map(|d| d.files)
+    }
+
+    /// What differs between `checkpoint` and the folder now, with the files that were moved paired up.
+    pub fn diff_since(&self, folder: &Path, checkpoint: &str) -> Result<Diff, Error> {
         // Several parts of the window ask this at once after a change (the strip, each app's bar, Activity, Review),
         // and each answer takes a few git commands, one at a time. An answer worked out after this call arrived saw
         // the folder as it is for this call too, so it is shared; an older one is not.
@@ -423,18 +432,51 @@ impl Checkpoints {
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         let memo = format!("{}|{id}|{target}", self.store.display());
-        if let Some((worked_out, files)) = memo_get(&SINCE, &memo) {
+        if let Some((worked_out, diff)) = memo_get(&SINCE, &memo) {
             if worked_out >= asked {
-                return Ok(files);
+                return Ok(diff);
             }
         }
         let started = std::time::Instant::now();
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&SINCE, memo, (started, files.clone()));
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([target.as_str(), tree.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&SINCE, memo, (started, diff.clone()));
+        Ok(diff)
+    }
+}
+
+/// What differs between two states: every path added, changed or removed, and of those, the files moved (or renamed),
+/// each as its old path and its new one. A moved file's two paths are both in `files`, so putting the turn back still
+/// puts both back; `moves` lets the window show and undo each move as one change.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Diff {
+    pub files: Vec<String>,
+    pub moves: Vec<(String, String)>,
+}
+
+/// Git's own rename finding pairs a removed file with an added one that has the same (or nearly the same) contents.
+const DIFF_ARGS: [&str; 5] = ["diff-tree", "-r", "-M", "--name-status", "-z"];
+
+impl Diff {
+    /// Reads `diff-tree --name-status -z`: a status, then one path, or two for a move (`R<score>`, old then new).
+    fn parse(out: &str) -> Diff {
+        let mut diff = Diff::default();
+        let mut parts = out.split('\0').filter(|p| !p.is_empty());
+        while let Some(status) = parts.next() {
+            let Some(path) = parts.next() else { break };
+            if status.starts_with('R') || status.starts_with('C') {
+                let Some(to) = parts.next() else { break };
+                if status.starts_with('R') {
+                    diff.files.push(path.to_owned());
+                    diff.moves.push((path.to_owned(), to.to_owned()));
+                }
+                diff.files.push(to.to_owned());
+            } else {
+                diff.files.push(path.to_owned());
+            }
+        }
+        diff
     }
 }
 
@@ -442,8 +484,8 @@ impl Checkpoints {
 /// and the latest answer to what changed since a checkpoint, with when it was worked out.
 type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
 static KNOWN: Memo<String> = std::sync::Mutex::new(None);
-static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
-static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+static BETWEEN: Memo<Diff> = std::sync::Mutex::new(None);
+static SINCE: Memo<(std::time::Instant, Diff)> = std::sync::Mutex::new(None);
 /// The tree of each checkpoint made here, so the next one can tell whether anything changed without asking git.
 static TREE_OF: Memo<String> = std::sync::Mutex::new(None);
 
