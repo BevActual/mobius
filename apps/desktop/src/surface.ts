@@ -15,6 +15,9 @@ export interface Suggestion {
   prompt: string;
   /** What it needs attached first. */
   attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut';
+  /** For a starter: the words put in the box for the person to finish, instead of the prompt itself. What they type
+   * after them goes on the end of the prompt, which is sent behind Details. */
+  box?: string;
 }
 
 export interface SurfaceState {
@@ -45,7 +48,7 @@ export interface SurfaceState {
 }
 
 /** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
-export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, with only the one total files.move gives back: count nothing yourself.`;
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
@@ -256,8 +259,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Start a project', prompt: 'Make a small project in my Code, in a new folder code/<name>/, that ' }];
     case 'calendar':
       return [
-        // The demo's Calendar moment: the box reads "…meet with " and the person names who, such as Sam.
-        { label: 'Find a time with…', prompt: 'Find an hour this week, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest only the best two or three times, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing. End with the two or three times in one short list. I want to meet with ' },
+        // The demo's Calendar moment: the box reads "Find a time with " and the person names who, such as Sam.
+        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];
