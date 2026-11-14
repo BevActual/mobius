@@ -15,7 +15,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
+import { CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -520,7 +520,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               label="Mode"
               value={modeInfo.id}
               onChange={setMode}
-              choices={modesFor(surface?.app).map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
+              choices={modesFor(surface?.app).map((option, i) => ({ value: option.id, label: option.name, meaning: option.hint, ...(i === CHAT_MODES.length ? { separated: true } : {}) }))}
               footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode, surface?.app)) }]}
               trigger={<button type="button" className="pill pill-compact" aria-label="Mode" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
