@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import type { ActivityEntry, ConversationInfo } from '@mobius/shared';
 import { appName, type AppId } from './apps';
 import { APP_ICONS, OWN_ICONS } from './Rail';
+import { appOf } from './review-view';
+import { MobiusMark } from './MobiusMark';
 import { activityBoard } from './activity-board';
 import { appsIn, byDay, byWho, feedOf, inPlace, type ActivityPlace, type ActivityWho, type FeedItem } from './activity-feed';
 import { ChangesWaiting, ScheduledList } from './ConversationSidebar';
@@ -117,6 +119,12 @@ const WHO_VIEWS: readonly ViewChoice<ActivityWho>[] = [
   { id: 'final', name: 'Can’t undo' },
 ];
 
+/** A change row's icon: the app its files are in, or the Mobius mark when they span apps. */
+const changesGlyph = (files: string[]) => {
+  const apps = new Set(files.map((f) => appOf(f)));
+  const app = apps.size === 1 ? [...apps][0] ?? null : null;
+  return app ? <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS[app]}</svg> : <span className="act-icon act-icon-mark"><MobiusMark size={18} /></span>;
+};
 const Glyph = ({ app }: { app: AppId | null }) => <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{app ? APP_ICONS[app] : OWN_ICONS.activity}</svg>;
 
 function Line({ item, picked, onPick, onOpenApp }: { item: FeedItem; picked: boolean; onPick: () => void; onOpenApp: (app: AppId) => void }) {
@@ -137,8 +145,10 @@ function Line({ item, picked, onPick, onOpenApp }: { item: FeedItem; picked: boo
 }
 
 function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; picked: boolean; onPick: () => void; onOpen: () => void }) {
+  const [retrying, setRetrying] = useState(false);
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : relativeTime(c.updated_ms, Date.now());
+  const failed = !waiting && c.activity === 'failed';
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? `Failed ${relativeTime(c.updated_ms, Date.now()).toLowerCase()}` : relativeTime(c.updated_ms, Date.now());
   return (
     <li className="act-row" data-picked={picked || undefined}>
       <button type="button" className="act-main" aria-current={picked || undefined} onClick={onPick}>
@@ -146,10 +156,13 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
         <Glyph app="agent" />
         <span className="act-text">
           <span className="act-what">{c.title || 'A conversation'}</span>
-          <span className="act-sub">{state}</span>
+          <span className="act-sub" data-failed={failed || undefined}>{state}</span>
         </span>
       </button>
-      <button type="button" className="act-act" title="Open the conversation" onClick={onOpen}>Open</button>
+      {/* A failed run waits for you: send what it asked once more, right here. */}
+      {failed && c.retry
+        ? <button type="button" className="act-act" data-always title="Send what it asked once more" disabled={retrying} onClick={() => { setRetrying(true); void window.mobius.agent.send(c.id, c.retry!).catch(() => null).finally(() => setRetrying(false)); }}>Try again</button>
+        : <button type="button" className="act-act" title="Open the conversation" onClick={onOpen}>Open</button>}
     </li>
   );
 }
@@ -240,10 +253,10 @@ export function ActivityPage({ feed, conversations, active, onOpenConversation, 
       <div className="act-scroll">
         {lead && convo('Needs you', board.needsYou)}
         {lead && convo('Running', board.running)}
-        {lead && <div className="act-embed"><ChangesWaiting conversations={board.doneToday.slice(0, 10)} onSelect={(id) => pick({ kind: 'conversation', id })} onRows={setReviewing} /></div>}
+        {lead && <div className="act-embed"><ChangesWaiting conversations={board.doneToday.slice(0, 10)} onSelect={(id) => pick({ kind: 'conversation', id })} onRows={setReviewing} glyph={changesGlyph} /></div>}
         {/* A conversation with changes to review is listed there until they are kept or discarded, not twice. */}
         {place === 'today' && convo('Done today', board.doneToday.filter((c) => !reviewing.includes(c.id)))}
-        {place === 'today' && onOpenSchedules && <div className="act-embed"><ScheduledList onOpen={onOpenSchedules} /></div>}
+        {place === 'today' && onOpenSchedules && <div className="act-embed"><ScheduledList onOpen={onOpenSchedules} glyph={<svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>} /></div>}
         {days.map((d) => (
           <section key={d.label} className="act-group" aria-label={d.label}>
             <h2 className="act-label">{place === 'today' ? 'What happened' : d.label}</h2>

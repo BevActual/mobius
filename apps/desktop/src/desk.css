@@ -46,3 +46,11 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat.full .composer[data-working="agent"] { box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 55%, var(--line)); }
 /* The desk's last line on a short day: plain and warm, the same grey as the date line. */
 .desk-end { margin: var(--sp-6) 0 0; font-size: var(--fs-md); color: var(--muted); }
+
+/* Home is a reading page (Instrument, density): a column at most 680px wide, 15px body and 44px rows. The full
+   conversation, its composer and the strips above it share the column. */
+.chat.full[data-empty] .desk { max-width: var(--reading-w); }
+html .chat.full :is(.chat-scroll, .composer, .review-strip, .chat-sees, .turn-summary, .turn-history) { max-width: var(--reading-w); }
+.chat.full .turn-history { width: 100%; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.desk-row { height: var(--row-reading); }
+.desk-name, .desk-item, .desk .starter, .desk-end { font-size: var(--fs-reading); }
