@@ -535,6 +535,21 @@ impl Bridge {
             ("notes", _) => Ok(self.notes_call(&self.notes, "mobius:notes-changed", method, args)),
             ("docs", _) => Ok(self.notes_call(&self.docs, "mobius:docs-changed", method, args)),
             ("slides", _) => Ok(self.notes_call(&self.slides, "mobius:slides-changed", method, args)),
+            // Music saves a song rendered in the window as WAV in the workspace's Exports folder, and shows that folder.
+            ("songs", "saveExport") => Ok(match (arg(0).as_str(), arg(1).as_str(), arg(2).as_str()) {
+                (Some(path), Some(name), Some(data)) => self.songs.save_sound_export(path, name, data),
+                _ => Err("a song, a name and the sound are needed".to_owned()),
+            }
+            .unwrap_or_else(|e| json!({ "ok": false, "message": e }))),
+            ("songs", "showExports") => Ok(match self.songs.exports() {
+                Ok(dir) => {
+                    if let Some(d) = self.dialogs.get() {
+                        d.open_path(&dir);
+                    }
+                    json!({ "ok": true })
+                }
+                Err(e) => json!({ "ok": false, "message": e }),
+            }),
             ("songs", _) => Ok(self.notes_call(&self.songs, "mobius:songs-changed", method, args)),
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("boards", _) => Ok(self.notes_call(&self.boards, "mobius:boards-changed", method, args)),

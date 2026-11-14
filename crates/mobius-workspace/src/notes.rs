@@ -770,22 +770,7 @@ impl Notes {
             "md" => (content, "md"),
             _ => return Err("that kind of export is not known".into()),
         };
-        let mut n = 1;
-        let name = loop {
-            let candidate = if n < 2 { format!("{title}.{ext}") } else { format!("{title} {n}.{ext}") };
-            match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
-                Ok(mut f) => {
-                    if let Err(e) = std::io::Write::write_all(&mut f, body.as_bytes()) {
-                        drop(f);
-                        let _ = fs::remove_file(folder.join(&candidate));
-                        return Err(e.to_string());
-                    }
-                    break candidate;
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
-                Err(e) => return Err(e.to_string()),
-            }
-        };
+        let name = write_fresh(&folder, &title, ext, body.as_bytes())?;
         // A Markdown copy takes its pictures and files along, so its links still work.
         if ext == "md"
             && let Some(files) = self.files_folder(path).filter(|f| f.is_dir())
@@ -814,12 +799,68 @@ impl Notes {
         }
         Ok(json!({ "path": path, "saved": format!("{EXPORTS}/{name}"), "name": name }))
     }
+
+    /// The workspace's `Exports` folder, made if needed (refused if it is a link).
+    pub fn exports(&self) -> Res<PathBuf> {
+        let folder = self.workspace.join(EXPORTS);
+        if fs::symlink_metadata(&folder).is_ok_and(|m| m.file_type().is_symlink()) {
+            return Err("the Exports folder is a link".into());
+        }
+        fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+        Ok(folder)
+    }
+
+    /// A sound made from a page (Music's song rendered by the window), saved in `Exports` as WAV under a name not yet
+    /// taken there. `base64` is the file; at most `MAX_SOUND_EXPORT` bytes.
+    pub fn save_sound_export(&self, path: &str, name: &str, base64: &str) -> Res<Value> {
+        if !self.page(path)?.is_file() {
+            return Err("that page is not there".into());
+        }
+        if base64.len() > MAX_SOUND_EXPORT / 3 * 4 + 8 {
+            return Err("that sound is too big to save".into());
+        }
+        let name = file_name_for(name);
+        let stem = match name.rsplit_once('.') {
+            Some((stem, ext)) if ext.eq_ignore_ascii_case("wav") => stem.trim_end().to_owned(),
+            Some(_) => return Err("a sound is saved as WAV".into()),
+            None => name.clone(),
+        };
+        let bytes = crate::photos::base64_decode(base64)?;
+        if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
+            return Err("that is not a WAV file".into());
+        }
+        let stem = if stem.is_empty() { "Untitled".to_owned() } else { stem };
+        let name = write_fresh(&self.exports()?, &stem, "wav", &bytes)?;
+        Ok(json!({ "path": path, "saved": format!("{EXPORTS}/{name}"), "name": name }))
+    }
+}
+
+/// Write `bytes` as `<stem>.<ext>` in `folder`, or `<stem> 2.<ext>` and so on: never over a file already there.
+fn write_fresh(folder: &Path, stem: &str, ext: &str, bytes: &[u8]) -> Res<String> {
+    let mut n = 1;
+    loop {
+        let candidate = if n < 2 { format!("{stem}.{ext}") } else { format!("{stem} {n}.{ext}") };
+        match fs::OpenOptions::new().write(true).create_new(true).open(folder.join(&candidate)) {
+            Ok(mut f) => {
+                if let Err(e) = std::io::Write::write_all(&mut f, bytes) {
+                    drop(f);
+                    let _ = fs::remove_file(folder.join(&candidate));
+                    return Err(e.to_string());
+                }
+                return Ok(candidate);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists && n < 1000 => n += 1,
+            Err(e) => return Err(e.to_string()),
+        }
+    }
 }
 
 const VERSIONS: &str = ".versions";
 const COMMENTS: &str = ".comments";
 /// Where exported copies go, in the workspace, so Files shows them.
 pub const EXPORTS: &str = "Exports";
+/// The largest sound saved from the window: a few minutes of CD-quality stereo WAV.
+pub const MAX_SOUND_EXPORT: usize = 64 * 1024 * 1024;
 const MAX_COMMENTS: usize = 500;
 /// Typing saves every moment; a version is kept at most this often.
 const KEEP_EVERY_MS: u64 = 5 * 60 * 1000;
@@ -1240,6 +1281,24 @@ mod tests {
         assert_eq!(all.as_array().unwrap().len(), 1);
         assert_eq!(all[0]["page"], path.as_str());
         assert_eq!(all[0]["title"], "Plan");
+    }
+
+    #[test]
+    fn a_sound_is_saved_in_exports_as_wav_under_a_fresh_name() {
+        let (dir, notes) = setup();
+        notes.create_notebook("Songs").unwrap();
+        let path = notes.create_page("Songs", "Demo").unwrap()["path"].as_str().unwrap().to_owned();
+        let wav = to_base64(b"RIFF\x04\0\0\0WAVEdata");
+        let one = notes.save_sound_export(&path, "Demo.wav", &wav).unwrap();
+        assert_eq!(one["saved"], "Exports/Demo.wav");
+        assert_eq!(one["name"], "Demo.wav");
+        assert_eq!(notes.save_sound_export(&path, "Demo", &wav).unwrap()["saved"], "Exports/Demo 2.wav");
+        assert_eq!(fs::read(dir.path().join("work/Exports/Demo.wav")).unwrap(), b"RIFF\x04\0\0\0WAVEdata");
+        assert!(notes.save_sound_export(&path, "Demo.mp3", &wav).is_err());
+        assert!(notes.save_sound_export(&path, "Demo.wav", &to_base64(b"not a wav file")).is_err());
+        assert!(notes.save_sound_export("Songs/Nope.md", "Demo.wav", &wav).is_err());
+        assert!(notes.save_sound_export(&path, "Demo.wav", &"A".repeat(MAX_SOUND_EXPORT / 3 * 4 + 12)).is_err());
+        assert_eq!(fs::read_dir(dir.path().join("work/Exports")).unwrap().count(), 2);
     }
 
     #[test]
