@@ -7,7 +7,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 - **Refine before adding.** The apps that exist get genuinely good before new apps are added. Using them for real work
   shows what is missing.
-- **One look.** Apple's Human Interface Guidelines guide every screen, in light and dark.
+- **One look.** One design style, [Instrument](design/instrument.md), for every screen, in light and dark.
 - **The person decides.** Every change the agent makes is reviewable and undoable.
 - **Built by using it.** Agents developing Mobius use Mobius itself, through the
   [driver](developers/driving-the-app.md), to find what to fix and improve.
@@ -31,7 +31,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 ## Next
 
-- **Polish the existing apps** against the HIG and against real workflows, app by app.
+- **Polish the existing apps** against Instrument and against real workflows, app by app.
 - **Music as a full small studio**: more instruments (drum pads, a morph synth, a sampler), effects on every track,
   note tools and automation, built on the shared controls. The [Music roadmap](reference/music-roadmap.md) lists each
   one and its status.

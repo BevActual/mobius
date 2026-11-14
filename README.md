@@ -67,8 +67,8 @@ own models, and are happy to try something unfinished and tell us what breaks.
 ## How we're building it
 
 - **Refine before adding.** A small core of apps made genuinely good first. The rest are added when you want them.
-- **Designed with care.** Apple's Human Interface Guidelines shape every screen: one look, one window layout and one
-  way of reviewing changes in every app.
+- **Designed with care.** One design style, [Instrument](docs/design/instrument.md), for every screen:
+  calm, precise and labelled, with one window layout and one way of reviewing changes in every app.
 - **You stay in charge.** Mobius proposes and you approve. Keep, Discard and Rewind make its work undoable.
 - **Your AI, your choice.** Use your ChatGPT or Claude plan, an API key, OpenRouter, or a model on your own computer, and
   pick a different model for each job.
