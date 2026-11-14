@@ -1,0 +1,44 @@
+/*
+ * Pad grid (Pads.tsx): square pads four to a row, a colour strip, the name at the foot and the key in the corner.
+ * The chosen pad has an ink ring; a sounding pad lights in ink. Values come only from tokens.css.
+ */
+.ui-pads { display: grid; gap: var(--sp-3); justify-content: start; }
+.ui-pads[data-disabled] { opacity: 0.45; }
+.ui-pads-grid { display: grid; grid-template-columns: repeat(var(--pad-columns), var(--pad-cell)); gap: var(--sp-1); }
+.ui-pads .ui-pad-cell {
+  --swatch: var(--line);
+  position: relative; display: flex; align-items: flex-end; width: var(--pad-cell); height: var(--pad-cell); padding: var(--sp-1);
+  border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); cursor: default; overflow: hidden;
+  box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch), inset 0 0 0 var(--hairline-w) var(--line);
+  transition: background-color 80ms ease-out, color 80ms ease-out; touch-action: none; user-select: none;
+}
+.ui-pads .ui-pad-cell:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 10%, var(--sel)); }
+.ui-pads .ui-pad-cell[data-chosen] { box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch), inset 0 0 0 var(--focus-w) var(--ink); }
+.ui-pads .ui-pad-cell[data-lit], .ui-pads .ui-pad-cell[data-lit]:hover:not(:disabled) { background: var(--ink); color: var(--paper); transition: none; }
+.ui-pads .ui-pad-cell[data-empty] { background: transparent; color: var(--faint); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.ui-pads .ui-pad-cell[data-empty][data-chosen] { box-shadow: inset 0 0 0 var(--focus-w) var(--ink); }
+/* Mobius changed it: the dashed indigo edge replaces the pad's own edge; the colour strip stays on top. */
+.ui-pads .ui-pad-cell[data-proposed] { box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch); outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -1); }
+.ui-pads .ui-pad-cell[data-proposed][data-chosen] { box-shadow: inset 0 calc(var(--edge-w)) 0 var(--swatch), inset 0 0 0 var(--focus-w) var(--ink); }
+.ui-pad-cell:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
+/* Two lines before an ellipsis, so "Closed hat" fits a pad. */
+.ui-pad-name {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; overflow: hidden;
+  font-size: var(--fs-xs); line-height: 1.2; text-align: left; overflow-wrap: anywhere;
+}
+.ui-pad-key {
+  position: absolute; top: calc(var(--edge-w) + var(--sp-1)); right: var(--sp-1);
+  font: var(--fw-medium) var(--fs-floor) / 1 var(--font-mono); color: var(--muted);
+}
+.ui-pad-cell[data-lit] .ui-pad-key { color: inherit; }
+.ui-pad-cell[data-color="amber"] { --swatch: var(--c-amber); }
+.ui-pad-cell[data-color="yellow"] { --swatch: var(--c-yellow); }
+.ui-pad-cell[data-color="green"] { --swatch: var(--c-green); }
+.ui-pad-cell[data-color="teal"] { --swatch: var(--c-teal); }
+.ui-pad-cell[data-color="blue"] { --swatch: var(--c-blue); }
+.ui-pad-cell[data-color="violet"] { --swatch: var(--c-violet); }
+.ui-pad-cell[data-color="pink"] { --swatch: var(--c-pink); }
+.ui-pad-cell[data-color="coral"] { --swatch: var(--c-coral); }
+.ui-pad-cell[data-color="stone"] { --swatch: var(--c-stone); }
+.ui-pads-detail { display: grid; gap: var(--sp-2); padding-top: var(--sp-2); border-top: var(--hairline-w) solid var(--line-soft); }
+.ui-pads-detail-name { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }

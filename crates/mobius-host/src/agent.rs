@@ -142,6 +142,8 @@ pub struct SendRequest {
     pub ask: bool,
     /// Pictures attached to the message, as `data:` URLs: at most four, each a PNG, JPEG, WebP or GIF of a few MB.
     pub images: Vec<String>,
+    /// Best fit chose the quick model for this message (a short question): the core uses it when one is set.
+    pub quick: bool,
     /// The project the conversation belongs to: its rules count for the turn. Set by the host, never by the window.
     pub project: Option<String>,
 }
@@ -167,6 +169,10 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => false,
         Some(a) => a.as_bool()?,
     };
+    let quick = match v.get("quick") {
+        None | Some(Value::Null) => false,
+        Some(q) => q.as_bool()?,
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -174,7 +180,7 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, project: None })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None })
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -445,6 +451,10 @@ impl AgentService {
         }
         if request.ask {
             params.insert("ask".into(), json!(true));
+        }
+        // Best fit's quick model, unless the conversation is an agent's with its own model.
+        if request.quick && !params.contains_key("model") {
+            params.insert("quick".into(), json!(true));
         }
         if !request.images.is_empty() {
             params.insert("images".into(), json!(request.images));

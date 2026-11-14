@@ -6,6 +6,7 @@
 import './ui.css';
 import './controls.css';
 import './objects.css';
+import './pads.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -25,9 +26,11 @@ export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, Swatches, initials,
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
+export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
+export { NumberField, Readout, LetterToggle, Transport, LevelMeter, TRANSPORT_ICONS, levelPosition, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed } from './Pro';
 export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
 export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';

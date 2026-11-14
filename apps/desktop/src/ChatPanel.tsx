@@ -354,7 +354,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
@@ -772,6 +772,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                         {speech.state === 'loading' && speech.id === item.id ? 'Getting the voice…' : isSpeaking(speech, item.id) ? 'Stop reading' : 'Read aloud'}
                       </button>
                       {settled && index === lastAssistant && <button type="button" className="msg-action" aria-label="Try again" onClick={() => void retry()}>Try again</button>}
+                      {/* Honesty: the model that answered, in small grey text (a switch to the second model says so above). */}
+                      {(() => { const asked = state.items.slice(0, index).findLast((i) => i.kind === 'user'); return asked?.kind === 'user' && asked.model ? <span className="msg-model" title="The model this was sent to">{asked.model}</span> : null; })()}
                     </div>
                   )}
                   {speech.state === 'failed' && speech.id === item.id && (
