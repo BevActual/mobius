@@ -165,7 +165,7 @@ pub const APP_MODES: &[AppMode] = &[
     AppMode {
         id: "triage",
         app: "mail",
-        instructions: "Triage mode (Mail). Go through the inbox messages the person points at, or the unread ones, and sort each into Reply, Later or Archive. Say in one short line per message which it is and why. For each Reply, write a draft and leave it as a draft: never send. Move nothing to Archive yourself unless the person asks; list what you would archive.",
+        instructions: "Triage mode (Mail). Go through the inbox messages the person points at, or the unread ones, and sort each into Reply, Later or Archive, the ones that need the person first. Say in one short line per message which it is and why. For each Reply, write a draft and leave it as a draft: never send. When a message asks for work, add each piece of work to Tasks, with the date it gives. When a message asks to meet, put the meeting in Calendar at a time it names or a free time that fits, and say so in the draft. Everything you add waits for the person to keep it. Move nothing to Archive yourself unless the person asks; list what you would archive.",
         read_only: false,
     },
     AppMode {

@@ -1,0 +1,101 @@
+{
+ "version": 1,
+ "styles": [
+  {
+   "name": "Primary",
+   "color": "#4f46e5"
+  },
+  {
+   "name": "Ink",
+   "color": "#1f2937"
+  }
+ ],
+ "frames": [
+  {
+   "id": "f1",
+   "name": "Charging",
+   "x": 0,
+   "y": 0,
+   "w": 390,
+   "h": 844,
+   "fill": "#ffffff",
+   "radius": 0,
+   "children": [
+    {
+     "id": "l1",
+     "type": "text",
+     "name": "Title",
+     "x": 24,
+     "y": 64,
+     "w": 300,
+     "h": 40,
+     "text": "Charging",
+     "size": 32,
+     "weight": 700,
+     "color": "style:Ink"
+    },
+    {
+     "id": "l2",
+     "type": "ellipse",
+     "name": "Ring",
+     "x": 75,
+     "y": 180,
+     "w": 240,
+     "h": 240,
+     "fill": "#eef2ff",
+     "stroke": "style:Primary",
+     "strokeWidth": 12
+    },
+    {
+     "id": "l3",
+     "type": "text",
+     "name": "Percent",
+     "x": 135,
+     "y": 270,
+     "w": 120,
+     "h": 60,
+     "text": "64%",
+     "size": 44,
+     "weight": 700,
+     "color": "style:Ink"
+    },
+    {
+     "id": "l4",
+     "type": "text",
+     "name": "Time left",
+     "x": 24,
+     "y": 470,
+     "w": 340,
+     "h": 24,
+     "text": "38 min to 80%",
+     "size": 18,
+     "color": "#6b7280"
+    },
+    {
+     "id": "l5",
+     "type": "rect",
+     "name": "Stop button",
+     "x": 24,
+     "y": 740,
+     "w": 342,
+     "h": 52,
+     "fill": "style:Primary",
+     "radius": 12
+    },
+    {
+     "id": "l6",
+     "type": "text",
+     "name": "Stop label",
+     "x": 150,
+     "y": 754,
+     "w": 120,
+     "h": 24,
+     "text": "Stop charging",
+     "size": 17,
+     "weight": 600,
+     "color": "#ffffff"
+    }
+   ]
+  }
+ ]
+}

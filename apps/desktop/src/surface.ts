@@ -21,6 +21,8 @@ export interface SurfaceState {
   app: AppId;
   /** A web page is showing in the browser. */
   hasPage: boolean;
+  /** How many tabs show a web page: two or more can be compared. */
+  pages?: number;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
   /** `extra` is what is said about it, such as its open comments, sent after its text. */
   note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
@@ -40,15 +42,28 @@ export interface SurfaceState {
   settings?: boolean;
 }
 
+/**
+ * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
+ * linked to the words on the page it came from.
+ */
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs and read each with browser.read (its tabId). Write the comparison as a new note in my Notes called "Compare: <what they are>": one table with a column for each page, headed by its title linked to its address, and a row for each thing worth comparing (such as price, size, what is included, delivery). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where a page does not say, write "not stated". Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+
+/**
+ * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
+ * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
+ */
+export const PLAN_MY_DAY = 'Plan my day. Read my open tasks with tasks.list and keep the ones due today or overdue, and any flagged. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task worth doing today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. For unread mail that needs an answer from me today, suggest a short reply in my voice with mail.draft. Do not send anything and do not move my events. End with the day as a short list in time order, then one line on what can wait.';
+
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
   switch (state.app) {
     case 'browser':
       return state.hasPage
         ? [
-            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' },
-            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' },
-            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' },
+            ...((state.pages ?? 0) >= 2 ? [{ label: 'Compare these', prompt: COMPARE_TABS }] : []),
+            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' as const },
+            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' as const },
+            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' as const },
           ]
         : [];
     case 'notes':
@@ -61,7 +76,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
       return [
-        { label: 'Plan my day', prompt: 'Look at my tasks and help me plan today: what to do first, and what can wait. Keep it short.', attach: 'tasks' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks' },
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
@@ -222,7 +237,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       ];
     case 'agent':
       return [
-        { label: 'Plan my week', prompt: 'Help me plan my week. Ask me what matters most first.' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY },
         { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];
