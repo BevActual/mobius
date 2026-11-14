@@ -449,7 +449,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Permission" className="pill pill-compact" title={`${permission.name}: ${permission.hint}`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Permission" className="pill pill-compact" title={`Permission: ${permission.name}. ${permission.hint}`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <>
                 {PERMISSIONS.map((option) => (
