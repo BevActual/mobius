@@ -4,7 +4,7 @@ import type { ContextItem } from '@mobius/shared';
 /** The most messages that can wait at once. */
 export const MAX_QUEUED = 10;
 
-export interface QueuedOptions { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[] }
+export interface QueuedOptions { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean }
 export interface Queued { id: number; text: string; context: ContextItem[]; options?: QueuedOptions }
 
 /**
