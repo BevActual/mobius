@@ -41,8 +41,138 @@ pub fn media_type(name: &str) -> Option<&'static str> {
     })
 }
 
+/// How long a clip plays, read from its header without reading the footage: an MP4 or QuickTime movie's `mvhd`
+/// (wherever `moov` is in the file), or a WAV file's data size over its byte rate. `None` for other kinds, or when the
+/// header cannot be read.
+pub fn duration_ms(path: &Path) -> Option<u64> {
+    let mut file = fs::File::open(path).ok()?;
+    let len = file.metadata().ok()?.len();
+    match media_type(&path.file_name()?.to_string_lossy())? {
+        "video/mp4" | "video/quicktime" | "audio/mp4" => mp4_duration(&mut file, len),
+        "audio/wav" => wav_duration(&mut file, len),
+        _ => None,
+    }
+}
+
+fn read_u32(file: &mut fs::File) -> Option<u32> {
+    let mut b = [0u8; 4];
+    file.read_exact(&mut b).ok()?;
+    Some(u32::from_be_bytes(b))
+}
+
+fn read_u64(file: &mut fs::File) -> Option<u64> {
+    let mut b = [0u8; 8];
+    file.read_exact(&mut b).ok()?;
+    Some(u64::from_be_bytes(b))
+}
+
+/// The boxes between `start` and `end`: each one's type, where its contents begin, and where it ends.
+fn mp4_boxes(file: &mut fs::File, start: u64, end: u64) -> Vec<([u8; 4], u64, u64)> {
+    let mut out = Vec::new();
+    let mut at = start;
+    while at + 8 <= end && out.len() < 4096 {
+        if file.seek(SeekFrom::Start(at)).is_err() {
+            break;
+        }
+        let Some(size) = read_u32(file) else { break };
+        let mut kind = [0u8; 4];
+        if file.read_exact(&mut kind).is_err() {
+            break;
+        }
+        let (size, header) = match size {
+            0 => (end - at, 8),
+            1 => match read_u64(file) {
+                Some(large) => (large, 16),
+                None => break,
+            },
+            n => (u64::from(n), 8),
+        };
+        if size < header || at + size > end {
+            break;
+        }
+        out.push((kind, at + header, at + size));
+        at += size;
+    }
+    out
+}
+
+fn mp4_duration(file: &mut fs::File, len: u64) -> Option<u64> {
+    let (_, moov, moov_end) = mp4_boxes(file, 0, len).into_iter().find(|(k, _, _)| k == b"moov")?;
+    let (_, mvhd, mvhd_end) = mp4_boxes(file, moov, moov_end).into_iter().find(|(k, _, _)| k == b"mvhd")?;
+    file.seek(SeekFrom::Start(mvhd)).ok()?;
+    let version = read_u32(file)? >> 24;
+    let (timescale, duration) = if version == 1 {
+        if mvhd + 32 > mvhd_end {
+            return None;
+        }
+        file.seek(SeekFrom::Current(16)).ok()?;
+        (read_u32(file)?, read_u64(file)?)
+    } else {
+        if mvhd + 20 > mvhd_end {
+            return None;
+        }
+        file.seek(SeekFrom::Current(8)).ok()?;
+        (read_u32(file)?, u64::from(read_u32(file)?))
+    };
+    // All ones means "not known".
+    (timescale > 0 && duration != u64::MAX && duration != u64::from(u32::MAX)).then(|| u64::try_from(u128::from(duration) * 1000 / u128::from(timescale)).unwrap_or(u64::MAX))
+}
+
+fn wav_duration(file: &mut fs::File, len: u64) -> Option<u64> {
+    let mut head = [0u8; 12];
+    file.read_exact(&mut head).ok()?;
+    if &head[0..4] != b"RIFF" || &head[8..12] != b"WAVE" {
+        return None;
+    }
+    let (mut at, mut byte_rate) = (12u64, None);
+    while at + 8 <= len {
+        file.seek(SeekFrom::Start(at)).ok()?;
+        let mut chunk = [0u8; 8];
+        file.read_exact(&mut chunk).ok()?;
+        let size = u64::from(u32::from_le_bytes([chunk[4], chunk[5], chunk[6], chunk[7]]));
+        match &chunk[0..4] {
+            b"fmt " => {
+                let mut fmt = [0u8; 12];
+                file.read_exact(&mut fmt).ok()?;
+                byte_rate = Some(u64::from(u32::from_le_bytes([fmt[8], fmt[9], fmt[10], fmt[11]])));
+            }
+            b"data" => {
+                let rate = byte_rate.filter(|r| *r > 0)?;
+                // A recording still being written can say more than the file holds.
+                return Some(size.min(len - at - 8) * 1000 / rate);
+            }
+            _ => {}
+        }
+        at += 8 + size + (size & 1);
+    }
+    None
+}
+
+/// 1:05, or 1:02:03 for an hour or more.
+pub fn clock(ms: u64) -> String {
+    let s = ms / 1000;
+    if s >= 3600 { format!("{}:{:02}:{:02}", s / 3600, s / 60 % 60, s % 60) } else { format!("{}:{:02}", s / 60, s % 60) }
+}
+
 fn name_ok(name: &str) -> bool {
     !name.is_empty() && name == file_name_for(name) && !name.starts_with('.')
+}
+
+/// The agent's Video tool. It reads only; the agent changes a cut with the file tools, so each change can be reviewed.
+pub fn tool_descriptions() -> Vec<Value> {
+    vec![json!({ "name": "video.clips", "description": "The Video app's projects and their clips: each clip's kind, length and size, and whether the project has a cut (video/<project>/cut.json, changed with the file tools). Use the lengths to place clips in a cut.", "capability": "files.read",
+        "input_schema": { "type": "object", "properties": { "project": { "type": "string", "description": "One project; all of them when left out." } } } })]
+}
+
+pub fn is_video_tool(name: &str) -> bool {
+    name == "video.clips"
+}
+
+fn size_words(bytes: u64) -> String {
+    match bytes {
+        b if b < 1024 * 1024 => format!("{} KB", b.div_ceil(1024)),
+        b => format!("{} MB", b.div_ceil(1024 * 1024)),
+    }
 }
 
 pub struct Video {
@@ -91,13 +221,43 @@ impl Video {
                 .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
                 .filter_map(|e| {
                     let n = e.file_name().to_string_lossy().into_owned();
-                    (name_ok(&n) && media_type(&n).is_some()).then(|| json!({ "name": n, "bytes": e.metadata().map(|m| m.len()).unwrap_or(0), "kind": if media_type(&n).is_some_and(|t| t.starts_with("audio")) { "audio" } else { "video" } }))
+                    (name_ok(&n) && media_type(&n).is_some()).then(|| json!({ "name": n, "bytes": e.metadata().map(|m| m.len()).unwrap_or(0), "kind": if media_type(&n).is_some_and(|t| t.starts_with("audio")) { "audio" } else { "video" }, "durationMs": duration_ms(&e.path()) }))
                 })
                 .collect();
             clips.sort_by_key(|c| c["name"].as_str().unwrap_or("").to_lowercase());
             out.push(json!({ "name": name, "clips": clips, "hasCut": d.path().join(CUT).is_file() }));
         }
         Ok(Value::Array(out))
+    }
+
+    pub fn run(&self, name: &str, args: &Value) -> Res<String> {
+        if name != "video.clips" {
+            return Err(format!("unknown tool {name}"));
+        }
+        let only = args.get("project").and_then(Value::as_str).map(str::trim).filter(|p| !p.is_empty());
+        let projects = self.projects()?;
+        let projects: Vec<&Value> = projects.as_array().map(|a| a.iter().filter(|p| only.is_none_or(|o| p["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(o)))).collect()).unwrap_or_default();
+        if projects.is_empty() {
+            return Ok(match only {
+                Some(o) => format!("There is no Video project named {o}."),
+                None => "There are no Video projects yet.".into(),
+            });
+        }
+        let mut out = Vec::new();
+        for p in projects {
+            let name = p["name"].as_str().unwrap_or("");
+            let cut = if p["hasCut"] == true { format!("cut: {FOLDER}/{name}/{CUT}") } else { "no cut yet".into() };
+            out.push(format!("{name} ({cut})"));
+            let clips = p["clips"].as_array().cloned().unwrap_or_default();
+            if clips.is_empty() {
+                out.push("- no clips".into());
+            }
+            for c in clips {
+                let length = c["durationMs"].as_u64().map_or_else(|| "length unknown".to_owned(), clock);
+                out.push(format!("- {}: {}, {}, {}", c["name"].as_str().unwrap_or(""), c["kind"].as_str().unwrap_or("video"), length, size_words(c["bytes"].as_u64().unwrap_or(0))));
+            }
+        }
+        Ok(out.join("\n"))
     }
 
     pub fn create_project(&self, name: &str) -> Res<Value> {
@@ -271,7 +431,7 @@ mod tests {
         assert!(v.add_clip("Offsite recap", "notes.txt", "AA==").is_err());
         fs::write(v.root.join("Offsite recap/readme.txt"), "x").unwrap();
         let list = v.projects().unwrap();
-        assert_eq!(list[0]["clips"], json!([{ "name": "terrace.mp4", "bytes": 10, "kind": "video" }]));
+        assert_eq!(list[0]["clips"], json!([{ "name": "terrace.mp4", "bytes": 10, "kind": "video", "durationMs": null }]), "not a movie inside: no length");
         assert_eq!(v.read_cut("Offsite recap").unwrap()["text"], Value::Null);
         let saved = v.save_cut("Offsite recap", "{}", None).unwrap();
         assert!(v.save_cut("Offsite recap", "{}", None).is_err());
@@ -280,6 +440,57 @@ mod tests {
         for (p, c) in [("..", "x.mp4"), ("Offsite recap", "../x.mp4"), ("Offsite recap", "readme.txt"), ("Offsite recap", "cut.json"), ("Nope", "terrace.mp4")] {
             assert!(v.clip_path(p, c).is_err(), "{p} {c}");
         }
+    }
+
+    /// A movie's header only: ftyp, the footage (mdat), then moov with its mvhd, as phones write them.
+    fn movie(version: u8, timescale: u32, duration: u64) -> Vec<u8> {
+        let boxed = |kind: &[u8], body: &[u8]| [&u32::try_from(body.len() + 8).unwrap().to_be_bytes()[..], kind, body].concat();
+        let mut mvhd = vec![version, 0, 0, 0];
+        if version == 1 {
+            mvhd.extend([0u8; 16]);
+            mvhd.extend(timescale.to_be_bytes());
+            mvhd.extend(duration.to_be_bytes());
+        } else {
+            mvhd.extend([0u8; 8]);
+            mvhd.extend(timescale.to_be_bytes());
+            mvhd.extend(u32::try_from(duration).unwrap().to_be_bytes());
+        }
+        mvhd.extend([0u8; 80]);
+        let moov = boxed(b"moov", &[boxed(b"udta", b"x"), boxed(b"mvhd", &mvhd), boxed(b"trak", &[0u8; 20])].concat());
+        [boxed(b"ftyp", b"isom\0\0\0\0"), boxed(b"mdat", &[7u8; 5000]), moov].concat()
+    }
+
+    fn wav(byte_rate: u32, data: usize) -> Vec<u8> {
+        let mut fmt = vec![1u8, 0, 2, 0];
+        fmt.extend(44100u32.to_le_bytes());
+        fmt.extend(byte_rate.to_le_bytes());
+        fmt.extend([4u8, 0, 16, 0]);
+        let chunk = |kind: &[u8], body: &[u8]| [kind, &u32::try_from(body.len()).unwrap().to_le_bytes()[..], body].concat();
+        let body = [&b"WAVE"[..], &chunk(b"LIST", b"abc\0"), &chunk(b"fmt ", &fmt), &chunk(b"data", &vec![0u8; data])].concat();
+        [&b"RIFF"[..], &u32::try_from(body.len()).unwrap().to_le_bytes()[..], &body].concat()
+    }
+
+    #[test]
+    fn a_clip_says_how_long_it_plays_from_its_header() {
+        let dir = tempfile::tempdir().unwrap();
+        let v = Video::new(dir.path());
+        v.create_project("Launch").unwrap();
+        let at = |n: &str| dir.path().join("video/Launch").join(n);
+        fs::write(at("terrace.mp4"), movie(0, 600, 25_500)).unwrap();
+        fs::write(at("drone.mov"), movie(1, 90_000, 90_000 * 3725)).unwrap();
+        fs::write(at("voice.wav"), wav(176_400, 352_800)).unwrap();
+        fs::write(at("broken.mp4"), b"not a movie").unwrap();
+        fs::write(at("song.mp3"), b"ID3").unwrap();
+        assert_eq!(duration_ms(&at("terrace.mp4")), Some(42_500));
+        assert_eq!(duration_ms(&at("drone.mov")), Some(3_725_000));
+        assert_eq!(duration_ms(&at("voice.wav")), Some(2_000));
+        assert_eq!(duration_ms(&at("broken.mp4")), None);
+        assert_eq!(duration_ms(&at("song.mp3")), None);
+        assert_eq!(v.projects().unwrap()[0]["clips"][3]["durationMs"], 42_500);
+
+        let said = v.run("video.clips", &json!({ "project": "launch" })).unwrap();
+        assert_eq!(said, "Launch (no cut yet)\n- broken.mp4: video, length unknown, 1 KB\n- drone.mov: video, 1:02:05, 6 KB\n- song.mp3: audio, length unknown, 1 KB\n- terrace.mp4: video, 0:42, 6 KB\n- voice.wav: audio, 0:02, 345 KB");
+        assert_eq!(v.run("video.clips", &json!({ "project": "Nope" })).unwrap(), "There is no Video project named Nope.");
     }
 
     #[test]
