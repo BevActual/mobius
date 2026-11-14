@@ -4,9 +4,9 @@ import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -116,6 +116,7 @@ const ICONS = {
   quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
   auto: 'M3.5 14.5l4-6 4 3 5-7',
+  export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
 };
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
@@ -424,6 +425,9 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const session = useRef<SessionPlayer | null>(null);
   const [sessionNow, setSessionNow] = useState<{ playing: SessionPlaying; queued: SessionQueued }>({ playing: {}, queued: {} });
   const [undoText, setUndoText] = useState<string | null>(null);
+  /** Export as WAV: busy while the song renders, then a line on where it went (or why not). */
+  const [exporting, setExporting] = useState(false);
+  const [exported, setExported] = useState<{ text: string; kind: 'busy' | 'done' | 'note' } | null>(null);
   useEffect(() => {
     const el = page.current;
     if (!el) return;
@@ -1035,9 +1039,27 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!playing) start();
     page.current?.focus();
   };
+  /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
+  const exportWav = async () => {
+    if (exporting || !songs.page) return;
+    const save = (window.mobius?.songs as { saveExport?: (path: string, name: string, data: string) => Promise<{ saved: string; name: string } | { ok: false; message: string } | undefined> } | undefined)?.saveExport;
+    if (!save) { setExported({ text: 'Export needs the desktop app’s Exports folder, which is coming.', kind: 'note' }); return; }
+    setExporting(true);
+    const name = `${songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song'}.wav`;
+    setExported({ text: `Exporting “${name}”…`, kind: 'busy' });
+    try {
+      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was ? { text: `Exporting “${name}”… ${Math.round(done * 100)}%`, kind: 'busy' } : was)))));
+      const done = await save(songs.page.path, name, data);
+      if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
+      else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
+    } catch (err) {
+      setExported({ text: `Couldn’t export: ${err instanceof Error ? err.message : String(err)}`, kind: 'note' });
+    } finally { setExporting(false); }
+  };
   pageKeys.current = (e, t) => {
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
+    if (mod && e.shiftKey && !e.altKey && k === 'e') { void exportWav(); return true; }
     if (!mod && !e.altKey && e.key === 'F9') { record(); return true; }
     if (!mod && !e.altKey && k === 'a' && view === 'arrange') { setShowAuto((a) => !a); return true; }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
@@ -1078,6 +1100,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
         {keyboard && <span className="studio-keys-at" title="Note and velocity: the note held, else the one A plays. Z and X change octave, C and V velocity"><Readout label="Note and velocity" width={7} formats={[{ name: 'Note', text: `${heldName ?? `C${keyOctave}`} ${keyVelocity}` }]} /></span>}
+        <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         <span className="studio-sep" aria-hidden="true" />
         <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>
@@ -1298,6 +1321,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </>
         )}
       </div>
+      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Hide' : 'OK'} onUndo={() => { if (exported.kind === 'done') void (window.mobius?.songs as { showExports?: () => unknown } | undefined)?.showExports?.(); setExported(null); }} onDismiss={() => setExported(null)} />}
       {undoText && <UndoToast text={undoText} onUndo={() => { undo(); setUndoText(null); }} onDismiss={() => setUndoText(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
     </section>

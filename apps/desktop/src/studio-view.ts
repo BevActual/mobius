@@ -359,3 +359,33 @@ export function keyboardDrum(key: string, drumsUp: readonly number[]): number | 
 }
 /** The keyboard's velocity moves in steps of 20 out of 127 (C softer, V louder), kept between 1 and 127. */
 export const nudgeKeyVelocity = (v: number, by: -1 | 1): number => Math.max(1, Math.min(127, v + by * 20));
+
+/** Sound as a WAV file: 16-bit PCM, the channels interleaved, each sample kept between -1 and 1. */
+export function encodeWav(audio: { numberOfChannels: number; sampleRate: number; length: number; getChannelData(channel: number): Float32Array }): Uint8Array {
+  const channels = audio.numberOfChannels;
+  const frames = audio.length;
+  const data = frames * channels * 2;
+  const out = new DataView(new ArrayBuffer(44 + data));
+  const text = (at: number, s: string) => { for (let i = 0; i < s.length; i++) out.setUint8(at + i, s.charCodeAt(i)); };
+  text(0, 'RIFF'); out.setUint32(4, 36 + data, true); text(8, 'WAVE');
+  text(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, channels, true);
+  out.setUint32(24, audio.sampleRate, true); out.setUint32(28, audio.sampleRate * channels * 2, true); out.setUint16(32, channels * 2, true); out.setUint16(34, 16, true);
+  text(36, 'data'); out.setUint32(40, data, true);
+  const sources = Array.from({ length: channels }, (_, c) => audio.getChannelData(c));
+  let at = 44;
+  for (let i = 0; i < frames; i++) {
+    for (const s of sources) {
+      const v = Math.max(-1, Math.min(1, s[i] ?? 0));
+      out.setInt16(at, v < 0 ? Math.round(v * 0x8000) : Math.round(v * 0x7fff), true);
+      at += 2;
+    }
+  }
+  return new Uint8Array(out.buffer);
+}
+
+/** Bytes as base64, in pieces so a long song does not overflow the call stack. */
+export function toBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}

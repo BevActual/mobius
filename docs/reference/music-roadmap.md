@@ -137,7 +137,7 @@ notes for good, so the file always shows what you hear.
 | --- | --- | --- |
 | Play notes from a keyboard | The computer keys now; a MIDI keyboard next. | Building |
 | Record notes | Recording what you play into a clip. | Building (Arrange; Session clips next) |
-| Export | The song as an audio file in your workspace. | Next |
+| Export | The song as an audio file in your workspace. | Building (whole song as WAV; stems and MP3 next) |
 | Catch what you played | Getting back notes you played while not recording. | Later |
 | Audio tracks | Recording and placing audio, stretched to the tempo. | Later |
 | Takes | Several recordings of a part, choosing the best bits. | Later |

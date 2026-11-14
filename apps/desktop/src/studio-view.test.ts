@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -234,5 +234,24 @@ describe('recordedNote', () => {
     expect(recordedNote(held, 2.5, null, 16)!.length).toBe(0.063);
     expect(recordedNote({ ...held, start: 15.5 }, 20, null, 16)!.length).toBe(0.5);
     expect(recordedNote({ ...held, start: 16 }, 17, null, 16)).toBeNull();
+  });
+});
+
+describe('encodeWav', () => {
+  it('writes a 16-bit PCM WAV with the channels interleaved and samples kept in range', () => {
+    const left = new Float32Array([0, 1, -1, 2]);
+    const right = new Float32Array([0.5, -0.5, 0, -2]);
+    const wav = encodeWav({ numberOfChannels: 2, sampleRate: 44100, length: 4, getChannelData: (c) => (c === 0 ? left : right) });
+    const v = new DataView(wav.buffer);
+    expect(String.fromCharCode(...wav.subarray(0, 4))).toBe('RIFF');
+    expect(String.fromCharCode(...wav.subarray(8, 12))).toBe('WAVE');
+    expect(v.getUint16(22, true)).toBe(2);
+    expect(v.getUint32(24, true)).toBe(44100);
+    expect(v.getUint32(40, true)).toBe(16);
+    expect(wav.length).toBe(44 + 16);
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((i) => v.getInt16(44 + i * 2, true))).toEqual([0, 16384, 32767, -16384, -32768, 0, 32767, -32768]);
+  });
+  it('turns bytes into base64', () => {
+    expect(toBase64(new Uint8Array([77, 111, 98]))).toBe('TW9i');
   });
 });

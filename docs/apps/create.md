@@ -151,11 +151,14 @@ A small studio for writing songs as notes.
   to add a point and drag to place it, drag a point to move it, double-click it (or Delete) to take it out. With points,
   the track's volume follows the line as it plays; with none, it stays at its Volume. Saved as each track's
   `volumeAuto`.
+- **Export as WAV** (the arrow button in the toolbar, or Ctrl+Shift+E): plays the whole song into a file, every track
+  through its sound, devices, pan and volume line, plus two seconds for echoes to ring out. 44.1 kHz stereo, saved in
+  the workspace's `Exports` folder (Show in folder opens it), never over an earlier export.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
   to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
 
-**Kept in:** `workspace/studio/`, each song a JSON file of notes.
+**Kept in:** `workspace/studio/`, each song a JSON file of notes; exported sound in `workspace/Exports/`.
 
 ## Video
 

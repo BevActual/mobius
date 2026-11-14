@@ -7,7 +7,7 @@ import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
  */
 const freq = (pitch: number) => 440 * 2 ** ((pitch - 69) / 12);
 
-function noise(ctx: AudioContext): AudioBuffer {
+function noise(ctx: BaseAudioContext): AudioBuffer {
   const buf = ctx.createBuffer(1, ctx.sampleRate * 0.5, ctx.sampleRate);
   const data = buf.getChannelData(0);
   for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
@@ -15,7 +15,7 @@ function noise(ctx: AudioContext): AudioBuffer {
 }
 
 /** One drum hit through the kit: tuned up or down in semitones, its ring stretched by `decay`, brighter or darker by `tone`. */
-function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kitIn: KitSound = KIT_DEFAULTS, pad: DrumPad = PAD_DEFAULTS) {
+function drum(ctx: BaseAudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kitIn: KitSound = KIT_DEFAULTS, pad: DrumPad = PAD_DEFAULTS) {
   const kit = drumKit(kitIn, pad);
   velocity *= pad.level;
   const gain = ctx.createGain();
@@ -70,7 +70,7 @@ function driveCurve(amount: number): Float32Array {
  * octave down, through drive, a low-pass filter the envelope can sweep open, and an attack, decay, sustain and release
  * envelope. Vibrato wobbles every voice's pitch.
  */
-function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
+function shaped(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
@@ -134,7 +134,7 @@ function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound
   if (sound.sub > 0.001) voice('sine', freq(pitch) / 2, 0, sound.sub * 0.8);
 }
 
-function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
+function tone(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
   if (sound) { shaped(ctx, out, instrument, sound, pitch, at, seconds, velocity); return; }
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
@@ -163,7 +163,7 @@ function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: 
   });
 }
 
-function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
+function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
   osc.frequency.value = accent ? 1760 : 1320;
@@ -176,7 +176,7 @@ function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
 }
 
 /** A room's ring: noise fading over `size` seconds, its highs fading faster as `damp` goes up. Made once per size. */
-function impulse(ctx: AudioContext, size: number, damp: number): AudioBuffer {
+function impulse(ctx: BaseAudioContext, size: number, damp: number): AudioBuffer {
   const length = Math.max(1, Math.round(ctx.sampleRate * size));
   const buf = ctx.createBuffer(2, length, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) {
@@ -223,7 +223,7 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
         const back = ctx.createGain(); back.gain.value = e.feedback;
         at.connect(delay); delay.connect(back); back.connect(delay); delay.connect(wet);
       } else {
-        const room = ctx.createConvolver(); room.buffer = impulse(ctx as AudioContext, e.size, e.damp);
+        const room = ctx.createConvolver(); room.buffer = impulse(ctx, e.size, e.damp);
         at.connect(room); room.connect(wet);
       }
       wet.connect(out);
@@ -234,7 +234,7 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
 }
 
 /** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
-function trackStrip(ctx: AudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
+function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
   const input = ctx.createGain();
   input.gain.value = t.volume;
   let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat);
@@ -408,4 +408,41 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
     playing() { return { ...playing }; },
     queued() { return { ...queued }; },
   };
+}
+
+/** Seconds of tail after the song's last bar, so a reverb or delay rings out in an export. */
+export const RENDER_TAIL = 2;
+
+/**
+ * The whole song played into a buffer rather than the speakers, for Export: every audible track, its sound, effects,
+ * pan and volume line, from the start to the last bar plus a short tail. 44.1 kHz stereo.
+ */
+export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (done: number) => void): Promise<AudioBuffer> {
+  const spb = 60 / song.tempo;
+  const total = song.bars * BEATS_PER_BAR;
+  const seconds = Math.max(0, total * spb) + RENDER_TAIL;
+  const ctx = new OfflineAudioContext(2, Math.ceil(seconds * sampleRate), sampleRate);
+  // Rendering takes a while on a long song: stop every few seconds of sound to say how far it has got.
+  if (onProgress) {
+    for (let at = 4; at < seconds; at += 4) {
+      void ctx.suspend(at).then(() => { onProgress(at / seconds); return ctx.resume(); });
+    }
+  }
+  const master = ctx.createGain();
+  master.gain.value = 0.8;
+  master.connect(ctx.destination);
+  const noiseBuf = noise(ctx);
+  for (const t of audible(song)) {
+    const out = trackStrip(ctx, t, master, spb);
+    if (t.volumeAuto && t.volumeAuto.length > 0 && out instanceof GainNode) {
+      out.gain.setValueAtTime(autoValueAt(t.volumeAuto, 0, t.volume), 0);
+      for (const p of t.volumeAuto) out.gain.linearRampToValueAtTime(p.value, p.beat * spb);
+    }
+    if (t.instrumentOn === false) continue;
+    for (const n of t.notes) {
+      if (t.instrument === 'drums') drum(ctx, out, n.pitch, n.start * spb, n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
+      else tone(ctx, out, t.instrument, n.pitch, n.start * spb, n.length * spb, n.velocity, t.sound);
+    }
+  }
+  return ctx.startRendering();
 }

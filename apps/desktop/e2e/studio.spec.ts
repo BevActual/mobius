@@ -367,6 +367,22 @@ test('automation draws a volume line under a track with points, kept in the song
   await expect(lane).toHaveCount(0);
 });
 
+test('Export as WAV renders the song and saves it in the Exports folder', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Export as WAV' }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
+  const wav = fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Night Drive.wav'));
+  expect(wav.subarray(0, 4).toString('latin1')).toBe('RIFF');
+  expect(wav.subarray(8, 12).toString('latin1')).toBe('WAVE');
+  // Four bars at 112 bpm plus a two-second tail, 16-bit stereo at 44.1 kHz.
+  expect(wav.length).toBe(44 + Math.ceil((16 * 60 / 112 + 2) * 44100) * 4);
+  // A second export never writes over the first.
+  await shell().getByRole('status').filter({ hasText: 'Exported' }).getByRole('button', { name: 'Dismiss' }).click();
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+Shift+E');
+  await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive 2.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
+});
+
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });
