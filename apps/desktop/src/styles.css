@@ -53,12 +53,13 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .strip-middle { position: relative; }
 .strip-middle > .notice { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; max-width: 100%; margin: 0; padding: 4px 10px; border-radius: var(--radius-group); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-2); }
 
-.body { position: relative; display: grid; grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) var(--col-right, 0px); min-height: 0; padding: 0 var(--pad-right, 8px) 8px var(--pad-left, 8px); }
+.body { position: relative; display: grid; grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto var(--col-right, 0px); min-height: 0; padding: 0 var(--pad-right, 8px) 8px var(--pad-left, 8px); }
 .stage { grid-column: 2; }
 /* A sidebar sits in a dock: in the window's layout, or floating over it. */
 .dock { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .dock.left { grid-column: 1; }
-.dock.right { grid-column: 3; }
+.dock.inspector { grid-column: 3; }
+.dock.right { grid-column: 4; }
 .dock > .app-side, .dock > .side, .dock > .chat { flex: 1; min-height: 0; min-width: 0; }
 .dock[data-floating] { position: absolute; z-index: 30; top: 0; bottom: 8px; background: var(--shell); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.3); animation: dock-in var(--dur-fast) var(--ease); }
 .dock.left[data-floating] { left: 8px; width: var(--left-w); }
@@ -72,7 +73,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .hotzone.right { right: 0; }
 .resizer { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 31; touch-action: none; border-radius: 4px; }
 .resizer.left { right: -4px; }
-.resizer.right { left: -4px; }
+.resizer.right, .resizer.inspector { left: -4px; }
 .resizer:hover, .resizer:active, .resizer:focus-visible { background: color-mix(in srgb, var(--accent) 38%, transparent); outline: 0; }
 .page-cover { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: top left; z-index: 1; }
 .side-actions { display: inline-flex; align-items: center; gap: 2px; }
@@ -975,7 +976,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .review-strip[data-state="undone"] { padding: 8px 12px; color: var(--muted); }
 .review-summary { flex: 1 0 auto; min-width: 0; white-space: nowrap; font-weight: var(--fw-medium); }
 .review-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
-.review-btn { height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.review-btn { flex: none; white-space: nowrap; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .review-btn[data-kind="keep"] { background: var(--mobius); color: var(--on-mobius); }
 .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: color-mix(in srgb, var(--mobius) 88%, #000); }
@@ -1102,8 +1103,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .menu-name[aria-current] { background: var(--field); font-weight: 600; }
 .menu-items { display: flex; flex-direction: column; min-width: 236px; }
 .menu-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 5px 10px 5px 6px; border-radius: 7px; font-size: var(--fs-sm); color: var(--ink); cursor: default; outline: none; }
-.menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: var(--accent); color: var(--on-accent, #fff); }
-.menu-item:hover:not([aria-disabled]) .ui-keycap, .menu-item:focus:not([aria-disabled]) .ui-keycap { border-color: color-mix(in srgb, currentColor 35%, transparent); background: transparent; color: inherit; }
+/* The shared menu's highlight (ui.css .ui-menu-item): a grey fill, never ink. */
+.menu-item:hover:not([aria-disabled]), .menu-item:focus-visible, .menu-item:focus:not([aria-disabled]) { background: color-mix(in srgb, var(--sel) 50%, transparent); color: inherit; }
 .menu-item[aria-disabled] .ui-keycap { opacity: 0.6; }
 .menu-item[aria-disabled] { color: var(--muted); opacity: 0.6; }
 .menu-check { font-size: var(--fs-sm); text-align: center; }
@@ -2417,20 +2418,28 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 /* The work area takes focus after an app opens from All apps; it is a landing place, not a control, so no ring. */
 main.stage:focus { outline: none; }
 
-/* The right panel's tabs (ui/PanelTabs): the open app's panels, then Mobius, last. Plain words, the chosen one in ink
-   with a hairline under it; the close at the end. Behind an app's tab, Mobius stays mounted but out of sight. */
-.dock.right .panel-tabs-head { display: flex; align-items: center; gap: 6px; height: 44px; padding: 0 6px 0 12px; border-bottom: 1px solid var(--hairline); flex: none; }
+/* The inspector (ui/PanelTabs): the open app's own panels in a column between the content and Mobius, on the
+   sidebar's surface. One panel's name as a plain title, or several as tabs: plain words, the chosen one in ink with a
+   hairline under it; the close at the end. The Mobius panel is just Mobius and never has tabs. */
+.dock.inspector { flex: none; background: var(--frame); border-left: var(--hairline-w) solid var(--line); }
+.dock.inspector[hidden] { display: none; }
+.dock.inspector .panel-tabs-head { display: flex; align-items: center; gap: 6px; height: var(--panel-head-h, 44px); padding: 0 6px 0 12px; border-bottom: var(--hairline-w) solid var(--line); flex: none; }
+.inspector-title { margin: 0 auto 0 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
 .panel-tabs { display: flex; align-items: stretch; gap: 14px; height: 100%; margin-right: auto; }
 .panel-tab { position: relative; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: default; }
 .panel-tab:hover { color: var(--ink); background: none; }
 .panel-tab[aria-selected="true"] { color: var(--ink); }
 .panel-tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; border-radius: 1px; background: var(--ink); }
-.panel-tab[data-mobius][aria-selected="true"] { color: var(--mobius); }
-.panel-tab[data-mobius][aria-selected="true"]::after { background: var(--mobius); }
-.dock.right .panel-tab-body { flex: 1; min-height: 0; overflow: auto; }
-.dock.right .panel-tabs-head[data-showing="app"] ~ .chat { display: none; }
-/* The tab row closes the panel, so Mobius's own head does not close it a second time. */
-.dock.right .panel-tabs-head ~ .chat .chat-head .head-icon[aria-label="Hide"] { display: none; }
+.dock.inspector .panel-tab-body { flex: 1; min-height: 0; overflow: auto; }
+.dock.inspector .panel-tab-body[hidden] { display: none; }
+/* Narrower windows (panel-layouts.md): under 1440px, with both open, the inspector and Mobius share one place and take
+   turns, never lying over the page: the one brought forward last shows (data-front, PanelTabs.tsx). An app's Show, the
+   Panels menu or opening the inspector bring it forward; asking Mobius, or closing the inspector, brings Mobius back. */
+@media (max-width: 1439px) {
+  .body:has(> .dock.inspector[data-front]:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto 0px; }
+  .body:has(> .dock.inspector[data-front]:not([hidden])) > .dock.right:not([data-floating]) { display: none; }
+  .body:has(> .dock.right:not([data-floating])) > .dock.inspector:not([data-front]) { display: none; }
+}
 
 /* ---- Instrument: numbers and readouts (docs/design/instrument.md) -------------------------------------------------
    Numbers line up everywhere (times, dates, counts, sizes, money, cell values). The mono face is for instrument

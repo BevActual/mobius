@@ -19,7 +19,7 @@ export function ViewSwitch<T extends string>({ label, views, value, onChange }: 
     requestAnimationFrame(() => group.current?.querySelector<HTMLElement>('[aria-checked="true"]')?.focus());
   };
   return (
-    <div ref={group} className="ui-views" role="radiogroup" aria-label={label} onKeyDown={key}>
+    <div ref={group} className="ui-views" role="radiogroup" aria-label={label} data-priority="keep" onKeyDown={key}>
       {views.map((v) => (
         <button key={v.id} type="button" role="radio" className="ui-view" aria-checked={v.id === value} tabIndex={v.id === value ? 0 : -1} onClick={() => onChange(v.id)}>
           {v.name}
