@@ -797,7 +797,7 @@ size token.**
 | Context chips | Inside the box, above the text: the shared chip with the app's icon and the thing's name ("Email: P2 build"). Selecting something adds its chip, the cross removes it. This replaces the "Sees" line. | 24px tall, 12px text |
 | Changed-setting chips | Under the context chips when anything in the plus menu is off its default ("Web search off", "3 skills") | fs-xs (12px, 11px compact), 6px corners, frame fill |
 | Bottom row | Plus (icon button), Mode, Permission (shield and short label), then at the right the model and an ink Send. Mode, Permission and model are quiet buttons with a small chevron. | 28px controls |
-| Narrow panel | Under 380px, Dictate moves into the plus menu as its first row and keeps its shortcut. The model never shows an ellipsis. Under 300px (Little Mobius and the narrowest docked panel) Permission shows only its shield and the model only its icon, each with its name in the tooltip. While dictating, the model steps aside for the recording readout. | |
+| Narrow panel | Under 380px, Dictate moves into the plus menu as its first row and keeps its shortcut. The model never shows an ellipsis. When the row doesn't fit it gives way in this order, measured, not at fixed widths: Permission shows only its shield, then the model drops its effort suffix ("Sonnet 5.5 · High" becomes "Sonnet 5.5"), then the model shows only its icon. Each keeps its full name in the tooltip. While dictating, the model steps aside for the recording readout. | |
 | Menus | Open upward from their button. Rows with a check on the current choice and a key cap at the right. Permission and model rows are two lines: the name, and a grey line on what it means. | 30px rows, two-line rows 7px inside |
 
 ### Working, Done and Asking
