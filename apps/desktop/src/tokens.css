@@ -220,6 +220,7 @@
   --band-dot: 16px;
   --eq-h: 144px;
   --lane-h: 56px;
+  --lane-head-h: 20px;
   --device-min-w: 220px;
   --device-head-h: 32px;
   --pad-cell: 56px;
@@ -342,6 +343,7 @@ html[data-density='compact'], .app[data-density='compact'] {
   --device-head-h: 28px;
   --eq-h: 120px;
   --lane-h: 44px;
+  --lane-head-h: 18px;
   --pad-cell: 48px;
 }
 

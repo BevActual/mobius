@@ -6,10 +6,29 @@ import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
+
+/** Calendar's Glance (Instrument, "The Mobius panel: slots"): the rest of today, whatever day the grid shows. It reads
+ * today's events itself, again when the calendar changes and each minute, and leaves out hidden calendars. */
+export function CalendarGlance({ calendar }: { calendar: CalendarState }) {
+  const slot = useGlanceSlot();
+  const [today, setToday] = useState<CalendarEvent[]>([]);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => { const t = window.setInterval(() => setNow(new Date()), 60_000); return () => window.clearInterval(t); }, []);
+  const day = isoDay(now);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.calendar?.events(day, day).then((got) => { if (live && !isNotesFailure(got)) setToday(got); });
+    return () => { live = false; };
+  }, [day, calendar.events]);
+  if (!slot) return null;
+  const shown = today.filter((e) => !calendar.hidden.has(e.calendar));
+  return <AppGlance slot={slot} title="Rest of today" facts={calendarGlance(shown, now)} />;
+}
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
