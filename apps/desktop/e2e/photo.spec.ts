@@ -47,7 +47,8 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await start();
   await panel().getByRole('button', { name: 'Add adjustment' }).click();
   await panel().getByRole('slider', { name: 'Warmth' }).fill('30');
-  await panel().getByRole('combobox', { name: 'Applies to' }).selectOption('below');
+  await panel().getByRole('combobox', { name: 'Applies to' }).click();
+  await shell().getByRole('option', { name: 'Below a line' }).click();
   await expect.poll(() => fs.existsSync(editsFile()) && JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0]).toMatchObject({ warmth: 30, area: { kind: 'below' } });
   expect(fs.readFileSync(path.join(album(), 'coastline.png'))).toEqual(PNG);
   await panel().getByRole('button', { name: 'Hide Adjustment 1' }).click();

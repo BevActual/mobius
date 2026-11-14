@@ -13,7 +13,7 @@ import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flipped
 import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
-import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, useShowPanelTab } from './ui';
+import { AppSidebar, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, useShowPanelTab } from './ui';
 
 import './photo.css';
 
@@ -458,6 +458,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     void window.mobius.changes.before(review.conversation, file).then((r) => { if (live && r && r.ok) setWas(parseEdits(r.text)); }).catch(() => {});
     return () => { live = false; };
   }, [review?.conversation, kept, file, open?.base]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The base layer's thumbnail: the photo as it came, which no edit changes.
+  const baseThumb = useMemo(() => (img ? render(img, 48, null).toDataURL('image/jpeg', 0.8) : null), [img]);
   const changed = useMemo(() => {
     if (!was) return new Set<string>();
     const old = new Map(was.adjustments.map((a) => [a.id, JSON.stringify(a)]));
@@ -708,7 +710,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                     <span className="photo-layer-area">{a.area.kind === 'all' ? '' : a.area.kind === 'ellipse' ? 'ellipse' : a.area.kind}</span>
                   </li>
                 ))}
-                <li className="photo-layer" data-base aria-disabled="true"><span className="photo-eye" aria-hidden="true" /><span className="photo-layer-name">Photo</span></li>
+                <li className="photo-layer" data-base aria-disabled="true" title="The photo itself, which edits never change">
+                  {baseThumb ? <img className="photo-layer-thumb" src={baseThumb} alt="" draggable={false} /> : <span className="photo-layer-thumb" aria-hidden="true" />}
+                  <span className="photo-layer-name">Photo</span>
+                  <span className="photo-layer-lock" aria-label="Locked"><Icon d="M6.5 9V7a3.5 3.5 0 0 1 7 0v2M5.5 9h9v6.5h-9z" /></span>
+                </li>
               </ul>
               {sel ? (
                 <div className="photo-adjust" role="group" aria-label={`Adjustment ${sel.name}`}>
@@ -719,11 +725,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                     </Section>
                   ))}
                   <Section name="Where" open={!closed.has('Where')} changed={groupChanged(sel, 'where')} onToggle={() => toggleSection('Where')} onReset={() => set('reset:Where', (a) => Object.assign(a, resetGroup(a, 'where')))}>
-                    <label className="photo-field"><span>Applies to</span>
-                      <select aria-label="Applies to" value={sel.area.kind} onChange={(e) => set('area', (a) => { a.area.kind = e.target.value as AreaKind; })}>
-                        {(Object.keys(AREA_NAMES) as AreaKind[]).map((k) => <option key={k} value={k}>{AREA_NAMES[k]}</option>)}
-                      </select>
-                    </label>
+                    <Select className="photo-select" label="Applies to" value={sel.area.kind} onChange={(kind) => set('area', (a) => { a.area.kind = kind; })}
+                      choices={(Object.keys(AREA_NAMES) as AreaKind[]).map((k) => ({ value: k, label: AREA_NAMES[k] }))} />
                     {(sel.area.kind === 'below' || sel.area.kind === 'above') && <Slider label="Line" min={0} max={100} value={Math.round(sel.area.at * 100)} onChange={(v) => set('slider:at', (a) => { a.area.at = v / 100; })} />}
                     {sel.area.kind === 'ellipse' && (
                       <>
