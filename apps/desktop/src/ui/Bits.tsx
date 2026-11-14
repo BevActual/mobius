@@ -69,10 +69,11 @@ export function initials(name: string): string {
   return letters.filter(Boolean).join('').toUpperCase();
 }
 
-/** A person: a grey circle with their initials, or their photo. The name is the tooltip and accessible name. */
-export function Avatar({ name, src, size, className }: { name: string; src?: string; size?: 'row' | 'large'; className?: string }) {
+/** A person: a grey circle with their initials, or their photo. 24px in a row, 32px in a two-line row, 40px on a card
+ * (`large`), 16px in a chip. The name is the tooltip and accessible name. */
+export function Avatar({ name, src, size, className }: { name: string; src?: string; size?: 'chip' | 'row' | 'two' | 'large'; className?: string }) {
   return (
-    <span className={className ? `ui-avatar ${className}` : 'ui-avatar'} data-size={size === 'large' ? 'large' : undefined} role="img" aria-label={name} title={name}>
+    <span className={className ? `ui-avatar ${className}` : 'ui-avatar'} data-size={size && size !== 'row' ? size : undefined} role="img" aria-label={name} title={name}>
       {src ? <img src={src} alt="" /> : initials(name)}
     </span>
   );

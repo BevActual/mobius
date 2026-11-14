@@ -76,8 +76,37 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 and open `http://127.0.0.1:5180/ui-sheet.html` (add `?density=compact` or `?theme=mid`; dark follows the system). It is
 not part of the built app. Add each new control to it (`src/ui-sheet/Sheet.tsx`).
 
-More controls (Popover, Dialog, Tabs, the XY pad, and the shared task, event, mail, file and person rows) are added one at
-a time.
+### Shared objects
+
+A task, an event, an email, a file and a person look the same in every app (Instrument, "One app, not twenty"). Pass
+the data as a `Thing` (`{ kind: 'task', title, due, … }`) and pick the form. Never draw your own row or card for these.
+Dates and times come in already formatted from `dates.ts`, so they follow the person's clock setting. `byMobius` gives
+the dashed indigo edge in every form.
+
+| Form | Import | Use it for |
+| --- | --- | --- |
+| One-line row | `<ObjectRow thing={t} onOpen={…} />` | Full-width lists and results: the kind's mark (a round check, a calendar-colour bar, an unread dot, a kind icon, initials), the title, one grey detail, the date or count at the end |
+| Two-line row | `<ObjectRow thing={t} lines={2} onOpen={…} />` | A list beside a reading pane (Mail, Notes). The detail goes to the second line |
+| Card | `<ObjectCard thing={t} onOpen={…} />` | Mobius panel results and Sources, Views, a peek on Space. A kind line with Open, the title, then label and value lines |
+| Chip | `<ObjectChip thing={t} onOpen={…} />` | Inside text: the composer, answers, notes. No selected look |
+
+A task's check ticks it from any row when you pass `onToggle`. Rows go in `<ul role="list" className="ui-list">`.
+`ListRow` underneath also takes `lines={1}` (the detail sits grey after the title), `metaTone="red"` (overdue only) and
+`done` (a grey title).
+
+### Two-axis pad
+
+`XYPad` sets two values with one point (Music's Dark to Bright and Calm to Busy, any Adjust card). Values run 0 to 1 on
+each axis. Name both ends of both axes in words; `start` is where Mobius first put the point, shown as a hollow mark and
+where Home and double-click return. `onChange` runs as it moves; `onCommit` runs once on release, for a remake. Arrows
+nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readout.
+
+```tsx
+<XYPad label="Feel" x={{ name: 'Bright', ends: ['Dark', 'Bright'] }} y={{ name: 'Busy', ends: ['Calm', 'Busy'] }}
+  value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
+```
+
+More controls (Popover, Dialog, Tabs) are added one at a time.
 
 ## Adopting the frame
 
