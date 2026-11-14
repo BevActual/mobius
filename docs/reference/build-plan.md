@@ -8,6 +8,9 @@ this one disagree about order or ownership, this page wins and the other page ge
 ## Direction
 
 - **Refine before adding.** No new apps for now. The apps that exist get good first.
+- **Connect to what people already run.** Each app works with the services and the infrastructure a person or a team
+  already has, their own servers included, through open standards first. Mobius never requires a Mobius account or a
+  Mobius server. See [Connections](#connections).
 - **One look.** [Instrument](../design/instrument.md) and the [design rules](../design/rules.md) decide how everything
   looks. Apps never hand-build the panel, the composer, slots, cards, drawings or controls.
 - **The Mobius panel is just Mobius.** It has no tabs and holds only Mobius: the chat, its cards and slots, and the
@@ -37,8 +40,9 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 1. **Keep `main` green and the queue short.** An open pull request that is green and reviewed lands before new work
    starts. A flaky test is fixed, never skipped.
-2. **The launch workflow: Mail, Tasks, Calendar, then Home.** One real job across those apps is what Mobius is shown
-   with, so their rounds and the shell pieces they need go first.
+2. **The demo: one moment for every app.** Each app is shown by the one thing that makes someone want to use it,
+   listed in the [demo plan](demo-plan.md). The round that builds an app's moment comes before that app's other
+   rounds, in the demo plan's order: Home, Mail, Calendar, Tasks, Notes, Docs, Browser and Files first.
 3. **One wording and one set of controls everywhere.** The Permission names, shared selects and shared date fields
    replace what is left of the old ones, in the apps and in the docs.
 4. **The shell pieces apps are waiting on,** in the order under [Shell queue](#shell-queue).
@@ -52,13 +56,14 @@ Work is taken in this order. A lower line never holds up a higher one.
 | --- | --- | --- | --- |
 | App panels out of the Mobius panel: the rule, in `docs/design/` | Design lead | Building | The shell change, then one round per app with a panel |
 | App panels out of the Mobius panel: the shell | Builder | Next, ahead of the rest of the shell queue | Docs, Reader, Slides, Design, Photo, Video, Code, Sheets and Music moving their panels |
-| Mail's Triage mode, on the app modes now in the composer | Apps lead | Next | The launch workflow |
+| The demo workspace and its profile | Launch, Builder | Next | Every clip in the [demo plan](demo-plan.md) |
+| A pass over every app's moment in the demo plan | Every lead | Next | Knowing what is left to build |
 | Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
 | Permission wording and shared selects: Settings, then Agents | Apps lead | Building | Old wording gone from the apps |
 | Row sizes for Home and Activity (#245) | Builder | Building | Home's and Activity's next rounds |
 | Glance and Result slots (#249) | Builder | Building | Sheets, Code, then every app |
 | A failed state for runs (#250) | Builder | Building | Agents |
-| `AutomationLane` | Design lead | Building | Music's automation round |
+| `Chart` | Design lead | Building | Sheets' demo moment |
 | Artifacts moved into `docs/` (#242) | Design lead | Building | Retiring the artifacts |
 | Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
 | README screenshots and launch checklist | Launch | Building | The launch list below |
@@ -86,11 +91,12 @@ that round's pull request.
 | Order | Library piece | First user |
 | --- | --- | --- |
 | 1 | Anything an open pull request is waiting on | That pull request |
-| 2 | `AutomationLane` | Music: movement over time |
-| 3 | `LetterToggle` (mute, solo and the like) | Video: track lanes; Music: tracks |
+| 2 | `Chart` | Sheets' demo moment; Views tiles |
+| 3 | A before and after hold | Photo's demo moment |
 | 4 | Mixer strip built on `LevelMeter` | Music: mixer view |
+| 5 | A folded `DeviceFrame` as a strip | Music: devices in the bottom dock |
 
-`StepGrid` and `PadGrid` are already on `main`, so Music's drum pads wait on nothing.
+`StepGrid`, `PadGrid`, `AutomationLane` and `LetterToggle` are already on `main`.
 
 Music's note editor already exists inside Music. It moves into the library only when a second app needs it or Music's
 next round has to change it; until then it is not a library task.
@@ -123,13 +129,32 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 
 | Step | Owner | Waiting on |
 | --- | --- | --- |
-| The launch workflow works end to end on real accounts: mail in, tasks made, time blocked, drafts ready | Apps lead, Builder | App modes; the Mail, Tasks and Calendar rounds |
+| The cross-app run works end to end on real accounts: mail in, tasks made, time blocked, drafts ready | Apps lead, Builder | App modes; the Mail, Tasks and Calendar rounds |
 | README shows every app in the current look | Launch | Nothing |
 | First run takes five minutes or less from install to a first answer | Builder, Launch | Nothing |
-| A 60 to 90 second uncut video of the launch workflow | Launch | The first step |
+| A clip of each app's moment and a 60 to 90 second reel of the best ([demo plan](demo-plan.md)) | Launch | The demo workspace; each app's moment |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
 | Google and Microsoft calendar sign-in | Builder | Andrew: registering Mobius with each ([what it needs](calendar-sign-in.md)) |
+
+## Connections
+
+Mobius is the apps and the agent. The data can stay where it already lives: a mail provider, a company server, a
+Nextcloud, a home machine. Open standards come before one-off integrations, so one piece of work reaches many services.
+
+| App | Connects today | Next, in this order | Owner |
+| --- | --- | --- | --- |
+| Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts | Builder |
+| Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each |
+| Files | The workspace folder on this computer | WebDAV, which covers Nextcloud and most self-hosted drives; then S3-style storage and network shares | Builder for the connection, Apps lead for Files |
+| Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
+| Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
+| The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
+| People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Needs a decision: it is close to a new app |
+| Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
+
+This work starts after the first group of the [demo plan](demo-plan.md). WebDAV for Files is first because it opens the
+most with one piece: every app that keeps plain files gains a server.
 
 ## Later
 
@@ -140,4 +165,5 @@ Not scheduled. Each needs a decision before it starts.
 - The Chromium engine in the installer.
 - Plugins in Abilities.
 - Subagents.
+- Sync between devices and a self-hosted Mobius server, the step from working with a Nextcloud to standing in for one.
 - A first Instrument round for Search, Research, Review, Terminal and Canvas.

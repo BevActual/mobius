@@ -18,18 +18,26 @@ export function useCommentThreads(app: string, doc: string | null) {
   const [threads, setThreads] = useState<CommentThread[]>([]);
   const live = useRef({ app, doc });
   live.current = { app, doc };
+  // Saves go one after another, in the order they were made: two at once could land the wrong way round (a comment
+  // kept as a note going back to open). An answer that a later save has overtaken is not shown.
+  const writing = useRef<Promise<unknown>>(Promise.resolve());
+  const saves = useRef(0);
   const load = useCallback(async () => {
     if (!doc || !api()) { setThreads([]); return; }
+    const before = saves.current;
     const got = await api()!.list(app, doc).catch(() => []);
-    if (live.current.app === app && live.current.doc === doc) setThreads(isThreads(got) ? got : []);
+    if (live.current.app === app && live.current.doc === doc && saves.current === before) setThreads(isThreads(got) ? got : []);
   }, [app, doc]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api()?.onChanged((changed) => { if (!changed || changed === app) void load(); }), [app, load]);
   const save = useCallback(async (next: CommentThread[]) => {
     if (!doc || !api()) return;
+    const mine = ++saves.current;
     setThreads(next);
-    const kept = await api()!.set(app, doc, next).catch(() => null);
-    if (kept && 'threads' in kept) setThreads(kept.threads);
+    const run = writing.current.then(() => api()!.set(app, doc, next).catch(() => null));
+    writing.current = run;
+    const kept = await run;
+    if (mine === saves.current && kept && 'threads' in kept) setThreads(kept.threads);
   }, [app, doc]);
   return { threads, save };
 }
