@@ -210,11 +210,16 @@
   --step-size: 20px;
   --step-gap: 2px;
   --step-name-w: 72px;
+  --pad-cell: 56px;
   --dialog-w: 480px;
   --z-dialog: 900;
   --tab-h: 36px;
   --day-cell: 32px;
   --time-list-h: 240px;
+  --pro-h: 28px;
+  --letter-size: 20px;
+  --level-w: 4px;
+  --level-h: 120px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -291,6 +296,7 @@
 
 /* Compact: chosen in Settings (on the page), or a pro app's own start (on the frame, from COMPACT_APPS). */
 html[data-density='compact'], .app[data-density='compact'] {
+  --pro-h: 24px;
   --tab-h: 32px;
   --button-h: 28px;
   --icon-button: 28px;
@@ -316,6 +322,7 @@ html[data-density='compact'], .app[data-density='compact'] {
   --knob-size: 32px;
   --graph-h: 80px;
   --step-size: 18px;
+  --pad-cell: 48px;
 }
 
 /* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */
