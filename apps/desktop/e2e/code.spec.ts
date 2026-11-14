@@ -144,7 +144,7 @@ test('a project that is a git repository is committed from Code, and Mobius comm
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'Test');
   await start([callsTool('code-commit', { project: 'offsite-planner', message: 'Split cents exactly' }), says(['Committed.'])]);
-  const bar = shell().getByRole('region', { name: 'Git' });
+  const bar = shell().getByRole('region', { name: 'Changes' });
   await expect(bar).toContainText('main');
   await expect(bar.getByRole('status')).toHaveText('3 changes');
   // Each changed file is listed with git's mark: here all three are new to git.
@@ -153,7 +153,7 @@ test('a project that is a git repository is committed from Code, and Mobius comm
   await expect(changes.getByRole('button', { name: 'src/budget.js, not tracked by git yet' })).toBeVisible();
   await bar.getByRole('button', { name: 'Commit…' }).click();
   await bar.getByRole('textbox', { name: 'Commit message' }).fill('Start the offsite planner');
-  await bar.getByRole('button', { name: 'Commit' }).click();
+  await bar.getByRole('button', { name: 'Commit', exact: true }).click();
   await expect(bar.getByRole('status')).toHaveText('Nothing to commit');
   expect(git('log', '--format=%s')).toBe('Start the offsite planner');
 
@@ -233,7 +233,7 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
   await shell().keyboard.press('Enter');
   await expect(shell().getByRole('textbox', { name: 'Contents of tests/budget.test.js' })).toHaveValue(TEST);
   const tabs = shell().getByRole('tablist', { name: 'Open files' });
-  await expect(tabs.getByRole('tab')).toHaveText(['JSbudget.js', 'Tbudget.test.js']);
+  await expect(tabs.getByRole('tab')).toHaveText(['budget.js', 'budget.test.js']);
   await expect(tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' })).toBeVisible();
   await tabs.getByRole('tab', { name: 'budget.js', exact: false }).first().click();
   await expect(editor).toHaveValue(`${BUDGET}const typed = splitTotal()`);
@@ -254,6 +254,6 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
   await expect(shell().getByRole('search', { name: 'Find in file' })).toContainText('1 of 3');
   await shell().keyboard.press('Escape');
   await tabs.getByRole('button', { name: 'Close src/budget.js (not saved)' }).click();
-  await expect(tabs.getByRole('tab')).toHaveText(['Tbudget.test.js']);
+  await expect(tabs.getByRole('tab')).toHaveText(['budget.test.js']);
   expect(budget()).toBe(BUDGET);
 });
