@@ -227,7 +227,7 @@ test('a project can be renamed, and its folder and its memory page follow the na
   await field.press('Enter');
   const page = shell().getByRole('region', { name: 'Kestrel P3' });
   await expect(page).toBeVisible();
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel P3']);
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveText(['Kestrel P3']);
   expect(fs.readFileSync(workspace('projects', 'Kestrel P3', 'brief.md'), 'utf8')).toBe('brief');
   expect(fs.existsSync(workspace('projects', 'Kestrel'))).toBe(false);
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel P3.md'), 'utf8')).toContain('Builds start on Mondays');
@@ -283,12 +283,12 @@ test('deleting a project keeps its threads, its folder and its memory page', asy
   await expect(check).toContainText('are kept');
   await check.getByRole('button', { name: 'Cancel' }).click();
   await expect(check).toHaveCount(0);
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveText(['Kestrel']);
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveText(['Kestrel']);
   // From the toolbar's ⋯, and this time Delete.
   await openMenu();
   await shell().getByRole('menuitem', { name: 'Delete project…' }).click();
   await shell().getByRole('alertdialog', { name: 'Delete Kestrel?' }).getByRole('button', { name: 'Delete' }).click();
-  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('button')).toHaveCount(0);
+  await expect(shell().getByRole('navigation', { name: 'Projects' }).getByRole('list').getByRole('button')).toHaveCount(0);
   await expect(shell().getByText('No projects yet', { exact: true })).toBeVisible();
   expect(fs.readFileSync(workspace('projects', 'Kestrel', 'brief.md'), 'utf8')).toBe('brief');
   expect(fs.readFileSync(workspace('wiki', 'Projects', 'Kestrel.md'), 'utf8')).toContain('Builds start on Mondays');
