@@ -33,6 +33,7 @@ export {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, ENVELOPE_RANGES, musicQ, envelopePoints, filterLevel, secondsLabel, hertzLabel, panLabel,
   type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,
 } from './Instrument';
+export { AutomationLane, beatLabel, laneValueAt, type AutomationPoint } from './Automation';
 export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
 export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';

@@ -3,6 +3,7 @@ import type { ScheduleDraft, ScheduleInfo } from '@mobius/shared';
 import { Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
+import { timeLabel } from '../dates';
 
 const DAYS = [
   { n: 1, short: 'Mon', long: 'Monday' }, { n: 2, short: 'Tue', long: 'Tuesday' }, { n: 3, short: 'Wed', long: 'Wednesday' },
@@ -10,11 +11,13 @@ const DAYS = [
 ];
 const EMPTY: ScheduleDraft = { title: '', prompt: '', time: '08:00', days: [1, 2, 3, 4, 5], enabled: true };
 
-/** "Weekdays at 08:00", "Every day at 18:30", "Mon, Wed at 09:00". */
+/** "Weekdays at 8:00 AM", "Every day at 6:30 PM", "Mon, Wed at 9:00 AM": the time follows the person's clock. */
 export function describeWhen(days: readonly number[], time: string): string {
   const set = [...days].sort((a, b) => a - b).join(',');
   const which = set === '1,2,3,4,5,6,7' ? 'Every day' : set === '1,2,3,4,5' ? 'Weekdays' : set === '6,7' ? 'Weekends' : DAYS.filter((d) => days.includes(d.n)).map((d) => d.short).join(', ');
-  return `${which} at ${time}`;
+  const [h, m] = time.split(':').map(Number);
+  const at = Number.isFinite(h) && Number.isFinite(m) ? timeLabel(new Date(2000, 0, 1, h!, m!)) : time;
+  return `${which} at ${at}`;
 }
 
 function Editor({ start, onSave, onCancel }: { start: ScheduleDraft; onSave: (draft: ScheduleDraft) => Promise<string | null>; onCancel: () => void }) {
