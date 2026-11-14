@@ -73,7 +73,7 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
 
   // The Device panel sets how the chosen track sounds, kept in the song.
   await tracks().getByRole('listitem', { name: 'Keys' }).click();
-  const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff' });
+  const cutoff = shell().getByRole('region', { name: 'Device' }).getByRole('slider', { name: 'Cutoff and resonance' });
   await cutoff.focus();
   await shell().keyboard.press('ArrowLeft');
   await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBeLessThan(5000);
@@ -168,7 +168,7 @@ test('a track is panned and a drum kit is tuned in the Device panel, kept in the
   await expect(pan).toHaveAttribute('aria-valuetext', /^L \d+$/);
   // A drums track has a kit instead of an oscillator: tuning it moves every drum together.
   await tracks().getByRole('listitem', { name: 'Drums' }).click();
-  await expect(device.getByRole('slider', { name: 'Cutoff' })).toHaveCount(0);
+  await expect(device.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveCount(0);
   const tune = device.getByRole('slider', { name: 'Tune' });
   await tune.focus();
   await shell().keyboard.press('ArrowRight');

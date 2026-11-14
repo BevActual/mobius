@@ -92,6 +92,7 @@
 .studio-dev-title { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
 .studio-dev-dot { flex: none; display: inline-block; width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--tc); }
 .studio-dev-head { margin: var(--sp-4) 0 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.studio-dev-section { display: grid; gap: var(--sp-2); }
 .studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
 .studio-dev-row { padding: var(--sp-1) 0; }
 .studio-colour-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--row-list); color: var(--ink); }

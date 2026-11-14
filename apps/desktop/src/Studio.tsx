@@ -5,8 +5,8 @@ import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, clipsOf, effectText, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, IconButton, Menu, Segmented, Switch, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { GRIDS, addNote, clipsOf, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, Confirm, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Switch, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -157,8 +157,9 @@ const LOG_SOUND = new Set<keyof Sound>(['cutoff', 'attack', 'decay', 'release', 
 /** The Device panel's groups of settings, in the order a sound is made: source, filter, envelope, then movement. */
 const SOUND_GROUPS: readonly { name: string; cells: readonly [keyof Sound, string][] }[] = [
   { name: 'Oscillator', cells: [['shape', 'Shape'], ['detune', 'Detune'], ['sub', 'Sub'], ['drive', 'Drive']] },
-  { name: 'Filter', cells: [['cutoff', 'Cutoff'], ['resonance', 'Resonance'], ['envAmount', 'Sweep']] },
-  { name: 'Envelope', cells: [['attack', 'Attack'], ['decay', 'Decay'], ['sustain', 'Sustain'], ['release', 'Release']] },
+  // Cutoff and resonance are the filter graph's point; the envelope is drawn as one shape.
+  { name: 'Filter', cells: [['envAmount', 'Sweep']] },
+  { name: 'Envelope', cells: [] },
   { name: 'Motion', cells: [['vibrato', 'Vibrato'], ['rate', 'Rate']] },
 ];
 const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?: boolean }[] = [
@@ -173,7 +174,7 @@ function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: key
 
 /** How an effect's setting reads: "+3.0 dB", "1.2 kHz", "4:1", "12 ms", "35%", "2.0 s". */
 const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; step: number; log?: boolean; origin?: number }[] } = {
-  eq: [{ k: 'low', name: 'Low', step: 0.5 }, { k: 'mid', name: 'Mid', step: 0.5 }, { k: 'midFreq', name: 'Mid freq', step: 10, log: true }, { k: 'high', name: 'High', step: 0.5 }],
+  eq: [],
   compressor: [{ k: 'threshold', name: 'Threshold', step: 1, origin: 0 }, { k: 'ratio', name: 'Ratio', step: 0.1, log: true }, { k: 'attack', name: 'Attack', step: 0.001, log: true }, { k: 'release', name: 'Release', step: 0.01, log: true }, { k: 'makeup', name: 'Makeup', step: 0.5 }],
   delay: [{ k: 'feedback', name: 'Feedback', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
   reverb: [{ k: 'size', name: 'Size', step: 0.1, log: true }, { k: 'damp', name: 'Damp', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
@@ -208,12 +209,16 @@ function EffectBlock({ effect, at, count, onChange, onMove, onRemove }: {
       {effect.kind === 'delay' && (
         <Segmented label="Time" wide value={String(effect.time) as (typeof DELAY_TIMES)[number]['value']} choices={DELAY_TIMES} onChange={(v) => onChange((e) => { (e as Extract<Effect, { kind: 'delay' }>).time = Number(v); }, 'fx:time')} />
       )}
-      <ParamGrid label={`${name} settings`}>
+      {effect.kind === 'eq' && (
+        <EqGraph label="EQ bands" bands={eqBands(effect)} reset={eqBands(newEffect('eq', effect.id) as EqEffect)}
+          onChange={(i, band) => onChange((e) => { Object.assign(e, eqFromBand(i, band)); }, `fx:band${i}`)} />
+      )}
+      {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
           return <ParamCell size="compact" key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
-      </ParamGrid>
+      </ParamGrid>}
     </section>
   );
 }
@@ -235,6 +240,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
   const base = track && track.instrument !== 'drums' ? SOUND_DEFAULTS[track.instrument] : null;
   const kit = track ? kitOf(track) : null;
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
+  const setMany = (patch: Partial<Sound>, tag: string) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), ...patch }; }, `sound:${tag}`);
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
   return (
     <div className="studio-device" aria-label="Device" role="region">
@@ -256,9 +262,18 @@ export function StudioDevice({ track, onTrack, proposal }: {
           {sound && base && SOUND_GROUPS.map((g) => (
             <section key={g.name} className="studio-dev-section" aria-label={g.name}>
               <h4 className="studio-dev-head">{g.name}</h4>
-              <ParamGrid label={g.name}>
+              {g.name === 'Filter' && (
+                <FilterGraph label="Filter curve" value={{ cutoff: sound.cutoff, resonance: sound.resonance }} reset={{ cutoff: base.cutoff, resonance: base.resonance }}
+                  min={SOUND_RANGE.cutoff.lo} max={SOUND_RANGE.cutoff.hi} envAmount={sound.envAmount}
+                  onChange={(f) => setMany({ cutoff: f.cutoff, resonance: f.resonance }, 'filter')} />
+              )}
+              {g.name === 'Envelope' && (
+                <EnvelopeGraph label="Envelope shape" value={sound} reset={base}
+                  onChange={(env) => setMany({ attack: env.attack, decay: env.decay, sustain: env.sustain, release: env.release }, 'envelope')} />
+              )}
+              {g.cells.length > 0 && <ParamGrid label={g.name}>
                 {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} onChange={(v) => set(k, v)} />)}
-              </ParamGrid>
+              </ParamGrid>}
             </section>
           ))}
           {kit && (

@@ -102,15 +102,17 @@ A small studio for writing songs as notes.
 - **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
   (Volume and Pan), and then its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
-  - Filter: Cutoff, Resonance, and Sweep, which opens the filter at each note's start and closes it over the decay.
-  - Envelope: Attack, Decay, Sustain and Release.
+  - Filter: a curve with one point to drag, across for Cutoff and up for Resonance, and Sweep, which opens the filter
+    at each note's start and closes it over the decay (the thin line shows how far).
+  - Envelope: Attack, Decay, Sustain and Release drawn as one shape, with a handle at each corner to drag.
   - Motion: Vibrato and its Rate.
 
   A drums track has a Kit instead: Tune (in semitones), Decay and Tone, which move every drum together. Each setting
   is a labelled cell with its value in mono and a slider under it. Arrows nudge it, Shift goes further, and
   double-click puts it back. Everything is saved in the song (`pan`, `sound`, `kit`), so Mobius can read and set it
   too.
-- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (Low, Mid and its frequency, High), a
+- **Effects** follow the sound in the Device panel. **Add effect** puts an EQ (three numbered bands on a curve: drag a
+  band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
   Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, arrows to move it up or down the
   chain, and a button to remove it. They are saved in the song as `fx`.
