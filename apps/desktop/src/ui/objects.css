@@ -267,12 +267,14 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-time-range { display: flex; align-items: center; gap: var(--sp-2); }
 .ui-time-to { color: var(--muted); }
 
-/* Pro controls. Number field: the field's box at the pro height, the value in mono tabular figures sized to its widest
-   value, the unit grey; dragging shows the up-down cursor. */
+/* Pro controls. Number field: the field's box at the pro height and one shared least width, the value right-aligned in
+   mono tabular figures with the unit grey after it, so a column of fields lines up on the digits; dragging shows the
+   up-down cursor. */
 .ui-number { display: inline-flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
 .ui-number[data-disabled] { opacity: 0.4; }
 .ui-number-box {
-  display: inline-flex; align-items: center; gap: var(--sp-1); box-sizing: border-box; height: var(--pro-h); padding: 0 var(--sp-2);
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); box-sizing: border-box; height: var(--pro-h);
+  min-width: calc(var(--card-w) / 3); padding: 0 var(--sp-2);
   border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); cursor: ns-resize;
   font-family: var(--font-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; color: var(--ink); user-select: none; outline: none;
 }
