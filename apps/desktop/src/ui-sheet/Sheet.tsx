@@ -117,17 +117,20 @@ function Wave() {
 }
 
 function WarmerDemo() {
-  const cool = { cutoff: 6400, drive: 0.1, width: 0.3 };
-  const warm = { cutoff: 1400, drive: 0.45, width: 0.3 };
-  const [v, setV] = useState(cool);
-  const [proposed, setProposed] = useState(false);
+  // Starts as Mobius left it, so the picture shows the mark; Discard and "Make it warmer" show the glide.
+  const cool = { cutoff: 6400, resonance: 0.2, drive: 0.1, width: 0.3 };
+  const warm = { cutoff: 1400, resonance: 0.35, drive: 0.45, width: 0.3 };
+  const [v, setV] = useState(warm);
+  const [proposed, setProposed] = useState(true);
   const pctText = (x: number) => `${Math.round(x * 100)}%`;
+  const moved = (k: keyof typeof cool) => proposed && v[k] !== cool[k];
   return (
     <div className="sheet-row">
-      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={proposed && v.cutoff !== cool.cutoff} onChange={(cutoff) => setV({ ...v, cutoff })} />
-      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} />
+      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={moved('cutoff')} onChange={(cutoff) => setV({ ...v, cutoff })} />
+      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={moved('drive')} onChange={(drive) => setV({ ...v, drive })} />
       <Knob label="Width" value={v.width} min={0} max={1} step={0.01} format={pctText} onChange={(width) => setV({ ...v, width })} />
-      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={moved('drive')} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <div className="sheet-graph"><FilterGraph value={{ cutoff: v.cutoff, resonance: v.resonance }} min={80} max={12000} proposed={{ cutoff: moved('cutoff'), resonance: moved('resonance') }} onChange={(f) => setV({ ...v, ...f })} /></div>
       <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
       {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
     </div>
@@ -165,7 +168,7 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
-      <div className="sheet-col"><span className="sheet-note">Mobius proposes "warmer": the changed settings glide to their new values and stay indigo and dashed until kept</span>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Mobius proposed "warmer": the settings it moved (on knobs, cells and graphs) read in indigo and dashed until kept; Discard glides them back</span>
         <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>

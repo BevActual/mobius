@@ -826,7 +826,12 @@ impl Engine {
     fn make_room(&self, core: &Core, turn: &mut Turn, force: bool) -> Option<Step> {
         let request = self.request(core, turn);
         let size = compaction::tokens_of(&request.system, &request.messages, &request.tools);
-        let limit = self.budget.limit();
+        // The instructions and the tools go with every request and no summary makes them smaller. On a small window
+        // (a model on this computer) they can fill most of the share kept for the request; measured against that share
+        // alone, every turn after the first would ask for a summary of a conversation of a few lines. So the
+        // conversation always gets at least a tail's worth of room beyond them.
+        let fixed = compaction::tokens_of(&request.system, &[], &request.tools);
+        let limit = self.budget.limit().max(fixed + self.budget.tail());
         if !force && size <= limit {
             return None;
         }
@@ -836,7 +841,7 @@ impl Engine {
         let tail = compaction::tail_start(&turn.messages, current.covers, tail_budget)?;
         let pruned = Compaction { pruned_before: current.pruned_before.max(tail), ..current.clone() };
         let pruned_size = compaction::tokens_of(&request.system, &compaction::view(&turn.messages, Some(&pruned)), &request.tools);
-        if !force && pruned_size <= limit * 3 / 4 {
+        if !force && pruned_size <= fixed + (limit - fixed) * 3 / 4 {
             turn.compaction = Some(pruned);
             return None;
         }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -143,5 +143,136 @@ describe('drum steps', () => {
     expect(on.find((n) => n.pitch === 38 && n.start === 4.5)).toEqual({ pitch: 38, start: 4.5, length: 0.25, velocity: 1 });
     expect(setStep(on, 1, 38, 2, 0.5).filter((n) => n.start === 4.5)).toHaveLength(1);
     expect(setStep(on, 1, 38, 2, 0)).toEqual(setStep(hits, 9, 99, 0, 0));
+  });
+});
+
+describe('a clip in the Session view', () => {
+  const notes = [{ start: 0 }, { start: 2 }];
+  it('goes round its own length from where it was launched', () => {
+    expect(clipHits(notes, 4, 8, 8, 16).map((h) => h.at)).toEqual([8, 10, 12, 14]);
+    // Asked for partway round: only the hits still to come, at their place in the loop.
+    expect(clipHits(notes, 4, 8, 13, 18).map((h) => h.at)).toEqual([14, 16]);
+    expect(clipHits(notes, 4, 8, 4, 8)).toEqual([]);
+  });
+  it('lands a launch on the next bar line', () => {
+    expect(nextBar(0)).toBe(0);
+    expect(nextBar(0.5)).toBe(4);
+    expect(nextBar(4)).toBe(4);
+    expect(nextBar(7.99)).toBe(8);
+  });
+});
+
+describe('a melody as steps', () => {
+  it('has a row per note of the key, high to low, from the C of the octave picked', () => {
+    const aMinor = new Set([9, 11, 0, 2, 4, 5, 7]);
+    const rows = scaleRows(aMinor, 4, 8);
+    expect(rows).toEqual([72, 71, 69, 67, 65, 64, 62, 60]);
+  });
+  it('opens on the octave its notes sit in most', () => {
+    expect(stepOctave([], 2)).toBe(2);
+    expect(stepOctave([{ pitch: 45, start: 0, length: 1, velocity: 1 }, { pitch: 64, start: 0, length: 1, velocity: 1 }, { pitch: 60, start: 1, length: 1, velocity: 1 }], 2)).toBe(4);
+  });
+  it('names its rows as the key spells them', () => {
+    expect(spellIn(70, 'F major')).toBe('B♭4');
+    expect(spellIn(70, 'B major')).toBe('A♯4');
+    expect(spellIn(60, 'A minor')).toBe('C4');
+  });
+  it('writes a step as long as asked', () => {
+    expect(setStep([], 0, 60, 4, 0.8, 0.5)).toEqual([{ pitch: 60, start: 1, length: 0.5, velocity: 0.8 }]);
+  });
+});
+
+describe('the computer keyboard as an instrument', () => {
+  it('plays white keys on the middle row and black keys above, from the octave\'s C', () => {
+    expect(keyboardPitch('a', 4)).toBe(60);
+    expect(keyboardPitch('W', 4)).toBe(61);
+    expect(keyboardPitch('k', 4)).toBe(72);
+    expect(keyboardPitch(';', 3)).toBe(64);
+    expect(keyboardPitch('q', 4)).toBeNull();
+  });
+  it('plays the drums from the kick up on the white keys', () => {
+    expect(keyboardDrum('a', [36, 38, 39])).toBe(36);
+    expect(keyboardDrum('d', [36, 38, 39])).toBe(39);
+    expect(keyboardDrum('f', [36, 38, 39])).toBeNull();
+    expect(keyboardDrum('w', [36, 38, 39])).toBeNull();
+  });
+  it('moves velocity in steps, kept in range', () => {
+    expect(nudgeKeyVelocity(100, 1)).toBe(120);
+    expect(nudgeKeyVelocity(120, 1)).toBe(127);
+    expect(nudgeKeyVelocity(10, -1)).toBe(1);
+  });
+});
+
+describe('splitNotes and joinNotes', () => {
+  const n = (pitch: number, start: number, length: number) => ({ pitch, start, length, velocity: 0.8 });
+  it('cuts a picked note at the playhead inside it, or on the grid at its middle', () => {
+    expect(splitNotes([n(60, 0, 2)], new Set([0]), 0.5, 0.25).notes).toEqual([n(60, 0, 0.5), n(60, 0.5, 1.5)]);
+    expect(splitNotes([n(60, 0, 2)], new Set([0]), 8, 0.25).notes).toEqual([n(60, 0, 1), n(60, 1, 1)]);
+    const r = splitNotes([n(60, 0, 2), n(62, 0, 1)], new Set([0]), 8, 0.25);
+    expect(r.notes).toHaveLength(3);
+    expect(r.picked.size).toBe(2);
+  });
+  it('leaves a note too short to cut', () => {
+    expect(splitNotes([n(60, 0, 0.25)], new Set([0]), 8, 0.25).notes).toEqual([n(60, 0, 0.25)]);
+  });
+  it('joins picked notes of a pitch from the first start to the last end', () => {
+    const r = joinNotes([n(60, 0, 0.5), n(60, 1, 0.5), n(62, 0, 1), n(60, 3, 1)], new Set([0, 1, 2]));
+    expect(r.notes).toEqual([n(60, 0, 1.5), n(62, 0, 1), n(60, 3, 1)]);
+    expect([...r.picked].sort()).toEqual([0, 1]);
+  });
+});
+
+describe('recordedNote', () => {
+  const held = { pitch: 60, start: 2.5, velocity: 0.8 };
+  it('runs from the press to the release', () => {
+    expect(recordedNote(held, 3.25, null, 16)).toEqual({ pitch: 60, start: 2.5, length: 0.75, velocity: 0.8 });
+  });
+  it('ends at the loop end when the loop went round while held', () => {
+    expect(recordedNote({ ...held, start: 7.5 }, 0.5, { from: 0, to: 8 }, 16)).toMatchObject({ start: 7.5, length: 0.5 });
+  });
+  it('is at least a 1/64 note, never past the end, and nothing past the end', () => {
+    expect(recordedNote(held, 2.5, null, 16)!.length).toBe(0.063);
+    expect(recordedNote({ ...held, start: 15.5 }, 20, null, 16)!.length).toBe(0.5);
+    expect(recordedNote({ ...held, start: 16 }, 17, null, 16)).toBeNull();
+  });
+});
+
+describe('encodeWav', () => {
+  it('writes a 16-bit PCM WAV with the channels interleaved and samples kept in range', () => {
+    const left = new Float32Array([0, 1, -1, 2]);
+    const right = new Float32Array([0.5, -0.5, 0, -2]);
+    const wav = encodeWav({ numberOfChannels: 2, sampleRate: 44100, length: 4, getChannelData: (c) => (c === 0 ? left : right) });
+    const v = new DataView(wav.buffer);
+    expect(String.fromCharCode(...wav.subarray(0, 4))).toBe('RIFF');
+    expect(String.fromCharCode(...wav.subarray(8, 12))).toBe('WAVE');
+    expect(v.getUint16(22, true)).toBe(2);
+    expect(v.getUint32(24, true)).toBe(44100);
+    expect(v.getUint32(40, true)).toBe(16);
+    expect(wav.length).toBe(44 + 16);
+    expect([0, 1, 2, 3, 4, 5, 6, 7].map((i) => v.getInt16(44 + i * 2, true))).toEqual([0, 16384, 32767, -16384, -32768, 0, 32767, -32768]);
+  });
+  it('turns bytes into base64', () => {
+    expect(toBase64(new Uint8Array([77, 111, 98]))).toBe('TW9i');
+  });
+});
+
+describe('soundChanges', () => {
+  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] };
+  it('names each setting Mobius moved, with where it was and where it is', () => {
+    const warmer = { ...pad, sound: { shape: 1, detune: 14, sub: 0, drive: 0.2, cutoff: 900, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 } };
+    const got = soundChanges(pad, warmer);
+    expect(got.map((c) => c.key)).toEqual(['sound:drive', 'sound:cutoff']);
+    expect(got[1]!.text).toBe('cutoff 1.8 kHz → 900 Hz');
+  });
+  it('counts effects added, changed, switched and taken out, and the mix', () => {
+    const a = { ...pad, fx: [{ id: 'fx1', kind: 'reverb' as const, on: true, size: 2, damp: 0.4, mix: 0.25 }, { id: 'fx2', kind: 'delay' as const, on: true, time: 0.75, feedback: 0.35, mix: 0.25 }] };
+    const b = { ...pad, volume: 0.6, fx: [{ id: 'fx1', kind: 'reverb' as const, on: false, size: 2, damp: 0.4, mix: 0.4 }, { id: 'fx3', kind: 'eq' as const, on: true, low: 3, lowFreq: 120, mid: 0, midFreq: 1000, midQ: 1, high: -2, highFreq: 6000 }] };
+    expect(soundChanges(a, b).map((c) => c.text)).toEqual(['volume 50% → 60%', 'Reverb off', 'reverb mix 25% → 40%', 'added EQ', 'took out Delay']);
+  });
+  it('has nothing to compare for a new track, and leaves notes to notesDiffer', () => {
+    expect(soundChanges(undefined, pad)).toEqual([]);
+    expect(soundChanges(pad, { ...pad, notes: [] })).toEqual([]);
+    expect(notesDiffer(pad, { ...pad, notes: [] })).toBe(true);
+    expect(notesDiffer(pad, { ...pad, volume: 1 })).toBe(false);
   });
 });
