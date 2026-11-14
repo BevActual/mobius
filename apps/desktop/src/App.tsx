@@ -7,7 +7,7 @@ import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES,
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
-import { databaseOutline, noteContext, suggestionsFor, tasksContext, type SurfaceState } from './surface';
+import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
@@ -44,7 +44,7 @@ import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
 import { useCode } from './useCode';
-import { CodeEditor, CodeSidebar } from './Code';
+import { CodeEditor, CodeGlance, CodeSidebar } from './Code';
 import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
@@ -1032,6 +1032,8 @@ export function App() {
   const startWithMobius = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), text: prompt }); };
   // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
   // Triage from Mail's panel action: the composer switches to Triage too, so the next turns stay in it until changed.
+  // Code's Glance: Find the cause sends the failing test, with the open file and its output, to Mobius.
+  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(DEBUG_TEST, surface.code ? [sheetItem(surface.code)] : []); };
   const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setChatMode('triage'); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
@@ -1491,7 +1493,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1536,7 +1538,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{app === 'tasks' && <TasksGlance tasks={tasks} />}{app === 'calendar' && <CalendarGlance calendar={calendar} />}{app === 'code' && <CodeGlance tests={code.tests} onDebug={debugTest} />}{inMail ? <MailActions open={mail.open} unread={mail.messages.filter((m) => !m.seen).length} onTriage={triageMail} onChanged={() => void mail.refresh()} /> : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
