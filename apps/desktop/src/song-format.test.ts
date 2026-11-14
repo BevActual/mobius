@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -160,5 +160,26 @@ describe('a drum kit\'s pads', () => {
     const text = writeSong(s);
     expect(song(text).tracks[0]!.pads).toEqual({ 38: { tune: 3, decay: 1, level: 1, pan: -1 } });
     expect(drumKit({ tune: 2, decay: 1.5, tone: 0.5 }, { tune: 3, decay: 2, level: 1, pan: 0 })).toEqual({ tune: 5, decay: 3, tone: 0.5 });
+  });
+});
+
+describe('volume automation', () => {
+  it('reads points in order, inside the song and 0 to 1, and leaves out the rest', () => {
+    expect(readAuto([{ beat: 8, value: 0.2 }, { beat: -1, value: 2 }, { beat: 'x', value: 1 }, { beat: 99, value: 0.5 }], 16)).toEqual([{ beat: 0, value: 1 }, { beat: 8, value: 0.2 }, { beat: 16, value: 0.5 }]);
+  });
+  it('is flat before the first point and after the last, and a straight line between', () => {
+    const line = [{ beat: 4, value: 0 }, { beat: 8, value: 1 }];
+    expect(autoValueAt(line, 0, 0.8)).toBe(0);
+    expect(autoValueAt(line, 6, 0.8)).toBe(0.5);
+    expect(autoValueAt(line, 12, 0.8)).toBe(1);
+    expect(autoValueAt([], 3, 0.8)).toBe(0.8);
+  });
+  it('is kept in the song file, and left out when there is none', () => {
+    const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [], volumeAuto: [{ beat: 0, value: 0 }, { beat: 16, value: 1 }] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    expect(r.song.tracks[0]!.volumeAuto).toHaveLength(2);
+    expect(writeSongForAuto(r.song)).toContain('"volumeAuto":[{"beat":0,"value":0},{"beat":16,"value":1}]');
+    r.song.tracks[0]!.volumeAuto = [];
+    expect(writeSongForAuto(r.song)).not.toContain('volumeAuto');
   });
 });

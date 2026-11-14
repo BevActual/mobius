@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { GRIDS, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, useKeyboardClaim, ViewSwitch } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -115,6 +115,7 @@ const ICONS = {
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
   quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
+  auto: 'M3.5 14.5l4-6 4 3 5-7',
 };
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
@@ -388,6 +389,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [drawLength, setDrawLength] = useState(1);
   // Draw mode (B): a press or a drag on the roll writes notes a grid step long; on a note, it takes notes out.
   const [draw, setDraw] = useState(false);
+  // Automation (A): a Volume line under each track in the Arrange view, drawn with points.
+  const [showAuto, setShowAuto] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [gesture, setGestureState] = useState<Gesture | null>(null);
   // The gesture is read back from a ref as well, so a pointer-up that comes before React has drawn the last move still
@@ -1036,6 +1039,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
     if (!mod && !e.altKey && e.key === 'F9') { record(); return true; }
+    if (!mod && !e.altKey && k === 'a' && view === 'arrange') { setShowAuto((a) => !a); return true; }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
@@ -1071,6 +1075,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <span aria-hidden="true">bpm</span>
         </label>
         <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
+        {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Show automation: a volume line under each track'} icon={<Icon d={ICONS.auto} />} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
@@ -1135,6 +1140,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 <div className="studio-lane" style={{ width: total * bw }}>
                   <Clips track={t} bars={song.bars} proposed={changed.has(t.id)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
                 </div>
+                {showAuto && <>
+                  <div className="studio-auto-head" aria-hidden="true" />
+                  <AutomationLane className="studio-auto" label="Volume" points={t.volumeAuto ?? []} beats={total} pxPerBeat={bw} empty={t.volume}
+                    onChange={(next) => setTrack(t.id, (x) => { if (next.length) x.volumeAuto = next; else delete x.volumeAuto; }, `auto:${t.id}`)} />
+                </>}
               </div>
             ))}
             <div className="studio-add-row">

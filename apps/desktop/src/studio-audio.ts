@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
 /**
@@ -303,6 +303,13 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
       }
       for (const t of tracks) {
         const out = strips.get(t.id)!;
+        // Volume automation: the line from here to the end of this stretch, as ramps on the track's own gain.
+        if (t.volumeAuto && t.volumeAuto.length > 0 && out instanceof GainNode) {
+          const g = out.gain;
+          g.setValueAtTime(autoValueAt(t.volumeAuto, s, t.volume), Math.max(ctx.currentTime, at(s)));
+          for (const p of t.volumeAuto) if (p.beat > s + 1e-9 && p.beat < s + span - 1e-9) g.linearRampToValueAtTime(p.value, at(p.beat));
+          g.linearRampToValueAtTime(autoValueAt(t.volumeAuto, s + span - 1e-6, t.volume), at(s + span) - 1e-4);
+        }
         for (const n of t.instrumentOn === false ? [] : t.notes) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.

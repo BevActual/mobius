@@ -98,7 +98,7 @@ notes for good, so the file always shows what you hear.
 | --- | --- | --- |
 | Envelope and sweep | Each note's own shape and filter sweep. | Have |
 | Vibrato | A wobble in pitch at a set rate. | Have |
-| Automation lanes | Draw how any setting changes along the song. | Next |
+| Automation lanes | Draw how any setting changes along the song. | Building (track volume in Arrange; other settings next) |
 | Wobblers | A slow wave that moves any setting, in time or free. | Later |
 | Follow | One track's level moving another's setting (ducking). | Later |
 

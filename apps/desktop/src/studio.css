@@ -252,3 +252,7 @@
 .ui-icon-button.studio-record { color: var(--danger); }
 .ui-icon-button.studio-record svg path { fill: currentColor; stroke: none; }
 .ui-icon-button.studio-record[aria-pressed='true'] { background: var(--danger-wash); color: var(--danger); }
+
+/* Automation: a line under each track, as wide as its clips, under a blank head. */
+.studio-page .studio-auto-head { position: sticky; left: 0; z-index: 2; background: var(--paper); border-right: var(--hairline-w) solid var(--line); border-top: var(--hairline-w) solid var(--line-soft); }
+.studio-page .ui-lane.studio-auto { border-top: var(--hairline-w) solid var(--line-soft); }

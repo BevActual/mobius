@@ -100,7 +100,31 @@ export const MIN_SCENES = 4;
 export const MAX_SCENES = 64;
 
 /** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
+/** A point on an automation line: where in the song (beats from 0) and the setting there, 0 to 1. */
+export interface AutoPoint { beat: number; value: number }
+
+/** Automation points read from a file: in the song, values kept 0 to 1, in order, at most one a sixty-fourth apart. */
+export function readAuto(list: unknown, beats: number): AutoPoint[] {
+  const points = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((p): AutoPoint[] => {
+    const o = obj(p);
+    if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
+    return [{ beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(0, Math.min(1, o.value)) * 1000) / 1000 }];
+  });
+  return points.sort((a, b) => a.beat - b.beat);
+}
+
+/** An automation line's value at a beat: flat before the first point and after the last, straight between. */
+export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: number): number {
+  if (!points.length) return empty;
+  if (beat <= points[0]!.beat) return points[0]!.value;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1]!, b = points[i]!;
+    if (beat <= b.beat) return b.beat === a.beat ? b.value : a.value + ((beat - a.beat) / (b.beat - a.beat)) * (b.value - a.value);
+  }
+  return points[points.length - 1]!.value;
+}
+
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
 export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
@@ -190,6 +214,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
       return [{ id: typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`, kind, on: eo.on !== false, ...params } as Effect];
     });
     if (fx.length > 0) track.fx = fx;
+    const volumeAuto = readAuto(to.volumeAuto, bars * BEATS_PER_BAR);
+    if (volumeAuto.length > 0) track.volumeAuto = volumeAuto;
     const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name));
     while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
     if (slots.length > 0) track.slots = slots;
@@ -235,6 +261,7 @@ export function writeSong(song: Song): string {
       if (Object.keys(pads).length > 0) head.pads = pads;
     }
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
+    if (t.volumeAuto && t.volumeAuto.length > 0) head.volumeAuto = t.volumeAuto;
     if (t.slots && t.slots.some((c) => c !== null)) head.slots = t.slots;
     const last = i === song.tracks.length - 1;
     if (t.notes.length === 0) { lines.push(`    ${JSON.stringify({ ...head, notes: [] })}${last ? '' : ','}`); return; }

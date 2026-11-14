@@ -349,6 +349,24 @@ test('Record plays from the playhead and writes what is played on the computer k
   await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
 });
 
+test('automation draws a volume line under a track with points, kept in the song', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Automation' }).click();
+  const lane = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Volume automation' });
+  await expect(lane).toBeVisible();
+  const plot = (await lane.locator('.ui-lane-plot').boundingBox())!;
+  await shell().mouse.click(plot.x + plot.width * 0.25, plot.y + plot.height * 0.8);
+  await shell().mouse.click(plot.x + plot.width * 0.75, plot.y + plot.height * 0.2);
+  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: { beat: number; value: number }[] }).volumeAuto?.length).toBe(2);
+  const [a, b] = (saved().tracks[0] as unknown as { volumeAuto: { beat: number; value: number }[] }).volumeAuto;
+  expect(a!.beat).toBeLessThan(b!.beat);
+  expect(a!.value).toBeLessThan(b!.value);
+  // A hides the lines again; the points stay.
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('a');
+  await expect(lane).toHaveCount(0);
+});
+
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });

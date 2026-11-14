@@ -147,6 +147,10 @@ A small studio for writing songs as notes.
   top. The keys you hold light up on the notes editor's keyboard. **Record** (the red dot, or F9) plays from the playhead with the computer
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
   and one Undo takes the take back. It records in the Arrange view for now.
+- **Automation** (the line button in the toolbar, or A): a Volume line under each track in the Arrange view. Click it
+  to add a point and drag to place it, drag a point to move it, double-click it (or Delete) to take it out. With points,
+  the track's volume follows the line as it plays; with none, it stays at its Volume. Saved as each track's
+  `volumeAuto`.
 - **Loop**: drag along the top of the ruler to loop some bars. Right-click the ruler (or press its top twice quickly)
   to loop the whole song again; its menu also turns the metronome on (K), adds or removes four bars, and zooms.
 - Mobius writes songs as notes, never audio. A song is a JSON file it can read and write like a score.
