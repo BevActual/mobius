@@ -54,6 +54,8 @@ export function useMail() {
   const [open, setOpen] = useState<MailContent | null>(null);
   const [editing, setEditing] = useState<MailDraft | null>(null);
   const [syncing, setSyncing] = useState(false);
+  /** False until the first list has come back: the list shows placeholder bars until then. */
+  const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState('');
   /** What the last archive or Remind me did, offered back for a while in the shared Undo toast. */
   const [undo, setUndo] = useState<{ text: string; run: () => Promise<void> } | null>(null);
@@ -80,6 +82,7 @@ export function useMail() {
     if (!isNotesFailure(list)) setMessages(v.kind === 'box' ? inBox(v.box, list) : list);
     if (!isNotesFailure(c)) setCounts(c);
     if (!isNotesFailure(d)) setDrafts(d);
+    setLoaded(true);
   }, [api]);
 
   useEffect(() => { void refresh(); }, [view, query, refresh]);
@@ -195,7 +198,7 @@ export function useMail() {
     setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: '', body: '', replyTo: null, by: 'you', why: '', updatedMs: 0 });
   }, [accounts]);
 
-  return { available: api !== undefined, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, remindTomorrow, schedule };
+  return { available: api !== undefined, loaded, accounts, view, setView, query, setQuery, messages, counts, drafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, remindTomorrow, schedule };
 }
 
 export type MailState = ReturnType<typeof useMail>;

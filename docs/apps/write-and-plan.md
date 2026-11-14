@@ -6,12 +6,13 @@ Quick pages, saved as you type.
 
 ![The Notes app in Mobius](../readme/apps/notes.png)
 
-- **Notebooks** in the sidebar, each one folding away, newest pages first, each row showing when it was edited and how it starts, with search, **Pinned** pages at the top,
+- **Notebooks** in the sidebar, each one folding away, newest pages first, each page as its title with when it was edited at the end (the time today, the weekday this week, the date before that) and a grey line of how it starts, with search, **Pinned** pages at the top,
   **New notebook** under the notebooks and a **Tags** section built from every `#tag` you write.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
-  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Table, Link,
-  Record, Picture and Share, so nothing sits between you and the page. The **Notes** menu (**⋯** in the toolbar)
+  bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Link and
+  **+** (Insert: a table, a picture or file, Dictate, or a clipped web page), with Share at the end, as in Docs, so
+  nothing sits between you and the page. While you dictate, Stop stays in the toolbar. The **Notes** menu (**⋯** in the toolbar)
   opens Version history, clips a web page into the note and shows the Markdown file itself.
 - **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
@@ -52,22 +53,24 @@ Longer documents, with an outline and comments.
 
 ## Tasks
 
-Lists of things to do, as in Apple's Reminders.
+Lists of things to do. Each task is one line: its check, its words in full ink with any note in grey, then at the
+right edge its subtask count, its list (in views across lists), a flag and when it is due, grey unless it is overdue.
 
 ![The Tasks app in Mobius](../readme/apps/tasks.png)
 
 - **The sidebar** has Search, New list, the **Smart lists** (Today, Scheduled, All, Flagged and Completed), then
   **My lists**, each with a dot in its colour and how many are open. Hover a list to pin it or open its menu (Rename, Delete).
-  **Scheduled** sorts tasks under day headings: Overdue, Today, Tomorrow, each day of the coming week, then by month.
+  **All** and **Completed** group tasks under each list's name with a count; **Scheduled** groups them under day
+  headings with a count: Overdue (in red), Today, Tomorrow, each day of the coming week, then by month.
 - **Times and repeats**: type a time after the day ("Call Sam tomorrow at 3pm", "Stand-up mon 9:30"; a time on its
   own means today), or set a time and a repeat (every day, weekday, week, month or year) in the inspector. Ticking off
   a repeating task moves it to its next day and leaves it open.
-- **Right-click a task** to show its details, set it due today, tomorrow or next week, flag it, move it to another
+- **Right-click a task** to tick it, rename it, show its details, set it due today, tomorrow or next week, flag it, move it to another
   list or delete it.
 - **Keyboard**: the up and down arrows move between tasks (down from the add field reaches the first one), Space ticks
   the selected task, Enter renames it, Ctrl+I (⌘I on a Mac) shows its details and Delete deletes it.
 - **Completing a task** fills its check and leaves the row for a moment, so a second click takes it back. Completed
-  tasks fold away under the list; **Clear N Completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them.
+  tasks fold away under the list; **Clear N completed** in the fold's ⋯ menu (or the window's ⋯ menu) removes them. A list with nothing in it shows one plain line under the add row.
 - **Deleting** a task or a list shows **Undo** at the bottom of the page (Ctrl+Z works too).
 - **The inspector** beside the list holds a task's notes, when it is due (today, tomorrow, next Monday or any date,
   picked from the date button), its flag, its list and its subtasks. Dates are written in your computer's regional

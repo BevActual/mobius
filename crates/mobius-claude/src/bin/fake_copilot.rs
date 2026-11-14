@@ -17,7 +17,11 @@ fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let token = std::env::var("COPILOT_GITHUB_TOKEN").unwrap_or_default();
     let mut record = json!({ "args": args, "token": token, "otherTokens": std::env::var("GH_TOKEN").is_ok() || std::env::var("GITHUB_TOKEN").is_ok() });
-    let save = |record: &Value| std::fs::write("fake-copilot-record.json", record.to_string()).unwrap();
+    // Written whole and then renamed into place, so a test reading it while a later save runs never sees it empty.
+    let save = |record: &Value| {
+        std::fs::write("fake-copilot-record.json.tmp", record.to_string()).unwrap();
+        std::fs::rename("fake-copilot-record.json.tmp", "fake-copilot-record.json").unwrap();
+    };
     let stdin = std::io::stdin();
     let mut lines = stdin.lock().lines();
     while let Some(Ok(line)) = lines.next() {

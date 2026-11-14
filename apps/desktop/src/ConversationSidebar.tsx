@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { MAIN_BOT_ID, botOfConversation, type Bot, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
@@ -100,6 +100,20 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, on
   const [problem, setProblem] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const main = bot.id === MAIN_BOT_ID;
+  // Shift+F10 or the Menu key on the row opens its menu, under the row.
+  const more = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const row = more.current?.parentElement;
+    if (!row) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ContextMenu' && !(e.shiftKey && e.key === 'F10')) return;
+      e.preventDefault();
+      const r = row.getBoundingClientRect();
+      setMenu({ x: r.left + 12, y: r.bottom });
+    };
+    row.addEventListener('keydown', onKey);
+    return () => row.removeEventListener('keydown', onKey);
+  }, []);
   const items: ContextMenuItem[] = [
     { label: 'New session', run: onNew },
     ...(main ? [] : [
@@ -111,9 +125,9 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, on
   ];
   return (
     <SidebarRow label={bot.name} current={current} onSelect={onOpen} title={`${main ? 'Built in' : bot.model || 'Model from settings'} · ${sessionCount(sessions)}`}
-      onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY }); }}
+      onContextMenu={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu(e.clientX === 0 && e.clientY === 0 ? { x: r.left + 12, y: r.bottom } : { x: e.clientX, y: e.clientY }); }}
       trail={<>
-        <button type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+        <button ref={more} type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More (Shift+F10)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
         </button>
         {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={bot.name} items={items} onClose={() => setMenu(null)} />, document.body)}

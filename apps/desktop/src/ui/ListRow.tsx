@@ -8,12 +8,18 @@ import { useId, type MouseEvent, type ReactNode } from 'react';
  * One height per density in a view: --row-list for one line, --row-list-2 for two. A hairline sits between rows and
  * the chosen one has the grey fill. Put rows in a `<ul role="list" className="ui-list">`.
  */
-export function ListRow({ title, detail, meta, lead, trail, unread, current, proposed, onSelect, onContextMenu, className }: {
+export function ListRow({ title, detail, meta, metaTone, lead, trail, unread, done, lines, current, proposed, onSelect, onContextMenu, className }: {
   title: ReactNode;
   /** The second line: grey, one line, cut with an ellipsis (a message's first words, a note's folder). */
   detail?: ReactNode;
   /** At the trailing end of the first line: a date, a time, a size. Shown in tabular figures. */
   meta?: ReactNode;
+  /** `red` only for something overdue. */
+  metaTone?: 'red';
+  /** One line or two. Two when there is a `detail`, unless 1 is asked for: then the detail sits grey after the title. */
+  lines?: 1 | 2;
+  /** Finished (a ticked task): the title goes grey. */
+  done?: boolean;
   /** What leads the row: a Checkbox, an Avatar, a line icon. */
   lead?: ReactNode;
   /** Controls after the row's button, inside the row and its fill (a hover Archive, a Pin). */
@@ -28,8 +34,9 @@ export function ListRow({ title, detail, meta, lead, trail, unread, current, pro
   className?: string;
 }) {
   const detailId = useId();
+  const two = detail !== undefined && lines !== 1;
   return (
-    <li className={className ? `ui-row ${className}` : 'ui-row'} data-lines={detail === undefined ? 1 : 2} data-current={current || undefined} data-proposed={proposed || undefined}>
+    <li className={className ? `ui-row ${className}` : 'ui-row'} data-lines={two ? 2 : 1} data-current={current || undefined} data-proposed={proposed || undefined}>
       {lead && <span className="ui-row-lead">{lead}</span>}
       <button
         type="button"
@@ -40,10 +47,11 @@ export function ListRow({ title, detail, meta, lead, trail, unread, current, pro
         onContextMenu={onContextMenu}
       >
         <span className="ui-row-line">
-          <span className="ui-row-title" data-unread={unread || undefined}>{title}</span>
-          {meta !== undefined && <span className="ui-row-meta">{meta}</span>}
+          <span className="ui-row-title" data-unread={unread || undefined} data-done={done || undefined}>{title}</span>
+          {detail !== undefined && !two && <span className="ui-row-detail ui-row-inline" id={detailId}>{detail}</span>}
+          {meta !== undefined && <span className="ui-row-meta" data-tone={metaTone}>{meta}</span>}
         </span>
-        {detail !== undefined && <span className="ui-row-detail" id={detailId}>{detail}</span>}
+        {two && <span className="ui-row-detail" id={detailId}>{detail}</span>}
       </button>
       {trail && <span className="ui-row-trail">{trail}</span>}
     </li>
