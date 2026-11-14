@@ -46,9 +46,9 @@ const say = async (text: string) => {
   await composer().press('Enter');
 };
 
-test('the message box has add context, model, effort, dictate and send', async () => {
+test('the message box has add context, mode, permission, model and send', async () => {
   await start();
-  for (const name of ['Add context', 'Model', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Add context', 'Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
@@ -194,7 +194,8 @@ test('dictation records, sends the sound to the server\'s speech model, and puts
   await start([], { transcript: 'hello from my voice' });
   await turnEnded(composer());
   await composer().fill('Note:');
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
   await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
@@ -208,11 +209,12 @@ test('dictation records, sends the sound to the server\'s speech model, and puts
 
 test('Escape cancels a recording and nothing is sent', async () => {
   await start([], { transcript: 'should not appear' });
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
   await composer().focus();
   await shell().keyboard.press('Escape');
-  await expect(shell().getByRole('button', { name: 'Dictate' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Stop dictation' })).toHaveCount(0);
   await shell().waitForTimeout(400);
   expect(model!.audio).toHaveLength(0);
   await expect(composer()).toHaveValue('');
@@ -220,7 +222,8 @@ test('Escape cancels a recording and nothing is sent', async () => {
 
 test('a server without a speech model is told so, in plain words', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await shell().waitForTimeout(600);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(shell().getByRole('alert').filter({ hasText: 'cannot turn speech into text' })).toBeVisible();
@@ -230,7 +233,8 @@ test('a server without a speech model is told so, in plain words', async () => {
 test('the speech model name can be changed in settings and is the one asked for', async () => {
   await start([], { transcript: 'ok' });
   await shell().evaluate(() => window.mobius.preferences.set({ dictationModel: 'distil-whisper' }));
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await shell().waitForTimeout(600);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(composer()).toHaveValue('ok');

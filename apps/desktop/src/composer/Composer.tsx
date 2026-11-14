@@ -15,6 +15,7 @@ import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
 import { CHAT_MODES, PERMISSIONS, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
 
+const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
   { id: 'none', label: 'Off' },
@@ -213,6 +214,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       event.preventDefault();
       setMode(nextChatMode(mode));
     }
+    // Ctrl+Shift+Space (Cmd on a Mac) starts or stops dictation, wherever the mic is shown.
+    if (event.key === ' ' && event.shiftKey && (event.ctrlKey || event.metaKey) && !event.altKey && canType && !busy && dictation.state !== 'transcribing') {
+      event.preventDefault();
+      dictation.toggle();
+    }
   };
   const onFormKeyDown = (event: KeyboardEvent<HTMLFormElement>) => {
     if (event.key === 'Escape' && dictation.state === 'recording') {
@@ -408,6 +414,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           <PopMenu label="Add context" className="round ghost" disabled={!canType || adding} trigger={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>}>
             {(close) => (
               <>
+                {/* In a narrow panel the mic leaves the row and is the first thing here. */}
+                <button type="button" role="menuitem" className="popmenu-item popmenu-dictate popmenu-keys" disabled={busy || dictation.state === 'transcribing'} onClick={() => { close(); dictation.toggle(); }}>
+                  <span>Dictate</span><KeyCaps keys={DICTATE_KEYS} />
+                </button>
                 <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void attach('page'); }}>
                   <span>This page</span><span className="popmenu-hint">What is showing in the browser</span>
                 </button>
@@ -489,7 +499,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           {contextUse && <ContextRing used={contextUse.used} limit={contextUse.limit} />}
           {dictation.state === 'recording' && <span className="rec" role="status" aria-label={`Listening ${clock(dictation.seconds)}`}><LevelMeter level={dictation.level} />{clock(dictation.seconds)}</span>}
           {dictation.state === 'transcribing' && <span className="rec" role="status">Turning speech into text…</span>}
-          <button type="button" className="round ghost" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : 'Dictate'} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
+          <button type="button" className="round ghost composer-mic" data-recording={dictation.state === 'recording' || undefined} aria-label={dictation.state === 'recording' ? 'Stop dictation' : 'Dictate'} title={dictation.state === 'recording' ? 'Stop and insert the words (Esc cancels)' : `Dictate (${DICTATE_KEYS})`} disabled={!canType || busy || dictation.state === 'transcribing'} onClick={dictation.toggle}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
           </button>
           {busy && onTakeOver && <button type="button" className="btn take-over" title="Mobius pauses at the next safe point and the apps are yours" onClick={() => void onTakeOver()}>Take over</button>}
