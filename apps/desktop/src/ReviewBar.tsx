@@ -14,15 +14,15 @@ export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way.';
  * "Why this": what was asked in the turn that made a proposal, so the change can be judged against it. Nothing is shown
  * when the turn had no words (a schedule, say) or the turns cannot be read.
  */
-export function WhyThis({ conversation }: { conversation: string }) {
+export function WhyThis({ conversation, file }: { conversation: string; /** Music (marked): the file under review, to quote the turn that changed it. */ file?: string }) {
   const [ask, setAsk] = useState<string | null>(null);
   const [from, setFrom] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
-    void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? r.turns[0]?.ask?.trim() || null : null); }).catch(() => undefined);
+    void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? ((file && r.turns.find((t) => t.files?.includes(file))) || r.turns[0])?.ask?.trim() || null : null); }).catch(() => undefined);
     void window.mobius.agent.history(conversation).then((h) => { if (live) setFrom(linkedFrom(h)); }).catch(() => undefined);
     return () => { live = false; };
-  }, [conversation]);
+  }, [conversation, file]);
   return (
     <>
       {ask && <span className="review-why" title={ask}>Why this: you asked “{ask.length > 90 ? `${ask.slice(0, 89)}…` : ask}”</span>}
