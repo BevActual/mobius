@@ -141,7 +141,7 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   const row = todo().locator('.task', { hasText: 'Paint the door' }).first();
   await expect(row.locator('.task-note')).toHaveText('White, not grey.');
   await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
-  await expect(row.locator('.task-subcount')).toHaveText('0 of 1');
+  await expect(row.locator('.task-subcount')).toHaveText('0/1');
   await details.getByRole('combobox', { name: 'List' }).selectOption('Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');
   // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
