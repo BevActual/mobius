@@ -111,6 +111,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Agents app (marked): the weekly agent runs on Fridays, so its page and the toolbar show when.
   'schedules.list': () => [{ id: 'sch-wkly', title: 'Weekly P2 summary', prompt: 'Summarise the week on the Kestrel P2 build.', time: '16:00', days: [5], enabled: true, bot: 'wkly01', lastRunMs: now - 7 * 86_400_000 }],
   'profiles.list': () => ({ current: 'personal', list: [{ id: 'personal', name: 'Personal' }] }),
+  // The preview cannot start again on another profile; it says so.
+  'profiles.openDemo': () => ({ ok: false, error: 'The demo workspace opens in the Mobius app, not the preview.' }),
   'window.quickEntryActive': () => false,
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
