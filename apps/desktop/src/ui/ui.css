@@ -67,6 +67,13 @@
 .ui-side-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
 .ui-side-row-trail { display: flex; align-items: center; gap: var(--hairline-w); }
 .ui-side-row-trail > .list-row { flex: 1; min-width: 0; }
+/* With a trail, the row's fill (hover and current) is on the whole row, so the selection reaches past the trail's
+   buttons and dates to the row's end instead of stopping short of them. */
+.ui-side-row-trail { border-radius: var(--row-radius, var(--radius-control)); }
+.ui-side-row-trail:hover:not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover, color-mix(in srgb, var(--sel) 50%, transparent)); }
+.ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select, var(--sel)); }
+.dock.left .side .ui-side-row-trail.ui-side-row-trail > .list-row,
+.dock.left .side .ui-side-row-trail.ui-side-row-trail > .list-row:hover { background: transparent; }
 .ui-side-fold { display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0; border: 0; background: none; color: inherit; font: inherit; }
 .ui-side-fold svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; transition: transform var(--dur-fast) var(--ease); }
 .ui-side-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
