@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
+import { COMPARE_TABS, isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -8,6 +8,12 @@ describe('what each app suggests', () => {
     const page = suggestionsFor({ app: 'browser', hasPage: true, note: null });
     expect(page.length).toBeGreaterThan(0);
     expect(page.every((s) => s.attach === 'page')).toBe(true);
+  });
+  it('leads with Compare these once two or more tabs show web pages, and it reads them itself', () => {
+    expect(suggestionsFor({ app: 'browser', hasPage: true, pages: 1, note: null }).map((s) => s.label)).not.toContain('Compare these');
+    const two = suggestionsFor({ app: 'browser', hasPage: true, pages: 2, note: null });
+    expect(two[0]).toEqual({ label: 'Compare these', prompt: COMPARE_TABS });
+    for (const tool of ['browser.tabs', 'browser.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
   });
   it('offers note suggestions that attach the open note, and a search when none is open', () => {
     const open = suggestionsFor({ app: 'notes', hasPage: false, note: { path: 'work/plan.md', title: 'Plan', text: '# Plan' } });

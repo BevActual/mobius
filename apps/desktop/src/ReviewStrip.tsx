@@ -24,6 +24,8 @@ export function describeChange(path: string): ReturnType<typeof describeFile> {
   const comments = /^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i.exec(p);
   if (comments) { const page = describeChange(`${comments[1]}/${comments[2]}.md`); return { kind: page.kind, name: `Comments on ${page.name}` }; }
   if (p === 'calendar/.suggestions.json') return { kind: 'Calendar', name: 'Suggested events' };
+  const charts = /^sheets\/([^/]+)\/\.charts\.json$/i.exec(p);
+  if (charts) return { kind: 'Sheet', name: `Charts in ${charts[1]}` };
   const title = knownTitles.get(p);
   const described = describeFile(p);
   const folder = p.split('/')[1];
