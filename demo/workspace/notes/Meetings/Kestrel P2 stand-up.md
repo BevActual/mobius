@@ -1,6 +1,6 @@
 # Kestrel P2 stand-up
 
-{{date:+0}}, 9:00. Andrew, Priya, Sam, Dana. Typed up as it was said.
+{{workday:+0}}, 9:00. Andrew, Priya, Sam, Dana. Typed up as it was said.
 
 **Andrew:** Morning, everyone. Quick one today, mostly the build week. Sam, where are we with the bench run?
 
@@ -32,9 +32,9 @@ week slower. I'd rather not gamble on the slower one this close to the build.
 **Andrew:** Same. So we stay with Veltro for all eight packs. Let's call that decided too. I'll pay the Veltro deposit
 tomorrow.
 
-**Sam:** Do we want spares? Eight or ten?
+**Sam:** Do we want two spare packs on top, so ten in all, or just the eight?
 
-**Priya:** Eight for now. We can top up after the build if we need to.
+**Priya:** Just the eight, no spares for now. We can top up after the build if we need to.
 
 **Andrew:** And Priya, you wanted the brake test plan from me as well.
 
