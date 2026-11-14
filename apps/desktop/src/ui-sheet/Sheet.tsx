@@ -119,6 +119,7 @@ function Instruments() {
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
   const [env, setEnv] = useState<Envelope>({ attack: 0.012, decay: 0.3, sustain: 0.55, release: 0.8 });
   const [filt, setFilt] = useState<FilterValue>({ cutoff: 1800, resonance: 0.3 });
+  const [sweep, setSweep] = useState(0.35);
   const [pan, setPan] = useState(-0.4);
   const [drive, setDrive] = useState(0);
   const [tune, setTune] = useState(0);
@@ -132,8 +133,8 @@ function Instruments() {
     <div className="sheet-instruments">
       <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
         <EnvelopeGraph value={env} reset={base} onChange={setEnv} /></div>
-      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (thin muted curve)</span>
-        <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={0.35} onChange={setFilt} /></div>
+      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (thin muted curve); Sweep drags in the readout</span>
+        <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={sweep} envAmountReset={0.35} onEnvAmount={setSweep} onChange={setFilt} /></div>
       <div className="sheet-col"><span className="sheet-note">Knobs: arcs fill from the origin (pan from C, tune from 0, decay from 1×); values ink once off their default, grey at it</span>
         <div className="sheet-row">
           <Knob label="Pan" value={pan} min={-1} max={1} step={0.01} format={panLabel} onChange={setPan} />
