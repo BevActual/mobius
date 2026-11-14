@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { audible, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { audible, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -87,5 +87,30 @@ describe('a track\'s mix and instrument settings', () => {
     expect(again.tracks.map((t) => [t.pan, t.kit])).toEqual(s.tracks.map((t) => [t.pan, t.kit]));
     expect(again.tracks[0]!.sound).toEqual(s.tracks[0]!.sound);
     expect(writeSong(s)).not.toContain('"pan":0');
+  });
+});
+
+describe('a track\'s effects', () => {
+  it('keeps known effects in order, kept to their ranges, and writes them back', () => {
+    const s = song(JSON.stringify({ tracks: [
+      { id: 'a', instrument: 'pad', fx: [
+        { id: 'fx1', kind: 'delay', time: 9, feedback: 0.5 },
+        { id: 'fx2', kind: 'wobble' },
+        { id: 'fx3', kind: 'eq', low: -30, on: false },
+      ], notes: [] },
+      { id: 'b', instrument: 'bass', notes: [] },
+    ] }));
+    expect(s.tracks[0]!.fx).toEqual([
+      { id: 'fx1', kind: 'delay', on: true, time: 2, feedback: 0.5, mix: EFFECT_PARAMS.delay.mix!.start },
+      { id: 'fx3', kind: 'eq', on: false, low: -18, mid: 0, midFreq: 1000, high: 0 },
+    ]);
+    expect(s.tracks[1]!.fx).toBeUndefined();
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+    expect(writeSong({ ...s, tracks: [s.tracks[1]!] })).not.toContain('"fx"');
+  });
+  it('starts a new effect from its defaults with the next free id', () => {
+    const t = song(JSON.stringify({ tracks: [{ id: 'a', fx: [{ id: 'fx1', kind: 'reverb' }], notes: [] }] })).tracks[0]!;
+    expect(freshEffectId(t)).toBe('fx2');
+    expect(newEffect('compressor', 'fx2')).toEqual({ id: 'fx2', kind: 'compressor', on: true, threshold: -18, ratio: 4, attack: 0.01, release: 0.2, makeup: 0 });
   });
 });

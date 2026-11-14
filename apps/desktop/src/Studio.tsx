@@ -2,11 +2,11 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, KIT_RANGE, kitOf, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, IconButton, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { GRIDS, addNote, clipsOf, effectText, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, Confirm, IconButton, Menu, Segmented, Switch, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -37,7 +37,7 @@ function whenShort(at: number, now: number): string {
 export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const [query, setQuery] = useState('');
   const [menu, setMenu] = useState<{ x: number; y: number; path: string; title: string } | null>(null);
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ path: string; title: string } | null>(null);
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => setNow(Date.now()), [songs.notebooks]);
   const all = useMemo(() => songs.notebooks.flatMap((nb) => nb.pages).sort((a, b) => b.modified - a.modified), [songs.notebooks]);
@@ -54,9 +54,7 @@ export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin:
           <SidebarRow key={pg.path} label={pg.title} current={songs.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
             onSelect={() => void songs.open(pg.path, pg.title)}
             onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, path: pg.path, title: pg.title }); }}
-            trail={confirming === pg.path
-              ? <button type="button" autoFocus className="note-delete confirm" aria-label={`Confirm delete ${pg.title}`} onClick={() => { setConfirming(null); void songs.remove(pg.path); }} onBlur={() => setConfirming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setConfirming(null); }}>Delete</button>
-              : <span className="studio-side-when">{whenShort(pg.modified, Math.max(now, pg.modified))}</span>} />
+            trail={<span className="studio-side-when">{whenShort(pg.modified, Math.max(now, pg.modified))}</span>} />
         ))}
       </SidebarSection>
       <SidebarSection title="Sounds">
@@ -70,7 +68,9 @@ export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin:
           <SidebarRow key={pg.path} label={pg.title} current={false} onSelect={() => void songs.open(pg.path, pg.title)} trail={<span className="studio-to-review">to review</span>} />
         ))}
       </SidebarSection>
-      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.title} items={[{ action: 'delete', label: 'Delete Song', danger: true, run: () => setConfirming(menu.path) }]} onClose={() => setMenu(null)} />, document.body)}
+      <Confirm open={confirming !== null} title={`Delete “${confirming?.title ?? ''}”?`} description="The song and its notes go from your workspace." action="Delete song"
+        onConfirm={() => { const c = confirming; setConfirming(null); if (c) void songs.remove(c.path); }} onCancel={() => setConfirming(null)} />
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.title} items={[{ action: 'delete', label: 'Delete Song', danger: true, run: () => setConfirming({ path: menu.path, title: menu.title }) }]} onClose={() => setMenu(null)} />, document.body)}
     </AppSidebar>
   );
 }
@@ -168,7 +168,54 @@ const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?:
 /** One of the Device panel's settings, as the shared parameter cell. Double-click puts it back to the instrument's own. */
 function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
   const { lo, hi } = SOUND_RANGE[k];
-  return <ParamCell label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
+  return <ParamCell size="compact" label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
+}
+
+/** How an effect's setting reads: "+3.0 dB", "1.2 kHz", "4:1", "12 ms", "35%", "2.0 s". */
+const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; step: number; log?: boolean; origin?: number }[] } = {
+  eq: [{ k: 'low', name: 'Low', step: 0.5 }, { k: 'mid', name: 'Mid', step: 0.5 }, { k: 'midFreq', name: 'Mid freq', step: 10, log: true }, { k: 'high', name: 'High', step: 0.5 }],
+  compressor: [{ k: 'threshold', name: 'Threshold', step: 1, origin: 0 }, { k: 'ratio', name: 'Ratio', step: 0.1, log: true }, { k: 'attack', name: 'Attack', step: 0.001, log: true }, { k: 'release', name: 'Release', step: 0.01, log: true }, { k: 'makeup', name: 'Makeup', step: 0.5 }],
+  delay: [{ k: 'feedback', name: 'Feedback', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
+  reverb: [{ k: 'size', name: 'Size', step: 0.1, log: true }, { k: 'damp', name: 'Damp', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
+};
+/** A delay's echo time, in beats, as note values (a beat is a quarter note). */
+const EFFECT_DETAILS: { [K in EffectKind]: string } = {
+  eq: 'Lifts or cuts the lows, mids and highs',
+  compressor: 'Evens out loud and quiet notes',
+  delay: 'Echoes that fade, in time with the song',
+  reverb: 'Puts the track in a room or hall',
+};
+const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
+
+/** One effect on the track: its name, on or off, moved up or down the chain or taken off, and its settings. */
+function EffectBlock({ effect, at, count, onChange, onMove, onRemove }: {
+  effect: Effect; at: number; count: number;
+  onChange: (fn: (e: Effect) => void, tag?: string) => void;
+  onMove: (by: -1 | 1) => void;
+  onRemove: () => void;
+}) {
+  const name = EFFECT_NAMES[effect.kind];
+  const values = effect as unknown as Record<string, number>;
+  return (
+    <section className="studio-fx" aria-label={name} data-off={!effect.on || undefined}>
+      <div className="studio-fx-head">
+        <Switch label={`${name} on`} hideLabel checked={effect.on} onChange={(on) => onChange((e) => { e.on = on; })} />
+        <h5 className="studio-fx-name">{name}</h5>
+        <IconButton label={`Move ${name} up`} disabled={at === 0} icon={<Icon d="M10 15V5M5.5 9.5 10 5l4.5 4.5" />} onClick={() => onMove(-1)} />
+        <IconButton label={`Move ${name} down`} disabled={at === count - 1} icon={<Icon d="M10 5v10M5.5 10.5 10 15l4.5-4.5" />} onClick={() => onMove(1)} />
+        <IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />
+      </div>
+      {effect.kind === 'delay' && (
+        <Segmented label="Time" wide value={String(effect.time) as (typeof DELAY_TIMES)[number]['value']} choices={DELAY_TIMES} onChange={(v) => onChange((e) => { (e as Extract<Effect, { kind: 'delay' }>).time = Number(v); }, 'fx:time')} />
+      )}
+      <ParamGrid label={`${name} settings`}>
+        {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
+          const r = EFFECT_PARAMS[effect.kind][k]!;
+          return <ParamCell size="compact" key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
+        })}
+      </ParamGrid>
+    </section>
+  );
 }
 
 const INSTRUMENT_CHOICES = INSTRUMENTS.map((i) => ({ value: i, label: INSTRUMENT_NAMES[i] }));
@@ -203,8 +250,8 @@ export function StudioDevice({ track, onTrack, proposal }: {
             </div>
           </div>
           <ParamGrid label="Level">
-            <ParamCell label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-            <ParamCell label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+            <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+            <ParamCell size="compact" label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
           </ParamGrid>
           {sound && base && SOUND_GROUPS.map((g) => (
             <section key={g.name} className="studio-dev-section" aria-label={g.name}>
@@ -218,13 +265,27 @@ export function StudioDevice({ track, onTrack, proposal }: {
             <section className="studio-dev-section" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
               <ParamGrid label="Kit">
-                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
+                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell size="compact" key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
               <p className="studio-dev-note">Every drum in the kit, together. Each drum has its own row in the notes.</p>
             </section>
           )}
         </>
       ) : <p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p>}
+      {track && (
+        <section className="studio-dev-section studio-fx-chain" aria-label="Effects">
+          <h4 className="studio-dev-head">Effects</h4>
+          {(track.fx ?? []).length === 0 && <p className="studio-dev-note">No effects on this track.</p>}
+          {(track.fx ?? []).map((e, i, all) => (
+            <EffectBlock key={e.id} effect={e} at={i} count={all.length}
+              onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
+              onMove={(by) => onTrack((t) => { const fx = t.fx ?? []; const j = fx.findIndex((f) => f.id === e.id); const to = j + by; if (j < 0 || to < 0 || to >= fx.length) return; [fx[j], fx[to]] = [fx[to]!, fx[j]!]; })}
+              onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
+          ))}
+          <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
+            trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
+        </section>
+      )}
       {proposal}
     </div>
   );

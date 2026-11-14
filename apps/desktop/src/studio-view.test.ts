@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipsOf, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { addNote, clipsOf, effectText, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -108,5 +108,14 @@ describe('the Device panel\'s words for a setting', () => {
     expect([panText(0), panText(-0.4), panText(0.25)]).toEqual(['C', 'L 40', 'R 25']);
     expect([kitText('tune', 3), kitText('tune', -2), kitText('tune', 0)]).toEqual(['+3 st', '−2 st', '0 st']);
     expect([kitText('decay', 1.5), kitText('decay', 1)]).toEqual(['1.5×', '1×']);
+  });
+});
+
+describe('the Device panel\'s words for an effect', () => {
+  it('names gains, frequencies, ratios, times and mixes', () => {
+    expect([effectText('eq', 'low', 3), effectText('eq', 'high', -4.5), effectText('eq', 'mid', 0)]).toEqual(['+3.0 dB', '−4.5 dB', '0.0 dB']);
+    expect([effectText('eq', 'midFreq', 1000), effectText('eq', 'midFreq', 450)]).toEqual(['1.0 kHz', '450 Hz']);
+    expect([effectText('compressor', 'threshold', -18), effectText('compressor', 'ratio', 4), effectText('compressor', 'attack', 0.01)]).toEqual(['−18 dB', '4:1', '10 ms']);
+    expect([effectText('reverb', 'size', 2), effectText('delay', 'mix', 0.25)]).toEqual(['2.0 s', '25%']);
   });
 });

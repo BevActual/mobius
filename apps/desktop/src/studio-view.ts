@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, type KitSound, type SongNote, type Sound } from './song-format';
+import { BEATS_PER_BAR, type EffectKind, type KitSound, type SongNote, type Sound } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -196,4 +196,15 @@ export function fromSlider(t: number, lo: number, hi: number, log: boolean): num
   const x = Math.max(0, Math.min(1, t));
   const v = log ? lo * (hi / lo) ** x : lo + x * (hi - lo);
   return Math.round(v * 1000) / 1000;
+}
+
+/** An effect setting as the Device panel shows it: dB, Hz, a ratio, a time or a share. */
+export function effectText(kind: EffectKind, k: string, v: number): string {
+  if (k === 'midFreq') return v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${Math.round(v)} Hz`;
+  if (kind === 'eq' || k === 'makeup') return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`;
+  if (k === 'threshold') return `${v < 0 ? '−' : ''}${Math.abs(Math.round(v))} dB`;
+  if (k === 'ratio') return `${Number(v.toFixed(1))}:1`;
+  if (k === 'attack' || k === 'release') return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+  if (k === 'size') return `${v.toFixed(1)} s`;
+  return `${Math.round(v * 100)}%`;
 }
