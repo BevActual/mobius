@@ -116,6 +116,18 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
 ```
 
+### Waveform view
+
+`WaveformView` draws an audio file for trimming and looping (Music's sampler, which plays the person's own files). Pass `peaks` from `peaksOf(channelData, slices)`, the `duration` in seconds, and a `value` of `{ start, end, loop: { start, end } | null }`.
+- The file's shape is in ink. What's trimmed off greys out.
+- Start and end are full-height edges with a tab at the foot. The loop sits in a strip along the top, and its two edges drag.
+- Pressing the strip when there's no loop adds one, which you can drag to size.
+- Each edge only moves as far as its neighbours allow: start ≤ loop start < loop end ≤ end.
+- Every edge is a slider: arrows move it 10 ms, Shift 100 ms, and Home and End go as far as it can reach.
+- `playhead` draws where it's playing. `onCommit` runs once a drag is let go. `sampleTime` formats times as "0:01.250".
+
+```tsx
+<WaveformView label="Sample" peaks={peaksOf(buffer.getChannelData(0), 400)} duration={buffer.duration} value={range} onChange={setRange} playhead={position} />
 ### Pad grid
 
 `PadGrid` is a drum kit's pads, four to a row (`columns` changes that). Each `Pad` is `{ id, name, color?, key?, empty?, proposed? }`.
