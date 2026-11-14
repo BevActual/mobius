@@ -10,6 +10,8 @@ this one disagree about order or ownership, this page wins and the other page ge
 - **Refine before adding.** No new apps for now. The apps that exist get good first.
 - **One look.** [Instrument](../design/instrument.md) and the [design rules](../design/rules.md) decide how everything
   looks. Apps never hand-build the panel, the composer, slots, cards, drawings or controls.
+- **The Mobius panel is just Mobius.** It has no tabs and holds only Mobius: the chat, its cards and slots, and the
+  composer. An app's own panels (Format, Device, Inspector, Outline, Highlights) live elsewhere in the frame.
 - **One library.** Shared controls live in `apps/desktop/src/ui/`. A gap is fixed in the library, never patched in an
   app. Music is where the library is proven.
 - **Everything in the repo.** Specs, mocks and screenshots live under `docs/` and in pull requests.
@@ -48,6 +50,8 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 | Item | Owner | Status | Unblocks |
 | --- | --- | --- | --- |
+| App panels out of the Mobius panel: the rule, in `docs/design/` | Design lead | Building | The shell change, then one round per app with a panel |
+| App panels out of the Mobius panel: the shell | Builder | Next, ahead of the rest of the shell queue | Docs, Reader, Slides, Design, Photo, Video, Code, Sheets and Music moving their panels |
 | Mail's Triage mode, on the app modes now in the composer | Apps lead | Next | The launch workflow |
 | Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
 | Permission wording and shared selects: Settings, then Agents | Apps lead | Building | Old wording gone from the apps |
