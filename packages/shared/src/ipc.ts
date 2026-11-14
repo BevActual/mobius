@@ -1002,6 +1002,8 @@ export interface AppearanceSettings {
   density: Density;
   /** Whether finished tool steps stay in the conversation. Steps waiting for you are always shown. */
   toolSteps: ToolSteps;
+  /** Whether list views show the small bar of their most useful keys (it also hides itself once the keys are used). */
+  keyHints: boolean;
   /** Whether the browser's side list is open when Mobius starts. */
   sidebarAtStart: boolean;
   /** Whether the conversation you were in is opened again when Mobius starts (otherwise it starts blank). */
@@ -1037,7 +1039,7 @@ export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'doc
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 320 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1328,6 +1330,7 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   textDirection: oneOf<TextDirection>('auto', 'ltr', 'rtl'),
   density: oneOf<Density>('comfortable', 'compact'),
   toolSteps: oneOf<ToolSteps>('show', 'hide-finished'),
+  keyHints: (v): v is boolean => typeof v === 'boolean',
   sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   leftSidebar: oneOf<SidebarMode>('attached', 'floating'),

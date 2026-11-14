@@ -6,9 +6,10 @@ Presentations, played as Keynote plays them.
 
 ![The Slides app in Mobius](../readme/apps/slides.png)
 
-- **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector with two
-  panes: **Slide** (its style and layout) and **Deck** (how long it runs, Play from the start, and Ask Mobius). New
-  slides start from a menu of layouts. Bullets keep their dots while you type them.
+- **Slides** down the side, the chosen one at 16:9 to edit, and its presenter notes in the panel under it (Ctrl+J
+  shows and hides them). Add slide, Duplicate, Delete, Insert picture and Play sit in the toolbar; the arrow beside
+  Add slide starts a new slide from a layout. The **Format** tab, beside Mobius in the right panel, has two panes: **Slide** (its style and layout)
+  and **Deck** (how long it runs, Play from the start, and Ask Mobius). Bullets keep their dots while you type them.
 - **Pictures:** add one with the toolbar's **Insert picture** button, or paste or drop it on the slide. It sits beside the words, or
   fills a slide that has none, and is kept in a `<deck> files` folder beside the deck.
 - **In Play** (in the Slide pane): pick how Play moves on from a slide (None, Dissolve, Push or Move in), and **Skip**

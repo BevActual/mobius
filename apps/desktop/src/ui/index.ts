@@ -22,3 +22,4 @@ export { Segmented, type SegmentChoice } from './Segmented';
 export { Slider, ParamCell, ParamGrid, Meter, Progress, type SliderProps } from './Slider';
 export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, initials, CONTENT_COLORS, type ContentColor } from './Bits';
 export { ListRow } from './ListRow';
+export { KeyHintBar, type KeyHint } from './KeyHintBar';
