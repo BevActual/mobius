@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { GRIDS, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -641,6 +641,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
   const notes = clip ? clip.notes : (track?.notes ?? []);
   const heldPitches = new Set(held.values());
+  const lastHeld = [...held.values()].at(-1);
+  const heldName = lastHeld === undefined ? null : spellIn(lastHeld, song.key);
   // Steps: a row per drum, or for a melody a row per note of the key across two octaves, from the octave picked.
   const octave = track ? (stepOct[track.id] ?? stepOctave(notes, track.instrument === 'bass' ? 2 : 4)) : 4;
   const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: spellIn(p, song.key) }));
@@ -1002,7 +1004,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
-        {keyboard && <span className="studio-keys-at" aria-hidden="true" title="Z X move the octave, C V the velocity">C{keyOctave}<span>{keyVelocity}</span></span>}
+        {keyboard && <span className="studio-keys-at" title="Note and velocity: the note held, else the one A plays. Z and X change octave, C and V velocity"><Readout label="Note and velocity" width={7} formats={[{ name: 'Note', text: `${heldName ?? `C${keyOctave}`} ${keyVelocity}` }]} /></span>}
         <span className="studio-sep" aria-hidden="true" />
         <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>

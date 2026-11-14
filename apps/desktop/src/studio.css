@@ -235,7 +235,6 @@
 .studio-key[data-on] { background: var(--tc); }
 .studio-key[data-black][data-on] { background: linear-gradient(90deg, var(--tc) 0 62%, var(--raised) 62%); }
 .studio-page:focus { outline: none; }
-.studio-keys-at { display: inline-flex; align-items: baseline; gap: var(--sp-1); font: var(--fs-sm) / 1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); white-space: nowrap; }
-.studio-keys-at span { color: var(--muted); }
+.studio-keys-at { display: inline-flex; }
 .studio-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .studio-roll-hint { flex: none; margin: var(--sp-2) var(--sp-3); }
