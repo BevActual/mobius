@@ -36,7 +36,7 @@ Back to [Shared controls](../shared-controls.md). Pictures: light theme, comfort
 | --- | --- |
 | `DateField` | Any day to pick (due dates, event days, snooze). Shows the day in words ("Thu 20 Nov") and opens a 280px popover downward: a line to type into ("tomorrow", "fri 3pm", "20 nov"), the quick picks Today (T), Tomorrow (M), Next week (W) and No date (Backspace) with the day each means in grey, then the month. Arrows move by day, Page Up and Down by month, Home and End to the week's ends, T to today, Enter picks. `onChange(day, time)` gets the time too when one was typed. `proposed` gives the dashed edge; `quick` swaps the quick picks |
 | `TimeField` | A time of day, as minutes since midnight. Takes typing ("9:30", "3pm", "noon") and lists quarter hours scrolled to the time, or to now. With `from` (an end time) the list starts after the start and shows each time's length in grey |
-| `TimeRange` | A start and an end side by side. Moving the start moves the end with it, keeping the length |
+| `TimeRange` | A start and an end side by side, with the length in grey after them (it drops under the times in a narrow panel). Moving the start moves the end with it, keeping the length |
 | `MonthPicker` | The month on its own, for a sidebar or a panel |
 
 Read typed text with `parseDate(text, now)` and `parseTime(text)` from the same module, so apps and the agent read
