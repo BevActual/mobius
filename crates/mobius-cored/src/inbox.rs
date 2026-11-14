@@ -14,6 +14,8 @@ pub enum Inbox {
     Text { turn_id: u64, text: String },
     /// A second model took over a turn because the first one failed.
     Switched { turn_id: u64, model: String, why: String },
+    /// The model call running on a worker thread has finished writing one tool call, and may still be writing more.
+    CallReady { turn_id: u64, call: mobius_agent::message::ToolCall },
     /// A worker thread finished its model call.
     ModelDone { turn_id: u64, result: Result<Completion, ProviderError> },
     /// What a model call used, sent just before its result. `kind` is `chat` or `quick` (a review).

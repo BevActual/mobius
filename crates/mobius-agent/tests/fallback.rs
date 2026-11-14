@@ -146,3 +146,28 @@ fn the_notice_says_what_kind_of_failure_it_was_but_never_repeats_what_the_servic
     let _ = ask(&w);
     assert!(w.notes.lock().unwrap()[0].contains("too busy"));
 }
+
+/// Gives one call early, then fails.
+struct CallsThenFails;
+
+impl Provider for CallsThenFails {
+    fn complete(&self, _: &ChatRequest, _: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        Err(ProviderError::Network("down".into()))
+    }
+
+    fn complete_with_calls(&self, _: &ChatRequest, _: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&mobius_agent::message::ToolCall)) -> Result<Completion, ProviderError> {
+        on_call(&mobius_agent::message::ToolCall { id: "c1".into(), name: "demo.echo".into(), arguments: serde_json::json!({}) });
+        Err(ProviderError::Network("cut short".into()))
+    }
+}
+
+#[test]
+fn no_second_model_once_a_call_was_given_early_since_it_may_have_run() {
+    let second = Arc::new(ScriptedProvider::new(vec![ok("again")]));
+    let provider = FallbackProvider::new(Arc::new(CallsThenFails), second.clone(), "second-model", Box::new(|_, _| {}));
+    let mut given = Vec::new();
+    let result = provider.complete_with_calls(&request(), &mut |_| true, &mut |c| given.push(c.id.clone()));
+    assert!(matches!(result, Err(ProviderError::Network(_))));
+    assert_eq!(given, ["c1"]);
+    assert!(second.requests().is_empty());
+}
