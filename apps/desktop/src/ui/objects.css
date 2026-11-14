@@ -179,12 +179,13 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-tabs { display: flex; align-items: stretch; min-width: 0; height: var(--tab-h); border-bottom: var(--hairline-w) solid var(--line); }
 .ui-tabs-list { display: flex; align-items: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
 .ui-tabs-trailing { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-1); }
-.ui-tab { position: relative; display: flex; align-items: center; flex: none; max-width: calc(var(--card-w) * 0.75); padding: 0 var(--sp-1) 0 var(--sp-3); color: var(--muted); }
-.ui-tab::after { content: ""; position: absolute; left: var(--sp-2); right: var(--sp-2); bottom: calc(var(--hairline-w) * -1); height: var(--focus-w); border-radius: var(--radius-pill); }
+.ui-tab { position: relative; display: flex; align-items: center; flex: none; max-width: calc(var(--card-w) * 0.75); padding: 0 calc(var(--sp-2) + var(--hairline-w) * 2) 0 calc(var(--sp-2) + var(--hairline-w) * 2); color: var(--muted); }
+.ui-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: calc(var(--hairline-w) * -1); height: var(--focus-w); border-radius: var(--radius-pill); }
 .ui-tab[data-current] { color: var(--ink); }
 .ui-tab[data-current]::after { background: var(--ink); }
 .ui-tab[data-by-mobius]::after { background: none; border-bottom: var(--focus-w) dashed var(--mobius); border-radius: 0; height: 0; }
 .ui-tab:hover { color: var(--ink); }
+.ui-tab:hover:not([data-current]) { background: color-mix(in srgb, var(--sel) 50%, transparent); border-radius: var(--radius-control) var(--radius-control) 0 0; }
 .ui-tab-button {
   display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; height: 100%; padding: 0; border: 0;
   background: transparent; color: inherit; font: inherit; font-size: var(--fs-md); white-space: nowrap; cursor: default;
