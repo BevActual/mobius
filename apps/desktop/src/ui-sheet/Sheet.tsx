@@ -153,6 +153,8 @@ function Instruments() {
       <div className="sheet-col sheet-wide"><span className="sheet-note">Automation lanes, 4 bars at 32 per beat: click adds a point and drags it, double-click or Delete removes, arrows nudge (Alt drags off the grid, Ctrl+arrows move between points, Enter adds one a step later). The second is empty, at the setting's own level.</span>
         <AutomationLane label="Volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} onChange={setLane} />
         <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">In a track's colour, with no head (the app names it in its track head): a dragged or focused point shows its place and value beside it.</span>
+        <AutomationLane label="Lead volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} color="violet" head={false} onChange={setLane} /></div>
     </div>
   );
 }

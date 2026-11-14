@@ -564,6 +564,8 @@ export function createTauriBridge(): MobiusBridge {
       createPage: (notebook, title) => call('songs', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Music is not available.' })),
       remove: (path) => call('songs', 'remove', [path], () => ({ ok: false as const, message: 'Music is not available.' })),
       search: (query) => call('songs', 'search', [query], () => []),
+      saveExport: (path, name, data) => call('songs', 'saveExport', [path, name, data], () => ({ ok: false as const, message: 'Music is not available.' })),
+      showExports: () => call('songs', 'showExports', [], () => ({ ok: false as const, message: 'Music is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:songs-changed', listener),
     },
     bookmarks: {
