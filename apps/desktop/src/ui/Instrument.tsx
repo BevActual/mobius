@@ -439,7 +439,7 @@ export interface StepRow { id: string; name: string }
  * across to paint. Keys: arrows move, Space or Enter switches, Shift+Enter accents, + and − change the velocity.
  * `cells[row][step]` is 0 for off, else the velocity (0 to 1). `now` is the step that is playing.
  */
-export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, disabled, className }: {
+export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, stepsPerBeat = 4, velocity = 0.7, accent = 1, now, fill, disabled, className }: {
   label?: string;
   rows: readonly StepRow[];
   cells: readonly (readonly number[])[];
@@ -450,6 +450,8 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
   velocity?: number;
   accent?: number;
   now?: number;
+  /** Stretch the steps across the container's width (up to a wide cell each) instead of keeping them square. */
+  fill?: boolean;
   disabled?: boolean;
   className?: string;
 }) {
@@ -492,6 +494,7 @@ export function StepGrid({ label = 'Steps', rows, cells, onChange, steps = 16, s
       role="group"
       aria-label={label}
       data-disabled={disabled || undefined}
+      data-fill={fill || undefined}
       style={{ '--steps': steps } as CSSProperties}
       onPointerUp={stop}
       onPointerLeave={stop}
