@@ -1274,7 +1274,7 @@ export function App() {
     const prompt = {
       proofread: `Proofread ${what}: fix spelling, grammar and punctuation only. ${inPlace}`,
       friendlier: `Rewrite ${what} so it reads friendlier and warmer, keeping its meaning and my voice. ${inPlace}`,
-      shorter: `Make ${what} about half as long, with the same meaning. ${inPlace}`,
+      shorter: `Make ${what} about half as long, with the same meaning, by cutting what it can do without: keep my own words and phrases where they stay, and do not reword what you keep. ${inPlace}`,
       summarise: `Summarise ${what} in a few short lines. Do not change the document.`,
       comment: `Answer this comment on "${title}" with comments.reply (page ${where}; its id is in brackets, or find it with comments.list):\n${selection ?? ''}\nIf it asks for a change, make it with files.edit and say in the reply what you changed.`,
     }[tool];
