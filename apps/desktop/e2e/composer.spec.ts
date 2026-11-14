@@ -46,9 +46,9 @@ const say = async (text: string) => {
   await composer().press('Enter');
 };
 
-test('the message box has add context, model, effort, dictate and send', async () => {
+test('the message box has add context, mode, permission, model and send', async () => {
   await start();
-  for (const name of ['Add context', 'Model', 'Approvals', 'Dictate']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  for (const name of ['Add context', 'Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
@@ -95,7 +95,7 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   const thinking = menu('Model').getByRole('group', { name: 'Thinking' });
   await expect(thinking.getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
   await thinking.getByRole('menuitemradio', { name: /High/ }).click();
-  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('High');
+  await expect(shell().getByRole('button', { name: 'Model' })).toHaveAttribute('title', /High effort/);
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).reasoningEffort).toBe('high');
   await say('think hard');
   await expect(log().locator('.msg.assistant')).toHaveText('ok');
@@ -194,7 +194,8 @@ test('dictation records, sends the sound to the server\'s speech model, and puts
   await start([], { transcript: 'hello from my voice' });
   await turnEnded(composer());
   await composer().fill('Note:');
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
   await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
@@ -208,11 +209,12 @@ test('dictation records, sends the sound to the server\'s speech model, and puts
 
 test('Escape cancels a recording and nothing is sent', async () => {
   await start([], { transcript: 'should not appear' });
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await expect(shell().getByRole('button', { name: 'Stop dictation' })).toBeVisible();
   await composer().focus();
   await shell().keyboard.press('Escape');
-  await expect(shell().getByRole('button', { name: 'Dictate' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Stop dictation' })).toHaveCount(0);
   await shell().waitForTimeout(400);
   expect(model!.audio).toHaveLength(0);
   await expect(composer()).toHaveValue('');
@@ -220,7 +222,8 @@ test('Escape cancels a recording and nothing is sent', async () => {
 
 test('a server without a speech model is told so, in plain words', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await shell().waitForTimeout(600);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(shell().getByRole('alert').filter({ hasText: 'cannot turn speech into text' })).toBeVisible();
@@ -230,7 +233,8 @@ test('a server without a speech model is told so, in plain words', async () => {
 test('the speech model name can be changed in settings and is the one asked for', async () => {
   await start([], { transcript: 'ok' });
   await shell().evaluate(() => window.mobius.preferences.set({ dictationModel: 'distil-whisper' }));
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  // The mic is in the plus menu in a narrow panel; its shortcut works at any width.
+  await composer().press('Control+Shift+Space');
   await shell().waitForTimeout(600);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();
   await expect(composer()).toHaveValue('ok');
@@ -264,26 +268,45 @@ test('the model menu groups every provider with a key, can be searched, and swit
   }
 });
 
-test('approvals can be changed from the message box and match Settings', async () => {
+test('permission and mode are changed from the message box, and the permission matches Settings', async () => {
   await start();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
-  await shell().getByRole('button', { name: 'Approvals' }).click();
-  await menu('Approvals').getByRole('menuitemradio', { name: /^Act/ }).click();
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Act');
+  const permission = shell().getByRole('button', { name: 'Permission' });
+  await expect(permission).toContainText('Each time');
+  await permission.click();
+  await menu('Permission').getByRole('menuitemradio', { name: /^Auto/ }).click();
+  await expect(permission).toContainText('Auto');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
-  // Shift+Tab in the message box goes on to the next: Ask first, Propose, Act.
-  await composer().press('Shift+Tab');
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Ask first');
-  await composer().press('Shift+Tab');
-  await expect(shell().getByRole('button', { name: 'Approvals' })).toContainText('Propose');
+  await permission.click();
+  await menu('Permission').getByRole('menuitemradio', { name: /^Review changes/ }).click();
+  await expect(permission).toContainText('Review');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
+  // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan.
+  const mode = shell().getByRole('button', { name: 'Mode', exact: true });
+  await expect(mode).toContainText('Agent');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Ask');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Plan');
+  await composer().press('Shift+Tab');
+  await expect(mode).toContainText('Agent');
+});
+
+test('in Ask mode the model is offered only what reads', async () => {
+  await start([says(['Here is what it says.'])]);
+  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Ask/ }).click();
+  await say('what is in my notes?');
+  await expect(log().locator('.msg.assistant')).toHaveText('Here is what it says.');
+  const offered = JSON.stringify(model!.requests.at(-1)!.tools ?? []);
+  expect(offered).not.toContain('files-write');
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Ask mode');
 });
 
 test('effort Off tells a model on this computer not to think', async () => {
   await start([says(['quick'])]);
   await shell().getByRole('button', { name: 'Model' }).click();
   await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /^Off/ }).click();
-  await expect(shell().getByRole('button', { name: 'Model' })).toContainText('Off');
+  await expect(shell().getByRole('button', { name: 'Model' })).toHaveAttribute('title', /Off effort/);
   await say('fast please');
   await expect(log().locator('.msg.assistant')).toHaveText('quick');
   expect(model!.requests.at(-1)).toMatchObject({ chat_template_kwargs: { enable_thinking: false } });

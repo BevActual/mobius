@@ -13,12 +13,11 @@ import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult,
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
-import { modeOf } from './approval-modes';
 import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
-import { appsSeen, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
@@ -331,7 +330,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
@@ -487,7 +486,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
   const [chatsToken, setChatsToken] = useState(0);
-  const [contextOpen, setContextOpen] = useState(false);
   const preferences = usePreferences();
   const [starterSlot, setStarterSlot] = useState<HTMLDivElement | null>(null);
   // Reading replies aloud: a Speak button on each, and, when chosen in Settings, Voice, each new reply by itself.
@@ -533,7 +531,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const lastUser = state.items.findLastIndex((item) => item.kind === 'user');
   const lastAssistant = state.items.findLastIndex((item) => item.kind === 'assistant');
   const proposalAt = proposedPlan(state);
-  const seen = appsSeen(state);
   const settled = !state.busy;
   const copy = async (id: string, text: string) => {
     try {
@@ -608,9 +605,6 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   }, [resting]);
   const [hereOff, setHereOff] = useState<string | null>(null);
   const hereShown = here && here.key !== hereOff ? here : null;
-  // A page in the browser is seen (it can be added from Add context) but does not go by itself.
-  const inView = hereShown?.what ?? (surface?.app === 'browser' && surface.hasPage ? 'this page' : null);
-  const sees = inView ? `Sees ${inView}` : seen.length > 0 ? `Has used ${seen.join(' · ')}` : null;
 
   useLayoutEffect(() => {
     const element = log.current;
@@ -673,22 +667,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         </div>
       </div>
       {below}
-      {/* Nothing to see (no page, nothing open, nothing read yet): no line saying so. */}
-      {!showSettings && sees !== null && (
-        <div className="chat-context">
-          <button type="button" className="chat-context-line" aria-expanded={contextOpen} onClick={() => setContextOpen((o) => !o)} title="What Mobius sees here, and how much it may do">
-            <svg className="chat-context-eye" viewBox="0 0 20 20" aria-hidden="true"><path d="M2.5 10s2.8-5 7.5-5 7.5 5 7.5 5-2.8 5-7.5 5-7.5-5-7.5-5z" /><circle cx="10" cy="10" r="2.2" /></svg>
-            <span className="chat-context-text">{sees} · {modeOf(preferences.value.approvalMode).name}</span>
-            <svg className="chat-context-chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
-          </button>
-          {contextOpen && (
-            <div className="chat-context-more" role="group" aria-label="What Mobius sees">
-              {seen.length > 0 && <p className="chat-sees" title="What Mobius has read from or worked in during this conversation"><span className="chat-sees-label">Has used:</span> <AppLinks names={seen} onOpenItem={onOpenItem} /></p>}
-              <p className="chat-context-rule">What Mobius may do here comes from Settings. <button type="button" className="link-btn" onClick={onOpenSettings}>Change</button></p>
-            </div>
-          )}
-        </div>
-      )}
+      {/* What Mobius sees is the chip in the message box (Instrument: context lives in one place). */}
       {showSettings && settings ? (
         <div className="chat-scroll">
           <Welcome />

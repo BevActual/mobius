@@ -572,7 +572,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, images: vec![], project: None };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +587,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, images: vec![], project: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, images: vec![], project: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -643,6 +643,32 @@ fn a_plan_only_turn_offers_only_the_plan_and_questions_and_runs_nothing_else() {
     let (_t, usual) = w.engine.start(&w.core, vec![], "start", 2);
     let Step::CallModel(r) = &usual else { panic!("{usual:?}") };
     assert!(r.tools.iter().any(|t| t.name == "demo.echo") && r.system == with_rule("You are a test."));
+}
+
+#[test]
+fn ask_mode_offers_only_reading_and_refuses_the_rest() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("e1", "demo.echo", json!({ "text": "sneaky" }))]), text("Here is the answer.")]);
+    let setup = TurnSetup { read_only: true, ..TurnSetup::default() };
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "what is in my notes?", 1, setup);
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert!(!request.tools.iter().any(|t| t.name == "demo.echo"), "a tool that changes things is not offered");
+    assert!(request.system.contains("Ask mode"), "{}", request.system);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 0, "a tool the model was not offered still does not run");
+    let results = tool_messages(&turn);
+    assert!(results[0].2 && results[0].1.contains("Ask mode"), "{results:?}");
+}
+
+#[test]
+fn reading_capabilities_are_the_ones_ask_mode_allows() {
+    for c in ["files.read", "files.list", "web.search", "clock.now", "code.output", "mail.read"] {
+        assert!(mobius_agent::engine::is_reading(c), "{c}");
+    }
+    for c in ["files.write", "mail.draft", "mail.send", "process.exec", "browser.navigate", "demo.echo"] {
+        assert!(!mobius_agent::engine::is_reading(c), "{c}");
+    }
 }
 
 #[test]

@@ -16,7 +16,7 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 320, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 340, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
@@ -76,7 +76,7 @@ describe('context sizes for local models', () => {
 
 describe('where the sidebars sit', () => {
   it('start attached, and each can be set to floating or back, and nothing else', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 320 });
+    expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 340 });
     expect(parseAppearancePatch({ leftSidebar: 'floating' })).toEqual({ leftSidebar: 'floating' });
     // The old navigation choice (sidebar or rail) is gone: the rail is always there. A saved one is ignored.
     expect(parseAppearance({ ...DEFAULT_APPEARANCE, navigation: 'rail' })).toEqual(DEFAULT_APPEARANCE);
@@ -100,7 +100,7 @@ describe('where the sidebars sit', () => {
 
 describe('how wide the sidebars are', () => {
   it('start at the usual widths and accept only widths inside each side\'s range', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftWidth: 248, rightWidth: 320 });
+    expect(DEFAULT_APPEARANCE).toMatchObject({ leftWidth: 248, rightWidth: 340 });
     expect(parseAppearancePatch({ leftWidth: 300, rightWidth: 500 })).toEqual({ leftWidth: 300, rightWidth: 500 });
     expect(parseAppearancePatch({ leftWidth: 200 })).toEqual({ leftWidth: 200 });
     expect(parseAppearancePatch({ leftWidth: 420 })).toEqual({ leftWidth: 420 });
