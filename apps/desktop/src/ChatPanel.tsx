@@ -623,7 +623,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
       const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
       const n = actionKey(event, typing);
       if (n === null) return;
-      const row = target.closest('aside.chat')?.querySelectorAll<HTMLButtonElement>('.actions-list .action-row')[n - 1];
+      const row = target.closest('aside.chat')?.querySelectorAll<HTMLButtonElement>('.actions-list .action-row:not([hidden])')[n - 1];
       if (!row) return;
       event.preventDefault();
       row.click();
