@@ -1,9 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  PadGrid, type Pad,
   DateField, TimeField, TimeRange, MonthPicker,
+  NumberField, Readout, LetterToggle, Transport, LevelMeter, barsLabel, clockLabel, type LevelFeed,
 } from '../ui';
 
 /**
@@ -84,6 +87,59 @@ function Pads() {
       <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
       <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
       <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
+
+function Instruments() {
+  // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
+  const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
+  const [env, setEnv] = useState<Envelope>({ attack: 0.012, decay: 0.3, sustain: 0.55, release: 0.8 });
+  const [filt, setFilt] = useState<FilterValue>({ cutoff: 1800, resonance: 0.3 });
+  const [pan, setPan] = useState(-0.4);
+  const [drive, setDrive] = useState(0);
+  const [tune, setTune] = useState(0);
+  const [kitDecay, setKitDecay] = useState(1);
+  const drums = [['kick', 'Kick'], ['snare', 'Snare'], ['clap', 'Clap'], ['closed', 'Closed hat'], ['open', 'Open hat'], ['tom', 'Tom']].map(([id, name]) => ({ id: id!, name: name! }));
+  const bar = (on: number[], v = 0.7, acc: number[] = []) => Array.from({ length: 16 }, (_, s) => (acc.includes(s) ? 1 : on.includes(s) ? v : 0));
+  const [cells, setCells] = useState<number[][]>([
+    bar([0, 4, 8, 12], 0.7, [0]), bar([4, 12], 0.7), bar([12], 0.5), bar([0, 2, 4, 6, 8, 10, 12, 14], 0.5, [2, 10]), bar([7, 15], 0.6), bar([], 0.7),
+  ]);
+  return (
+    <div className="sheet-instruments">
+      <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
+        <EnvelopeGraph value={env} reset={base} onChange={setEnv} /></div>
+      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (thin muted curve)</span>
+        <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={0.35} onChange={setFilt} /></div>
+      <div className="sheet-col"><span className="sheet-note">Knobs: arcs fill from the origin (pan from C, tune from 0, decay from 1×); values ink once off their default, grey at it</span>
+        <div className="sheet-row">
+          <Knob label="Pan" value={pan} min={-1} max={1} step={0.01} format={panLabel} onChange={setPan} />
+          <Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} />
+          <Knob label="Tune" value={tune} min={-12} max={12} step={1} unit="st" format={(v) => (v > 0 ? `+${v}` : String(v))} onChange={setTune} />
+          <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
+          <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
+        </div></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
+        <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
+    </div>
+  );
+}
+
+function DrumPads() {
+  const names = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Tom', 'Rim', 'Shaker', 'Low tom', 'Crash', 'Cowbell', 'Perc'];
+  const keys = ['Z', 'X', 'C', 'V', 'A', 'S', 'D', 'F', 'Q', 'W', 'E', 'R', '1', '2', '3', '4'];
+  const colors = ['coral', 'amber', 'yellow', 'teal', 'teal', 'violet', 'stone', 'green', 'violet', 'blue', 'pink', 'stone'] as const;
+  const pads: Pad[] = keys.map((key, i) => (names[i]
+    ? { id: `p${i}`, name: names[i]!, key, color: colors[i], proposed: i === 7 }
+    : { id: `p${i}`, name: `Pad ${i + 1}`, key, empty: true }));
+  const [chosen, setChosen] = useState(1);
+  const [lit, setLit] = useState<number[]>([0]);
+  const [tune, setTune] = useState(0);
+  return (
+    <div className="sheet-col"><span className="sheet-note">Press to play and choose (higher on a pad is louder); arrows move, Space plays, a pad&apos;s key plays it. Kick is sounding; Shaker was changed by Mobius (dashed).</span>
+      <PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={lit} onChoose={setChosen} onPlay={(i) => { setLit([i]); setTimeout(() => setLit([]), 120); }}>
+        <div className="sheet-row"><Slider label="Tune" value={tune} min={-12} max={12} step={1} format={(v) => (v > 0 ? `+${v} st` : `${v} st`)} onChange={setTune} /></div>
+      </PadGrid>
     </div>
   );
 }
@@ -329,6 +385,10 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" wide>
+          <ProControls />
+        </Card>
+
         <Card title="Date and time fields (open downward)" wide>
           <Dates />
         </Card>
@@ -337,6 +397,12 @@ export function Sheet() {
           <Pads />
         </Card>
 
+        <Card title="Instrument controls (Music's Device panel and drum kit)" wide>
+          <Instruments />
+        </Card>
+        <Card title="Pad grid (Music's drum kit)">
+          <DrumPads />
+        </Card>
         <Card title="List rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
@@ -384,6 +450,61 @@ function Dates() {
       </div>
       <div className="sheet-month">
         <MonthPicker value={day} onPick={setDay} now={SHEET_NOW} label="Month on its own" />
+      </div>
+    </div>
+  );
+}
+
+function ProControls() {
+  const [tempo, setTempo] = useState(120);
+  const [bars, setBars] = useState(16);
+  const [transpose, setTranspose] = useState(-3);
+  const [playing, setPlaying] = useState(false);
+  const [loop, setLoop] = useState(true);
+  const [click, setClick] = useState(false);
+  const [rec, setRec] = useState(false);
+  const [tracks, setTracks] = useState([
+    { name: 'Drums', m: false, s: true, r: false },
+    { name: 'Bass', m: false, s: false, r: true },
+    { name: 'Keys', m: true, s: false, r: false },
+  ]);
+  const anySolo = tracks.some((t) => t.s);
+  const flip = (i: number, k: 'm' | 's' | 'r') => setTracks((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: !t[k] } : t)));
+  const beats = 45.25; // 12 . 2 . 2 at 4/4
+  const meters = [useRef<LevelFeed>(null), useRef<LevelFeed>(null), useRef<LevelFeed>(null)];
+  const levels = [[-14, -11], [-6, -7.5], [2.5, -1]];
+  useEffect(() => {
+    // Fixed levels so the sheet and its shots hold still; ?live=1 moves them.
+    meters.forEach((m, i) => m.current?.set(...levels[i]!));
+    if (!new URLSearchParams(location.search).has('live')) return;
+    const timer = setInterval(() => meters.forEach((m, i) => m.current?.set(...levels[i]!.map((d) => d - Math.random() * 12))), 33);
+    return () => clearInterval(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="sheet-pro">
+      <div className="sheet-row">
+        <Transport playing={playing} onPlay={() => setPlaying((p) => !p)} onStop={() => setPlaying(false)} recording={rec} onRecord={() => setRec((r) => !r)} loop={loop} onLoop={() => setLoop((l) => !l)} metronome={click} onMetronome={() => setClick((c) => !c)} />
+        <Readout label="Position" size="lg" formats={[{ name: 'Bars', text: barsLabel(beats) }, { name: 'Time', text: clockLabel((beats * 60) / tempo) }]} />
+        <NumberField label="Tempo" hideLabel value={tempo} onChange={setTempo} min={30} max={300} reset={120} unit="BPM" />
+        <Readout label="Time signature" formats={[{ name: '', text: '4/4' }]} />
+      </div>
+      <div className="sheet-row">
+        <NumberField label="Tempo" value={tempo} onChange={setTempo} min={30} max={300} reset={120} unit="BPM" />
+        <NumberField label="Length" value={bars} onChange={setBars} min={1} max={256} reset={16} unit="bars" />
+        <NumberField label="Transpose" value={transpose} onChange={setTranspose} min={-24} max={24} reset={0} signed unit="st" />
+        <NumberField label="Swing" value={0} onChange={() => {}} min={0} max={100} unit="%" disabled />
+        <Readout label="Selection" copy formats={[{ name: 'Time', text: '0:22.5' }]} />
+      </div>
+      <div className="sheet-row sheet-tracks">
+        {tracks.map((t, i) => (
+          <div key={t.name} className="sheet-track">
+            <span className="sheet-track-name">{t.name}</span>
+            <LetterToggle letter="M" label={`Mute ${t.name}`} pressed={t.m} onChange={() => flip(i, 'm')} dimmed={anySolo && !t.s} />
+            <LetterToggle letter="S" label={`Solo ${t.name}`} pressed={t.s} onChange={() => flip(i, 's')} />
+            <LetterToggle letter="R" label={`Arm ${t.name}`} pressed={t.r} onChange={() => flip(i, 'r')} armed />
+            <LevelMeter ref={meters[i]} label={`${t.name} level`} />
+          </div>
+        ))}
       </div>
     </div>
   );

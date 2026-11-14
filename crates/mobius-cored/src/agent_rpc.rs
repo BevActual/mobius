@@ -1,5 +1,5 @@
 //! The `agent.*` methods, and the worker threads that call models.
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
@@ -33,6 +33,8 @@ const READ_BACK: &str = "When a tool has changed something (a task, an event, a 
 from what the tool returned: \"Added 3 tasks to P2 build\". If a result says it failed or changed less than you asked, say that instead; never report a change \
 the results do not show.";
 const MAX_MODEL_NAME_CHARS: usize = 200;
+/// How many recent turns Best fit's choice of the quick model is remembered for.
+const MAX_QUICK_TURNS: usize = 32;
 const MAX_SYSTEM_PROMPT_CHARS: usize = 8_000;
 /// What a conversation may use for its instructions: the usual ones and a bot's added to them.
 const MAX_TURN_SYSTEM_CHARS: usize = 16_000;
@@ -94,6 +96,9 @@ struct SendParams {
     /// Ask mode: the turn only reads and answers; nothing that changes things runs.
     #[serde(default)]
     ask: bool,
+    /// Best fit: answer this turn with the quick model when one is set (the chat model steps in when it cannot).
+    #[serde(default)]
+    quick: bool,
     /// The project the conversation belongs to: its rules count for this turn.
     #[serde(default)]
     project: Option<String>,
@@ -123,6 +128,8 @@ pub struct Agent {
     fallback: Option<(Arc<dyn Provider>, String)>,
     /// The model for quick jobs, if one is chosen; the chat model answers when it cannot.
     quick: Option<(Arc<dyn Provider>, String)>,
+    /// Turns Best fit sent to the quick model.
+    quick_turns: VecDeque<u64>,
     model: Option<String>,
     max_steps: u32,
     inbox: SyncSender<Inbox>,
@@ -267,7 +274,7 @@ fn host_error(error: &HostError) -> ExtensionError {
 impl Agent {
     pub fn new(inbox: SyncSender<Inbox>, store: Box<dyn ConversationStore>) -> Result<Self, mobius_core::model::ModelError> {
         let principal = Principal::new(PrincipalKind::Agent, "mobius-agent")?;
-        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, quick: None, model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new() })
+        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, quick: None, quick_turns: VecDeque::new(), model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new() })
     }
 
     pub fn set_claude(&mut self, claude: ClaudeSetup) {
@@ -367,6 +374,14 @@ impl Agent {
                         inbox.send(Inbox::ModelDone { turn_id, result: Err(ProviderError::Protocol("no model is set up".to_owned())) }).ok();
                         continue;
                     };
+                    let mut request = request;
+                    // Best fit sent this turn to the quick model; the chat model answers when it cannot.
+                    if self.quick_turns.contains(&turn_id)
+                        && let Some((quick, quick_model)) = self.quick.clone()
+                    {
+                        let chat_model = std::mem::replace(&mut request.model, quick_model);
+                        provider = Arc::new(FallbackProvider::new(quick, provider, chat_model, Box::new(|_, _| {})));
+                    }
                     if let Some((second, second_model)) = self.fallback.clone() {
                         let told = inbox.clone();
                         provider = Arc::new(FallbackProvider::new(
@@ -508,6 +523,13 @@ impl Extension for Agent {
                 }
                 let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()) };
                 let (turn, outs) = self.host.send_with(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
+                if p.quick && p.model.is_none() && self.quick.is_some() {
+                    // The last few turns Best fit sent to the quick model; older ones have long finished.
+                    if self.quick_turns.len() >= MAX_QUICK_TURNS {
+                        self.quick_turns.pop_front();
+                    }
+                    self.quick_turns.push_back(turn);
+                }
                 self.queued.extend(outs);
                 Ok(json!({ "turn": turn }))
             }),

@@ -734,6 +734,24 @@ fn the_quick_model_reviews_when_one_is_chosen_and_the_chat_model_does_the_rest()
 }
 
 #[test]
+fn best_fit_sends_a_short_question_to_the_quick_model_and_the_rest_to_the_chat_model() {
+    let chat = fake(vec![says(&["A long answer."], 0)]);
+    let quick = fake(vec![says(&["Noon."], 0)]);
+    let mut d = Daemon::start(&[]);
+    d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    d.call(2, "agent.send", json!({ "conversation": "c1", "text": "what time is it", "quick": true }));
+    d.until_event("done");
+    d.call(3, "agent.send", json!({ "conversation": "c1", "text": "plan the whole build week" }));
+    d.until_event("done");
+    let quicked = quick.bodies.lock().unwrap().clone();
+    assert_eq!(quicked.len(), 1, "only the short question went to the quick model");
+    assert_eq!(quicked[0]["model"], "quick-model");
+    let chatted = chat.bodies.lock().unwrap().clone();
+    assert_eq!(chatted.len(), 1);
+    assert_eq!(chatted[0]["model"], "chat-model");
+}
+
+#[test]
 fn a_deny_from_the_reviewer_reaches_the_person_as_a_once_only_question() {
     let server = fake(vec![calls("demo-echo", "{}"), says(&["DENY"], 0), says(&["Done."], 0)]);
     let mut d = Daemon::start(&["--demo-tools"]);

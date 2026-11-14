@@ -116,6 +116,21 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
 ```
 
+### Pad grid
+
+`PadGrid` is a drum kit's pads, four to a row (`columns` changes that). Each `Pad` is `{ id, name, color?, key?, empty?, proposed? }`.
+- Pressing a pad calls `onChoose(i)` and `onPlay(i, velocity)`. Higher on the pad plays louder, as on a hardware pad. `onRelease` runs when the press ends.
+- `lit` pads flash in ink as they sound, so a playing pattern shows on the pads.
+- The chosen pad has an ink ring, and its settings (`children`) show under the grid with its name.
+- Keys: arrows move between pads, Space or Enter plays, and a pad's own `key`, shown in its corner, plays it from anywhere in the grid.
+- An empty pad has a plain edge and says Empty. A pad Mobius changed has the dashed indigo edge.
+
+```tsx
+<PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={sounding} onChoose={setChosen} onPlay={(i, v) => kit.play(i, v)}>
+  <ParamGrid>…the chosen drum's Tune, Decay, Tone…</ParamGrid>
+</PadGrid>
+```
+
 ### Popover and choice menus
 
 | Control | Use it for |
@@ -149,8 +164,41 @@ Read typed text with `parseDate(text, now)` and `parseTime(text)` from the same 
 dates the same way. Week start, day and month order, and the 12 or 24 hour clock come from `dates.ts` (`weekStart`,
 `dayMonthOrder`, `uses12Hour`); never set them per app.
 
+### Pro controls
+
+Music uses these first, and then Video, Photo, Design and Code. Live values use the mono face with tabular figures, so they never jitter.
+
+| Control | Use it for |
+| --- | --- |
+| `NumberField` | A number you can type, nudge or scrub: tempo, bars, transpose, frame, size. Arrows nudge it, Shift+arrows by ten, Page Up and Down by ten, Home and End to the ends. Drag up or down to scrub, with Shift for fine control. Enter or a typed figure opens it for typing and Escape cancels. Double-click goes back to `reset`. Out-of-range values are clamped, and the tooltip says so. Props: `min`, `max`, `step`, `unit` (grey), `signed` and `decimals`. `onCommit` fires once per drag, key or typed value, for undo |
+| `Readout` | A read-only live value at a fixed width ("12 . 3 . 2"). With more than one entry in `formats`, a click switches between them (Bars and Time). With `copy`, a click copies it. `size="lg"` for the transport position. Use `barsLabel(beats)` and `clockLabel(seconds)` to write the text |
+| `LetterToggle` | M (mute), S (solo) and R (record) on a track, and lock and hide on a layer. `label` is its full name ("Mute Drums"). `armed` turns an R red while it is on. `dimmed` greys the letter of a track that another track's solo silences |
+| `Transport` | Play/Pause, Stop, then the latching Record, Loop and Metronome. The app binds the keys itself, so pass `keys` to make the tooltips match (Space, Enter, R, L and K by default) |
+| `LevelMeter` | A vertical level meter per track and on the master, stereo by default, from -60 to +6 dB. Feed it through a ref, with `ref.current.set(leftDb, rightDb)` about 30 times a second. It writes straight to the bars, so nothing re-renders. The peak holds for 1.5 seconds and then falls. Only the part over 0 dB is red, and the clip light stays lit until it is clicked (or `reset()` is called) |
+
+A step grid and the timeline pieces (ruler, playhead, clip, lane) come next, shaped by what Music needs.
+
 Popovers that stay in place and toasts other than the undo pill are not shared yet; ask the library thread before
 building one in an app.
+
+### Instrument controls
+
+What a synth's or drum kit's Device panel draws. Music uses them first; Video's audio and any sound preview can use them later. They follow the same keys as the sliders. Arrows nudge, moving a twelfth of an octave on a log scale, and Shift nudges more. Double-click or Home puts a value back to `reset`. `onCommit` runs once when a drag or a key is let go.
+
+| Control | Use it for |
+| --- | --- |
+| `Knob` | A `ParamCell` drawn as a dial, with the same props (`label`, `value`, `min`, `max`, `step`, `scale`, `origin`, `reset`, `format`, `unit`), so swapping between them is one line. Use it for a dense row, such as pan or sends, where a slider is too wide. Drag up or down to turn it, with Shift for fine control. The arc fills from the origin. `panLabel` formats pan as "L 40", "C" and "R 40" |
+| `EnvelopeGraph` | Attack, decay, sustain and release drawn as one shape. It has three handles: the peak sets attack, the decay corner sets decay across and sustain up (Up and Down on the keyboard), and the end sets release. The four values read underneath, grey until they move from `reset`. `ranges` defaults to Music's: attack 1 ms to 2 s, decay 10 ms to 4 s and release 20 ms to 4 s, all log |
+| `FilterGraph` | A two-pole filter's curve across `min` to `max` Hz (log), with one point: across is cutoff, up is resonance, and the point sits on the curve's peak. `type` is `'lowpass'` (default), `'highpass'` or `'bandpass'`. `q` maps resonance (0 to 1) to Q, using Music's `musicQ` unless given. `envAmount` and `envOctaves` add a thin muted curve (solid: dashes mean Mobius made something) where a note's envelope opens it to |
+| `StepGrid` | Drum rows by steps. `cells[row][step]` is 0 for off, otherwise the velocity (0 to 1), drawn as an ink fill to that height, so every hit reads as on and an accent is a full cell. Click switches a step on or off, Shift+click sets an accent, and dragging across paints. With the keyboard, arrows move, Space or Enter switches, Shift+Enter sets an accent, and + and − change velocity. The grid takes one Tab stop. `now` outlines the playing step, and every other beat is shaded |
+
+```tsx
+<EnvelopeGraph value={sound.env} reset={base.env} onChange={(env) => set({ env })} />
+<FilterGraph value={{ cutoff, resonance }} min={80} max={12000} envAmount={sound.filterEnv} onChange={setFilter} />
+<StepGrid label="Drums" rows={DRUM_ROWS} cells={pattern} now={playingStep} onChange={setStep} />
+```
+
+More controls are added one at a time.
 
 ## Adopting the frame
 
