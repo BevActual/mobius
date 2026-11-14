@@ -88,3 +88,9 @@
 @keyframes files-pulse { to { opacity: 0.45; } }
 /* The shared empty state fills the space between the toolbar and the path bar, not the whole page. */
 .files-page > .empty-state { flex: 1 1 auto; min-height: 0; }
+
+/* Drives: the form that adds one, in the same column as the list. */
+.drive-form { display: flex; flex-direction: column; gap: var(--sp-2); width: min(100%, 440px); margin: var(--sp-6) auto 0; }
+.drive-lede { margin: 0 0 var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); line-height: 1.5; }
+.drive-hint { margin: -2px 0 var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
+.drive-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }

@@ -442,6 +442,8 @@ export function createTauriBridge(): MobiusBridge {
       mkdir: (id, path) => call('drives', 'mkdir', [id, path], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
       move: (id, from, to) => call('drives', 'move', [id, from, to], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
       delete: (id, path, etag) => call('drives', 'delete', [id, path, etag], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
+      download: (id, path, folder) => call('drives', 'download', [id, path, folder], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
+      upload: (id, path, folder) => call('drives', 'upload', [id, path, folder], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
       onChanged: (listener) => on<DrivesChanged>('mobius:drives-changed', listener),
     },
     notes: {

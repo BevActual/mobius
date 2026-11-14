@@ -36,6 +36,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [message, setMessage] = useState('');
   // The latest values, for the save timer and the change listener (which outlive a render).
+  // How many times the open page was read again because Mobius (or an undo) changed it, so a review can be worked out
+  // again from what is on screen now.
+  const [reloads, setReloads] = useState(0);
   const live = useRef({ page, text, status });
   live.current = { page, text, status };
   const timer = useRef<number | undefined>(undefined);
@@ -185,7 +188,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
       }
       const { page: p, status: s } = live.current;
       const action = onPageChanged(s, p !== null && change.path === p.path, change.by);
-      if (action === 'reload' && p) void load(p.path, p.title);
+      if (action === 'reload' && p) void load(p.path, p.title).then(() => setReloads((n) => n + 1));
       if (action === 'ask') setStatus('conflict');
     });
   }, [active, api, refresh, load, remembered, kind]);
@@ -199,7 +202,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     void load(path, title);
   }, [load]);
 
-  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, reloads, open, edit, resolve, createNotebook, createPage, remove, search };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;

@@ -34,6 +34,9 @@ describe('what each app suggests', () => {
     const first = suggestionsFor({ app: 'calendar', hasPage: false, note: null })[0]!;
     expect(first.label).toBe('Find a time with…');
     expect(isStarter(first)).toBe(true);
+    // The box shows the person's words, not the steps behind them.
+    expect(first.box).toBe('Find a time with ');
+    expect(first.prompt).toContain('say nothing until the end');
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
     for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
@@ -46,7 +49,7 @@ describe('what each app suggests', () => {
     expect(tidyFolder('Downloads')).toContain('one files.move call');
     expect(tidyFolder('Downloads')).toContain('Delete nothing.');
     // What the second demo run showed: two approvals to list, twelve folders, and three different counts.
-    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself']) expect(tidyFolder('Downloads')).toContain(words);
+    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number']) expect(tidyFolder('Downloads')).toContain(words);
   });
   it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
@@ -59,7 +62,7 @@ describe('what each app suggests', () => {
     for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
     // What the third demo run showed: a task due tomorrow was planned for today, and two replies were drafted.
-    for (const words of ['not for today', 'draft no others', 'one line of a few words']) expect(PLAN_MY_DAY).toContain(words);
+    for (const words of ['not for today', 'draft no others', 'one line of a few words', 'back to back', 'Focus time']) expect(PLAN_MY_DAY).toContain(words);
   });
   it('leads an open sheet with What stands out?, which leaves its working in the sheet as formulas', () => {
     const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];

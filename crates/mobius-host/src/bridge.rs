@@ -1308,7 +1308,7 @@ impl Bridge {
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
         stage.store(1, std::sync::atomic::Ordering::Relaxed);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1408,6 +1408,22 @@ impl Bridge {
         }
         if crate::images::is_image_tool(tool) {
             return self.image_tool(&args).map(Value::String);
+        }
+        if mobius_workspace::photos::is_photo_tool(tool) {
+            let result = self.photos.run(tool, &args).map(Value::String);
+            if result.is_ok() {
+                // Photo reads the album again; the turn's marks say which photos changed.
+                (self.emit)("mobius:photos-changed", json!({ "path": null, "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::design::is_design_tool(tool) {
+            let result = mobius_workspace::design::Designs::new(self.data_dir.join("workspace")).run(tool, &args).map(Value::String);
+            if result.is_ok() {
+                let path = args.get("design").and_then(Value::as_str).map(|d| format!("{}.json", d.trim().trim_start_matches("designs/").trim_end_matches(".json")));
+                (self.emit)("mobius:designs-changed", json!({ "path": path, "by": "assistant" }));
+            }
+            return result;
         }
         if crate::drives::is_drive_tool(tool) {
             let (said, changed) = self.drives.run(tool, &args, &self.workspace)?;
@@ -1745,7 +1761,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -3051,6 +3067,8 @@ impl Bridge {
     /// are the person's own requests from the window; the agent's way in asks every time.
     fn drives_call(&self, method: &str, args: &[Value]) -> Value {
         use base64::Engine;
+        // The workspace says "that file is not there"; drives speak in sentences.
+        let sentence = |e: &str| { let mut c = e.chars(); c.next().map(|f| format!("{}{}.", f.to_uppercase(), c.as_str())).unwrap_or_default() };
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let drives = &self.drives;
         let changed = |drive: &str, path: &str| (self.emit)("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "person" }));
@@ -3094,6 +3112,20 @@ impl Bridge {
                         changed(id, path);
                         json!({ "ok": true })
                     }),
+                    // Files (Drives): copying between a drive and the workspace, never over anything on either side.
+                    "download" => drive.read(path).and_then(|file| {
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        self.workspace.add_file(text(2).unwrap_or(""), name, &file.bytes).map_err(|e| sentence(&e))
+                    }).map(|copied| json!({ "ok": true, "path": copied })),
+                    "upload" => {
+                        let folder = text(2).unwrap_or("");
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        let to = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+                        self.workspace.read_file(path, crate::drives::MAX_FILE).map_err(|e| sentence(&e)).and_then(|bytes| drive.write(&to, &bytes, None)).map(|_| {
+                            changed(id, &to);
+                            json!({ "ok": true, "path": to })
+                        })
+                    }
                     _ => Err(format!("Drives cannot {method}.")),
                 }
             }),

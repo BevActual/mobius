@@ -571,14 +571,25 @@ impl Drives {
                 let path = need("path")?;
                 let file = drive.read(path)?;
                 let name = path.trim_matches('/').rsplit('/').next().unwrap_or(path);
-                let to = arg("to").unwrap_or(name);
-                workspace.add_file(to, &file.bytes)?;
-                Ok((format!("Copied {path} from {} to {to} in the workspace ({}).", account.name, kb(file.bytes.len() as u64)), None))
+                let to = arg("to").unwrap_or(name).trim_matches('/');
+                let (folder, file_name) = to.rsplit_once('/').unwrap_or(("", to));
+                // Make the folders it goes in; one already there is fine.
+                let mut parent = String::new();
+                for part in folder.split('/').filter(|p| !p.is_empty()) {
+                    let next = if parent.is_empty() { part.to_owned() } else { format!("{parent}/{part}") };
+                    if !workspace.locate(&next).is_ok_and(|p| p.is_dir()) {
+                        workspace.new_folder(&parent, part)?;
+                    }
+                    parent = next;
+                }
+                // Never over a workspace file: a taken name gets " 2", " 3".
+                let landed = workspace.add_file(&parent, file_name, &file.bytes)?;
+                Ok((format!("Copied {path} from {} to {landed} in the workspace ({}).", account.name, kb(file.bytes.len() as u64)), None))
             }
             "drives.write" => {
                 let path = need("path")?;
                 let bytes = match (arg("from"), args.get("text").and_then(Value::as_str)) {
-                    (Some(from), _) => workspace.read_bytes(from, MAX_FILE)?,
+                    (Some(from), _) => workspace.read_file(from, MAX_FILE)?,
                     (None, Some(text)) => text.as_bytes().to_vec(),
                     (None, None) => return Err("drives.write needs text or a workspace file (from)".into()),
                 };
@@ -868,7 +879,9 @@ pub(crate) mod tests {
         // Into the workspace and back.
         run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap();
         assert_eq!(std::fs::read_to_string(dir.path().join("workspace/plan.md")).unwrap(), "# Lisbon and Porto");
-        assert!(run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap_err().contains("already in the workspace"));
+        assert!(run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap().0.contains("to plan 2.md"), "never over a workspace file");
+        run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "to": "Trips/Lisbon/plan.md" })).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.path().join("workspace/Trips/Lisbon/plan.md")).unwrap(), "# Lisbon and Porto");
         std::fs::write(dir.path().join("workspace/plan.md"), [0u8, 159, 146, 150]).unwrap();
         run("drives.write", json!({ "drive": "Cloud", "path": "Trips/photo.bin", "from": "plan.md" })).unwrap();
         assert!(run("drives.read", json!({ "drive": "Cloud", "path": "Trips/photo.bin" })).unwrap().0.contains("drives.fetch"), "not text: described");
