@@ -1,0 +1,127 @@
+/*
+ * Instrument controls (Instrument.tsx): Knob, EnvelopeGraph, FilterGraph, StepGrid. Ink on paper with hairlines,
+ * values in the mono face, the focus ring for keys only. Values come only from tokens.css.
+ */
+
+/* Knob: the name above, a 270° dial, the value under it. */
+.ui-knob { display: inline-grid; justify-items: center; gap: var(--sp-1); min-width: var(--knob-size); }
+.ui-knob[data-disabled] { opacity: 0.45; }
+.ui-knob-dial { width: var(--knob-size); height: var(--knob-size); border-radius: var(--radius-pill); touch-action: none; cursor: ns-resize; outline: 0; }
+.ui-knob[data-disabled] .ui-knob-dial { pointer-events: none; }
+.ui-knob-dial:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-knob-dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
+/* The dial is drawn in a 32-unit box at --knob-size: a light track (about 2 pixels) under a stronger value arc and pointer (about 3). */
+.ui-knob-track, .ui-knob-fill { fill: none; stroke-linecap: round; }
+.ui-knob-track { stroke: var(--line); stroke-width: 1.8; }
+.ui-knob-fill { stroke: var(--ink); stroke-width: 2.7; }
+.ui-knob-tick { stroke: var(--muted); stroke-width: 2.7; stroke-linecap: round; }
+.ui-knob[data-changed] .ui-knob-tick, .ui-knob-dial[data-dragging] .ui-knob-tick { stroke: var(--ink); }
+.ui-knob-value {
+  display: flex; align-items: baseline; gap: calc(var(--sp-1) / 2); font: var(--fw-regular) var(--fs-sm) / 1.2 var(--font-mono);
+  color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.ui-knob[data-changed] .ui-knob-value { color: var(--ink); }
+
+/* Graphs: a framed surface with the shape in ink over a faint fill, handles on its corners, values underneath. */
+.ui-graph { display: grid; gap: var(--sp-2); min-width: 0; }
+.ui-graph[data-disabled] { opacity: 0.45; pointer-events: none; }
+.ui-graph-surface {
+  position: relative; height: var(--graph-h); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control);
+  background: var(--paper); touch-action: none;
+}
+/* The plot is inset by a handle's size so a corner at the edge stays whole; handles and shape share its box. */
+.ui-graph-plot { position: absolute; inset: var(--handle-size); }
+.ui-graph-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.ui-graph-area { fill: color-mix(in srgb, var(--ink) 8%, transparent); stroke: none; }
+.ui-graph-line { fill: none; stroke: var(--ink); stroke-width: calc(var(--hairline-w) * 2); stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+/* Where the envelope opens the filter: solid and muted (dashes mean Mobius made it). */
+.ui-graph-line[data-ghost] { stroke: var(--muted); stroke-width: var(--hairline-w); }
+.ui-graph-guide { stroke: var(--line-soft); stroke-width: var(--hairline-w); vector-effect: non-scaling-stroke; }
+.ui-graph-handle {
+  position: absolute; width: var(--handle-size); height: var(--handle-size); margin: calc(var(--handle-size) / -2) 0 0 calc(var(--handle-size) / -2);
+  border-radius: var(--radius-pill); background: var(--paper); box-shadow: inset 0 0 0 calc(var(--hairline-w) * 2) var(--ink);
+  cursor: grab; outline: 0;
+}
+.ui-graph-handle::after { content: ''; position: absolute; inset: calc((var(--hit-min) - var(--handle-size)) / -2); border-radius: var(--radius-pill); }
+.ui-graph-handle:hover, .ui-graph-handle[data-held] { background: var(--ink); }
+.ui-graph-handle[data-held] { cursor: grabbing; }
+.ui-graph-handle:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-graph-readout { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-2); margin: 0; }
+.ui-graph-readout div { min-width: 0; }
+/* Names in sentence case, small and grey (Instrument). */
+.ui-graph-readout dt, .ui-knob-name { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap; }
+.ui-graph-readout dd {
+  margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font: var(--fw-regular) var(--fs-md) / 1.4 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ui-graph-readout [data-changed] dd { color: var(--ink); }
+
+/* Step grid: the names, then the steps in beats of four, a fill from the bottom for velocity. */
+.ui-steps { display: grid; gap: var(--step-gap); min-width: 0; }
+.ui-steps[data-disabled] { opacity: 0.45; }
+.ui-steps-row { display: grid; grid-template-columns: var(--step-name-w) repeat(var(--steps), var(--step-size)); align-items: center; column-gap: var(--step-gap); }
+.ui-steps-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--body); }
+.ui-steps .ui-step {
+  position: relative; width: var(--step-size); height: var(--step-size); padding: 0; border: 0; border-radius: var(--radius-small);
+  background: var(--sel); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); cursor: default; overflow: hidden;
+}
+.ui-steps .ui-step[data-beat] { background: var(--frame); }
+.ui-steps .ui-step:hover:not(:disabled) { background: var(--sel); box-shadow: inset 0 0 0 var(--hairline-w) var(--muted); }
+.ui-steps .ui-step::after {
+  content: ''; position: absolute; inset: auto 0 0 0; height: calc(var(--vel, 0) * 100%); background: var(--ink);
+}
+.ui-steps .ui-step[data-now] { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+.ui-steps .ui-step:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); z-index: 1; }
+
+/* A numbered handle (an EQ band): a larger dot with its number; the chosen band is filled. */
+.ui-graph-handle[data-mark] {
+  width: var(--band-dot); height: var(--band-dot); margin: calc(var(--band-dot) / -2) 0 0 calc(var(--band-dot) / -2);
+  display: grid; place-items: center; font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); color: var(--ink);
+}
+.ui-graph-handle[data-mark][data-selected], .ui-graph-handle[data-mark]:hover, .ui-graph-handle[data-mark][data-held] { background: var(--ink); color: var(--paper); }
+/* Gain guides away from 0 dB: solid hairlines, fainter than the 0 dB line (dots and dashes are Mobius's mark). */
+.ui-graph-guide[data-faint] { opacity: 0.55; }
+/* Axis labels inside the plot: dB at the left edge, hertz along the foot. */
+.ui-graph-axis { position: absolute; font: var(--fw-regular) var(--fs-floor) / 1 var(--font-mono); color: var(--faint); pointer-events: none; font-variant-numeric: tabular-nums; }
+.ui-graph-axis[data-axis="y"] { left: 0; translate: 0 -120%; }
+.ui-graph-axis[data-axis="x"] { bottom: 0; translate: -50% -30%; }
+
+/* EQ readout: a column per band, the chosen one in ink. */
+.ui-eq-readout div { display: grid; gap: 0; }
+.ui-eq-readout div[data-chosen] dt, .ui-eq-readout div[data-chosen] dd { color: var(--ink); }
+.ui-eq-readout dd { font-size: var(--fs-sm); line-height: 1.35; }
+.ui-eq-readout div[data-off] dd { text-decoration: line-through; }
+
+/* Device chain: devices in a row, in signal order; the row scrolls sideways. */
+.ui-chain { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; overflow-x: auto; padding-bottom: var(--sp-1); }
+.ui-device {
+  display: flex; flex-direction: column; flex: none; min-width: var(--device-min-w); border: var(--hairline-w) solid var(--line);
+  border-radius: var(--radius-control); background: var(--paper);
+}
+.ui-device[data-collapsed] { min-width: 0; }
+.ui-device[data-dragging] { box-shadow: var(--shadow-2); }
+.ui-device[data-proposed] { border: var(--hairline-w) dashed var(--mobius); }
+.ui-device-head {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--device-head-h); padding: 0 var(--sp-2);
+  border-bottom: var(--hairline-w) solid var(--line-soft);
+}
+.ui-device[data-collapsed] .ui-device-head { border-bottom: 0; }
+.ui-device-title {
+  flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
+}
+.ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
+  display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
+  background: transparent; color: var(--muted); cursor: default;
+}
+.ui-device-head .ui-device-grip { width: calc(var(--hit-min) / 2); cursor: grab; touch-action: none; }
+.ui-device[data-dragging] .ui-device-grip { cursor: grabbing; }
+.ui-device-head .ui-device-grip:hover:not(:disabled), .ui-device-head .ui-device-fold:hover:not(:disabled) { background: var(--sel); color: var(--ink); }
+.ui-device-grip:focus-visible, .ui-device-fold:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.ui-device-grip svg { width: 40%; fill: currentColor; }
+.ui-device-fold svg { width: 50%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ui-device-body { padding: var(--sp-3); }
+.ui-device[data-off] .ui-device-body { opacity: 0.45; }
+/* An EQ needs more height than an envelope: ±18 dB has to read. */
+.ui-eq .ui-graph-surface { height: var(--eq-h); }
