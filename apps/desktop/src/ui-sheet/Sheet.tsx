@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
-  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
@@ -10,6 +10,7 @@ import {
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
+  Chart, Sparkline,
 } from '../ui';
 
 /**
@@ -115,6 +116,24 @@ function Wave() {
   );
 }
 
+function WarmerDemo() {
+  const cool = { cutoff: 6400, drive: 0.1, width: 0.3 };
+  const warm = { cutoff: 1400, drive: 0.45, width: 0.3 };
+  const [v, setV] = useState(cool);
+  const [proposed, setProposed] = useState(false);
+  const pctText = (x: number) => `${Math.round(x * 100)}%`;
+  return (
+    <div className="sheet-row">
+      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={proposed && v.cutoff !== cool.cutoff} onChange={(cutoff) => setV({ ...v, cutoff })} />
+      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} />
+      <Knob label="Width" value={v.width} min={0} max={1} step={0.01} format={pctText} onChange={(width) => setV({ ...v, width })} />
+      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
+      {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -146,6 +165,8 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
+      <div className="sheet-col"><span className="sheet-note">Mobius proposes "warmer": the changed settings glide to their new values and stay indigo and dashed until kept</span>
+        <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps with fill: the same grid stretched across the width, each step up to a wide cell</span>
@@ -155,6 +176,29 @@ function Instruments() {
         <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">In a track's colour, with no head (the app names it in its track head): a dragged or focused point shows its place and value beside it.</span>
         <AutomationLane label="Lead volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} color="violet" head={false} onChange={setLane} /></div>
+    </div>
+  );
+}
+
+function Charts() {
+  const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  const money = (v: number) => `$${v.toLocaleString('en-US')}`;
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-col"><span className="sheet-note">Columns, two series: legend above, value tooltip on hover or arrow keys</span>
+        <Chart label="P2 build spend by month" categories={months} format={money}
+          series={[{ name: 'Parts', values: [4200, 5100, 4800, 6900, 7400, 6100] }, { name: 'Labour', values: [2600, 2900, 3100, 3600, 3900, 3300] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Line, three series in the people's own colours; a gap where a value is missing</span>
+        <Chart label="Cells tested per week" kind="line" categories={['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']}
+          series={[{ name: 'Veltro', color: 'teal', values: [12, 18, 22, 21, 30, 34, 33, 41] }, { name: 'Axion', color: 'violet', values: [8, 9, 14, null, 19, 23, 27, 26] }, { name: 'Northway', color: 'amber', values: [3, 6, 6, 10, 12, 12, 15, 20] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Area, one series (no legend: the label names it); Mobius made it, so dashed until kept</span>
+        <Chart label="Range at 20 °C, km" kind="area" proposed height={200} categories={['0%', '20%', '40%', '60%', '80%', '100%']}
+          series={[{ name: 'Range', color: 'blue', values: [0, 64, 131, 199, 262, 318] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Sparklines for a Views tile: no axes, the last value marked</span>
+        <div className="sheet-sparks">
+          <span>Inbox</span><Sparkline label="Unread mail, last 14 days" values={[14, 12, 15, 9, 11, 8, 7, 9, 6, 5, 7, 4, 3, 2]} />
+          <span>Tasks done</span><Sparkline label="Tasks done, last 14 days" color="green" area values={[1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9]} />
+        </div></div>
     </div>
   );
 }
@@ -503,6 +547,9 @@ export function Sheet() {
         </Card>
         <Card title="Pad grid (Music's drum kit)" shot="pads">
           <DrumPads />
+        </Card>
+        <Card title="Charts (Sheets, Views tiles)" shot="charts" wide>
+          <Charts />
         </Card>
         <Card title="List rows" shot="list-rows" wide>
           <div className="sheet-grid">
