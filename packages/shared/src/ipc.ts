@@ -666,6 +666,10 @@ export interface MobiusBridge {
     /** Moves or renames; never replaces what is at `to`. */
     move(id: string, from: string, to: string): Promise<{ ok: true } | DriveFailure>;
     delete(id: string, path: string, etag: string | null): Promise<{ ok: true } | DriveFailure>;
+    /** Files: a copy of the drive's file in the workspace's `folder`, under a free name. Answers its workspace path. */
+    download?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    /** Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one there. */
+    upload?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
     onChanged(listener: (change: DrivesChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
