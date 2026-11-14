@@ -10,10 +10,11 @@
 .ui-knob[data-disabled] .ui-knob-dial { pointer-events: none; }
 .ui-knob-dial:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
 .ui-knob-dial svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.ui-knob-track, .ui-knob-fill { fill: none; stroke-width: 3; stroke-linecap: round; }
-.ui-knob-track { stroke: var(--line); }
-.ui-knob-fill { stroke: var(--ink); }
-.ui-knob-tick { stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+/* The dial is drawn in a 32-unit box at --knob-size: a light track (about 2 pixels) under a stronger value arc and pointer (about 3). */
+.ui-knob-track, .ui-knob-fill { fill: none; stroke-linecap: round; }
+.ui-knob-track { stroke: var(--line); stroke-width: 1.8; }
+.ui-knob-fill { stroke: var(--ink); stroke-width: 2.7; }
+.ui-knob-tick { stroke: var(--muted); stroke-width: 2.7; stroke-linecap: round; }
 .ui-knob[data-changed] .ui-knob-tick, .ui-knob-dial[data-dragging] .ui-knob-tick { stroke: var(--ink); }
 .ui-knob-value {
   display: flex; align-items: baseline; gap: calc(var(--sp-1) / 2); font: var(--fw-regular) var(--fs-sm) / 1.2 var(--font-mono);
@@ -33,7 +34,8 @@
 .ui-graph-plot svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .ui-graph-area { fill: color-mix(in srgb, var(--ink) 8%, transparent); stroke: none; }
 .ui-graph-line { fill: none; stroke: var(--ink); stroke-width: calc(var(--hairline-w) * 2); stroke-linejoin: round; vector-effect: non-scaling-stroke; }
-.ui-graph-line[data-ghost] { stroke: var(--muted); stroke-width: var(--hairline-w); stroke-dasharray: 4 3; }
+/* Where the envelope opens the filter: solid and muted (dashes mean Mobius made it). */
+.ui-graph-line[data-ghost] { stroke: var(--muted); stroke-width: var(--hairline-w); }
 .ui-graph-guide { stroke: var(--line-soft); stroke-width: var(--hairline-w); vector-effect: non-scaling-stroke; }
 .ui-graph-handle {
   position: absolute; width: var(--handle-size); height: var(--handle-size); margin: calc(var(--handle-size) / -2) 0 0 calc(var(--handle-size) / -2);
@@ -62,11 +64,10 @@
   position: relative; width: var(--step-size); height: var(--step-size); padding: 0; border: 0; border-radius: var(--radius-small);
   background: var(--sel); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); cursor: default; overflow: hidden;
 }
-.ui-steps .ui-step[data-beat] { background: color-mix(in srgb, var(--sel) 55%, var(--paper)); }
+.ui-steps .ui-step[data-beat] { background: var(--frame); }
 .ui-steps .ui-step:hover:not(:disabled) { background: var(--sel); box-shadow: inset 0 0 0 var(--hairline-w) var(--muted); }
 .ui-steps .ui-step::after {
-  content: ''; position: absolute; inset: auto 0 0 0; height: calc(var(--vel, 0) * 100%); background: var(--ink); opacity: 0.55;
+  content: ''; position: absolute; inset: auto 0 0 0; height: calc(var(--vel, 0) * 100%); background: var(--ink);
 }
-.ui-steps .ui-step[data-accent]::after { opacity: 1; }
 .ui-steps .ui-step[data-now] { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
 .ui-steps .ui-step:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); z-index: 1; }

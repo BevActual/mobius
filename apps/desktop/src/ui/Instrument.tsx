@@ -311,7 +311,7 @@ const dbY = (db: number) => clamp((db - DB_LO) / (DB_HI - DB_LO), 0, 1);
 
 /**
  * A filter's curve across the hearing range (log) with one point: across is cutoff, up is resonance (the point sits
- * on the curve's peak). `envAmount` and `envOctaves` add a dashed curve where a note's envelope opens it to.
+ * on the curve's peak). `envAmount` and `envOctaves` add a thin muted curve where a note's envelope opens it to.
  * Arrows: Left and Right move cutoff a twelfth of an octave, Up and Down move resonance; Shift moves more.
  */
 export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset, type = 'lowpass', min = 20, max = 20000, q = musicQ, envAmount, envOctaves = 4, disabled, className }: {
@@ -325,7 +325,7 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
   max?: number;
   /** Resonance (0 to 1) to Q. Music's mapping unless given. */
   q?: (resonance: number) => number;
-  /** How far, 0 to 1, a note's envelope opens the filter; drawn as a dashed curve. */
+  /** How far, 0 to 1, a note's envelope opens the filter; drawn as a thin muted curve. */
   envAmount?: number;
   envOctaves?: number;
   disabled?: boolean;

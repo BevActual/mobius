@@ -106,9 +106,9 @@ function Instruments() {
     <div className="sheet-instruments">
       <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
         <EnvelopeGraph value={env} reset={base} onChange={setEnv} /></div>
-      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (dashed)</span>
+      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (thin muted curve)</span>
         <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={0.35} onChange={setFilt} /></div>
-      <div className="sheet-col"><span className="sheet-note">Knobs: pan at origin C, drive at rest, tune signed, decay log around 1×</span>
+      <div className="sheet-col"><span className="sheet-note">Knobs: arcs fill from the origin (pan from C, tune from 0, decay from 1×); values ink once off their default, grey at it</span>
         <div className="sheet-row">
           <Knob label="Pan" value={pan} min={-1} max={1} step={0.01} format={panLabel} onChange={setPan} />
           <Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} />
@@ -116,7 +116,7 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
-      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
     </div>
   );
