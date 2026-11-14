@@ -1121,7 +1121,11 @@ impl Bridge {
         let tab = || arg(0).as_str().filter(|t| is_tab_id(t));
         Ok(match method {
             "getState" => b.state(),
-            "open" => b.open(arg(0).as_str()).map_or(Value::Null, |id| json!(id)),
+            // A link to one of the person's pages from an earlier start goes to where it is served now.
+            "open" => {
+                let moved = arg(0).as_str().and_then(|input| self.pages.current(input));
+                b.open(moved.as_deref().or(arg(0).as_str())).map_or(Value::Null, |id| json!(id))
+            }
             "activate" => {
                 if let Some(t) = tab() {
                     b.activate(t);
@@ -1135,7 +1139,7 @@ impl Bridge {
                 Value::Null
             }
             "navigate" => match (tab(), arg(1).as_str()) {
-                (Some(t), Some(input)) => json!(b.navigate(t, input)),
+                (Some(t), Some(input)) => json!(b.navigate(t, self.pages.current(input).as_deref().unwrap_or(input))),
                 _ => json!("blocked"),
             },
             "back" | "forward" | "reload" | "stopFind" => {

@@ -56,6 +56,24 @@ impl Pages {
         matches!(self.origin.get(), Some(Ok(origin)) if address.strip_prefix(origin.as_str()).is_some_and(|rest| rest.starts_with('/')))
     }
 
+    /// A page's address from an earlier start (another port or secret, as after the demo is reset), as it is served
+    /// now, so a link kept in a note still opens. None for any other address, or one whose file is not in the folder.
+    #[must_use]
+    pub fn current(&self, address: &str) -> Option<String> {
+        if self.is_own(address) {
+            return None;
+        }
+        let rest = address.strip_prefix("http://127.0.0.1:")?;
+        let (port, rest) = rest.split_once('/')?;
+        let (secret, rest) = rest.split_once('/')?;
+        if port.is_empty() || !port.bytes().all(|b| b.is_ascii_digit()) || secret.len() != 32 || !secret.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
+        let (path, tail) = rest.find(['?', '#']).map_or((rest, ""), |at| rest.split_at(at));
+        resolve(&self.root, &decode(path))?;
+        Some(format!("{}/{path}{tail}", self.origin().ok()?))
+    }
+
     /// The workspace file (`pages/…`) a tab's address serves, when it is one of the person's own pages.
     #[must_use]
     pub fn file_of(&self, address: &str) -> Option<String> {
@@ -241,6 +259,13 @@ mod tests {
         for wrong in [format!("{origin}/../notes.md"), format!("{origin}/%2e%2e/notes.md"), format!("{origin}/.secret.html"), format!("{origin}/packs")] {
             assert!(get(&wrong).0.starts_with("HTTP/1.1 404"), "{wrong}");
         }
+        // A link from an earlier start opens at today's address; an address that only looks like one does not.
+        let old = format!("http://127.0.0.1:1/{}/packs/Veltro%2060%20kWh%20pack.html#top", "a".repeat(32));
+        assert_eq!(served.current(&old), Some(format!("{url}#top")));
+        assert_eq!(served.current(&url), None, "today's address is already right");
+        assert_eq!(served.current(&format!("http://127.0.0.1:1/{}/missing.html", "a".repeat(32))), None);
+        assert_eq!(served.current(&format!("http://127.0.0.1:1/{}/../notes.md", "a".repeat(32))), None);
+        assert_eq!(served.current("http://127.0.0.1:1/short/packs/Veltro%2060%20kWh%20pack.html"), None);
         // Without the secret, nothing.
         let port = origin.rsplit_once('/').unwrap().0;
         assert!(get(&format!("{port}/packs/Veltro%2060%20kWh%20pack.html")).0.starts_with("HTTP/1.1 404"));
