@@ -46,3 +46,11 @@ describe('the two-axis pad', () => {
     expect(html).toContain('<small>Busy</small><b>73%</b>');
   });
 });
+
+describe('popovers', () => {
+  it('exports the popover and the choice menu', async () => {
+    const mod = await import('./Popover');
+    expect(typeof mod.Popover).toBe('function');
+    expect(typeof mod.ChoiceMenu).toBe('function');
+  });
+});
