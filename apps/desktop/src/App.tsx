@@ -995,7 +995,7 @@ export function App() {
                 pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} tags pin={pinNode} changed={turnMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
+              <NotesSidebar notes={notes} tags pin={pinNode} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
             ) : inSkills ? (
               <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={turnMarks.skills} />
             ) : inVideo ? (
@@ -1380,7 +1380,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':

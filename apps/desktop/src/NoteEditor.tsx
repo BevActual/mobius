@@ -250,7 +250,7 @@ export function untitledHeading(editor: Editor): { from: number; to: number } | 
  * `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was.
  * `review`: the agent's last turn changed this page; the editor offers to show what changed and to put it back.
  */
-export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; review?: { conversation: string } | null }) {
+export function NoteEditor({ notes, autoFocus = true, onSelection, review, working = false }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const section = useRef<HTMLElement>(null);
   const path = notes.page?.path;
@@ -557,8 +557,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const rest = compare(before, next);
     setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
+  // While the turn runs they are worked out again each time Mobius's change reloads the page.
   useEffect(() => {
-    if (!review || kept || !path || changes) return undefined;
+    if (!review || kept || !path || (changes && !working)) return undefined;
     return readBefore(review.conversation, `notes/${path}`, (text) => {
       // A page the turn made has nothing to compare with: it keeps the bar above it.
       if (text === null) return;
@@ -566,7 +567,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       const d = diffLines(text, notes.text);
       if (d.some((l) => l.kind !== 'same')) setChanges(d);
     });
-  }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [review?.conversation, kept, path, working ? notes.page?.base : null]); // eslint-disable-line react-hooks/exhaustive-deps
   // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
   const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
   const keepOne = (group: number) => {
@@ -584,14 +585,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
   };
   const showingChanges = Boolean(review && !kept && changes && was !== null && !source && diff === null);
-  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}` : '';
+  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}:${working ? 'w' : ''}` : '';
   const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
   // Markdown as this editor would draw it, for the words a change took out.
   const renderMarkdown = (markdown: string): string | null => {
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current } : null;
+  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, waiting: working, tall: tallGroups.current } : null;
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
@@ -734,7 +735,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
-      {review && !kept && !history && !showingChanges && (
+      {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>

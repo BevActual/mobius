@@ -81,6 +81,44 @@ export function useGlide(target: number, own: { current: number | null }, ms = 3
   return shown;
 }
 
+const sameNumbers = (a: readonly number[], b: readonly number[]) => a.length === b.length && a.every((v, i) => Math.abs(v - b[i]!) < 1e-9);
+
+/**
+ * `useGlide` for several numbers at once (a graph's handles): all of them glide together from where they are drawn to
+ * their new values when they change from outside, and are instant when the control itself sent them (`own`).
+ */
+export function useGlideMany(target: readonly number[], own: { current: readonly number[] | null }, ms = 300): readonly number[] {
+  const [shown, setShown] = useState<readonly number[]>(target);
+  const now = useRef<readonly number[]>(target);
+  const frame = useRef(0);
+  const key = target.join(',');
+  useEffect(() => {
+    if (typeof cancelAnimationFrame !== 'undefined') cancelAnimationFrame(frame.current);
+    const still = typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const mine = own.current !== null && sameNumbers(own.current, target);
+    if (mine || still || typeof requestAnimationFrame === 'undefined' || now.current.length !== target.length || sameNumbers(now.current, target)) {
+      now.current = target;
+      setShown(target);
+      return;
+    }
+    const start = performance.now();
+    const from = now.current;
+    const tick = (t: number) => {
+      const k = Math.min(1, (t - start) / ms);
+      const e = 1 - Math.pow(1 - k, 3);
+      const v = from.map((f, i) => f + (target[i]! - f) * e);
+      now.current = v;
+      setShown(v);
+      if (k < 1) frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+    const end = setTimeout(() => { cancelAnimationFrame(frame.current); now.current = target; setShown(target); }, ms + 50);
+    return () => { cancelAnimationFrame(frame.current); clearTimeout(end); };
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A list that changed length (a band added) is drawn as it is at once.
+  return shown.length === target.length ? shown : target;
+}
+
 function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
 function snap(v: number, step: number, min: number) {
   const n = Math.round((v - min) / step) * step + min;
