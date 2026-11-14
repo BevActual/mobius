@@ -297,6 +297,8 @@ comfortable first, then compact. Comment on a row to change it.
 | Letter toggle | A small square toggle with one letter: M mute, S solo, R record, and the same for lock and hide. Off is a hairline square with a grey letter; on is an ink fill with a paper letter. An armed R is the one red fill, because recording has to read as a warning across the room. | 20px square |
 | Knob | A parameter cell as a dial for dense instrument panels. A 2px grey track arc, a 3px ink value arc and pointer with round caps, filling from the value's origin (pan from C, tune from 0). The value reads under it in mono: grey at its default, ink once changed. | 40px dial |
 | Envelope and filter graphs | A frame-grey plot with a light fill under one ink curve and hollow handles you drag. Readouts sit under the plot in mono. A modulated or "opens to" curve is a 1px solid muted line, never dashed, because dashed means Mobius. | Panel width, 120 to 160px tall |
+| EQ graph | The same plot with numbered band dots (across is frequency, up is gain) and the chosen band's own shape faint under the curve. Guides at ±6 and ±12 dB are solid hairlines at half the 0 dB line's strength, with faint mono labels at the left edge and 100, 1k, 10k along the foot. One column per band under the plot; the chosen band's dot and column are ink. | 144px tall, 120px compact |
+| Device frame | Head: grip, on/off switch, title, fold. Off dims the body only; the title stays ink so the device can be found in the chain. Collapsed shows the head alone. A device Mobius added waits with the dashed indigo edge. Labels are sentence case in fs-xs grey. | Head 32px, 28px compact |
 | Step grid | Rows of square steps in groups of four, with every other group on frame grey. An on-step is ink filled to its velocity height, an accent fills it. The playing column is outlined. | 32 to 36px steps, 4px gaps |
 | Menu | White, a hairline border, 10px corners and a soft shadow. Mobius actions come first where they exist, then the app's. Every item shows its key. | 30px rows |
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
@@ -793,7 +795,7 @@ size token.**
 | --- | --- | --- |
 | Box | Paper, 1px line, hint text in grey. Grows to six lines, then scrolls. | 9px corners, 12px inside |
 | Context chips | Inside the box, above the text: the shared chip with the app's icon and the thing's name ("Email: P2 build"). Selecting something adds its chip, the cross removes it. This replaces the "Sees" line. | 24px tall, 12px text |
-| Changed-setting chips | Under the context chips when anything in the plus menu is off its default ("Web search off", "3 skills") | 11.5px, 6px corners, frame fill |
+| Changed-setting chips | Under the context chips when anything in the plus menu is off its default ("Web search off", "3 skills") | fs-xs (12px, 11px compact), 6px corners, frame fill |
 | Bottom row | Plus (icon button), Mode, Permission (shield and short label), then at the right the model and an ink Send. Mode, Permission and model are quiet buttons with a small chevron. | 28px controls |
 | Narrow panel | Under 380px, Dictate moves into the plus menu as its first row and keeps its shortcut. The model never shows an ellipsis. Under 300px (Little Mobius and the narrowest docked panel) Permission shows only its shield and the model only its icon, each with its name in the tooltip. While dictating, the model steps aside for the recording readout. | |
 | Menus | Open upward from their button. Rows with a check on the current choice and a key cap at the right. Permission and model rows are two lines: the name, and a grey line on what it means. | 30px rows, two-line rows 7px inside |
@@ -805,7 +807,7 @@ size token.**
 | Steps | Numbered rows. The number in tabular grey, then the step naming its app ("Checking Calendar for the 23rd"). The current step is ink, done steps grey. | 28px rows |
 | Stop | A quiet button with Esc shown, always under the steps | 26px |
 | Reply | Plain 14px text, no bubble. Names of things it touched are indigo links. | 1.6 line height |
-| Under each reply | Rewind to here, Copy and one follow-up as grey text buttons. The model that answered in small grey text at the right. | 12.5px, model 11.5px |
+| Under each reply | Rewind to here, Copy and one follow-up as grey text buttons. The model that answered in small grey text at the right. | 12.5px, model fs-xs |
 | Result (slot) | The real objects, drawn as shared object cards or rows | Shared object sizes |
 | Turn summary | One per turn that changed things. A paper card with a hairline between parts. Header: the title on one line with an ellipsis and "5 changes" in grey at the right. One row per app with its icon, what changed and Show. Footer: Discard all and Try another as quiet text on the left, one ink Keep all on the right, all on one line. | 8px corners, 36px header, 32px rows, 40px footer |
 | Question (Picker slot) | A paper card: the question, then up to three option rows with number keys. The suggested option has an ink edge. An approval for sending, paying or deleting is dashed and says it can't be undone. | 32px option rows |
