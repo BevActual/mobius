@@ -347,6 +347,8 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
 
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
   await start();
+  // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.
+  await resizeWindow(mobius!.app, 1600, 900);
   const rec = shell().getByRole('button', { name: 'Record' });
   await rec.click();
   await expect(rec).toHaveAttribute('aria-pressed', 'true');
