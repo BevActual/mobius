@@ -1261,6 +1261,12 @@ impl Bridge {
             return crate::web::run(tool, &args, allow_private).map(Value::String);
         }
         if mobius_workspace::skills::is_skill_tool(tool) {
+            // `app:<name>` is one of Mobius's own guides to an app's files, not one of the person's skills.
+            if tool == "skills.read"
+                && let Some(guide) = args.get("name").and_then(Value::as_str).and_then(crate::workspace_guide::app_guide)
+            {
+                return Ok(Value::String(guide.to_owned()));
+            }
             return self.skills.run(tool, &args).map(Value::String);
         }
         if crate::code_git::is_git_tool(tool) {

@@ -39,3 +39,4 @@ body { overflow: auto; background: var(--frame); }
 .sheet-gap { margin-left: 16px; width: auto; }
 .sheet-waves { display: grid; gap: 24px; max-width: 720px; }
 .sheet-side { width: 340px; max-height: 560px; display: flex; border: 1px solid var(--line); padding: 8px; }
+.sheet-sparks { display: grid; grid-template-columns: max-content 160px; align-items: center; gap: 12px 16px; font-size: var(--fs-sm); color: var(--body); }
