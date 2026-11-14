@@ -125,7 +125,7 @@ const rowsFor = (el: HTMLElement): MenuEntry[] => {
 };
 
 const sameRows = (a: MenuEntry[], b: MenuEntry[]) =>
-  a.length === b.length && a.every((e, i) => e.label === b[i]!.label && e.checked === b[i]!.checked && e.disabled === b[i]!.disabled);
+  a.length === b.length && a.every((e, i) => e.label === b[i]!.label && e.keys === b[i]!.keys && e.checked === b[i]!.checked && e.disabled === b[i]!.disabled);
 
 /**
  * Keeps the app's controls inside the toolbar: fits them again whenever the toolbar changes size or the controls

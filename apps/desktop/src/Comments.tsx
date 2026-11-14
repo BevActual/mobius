@@ -51,7 +51,7 @@ const BUBBLE = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4.5h12a1.
 /** The toolbar's comment button: pressed in comment mode, with the count of open threads in this app. */
 export function CommentButton({ on, count, onToggle }: { on: boolean; count: number; onToggle: () => void }) {
   return (
-    <button type="button" className="strip-btn comment-toggle" data-comment-toggle data-priority="low" aria-pressed={on} aria-label="Comments" title={on ? 'Leave comment mode (C)' : 'Comment on anything here (C)'} onClick={onToggle}>
+    <button type="button" className="strip-btn comment-toggle" data-comment-toggle data-priority="low" data-keys="C" aria-pressed={on} aria-label="Comments" title={on ? 'Leave comment mode (C)' : 'Comment on anything here (C)'} onClick={onToggle}>
       {BUBBLE}
       {count > 0 && <span className="comment-badge" aria-label={`${count} open`}>{count}</span>}
     </button>

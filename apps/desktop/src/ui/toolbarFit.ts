@@ -52,8 +52,10 @@ export function menuRowsOf(el: HTMLElement, given?: MenuEntry[]): MenuEntry[] {
   const name = nameOf(button);
   if (!name) return [];
   const pressed = button.getAttribute('aria-pressed');
+  const keys = button.getAttribute('data-keys');
   return [{
     label: name, run: () => button.click(),
+    ...(keys ? { keys } : {}),
     ...(pressed !== null ? { checked: pressed === 'true' } : {}),
     ...((button as HTMLButtonElement).disabled ? { disabled: true } : {}),
   }];
