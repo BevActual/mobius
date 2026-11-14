@@ -95,10 +95,6 @@
 .studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
 .studio-dev-row { padding: var(--sp-1) 0; }
 .studio-colour-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--row-list); color: var(--ink); }
-.studio-swatches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
-.studio-device .studio-swatch { width: var(--fs-lg); height: var(--fs-lg); padding: 0; border: 0; border-radius: var(--radius-pill); background: var(--tc); cursor: pointer; }
-.studio-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
-.studio-swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
 /* What Mobius proposes: the dashed indigo edge every Mobius change carries until it is kept. */
 .studio-dev-proposal { margin-top: var(--sp-4); padding: var(--sp-3); border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-panel); }
@@ -115,8 +111,6 @@
 .studio-roll-bar { flex: none; display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
 .studio-roll-close { margin-left: var(--sp-1); color: var(--muted); }
 .studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
-/* Until the shared Select has an inline layout (asked of the library): the roll bar's choices sit beside their names. */
-.studio-roll-bar .ui-field { flex-direction: row; align-items: center; }
 /* Where the velocity slider sits in the roll bar: its width only. */
 .studio-roll-bar .studio-velocity { width: calc(var(--sp-8) * 6); }
 .studio-picked { font-weight: var(--fw-semibold); white-space: nowrap; }

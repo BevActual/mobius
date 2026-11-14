@@ -157,6 +157,25 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
   await expect(tracks().getByRole('listitem', { name: 'Bass' })).toHaveCount(0);
 });
 
+test('a track is panned and a drum kit is tuned in the Device panel, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
+  await start();
+  const device = shell().getByRole('region', { name: 'Device' });
+  const pan = device.getByRole('slider', { name: 'Pan' });
+  await pan.focus();
+  await shell().keyboard.press('Shift+ArrowLeft');
+  await expect.poll(() => (saved().tracks[0] as { pan?: number }).pan).toBeLessThan(0);
+  await expect(pan).toHaveAttribute('aria-valuetext', /^L \d+$/);
+  // A drums track has a kit instead of an oscillator: tuning it moves every drum together.
+  await tracks().getByRole('listitem', { name: 'Drums' }).click();
+  await expect(device.getByRole('slider', { name: 'Cutoff' })).toHaveCount(0);
+  const tune = device.getByRole('slider', { name: 'Tune' });
+  await tune.focus();
+  await shell().keyboard.press('ArrowRight');
+  await expect.poll(() => (saved().tracks[1] as { kit?: { tune: number } }).kit?.tune).toBe(1);
+  await expect(tune).toHaveAttribute('aria-valuetext', '+1 st');
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

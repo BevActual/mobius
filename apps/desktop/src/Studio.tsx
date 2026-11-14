@@ -2,11 +2,11 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, KIT_RANGE, kitOf, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, IconButton, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, IconButton, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -83,7 +83,7 @@ export function StudioSub({ songs }: { songs: NotesState }) {
   const setKey = (key: string) => { const next = structuredClone(song); next.key = key; songs.edit(writeSong(next)); };
   return (
     <>
-      <Select className="studio-key-pick" label="Key" hideLabel value={song.key} choices={KEY_CHOICES} onChange={setKey} />
+      <Select label="Key" hideLabel quiet value={song.key} choices={KEY_CHOICES} onChange={setKey} />
       {' · '}<span className="note-status" role="status" data-status={songs.status}>{songs.message || statusText(songs.status)}</span>
     </>
   );
@@ -151,9 +151,19 @@ function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: numb
 }
 
 /** How finely each setting moves with the arrow keys (Shift for ten times as far). */
-const SOUND_STEP: Record<keyof Sound, number> = { shape: 0.01, detune: 1, cutoff: 10, resonance: 0.01, attack: 0.001, release: 0.01 };
-/** Cutoff, attack and release are heard in ratios, so their sliders move evenly in octaves rather than in Hz or seconds. */
-const LOG_SOUND = new Set<keyof Sound>(['cutoff', 'attack', 'release']);
+const SOUND_STEP: Record<keyof Sound, number> = { shape: 0.01, detune: 1, sub: 0.01, drive: 0.01, cutoff: 10, resonance: 0.01, envAmount: 0.01, attack: 0.001, decay: 0.01, sustain: 0.01, release: 0.01, vibrato: 1, rate: 0.1 };
+/** Cutoff, times and rate are heard in ratios, so their sliders move evenly in octaves rather than in Hz or seconds. */
+const LOG_SOUND = new Set<keyof Sound>(['cutoff', 'attack', 'decay', 'release', 'rate']);
+/** The Device panel's groups of settings, in the order a sound is made: source, filter, envelope, then movement. */
+const SOUND_GROUPS: readonly { name: string; cells: readonly [keyof Sound, string][] }[] = [
+  { name: 'Oscillator', cells: [['shape', 'Shape'], ['detune', 'Detune'], ['sub', 'Sub'], ['drive', 'Drive']] },
+  { name: 'Filter', cells: [['cutoff', 'Cutoff'], ['resonance', 'Resonance'], ['envAmount', 'Sweep']] },
+  { name: 'Envelope', cells: [['attack', 'Attack'], ['decay', 'Decay'], ['sustain', 'Sustain'], ['release', 'Release']] },
+  { name: 'Motion', cells: [['vibrato', 'Vibrato'], ['rate', 'Rate']] },
+];
+const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?: boolean }[] = [
+  { k: 'tune', name: 'Tune', step: 1 }, { k: 'decay', name: 'Decay', step: 0.01, log: true }, { k: 'tone', name: 'Tone', step: 0.01 },
+];
 
 /** One of the Device panel's settings, as the shared parameter cell. Double-click puts it back to the instrument's own. */
 function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
@@ -176,7 +186,9 @@ export function StudioDevice({ track, onTrack, proposal }: {
 }) {
   const sound = track ? soundOf(track) : null;
   const base = track && track.instrument !== 'drums' ? SOUND_DEFAULTS[track.instrument] : null;
+  const kit = track ? kitOf(track) : null;
   const set = (k: keyof Sound, v: number) => onTrack((t) => { if (t.instrument === 'drums') return; t.sound = { ...(t.sound ?? SOUND_DEFAULTS[t.instrument]), [k]: v }; }, `sound:${k}`);
+  const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
   return (
     <div className="studio-device" aria-label="Device" role="region">
       {track ? (
@@ -185,35 +197,32 @@ export function StudioDevice({ track, onTrack, proposal }: {
             <span className="studio-dev-dot" aria-hidden="true" />{track.name === INSTRUMENT_NAMES[track.instrument] ? track.name : `${track.name} · ${INSTRUMENT_NAMES[track.instrument]}`}
           </h3>
           <div className="studio-dev-group">
-            <Select className="studio-dev-row" label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; })} />
-            <div className="studio-colour-row"><span id="studio-colour-name">Colour</span>
-              <span className="studio-swatches" role="radiogroup" aria-labelledby="studio-colour-name">
-                {TRACK_COLOURS.map((c) => <button key={c} type="button" role="radio" aria-checked={track.color === c} aria-label={COLOUR_NAMES[c]} title={COLOUR_NAMES[c]} className="studio-swatch" style={{ '--tc': `var(--c-${c})` } as CSSProperties} onClick={() => onTrack((t) => { t.color = c; })} />)}
-              </span>
+            <Select className="studio-dev-row" label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; })} />
+            <div className="studio-colour-row"><span aria-hidden="true">Colour</span>
+              <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
             </div>
           </div>
           <ParamGrid label="Level">
             <ParamCell label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+            <ParamCell label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
           </ParamGrid>
-          {sound && base ? (
-            <>
-              <h4 className="studio-dev-head">Oscillator</h4>
-              <ParamGrid label="Oscillator">
-                <DeviceSlider name="Shape" k="shape" value={sound.shape} base={base.shape} onChange={(v) => set('shape', v)} />
-                <DeviceSlider name="Detune" k="detune" value={sound.detune} base={base.detune} onChange={(v) => set('detune', v)} />
+          {sound && base && SOUND_GROUPS.map((g) => (
+            <section key={g.name} className="studio-dev-section" aria-label={g.name}>
+              <h4 className="studio-dev-head">{g.name}</h4>
+              <ParamGrid label={g.name}>
+                {g.cells.map(([k, name]) => <DeviceSlider key={k} name={name} k={k} value={sound[k]} base={base[k]} onChange={(v) => set(k, v)} />)}
               </ParamGrid>
-              <h4 className="studio-dev-head">Filter</h4>
-              <ParamGrid label="Filter">
-                <DeviceSlider name="Cutoff" k="cutoff" value={sound.cutoff} base={base.cutoff} onChange={(v) => set('cutoff', v)} />
-                <DeviceSlider name="Resonance" k="resonance" value={sound.resonance} base={base.resonance} onChange={(v) => set('resonance', v)} />
+            </section>
+          ))}
+          {kit && (
+            <section className="studio-dev-section" aria-label="Kit">
+              <h4 className="studio-dev-head">Kit</h4>
+              <ParamGrid label="Kit">
+                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
-              <h4 className="studio-dev-head">Envelope</h4>
-              <ParamGrid label="Envelope">
-                <DeviceSlider name="Attack" k="attack" value={sound.attack} base={base.attack} onChange={(v) => set('attack', v)} />
-                <DeviceSlider name="Release" k="release" value={sound.release} base={base.release} onChange={(v) => set('release', v)} />
-              </ParamGrid>
-            </>
-          ) : <p className="studio-dev-note">The drum kit has no settings yet. Each drum has its own row in the notes.</p>}
+              <p className="studio-dev-note">Every drum in the kit, together. Each drum has its own row in the notes.</p>
+            </section>
+          )}
         </>
       ) : <p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p>}
       {proposal}
@@ -406,7 +415,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const instrument = (e as CustomEvent<Instrument>).detail;
       change((s) => {
         const id = freshTrackId(s);
-        s.tracks.push({ id, name: INSTRUMENT_NAMES[instrument], instrument, volume: 0.8, muted: false, solo: false, color: nextColour(s.tracks), notes: [] });
+        s.tracks.push({ id, name: INSTRUMENT_NAMES[instrument], instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), notes: [] });
         setSelected(id);
       });
     };
@@ -566,7 +575,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const wasPicked = picked.has(i);
       if (!wasPicked) setPicked(e.shiftKey ? new Set([...picked, i]) : new Set([i]));
       if (target.closest('.studio-note-end') || (e.clientX > r.right - 6 && r.width > 10)) { const these = wasPicked ? picked : new Set([i]); setPicked(these); setGesture({ kind: 'stretch', x: e.clientX, dl: 0, these }); return; }
-      previewNote(track.instrument, n.pitch, n.velocity);
+      previewNote(track.instrument, n.pitch, n.velocity, undefined, track.sound, track.kit);
       setGesture({ kind: 'move', x: e.clientX, y: e.clientY, db: 0, dr: 0, moved: false, hit: i, wasPicked, shift: e.shiftKey });
       return;
     }
@@ -621,7 +630,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const pitch = rows[g.row]!.pitch;
       const length = drums ? Math.min(grid, 0.25) : drawLength;
       setNotes((n) => addNote(n, { pitch, start: snap(g.beat, grid), length: Math.min(length, total - snap(g.beat, grid)), velocity: 0.8 }));
-      previewNote(track.instrument, pitch);
+      previewNote(track.instrument, pitch, undefined, undefined, track.sound, track.kit);
     }
   };
   const onRollKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -795,8 +804,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
               <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
-                <Select label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
-                {!drums && <Select label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
+                <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
+                {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
                 <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>
                 <span className="studio-gap" />
                 {velocity !== null ? (
@@ -820,7 +829,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             >
               {rows.map((r, i) => (
                 <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * rowH, height: rowH }}>
-                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch); }}>{r.label}</span>
+                  <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit); }}>{r.label}</span>
                   <div
                     className="studio-row-cells"
                     role="gridcell"
