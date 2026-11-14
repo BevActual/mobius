@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, type SongNote } from './song-format';
+import { BEATS_PER_BAR, type KitSound, type SongNote, type Sound } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -163,12 +163,26 @@ export function clipsOf(notes: readonly SongNote[], bars: number): { from: numbe
   return clips;
 }
 
-/** A Device setting's value as the panel writes it: "35%", "12 ct", "1.2 kHz", "840 ms", "2.1 s". */
-export function soundText(key: 'shape' | 'detune' | 'cutoff' | 'resonance' | 'attack' | 'release', v: number): string {
-  if (key === 'shape' || key === 'resonance') return `${Math.round(v * 100)}%`;
-  if (key === 'detune') return `${Math.round(v)} ct`;
+/** A Device setting's value as the panel writes it: "35%", "12 ct", "1.2 kHz", "840 ms", "2.1 s", "5.0 Hz". */
+export function soundText(key: keyof Sound, v: number): string {
+  if (key === 'detune' || key === 'vibrato') return `${Math.round(v)} ct`;
   if (key === 'cutoff') return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} kHz` : `${Math.round(v)} Hz`;
-  return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+  if (key === 'rate') return `${v.toFixed(1)} Hz`;
+  if (key === 'attack' || key === 'decay' || key === 'release') return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+  return `${Math.round(v * 100)}%`;
+}
+
+/** A kit setting as the panel writes it: "+3 st", "1.5×", "60%". */
+export function kitText(key: keyof KitSound, v: number): string {
+  if (key === 'tune') return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v))} st`;
+  if (key === 'decay') return `${Number(v.toFixed(2))}×`;
+  return `${Math.round(v * 100)}%`;
+}
+
+/** Where a track sits left to right, as the panel writes it: "L 40", "C", "R 40". */
+export function panText(v: number): string {
+  const n = Math.round(Math.abs(v) * 100);
+  return n === 0 ? 'C' : `${v < 0 ? 'L' : 'R'} ${n}`;
 }
 
 /**

@@ -34,7 +34,7 @@ describe('songs', () => {
     const after = song(FILE);
     after.tracks[1]!.muted = false;
     expect([...changedTracks(before, after)]).toEqual([]);
-    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, muted: false, solo: false, color: 'blue', notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] });
+    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, pan: 0, muted: false, solo: false, color: 'blue', notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] });
     expect([...changedTracks(before, after)]).toEqual(['t3']);
     expect(audible(before).map((t) => t.id)).toEqual(['t1']);
     expect(audible({ ...after, tracks: after.tracks.map((t) => ({ ...t, solo: t.id === 't3' })) }).map((t) => t.id)).toEqual(['t3']);
@@ -67,5 +67,25 @@ describe('a track\'s colour', () => {
     expect(song(writeSong(s)).tracks.map((t) => t.color)).toEqual(['blue', 'coral', 'green']);
     expect(nextColour(s.tracks)).toBe('amber');
     expect(nextColour(TRACK_COLOURS.map((color) => ({ color })))).toBe(TRACK_COLOURS[TRACK_COLOURS.length % TRACK_COLOURS.length]);
+  });
+});
+
+describe('a track\'s mix and instrument settings', () => {
+  it('keeps pan, a full sound and a drum kit, filling settings an older file lacks from its instrument', () => {
+    const s = song(JSON.stringify({ tracks: [
+      { id: 'a', instrument: 'pad', pan: -0.4, sound: { shape: 0.3, cutoff: 900, attack: 0.5, release: 1 }, notes: [] },
+      { id: 'b', instrument: 'drums', pan: 3, kit: { tune: 4, decay: 9 }, notes: [] },
+      { id: 'c', instrument: 'piano', kit: { tune: 2 }, notes: [] },
+    ] }));
+    expect(s.tracks[0]!.pan).toBe(-0.4);
+    expect(s.tracks[0]!.sound).toMatchObject({ shape: 0.3, cutoff: 900, sub: 0, decay: 0.3, sustain: 1, vibrato: 0, rate: 5 });
+    expect(s.tracks[1]!.pan).toBe(1);
+    expect(s.tracks[1]!.kit).toEqual({ tune: 4, decay: 2, tone: 0.5 });
+    expect(s.tracks[2]!.kit).toBeUndefined();
+    expect(s.tracks[2]!.pan).toBe(0);
+    const again = song(writeSong(s));
+    expect(again.tracks.map((t) => [t.pan, t.kit])).toEqual(s.tracks.map((t) => [t.pan, t.kit]));
+    expect(again.tracks[0]!.sound).toEqual(s.tracks[0]!.sound);
+    expect(writeSong(s)).not.toContain('"pan":0');
   });
 });
