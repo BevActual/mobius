@@ -137,16 +137,14 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
-  // Music's Device tab is first in the right panel; Mobius is beside it. The window is made wide enough for the panel
+  // Music's Device is in the inspector and Mobius in its own panel beside it. The window is made wide enough for both
   // to sit beside the page rather than over it.
   await resizeWindow(mobius!.app, 1440, 900);
-  await shell().getByRole('tab', { name: 'Mobius' }).click();
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('bass line');
-  // What Mobius proposes is kept or discarded in the Device tab.
-  await shell().getByRole('tab', { name: 'Device' }).click();
+  // What Mobius proposes is kept or discarded in the Device panel.
   const change = shell().getByRole('group', { name: "Mobius's change" });
   await expect(change).toContainText('Mobius changed Bass');
   // The new part's clip is dashed; the Keys clip is not.

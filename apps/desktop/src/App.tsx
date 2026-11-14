@@ -81,7 +81,7 @@ import { deskAppRows } from './desk-apps';
 import { agoLabel } from './desk-view';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
+import { AppFrame, InspectorDock, PanelsMenu, TooltipLayer, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -1733,10 +1733,12 @@ export function App() {
           })}
           {toast && <div className="toast" role="status">{toast}</div>}
         </main>
+        {/* The inspector: the open app's own panels (PanelTab), between the content and Mobius. */}
+        <InspectorDock />
         {rightOpen && (
           <div ref={rightDock} className="dock right" data-floating={rightFloating || undefined}>
-            {/* The open app's own tabs (PanelTab) come first, then Mobius; with none, Mobius alone. */}
-            <RightPanelTabs mobius={chatPanel(null)} onClose={hideRight} />
+            {/* The Mobius panel is just Mobius: never a tab, never sharing its dock. */}
+            {chatPanel(null)}
             {resizer('right', 'Resize the agent panel')}
           </div>
         )}

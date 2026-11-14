@@ -16,7 +16,7 @@ export { AppFrame, ToolbarControls, type ToolbarParts } from './AppFrame';
 export { ViewSwitch, type ViewChoice } from './ViewSwitch';
 export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow, type SidebarRowDrop } from './AppSidebar';
 export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
-export { PanelTab, PanelTabsProvider, RightPanelTabs, useShowPanelTab } from './PanelTabs';
+export { InspectorDock, PanelTab, PanelTabsProvider, useInspector, useShowPanelTab } from './PanelTabs';
 export { AppMenu, AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 export { TooltipLayer, KeyCaps, splitTitle } from './Tooltip';
 export { Button, IconButton, type ButtonKind, type ButtonProps, type IconButtonProps } from './Button';

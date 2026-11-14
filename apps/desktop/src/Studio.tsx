@@ -981,7 +981,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   );
 }
 
-/** The Device panel, as a tab before Mobius in the right panel. */
+/** The Device panel, in the inspector beside Mobius (the Music thread moves it to the bottom area). */
 function DevicePlace({ children }: { children: ReactNode }) {
   return <PanelTab id="device" name="Device">{children}</PanelTab>;
 }
