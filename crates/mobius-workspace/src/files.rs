@@ -122,6 +122,12 @@ impl Workspace {
         }
     }
 
+    /// Readies checkpoints for this folder ahead of the first turn (see [`Checkpoints::warm`]).
+    pub fn warm(&self) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.warm(&root).map_err(|e| e.to_string())
+    }
+
     /// The checkpoints kept, newest first: id and when (seconds).
     pub fn history(&self, limit: usize) -> Res<Vec<(String, u64)>> {
         let root = self.real_root()?;
@@ -756,6 +762,20 @@ mod tests {
         let ids: Vec<String> = ws.history(10).unwrap().into_iter().map(|(id, _)| id).collect();
         assert!(ids.len() >= 2 && ids[0] == second && ids.contains(&first), "{ids:?}");
         assert_eq!(ws.read_at(&first, "wiki/Pages/A.md").unwrap().as_deref(), Some("one"));
+    }
+
+    #[test]
+    fn readying_checkpoints_saves_none_and_the_first_mark_still_holds_everything() {
+        let root = tempfile::tempdir().unwrap();
+        let ws = Workspace::new(root.path().join("ws"), root.path().join("cp"));
+        ws.run("files.write", &json!({ "path": "a.md", "content": "one" })).unwrap();
+        let before = ws.history(10).unwrap();
+        ws.warm().unwrap();
+        assert_eq!(ws.history(10).unwrap(), before, "readying saves no checkpoint");
+        ws.run("files.write", &json!({ "path": "b.md", "content": "two" })).unwrap();
+        let mark = ws.mark("turn").unwrap().expect("a mark");
+        assert_eq!(ws.read_at(&mark, "a.md").unwrap().as_deref(), Some("one"));
+        assert_eq!(ws.read_at(&mark, "b.md").unwrap().as_deref(), Some("two"));
     }
 
     #[test]

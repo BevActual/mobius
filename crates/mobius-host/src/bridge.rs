@@ -418,6 +418,16 @@ impl Bridge {
             lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
         }
         let _ = bridge.restore_quick();
+        // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
+        // first turn's checkpoint only has to save.
+        let workspace = mobius_workspace::files::Workspace::new(bridge.data_dir.join("workspace"), bridge.data_dir.join("checkpoints"));
+        std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            if let Err(error) = workspace.warm() {
+                eprintln!("[changes] checkpoints not readied: {error}");
+            }
+            slow("checkpoints", "readied at start", started);
+        });
         bridge
     }
 
