@@ -35,7 +35,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 - **Music as a full small studio**: more instruments (drum pads, a morph synth, a sampler), effects on every track,
   note tools and automation, built on the shared controls. The [Music roadmap](reference/music-roadmap.md) lists each
   one and its status.
-- **Signed installers** through SignPath, so Windows no longer warns on install.
+- **Signed installers** through Azure Artifact Signing, so Windows no longer warns on install.
 - **Google and Microsoft calendar sign-in**, once Mobius is registered with each
   ([what it needs](reference/calendar-sign-in.md)).
 - **Connectors**: a settings page, HTTP and OAuth transports, and reloading without a restart.

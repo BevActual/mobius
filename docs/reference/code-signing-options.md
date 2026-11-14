@@ -1,8 +1,11 @@
 # Code signing options for Windows
 
 Mobius ships a Windows installer built by Tauri (NSIS). Signing it with an Authenticode certificate tells Windows who
-published it. This page compares the ways to do that for an open-source app, so Andrew can choose. SignPath is on
-hold until he does (see the [launch checklist](../launch.md)).
+published it. This page compares the ways to do that for an open-source app.
+
+**Decision (Andrew, 14 November 2026): Azure Artifact Signing.** Testers get unsigned builds until it is in place.
+The Release workflow already has the signing steps; the [setup](#setting-up-azure-artifact-signing) is at the end of
+this page.
 
 Checked 14 November 2026. Prices change; check the linked pages before buying.
 
@@ -75,3 +78,46 @@ name in the publisher field matters and Artifact Signing isn't available.
 
 Whichever is chosen, start signing early: SmartScreen reputation builds with downloads, so the sooner signed builds go
 out, the quieter the warning is by launch.
+
+## Setting up Azure Artifact Signing
+
+The [Release workflow](../../.github/workflows/release.yml) signs the installer once the settings below exist, and
+releases it unsigned until then. It signs in to Azure through OpenID Connect from the repository's `release`
+environment, so there is no password or key to store.
+
+**In the Azure portal** (an Azure account and subscription already exist):
+
+1. In the subscription, open **Resource providers** and register **Microsoft.CodeSigning**.
+2. Create an **Artifact Signing account**: a new resource group such as `mobius-signing`, a region near you, the
+   **Basic** tier. On its **Overview**, note the **account name** and the **Account URI** (the endpoint, such as
+   `https://eus.codesigning.azure.net/`).
+3. On the account, open **Access control (IAM)** and give yourself the **Identity Verifier** role, then open
+   **Identity validation**, choose **New**, **Public**, and **Individual** (or **Organization** for a business). It
+   takes 1 to 20 business days; the name on your ID becomes the publisher Windows shows.
+4. Once it is approved, open **Certificate profiles**, create a **Public Trust** profile from that identity and name
+   it `mobius`.
+
+**Then in PowerShell**, with the Azure CLI (`az login`) and GitHub CLI (`gh auth login`) signed in. Fill in the three
+values at the top from steps 2 and 4:
+
+```powershell
+$group = 'mobius-signing'; $account = '<account name>'; $endpoint = '<Account URI>'
+$app = az ad app create --display-name mobius-release-signing --query appId -o tsv
+az ad sp create --id $app | Out-Null
+@'
+{"name":"mobius-release","issuer":"https://token.actions.githubusercontent.com","subject":"repo:BevActual/mobius:environment:release","audiences":["api://AzureADTokenExchange"]}
+'@ | Set-Content "$env:TEMP\mobius-fic.json"
+az ad app federated-credential create --id $app --parameters "@$env:TEMP\mobius-fic.json"
+$scope = az resource show -g $group -n $account --resource-type Microsoft.CodeSigning/codeSigningAccounts --query id -o tsv
+az role assignment create --assignee $app --role 'Artifact Signing Certificate Profile Signer' --scope $scope
+$r = 'BevActual/mobius'
+gh secret set AZURE_CLIENT_ID -R $r -b $app
+gh secret set AZURE_TENANT_ID -R $r -b (az account show --query tenantId -o tsv)
+gh secret set AZURE_SUBSCRIPTION_ID -R $r -b (az account show --query id -o tsv)
+gh variable set AZURE_SIGNING_ENDPOINT -R $r -b $endpoint
+gh variable set AZURE_SIGNING_ACCOUNT -R $r -b $account
+gh variable set AZURE_CERTIFICATE_PROFILE -R $r -b 'mobius'
+```
+
+The next tag then produces a signed installer; the run's **Check the signature** step prints who it was signed by.
+
