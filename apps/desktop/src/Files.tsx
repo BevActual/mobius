@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
-import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { APP_ICONS } from './Rail';
@@ -73,7 +73,7 @@ export function useFiles(conversation: string, busy: boolean) {
   }, [loadMade]);
   const keep = () => { if (made.turn) keepTurn(made.turn); else window.dispatchEvent(new CustomEvent(KEPT_EVENT)); };
   const discard = async () => {
-    for (const path of made.files) await window.mobius.changes?.undoFile(conversation, path).catch(() => undefined);
+    await undoAt(conversation, made.files);
     keep();
     void list();
   };
