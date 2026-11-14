@@ -102,8 +102,9 @@ A small studio for writing songs as notes.
 - **The Device panel** sets how the chosen track sounds. It shows the track's instrument and colour, then its level
   (Volume and Pan), and then its sound in four groups:
   - Oscillator: Shape (sine to saw), Detune, Sub (a sine an octave down) and Drive.
-  - Filter: a curve with one point to drag, across for Cutoff and up for Resonance, and Sweep, which opens the filter
-    at each note's start and closes it over the decay (the thin line shows how far).
+  - Filter: a curve with one point to drag, across for Cutoff and up for Resonance. Sweep, in the row of values under
+    it (drag it or type), opens the filter at each note's start and closes it over the decay; the thin line and Opens to
+    show how far.
   - Envelope: Attack, Decay, Sustain and Release drawn as one shape, with a handle at each corner to drag.
   - Motion: Vibrato and its Rate.
 

@@ -157,8 +157,8 @@ const LOG_SOUND = new Set<keyof Sound>(['cutoff', 'attack', 'decay', 'release', 
 /** The Device panel's groups of settings, in the order a sound is made: source, filter, envelope, then movement. */
 const SOUND_GROUPS: readonly { name: string; cells: readonly [keyof Sound, string][] }[] = [
   { name: 'Oscillator', cells: [['shape', 'Shape'], ['detune', 'Detune'], ['sub', 'Sub'], ['drive', 'Drive']] },
-  // Cutoff and resonance are the filter graph's point; the envelope is drawn as one shape.
-  { name: 'Filter', cells: [['envAmount', 'Sweep']] },
+  // The filter graph holds cutoff, resonance and sweep; the envelope is drawn as one shape.
+  { name: 'Filter', cells: [] },
   { name: 'Envelope', cells: [] },
   { name: 'Motion', cells: [['vibrato', 'Vibrato'], ['rate', 'Rate']] },
 ];
@@ -260,6 +260,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
               {g.name === 'Filter' && (
                 <FilterGraph label="Filter curve" value={{ cutoff: sound.cutoff, resonance: sound.resonance }} reset={{ cutoff: base.cutoff, resonance: base.resonance }}
                   min={SOUND_RANGE.cutoff.lo} max={SOUND_RANGE.cutoff.hi} envAmount={sound.envAmount}
+                  onEnvAmount={(v) => set('envAmount', v)} envAmountReset={base.envAmount}
                   onChange={(f) => setMany({ cutoff: f.cutoff, resonance: f.resonance }, 'filter')} />
               )}
               {g.name === 'Envelope' && (
