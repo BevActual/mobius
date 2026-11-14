@@ -17,12 +17,6 @@ export function langOf(path: string): Lang {
 }
 
 /** What a file is called in the editor's badge. */
-export function badgeOf(path: string): string {
-  const lang = langOf(path);
-  if (/\.(test|spec)\.[a-z]+$/i.test(path)) return 'T';
-  return { ts: /\.tsx?$/.test(path) ? 'TS' : 'JS', rust: 'RS', py: 'PY', go: 'GO', json: '{}', css: '#', html: '<>', md: 'M', sh: '$', plain: '·' }[lang];
-}
-
 export type TokenKind = 'kw' | 'type' | 'fn' | 'str' | 'num' | 'com' | 'plain';
 export interface Token { t: string; k: TokenKind }
 
