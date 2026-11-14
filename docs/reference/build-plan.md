@@ -50,9 +50,9 @@ Work is taken in this order. A lower line never holds up a higher one.
 | --- | --- | --- | --- |
 | Apps roadmap (#237) | Apps lead, Builder merges | Building | Every link to it, including this page's |
 | Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
-| Music: knobs, drawn graphs, device chain (#235) | Music | Building | Drum pads and the step grid |
-| Design rules from the app rounds (#203) | Design lead | Building, open longest | Rules the app rounds are held to |
-| Artifacts moved into `docs/` | Design lead | Building | Retiring the artifacts |
+| App modes in the composer (#239) | Builder | Building | Mail's Triage, then Review, Analyse and Debug |
+| Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
+| Artifacts moved into `docs/` (#242) | Design lead | Building | Retiring the artifacts |
 | README screenshots and launch checklist | Launch | Building | The launch list below |
 | Permission wording and shared selects: Settings, then Agents | Apps lead | Next | Old wording gone from the apps |
 
@@ -79,10 +79,11 @@ that round's pull request.
 | Order | Library piece | First user |
 | --- | --- | --- |
 | 1 | Anything an open pull request is waiting on | That pull request |
-| 2 | `StepGrid` | Music: drum pads and step patterns |
+| 2 | `AutomationLane` | Music: movement over time |
 | 3 | `LetterToggle` (mute, solo and the like) | Video: track lanes; Music: tracks |
-| 4 | Automation lane | Music: movement over time |
-| 5 | Mixer strip built on `LevelMeter` | Music: mixer view |
+| 4 | Mixer strip built on `LevelMeter` | Music: mixer view |
+
+`StepGrid` and `PadGrid` are already on `main`, so Music's drum pads wait on nothing.
 
 Music's note editor already exists inside Music. It moves into the library only when a second app needs it or Music's
 next round has to change it; until then it is not a library task.
@@ -106,7 +107,7 @@ next round has to change it; until then it is not a library task.
 | Page | What is out of date | Owner |
 | --- | --- | --- |
 | [Roadmap](../roadmap.md) | Says "three modes (Ask first, Propose, Act)" and names Apple's guidelines as the look. The composer now has Mode and Permission, and the look is Instrument. | Launch |
-| [The bar for each app](app-bar.md) | Polish is described as "feels like an Apple app". It should point at Instrument. | Design lead |
+| [The bar for each app](app-bar.md) | Polish is described as "feels like an Apple app". It should point at Instrument. | Design lead, fixed in #242 |
 | README and `docs/guide/` | Any use of the old mode names. | Launch |
 
 ## Launch
