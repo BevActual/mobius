@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
-  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
@@ -115,6 +115,24 @@ function Wave() {
   );
 }
 
+function WarmerDemo() {
+  const cool = { cutoff: 6400, drive: 0.1, width: 0.3 };
+  const warm = { cutoff: 1400, drive: 0.45, width: 0.3 };
+  const [v, setV] = useState(cool);
+  const [proposed, setProposed] = useState(false);
+  const pctText = (x: number) => `${Math.round(x * 100)}%`;
+  return (
+    <div className="sheet-row">
+      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={proposed && v.cutoff !== cool.cutoff} onChange={(cutoff) => setV({ ...v, cutoff })} />
+      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} />
+      <Knob label="Width" value={v.width} min={0} max={1} step={0.01} format={pctText} onChange={(width) => setV({ ...v, width })} />
+      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={proposed && v.drive !== cool.drive} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
+      {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -146,6 +164,8 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
+      <div className="sheet-col"><span className="sheet-note">Mobius proposes "warmer": the changed settings glide to their new values and stay indigo and dashed until kept</span>
+        <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps with fill: the same grid stretched across the width, each step up to a wide cell</span>
