@@ -173,8 +173,13 @@ The panel rules are already in the docs and are repeated here so the style reads
 
 **Panels**
 
-1. An app's own panels (Format, Device, Inspector, Outline) are tabs before Mobius in the right panel. Mobius is always
-   the last tab.
+1. **The Mobius panel is just Mobius** (Andrew, 14 November 2026). It holds the chat, its cards and slots, and the
+   composer, and nothing else. It has no tabs. An app's own panels never share it: they go in the **inspector**, a column
+   of its own between the content and Mobius, or in the **bottom area** under the content when they are wide or long
+   (timelines, devices, terminals, speaker notes). Mobius always sits at the far right edge, in the same place in every
+   app.
+   The inspector holds the app's panels (Format, Inspector, Adjust, Outline, Details) as tabs among themselves, and
+   Mobius sits beside it, never as one of its tabs. [Panel layouts](panel-layouts.md) lists where each app's panels go.
 2. Notes, comments and detail views live in the bottom area. Nothing sits as an extra column inside the content.
 3. One Panels menu shows, hides, moves and pops out every panel and saves layouts. Each panel has a shortcut.
 
@@ -269,8 +274,9 @@ comfortable first, then compact. Comment on a row to change it.
 | Toolbar | One row. Title at the left, the app's controls in the middle, then the trailing group. A hairline below and no fill. | 52px / 44px tall |
 | Toolbar title | The name of what is open, with a grey detail after it ("Today · Thursday 13 November"). Never repeats the app name. | 15px semibold |
 | Trailing group | Fixed order: Comments, Share, the more menu, Mobius. Apps without comments or sharing leave those out. | 32px buttons |
-| Mobius button | The only tinted button in the frame: indigo icon on a pale indigo wash. Opens and closes the right panel. | 32px |
-| Right panel | Same surface as the sidebar. Tabs across the top with the app's own panels first and Mobius last, and a close button. | 340px, resizable to 280px |
+| Mobius button | The only tinted button in the frame: indigo icon on a pale indigo wash. Opens and closes the Mobius panel at the right edge. | 32px |
+| Inspector | The app's own panels, between the content and Mobius. Same surface as the sidebar, its panels as tabs across the top when there is more than one, and a close button. Absent in apps that have none. | 280px, resizable to 240px |
+| Mobius panel | Mobius alone, at the far right edge. Same surface as the sidebar. Never has tabs. | 340px, resizable to 280px |
 | Bottom area | Optional strip under the content for notes, comments or detail. It has its own small tab row and a close button. | 150px by default, resizable |
 | Hairlines | One line colour separates zones. Zones never use shadows or different fills to separate. | 1px |
 
@@ -330,7 +336,7 @@ comfortable first, then compact. Comment on a row to change it.
 
 | Element | How it looks and behaves | Size |
 | --- | --- | --- |
-| Mobius panel header | The word "Mobius" as the last tab, with a close button. No logo, gradient or status pill. | 52px / 44px tall |
+| Mobius panel header | The word "Mobius" as a plain title (never a tab), then new chat, history, pop out and close. No logo, gradient or status pill. | 52px / 44px tall |
 | Context line | Replaced by context chips in the composer. Until the shell changes: one grey line with an eye icon that says what Mobius can see ("Sees Tasks · Today"). | 12.5px |
 | Your message | A grey bubble, right-aligned. | 9px corners |
 | Mobius's reply | Plain text on the panel with no bubble. Names of things it touched are indigo links. | 14px, 1.6 line height |
@@ -438,7 +444,7 @@ The frame holds and the app shapes its tools. This draws the line, so app thread
 | --- | --- |
 | The five zones and their order | Which views it has and what the content looks like |
 | Sizes, spacing, corners, faces and weights | Which controls go in the toolbar's middle slot |
-| The states table | Which of its own panels sit before Mobius |
+| The states table | Which of its own panels it has, and whether each starts in the inspector or the bottom area |
 | Ink for state and indigo for Mobius | How the user's content colours are used inside the content |
 | Shared controls, menus, the undo pill and the empty state | Its empty-state drawing and one line of text |
 | Comfortable or compact row heights | Which density it starts in |
@@ -920,6 +926,11 @@ Rules on a page drift. These make drift hard.
 
 Andrew agreed the recommended answer to every question below on 13 November 2026. Each line keeps the question and gives
 the decision.
+
+- **The Mobius panel is just Mobius (14 November 2026).** Andrew: "we should keep the mobius panel just mobius". This
+  replaces the earlier rule that an app's panels are tabs before Mobius in the right panel. App panels go in the
+  inspector beside Mobius or in the bottom area; for Music, Andrew chose the bottom area for devices, with Shift+Tab
+  switching between notes and devices.
 
 - **Name.** Call the style "Instrument"?
 
