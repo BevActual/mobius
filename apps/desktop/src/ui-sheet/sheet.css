@@ -1,0 +1,17 @@
+/* The reference sheet's own page layout (dev only). */
+html, body, #root { height: auto; }
+body { overflow: auto; background: var(--frame); }
+.sheet { max-width: 1120px; margin: 0 auto; padding: 32px 32px 64px; display: grid; gap: 24px; }
+.sheet > header h1 { margin: 0; font-size: var(--fs-display); font-weight: 700; color: var(--ink); }
+.sheet > header p { margin: 4px 0 0; color: var(--muted); }
+.sheet-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.sheet-card { padding: 16px 20px 20px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--paper); min-width: 0; }
+.sheet-card[data-wide] { grid-column: 1 / -1; }
+.sheet-card h2 { margin: 0 0 12px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.sheet-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-bottom: 12px; }
+.sheet-row:last-child { margin-bottom: 0; }
+.sheet-col { display: grid; gap: 4px; }
+.sheet-note { font-size: var(--fs-xs); color: var(--muted); }
+.sheet-panel { width: 320px; padding: 12px 16px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--frame); }
+.sheet-list { border: 1px solid var(--line); border-radius: var(--radius-panel); overflow: hidden; background: var(--paper); }
+.sheet-list .ui-row:last-child { border-bottom: 0; }

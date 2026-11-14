@@ -1,13 +1,9 @@
 /*
- * Views, the Apple way (HIG; widgets on the Mac as the bar): a dashboard of tiles on the window's background, each a
- * solid rounded card with its app's icon and name, a big number where there is one, and a few rows. Edit shows a
- * remove button on each tile and lets them be dragged into a new order. Mobius's changes come dashed, as everywhere.
+ * Views, in the Instrument style: a dashboard of tiles, each a flat card (a dashboard tile is an object in its own right)
+ * with its app's line icon and name, a big tabular number where there is one, and a few rows. Colour only comes from
+ * the content (an event's calendar, as a dot), indigo only from Mobius, red only for overdue and for removing. Edit
+ * shows a remove button on each tile and lets them be dragged into a new order. Mobius's changes come dashed.
  */
-
-/* Views is one of Mobius's own apps: grey, like Abilities and Settings. */
-:root { --app-views: linear-gradient(140deg, #a1a1a6, #6e6e73); }
-.launcher-icon svg[data-app="views"], .hub-icon[data-app="views"], .access-app svg[data-app="views"],
-.search-icon[data-app="views"], .search-scope-icon[data-app="views"], .review-filter svg[data-app="views"], .review-file > svg[data-app="views"] { background: var(--app-views); }
 
 .views-page { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; overflow: hidden; container-type: inline-size; }
 .views-scroll { flex: 1; min-height: 0; overflow: auto; display: flex; flex-direction: column; }
@@ -19,24 +15,23 @@
 .views-grid { list-style: none; margin: 0; padding: var(--sp-2) var(--sp-5) var(--sp-8); display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); grid-auto-flow: row dense; gap: var(--sp-4); align-items: start; }
 @container (max-width: 560px) { .views-grid { grid-template-columns: 1fr; } .view-tile[data-size="wide"] { grid-column: auto; } }
 
-.view-tile { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; min-height: 168px; padding: 12px 12px 10px; border-radius: var(--radius-sheet); background: var(--panel); box-shadow: inset 0 0 0 0.5px var(--hairline), var(--shadow-1); transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease), opacity var(--dur-fade) var(--ease); }
+.view-tile { position: relative; display: flex; flex-direction: column; gap: var(--sp-2); min-width: 0; min-height: 168px; padding: 12px 12px 10px; border-radius: var(--radius-panel); background: var(--panel); box-shadow: inset 0 0 0 var(--hairline-w, 1px) var(--line); transition: opacity var(--dur-fade) var(--ease); }
 .view-tile[data-size="wide"] { grid-column: span 2; }
 .view-tile[data-proposed] { box-shadow: none; outline: 1.5px dashed var(--mobius); outline-offset: -1.5px; }
 .view-tile[data-dragging] { opacity: 0.4; }
 .views-page[data-editing] .view-tile { cursor: grab; }
-.views-page[data-editing] .view-tile:hover { transform: translateY(-1px); box-shadow: inset 0 0 0 0.5px var(--hairline), var(--shadow-2); }
 
 .view-tile-head { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
 .view-tile-name { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 6px 0 2px; border-radius: var(--radius-control); color: var(--ink); text-align: left; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
 .view-tile-name > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.view-tile-name:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.view-tile-icon { flex: none; width: 22px; height: 22px; padding: 4px; border-radius: 6px; fill: none; stroke: #fff; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.view-tile-name:hover { background: var(--sel); }
+.view-tile-icon { flex: none; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .view-tile-more, .view-tile-remove { flex: none; display: grid; place-items: center; width: 26px; height: 26px; padding: 0; border-radius: 50%; color: var(--muted); }
 .view-tile-more svg { width: 18px; height: 18px; fill: currentColor; }
 .view-tile-more { opacity: 0; transition: opacity var(--dur-fade) var(--ease); }
 .view-tile:hover .view-tile-more, .view-tile-more:focus-visible, .view-tile-more[aria-expanded="true"] { opacity: 1; }
-.view-tile-more:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); color: var(--ink); }
-.view-tile-remove { width: 22px; height: 22px; background: var(--danger); color: #fff; }
+.view-tile-more:hover { background: var(--sel); color: var(--ink); }
+.view-tile-remove { width: 22px; height: 22px; background: var(--danger); color: var(--bg); }
 .view-tile-remove svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
 
 .view-tile-count { margin: 0 2px; display: flex; align-items: baseline; gap: 6px; color: var(--muted); font-size: var(--fs-sm); }
@@ -45,17 +40,23 @@
 .view-tile-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
 .view-tile-rows > li + li { box-shadow: inset 0 0.5px 0 var(--hairline); }
 .view-tile-row { display: flex; align-items: baseline; gap: var(--sp-2); width: 100%; min-height: 30px; padding: 5px 4px; border-radius: var(--radius-small); color: var(--ink); text-align: left; font-size: var(--fs-md); }
-.view-tile-row:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 5%, transparent); }
+.view-tile-row:hover:not(:disabled) { background: var(--sel); }
 .view-tile-row:disabled { opacity: 1; cursor: inherit; }
 .view-tile-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .view-tile-detail { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.view-tile-row[data-tone="accent"] .view-tile-detail { color: var(--accent); font-weight: var(--fw-medium); }
+.view-tile-row[data-tone="mobius"] .view-tile-detail { color: var(--mobius); font-weight: var(--fw-medium); }
 .view-tile-row[data-tone="late"] .view-tile-detail { color: var(--danger); }
 .view-tile-empty { margin: auto 2px; padding: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
-.view-tile-all { align-self: flex-start; height: 24px; margin-top: auto; padding: 0 4px; border-radius: var(--radius-small); color: var(--accent); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-.view-tile-all:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.view-tile-all { align-self: flex-start; height: 24px; margin-top: auto; padding: 0 4px; border-radius: var(--radius-small); color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; }
+.view-tile-all:hover:not(:disabled) { background: var(--sel); color: var(--ink); }
 
-.views-undo { position: absolute; z-index: 30; left: 50%; bottom: var(--sp-6); transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border: 0.5px solid var(--line); border-radius: var(--radius-pill); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-md); white-space: nowrap; }
-.views-undo .btn { height: 26px; border-radius: var(--radius-pill); color: var(--accent); font-weight: var(--fw-semibold); }
-.views-undo-x { width: 24px; height: 24px; padding: 0; border-radius: 50%; color: var(--muted); }
 .views-review { z-index: 30; }
+.view-tile-count, .view-tile-detail, .view-tile-number { font-variant-numeric: tabular-nums; }
+/* An event's calendar, as a small dot of its content colour. */
+.view-tile-dot { flex: none; align-self: center; width: 7px; height: 7px; border-radius: 50%; }
+
+/* While the views are read: grey bars the shape of the tiles, still (motion is only for live state). */
+.view-tile[data-placeholder] { gap: var(--sp-3); }
+.view-bar { display: block; height: 10px; border-radius: var(--radius-small); background: var(--sel); }
+.view-bar[data-tall] { height: 24px; }
+.view-bar[data-w="20"] { width: 20%; } .view-bar[data-w="40"] { width: 40%; } .view-bar[data-w="70"] { width: 70%; } .view-bar[data-w="90"] { width: 90%; }

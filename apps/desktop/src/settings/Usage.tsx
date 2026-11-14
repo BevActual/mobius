@@ -3,7 +3,7 @@ import type { UsageRow } from '@mobius/shared';
 import { appName } from '../apps';
 import { dayLabel, systemLocale } from '../dates';
 import { settingPath } from './manifest';
-import { Empty, Row } from './primitives';
+import { Empty, Placeholder, Row } from './primitives';
 import type { SectionProps } from './sections';
 import { GROUP_OPTIONS, RANGE_OPTIONS, byDay, costText, gatewayName, groupBy, rangeDays, shortCount, toCsv, total, type UsageGroup, type UsageRange } from './usage-data';
 
@@ -39,7 +39,7 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
   useEffect(() => { load(); return api?.onChange(load); }, [api, load]);
   const path = (row: string) => settingPath('usage', subpage, row);
   if (!api) return <Empty>Usage isn’t recorded in this version of Mobius yet.</Empty>;
-  if (rows === null) return <Empty>Loading…</Empty>;
+  if (rows === null) return <Placeholder />;
 
   const sum = total(rows);
   const perDay = byDay(rows, days.from, days.to);
