@@ -364,11 +364,12 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
             "rename" => profiles.rename(id, name),
             "remove" => profiles.remove(id),
             "switch" => profiles.switch(id),
+            "openDemo" => demo_seed(&app).ok_or_else(|| "The demo workspace is not part of this build.".to_owned()).and_then(|seed| profiles.open_demo(base, &seed)),
             _ => return Err(serde_json::json!({ "kind": "not_available", "message": "Not a profiles call." })),
         };
         return Ok(match changed.and_then(|()| profiles.write(base)) {
             Ok(()) => {
-                if method == "switch" {
+                if method == "switch" || method == "openDemo" {
                     // A different profile is a different set of data: Mobius starts again with it.
                     app.request_restart();
                 }
@@ -436,6 +437,13 @@ fn keep_tabs(notify: mobius_browser::tabs::Notify, file: Option<PathBuf>) -> mob
 }
 
 /// Chromium when it was built in (feature `cef`), unless `MOBIUS_ENGINE=webview` asks for the system web view.
+/// The demo workspace's seed: shipped with Mobius as a resource; the repository's own when run from source.
+fn demo_seed(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let shipped = app.path().resource_dir().ok().map(|dir| dir.join("demo"));
+    let source = Some(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo")));
+    [shipped, source].into_iter().flatten().find(|dir| dir.join("workspace").is_dir())
+}
+
 fn choose_engine(window: &tauri::Window, data_dir: &std::path::Path) -> Arc<dyn engine::PageEngine> {
     #[cfg(all(feature = "cef", windows))]
     if !std::env::var("MOBIUS_ENGINE").is_ok_and(|v| v == "webview") {
@@ -480,6 +488,9 @@ fn main() {
                 _ => app.path().app_data_dir()?,
             };
             std::fs::create_dir_all(&base_dir)?;
+            if let Err(e) = profiles::settle_demo(&base_dir) {
+                eprintln!("[mobius] the fresh demo workspace could not take the old one's place: {e}");
+            }
             // The open profile's own folder. Models and the local engine are shared by every profile: they are large,
             // and the same on one computer.
             let data_dir = profiles::Profiles::read(&base_dir).folder(&base_dir);
