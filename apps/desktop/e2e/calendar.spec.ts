@@ -78,6 +78,8 @@ test('a calendar file from another app shows in the week, and events are added, 
   await tools().getByRole('radio', { name: 'Week' }).click();
   await expect(page().getByRole('button', { name: new RegExp(`^Standup, ${span('9:00', '9:30')}, Work`) }).first()).toBeVisible();
   await expect(shell().getByRole('region', { name: 'Calendars' }).getByText('Work')).toBeVisible();
+  // The Mobius panel's Glance sums up the rest of today (its numbers depend on the hour the test runs).
+  await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText('Still to come');
 
   // New event: the editor opens at the next hour today.
   await shell().getByRole('button', { name: 'Create' }).click();
