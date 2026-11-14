@@ -19,6 +19,16 @@ describe('the days on screen', () => {
     expect(daysFor('day', day('2026-11-20')).map(isoDay)).toEqual(['2026-11-20']);
   });
 
+  it('shows a whole year in Year view, and steps a year at a time', () => {
+    const year = daysFor('year', day('2026-11-12'));
+    expect(year).toHaveLength(365);
+    expect([isoDay(year[0]!), isoDay(year[364]!)]).toEqual(['2026-01-01', '2026-12-31']);
+    expect(daysFor('year', day('2028-03-01'))).toHaveLength(366);
+    expect(isoDay(step('year', day('2026-11-12'), 1))).toBe('2027-11-12');
+    expect(isoDay(step('year', day('2028-02-29'), -1))).toBe('2027-02-28');
+    expect(heading('year', day('2026-11-12'), 'en-GB')).toBe('2026');
+  });
+
   it('numbers weeks as ISO does, Monday to Sunday', () => {
     expect(isoWeek(new Date(2026, 10, 12))).toBe(46);
     expect(isoWeek(new Date(2026, 10, 15))).toBe(46);

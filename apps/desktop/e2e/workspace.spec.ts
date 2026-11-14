@@ -117,13 +117,8 @@ test('while the agent works the composer says what it is doing, the app it works
   await expect(railButton('Tasks')).toHaveAttribute('data-working', 'true');
   await shell().getByRole('button', { name: 'Allow once' }).click();
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added.');
-  // The panel says which apps Mobius has worked in during this conversation.
-  // "Sees" names what is open in view now (this page); the apps it worked in are listed as "Has used".
-  const context = shell().getByRole('button', { name: /^Sees this page / });
-  await expect(context).toHaveText('Sees this page · Ask first');
-  await context.click();
-  await expect(shell().locator('.chat-sees')).toHaveText('Has used: Tasks');
-  await expect(shell().getByRole('group', { name: 'What Mobius sees' })).toContainText('What Mobius may do here comes from Settings.');
+  // What Mobius used shows under the reply; what it sees is the chip in the message box, not a line of its own.
+  await expect(shell().getByRole('button', { name: /^Sees / })).toHaveCount(0);
   await expect(shell().locator('.msg-sources').last()).toHaveText('Based on Tasks');
   await expect(activity).toHaveCount(0);
   await showApps();

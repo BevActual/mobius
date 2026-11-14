@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { Button, IconButton } from './Button';
-import { Avatar, Chip, Count, StatusText, initials } from './Bits';
+import { Avatar, Chip, Count, StatusText, Swatches, initials } from './Bits';
 import { ListRow } from './ListRow';
 import { Segmented } from './Segmented';
-import { Meter, ParamCell, Slider, fromPosition, toPosition } from './Slider';
-import { TextField } from './Field';
+import { Meter, ParamCell, ParamGrid, Slider, fromPosition, logNudge, toPosition } from './Slider';
+import { Select, TextField } from './Field';
 
 const noop = () => {};
 
@@ -35,8 +35,8 @@ describe('sliders', () => {
     expect(at0).not.toContain('data-changed');
     const moved = renderToStaticMarkup(<Slider label="Exposure" min={-100} max={100} value={20} onChange={noop} />);
     expect(moved).toContain('data-changed="true"');
-    expect(moved).toContain('--from:50%');
-    expect(moved).toContain('--to:60%');
+    expect(moved).toContain('--from:0.5');
+    expect(moved).toContain('--to:0.6');
     expect(moved).toContain('>+20</output>');
   });
   it('names both ends and marks a Remake control', () => {
@@ -98,5 +98,32 @@ describe('fields, segments and rows', () => {
     expect(two).toContain('data-lines="2"');
     expect(two).toContain('data-unread="true"');
     expect(two).toContain('aria-current="true"');
+  });
+});
+
+describe('Music gaps: inline and quiet pop-ups, swatches, one-column cells, log nudges', () => {
+  it('puts a pop-up’s name beside it, or draws it quiet', () => {
+    const inline = renderToStaticMarkup(<Select label="Grid" inline value="a" onChange={() => {}} choices={[{ value: 'a', label: 'A' }]} />);
+    expect(inline).toContain('data-inline="true"');
+    const quiet = renderToStaticMarkup(<Select label="Key" quiet value="a" onChange={() => {}} choices={[{ value: 'a', label: 'A' }]} />);
+    expect(quiet).toContain('data-quiet="true"');
+  });
+  it('draws swatches as a radio group with names and one tab stop', () => {
+    const html = renderToStaticMarkup(<Swatches label="Track colour" value="teal" onChange={() => {}} />);
+    expect(html).toContain('role="radiogroup"');
+    expect(html.match(/role="radio"/g)).toHaveLength(9);
+    expect(html).toMatch(/aria-checked="true"[^>]*aria-label="Teal"[^>]*title="Teal"[^>]*tabindex="0"/);
+    expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+  });
+  it('lays a lone cell across a one-column grid', () => {
+    const html = renderToStaticMarkup(<ParamGrid label="Track" columns={1}><ParamCell label="Volume" value={0} onChange={() => {}} min={-60} max={6} wide /></ParamGrid>);
+    expect(html).toContain('data-columns="1"');
+    expect(html).toContain('data-wide="true"');
+  });
+  it('nudges a log value by a twelfth of an octave, and by at least one step', () => {
+    expect(logNudge(1000, 1, 1 / 12, 1)).toBeCloseTo(1059.46, 1);
+    expect(logNudge(1000, -1, 1 / 2, 1)).toBeCloseTo(707.1, 1);
+    expect(logNudge(2, 1, 1 / 12, 1)).toBe(3);
+    expect(logNudge(2, -1, 1 / 12, 1)).toBe(1);
   });
 });

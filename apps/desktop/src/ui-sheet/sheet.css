@@ -23,3 +23,4 @@ body { overflow: auto; background: var(--frame); }
 .sheet-pads { align-items: start; }
 .sheet-composer { display: flex; align-items: center; gap: 4px; max-width: 520px; margin-top: 300px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
 .sheet-spacer { flex: 1; }
+.sheet-sub { font-size: 12px; color: var(--muted); }

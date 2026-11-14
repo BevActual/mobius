@@ -13,7 +13,7 @@
   border-radius: calc(var(--radius-panel) - var(--menu-pad)); font-size: var(--fs-md); color: var(--ink);
   cursor: default; user-select: none; outline: 0;
 }
-.ui-menu-item[data-highlighted] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.ui-menu-item[data-highlighted] { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .ui-menu-item[data-disabled] { color: var(--muted); opacity: 0.6; }
 .ui-menu-item[data-danger] { color: var(--danger); }
 .ui-menu-item[data-separated] { position: relative; margin-top: var(--menu-pad); }

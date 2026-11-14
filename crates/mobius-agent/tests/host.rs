@@ -682,7 +682,7 @@ fn the_effort_survives_a_new_setup_and_reaches_every_model_call() {
 #[test]
 fn a_conversation_can_have_its_own_setup_and_another_conversation_keeps_the_usual_one() {
     let (core, mut host) = setup();
-    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()), plan_only: false, images: vec![], project: None }).unwrap();
+    let (_, outs) = host.send_with(&core, "bot-a", "hi", TurnSetup { system: Some("Be the bot.".into()), model: Some("bot-model".into()), plan_only: false, read_only: false, images: vec![], project: None }).unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert_eq!(request.model, "bot-model");
     assert!(request.system.starts_with("Be the bot.\n\n"), "{}", request.system);

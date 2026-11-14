@@ -51,9 +51,13 @@ export interface SelectChoice<T extends string> { value: T; label: string; disab
  * A pop-up: looks like a field with up and down chevrons at the trailing end, and opens a menu of its choices with the
  * chosen one ticked. Built on Base UI's Select, so typing a letter jumps to a choice and arrows move as in any list box.
  */
-export function Select<T extends string>({ label, hideLabel, value, choices, onChange, disabled, className }: {
+export function Select<T extends string>({ label, hideLabel, inline, quiet, value, choices, onChange, disabled, className }: {
   label: string;
   hideLabel?: boolean;
+  /** The name beside the box rather than above it, for toolbars and bars. */
+  inline?: boolean;
+  /** Text with its chevrons and no box until hovered or open, for a toolbar's sub line. */
+  quiet?: boolean;
   value: T;
   choices: readonly SelectChoice<T>[];
   onChange: (value: T) => void;
@@ -63,10 +67,10 @@ export function Select<T extends string>({ label, hideLabel, value, choices, onC
   const items = choices.map((c) => ({ value: c.value, label: c.label }));
   const labelId = useId();
   return (
-    <div className={className ? `ui-field ${className}` : 'ui-field'}>
+    <div className={className ? `ui-field ${className}` : 'ui-field'} data-inline={inline || undefined}>
       <span id={labelId} className="ui-field-label" data-hidden={hideLabel || undefined}>{label}</span>
       <BaseSelect.Root items={items} value={value} disabled={disabled} onValueChange={(next) => { if (next !== null) onChange(next as T); }}>
-        <BaseSelect.Trigger className="ui-select" aria-labelledby={labelId}>
+        <BaseSelect.Trigger className="ui-select" data-quiet={quiet || undefined} aria-labelledby={labelId}>
           <BaseSelect.Value className="ui-select-value" />
           <BaseSelect.Icon className="ui-select-icon">
             <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 4.75 6 2.5l2.5 2.25M3.5 7.25 6 9.5l2.5-2.25" /></svg>
