@@ -549,9 +549,13 @@ impl AgentService {
                 let id = row.get("id")?.as_str().filter(|i| is_conversation_id(i))?;
                 let title: String = row.get("title")?.as_str()?.chars().take(200).collect();
                 let (updated, messages) = (row.get("updated_ms")?.as_i64()?, row.get("messages")?.as_u64()?);
-                let activity = row.get("activity").and_then(Value::as_str).filter(|a| matches!(*a, "working" | "needs_you")).unwrap_or("idle");
+                let activity = row.get("activity").and_then(Value::as_str).filter(|a| matches!(*a, "working" | "needs_you" | "failed")).unwrap_or("idle");
                 let waiting = row.get("waiting").and_then(Value::as_u64).unwrap_or(0);
-                Some(json!({ "id": id, "title": title, "updated_ms": updated, "messages": messages, "activity": activity, "waiting": waiting }))
+                let mut info = json!({ "id": id, "title": title, "updated_ms": updated, "messages": messages, "activity": activity, "waiting": waiting });
+                if let Some(retry) = row.get("retry").and_then(Value::as_str).filter(|_| activity == "failed") {
+                    info["retry"] = json!(retry);
+                }
+                Some(info)
             })
             .collect();
         Value::Array(found)

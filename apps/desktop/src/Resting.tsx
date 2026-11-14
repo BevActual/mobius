@@ -26,19 +26,22 @@ export function restingOf(list: readonly ConversationInfo[], active: string, ear
   return { needsYou, latest, earlier };
 }
 
-export function RestingPanel({ conversations, active, onSelect, onOpenItem, ideas }: {
+export function RestingPanel({ conversations, active, onSelect, onOpenItem, ideas, glance }: {
   conversations: readonly ConversationInfo[];
   active: string;
   onSelect: (id: string) => void;
   onOpenItem?: ((target: HubTarget) => void) | undefined;
   /** The slot the composer fills with ideas for what is open. */
   ideas: ReactNode;
+  /** The Glance slot, first of all: live facts about what is open (hidden while the app puts nothing there). */
+  glance?: ReactNode;
 }) {
   const r = restingOf(conversations, active);
   const [changes, setChanges] = useState(false);
   const waiting = r.needsYou.length + (r.latest && changes ? 1 : 0);
   return (
     <div className="resting">
+      {glance}
       {(r.needsYou.length > 0 || r.latest) && (
         <section className="resting-part resting-waiting" aria-label="Waiting for you">
           <h3 className="resting-title">Waiting for you{waiting > 0 && <span className="resting-count">{waiting}</span>}</h3>

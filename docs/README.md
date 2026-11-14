@@ -20,7 +20,7 @@ you want to build or change Mobius, go to **Developers**.
 
 | Page | What it covers |
 | --- | --- |
-| [Working with Mobius](guide/working-with-mobius.md) | Ask first, Propose and Act; Keep, Discard and Try another; Rewind; what always asks |
+| [Working with Mobius](guide/working-with-mobius.md) | Mode and permission; Keep, Discard and Try another; Rewind; what always asks |
 | [Abilities](guide/abilities.md) | Adding and removing apps, skills, connectors (MCP) and plugins |
 | [Models and gateways](guide/models-and-gateways.md) | Signing in to a plan, API keys, local models, and a model for each job |
 | [Voice](guide/voice.md) | Dictating, and having replies read aloud |
