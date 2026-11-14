@@ -68,3 +68,16 @@ restored from its pull request page.
 
 Re-run only what failed while you fix it, then run the whole suite once. Don't skip or disable a test to get green;
 fix the cause or the test.
+
+### Unstable tests
+
+Every re-run of a failed e2e job is written down here, so re-runs stay honest and it is clear where CI time goes.
+A test gets **one** re-run per pull request. A test that reaches **three sightings** is a blocker: fix its cause
+before the next batch of merges. Remove a row once its fix has landed and it has stayed green for a day.
+
+| Test | Symptom | Seen | Owner | Status |
+| --- | --- | --- | --- | --- |
+| `mail.spec.ts:124` | After Mark as Unread, the message stays open, or no row reads unread | 5 (2026-11-14) | Apps lead | Fix landed in #300 (menu items no longer wait for a frame). The cause is likely but not yet confirmed; the test logs whether the window draws frames |
+| `code.spec.ts:189`, `mobius2.spec.ts:205` | The assistant's reply after a tool turn doesn't appear within 5 s | 3 (2026-11-14) | Builder | **Blocker**: being looked into |
+| `tasks.spec.ts:109` | Started fine, but the Lists sidebar never showed Inbox within 60 s ("Target page closed") | 1 (2026-11-14) | Builder | Watching |
+| `skills.spec.ts:88` | "Mobius's change" never appeared | 1 (2026-11-14) | Apps lead | Watching |
