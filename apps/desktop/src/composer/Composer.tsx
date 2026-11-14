@@ -357,6 +357,23 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const permission = permissionOf(preferences.value.approvalMode, apply);
   const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
   const modeInfo = chatModeOf(mode);
+  // The row gives way in one order and never truncates: first Permission drops to its shield, then the model to its chip.
+  const toolsRef = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const row = toolsRef.current;
+    if (!row) return;
+    const fit = () => {
+      delete row.dataset.fit;
+      if (row.scrollWidth <= row.clientWidth) return;
+      row.dataset.fit = 'perm';
+      if (row.scrollWidth > row.clientWidth) row.dataset.fit = 'model';
+    };
+    fit();
+    if (typeof ResizeObserver === 'undefined') return;
+    const watch = new ResizeObserver(fit);
+    watch.observe(row);
+    return () => watch.disconnect();
+  }, [bestFit, pillName, effortLabel, permission.short, modeInfo.name]);
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
@@ -449,7 +466,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       {camera && <CameraDialog onClose={() => setCamera(false)} onTake={(p) => { setPictures((was) => [...was, p].slice(0, MAX_PICTURES)); queueMicrotask(() => fieldRef.current?.focus()); }} />}
       <input ref={pictureInput} type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple hidden aria-label="Choose pictures" onChange={(event) => { const files = [...(event.target.files ?? [])]; event.target.value = ''; void addPictures(files); }} />
       <div className="composer-bar">
-        <div className="composer-tools">
+        <div className="composer-tools" ref={toolsRef}>
           <PopMenu label="Add context" className="round ghost" disabled={!canType || adding} trigger={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>}>
             {(close) => (
               <>
