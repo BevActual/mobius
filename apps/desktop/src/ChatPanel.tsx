@@ -376,7 +376,9 @@ export interface ChatPanelProps {
   activeConversation: string;
   onNewConversation: () => void;
   onSelectConversation: (id: string) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (section?: 'safety') => void;
+  /** Abilities, from the plus menu. */
+  onOpenAbilities?: (() => void) | undefined;
   /** `full` is the Agent app: no conversation menu (the list is beside it) and a wide reading column. */
   variant?: 'panel' | 'full';
   /** Take back the last exchange and send it again. Resolves with a reason when it could not be done. */
@@ -505,7 +507,7 @@ function ControlBar({ control, onHandBack, onStop }: { control: { step: number; 
   );
 }
 
-export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, onPopOut, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
+export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settings, coreReady, onSend, onShowTab, onStop, onTakeOver, onHandBack, onAnswer, onReply, onSaveSettings, focusToken, incoming, conversations, activeConversation, onNewConversation, onSelectConversation, onOpenSettings, onOpenAbilities, variant = 'panel', onRetry, onEdit, onDetails, pin, desk, effort, onEffort, onModelChanged, onDrive, appCard, onOpenMail, place, onHide, onPopOut, lead, onPlace, menuItems = [], below, onOpenVoice, hint }: ChatPanelProps) {
   const [context, setContext] = useState<ContextItem[]>([]);
   const [draft, setDraft] = useState('');
   const [actionProblem, setActionProblem] = useState<string | null>(null);
@@ -845,6 +847,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(onTakeOver && !state.control ? { onTakeOver } : {})}
             onModelChanged={onModelChanged}
             onOpenSettings={onOpenSettings}
+            onOpenAbilities={onOpenAbilities}
             fieldRef={field}
             surface={surface}
             here={hereShown}
