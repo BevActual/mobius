@@ -290,8 +290,12 @@ function Floating() {
   );
 }
 
-function Card({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
-  return <section className="sheet-card" data-wide={wide || undefined}><h2>{title}</h2>{children}</section>;
+/**
+ * One group of controls. `shot` names its picture in docs/developers/ui/img/ (made by `npm run ui-shots`); every card
+ * needs one, and a test checks the picture exists and a library page shows it.
+ */
+function Card({ title, shot, wide, children }: { title: string; shot: string; wide?: boolean; children: ReactNode }) {
+  return <section className="sheet-card" data-wide={wide || undefined} data-shot={shot}><h2>{title}</h2>{children}</section>;
 }
 
 export function Sheet() {
@@ -325,7 +329,7 @@ export function Sheet() {
         <p>Every control in src/ui, in its states. Instrument, docs/design/instrument.md.</p>
       </header>
       <div className="sheet-grid">
-        <Card title="Buttons">
+        <Card title="Buttons" shot="buttons">
           <div className="sheet-row">
             <Button kind="primary" keys="Ctrl+Enter">Keep</Button>
             <Button>Export</Button>
@@ -346,7 +350,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Fields and pop-ups">
+        <Card title="Fields and pop-ups" shot="fields">
           <div className="sheet-col">
             <TextField label="Name" value={name} onChange={setName} />
             <TextField label="Width" value={width} onChange={setWidth} unit="px" inputMode="numeric" />
@@ -366,7 +370,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Segmented">
+        <Card title="Segmented" shot="segmented">
           <div className="sheet-row">
             <Segmented label="View" value={view} onChange={setView} choices={[{ value: 'list', label: 'List' }, { value: 'board', label: 'Board' }, { value: 'calendar', label: 'Calendar' }]} />
             <Segmented label="View" iconOnly value={view} onChange={setView} choices={[{ value: 'list', label: 'List', icon: <Icon d={LIST} /> }, { value: 'board', label: 'Board', icon: <Icon d={BOARD} /> }, { value: 'calendar', label: 'Calendar', icon: <Icon d={CAL} /> }]} />
@@ -379,7 +383,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Switches and checkboxes">
+        <Card title="Switches and checkboxes" shot="switches">
           <div className="sheet-col">
             <Switch label="Show key hints" checked={on} onChange={setOn} />
             <Switch label="Keep my wording" detail="Mobius changes only what you ask" checked={off} onChange={setOff} />
@@ -393,7 +397,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Sliders (Adjust)">
+        <Card title="Sliders (Adjust)" shot="sliders">
           <div className="sheet-panel">
             <Slider label="Exposure" min={-100} max={100} value={exposure} onChange={setExposure} />
             <Slider label="Contrast" min={-100} max={100} value={contrast} onChange={setContrast} />
@@ -403,7 +407,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Parameter cells (pro apps)">
+        <Card title="Parameter cells (pro apps)" shot="param-cells">
           <div className="sheet-panel">
             <ParamGrid label="Device">
               <ParamCell label="Tempo" unit="BPM" min={40} max={240} value={tempo} onChange={setTempo} keyHint="T" />
@@ -428,7 +432,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Meters and progress">
+        <Card title="Meters and progress" shot="meters">
           <div className="sheet-col">
             <Meter label="Storage" value={0.62} />
             <Meter label="Level" value={0.94} threshold={0.85} format={() => '−0.4 dB'} />
@@ -436,7 +440,7 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Chips, counts, dots and people">
+        <Card title="Chips, counts, dots and people" shot="chips">
           <div className="sheet-row">
             {tags.map((t, i) => <Chip key={t} color={CONTENT_COLORS[i * 3]} onRemove={() => setTags(tags.filter((x) => x !== t))}>{t}</Chip>)}
             <Chip color="violet">Design</Chip>
@@ -462,43 +466,43 @@ export function Sheet() {
           </div>
         </Card>
 
-        <Card title="Shared objects: one-line row, two-line row, card, chip" wide>
+        <Card title="Shared objects: one-line row, two-line row, card, chip" shot="objects" wide>
           <Objects />
         </Card>
 
-        <Card title="Popover and choice menus (composer: plus, Mode, Permission, model open upward)" wide>
+        <Card title="Popover and choice menus (composer: plus, Mode, Permission, model open upward)" shot="menus" wide>
           <Composer />
         </Card>
 
-        <Card title="Content tabs and dialogs" wide>
+        <Card title="Content tabs and dialogs" shot="dialogs" wide>
           <Floating />
         </Card>
 
-        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" wide>
+        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>
 
-        <Card title="Date and time fields (open downward)" wide>
+        <Card title="Date and time fields (open downward)" shot="dates" wide>
           <Dates />
         </Card>
 
-        <Card title="Two-axis pad" wide>
+        <Card title="Two-axis pad" shot="xy-pad" wide>
           <Pads />
         </Card>
 
-        <Card title="Waveform (Music's sampler)" wide>
+        <Card title="Waveform (Music's sampler)" shot="waveform" wide>
           <Wave />
         </Card>
-        <Card title="Instrument controls (Music's Device panel and drum kit)" wide>
+        <Card title="Instrument controls (Music's Device panel and drum kit)" shot="instruments" wide>
           <Instruments />
         </Card>
-        <Card title="Devices: chain, frame and EQ" wide>
+        <Card title="Devices: chain, frame and EQ" shot="devices" wide>
           <Devices />
         </Card>
-        <Card title="Pad grid (Music's drum kit)">
+        <Card title="Pad grid (Music's drum kit)" shot="pads">
           <DrumPads />
         </Card>
-        <Card title="List rows" wide>
+        <Card title="List rows" shot="list-rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">
               {[
