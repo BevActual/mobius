@@ -316,7 +316,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
       const inCalendar = events[path];
       const names = inCalendar && inCalendar.names.length > 0 ? inCalendar.names : null;
       const target = inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path);
-      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
+      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : /\/\.charts\.json$/i.test(path.replace(/\\/g, '/')) ? 'chart' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
     }),
     ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
     ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
