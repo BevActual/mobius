@@ -16,3 +16,13 @@ export function Row({ path, title, description, children, highlight }: { path: s
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="srow-empty">{children}</p>;
 }
+
+/** Loading: grey bars the shape of the rows that are coming, never a spinner (Instrument). */
+export function Placeholder({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="settings-placeholder" role="status" aria-busy="true">
+      <span className="sr-only">Loading</span>
+      {Array.from({ length: rows }, (_, i) => <span key={i} className="settings-placeholder-bar" style={{ width: `${[72, 56, 64, 48][i % 4]}%` }} />)}
+    </div>
+  );
+}

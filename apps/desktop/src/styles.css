@@ -281,7 +281,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .field textarea { resize: vertical; }
 .field input:focus, .field textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
 
-.field-ok { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--success); }
+.field-ok { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--muted); }
 .mono { font-family: var(--font-mono); font-size: var(--fs-sm); }
 .btn.danger { background: var(--danger); border-color: var(--danger); color: var(--on-accent); }
 .btn.danger:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 88%, #000); }
@@ -331,13 +331,12 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .slist { list-style: none; margin: 0; padding: 0; width: 100%; border: 1px solid var(--line); border-radius: var(--radius-group); overflow: hidden; }
 .slist-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .slist-item:last-child { border-bottom: 0; }
-.slist-item[data-tone="warning"] .slist-main > span:first-child { color: #b3261e; }
-@media (prefers-color-scheme: dark) { .slist-item[data-tone="warning"] .slist-main > span:first-child { color: #ff8a80; } }
+.slist-item[data-tone="warning"] .slist-main > span:first-child { color: var(--danger); }
 .slist-main { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .slist-sub { font-size: var(--fs-sm); color: var(--muted); }
 .slist-time { flex: none; font-size: var(--fs-sm); color: var(--muted); }
 .badge { flex: none; margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-small); background: var(--soft); font-size: var(--fs-xs); }
-.badge[data-effect="deny"] { background: color-mix(in srgb, #d93025 14%, var(--bg)); }
+.badge[data-effect="deny"] { background: var(--danger-wash); }
 .hit { display: grid; gap: 1px; width: 100%; padding: 8px 12px; text-align: left; border-radius: 0; }
 .hit-title { font-weight: 600; }
 .hit-where { font-size: var(--fs-sm); color: var(--accent); }
@@ -550,7 +549,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .prow-note { font-size: var(--fs-sm); color: var(--muted); }
 .prow-code { font-family: var(--code-font, var(--font-mono)); letter-spacing: 0.08em; color: var(--ink); }
 .prow-status { font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; }
-.prow-status[data-has-key="true"] { color: var(--success); }
+.prow-status[data-has-key="true"] { color: var(--muted); }
 .prow-actions { display: inline-flex; gap: var(--sp-2); }
 .prow-form { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .prow-form .input, .prow-form select { flex: 1; min-width: 200px; }
@@ -2345,7 +2344,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
    list of rows on the right, one control per row with short help. */
 .settings-content .srow { border-radius: 12px; }
 .srow-note { margin: 6px 0 0; font-size: var(--fs-sm); color: var(--muted); }
-.srow-note::before { content: "⚠ "; color: #c27c00; }
+.srow-note::before { content: "⚠ "; color: var(--warning); }
 .settings-body { grid-template-columns: 228px minmax(0, 1fr); }
 
 /* Settings is an app: its search and sections are the sidebar's list, and the page fills the rest. */
@@ -2355,7 +2354,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Settings rows, as in System Settings: inset grouped cards with inset hairlines; the name and its grey help on the
    left, the control trailing on the same row (a wide control, such as a list, takes the row under them). */
 .settings-card { max-width: 680px; border-radius: 12px; background: var(--card, var(--bg)); border: 0.5px solid var(--hairline); overflow: hidden; }
-@media (prefers-color-scheme: dark) { .settings-card { background: color-mix(in srgb, var(--ink) 4%, var(--bg)); } }
 .settings-card .srow { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; max-width: none; margin: 0; padding: 11px 14px; border: 0; border-radius: 0; }
 .settings-card .srow + .srow::before { content: ""; position: absolute; top: 0; left: 14px; right: 0; height: 0.5px; background: var(--hairline); }
 .settings-card .srow-head { flex: 1 1 240px; min-width: 0; }
@@ -2369,8 +2367,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Pages within a section: a centred segmented control, not underlined tabs. */
 .settings-tabs { justify-content: center; gap: 0; width: fit-content; margin: 4px auto 14px; padding: 2px; border: 0; border-radius: 9px; background: var(--field); }
 .settings-tab { padding: 4px 14px; border-radius: 7px; font-size: var(--fs-md); color: var(--ink); box-shadow: none; }
-.settings-tab[aria-selected="true"] { background: var(--bg); font-weight: 500; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12), 0 0 0 0.5px var(--hairline); }
-@media (prefers-color-scheme: dark) { .settings-tab[aria-selected="true"] { background: color-mix(in srgb, var(--ink) 18%, var(--bg)); } }
+.settings-tab[aria-selected="true"] { background: var(--raised); font-weight: 500; box-shadow: 0 0 0 0.5px var(--hairline); }
 /* A pop-up (a choice of several), as in macOS Settings. */
 .popup { height: 26px; min-width: 150px; padding: 0 26px 0 10px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); }
 .popup:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }

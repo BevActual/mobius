@@ -107,7 +107,7 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
       {saved && <p className="field-ok" role="status">Saved</p>}
       <div className="settings-actions">
         <button type="submit" className="btn primary" disabled={saving || !baseUrl.trim() || !model.trim() || (useBackup && (!backupUrl.trim() || !backupModel.trim()))}>Save</button>
-        {keyKept && !confirmRemove && <button type="button" className="btn link danger" disabled={saving} onClick={() => setConfirmRemove(true)}>Remove saved key…</button>}
+        {keyKept && !confirmRemove && <button type="button" className="btn link" disabled={saving} onClick={() => setConfirmRemove(true)}>Remove saved key…</button>}
         {keyKept && confirmRemove && (
           <span className="prow-confirm" role="group" aria-label="Remove the saved key?">
             <span className="prow-note">Remove the saved key?</span>
