@@ -38,27 +38,57 @@ DTEND:{{date:+0}}T120000
 SUMMARY:Bench rig prep
 END:VEVENT
 BEGIN:VEVENT
-UID:sam-axion
-DTSTART:{{date:+1}}T100000
-DTEND:{{date:+1}}T103000
-SUMMARY:Motor call with Axion
-END:VEVENT
-BEGIN:VEVENT
 UID:sam-loom
 DTSTART:{{date:+0}}T143000
 DTEND:{{date:+0}}T153000
 SUMMARY:Wiring loom check
 END:VEVENT
 BEGIN:VEVENT
+UID:sam-axion
+DTSTART:{{date:+1}}T100000
+DTEND:{{date:+1}}T103000
+SUMMARY:Motor call with Axion
+END:VEVENT
+BEGIN:VEVENT
 UID:sam-off
 DTSTART:{{date:+1}}T130000
 DTEND:{{date:+1}}T180000
-SUMMARY:Out: Friday afternoon
+SUMMARY:Out of office
+END:VEVENT
+BEGIN:VEVENT
+UID:sam-veltro
+DTSTART:{{date:+2}}T093000
+DTEND:{{date:+2}}T123000
+SUMMARY:Supplier visit, Veltro
+END:VEVENT
+BEGIN:VEVENT
+UID:sam-fit
+DTSTART:{{date:+2}}T150000
+DTEND:{{date:+2}}T170000
+SUMMARY:Loom fitting
+END:VEVENT
+BEGIN:VEVENT
+UID:sam-crash
+DTSTART:{{date:+3}}T090000
+DTEND:{{date:+3}}T110000
+SUMMARY:Crash test
+END:VEVENT
+BEGIN:VEVENT
+UID:sam-data
+DTSTART:{{date:+3}}T130000
+DTEND:{{date:+3}}T170000
+SUMMARY:Crash data review
 END:VEVENT
 BEGIN:VEVENT
 UID:sam-cad
 DTSTART:{{date:+4}}T140000
 DTEND:{{date:+4}}T160000
 SUMMARY:CAD review
+END:VEVENT
+BEGIN:VEVENT
+UID:sam-rig
+DTSTART:{{date:+4}}T093000
+DTEND:{{date:+4}}T110000
+SUMMARY:Rig calibration
 END:VEVENT
 END:VCALENDAR

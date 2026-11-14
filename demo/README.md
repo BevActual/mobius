@@ -36,7 +36,7 @@ Everything is dated from the day the demo is opened, with `{{date:+N}}` and `{{d
 | --- | --- | --- |
 | Home | everything below | Unread mail, tasks due today, a half-full week. |
 | Mail | `../mail/` | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (the price holds until the end of the week), Sam's "find us an hour". |
-| Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/Sam Okafor.ics` | Andrew's busy week and Sam's, for "Find an hour with Sam this week". |
+| Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/people/Sam Okafor.ics` | Andrew's busy week, and Sam's (read only for when he is busy), for "Find an hour with Sam this week". Their free time overlaps for an hour or two most days. |
 | Tasks | `tasks/Kestrel P2.md`, `tasks/Home.md` | Sixteen tasks: three overdue, some due today with times, one repeating. |
 | Notes | `notes/Meetings/`, `notes/P2 build/` | A notebook of meeting notes. |
 | Docs | `docs/P2 build/Build brief.md` | A long, wordy draft to tighten, and the source for the deck. |
