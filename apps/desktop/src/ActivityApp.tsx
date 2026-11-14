@@ -153,7 +153,7 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
       </button>
       {/* A failed run waits for you: send what it asked once more, right here. */}
       {failed && c.retry
-        ? <button type="button" className="act-act" title="Send what it asked once more" disabled={retrying} onClick={() => { setRetrying(true); void window.mobius.agent.send(c.id, c.retry!).catch(() => null).finally(() => setRetrying(false)); }}>Try again</button>
+        ? <button type="button" className="act-act" data-always title="Send what it asked once more" disabled={retrying} onClick={() => { setRetrying(true); void window.mobius.agent.send(c.id, c.retry!).catch(() => null).finally(() => setRetrying(false)); }}>Try again</button>
         : <button type="button" className="act-act" title="Open the conversation" onClick={onOpen}>Open</button>}
     </li>
   );
