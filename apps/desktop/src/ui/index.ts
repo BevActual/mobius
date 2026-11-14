@@ -32,3 +32,7 @@ export {
 } from './Instrument';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
+export { Dialog, Confirm } from './Dialog';
+export { ContentTabs, tabId, type TabItem } from './Tabs';
+export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
+export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';

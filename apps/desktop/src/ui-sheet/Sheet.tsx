@@ -2,8 +2,9 @@ import { useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
-  Slider, StatusLetter, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  DateField, TimeField, TimeRange, MonthPicker,
 } from '../ui';
 
 /**
@@ -154,6 +155,31 @@ function Composer() {
   );
 }
 
+function Floating() {
+  const [dialog, setDialog] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const [name, setName] = useState('P2 budget');
+  const [tabs, setTabs] = useState([
+    { id: 'brief', label: 'Build brief.md' }, { id: 'budget', label: 'P2 budget.xlsx', unsaved: true }, { id: 'plan', label: 'Launch plan for the Northway dealer preview.md' }, { id: 'motor', label: 'motor.ts', byMobius: true },
+  ]);
+  const [tab, setTab] = useState('budget');
+  return (
+    <div className="sheet-col">
+      <ContentTabs label="Open files" tabs={tabs} value={tab} onChange={setTab} onClose={(id) => setTabs(tabs.filter((t) => t.id !== id))}
+        trailing={<IconButton label="New tab" keys="Ctrl+T" icon={<Icon d={PLUS} />} />} />
+      <div className="sheet-row" style={{ marginTop: 12 }}>
+        <Button onClick={() => setDialog(true)}>Rename…</Button>
+        <Button onClick={() => setConfirm(true)}>Delete 3 files…</Button>
+      </div>
+      <Dialog open={dialog} onOpenChange={setDialog} title="Rename sheet" description="The new name shows everywhere this sheet is linked."
+        actions={<><Button onClick={() => setDialog(false)}>Cancel</Button><Button kind="primary" onClick={() => setDialog(false)}>Rename</Button></>}>
+        <TextField label="Name" value={name} onChange={setName} />
+      </Dialog>
+      <Confirm open={confirm} title="Delete 3 files?" description="They leave P2 build and every app that shows them." permanent action="Delete 3 files" onConfirm={() => setConfirm(false)} onCancel={() => setConfirm(false)} />
+    </div>
+  );
+}
+
 function Card({ title, wide, children }: { title: string; wide?: boolean; children: ReactNode }) {
   return <section className="sheet-card" data-wide={wide || undefined}><h2>{title}</h2>{children}</section>;
 }
@@ -163,6 +189,7 @@ export function Sheet() {
   const [width, setWidth] = useState('1280');
   const [tone, setTone] = useState<'plain' | 'warm' | 'formal'>('warm');
   const [grid, setGrid] = useState<'1/8' | '1/16' | '1/32'>('1/16');
+  const [noteLength, setNoteLength] = useState<'1/4' | '1/8d' | '1/16t'>('1/16t');
   const [key, setKey] = useState<'C' | 'Am' | 'G'>('Am');
   const [swatch, setSwatch] = useState<ContentColor>('teal');
   const [view, setView] = useState<'list' | 'board' | 'calendar'>('list');
@@ -216,6 +243,11 @@ export function Sheet() {
             <TextField label="Email" value="kestrel@" onChange={() => {}} error="That is not a whole address. Add the part after @." />
             <Select label="Tone" value={tone} onChange={setTone} choices={[{ value: 'plain', label: 'Plain' }, { value: 'warm', label: 'Warm' }, { value: 'formal', label: 'Formal' }]} />
             <Select label="Grid" inline value={grid} onChange={setGrid} choices={[{ value: '1/8', label: '1/8' }, { value: '1/16', label: '1/16' }, { value: '1/32', label: '1/32' }]} />
+            <div className="sheet-bar" aria-label="A crowded bar">
+              <Select label="Grid" inline value={grid} onChange={setGrid} choices={[{ value: '1/8', label: '1/8' }, { value: '1/16', label: '1/16' }, { value: '1/32', label: '1/32' }]} />
+              <Select label="Note length" inline value={noteLength} onChange={setNoteLength} choices={[{ value: '1/4', label: '1/4' }, { value: '1/8d', label: '1/8 dotted' }, { value: '1/16t', label: '1/16 triplet' }]} />
+              <span className="sheet-bar-fill">Notes bar, squeezed</span>
+            </div>
             <div className="sheet-row">
               <span className="sheet-sub">Key</span>
               <Select label="Key" hideLabel quiet value={key} onChange={setKey} choices={[{ value: 'C', label: 'C major' }, { value: 'Am', label: 'A minor' }, { value: 'G', label: 'G major' }]} />
@@ -317,6 +349,14 @@ export function Sheet() {
           <Composer />
         </Card>
 
+        <Card title="Content tabs and dialogs" wide>
+          <Floating />
+        </Card>
+
+        <Card title="Date and time fields (open downward)" wide>
+          <Dates />
+        </Card>
+
         <Card title="Two-axis pad" wide>
           <Pads />
         </Card>
@@ -344,5 +384,34 @@ export function Sheet() {
         </Card>
       </div>
     </main>
+  );
+}
+
+/** A fixed "today" so the sheet and its shots don't move: Saturday 14 November 2026, 10:05. */
+const SHEET_NOW = new Date(2026, 10, 14, 10, 5);
+
+function Dates() {
+  const [due, setDue] = useState<Date | null>(new Date(2026, 10, 20));
+  const [none, setNone] = useState<Date | null>(null);
+  const [start, setStart] = useState<number | null>(13 * 60);
+  const [end, setEnd] = useState<number | null>(14 * 60 + 30);
+  const [at, setAt] = useState<number | null>(null);
+  const [day, setDay] = useState<Date | null>(new Date(2026, 10, 20));
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-stack">
+        <DateField label="Due" value={due} onChange={(d) => setDue(d)} now={SHEET_NOW} />
+        <DateField label="Starts" value={none} onChange={(d) => setNone(d)} now={SHEET_NOW} />
+        <DateField label="Mobius proposed" value={new Date(2026, 10, 21)} onChange={() => {}} proposed now={SHEET_NOW} />
+        <TimeField label="Remind me at" value={at} onChange={setAt} now={SHEET_NOW} />
+        <div className="ui-field">
+          <span className="ui-field-label">Design review</span>
+          <TimeRange start={start} end={end} onChange={(s, e) => { setStart(s); setEnd(e); }} now={SHEET_NOW} />
+        </div>
+      </div>
+      <div className="sheet-month">
+        <MonthPicker value={day} onPick={setDay} now={SHEET_NOW} label="Month on its own" />
+      </div>
+    </div>
   );
 }
