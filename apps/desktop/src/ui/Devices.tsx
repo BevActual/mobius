@@ -250,6 +250,8 @@ export function EqGraph({ label = 'EQ', bands, onChange, onCommit, reset, disabl
             <path className="ui-graph-area" d={`${whole} L 100 ${zero} L 0 ${zero} Z`} />
             <path className="ui-graph-line" d={whole} />
           </svg>
+          {[12, 0, -12].map((db) => <span key={db} className="ui-graph-axis" data-axis="y" aria-hidden="true" style={{ top: `${100 - gainY(db) * 100}%` }}>{db > 0 ? `+${db}` : db < 0 ? `−${-db}` : '0'}</span>)}
+          {[[100, '100'], [1000, '1k'], [10000, '10k']].map(([f, t]) => <span key={t} className="ui-graph-axis" data-axis="x" aria-hidden="true" style={{ left: `${toPosition(f as number, EQ_MIN, EQ_MAX, 'log') * 100}%` }}>{t}</span>)}
           {handles.map((h, i) => (
             <HandleDot key={h.key} h={h} held={held} grab={grab} onKey={key} onWheel={wheel} selected={i === chosen} disabled={disabled} />
           ))}

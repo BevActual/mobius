@@ -101,7 +101,7 @@ export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, ste
   const r = ((now - 90) * Math.PI) / 180;
   return (
     <div className={className ? `ui-knob ${className}` : 'ui-knob'} data-changed={value !== zero || undefined} data-disabled={disabled || undefined}>
-      <span className="ui-param-name" id={`${id}-name`}>{label}</span>
+      <span className="ui-knob-name" id={`${id}-name`}>{label}</span>
       <div
         className="ui-knob-dial"
         role="slider"

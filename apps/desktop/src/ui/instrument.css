@@ -48,7 +48,8 @@
 .ui-graph-handle:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
 .ui-graph-readout { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-2); margin: 0; }
 .ui-graph-readout div { min-width: 0; }
-.ui-graph-readout dt { font-size: var(--fs-floor); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+/* Names in sentence case, small and grey (Instrument). */
+.ui-graph-readout dt, .ui-knob-name { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); white-space: nowrap; }
 .ui-graph-readout dd {
   margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font: var(--fw-regular) var(--fs-md) / 1.4 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums;
@@ -78,12 +79,16 @@
   display: grid; place-items: center; font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); color: var(--ink);
 }
 .ui-graph-handle[data-mark][data-selected], .ui-graph-handle[data-mark]:hover, .ui-graph-handle[data-mark][data-held] { background: var(--ink); color: var(--paper); }
-.ui-graph-guide[data-faint] { stroke-dasharray: 1 3; }
+/* Gain guides away from 0 dB: solid hairlines, fainter than the 0 dB line (dots and dashes are Mobius's mark). */
+.ui-graph-guide[data-faint] { opacity: 0.55; }
+/* Axis labels inside the plot: dB at the left edge, hertz along the foot. */
+.ui-graph-axis { position: absolute; font: var(--fw-regular) var(--fs-floor) / 1 var(--font-mono); color: var(--faint); pointer-events: none; font-variant-numeric: tabular-nums; }
+.ui-graph-axis[data-axis="y"] { left: 0; translate: 0 -120%; }
+.ui-graph-axis[data-axis="x"] { bottom: 0; translate: -50% -30%; }
 
 /* EQ readout: a column per band, the chosen one in ink. */
-.ui-eq-readout div { display: grid; gap: 0; padding-top: var(--sp-1); border-top: var(--hairline-w) solid transparent; }
-.ui-eq-readout div[data-chosen] { border-top-color: var(--ink); }
-.ui-eq-readout div[data-chosen] dd { color: var(--ink); }
+.ui-eq-readout div { display: grid; gap: 0; }
+.ui-eq-readout div[data-chosen] dt, .ui-eq-readout div[data-chosen] dd { color: var(--ink); }
 .ui-eq-readout dd { font-size: var(--fs-sm); line-height: 1.35; }
 .ui-eq-readout div[data-off] dd { text-decoration: line-through; }
 
@@ -105,7 +110,6 @@
   flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
 }
-.ui-device[data-off] .ui-device-title { color: var(--muted); }
 .ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
   display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
