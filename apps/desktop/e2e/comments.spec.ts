@@ -127,7 +127,7 @@ test('a comment sent to Mobius comes back resolved once its change is kept', asy
 test('a comment on a mail message goes to Mobius with the message, and the reply comes back into the thread', async () => {
   const RUI = 'From: Rui Almeida <rui@example.com>\r\nTo: Ana <ana@example.com>\r\nSubject: Terrace for the 13th\r\nMessage-ID: <t1@example.com>\r\nDate: Sun, 08 Nov 2026 09:02:00 +0000\r\n\r\nI can hold the terrace for eight on the 13th. Could you send the headcount by Wednesday?\r\n';
   servers = await startMailServers('app-pass', [{ uid: 7, flags: '', raw: RUI }]);
-  await start([says(['Eight people, by Wednesday. I would reply to confirm.'])]);
+  await start([says(['Eight people, **by Wednesday**. [They need the headcount](trust:yours "Mail · Rui Almeida · Terrace for the 13th"); I would reply to confirm.'])]);
   await openApp('Mail');
   await shell().getByRole('button', { name: 'Add a mail account…' }).click();
   const dialog = shell().getByRole('dialog', { name: 'Add a mail account' });
@@ -151,6 +151,11 @@ test('a comment on a mail message goes to Mobius with the message, and the reply
   const card = shell().getByRole('dialog', { name: 'Comment on Terrace for the 13th' });
   await card.getByRole('button', { name: 'Send to Mobius' }).click();
   await expect(card).toContainText('Eight people, by Wednesday');
+  // The reply reads as text: bold is bold and a source is a link to it, never the markup itself.
+  await expect(card.locator('.comment-reply strong')).toHaveText('by Wednesday');
+  await expect(card.getByRole('button', { name: /^They need the headcount/ })).toBeVisible();
+  await expect(card).not.toContainText('trust:');
+  await expect(card).not.toContainText('**');
   const sent = JSON.stringify(model!.requests[0]!.messages);
   expect(sent).toContain('What do they need from me?');
   expect(sent).toContain('hold the terrace for eight');
