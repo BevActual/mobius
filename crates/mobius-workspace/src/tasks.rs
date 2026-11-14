@@ -303,9 +303,13 @@ impl Tasks {
     /// Every list by name, each with how many tasks are open and done. Inbox is always there.
     pub fn lists(&self) -> Res<Value> {
         fs::create_dir_all(&self.root).map_err(|e| format!("the tasks folder cannot be used: {e}"))?;
+        // Made in one step that only one reader can win: two reads at start-up both writing it
+        // through the same temp file left one of them failing.
         let inbox = self.root.join(format!("{DEFAULT_LIST}.md"));
-        if !inbox.exists() {
-            Self::store(&inbox, &format!("# {DEFAULT_LIST}\n\n"))?;
+        match fs::OpenOptions::new().write(true).create_new(true).open(&inbox) {
+            Ok(mut f) => std::io::Write::write_all(&mut f, format!("# {DEFAULT_LIST}\n\n").as_bytes()).map_err(|e| e.to_string())?,
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("the Inbox cannot be made: {e}")),
         }
         let mut names: Vec<String> = fs::read_dir(&self.root)
             .map_err(|e| e.to_string())?
@@ -770,6 +774,29 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let tasks = Tasks::new(dir.path().join("work"), dir.path().join("store"));
         (dir, tasks)
+    }
+    #[test]
+    fn lists_read_at_the_same_moment_all_answer_on_a_new_workspace() {
+        // The app reads the lists twice as it starts; both used to write the new Inbox through one temp file,
+        // and the one that lost the rename failed, so Tasks could open with no lists at all.
+        for _ in 0..50 {
+            let (_dir, tasks) = setup();
+            let tasks = std::sync::Arc::new(tasks);
+            let start = std::sync::Arc::new(std::sync::Barrier::new(8));
+            let runs: Vec<_> = (0..8)
+                .map(|_| {
+                    let (tasks, start) = (tasks.clone(), start.clone());
+                    std::thread::spawn(move || {
+                        start.wait();
+                        tasks.lists()
+                    })
+                })
+                .collect();
+            for run in runs {
+                let got = run.join().unwrap().expect("every read answers");
+                assert_eq!(got[0]["name"], DEFAULT_LIST);
+            }
+        }
     }
     fn texts(v: &Value) -> Vec<String> {
         v["tasks"].as_array().unwrap().iter().map(|t| t["text"].as_str().unwrap().to_owned()).collect()

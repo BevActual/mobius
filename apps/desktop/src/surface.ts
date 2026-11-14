@@ -21,6 +21,8 @@ export interface SurfaceState {
   app: AppId;
   /** A web page is showing in the browser. */
   hasPage: boolean;
+  /** How many tabs show a web page: two or more can be compared. */
+  pages?: number;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
   /** `extra` is what is said about it, such as its open comments, sent after its text. */
   note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
@@ -46,10 +48,28 @@ export interface SurfaceState {
 export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines what went where, with the number of files moved as files.move answers it.`;
 
 /**
+ * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
+ * linked to the words on the page it came from.
+ */
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs. Read a tab that has a file (one of my own pages) with files.read on that file, and any other with browser.read (its tabId). Write the comparison as a new note in my Notes called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+
+/**
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
-export const PLAN_MY_DAY = 'Plan my day. Read my open tasks with tasks.list and keep the ones due today or overdue, and any flagged. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task worth doing today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. For unread mail that needs an answer from me today, suggest a short reply in my voice with mail.draft. Do not send anything and do not move my events. End with the day as a short list in time order, then one line on what can wait.';
+export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+
+/**
+ * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them
+ * as a chart and says why, every figure a formula in the sheet.
+ */
+export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers, and in the first empty column a heading "Stands out" with a few words beside each row that is far from the average, such as "2.1× the average". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells.';
+
+/** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
+export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.';
+
+/** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
+export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
@@ -57,17 +77,19 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'browser':
       return state.hasPage
         ? [
-            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' },
-            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' },
-            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' },
+            ...((state.pages ?? 0) >= 2 ? [{ label: 'Compare these', prompt: COMPARE_TABS }] : []),
+            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' as const },
+            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' as const },
+            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' as const },
           ]
         : [];
     case 'notes':
       return state.note
         ? [
+            // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
+            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up at the top of the note, above what is there: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items. Keep the words below exactly as they are. Show me the change before saving.', attach: 'note' },
+            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks in my Tasks Inbox with tasks.add, with any dates the note gives, and list them back as a short to-do list. Change nothing in the note.', attach: 'note' },
             { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
-            { label: 'Continue writing', prompt: 'Continue this note where it ends, in the same style. Show me what you would add before saving.', attach: 'note' },
-            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into a short to-do list.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
@@ -79,7 +101,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'docs':
       return state.note
         ? [
-            { label: 'Proofread', prompt: 'Proofread this document: fix spelling, grammar and punctuation only, in the document itself, and tell me what you changed.', attach: 'note' },
+            // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. At most 450 words, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
+            { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
@@ -87,6 +112,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'sheets':
       return state.sheet
         ? [
+            // The demo's Sheets moment: what stands out, with the working left in the sheet as formulas.
+            { label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' },
             { label: 'Explain these numbers', prompt: 'Explain what this sheet works out, in plain words, and point at the cells each part comes from.', attach: 'sheet' },
             { label: 'Check the formulas', prompt: 'Check the formulas in this sheet for mistakes, such as a range that misses a row or a total that counts something twice. Say which cells, and ask before changing anything.', attach: 'sheet' },
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
@@ -221,7 +248,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'code':
       return state.code
         ? [
-            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.', attach: 'code' as const }] : []),
+            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: DEBUG_TEST, attach: 'code' as const }] : []),
             { label: 'Explain this file', prompt: 'Explain what the attached file does, in plain words: its parts and how they fit together.', attach: 'code' },
             { label: 'Write tests for this', prompt: 'Write tests for the attached file, in the style the project already uses, run code.test, and tell me what they cover.', attach: 'code' },
             { label: 'Change…', prompt: 'In the attached file, ', attach: 'code' },

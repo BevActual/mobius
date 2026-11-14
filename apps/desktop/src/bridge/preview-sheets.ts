@@ -1,3 +1,4 @@
+import type { SheetChart } from '@mobius/shared';
 import { columnIndex } from '../sheets-view';
 
 /**
@@ -16,9 +17,12 @@ const BOOKS: Record<string, Book> = {
       Timeline: csv('Day,What,Who\nMon 23,Packs arrive,Veltro\nTue 24,Chassis on the sled,Sam\nWed 25,Packs fitted,Priya\nThu 26,Motor at full load,Sam\nFri 27,Two running chassis,Everyone'),
     },
   },
+  'Sales 2025': { order: ['Sheet 1'], sheets: { 'Sheet 1': csv('Month,Units,Revenue\nJan,132,=B2*45\nFeb,128,=B3*45\nMar,140,=B4*45\nApr,41,=B5*45\nMay,137,=B6*45\nJun,151,=B7*45') } },
   'Offsite budget': { order: ['Budget'], sheets: { Budget: csv('Item,Qty,Unit,Total\nHotel,14,320,=B2*C2\nTerrace venue,1,620,=B3*C3\nLunch,8,40,=B4*C4\nTotal,,,=SUM(D2:D4)') } },
 };
 let version = 0;
+/** The preview's charts, as a workbook's .charts.json holds them. */
+const CHARTS: Record<string, SheetChart[]> = { 'Sales 2025': [{ sheet: 'Sheet 1', kind: 'column', range: 'A1:B7', at: 'E1', title: 'Units by month' }] };
 
 type Val = number | string;
 class Fail extends Error {}
@@ -116,7 +120,7 @@ function read(workbook: string, sheet: string) {
   const book = BOOKS[workbook];
   const cells = book?.sheets[sheet];
   if (!book || !cells) return { ok: false as const, message: `There is no sheet called ${sheet}.` };
-  return { workbook, sheet, sheets: [...book.order], cells: cells.map((r) => [...r]), values: cells.map((row, r) => row.map((_, c) => shown(book, sheet, r, c))), version: `v${version}` };
+  return { workbook, sheet, sheets: [...book.order], cells: cells.map((r) => [...r]), values: cells.map((row, r) => row.map((_, c) => shown(book, sheet, r, c))), version: `v${version}`, charts: (CHARTS[workbook] ?? []).filter((c) => c.sheet === sheet) };
 }
 const changed = (_workbook: string) => { version++; };
 const trim = (rows: string[][]) => {

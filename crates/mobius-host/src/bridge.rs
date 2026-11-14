@@ -177,6 +177,8 @@ pub struct Bridge {
     data_dir: PathBuf,
     /// The folder of real files the assistant's file tools work in.
     workspace: mobius_workspace::files::Workspace,
+    /// The workspace's web pages, served to the Browser on this computer.
+    pages: Arc<crate::pages::Pages>,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
@@ -354,6 +356,7 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            pages: Arc::new(crate::pages::Pages::kept_in(data_dir.join("workspace").join(crate::pages::FOLDER), data_dir.join("pages-address.json"))),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
             rewound: Mutex::new(None),
@@ -1171,6 +1174,11 @@ impl Bridge {
                 Value::Null
             }
             "snapshot" => b.picture().map_or(Value::Null, |p| json!(p)),
+            // A workspace page (pages/…) opens in a tab at the address the shell serves it on.
+            "openPage" => {
+                let url = self.pages.url(arg(0).as_str().unwrap_or("")).map_err(BridgeError::Invalid)?;
+                b.open(Some(&url)).map_or(Value::Null, |id| json!(id))
+            }
             _ => return Err(BridgeError::NotAvailable(format!("browser.{method} is not available in this build yet."))),
         })
     }
@@ -1233,10 +1241,36 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
+        // How long each tool took, when it was a second or more: a turn whose reply never came can be traced to it.
+        // One that is still running after a few seconds is said too, with the step it is on, as it may never end.
+        let started = std::time::Instant::now();
+        let name = params.get("tool").and_then(Value::as_str).unwrap_or("?").to_owned();
+        let stage = Arc::new(std::sync::atomic::AtomicU8::new(0));
+        let watched = (stage.clone(), name.clone());
+        let _ = std::thread::Builder::new().name("mobius-tool-watch".into()).spawn(move || {
+            // Said at 3, 10 and 30 seconds.
+            for (seconds, wait) in [(3u64, 3u64), (10, 7), (30, 20)] {
+                std::thread::sleep(std::time::Duration::from_secs(wait));
+                let step = match watched.0.load(std::sync::atomic::Ordering::Relaxed) {
+                    0 => "waiting for the checkpoint before the turn",
+                    1 => "running",
+                    _ => return,
+                };
+                eprintln!("[slow] tool {} still {step} after {seconds} s", watched.1);
+            }
+        });
+        let out = self.run_host_tool(params, &stage);
+        stage.store(2, std::sync::atomic::Ordering::Relaxed);
+        slow("tool", &name, started);
+        out
+    }
+
+    fn run_host_tool(&self, params: &Value, stage: &std::sync::atomic::AtomicU8) -> Result<Value, String> {
         // Nothing runs before the checkpoint at the start of the turn is taken.
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
+        stage.store(1, std::sync::atomic::Ordering::Relaxed);
         let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
@@ -1420,7 +1454,8 @@ impl Bridge {
         }
         let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
-        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)) };
+        let pages = self.pages.clone();
+        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)), own_file: Box::new(move |url| pages.file_of(url)) };
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
         self.mark_driver(&browser, tool, &args, &result, conversation);
@@ -3228,7 +3263,9 @@ impl Bridge {
             return Ok(failed("That conversation is not known."));
         };
         // What a turn changed is counted from its start, once that is saved.
+        let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
+        slow("changes", "waiting for the turn's start to be saved", waited);
         let started = std::time::Instant::now();
         let out = self.changes_answer(method, conversation, args);
         slow("changes", method, started);
@@ -3269,15 +3306,13 @@ impl Bridge {
                     }
                     Err(e) => failed(e),
                 },
-                (Some(_), Ok(files)) => {
+                (Some(end), Ok(files)) => {
                     // The turn's files only; one changed again since is left as it is, and said.
-                    let mut kept = Vec::new();
-                    for path in &files {
-                        if changed_later(path) {
-                            kept.push(path.clone());
-                        } else if let Err(e) = self.workspace.restore_file(&mark, path) {
-                            return Ok(failed(e));
-                        }
+                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|path| changed_later(path));
+                    // All at once: one by one, each took a checkpoint of its own, and a tidy of a hundred files took
+                    // most of a minute to undo.
+                    if let Err(e) = self.workspace.restore_turn(&mark, end, &back) {
+                        return Ok(failed(e));
                     }
                     self.reload_after_undo(None);
                     json!({ "ok": true, "kept": kept })

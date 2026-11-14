@@ -5,6 +5,7 @@ import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
 import { useCallback, useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import {
   AMOUNT_GROUPS, AMOUNT_NAMES, FILTERS, FILTER_ID, applyEdits, autoAmounts, blankAdjustment, coverScale, describePixels, editsPathFor, filterOf, histogram, isPlain, parseEdits, plainGeometry, turnedSize, withFilter,
   type Adjustment, type AreaKind, type FilterId, type Geometry, type PhotoEdits,
@@ -453,10 +454,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
     return () => { live = false; window.removeEventListener(KEPT_EVENT, check); };
   }, [review?.conversation, file, open?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file) { setWas(undefined); return; }
-    void window.mobius.changes.before(review.conversation, file).then((r) => { if (live && r && r.ok) setWas(parseEdits(r.text)); }).catch(() => {});
-    return () => { live = false; };
+    return readBefore(review.conversation, file, (text) => setWas(parseEdits(text)));
   }, [review?.conversation, kept, file, open?.base]); // eslint-disable-line react-hooks/exhaustive-deps
   const changed = useMemo(() => {
     if (!was) return new Set<string>();

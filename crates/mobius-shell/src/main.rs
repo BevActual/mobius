@@ -438,10 +438,14 @@ fn keep_tabs(notify: mobius_browser::tabs::Notify, file: Option<PathBuf>) -> mob
 
 /// Chromium when it was built in (feature `cef`), unless `MOBIUS_ENGINE=webview` asks for the system web view.
 /// The demo workspace's seed: shipped with Mobius as a resource; the repository's own when run from source.
+///
+/// A debug build reads the repository's first. Its resource copy (`target/debug/demo`) only ever gains files, so a file
+/// removed from `demo/` would otherwise come back with every reset.
 fn demo_seed(app: &tauri::AppHandle) -> Option<PathBuf> {
     let shipped = app.path().resource_dir().ok().map(|dir| dir.join("demo"));
     let source = Some(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo")));
-    [shipped, source].into_iter().flatten().find(|dir| dir.join("workspace").is_dir())
+    let order = if cfg!(debug_assertions) { [source, shipped] } else { [shipped, source] };
+    order.into_iter().flatten().find(|dir| dir.join("workspace").is_dir())
 }
 
 fn choose_engine(window: &tauri::Window, data_dir: &std::path::Path) -> Arc<dyn engine::PageEngine> {

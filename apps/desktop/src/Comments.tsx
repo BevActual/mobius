@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CommentAnchor, CommentThread, ContextItem, Message } from '@mobius/shared';
 import { KEPT_EVENT } from './ReviewStrip';
+import { RichText } from './RichText';
 
 /**
  * Comments on anything in the shell, as in a design tool: a speech-bubble button (or C) turns comment mode on, a
@@ -253,8 +254,8 @@ export function CommentLayer({ app, doc, on, onOff, threads, save, onSend, conve
             <p className="comment-on">{t.anchor.label}</p>
             <p className="comment-text">{t.text}</p>
             {t.state === 'note' && <p className="comment-meta">A note for people. Mobius does not read it.</p>}
-            {t.state === 'sent' && <p className="comment-reply" role="status">{t.reply ?? 'Asked Mobius…'}</p>}
-            {t.state === 'resolved' && t.reply && <p className="comment-reply">{t.reply}</p>}
+            {t.state === 'sent' && <div className="comment-reply" role="status">{t.reply ? <RichText text={t.reply} /> : 'Asked Mobius…'}</div>}
+            {t.state === 'resolved' && t.reply && <div className="comment-reply"><RichText text={t.reply} /></div>}
             <div className="comment-actions">
               {(t.state === 'open' || t.state === 'note') && <button type="button" className="review-btn" data-kind="keep" onClick={() => void send(t)}>Send to Mobius</button>}
               {t.state === 'open' && <button type="button" className="review-btn" onClick={() => update(t.id, { state: 'note' })}>Keep as a note</button>}
