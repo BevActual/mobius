@@ -29,8 +29,8 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     try { if (path) window.localStorage.setItem(lastKey(kind), path); else window.localStorage.removeItem(lastKey(kind)); } catch { /* Not kept. */ }
   }, [kind]);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
-  // Whether the list has been read once (until then a list shows placeholder bars, not "nothing yet").
-  const [ready, setReady] = useState(false);
+  /** The list has been read once: until then an empty list means "not known yet", not "nothing here". */
+  const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState<OpenPage | null>(null);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<SaveStatus>('saved');
@@ -45,8 +45,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const listed = useRef(0);
   const refresh = useCallback(async () => {
     const read = ++listed.current;
-    const list = await api?.list().finally(() => setReady(true));
+    const list = await api?.list();
     if (read === listed.current && list && !isNotesFailure(list)) setNotebooks(list);
+    if (read === listed.current) setLoaded(true);
     return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
@@ -188,7 +189,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     void load(path, title);
   }, [load]);
 
-  return { kind, openIfIdle, available: api !== undefined, ready: ready || api === undefined, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;

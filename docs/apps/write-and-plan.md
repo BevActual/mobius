@@ -152,7 +152,8 @@ count beside it, and **Data**, **Structure** and **SQL** sit in the toolbar.
 
 **Search** at the top of the sidebar finds a database or table by name. Right-click a table, press Shift+F10 on it, or
 use its **⋯** button, to open it, copy all of it as CSV, rename it or delete it. Right-click a
-database to import a CSV file into it or delete it. Deleting asks first, as it can't be undone.
+database to import a CSV file into it or delete it. On a selected table, F2 renames it and Delete asks to delete it.
+Deleting asks first, as it can't be undone. Database is compact, like the other pro apps: 13px text on 32px rows.
 
 ![The Database app in Mobius](../readme/apps/database.png)
 

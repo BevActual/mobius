@@ -145,10 +145,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         </SidebarSection>
       ) : (
         <>
-          {!notes.ready && (
+          {!notes.loaded && notes.available && (
             <ul className="notes-loading" aria-label={`Reading ${words.items}`}><li /><li /><li /></ul>
           )}
-          {notes.ready && notes.notebooks.length === 0 && !naming && (
+          {(notes.loaded || !notes.available) && notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
               <p>No {words.items} yet.</p>
             </div>

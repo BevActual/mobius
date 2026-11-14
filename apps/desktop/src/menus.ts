@@ -141,14 +141,14 @@ function appMenu(c: MenuContext): Menu | null {
   switch (c.app) {
     case 'browser':
       return { id: 'app', label: 'Browser', items: [
-        item('back', 'Back', d.browser.back, { disabled: !s.browser.canBack }),
-        item('forward', 'Forward', d.browser.forward, { disabled: !s.browser.canForward }),
-        item('reload', 'Reload', d.browser.reload, { disabled: !s.browser.hasPage }),
+        item('back', 'Back', d.browser.back, { keys: 'alt+left', disabled: !s.browser.canBack }),
+        item('forward', 'Forward', d.browser.forward, { keys: 'alt+right', disabled: !s.browser.canForward }),
+        item('reload', 'Reload', d.browser.reload, { keys: 'mod+r', disabled: !s.browser.hasPage }),
         item('address', 'Go to the address bar', d.browser.address, { keys: keys.address }),
         separator,
         item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { disabled: !s.browser.hasPage }),
         item('pin-page', s.browser.pinned ? 'Unpin from the sidebar' : 'Pin to the sidebar', d.browser.pin, { disabled: !s.browser.hasPage }),
-        item('reopen', 'Reopen closed tab', d.browser.reopen),
+        item('reopen', 'Reopen closed tab', d.browser.reopen, { keys: 'mod+shift+t' }),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
         item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),

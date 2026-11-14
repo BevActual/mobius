@@ -32,17 +32,17 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
   await shell().keyboard.press('Enter');
-  // Abilities opens on its Apps; the skills are a place beside them.
-  await shell().getByRole('navigation', { name: 'Abilities' }).getByRole('button', { name: 'Skills' }).click();
+  // Abilities opens on its installed apps; the skills are a place beside them.
+  await shell().getByRole('complementary', { name: 'Abilities sidebar' }).getByRole('button', { name: /^Skills/ }).click();
 }
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
   await start();
-  // New skill is in Add, first in the sidebar as New is in every app.
-  await shell().getByRole('button', { name: 'Add', exact: true }).click();
-  await shell().getByRole('menuitem', { name: 'New skill' }).click();
+  // New skill is the sidebar's New (its Create button), first as New is in every app.
+  await expect(shell().getByRole('button', { name: 'Create', exact: true })).toHaveAttribute('title', 'New skill');
+  await shell().getByRole('button', { name: 'Create', exact: true }).click();
   await shell().getByRole('textbox', { name: 'Skill name' }).fill('Compare stays');
   await shell().getByRole('textbox', { name: 'When to use it' }).fill('When choosing where to stay');
   await shell().getByRole('textbox', { name: 'When to use it' }).press('Enter');
@@ -82,6 +82,8 @@ test('/name asks for a skill, Mobius is told what skills there are, and its impr
   expect(first.messages.find((m) => m.role === 'system')!.content).toContain('- compare-stays: When choosing where to stay, compare places side by side');
   expect(first.messages.filter((m) => m.role === 'user').pop()!.content).toContain('Use the skill "compare-stays" (read it with skills.read and follow its steps) for: Lisbon, 12 to 14 March');
 
+  // Skills lists the skills as rows; the changed one opens from its row to show the change.
+  await shell().getByRole('button', { name: 'Open /compare-stays' }).click();
   const review = shell().getByRole('region', { name: 'Skills' }).getByRole('group', { name: "Mobius's change" });
   await expect(review).toContainText('+ 2. Check each cancellation policy');
   await review.getByRole('button', { name: 'Discard' }).click();
@@ -103,44 +105,49 @@ test('a skill someone shared shows what it is for and what it can touch before i
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
 });
 
-test('Abilities is one of Mobius’s own apps: apps, skills and connectors in one place', async () => {
+test('Abilities is one of Mobius’s own apps: apps, skills and connectors as plain rows', async () => {
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   const rail = shell().getByRole('navigation', { name: 'Apps' });
   await rail.locator('[data-app-library]').click();
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
-  const places = shell().getByRole('navigation', { name: 'Abilities' });
-  await expect(places.getByRole('button')).toHaveText([/^Apps\d+$/, /^Skills\d*$/, /^Connectors\d*$/]);
-  await expect(places.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
-  // Each app says what it is for and has one switch. Removing one takes it out of the switcher and keeps its files;
-  // adding it brings it back.
-  const library = shell().getByRole('region', { name: 'Apps' });
-  await expect(library.getByRole('region', { name: 'Write and plan' })).toContainText('Spreadsheets with formulas');
-  const sheets = library.getByRole('switch', { name: 'Sheets' });
-  await expect(sheets).toBeChecked();
-  await sheets.click();
-  await expect(sheets).not.toBeChecked();
+  const side = shell().getByRole('complementary', { name: 'Abilities sidebar' });
+  await expect(side.getByRole('region', { name: 'Apps' }).locator('button.list-row')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
+  await expect(side.getByRole('region', { name: 'Tools' }).locator('button.list-row')).toHaveText([/^Skills\d*$/, /^Connectors\d*$/]);
+  await expect(side.getByRole('button', { name: /^Installed/ })).toHaveAttribute('aria-current', 'page');
+  // Each app is a row that says what it is for. Remove is in its ⋯ menu, keeps its files, and Undo puts it back.
+  const installed = shell().getByRole('region', { name: 'Installed' });
+  await expect(installed.getByRole('region', { name: 'Write and plan' })).toContainText('Spreadsheets with formulas');
+  await installed.getByRole('button', { name: 'More for Sheets' }).click();
+  await shell().getByRole('menuitem', { name: 'Remove' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).not.toContain('sheets');
-  await expect(library.getByRole('button', { name: 'Open Sheets' })).toHaveCount(0);
-  await sheets.click();
-  await expect(sheets).toBeChecked();
+  await expect(installed.getByRole('button', { name: 'Open Sheets' })).toHaveCount(0);
+  await expect(shell().getByRole('status').filter({ hasText: 'Removed Sheets' })).toBeVisible();
+  await shell().getByRole('button', { name: 'Undo' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).toContain('sheets');
-  // Search narrows the library.
+  // Available lists what is not installed, each with Add.
+  await installed.getByRole('button', { name: 'More for Sheets' }).click();
+  await shell().getByRole('menuitem', { name: 'Remove' }).click();
+  await side.getByRole('button', { name: /^Available/ }).click();
+  const available = shell().getByRole('region', { name: 'Available' });
+  await available.getByRole('button', { name: 'Add Sheets' }).click();
+  await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).toContain('sheets');
+  await side.getByRole('button', { name: /^Installed/ }).click();
+  // Search narrows the rows.
   await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('spreadsheet');
-  await expect(library.getByRole('switch')).toHaveCount(1);
+  await expect(installed.getByRole('listitem')).toHaveCount(1);
   await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('');
-  // An added app opens from its row.
-  await library.getByRole('button', { name: 'Open Sheets' }).click();
+  // An installed app opens from its row.
+  await installed.getByRole('button', { name: 'Open Sheets' }).click();
   await expect(rail.getByRole('button', { name: 'Sheets', exact: true })).toHaveAttribute('aria-current', 'page');
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Extensions');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
   await shell().keyboard.press('Enter');
-  await places.getByRole('button', { name: /^Connectors/ }).click();
-  const page = shell().getByRole('region', { name: 'Connectors' });
+  await side.getByRole('button', { name: /^Connectors/ }).click();
+  const page = shell().getByRole('region', { name: 'Connectors', exact: true });
   await expect(page).toContainText('No connectors yet');
-  await expect(page.getByRole('switch', { name: 'Let other apps use Mobius' })).toBeVisible();
-  // Add a Connector writes the server into mcp.json; it waits for Mobius to open again, and can be taken out.
+  // Add a connector (in the toolbar, and beside the empty list) writes the server into mcp.json; it waits for Mobius to open again.
   await page.getByRole('button', { name: 'Add a connector…' }).click();
   const sheet = shell().getByRole('dialog', { name: 'Add a connector' });
   await sheet.getByRole('textbox', { name: 'Command' }).fill('npx');
@@ -152,13 +159,16 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors in on
   await sheet.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(sheet).toBeHidden();
   const mcp = path.join(userData, 'mcp.json');
-  await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual({ command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } });
+  const entry = { command: 'npx', args: ['-y', '@modelcontextprotocol/server-github'], env: { GITHUB_TOKEN: 't0ken' } };
+  await expect.poll(() => fs.existsSync(mcp) && JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual(entry);
   const row = page.getByRole('listitem', { name: 'github' });
-  await expect(row).toContainText('starts when Mobius reopens');
-  // Remove is in the row's menu (⋯, a right-click or Shift+F10), never a button at rest, and asks first.
+  await expect(row).toContainText(/starts when Mobius reopens/i);
+  // Remove is in the row's ⋯ menu, never a button at rest; Undo writes the same entry back.
   await row.getByRole('button', { name: 'More for github' }).click();
-  await shell().getByRole('menuitem', { name: 'Remove…' }).click();
-  await row.getByRole('group', { name: 'Remove github?' }).getByRole('button', { name: 'Remove' }).click();
+  await shell().getByRole('menuitem', { name: 'Remove' }).click();
   await expect(row).toBeHidden();
   await expect.poll(() => JSON.parse(fs.readFileSync(mcp, 'utf8')).servers).toEqual({});
+  await shell().getByRole('status').filter({ hasText: 'Removed github' }).getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => JSON.parse(fs.readFileSync(mcp, 'utf8')).servers?.github).toEqual(entry);
+  await expect(row).toBeVisible();
 });
