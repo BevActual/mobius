@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { AppSidebar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
+import { AppSidebar, Confirm, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { APP_ICONS } from './Rail';
 import { appOf } from './review-view';
 import { TURN_FILES_EVENT, type TurnFiles } from './useTurnChanges';
@@ -10,12 +10,14 @@ import { appName, type AppId } from './apps';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
 import { EmptyState } from './EmptyState';
+import { FileIcon, GLYPH, placeIcon, size } from './file-icons';
+import { AddDrivePage, DriveBars, DrivePage, useDrives, type DrivePlace } from './Drives';
 import './files.css';
 
 /** Where Files is looking: a folder of the workspace, what Mobius made, or the Trash. */
-export type FilesPlace = { kind: 'folder'; path: string } | { kind: 'made' } | { kind: 'trash' };
+export type FilesPlace = { kind: 'folder'; path: string } | { kind: 'made' } | { kind: 'trash' } | DrivePlace;
 
-const samePlace = (a: FilesPlace, b: FilesPlace) => a.kind === b.kind && (a.kind !== 'folder' || a.path === (b as { path: string }).path);
+const samePlace = (a: FilesPlace, b: FilesPlace) => JSON.stringify(a) === JSON.stringify(b);
 
 /** The Files app: the whole workspace as a drive, and what Mobius made, dashed until it is kept. */
 export function useFiles(conversation: string, busy: boolean) {
@@ -27,6 +29,8 @@ export function useFiles(conversation: string, busy: boolean) {
   }, []);
   const back = useCallback(() => setTrail((t) => (t.at > 0 ? { ...t, at: t.at - 1 } : t)), []);
   const forward = useCallback(() => setTrail((t) => (t.at < t.places.length - 1 ? { ...t, at: t.at + 1 } : t)), []);
+  // The person's own servers (WebDAV), beside the workspace.
+  const drives = useDrives(place, setPlace);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [roots, setRoots] = useState<FileEntry[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
@@ -119,24 +123,30 @@ export function useFiles(conversation: string, busy: boolean) {
   const [cut, setCut] = useState<string | null>(null);
   const drag = (path: string) => ({
     draggable: true,
-    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', path); e.dataTransfer.effectAllowed = 'move'; setDragging(path); },
+    onDragStart: (e: React.DragEvent) => { e.dataTransfer.setData('text/plain', path); e.dataTransfer.effectAllowed = 'copyMove'; setDragging(path); },
     onDragEnd: () => { setDragging(null); setOver(null); },
   });
-  const drop = (into: string): SidebarRowDrop<HTMLElement> => ({
-    'data-drop': (dragging !== null && over === into) || undefined,
-    onDragOver: (e) => {
-      if (!dragging || !canMoveInto(dragging, into)) return;
-      e.preventDefault(); e.dataTransfer.dropEffect = 'move';
-      if (over !== into) setOver(into);
-    },
-    onDragLeave: (e) => { if (over === into && !e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); },
-    onDrop: (e) => {
-      e.preventDefault();
-      const path = dragging;
-      setDragging(null); setOver(null);
-      if (path && canMoveInto(path, into)) void moveTo(path, into);
-    },
-  });
+  const drop = (into: string): SidebarRowDrop<HTMLElement> => {
+    // A file from a drive is copied into the workspace folder; one of the workspace's own moves.
+    const fromDrive = drives.dragging && !drives.dragging.folder && drives.canCopy ? drives.dragging : null;
+    return {
+      'data-drop': ((dragging !== null || fromDrive !== null) && over === into) || undefined,
+      onDragOver: (e) => {
+        if (fromDrive) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (over !== into) setOver(into); return; }
+        if (!dragging || !canMoveInto(dragging, into)) return;
+        e.preventDefault(); e.dataTransfer.dropEffect = 'move';
+        if (over !== into) setOver(into);
+      },
+      onDragLeave: (e) => { if (over === into && !e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); },
+      onDrop: (e) => {
+        e.preventDefault();
+        const path = dragging;
+        setDragging(null); setOver(null);
+        if (fromDrive) { drives.setDragging(null); void drives.download(fromDrive.drive, fromDrive.path, into).then((to) => { if (to) { void list(); void listRoots(); } }); return; }
+        if (path && canMoveInto(path, into)) void moveTo(path, into);
+      },
+    };
+  };
   const paste = async (into: string) => {
     if (!cut || !canMoveInto(cut, into)) return null;
     const to = await moveTo(cut, into);
@@ -191,36 +201,13 @@ export function useFiles(conversation: string, busy: boolean) {
     working: busy,
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
+    drives,
     newFolder, rename, trash, putBack, show, trashed, moved, moveTo, undoMove, dismissMoved: () => setMoved(null), drag, drop, dragging, cut, setCut, paste, trashItems, putBackItem, emptyTrash, seen, loading, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
     available: window.mobius.files !== undefined,
   };
 }
 export type FilesState = ReturnType<typeof useFiles>;
 
-const GLYPH = {
-  folder: <path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" />,
-  file: <><path d="M6 3.5h5.5l3 3v10H6z" /><path d="M11.5 3.5v3h3" /></>,
-  workspace: <><rect x="3.5" y="4.5" width="13" height="11" rx="2" /><path d="M3.5 11.5h13M7 13.5h.01" /></>,
-  // What Mobius made wears Mobius's own mark, never a sparkle.
-  made: APP_ICONS.agent,
-  back: <path d="M12 4.5 6.5 10l5.5 5.5" />,
-  newFolder: <><path d="M3.5 6.5a1.5 1.5 0 0 1 1.5-1.5h3l1.5 1.5h5.5a1.5 1.5 0 0 1 1.5 1.5v6a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z" /><path d="M10 8.5v5M7.5 11h5" /></>,
-  forward: <path d="m8 4.5 5.5 5.5L8 15.5" />,
-  putBack: <><path d="M7.5 5 4.5 8l3 3" /><path d="M4.5 8h7a4 4 0 0 1 0 8H9" /></>,
-  trash: <><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" /><path d="M8.7 8.5v4.5M11.3 8.5v4.5" /></>,
-};
-
-/** A row's icon: the app that opens it, in its colour; a folder in Finder blue; anything else plain. */
-function FileIcon({ path, type, size = 'row' }: { path: string; type: FileEntry['type']; size?: 'row' | 'side' }) {
-  const app: AppId | null = appOf(path);
-  // An app's own folder (notes/) wears that app's icon; a folder inside it is a folder.
-  const top = !path.includes('/');
-  if (type === 'folder' && !(top && app)) return <svg className="files-icon" data-size={size} data-glyph="folder" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.folder}</svg>;
-  if (app && APP_ICONS[app]) return <svg className="files-icon" data-size={size} data-app={app} viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[app]}</svg>;
-  return <svg className="files-icon" data-size={size} data-glyph="file" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.file}</svg>;
-}
-
-const placeIcon = (glyph: 'workspace' | 'made' | 'trash') => <svg className="files-icon" data-size="side" data-glyph={glyph === 'workspace' ? 'place' : glyph} viewBox="0 0 20 20" aria-hidden="true">{GLYPH[glyph]}</svg>;
 /** The folder something is in ('' for the workspace itself). */
 const parentOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 /** Where a path may be moved: another folder, never itself, inside itself, or where it already is. */
@@ -234,12 +221,15 @@ const folderName = (name: string) => { const app = appOf(name); return app && !n
 export function filesTitle(files: FilesState): string {
   if (files.place.kind === 'made') return 'Made by Mobius';
   if (files.place.kind === 'trash') return 'Trash';
+  if (files.place.kind === 'add-drive') return 'Add a drive';
+  if (files.place.kind === 'drive') return files.place.path ? files.place.path.slice(files.place.path.lastIndexOf('/') + 1) : files.drives.account?.name ?? 'Drive';
   const parts = files.place.path ? files.place.path.split('/') : [];
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
 export function filesSub(files: FilesState): string | undefined {
-  if (!files.available || (files.place.kind === 'folder' && files.problem)) return undefined;
+  if (!files.available || (files.place.kind === 'folder' && files.problem) || files.place.kind === 'add-drive') return undefined;
+  if (files.place.kind === 'drive') { if (files.drives.problem || files.drives.loading) return undefined; const n = files.drives.entries.length; return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`; }
   const n = files.place.kind === 'made' ? files.made.files.length : files.place.kind === 'trash' ? files.trashItems.length : files.entries.length;
   return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`;
 }
@@ -265,6 +255,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
           ))}
         </SidebarSection>
       )}
+      {files.drives.available && <DrivesSection files={files} />}
       <SidebarSection title="From Mobius">
         <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
       </SidebarSection>
@@ -272,10 +263,44 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
   );
 }
 
+/** Drives: the person's own servers, each a row to open; a workspace file dropped on one is copied to its top. */
+function DrivesSection({ files }: { files: FilesState }) {
+  const drives = files.drives;
+  const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
+  const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const here = files.place.kind === 'drive' ? files.place.drive : null;
+  const drop = (id: string): SidebarRowDrop<HTMLElement> | undefined => {
+    const path = files.dragging;
+    if (!path || !drives.canCopy) return undefined;
+    return {
+      'data-drop': over === id || undefined,
+      onDragOver: (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; if (over !== id) setOver(id); },
+      onDragLeave: (e) => { if (over === id && !e.currentTarget.contains(e.relatedTarget as Node | null)) setOver(null); },
+      onDrop: (e) => { e.preventDefault(); setOver(null); void drives.upload(id, path, ''); },
+    };
+  };
+  return (
+    <SidebarSection title="Drives">
+      {drives.accounts.map((a) => (
+        <SidebarRow key={a.id} icon={placeIcon('drive')} label={a.name} title={a.url} current={here === a.id}
+          onSelect={() => files.setPlace({ kind: 'drive', drive: a.id, path: '' })} drop={drop(a.id)}
+          onContextMenu={(e) => { e.preventDefault(); setMenu({ id: a.id, name: a.name, x: e.clientX, y: e.clientY }); }} />
+      ))}
+      <SidebarRow icon={placeIcon('add')} label="Add a drive" current={files.place.kind === 'add-drive'} onSelect={() => files.setPlace({ kind: 'add-drive' })} />
+      {menu && <PointMenu x={menu.x} y={menu.y} label={menu.name} entries={[
+        { label: 'Open', run: () => files.setPlace({ kind: 'drive', drive: menu.id, path: '' }) },
+        { label: 'Remove Drive…', danger: true, separated: true, run: () => setRemoving({ id: menu.id, name: menu.name }) },
+      ]} onClose={() => setMenu(null)} />}
+      <Confirm open={removing !== null} title={`Remove “${removing?.name ?? ''}”?`} description="Files stops showing it and forgets its password. Everything on the server stays as it is."
+        action="Remove drive" onCancel={() => setRemoving(null)} onConfirm={() => { const r = removing; setRemoving(null); if (r) void drives.remove(r.id); }} />
+    </SidebarSection>
+  );
+}
+
 /** Explorer on Windows and Linux file managers alike say Explorer-ish words; Finder on a Mac. */
 const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'Show in Finder' : 'Show in Explorer';
 
-const size = (bytes: number | undefined) => (bytes === undefined ? '' : bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${Math.round(bytes / 1024)} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
 
 /** Back, Forward and (in a folder) New folder, in the toolbar: Files has no bar of its own above the list. */
 function FilesTools({ files, onNewFolder }: { files: FilesState; onNewFolder?: (() => void) | undefined }) {
@@ -357,11 +382,17 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       {files.notice && <p className="field-error files-notice" role="alert">{files.notice} <button type="button" className="review-btn" onClick={files.dismissNotice}>OK</button></p>}
       {files.moved && <UndoToast text={`Moved “${files.moved.path.split('/').pop()}” to ${placeName(files.moved.to)}`} onUndo={() => void files.undoMove()} onDismiss={files.dismissMoved} />}
       {files.trashed && <UndoToast text={`Moved “${files.trashed.path.split('/').pop()}” to the Trash`} onUndo={() => void files.putBack()} onDismiss={files.dismissTrashed} />}
+      <DriveBars drives={files.drives} />
     </>
   );
   const fileMenu = menu && <PointMenu x={menu.x} y={menu.y} label={menu.path.split('/').pop() ?? menu.path} entries={menuItems(menu.path, menu.type)} onClose={() => setMenu(null)} />;
 
   if (files.place.kind === 'trash') return <TrashPage files={files} bars={bars} />;
+  if (files.place.kind === 'add-drive') return <AddDrivePage drives={files.drives} tools={<FilesTools files={files} />} />;
+  if (files.place.kind === 'drive') {
+    return <DrivePage drives={files.drives} tools={(onNewFolder) => <FilesTools files={files} onNewFolder={onNewFolder} />} sort={files.sort} setSort={files.setSort} query={files.query}
+      workspaceDrag={files.dragging} onOpenFile={onOpenFile} onPlace={files.setPlace} />;
+  }
 
   if (files.place.kind === 'made') {
     return (

@@ -3050,6 +3050,8 @@ impl Bridge {
     /// are the person's own requests from the window; the agent's way in asks every time.
     fn drives_call(&self, method: &str, args: &[Value]) -> Value {
         use base64::Engine;
+        // The workspace says "that file is not there"; drives speak in sentences.
+        let sentence = |e: &str| { let mut c = e.chars(); c.next().map(|f| format!("{}{}.", f.to_uppercase(), c.as_str())).unwrap_or_default() };
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let drives = &self.drives;
         let changed = |drive: &str, path: &str| (self.emit)("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "person" }));
@@ -3093,6 +3095,20 @@ impl Bridge {
                         changed(id, path);
                         json!({ "ok": true })
                     }),
+                    // Files (Drives): copying between a drive and the workspace, never over anything on either side.
+                    "download" => drive.read(path).and_then(|file| {
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        self.workspace.add_file(text(2).unwrap_or(""), name, &file.bytes).map_err(|e| sentence(&e))
+                    }).map(|copied| json!({ "ok": true, "path": copied })),
+                    "upload" => {
+                        let folder = text(2).unwrap_or("");
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        let to = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+                        self.workspace.read_file(path, crate::drives::MAX_FILE).map_err(|e| sentence(&e)).and_then(|bytes| drive.write(&to, &bytes, None)).map(|_| {
+                            changed(id, &to);
+                            json!({ "ok": true, "path": to })
+                        })
+                    }
                     _ => Err(format!("Drives cannot {method}.")),
                 }
             }),

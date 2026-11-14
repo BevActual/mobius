@@ -115,3 +115,14 @@ Your whole workspace as a drive.
 - **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
   a folder holding something new from Mobius until you look in it, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
+- **Drives** are folders on servers you already use: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any
+  WebDAV server. **Add a drive**, under Drives in the sidebar, asks for the server's address, your user name and an app
+  password (for Nextcloud and ownCloud the address alone is enough; Files finds your folder). The password is kept in
+  your computer's secret store and sent only to that server. A drive's folders list like the workspace's, with New
+  folder, F2 to rename, and drag to move within it. Each request goes to the server; nothing is mirrored.
+- **Copy between a drive and the workspace** by dragging: a drive's file onto Workspace or a folder in the sidebar
+  copies it there, and a workspace file onto a drive in the sidebar copies it to the drive's top. Neither ever writes
+  over a file already there. Double-click a drive's file to open a copy in its app (it lands in `workspace/Drives/`).
+- **Delete** on a drive deletes from the server for good, after asking. If someone changed the file on the server
+  since Files listed it, the delete is refused and Files says so; the server's version stays. Right-click a drive in
+  the sidebar to remove it: Files forgets its password, and everything on the server stays.

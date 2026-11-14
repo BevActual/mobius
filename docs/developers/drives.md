@@ -26,6 +26,8 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 | `read id path` | The file as base64, with its version (up to 32 MB) |
 | `write id path {base64 \| text} etag?` | Replace that version, or make a new file |
 | `mkdir id path`, `move id from to`, `delete id path etag?` | As named |
+| `download id path folder` | Files: a copy of the drive's file in the workspace `folder`, under a free name |
+| `upload id path folder` | Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one |
 
 Changes are announced as `mobius:drives-changed { drive, path, by }`.
 

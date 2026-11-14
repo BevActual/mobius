@@ -243,6 +243,47 @@ impl Workspace {
         Ok(relative)
     }
 
+    /// A file from elsewhere (a drive) put into `folder`, never over anything: a taken name gets " 2", " 3" before its
+    /// extension. Returns its path. The person's own action from Files; the agent writes through `write`.
+    pub fn add_file(&self, folder: &str, name: &str, bytes: &[u8]) -> Res<String> {
+        let name = Self::check_name(name)?;
+        if !self.inside(folder)?.is_dir() {
+            return Err("that folder is not there".into());
+        }
+        let (stem, ext) = match name.rfind('.') {
+            Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+            _ => (name, ""),
+        };
+        for n in 1..1000 {
+            let candidate = if n == 1 { name.to_owned() } else { format!("{stem} {n}{ext}") };
+            let relative = if folder.is_empty() { candidate } else { format!("{folder}/{candidate}") };
+            let target = self.inside(&relative)?;
+            match fs::OpenOptions::new().write(true).create_new(true).open(&target) {
+                Ok(mut file) => {
+                    use std::io::Write;
+                    file.write_all(bytes).map_err(|e| e.to_string())?;
+                    return Ok(relative);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Err(format!("there are too many things called {name} here"))
+    }
+
+    /// A workspace file's bytes, for copying it to a drive. Never a folder.
+    pub fn read_file(&self, relative: &str, limit: usize) -> Res<Vec<u8>> {
+        let path = self.locate(relative)?;
+        let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+        if meta.is_dir() {
+            return Err("only files can be copied to a drive for now, not folders".into());
+        }
+        if usize::try_from(meta.len()).unwrap_or(usize::MAX) > limit {
+            return Err(format!("files bigger than {} MB cannot be sent to a drive yet", limit / (1024 * 1024)));
+        }
+        fs::read(&path).map_err(|e| e.to_string())
+    }
+
     /// Renames a file or folder in place. Returns its new path.
     pub fn rename(&self, relative: &str, name: &str) -> Res<String> {
         let name = Self::check_name(name)?;
@@ -1057,5 +1098,20 @@ mod tests {
         assert_eq!(safe_name("docs/Plain name.md"), "docs/Plain name.md");
         assert_eq!(safe_name("a/\"quoted\" <b>|c*.md"), "a/'quoted' bc.md");
         assert_eq!(safe_name("trailing./x"), "trailing/x");
+    }
+
+    #[test]
+    fn a_file_from_a_drive_never_lands_on_one_already_there() {
+        let (_d, ws) = setup();
+        ws.new_folder("", "In").unwrap();
+        assert_eq!(ws.add_file("In", "Plan.pdf", b"one").unwrap(), "In/Plan.pdf");
+        assert_eq!(ws.add_file("In", "Plan.pdf", b"two").unwrap(), "In/Plan 2.pdf");
+        assert_eq!(ws.add_file("", "README", b"x").unwrap(), "README");
+        assert_eq!(ws.read_file("In/Plan.pdf", 1024).unwrap(), b"one");
+        assert_eq!(ws.read_file("In/Plan 2.pdf", 1024).unwrap(), b"two");
+        assert!(ws.add_file("Nowhere", "a.txt", b"x").is_err());
+        assert!(ws.add_file("In", "../a.txt", b"x").is_err());
+        assert!(ws.read_file("In", 1024).unwrap_err().contains("not folders"));
+        assert!(ws.read_file("In/Plan.pdf", 2).unwrap_err().contains("bigger"));
     }
 }
