@@ -291,6 +291,17 @@ function Connectors() {
   const [problem, setProblem] = useState<string | null>(null);
   const [undoable, setUndoable] = useUndo();
   const [menu, setMenu] = useState<{ name: string; x: number; y: number } | null>(null);
+  // The connector being started now: its row says so until the server answers (up to 20 seconds).
+  const [starting, setStarting] = useState<string | null>(null);
+  const start = async (name: string) => {
+    setProblem(null);
+    setStarting(name);
+    const done = await api?.startConnector?.(name).catch(() => null);
+    setStarting(null);
+    if (done?.status) connectors.set(done.status);
+    else reload();
+    if (!done) setProblem('That connector could not be started.');
+  };
   const leaving = new Set(status?.leaving ?? []);
   const rows: { name: string; state: 'on' | 'failed' | 'waiting'; error?: string }[] = [
     ...(status?.running ?? []).map((name) => ({ name, state: 'on' as const })),
@@ -313,8 +324,16 @@ function Connectors() {
       },
     });
   };
-  const sub = (r: (typeof rows)[number]) => (r.state === 'waiting' ? 'Starts when Mobius reopens' : r.state === 'failed' ? `Couldn’t start: ${r.error ?? 'unknown problem'}` : 'Connected');
-  const entries = (name: string) => [{ label: 'Remove', keys: 'Delete', danger: true, run: () => void remove(name) }];
+  const sub = (r: (typeof rows)[number]) => (starting === r.name ? 'Starting…' : r.state === 'waiting' ? 'Not started' : r.state === 'failed' ? `Couldn’t start: ${r.error ?? 'unknown problem'}` : 'Connected');
+  // Start it now (one added by hand in mcp.json), again after it failed, or restart one that runs. Remove stops it.
+  const startLabel = (state: (typeof rows)[number]['state']) => (state === 'on' ? 'Restart' : state === 'failed' ? 'Start again' : 'Start now');
+  const entries = (name: string) => {
+    const state = rows.find((r) => r.name === name)?.state ?? 'waiting';
+    return [
+      ...(api?.startConnector ? [{ label: startLabel(state), disabled: starting !== null, run: () => void start(name) }] : []),
+      { label: 'Remove', keys: 'Delete', danger: true, run: () => void remove(name) },
+    ];
+  };
   return (
     <>
       {api?.addConnector && (
@@ -333,8 +352,8 @@ function Connectors() {
           {shown.map((r) => (
             <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
               <span className="abl-main">
-                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{r.state !== 'on' && <span className="abl-dot" data-state={r.state} aria-hidden="true" />}</span>
-                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
+                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{(r.state !== 'on' || starting === r.name) && <span className="abl-dot" data-state={starting === r.name ? 'waiting' : r.state} aria-hidden="true" />}</span>
+                <span className="abl-text"><span className="abl-name">{r.name}</span><span className={r.state === 'failed' && starting !== r.name ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
               </span>
               {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
             </li>
@@ -349,8 +368,8 @@ function Connectors() {
 }
 
 /**
- * Add a Connector: the server's command, its arguments and any keys it needs, written to mcp.json for you. The
- * connector starts the next time Mobius opens; editing the file yourself stays one click away.
+ * Add a Connector: the server's command, its arguments and any keys it needs, written to mcp.json for you and started
+ * at once (one that cannot start is still saved, and its row says why); editing the file yourself stays one click away.
  */
 function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded: () => void }) {
   const api = window.mobius.extensions;
@@ -412,13 +431,13 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
           )}
           {!keysOk && <p className="field-error">A key’s name uses letters, digits and _, such as API_KEY.</p>}
         </div>
-        <p className="camera-note">It starts the next time Mobius opens, and each of its tools asks before it is used.</p>
+        <p className="camera-note">It starts as soon as it is added, and each of its tools asks before it is used.</p>
         {problem && <p className="field-error" role="alert">{problem}</p>}
         <div className="camera-actions">
           <button type="button" className="btn abl-link" onClick={() => void window.mobius.app.openDataFolder()}>Edit mcp.json yourself…</button>
           <span className="abl-spacer" />
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <button type="submit" className="btn primary" disabled={!ready}>Add</button>
+          <button type="submit" className="btn primary" disabled={!ready}>{saving ? 'Starting…' : 'Add'}</button>
         </div>
       </form>
     </div>,
