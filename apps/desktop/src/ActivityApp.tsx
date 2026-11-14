@@ -138,7 +138,7 @@ function Line({ item, picked, onPick, onOpenApp }: { item: FeedItem; picked: boo
 
 function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; picked: boolean; onPick: () => void; onOpen: () => void }) {
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : relativeTime(c.updated_ms, Date.now());
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? `Failed ${relativeTime(c.updated_ms, Date.now()).toLowerCase()}` : relativeTime(c.updated_ms, Date.now());
   return (
     <li className="act-row" data-picked={picked || undefined}>
       <button type="button" className="act-main" aria-current={picked || undefined} onClick={onPick}>
@@ -146,7 +146,7 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
         <Glyph app="agent" />
         <span className="act-text">
           <span className="act-what">{c.title || 'A conversation'}</span>
-          <span className="act-sub">{state}</span>
+          <span className="act-sub" data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>
         </span>
       </button>
       <button type="button" className="act-act" title="Open the conversation" onClick={onOpen}>Open</button>

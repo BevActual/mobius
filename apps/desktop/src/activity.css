@@ -22,6 +22,9 @@
 .act-mark[data-mobius] { background: var(--mobius, var(--accent)); }
 .act-mark[data-state="needs"] { background: var(--ink); }
 .act-mark[data-state="working"] { background: var(--ink); }
+/* A run whose last turn failed: the mark and its state line in red (never a red fill on the row). */
+.act-mark[data-state="failed"] { background: var(--red); }
+.act-sub[data-failed] { color: var(--red); }
 
 .act-icon { width: 18px; height: 18px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .act-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
