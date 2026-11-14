@@ -30,6 +30,14 @@ describe('what each app suggests', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
   });
+  it('starts Find a time with… in the box, for the person to name who, and it uses calendar.free', () => {
+    const first = suggestionsFor({ app: 'calendar', hasPage: false, note: null })[0]!;
+    expect(first.label).toBe('Find a time with…');
+    expect(isStarter(first)).toBe(true);
+    for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
+    // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
+    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
+  });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');
     const open = suggestionsFor({ app: 'files', hasPage: false, note: null, folder: 'Downloads' });

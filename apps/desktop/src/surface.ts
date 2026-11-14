@@ -256,8 +256,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Start a project', prompt: 'Make a small project in my Code, in a new folder code/<name>/, that ' }];
     case 'calendar':
       return [
+        // The demo's Calendar moment: the box reads "…meet with " and the person names who, such as Sam.
+        { label: 'Find a time with…', prompt: 'Find an hour this week, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest only the best two or three times, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing. End with the two or three times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
-        { label: 'Find time for…', prompt: 'Find a free hour in my calendar this week for ' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];
     case 'agent':
