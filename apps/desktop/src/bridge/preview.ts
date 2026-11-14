@@ -69,6 +69,7 @@ const TURN = { start: 'abc1234', end: null, when: now - 5 * 60_000, ask: 'Add th
 const SONG_TURN = { start: 'abc1233', end: 'abc1234', when: now - 40 * 60_000, ask: 'Add a pad under the second half of Night Drive', files: ['studio/Songs/Night Drive.json'] };
 
 let previewLook = { ...DEFAULT_APPEARANCE };
+let previewPrefs = { ...DEFAULT_PREFERENCES };
 // Abilities › Connectors: two servers as Mobius started them, and what was added or removed since.
 const previewWaiting = new Set<string>();
 const previewLeaving = new Set<string>();
@@ -88,7 +89,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
-  'preferences.get': () => DEFAULT_PREFERENCES,
+  'preferences.get': () => ({ ...previewPrefs }),
+  'preferences.set': ((change: Partial<typeof DEFAULT_PREFERENCES>) => { previewPrefs = { ...previewPrefs, ...change }; return { ...previewPrefs }; }) as never,
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
   // Settings › Approvals and Browser list these: none are kept in the preview.

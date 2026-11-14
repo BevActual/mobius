@@ -92,6 +92,7 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   await start([says(['ok']), says(['ok again'])]);
   // Effort is in the model's menu, marked with a check; the model's button says it once it is not the default.
   await shell().getByRole('button', { name: 'Model' }).click();
+  await menu('Model').getByRole('menuitem', { name: /^Effort/ }).click();
   const thinking = menu('Model').getByRole('group', { name: 'Thinking' });
   await expect(thinking.getByRole('menuitemradio', { name: /Default/ })).toHaveAttribute('aria-checked', 'true');
   await thinking.getByRole('menuitemradio', { name: /High/ }).click();
@@ -103,6 +104,7 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   await shell().getByRole('button', { name: 'Model' }).click();
   // Chosen and sent at once, with the choice slow to save: the message still goes with what was chosen.
   await shell().evaluate(() => { const real = window.mobius.preferences.set; window.mobius.preferences.set = async (change) => { await new Promise((r) => setTimeout(r, 800)); return real(change); }; });
+  await menu('Model').getByRole('menuitem', { name: /^Effort/ }).click();
   await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /Default/ }).click();
   await say('relax');
   await expect(log().locator('.msg.assistant').last()).toHaveText('ok again');
@@ -305,6 +307,7 @@ test('in Ask mode the model is offered only what reads', async () => {
 test('effort Off tells a model on this computer not to think', async () => {
   await start([says(['quick'])]);
   await shell().getByRole('button', { name: 'Model' }).click();
+  await menu('Model').getByRole('menuitem', { name: /^Effort/ }).click();
   await menu('Model').getByRole('group', { name: 'Thinking' }).getByRole('menuitemradio', { name: /^Off/ }).click();
   await expect(shell().getByRole('button', { name: 'Model' })).toHaveAttribute('title', /Off effort/);
   await say('fast please');
