@@ -7,7 +7,7 @@ import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { GRIDS, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, useKeyboardClaim, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -545,23 +545,16 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const t = e.target as HTMLElement | null;
       if (!t?.closest('.studio-page') || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
       const mod = e.ctrlKey || e.metaKey;
+      if (!t.isContentEditable && playKeys.current?.(e)) { e.preventDefault(); return; }
       if (pageKeys.current?.(e, t)) { e.preventDefault(); return; }
       if (e.key === ' ' && t.tagName !== 'BUTTON') { e.preventDefault(); if (playing) stop(); else start(); } else if (e.key === 'Enter' && t.tagName !== 'BUTTON' && !mod) { e.preventDefault(); seek(0); } else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [playing, start, stop, seek, undo, redo]);
-  // The computer keyboard's keys, caught on the way down so nothing else on the window takes them first.
+  // The computer keyboard's keys go to playKeys first (in the page's own listener); while it is on, Music holds the
+  // keyboard so the shell's single-letter keys (C for comments) stand down.
   const playKeys = useRef<((e: KeyboardEvent) => boolean) | null>(null);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const t = e.target as HTMLElement | null;
-      if (!t?.closest('.studio-page') || t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName)) return;
-      if (playKeys.current?.(e)) { e.preventDefault(); e.stopImmediatePropagation(); }
-    };
-    window.addEventListener('keydown', onKey, true);
-    return () => window.removeEventListener('keydown', onKey, true);
-  }, []);
 
   // The piano roll opens on the chosen track's highest notes.
   const shownTrack = song ? (song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null) : null;
@@ -587,6 +580,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   useEffect(() => { setUndoText(null); }, [songs.page?.path]);
   // The computer keyboard as an instrument: which keys are down, so the roll's keyboard shows them, until let go.
   const [keyboard, setKeyboard] = useState(false);
+  useKeyboardClaim(keyboard);
   const [keyOctave, setKeyOctave] = useState(4);
   const [keyVelocity, setKeyVelocity] = useState(100);
   const [held, setHeld] = useState<ReadonlyMap<string, number>>(new Map());
@@ -954,7 +948,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     </div>
   ) : null;
   const stopOrRewind = () => { if (playing) stop(); else seek(0); };
-  // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys and the window's C for comments.
+  // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys.
   playKeys.current = (e) => {
     const k = e.key.toLowerCase();
     if (!keyboard || !track || e.ctrlKey || e.metaKey || e.altKey) return false;
