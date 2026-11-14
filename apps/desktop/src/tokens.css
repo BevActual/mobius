@@ -204,6 +204,12 @@
   --pad-min: 120px;
   --pad-point: 14px;
   --pad-start: 8px;
+  --knob-size: 36px;
+  --graph-h: 96px;
+  --handle-size: 10px;
+  --step-size: 20px;
+  --step-gap: 2px;
+  --step-name-w: 72px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -301,6 +307,9 @@ html[data-density='compact'], .app[data-density='compact'] {
   --sidebar-w: 220px;
   --panel-w: 320px;
   --dock-h: 240px;
+  --knob-size: 32px;
+  --graph-h: 80px;
+  --step-size: 18px;
 }
 
 /* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */

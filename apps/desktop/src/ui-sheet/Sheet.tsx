@@ -3,6 +3,7 @@ import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
 } from '../ui';
 
 /**
@@ -83,6 +84,40 @@ function Pads() {
       <div className="sheet-col"><span className="sheet-note">At rest (drag, click, arrows, Shift+arrows, Home)</span><XYPad label="Feel" {...axes} value={feel} start={start} onChange={setFeel} /></div>
       <div className="sheet-col"><span className="sheet-note">Moved from its start</span><XYPad label="Feel" {...axes} value={moved} start={start} onChange={setMoved} /></div>
       <div className="sheet-col"><span className="sheet-note">Disabled</span><XYPad label="Feel" {...axes} value={start} onChange={() => {}} disabled hideReadout /></div>
+    </div>
+  );
+}
+
+function Instruments() {
+  // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
+  const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
+  const [env, setEnv] = useState<Envelope>({ attack: 0.012, decay: 0.3, sustain: 0.55, release: 0.8 });
+  const [filt, setFilt] = useState<FilterValue>({ cutoff: 1800, resonance: 0.3 });
+  const [pan, setPan] = useState(-0.4);
+  const [drive, setDrive] = useState(0);
+  const [tune, setTune] = useState(0);
+  const [kitDecay, setKitDecay] = useState(1);
+  const drums = [['kick', 'Kick'], ['snare', 'Snare'], ['clap', 'Clap'], ['closed', 'Closed hat'], ['open', 'Open hat'], ['tom', 'Tom']].map(([id, name]) => ({ id: id!, name: name! }));
+  const bar = (on: number[], v = 0.7, acc: number[] = []) => Array.from({ length: 16 }, (_, s) => (acc.includes(s) ? 1 : on.includes(s) ? v : 0));
+  const [cells, setCells] = useState<number[][]>([
+    bar([0, 4, 8, 12], 0.7, [0]), bar([4, 12], 0.7), bar([12], 0.5), bar([0, 2, 4, 6, 8, 10, 12, 14], 0.5, [2, 10]), bar([7, 15], 0.6), bar([], 0.7),
+  ]);
+  return (
+    <div className="sheet-instruments">
+      <div className="sheet-col"><span className="sheet-note">Envelope (drag a handle; arrows, Shift; on the decay corner Up and Down set sustain; double-click resets)</span>
+        <EnvelopeGraph value={env} reset={base} onChange={setEnv} /></div>
+      <div className="sheet-col"><span className="sheet-note">Filter, lowpass, with the envelope opening it (dashed)</span>
+        <FilterGraph value={filt} reset={{ cutoff: 1800, resonance: 0.2 }} min={80} max={12000} envAmount={0.35} onChange={setFilt} /></div>
+      <div className="sheet-col"><span className="sheet-note">Knobs: pan at origin C, drive at rest, tune signed, decay log around 1×</span>
+        <div className="sheet-row">
+          <Knob label="Pan" value={pan} min={-1} max={1} step={0.01} format={panLabel} onChange={setPan} />
+          <Knob label="Drive" value={drive} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={setDrive} />
+          <Knob label="Tune" value={tune} min={-12} max={12} step={1} unit="st" format={(v) => (v > 0 ? `+${v}` : String(v))} onChange={setTune} />
+          <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
+          <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
+        </div></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
+        <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
     </div>
   );
 }
@@ -286,6 +321,9 @@ export function Sheet() {
           <Pads />
         </Card>
 
+        <Card title="Instrument controls (Music's Device panel and drum kit)" wide>
+          <Instruments />
+        </Card>
         <Card title="List rows" wide>
           <div className="sheet-grid">
             <ul role="list" className="ui-list sheet-list">

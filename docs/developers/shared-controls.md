@@ -126,7 +126,24 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   choices={[{ value: 'review', label: 'Review changes', meaning: 'Changes show dashed until you keep them' }, …]} />
 ```
 
-More controls (Dialog, Tabs) are added one at a time.
+### Instrument controls
+
+What a synth's or drum kit's Device panel draws. Music uses them first; Video's audio and any sound preview can use them later. They follow the same keys as the sliders. Arrows nudge, moving a twelfth of an octave on a log scale, and Shift nudges more. Double-click or Home puts a value back to `reset`. `onCommit` runs once when a drag or a key is let go.
+
+| Control | Use it for |
+| --- | --- |
+| `Knob` | A `ParamCell` drawn as a dial, with the same props (`label`, `value`, `min`, `max`, `step`, `scale`, `origin`, `reset`, `format`, `unit`), so swapping between them is one line. Use it for a dense row, such as pan or sends, where a slider is too wide. Drag up or down to turn it, with Shift for fine control. The arc fills from the origin. `panLabel` formats pan as "L 40", "C" and "R 40" |
+| `EnvelopeGraph` | Attack, decay, sustain and release drawn as one shape. It has three handles: the peak sets attack, the decay corner sets decay across and sustain up (Up and Down on the keyboard), and the end sets release. The four values read underneath, grey until they move from `reset`. `ranges` defaults to Music's: attack 1 ms to 2 s, decay 10 ms to 4 s and release 20 ms to 4 s, all log |
+| `FilterGraph` | A two-pole filter's curve across `min` to `max` Hz (log), with one point: across is cutoff, up is resonance, and the point sits on the curve's peak. `type` is `'lowpass'` (default), `'highpass'` or `'bandpass'`. `q` maps resonance (0 to 1) to Q, using Music's `musicQ` unless given. `envAmount` and `envOctaves` add a dashed curve where a note's envelope opens it to |
+| `StepGrid` | Drum rows by steps. `cells[row][step]` is 0 for off, otherwise the velocity (0 to 1), drawn as the step's fill, so an accent is a full ink cell. Click switches a step on or off, Shift+click sets an accent, and dragging across paints. With the keyboard, arrows move, Space or Enter switches, Shift+Enter sets an accent, and + and − change velocity. The grid takes one Tab stop. `now` outlines the playing step, and every other beat is shaded |
+
+```tsx
+<EnvelopeGraph value={sound.env} reset={base.env} onChange={(env) => set({ env })} />
+<FilterGraph value={{ cutoff, resonance }} min={80} max={12000} envAmount={sound.filterEnv} onChange={setFilter} />
+<StepGrid label="Drums" rows={DRUM_ROWS} cells={pattern} now={playingStep} onChange={setStep} />
+```
+
+More controls are added one at a time.
 
 ## Adopting the frame
 
