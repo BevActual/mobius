@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
+import { COMPARE_TABS, isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, WHAT_STANDS_OUT } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -35,6 +35,11 @@ describe('what each app suggests', () => {
     for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
     for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
+  });
+  it('leads an open sheet with What stands out?, which leaves its working in the sheet as formulas', () => {
+    const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];
+    expect(first).toEqual({ label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' });
+    for (const bit of ['sheets.read', 'sheets.write', 'SUM', 'AVERAGE', 'Stands out', 'column chart (charts)']) expect(WHAT_STANDS_OUT).toContain(bit);
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
