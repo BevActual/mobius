@@ -93,6 +93,9 @@ Your calendars by day, week or month.
 - **The sidebar** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
   again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
   many events Mobius suggested or added are waiting for you, and goes to the first.
+- **Tasks due at a time** sit at their hour in Day and Week as a thin line you can tick; a task due only on a day waits
+  in the all-day row. A repeating task shows a small repeat mark, and ticking it moves it on to its next day, as in
+  Tasks.
 - **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with **New
   event** at the top of the sidebar (Ctrl+N). **Q**, or **Calendar › Quick event**, takes one said in words, such as
   "Lunch fri 1pm". Drag an event to move it, in any view.

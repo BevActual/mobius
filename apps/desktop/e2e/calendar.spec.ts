@@ -118,6 +118,22 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(page().getByRole('button', { name: /^Team standup/ })).toBeVisible();
 });
 
+test('a task due at a time sits at its hour in Day view, and a task due only on the day waits in the all-day row', async () => {
+  const tasks = path.join(userData, 'workspace', 'tasks');
+  fs.mkdirSync(tasks, { recursive: true });
+  fs.writeFileSync(path.join(tasks, 'Work.md'), `# Work\n\n- [ ] Call the yard (due ${today()} 15:30) (every weekday)\n- [ ] Order the straps (due ${today()})\n`);
+  await start();
+  await tools().getByRole('radio', { name: 'Day' }).click();
+  const timed = page().locator('.cal-grid').getByRole('checkbox', { name: new RegExp(`^Call the yard, ${at('15:30')}, task in Work, repeats$`) });
+  await expect(timed).toBeVisible();
+  const top = await timed.evaluate((box) => (box.closest('.cal-task') as HTMLElement).offsetTop);
+  expect(Math.abs(top - 15.5 * (await hourPx()))).toBeLessThan(4);
+  await expect(page().locator('.cal-all-day').getByRole('checkbox', { name: 'Order the straps, task in Work' })).toBeVisible();
+  // Ticking it at its hour ticks it in Tasks: a repeating task moves on to its next day.
+  await timed.check();
+  await expect.poll(() => fs.readFileSync(path.join(tasks, 'Work.md'), 'utf8')).not.toContain(`Call the yard (due ${today()} 15:30)`);
+});
+
 test('an event typed in words is set to repeat, then dragged an hour later, and every time it happens moves', async () => {
   await start();
   await tools().getByRole('radio', { name: 'Day' }).click();
