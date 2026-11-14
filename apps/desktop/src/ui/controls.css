@@ -311,6 +311,8 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 /* The field's box shows focus (an ink border); the input inside draws no ring of its own. */
 .ui-field-box .ui-field-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
 
+/* Typed-over text in a field uses the theme's selection grey, not the browser's blue. */
+.ui-field-input::selection { background: var(--sel); color: var(--ink); }
 
 /* Inline field: the name beside the box, for toolbars and bars. Quiet pop-up: text and chevrons, a fill on hover. */
 .ui-field[data-inline] { flex-direction: row; align-items: baseline; gap: var(--sp-2); }

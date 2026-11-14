@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
-import { describeAction, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
+import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
 import type { HubTarget } from './search-hub';
 import { APPS } from './apps';
 import { stepTag } from './step-access';
@@ -146,30 +146,51 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
   );
 }
 
-/** A question the model asked: pick a choice or answer in your own words. */
+
+/** A question the model asked (the Asking state): its choices as numbered rows, the first one outlined as the
+ * suggestion, and number keys to pick one. Your own words go in the message box below. */
 function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question' }>; onReply: (callId: string, text: string) => Promise<string | null> }) {
-  const [text, setText] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
+  const card = useRef<HTMLElement>(null);
   const open = item.status === 'open';
   const reply = async (answer: string) => {
     if (!answer.trim()) return;
     setProblem(await onReply(item.callId, answer.trim()));
   };
+  const replyNow = useRef(reply);
+  replyNow.current = reply;
+  // Number keys pick a choice while the panel has the focus and nothing is being typed.
+  useEffect(() => {
+    if (!open || item.choices.length === 0) return undefined;
+    const onKey = (event: globalThis.KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      const panel = card.current?.closest('aside.chat');
+      if (!panel || !target || !(panel.contains(target) || target === document.body)) return;
+      const typing = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable;
+      const n = actionKey(event, typing);
+      const choice = n === null ? undefined : item.choices[n - 1];
+      if (choice === undefined) return;
+      event.preventDefault();
+      void replyNow.current(choice);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, item.choices]);
   return (
-    <section className="question-card" role="group" aria-label="Mobius asks" data-status={item.status}>
+    <section ref={card} className="question-card" role="group" aria-label="Mobius asks" data-status={item.status}>
       <p className="question-text">{item.question}</p>
       {open ? (
-        <>
-          {item.choices.length > 0 && (
-            <div className="question-choices">
-              {item.choices.map((c) => <button key={c} type="button" className="btn" onClick={() => void reply(c)}>{c}</button>)}
-            </div>
-          )}
-          <form className="question-own" onSubmit={(e) => { e.preventDefault(); void reply(text); }}>
-            <input className="input" aria-label="Your answer" placeholder={item.choices.length > 0 ? 'Or answer in your own words' : 'Your answer'} value={text} maxLength={4000} onChange={(e) => setText(e.target.value)} />
-            <button type="submit" className="btn primary" disabled={!text.trim()}>Answer</button>
-          </form>
-        </>
+        item.choices.length > 0 ? (
+          <div className="question-choices">
+            {item.choices.map((c, k) => (
+              <button key={c} type="button" className="question-choice" data-suggested={k === 0 || undefined} onClick={() => void reply(c)}>
+                <span className="question-choice-text">{c}</span>
+                {k < 4 && <kbd className="ui-keycap question-key" aria-hidden="true">{k + 1}</kbd>}
+              </button>
+            ))}
+            <p className="question-note">{item.choices.length > 1 ? 'I suggest the first. ' : ''}Or type your own answer below.</p>
+          </div>
+        ) : <p className="question-note">Type your answer below.</p>
       ) : (
         <p className="question-answer" role="status">{item.status === 'cancelled' ? 'Not answered' : `You answered: ${item.answer ?? ''}`}</p>
       )}
@@ -289,7 +310,7 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
         </div>
       )}
       {item.status === 'waiting' && item.requestId !== undefined && (
-        <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`}>
+        <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`} data-final={finalNote(item.name) ? 'true' : undefined}>
           <p className="approval-head">Needs you</p>
           {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
           <p className="approval-text" title={item.name}>Mobius wants to {plainUse(item.name, item.args)}.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
@@ -310,10 +331,13 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
               </>
             );
           })()}
+          {finalNote(item.name) && <p className="approval-final">{finalNote(item.name)}</p>}
+          {/* Quiet choices on the left, the one that goes ahead in ink on the right (Instrument, the Asking state). */}
           <div className="approval-actions">
-            <button type="button" className="btn primary" disabled={sending} onClick={() => void respond(true, 'once')}>Allow once</button>
-            {item.onceOnly ? null : <button type="button" className="btn" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
-            <button type="button" className="btn" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
+            <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
+            {item.onceOnly || finalVerb(item.name) ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
+            {/* Named by what it does when that can't be undone ("Send"); its full name still says it allows it once. */}
+            <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>{finalVerb(item.name) ? <><span className="sr-only">Allow once: </span>{finalVerb(item.name)}</> : 'Allow once'}</button>
           </div>
           {problem && <p className="field-error" role="alert">{problem}</p>}
         </div>
@@ -582,6 +606,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const runs = toolRuns(state.items);
   const inRun = new Set([...runs].flatMap(([at, n]) => Array.from({ length: n - 1 }, (_, k) => at + k + 1)));
   const here = hereOf(surface);
+  // The Asking state: a question waits, so what you type in the message box answers it.
+  const openQuestion = state.items.find((item): item is Extract<Item, { kind: 'question' }> => item.kind === 'question' && item.status === 'open');
   // The resting panel's Actions list: an app's own actions go in first (Mail's Get to zero), then the ideas.
   const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
   const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
@@ -822,6 +848,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             here={hereShown}
             onRemoveHere={() => setHereOff(here?.key ?? null)}
             activity={activityOf(state)}
+            onAnswer={openQuestion ? (text) => { void onReply(openQuestion.callId, text).then((p) => { if (!p) setDraft(''); }); } : undefined}
           />
         </>
       )}

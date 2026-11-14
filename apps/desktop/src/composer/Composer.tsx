@@ -1,4 +1,5 @@
 import { KeyCaps } from '../ui/Tooltip';
+import { ChoiceMenu } from '../ui/Popover';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionRow } from '../ActionsSlot';
@@ -73,12 +74,14 @@ export interface ComposerProps {
   activity?: Activity | null;
   /** What the empty box suggests asking where the person is ("Ask about your mail"); "Message Mobius" without one. */
   hint?: string;
+  /** While Mobius asks a question: what you type answers it (the Asking state), instead of sending or queueing. */
+  onAnswer?: ((text: string) => void) | undefined;
 }
 
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
   // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
   // plan). Kept on this computer.
   const [mode, setModeState] = useState<ChatMode>(loadChatMode);
@@ -199,6 +202,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     event?.preventDefault();
     if (adding && canType && !listening && draft.trim().length > 0) {
       sendWhenAdded.current = true;
+      return;
+    }
+    if (onAnswer && canType && !listening && draft.trim().length > 0) {
+      onAnswer(draft.trim());
       return;
     }
     if (!canSend && !canQueue) return;
@@ -406,7 +413,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
         value={draft}
         disabled={!canType}
         autoFocus={takeFocus}
-        placeholder={canType ? (busy && onQueue ? 'Queue a message for when Mobius finishes' : hint ?? 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
+        placeholder={canType ? (onAnswer ? 'Or type your own answer…' : busy && onQueue ? 'Queue a message for when Mobius finishes' : hint ?? 'Message Mobius') : configured ? 'Starting up…' : coreReady ? 'Connect a model to start' : 'Starting up…'}
         onChange={(event) => onDraft(event.target.value)}
         onKeyDown={onKeyDown}
         onPaste={(event) => {
@@ -444,30 +451,27 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Mode" className="pill pill-compact" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`} trigger={<><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {CHAT_MODES.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === mode} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); setMode(option.id); }}>
-                    <Check on={option.id === mode} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
-                  </button>
-                ))}
-                <p className="popmenu-note popmenu-keys"><span>Next mode</span><KeyCaps keys="Shift+Tab" /></p>
-              </>
-            )}
-          </PopMenu>
-          <PopMenu label="Permission" className="pill pill-compact" title={`Permission: ${permission.name}. ${permission.hint}`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {PERMISSIONS.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === permission.id} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); choosePermission(option); }}>
-                    <Check on={option.id === permission.id} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
-                  </button>
-                ))}
-                <button type="button" role="menuitem" className="popmenu-item popmenu-link" title="Paying, sending, deleting and running commands always ask, and what you blocked stays blocked" onClick={() => { close(); onOpenSettings(); }}>Always ask and never lists…</button>
-              </>
-            )}
-          </PopMenu>
+          {/* Mode and Permission are the shared ChoiceMenu; the wrapper keeps the composer row's layout rules. */}
+          <span className="popmenu">
+            <ChoiceMenu
+              label="Mode"
+              value={mode}
+              onChange={setMode}
+              choices={CHAT_MODES.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
+              footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode)) }]}
+              trigger={<button type="button" className="pill pill-compact" aria-label="Mode" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+            />
+          </span>
+          <span className="popmenu">
+            <ChoiceMenu
+              label="Permission"
+              value={permission.id}
+              onChange={(id) => { const option = PERMISSIONS.find((p) => p.id === id); if (option) choosePermission(option); }}
+              choices={PERMISSIONS.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
+              footer={[{ label: 'Always ask and never lists…', run: onOpenSettings }]}
+              trigger={<button type="button" className="pill pill-compact" aria-label="Permission" title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+            />
+          </span>
           <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
@@ -510,12 +514,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="7.5" y="3" width="5" height="9" rx="2.5" /><path d="M5 9.5a5 5 0 0 0 10 0M10 14.5V17" /></svg>
           </button>
           {busy && onTakeOver && <button type="button" className="btn take-over" title="Mobius pauses at the next safe point and the apps are yours" onClick={() => void onTakeOver()}>Take over</button>}
-          {busy ? (
+          {busy && !(onAnswer && draft.trim()) ? (
             <button type="button" className="round stop" aria-label="Stop" title="Stop" onClick={onStop}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" fill="currentColor" stroke="none" /></svg>
             </button>
           ) : (
-            <button type="submit" className="round send" aria-label="Send" title="Send" disabled={!canSend}>
+            <button type="submit" className="round send" aria-label={onAnswer ? 'Answer' : 'Send'} title={onAnswer ? 'Answer' : 'Send'} disabled={!canSend && !(onAnswer && draft.trim())}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 15V5M5.5 9.5 10 5l4.5 4.5" /></svg>
             </button>
           )}

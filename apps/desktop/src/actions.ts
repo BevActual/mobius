@@ -190,3 +190,23 @@ export function changeTarget(path: string): HubTarget | null {
   if (p.startsWith('code/')) { const project = rest('code/').split('/')[0]; return project ? { app: 'code', project } : null; }
   return null;
 }
+
+/** The verb for what can't be taken back once allowed: Send, Pay, Delete or Run (the same verbs Activity counts as
+ * final). Null for everything else. */
+export function finalVerb(tool: string): 'Send' | 'Pay' | 'Delete' | 'Run' | null {
+  const words = tool.toLowerCase().split(/[.\-_]/);
+  const has = (...w: string[]) => words.some((x) => w.includes(x));
+  if (has('send')) return 'Send';
+  if (has('pay', 'payments')) return 'Pay';
+  if (has('delete')) return 'Delete';
+  if (has('run', 'push', 'terminal', 'shell')) return 'Run';
+  return null;
+}
+
+const FINAL_NOTE = { Send: 'Sending', Pay: 'Paying', Delete: 'Deleting', Run: 'Running it' } as const;
+
+/** What the approval card says can't be undone, or null. */
+export function finalNote(tool: string): string | null {
+  const verb = finalVerb(tool);
+  return verb ? `${FINAL_NOTE[verb]} can\u2019t be undone.` : null;
+}
