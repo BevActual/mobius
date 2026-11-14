@@ -2602,3 +2602,14 @@ body { font-variant-numeric: tabular-nums; }
 /* While it waits, the step's own line goes: the card's bold line already says what it is. It returns once answered. */
 .chat .tool[data-status="waiting"]:has(.approval) > .tool-line { display: none; }
 .chat .tool[data-status="waiting"]:has(.approval) > .approval { margin-top: 0; }
+/* The model menu (Instrument review): one edge-to-edge hairline between its parts, Effort as one row that opens in
+   place, and the pill's effort as a grey suffix when it is not Default. */
+.model-menu .popmenu-link { border-radius: 0; border-top: 1px solid var(--hairline); color: var(--ink); margin-top: 4px; }
+.model-menu .popmenu-section { border-top: 1px solid var(--hairline); margin-top: 4px; padding-top: 4px; }
+.model-menu .model-effort { border-top: 1px solid var(--hairline); border-radius: 0; margin-top: 4px; }
+.model-effort-value { margin-left: auto; margin-right: var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
+.model-effort-back { flex-direction: row; align-items: center; gap: var(--sp-1); color: var(--muted); }
+.popmenu-item.popmenu-arrow { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; }
+.popmenu-arrow-icon { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.4; }
+.model-best-fit-link { color: var(--muted); font-size: var(--fs-sm); }
+.pill-suffix { color: var(--muted); }
