@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { audible, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { audible, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -34,7 +34,7 @@ describe('songs', () => {
     const after = song(FILE);
     after.tracks[1]!.muted = false;
     expect([...changedTracks(before, after)]).toEqual([]);
-    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, muted: false, solo: false, notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] });
+    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, muted: false, solo: false, color: 'blue', notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] });
     expect([...changedTracks(before, after)]).toEqual(['t3']);
     expect(audible(before).map((t) => t.id)).toEqual(['t1']);
     expect(audible({ ...after, tracks: after.tracks.map((t) => ({ ...t, solo: t.id === 't3' })) }).map((t) => t.id)).toEqual(['t3']);
@@ -57,5 +57,15 @@ describe('a track\'s sound', () => {
     expect(s.tracks[2]!.sound).toBeUndefined();
     expect(song(writeSong(s)).tracks[0]!.sound).toEqual(s.tracks[0]!.sound);
     expect(writeSong(s)).not.toContain('"sound":{"shape":0.5');
+  });
+});
+
+describe('a track\'s colour', () => {
+  it('is one of the shared content colours, by place when a file has none, and written back', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [] }, { id: 'b', color: 'coral', notes: [] }, { id: 'c', color: 'red', notes: [] }] }));
+    expect(s.tracks.map((t) => t.color)).toEqual(['blue', 'coral', 'green']);
+    expect(song(writeSong(s)).tracks.map((t) => t.color)).toEqual(['blue', 'coral', 'green']);
+    expect(nextColour(s.tracks)).toBe('amber');
+    expect(nextColour(TRACK_COLOURS.map((color) => ({ color })))).toBe(TRACK_COLOURS[TRACK_COLOURS.length % TRACK_COLOURS.length]);
   });
 });

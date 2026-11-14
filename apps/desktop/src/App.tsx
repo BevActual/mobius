@@ -78,6 +78,7 @@ import { heading as calendarHeading, eventsOn, isoWeek } from './calendar-view';
 import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
+import { agoLabel } from './desk-view';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { SidebarHead } from './SidebarHead';
 import { AppFrame, PanelsMenu, RightPanelTabs, TooltipLayer, type AppMenuState } from './ui';
@@ -1624,7 +1625,8 @@ export function App() {
         title: place || (!settingsOpen && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
-          : inAgent ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+          // Home: when the open conversation was last active; the model lives in the composer.
+          : inAgent ? (!settings?.configured ? 'No model connected' : ((c) => (c ? agoLabel(c.updated_ms, new Date()) : undefined))(conversation.list.find((c) => c.id === conversation.id)))
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
           // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
@@ -1678,7 +1680,7 @@ export function App() {
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead
               // Agents app (marked): its own name; New agent is the + by its list.
-              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : inAgents ? 'Agents' : appName(app)}
+              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : inAgents ? 'Agents' : app === 'agent' ? 'Home' /* Home: the rail's name */ : appName(app)}
               create={settingsOpen || inActivity || inAgents || createInList.includes(app) ? undefined : createFor(app)}
               favourites={settingsOpen ? [] : favourites}
               onOpenFavourite={openFavourite}
