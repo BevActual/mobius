@@ -49,11 +49,11 @@ The *Launch* thread writes the content; each lead adds what their app's moment n
 | App | Files | For the moment |
 | --- | --- | --- |
 | Home | everything below | Unread mail, tasks due today, a half-full week. |
-| Mail | `../mail/` | Forty unread, three that need you: Priya's brake kit review, Veltro's quote (the price holds until the end of the week), Sam's "find us an hour". |
+| Mail | `../mail/` | Forty unread, three that need you, newest first: Priya's two asks and a call tomorrow at 2 pm, Veltro's quote (the price holds until the end of the week), Sam's "find us an hour". |
 | Calendar | `calendar/Work.ics`, `calendar/Home.ics`, `calendar/people/Sam Okafor.ics` | Andrew's busy week, and Sam's (read only for when he is busy), for "Find an hour with Sam this week". Their free time overlaps for an hour or two most days. |
 | Tasks | `tasks/Kestrel P2.md`, `tasks/Home.md` | Sixteen tasks: three overdue, some due today with times, one repeating. |
-| Notes | `notes/Meetings/`, `notes/P2 build/` | A notebook of meeting notes. |
-| Docs | `docs/P2 build/Build brief.md` | A long, wordy draft to tighten, and the source for the deck. |
+| Notes | `notes/Meetings/`, `notes/P2 build/` | Meeting notes; `Kestrel P2 stand-up` is today's stand-up as it was said: three decisions, four actions with names and days. |
+| Docs | `docs/P2 build/Build brief.md` | A long, wordy draft (about 1,500 words) to tighten, the source for the one-page brief and the deck. |
 | Slides | `slides/Talks/P1 lessons.md` | An older deck; the new one is made from the brief in the clip. |
 | Browser | `pages/` | Three saved battery pack pages to compare, so the clip needs no live site. |
 | Files | `Downloads/` | Sixty untidy files to sort. |
