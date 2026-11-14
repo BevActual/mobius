@@ -61,11 +61,13 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   keys?: string;
   pressed?: boolean;
   danger?: boolean;
+  /** The one ink icon button of its area (the composer's Send). */
+  primary?: boolean;
 }
 
 /** A line icon with no border; a grey fill on hover. It always has a name, shown as its tooltip with its key. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(
-  { label, icon, keys, pressed, danger, className, title, ...rest },
+  { label, icon, keys, pressed, danger, primary, className, title, ...rest },
   ref,
 ) {
   return (
@@ -76,6 +78,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(functio
       aria-label={label}
       aria-pressed={pressed}
       data-danger={danger || undefined}
+      data-kind={primary ? 'primary' : undefined}
       title={titleWithKeys(title ?? label, keys)}
       {...rest}
     >

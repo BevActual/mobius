@@ -43,6 +43,9 @@
 .ui-icon-button:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
 .ui-icon-button:active, .ui-icon-button[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
 .ui-icon-button[data-danger]:hover { color: var(--red); }
+.ui-icon-button[data-kind="primary"] { width: var(--button-h); height: var(--button-h); background: var(--ink); color: var(--on-ink); }
+.ui-icon-button[data-kind="primary"]:hover { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); color: var(--on-ink); }
+.ui-icon-button[data-kind="primary"] svg { width: var(--sp-4); height: var(--sp-4); }
 
 /* Fields: paper, a hairline border, an ink border on focus; the unit grey at the trailing end. */
 .ui-field { display: flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }

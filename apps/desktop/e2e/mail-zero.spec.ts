@@ -57,7 +57,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, Undo all puts it back', async () => {
   await start();
   const zero = shell().getByRole('region', { name: 'Get to zero' });
-  await zero.getByRole('button', { name: 'Get to zero' }).click();
+  // In the resting panel it is the first action, numbered, above Mobius's ideas.
+  await shell().getByRole('button', { name: 'Get to zero' }).click();
   const plan = zero.getByRole('group', { name: 'Mobius’s plan' });
   await expect(plan).toHaveAttribute('data-proposed');
   await expect(plan.getByRole('button', { name: /^Archive/ })).toHaveText('Archive1');
@@ -76,7 +77,7 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
   expect(servers.commands.some((c) => c.startsWith('UID MOVE') && c.endsWith('"INBOX"')), 'and back to the inbox there').toBe(true);
   await expect.poll(() => fs.readFileSync(todos(), 'utf8')).not.toContain('Terrace');
   // Discard plan leaves everything as it was.
-  await zero.getByRole('button', { name: 'Get to zero' }).click();
+  await shell().getByRole('button', { name: 'Get to zero' }).click();
   await zero.getByRole('button', { name: 'Discard plan' }).click();
   await expect(inbox().getByRole('option')).toHaveCount(2);
   // While one email is open the panel is about that email: the inbox plan steps aside, and comes back with none open.
