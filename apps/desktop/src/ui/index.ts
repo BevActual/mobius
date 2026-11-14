@@ -8,6 +8,7 @@ import './controls.css';
 import './objects.css';
 import './wave.css';
 import './instrument.css';
+import './chart.css';
 import './pads.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
@@ -45,3 +46,4 @@ export { ContentTabs, tabId, type TabItem } from './Tabs';
 export { NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
 export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
 export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';
+export { Chart, Sparkline, CHART_ORDER, chartTicks, chartNumber, type ChartSeries } from './Chart';

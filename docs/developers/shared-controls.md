@@ -53,6 +53,7 @@ Each group has its own page, with a picture of every control in its states.
 | [Pro controls](ui/pro-controls.md) | `NumberField`, `Readout`, `LetterToggle`, `Transport`, `LevelMeter`, `GainReductionMeter` | <img src="ui/img/pro.png" alt="" width="240"> |
 | [Instrument controls](ui/instruments.md) | `Knob`, `EnvelopeGraph`, `FilterGraph`, `StepGrid`, `AutomationLane`, `XYPad`, `WaveformView`, `PadGrid` | <img src="ui/img/instruments.png" alt="" width="240"> |
 | [Devices](ui/devices.md) | `DeviceChain`, `DeviceFrame`, `EqGraph` | <img src="ui/img/devices.png" alt="" width="240"> |
+| [Charts](ui/charts.md) | `Chart` (columns, lines, areas), `Sparkline` | <img src="ui/img/charts.png" alt="" width="240"> |
 
 **The reference sheet.** Every control, in its states, is on one dev-only page: run `npm run dev -w @mobius/desktop`
 and open `http://127.0.0.1:5180/ui-sheet.html` (add `?density=compact` or `?theme=mid`; dark follows the system). It is

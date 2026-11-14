@@ -10,6 +10,7 @@ import {
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
+  Chart, Sparkline,
 } from '../ui';
 
 /**
@@ -155,6 +156,29 @@ function Instruments() {
         <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">In a track's colour, with no head (the app names it in its track head): a dragged or focused point shows its place and value beside it.</span>
         <AutomationLane label="Lead volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} color="violet" head={false} onChange={setLane} /></div>
+    </div>
+  );
+}
+
+function Charts() {
+  const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  const money = (v: number) => `$${v.toLocaleString('en-US')}`;
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-col"><span className="sheet-note">Columns, two series: legend above, value tooltip on hover or arrow keys</span>
+        <Chart label="P2 build spend by month" categories={months} format={money}
+          series={[{ name: 'Parts', values: [4200, 5100, 4800, 6900, 7400, 6100] }, { name: 'Labour', values: [2600, 2900, 3100, 3600, 3900, 3300] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Line, three series in the people's own colours; a gap where a value is missing</span>
+        <Chart label="Cells tested per week" kind="line" categories={['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']}
+          series={[{ name: 'Veltro', color: 'teal', values: [12, 18, 22, 21, 30, 34, 33, 41] }, { name: 'Axion', color: 'violet', values: [8, 9, 14, null, 19, 23, 27, 26] }, { name: 'Northway', color: 'amber', values: [3, 6, 6, 10, 12, 12, 15, 20] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Area, one series (no legend: the label names it); Mobius made it, so dashed until kept</span>
+        <Chart label="Range at 20 °C, km" kind="area" proposed height={200} categories={['0%', '20%', '40%', '60%', '80%', '100%']}
+          series={[{ name: 'Range', color: 'blue', values: [0, 64, 131, 199, 262, 318] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Sparklines for a Views tile: no axes, the last value marked</span>
+        <div className="sheet-sparks">
+          <span>Inbox</span><Sparkline label="Unread mail, last 14 days" values={[14, 12, 15, 9, 11, 8, 7, 9, 6, 5, 7, 4, 3, 2]} />
+          <span>Tasks done</span><Sparkline label="Tasks done, last 14 days" color="green" area values={[1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9]} />
+        </div></div>
     </div>
   );
 }
@@ -503,6 +527,9 @@ export function Sheet() {
         </Card>
         <Card title="Pad grid (Music's drum kit)" shot="pads">
           <DrumPads />
+        </Card>
+        <Card title="Charts (Sheets, Views tiles)" shot="charts" wide>
+          <Charts />
         </Card>
         <Card title="List rows" shot="list-rows" wide>
           <div className="sheet-grid">
