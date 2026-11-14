@@ -92,8 +92,10 @@ impl Checkpoints {
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
             // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
-            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
-            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
+            // (untracked cache). Not core.fscache: on Windows it reads file sizes and times from the folder's listing,
+            // which NTFS updates late while something else has the file open, so a change that keeps the size (a
+            // database row) could be missed and the turn would show nothing to keep or discard.
+            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=false", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
