@@ -247,3 +247,8 @@
 .studio-keys-at { display: inline-flex; }
 .studio-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .studio-roll-hint { flex: none; margin: var(--sp-2) var(--sp-3); }
+
+/* Record: a red dot, filled red while it records. */
+.ui-icon-button.studio-record { color: var(--danger); }
+.ui-icon-button.studio-record svg path { fill: currentColor; stroke: none; }
+.ui-icon-button.studio-record[aria-pressed='true'] { background: var(--danger-wash); color: var(--danger); }

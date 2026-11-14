@@ -120,6 +120,19 @@ export function joinNotes(notes: readonly SongNote[], picked: Picked) {
   ]);
 }
 
+/**
+ * A note played while recording, once its key is let go: from where it was pressed to `end`. When the loop went round
+ * while it was held, it ends at the loop's end. At least a 1/64 note long, and never past the song's end; null if it
+ * began past the end.
+ */
+export function recordedNote(held: { pitch: number; start: number; velocity: number }, end: number, cycle: Cycle | null, total: number): SongNote | null {
+  const start = round(Math.max(0, held.start));
+  if (start >= total) return null;
+  const to = end < held.start && cycle ? cycle.to : end;
+  const length = round(Math.min(total - start, Math.max(1 / 16, to - start)));
+  return { pitch: held.pitch, start, length, velocity: round(Math.max(0, Math.min(1, held.velocity))) };
+}
+
 /** The picked notes set to one loudness (0 to 1). */
 export function setVelocity(notes: readonly SongNote[], picked: Picked, velocity: number): SongNote[] {
   const v = round(Math.max(0, Math.min(1, velocity)));

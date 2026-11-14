@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -219,5 +219,20 @@ describe('splitNotes and joinNotes', () => {
     const r = joinNotes([n(60, 0, 0.5), n(60, 1, 0.5), n(62, 0, 1), n(60, 3, 1)], new Set([0, 1, 2]));
     expect(r.notes).toEqual([n(60, 0, 1.5), n(62, 0, 1), n(60, 3, 1)]);
     expect([...r.picked].sort()).toEqual([0, 1]);
+  });
+});
+
+describe('recordedNote', () => {
+  const held = { pitch: 60, start: 2.5, velocity: 0.8 };
+  it('runs from the press to the release', () => {
+    expect(recordedNote(held, 3.25, null, 16)).toEqual({ pitch: 60, start: 2.5, length: 0.75, velocity: 0.8 });
+  });
+  it('ends at the loop end when the loop went round while held', () => {
+    expect(recordedNote({ ...held, start: 7.5 }, 0.5, { from: 0, to: 8 }, 16)).toMatchObject({ start: 7.5, length: 0.5 });
+  });
+  it('is at least a 1/64 note, never past the end, and nothing past the end', () => {
+    expect(recordedNote(held, 2.5, null, 16)!.length).toBe(0.063);
+    expect(recordedNote({ ...held, start: 15.5 }, 20, null, 16)!.length).toBe(0.5);
+    expect(recordedNote({ ...held, start: 16 }, 17, null, 16)).toBeNull();
   });
 });

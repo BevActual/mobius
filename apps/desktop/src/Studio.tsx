@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip,
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, useKeyboardClaim, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -373,6 +373,12 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: ContextMenuItem[] } | null>(null);
   const [click, setClick] = useState(false);
   const [beat, setBeat] = useState(0);
+  // Recording: keys played on the computer keyboard while it plays are written into the chosen track, as one take.
+  const [recording, setRecording] = useState(false);
+  const takeKeys = useRef<Map<string, { pitch: number; start: number; velocity: number }>>(new Map());
+  const take = useRef('');
+  const finishKey = useRef<((key: string) => void) | null>(null);
+  const finishAll = useRef<(() => void) | null>(null);
   const [grid, setGrid] = useState(0.25);
   /** A drums track's notes as a piano roll, or as a bar of steps. */
   const [drumView, setDrumView] = useState<'notes' | 'steps'>('notes');
@@ -458,7 +464,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     const text = writeSong(next);
     if (text === songs.text) return;
     const now = Date.now();
-    if (!(tag && tag === steps.tag && now - steps.at < 1200)) { steps.undo.push(songs.text); if (steps.undo.length > 200) steps.undo.shift(); }
+    // A recording take is one step however long it runs; other runs of one change join while they come quickly.
+    if (!(tag && tag === steps.tag && (now - steps.at < 1200 || tag.startsWith('record:')))) { steps.undo.push(songs.text); if (steps.undo.length > 200) steps.undo.shift(); }
     steps.redo = [];
     steps.tag = tag;
     steps.at = now;
@@ -489,6 +496,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
   const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
   const stop = useCallback(() => {
+    finishAll.current?.();
+    setRecording(false);
     player.current?.stop(); player.current = null;
     session.current?.stop(); session.current = null;
     setSessionNow({ playing: {}, queued: {} });
@@ -595,8 +604,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [keyVelocity, setKeyVelocity] = useState(100);
   const [held, setHeld] = useState<ReadonlyMap<string, number>>(new Map());
   useEffect(() => {
-    const up = (e: KeyboardEvent) => setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; });
-    const clear = () => setHeld(new Map());
+    const up = (e: KeyboardEvent) => { finishKey.current?.(e.key.toLowerCase()); setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; }); };
+    const clear = () => { finishAll.current?.(); setHeld(new Map()); };
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
     return () => { window.removeEventListener('keyup', up); window.removeEventListener('blur', clear); };
@@ -999,12 +1008,34 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
     if (!e.repeat) {
       previewNote(track.instrument, pitch, keyVelocity / 127, 0.45, track.sound, track.kit, track.pads?.[pitch]);
       setHeld((h) => new Map(h).set(k, pitch));
+      if (recording && player.current) takeKeys.current.set(k, { pitch, start: player.current.beat(), velocity: keyVelocity / 127 });
     }
     return true;
+  };
+  finishKey.current = (k) => {
+    const held = takeKeys.current.get(k);
+    if (!held) return;
+    takeKeys.current.delete(k);
+    const p = player.current;
+    if (!p || !song) return;
+    const note = recordedNote(held, p.beat(), cycleFor(song), song.bars * BEATS_PER_BAR);
+    if (note) setNotes((n) => addNote(n, note), take.current);
+  };
+  finishAll.current = () => { for (const k of [...takeKeys.current.keys()]) finishKey.current?.(k); };
+  /** Record (F9): plays from the playhead with the computer keyboard on, writing what is played into the chosen track. */
+  const record = () => {
+    if (recording) { finishAll.current?.(); setRecording(false); return; }
+    if (view !== 'arrange' || !track) return;
+    take.current = `record:${Date.now()}`;
+    setKeyboard(true);
+    setRecording(true);
+    if (!playing) start();
+    page.current?.focus();
   };
   pageKeys.current = (e, t) => {
     const mod = e.ctrlKey || e.metaKey;
     const k = e.key.toLowerCase();
+    if (!mod && !e.altKey && e.key === 'F9') { record(); return true; }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
@@ -1029,6 +1060,9 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       {keyboard && <span className="studio-sr" role="status">{`Computer keyboard from C${keyOctave}, velocity ${keyVelocity}`}</span>}
       <ToolbarControls label="Transport">
         <IconButton className="studio-play" label={playing ? 'Pause' : 'Play'} keys="Space" pressed={playing} icon={<Icon d={playing ? 'M5.5 4.5h3.5v11H5.5zM11 4.5h3.5v11H11z' : ICONS.play} />} onClick={() => (playing ? stop() : start())} />
+        <IconButton className="studio-record" label="Record" keys="F9" pressed={recording} disabled={view !== 'arrange' || !track}
+          title={view !== 'arrange' ? 'Record: in the Arrange view' : recording ? `Recording into ${track?.name ?? 'the track'}: play on the computer keyboard` : `Record into ${track?.name ?? 'the chosen track'} from the playhead, playing on the computer keyboard`}
+          icon={<Icon fill d="M10 5.5a4.5 4.5 0 1 1 0 9a4.5 4.5 0 1 1 0-9z" />} onClick={record} />
         <IconButton label="Stop" title={playing ? 'Stop' : 'Back to the start'} keys={playing ? 'Space' : 'Enter'} icon={<Icon d={ICONS.stop} />} onClick={stopOrRewind} />
         <span className="studio-sep" aria-hidden="true" />
         <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>

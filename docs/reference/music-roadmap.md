@@ -26,7 +26,7 @@ not designs to copy.
 | Two views of a song | **Session** is a grid of clips, a column per track and a row per scene, for trying parts against each other live: a clip loops from the next bar when launched, and a scene launches its whole row. **Arrange** is the song from start to end. The switch is in the toolbar. | Building |
 | One detail area for the chosen track | The bottom area shows the chosen track: its notes, or its devices in a row in signal order (instrument first, then effects). Shift+Tab switches between them, and double-clicking a track or clip opens it. | Building |
 | The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Building |
-| Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Later, after the keyboard |
+| Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Building (notes from the computer keyboard into the chosen track; count-in next) |
 | Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
 | Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; 0 and clips next) |
@@ -136,7 +136,7 @@ notes for good, so the file always shows what you hear.
 | Feature | What it does | Status |
 | --- | --- | --- |
 | Play notes from a keyboard | The computer keys now; a MIDI keyboard next. | Building |
-| Record notes | Recording what you play into a clip. | Next |
+| Record notes | Recording what you play into a clip. | Building (Arrange; Session clips next) |
 | Export | The song as an audio file in your workspace. | Next |
 | Catch what you played | Getting back notes you played while not recording. | Later |
 | Audio tracks | Recording and placing audio, stretched to the tempo. | Later |

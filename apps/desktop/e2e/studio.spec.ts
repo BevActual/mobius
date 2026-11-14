@@ -325,6 +325,30 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
   await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
+  await start();
+  const rec = shell().getByRole('button', { name: 'Record' });
+  await rec.click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('button', { name: 'Computer keyboard' })).toHaveAttribute('aria-pressed', 'true');
+  // A plays C4 and H plays A4, each held a moment, once the playhead has moved off the song's own notes' start.
+  await shell().waitForTimeout(400);
+  await shell().keyboard.down('a');
+  await shell().waitForTimeout(300);
+  await shell().keyboard.up('a');
+  await shell().keyboard.down('h');
+  await shell().waitForTimeout(300);
+  await shell().keyboard.up('h');
+  await shell().getByRole('button', { name: 'Pause' }).click();
+  await expect(rec).toHaveAttribute('aria-pressed', 'false');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => n.pitch).sort()).toEqual([57, 60, 60, 69]);
+  const played = saved().tracks[0]!.notes.filter((n) => n.length < 4);
+  expect(played.every((n) => n.length > 0.1 && n.velocity > 0.7)).toBe(true);
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
+});
+
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });
