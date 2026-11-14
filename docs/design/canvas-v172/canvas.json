@@ -1,0 +1,45 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Shell.dc.html": {
+      "h": 1040,
+      "is_interactive": true,
+      "title": "Mobius is the shell (v172): home is a conversation with Mobius and its bots, who work inside the apps. Open an app and i",
+      "w": 1920,
+      "x": 1400,
+      "y": -2934
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-08T23:49:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas"
+  },
+  "noteOrder": [
+    "proto"
+  ],
+  "notes": {
+    "proto": {
+      "kind": "title1",
+      "maxW": 8000,
+      "text": "Prototype — Mobius all together. Start here: click around, change the mode, change Units, open Files, Design, Code and Wiki, try the Browser’s command bar and split view, and use the explainer on the right (Tour · Ideas · Apps · Rules · Story · Built). The story: Northway Motors builds the Kestrel P2 prototypes",
+      "w": 240,
+      "x": 1400,
+      "y": -3207
+    }
+  },
+  "order": [
+    "Shell.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "mobius",
+      "name": "Mobius"
+    }
+  ],
+  "title": "Mobius"
+}
