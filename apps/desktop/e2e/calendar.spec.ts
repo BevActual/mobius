@@ -126,8 +126,12 @@ test('a task due at a time sits at its hour in Day view, and a task due only on 
   await tools().getByRole('radio', { name: 'Day' }).click();
   const timed = page().locator('.cal-grid').getByRole('checkbox', { name: new RegExp(`^Call the yard, ${at('15:30')}, task in Work, repeats$`) });
   await expect(timed).toBeVisible();
-  const top = await timed.evaluate((box) => (box.closest('.cal-task') as HTMLElement).offsetTop);
-  expect(Math.abs(top - 15.5 * (await hourPx()))).toBeLessThan(4);
+  // Placed by the hour's own height, which the column carries (the grid's box also holds its border).
+  const [top, hour] = await timed.evaluate((box) => {
+    const chip = box.closest('.cal-task') as HTMLElement;
+    return [chip.offsetTop, parseFloat(getComputedStyle(chip.closest('.cal-column')!).getPropertyValue('--hour'))];
+  });
+  expect(Math.abs(top - 15.5 * hour)).toBeLessThan(3);
   await expect(page().locator('.cal-all-day').getByRole('checkbox', { name: 'Order the straps, task in Work' })).toBeVisible();
   // Ticking it at its hour ticks it in Tasks: a repeating task moves on to its next day.
   await timed.check();
