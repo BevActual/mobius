@@ -46,7 +46,7 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
   return (
     <aside className="side sheets-side" aria-label="Sheets sidebar">
       <div className="side-head">
-        <span className="side-title" title="Workbooks are kept as CSV files in your workspace, one for each sheet, so any spreadsheet app can open them.">Workbooks</span>
+        <span className="side-title">Workbooks</span>
         <span className="side-actions">
           {pin}
         </span>
@@ -91,7 +91,8 @@ const HEAD_H = 22;
 const COL_W = 104;
 /** The widest a column grows to fit its words by itself. */
 const FIT_MAX = 260;
-const REF_COLORS = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff'];
+// The ranges a formula names take the shared content colours, in this order (sheets.css tints the cells to match).
+const REF_COLORS = ['var(--c-blue)', 'var(--c-amber)', 'var(--c-green)', 'var(--c-violet)', 'var(--c-pink)', 'var(--c-teal)'];
 const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 
 /** Per sheet, kept on this device: column widths, and whether the first row is a header. */
@@ -127,15 +128,22 @@ function fittedWidths(values: readonly (readonly string[])[], header: boolean, f
   if (kept && kept.header === header && kept.shape === shape) return kept.widths;
   const rows = values.slice(0, 400);
   const cols = Math.max(0, ...rows.map((r) => r.length));
-  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(formatted(r[c] ?? '', formats[c]), header && i === 0) + 18)))));
+  const font = gridFont();
+  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(formatted(r[c] ?? '', formats[c]), header && i === 0, font) + 18)))));
   fits.set(values, { header, shape, widths });
   return widths;
 }
 let measurer: CanvasRenderingContext2D | null = null;
-function textWidth(text: string, bold = false): number {
+/** The grid's own type, read from the page, so widths fit whatever size and face the theme's tokens give it. */
+function gridFont(): string {
+  const page = document.querySelector('.sheet-page');
+  const style = page ? getComputedStyle(page) : null;
+  return `${style?.fontSize || '13px'} ${style?.fontFamily || 'system-ui, sans-serif'}`;
+}
+function textWidth(text: string, bold = false, font = gridFont()): number {
   measurer ??= document.createElement('canvas').getContext('2d');
   if (!measurer) return text.length * 7;
-  measurer.font = `${bold ? 600 : 400} 13px -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
+  measurer.font = `${bold ? 600 : 400} ${font}`;
   return measurer.measureText(text).width;
 }
 
@@ -271,6 +279,14 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   useEffect(() => onCommand('undo', () => { if (!edit && data) void undo(); }));
   useEffect(() => onCommand('redo', () => { if (!edit && data) void redo(); }));
 
+  if (!data && !sheets.settled && sheets.available) {
+    const bars = ['46%', '38%', '52%', '30%', '44%', '36%'];
+    return (
+      <section className="sheet-page" aria-label="Sheet" aria-busy="true">
+        <div className="sheet-loading" aria-hidden="true">{bars.map((w, i) => <span key={i} style={{ ['--w' as string]: w }} />)}</div>
+      </section>
+    );
+  }
   if (!data) {
     return (
       <section className="sheet-page empty" aria-label="Sheet">
@@ -585,7 +601,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     ...tableEntries.map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
   ];
   const formatEntries = (c0: number, c1: number): MenuEntry[] => NUMBER_FORMATS.map((f) => ({
-    label: f.label, icon: check((formats[c0] ?? 'auto') === f.id), keys: f.example, run: back(() => setFormat(c0, c1, f.id)),
+    label: `${f.label} (${f.example})`, icon: check((formats[c0] ?? 'auto') === f.id), run: back(() => setFormat(c0, c1, f.id)),
   }));
   const columnEntries = (c: number): MenuEntry[] => [
     { label: 'Sort A to Z', run: back(() => sortBy(c, true)) },
@@ -606,12 +622,12 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
             <button type="button" className="strip-btn" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={steps.redo.length === 0} onMouseDown={keep} onClick={() => void redo()}><Icon d={ICONS.redo} /></button>
           </span>
           <span className="sheet-tools-group">
-            <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="strip-btn" aria-label="Quick formula" title="Sum, average and more of the cells picked" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
-            <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="strip-btn" aria-label="Number format" title="Show the picked columns' numbers as currency, percentages and more" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
+            <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="strip-btn" aria-label="Quick formula" title="Quick formula" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
+            <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="strip-btn" aria-label="Number format" title="Number format" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
           </span>
           <span className="sheet-tools-group">
-            <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="strip-btn" aria-label="Table" title="Add or delete rows and columns" onMouseDown={keep}><Icon d={ICONS.table} /></button>} />
-            <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="strip-btn" aria-label="Sort" title="Sort the rows" onMouseDown={keep}><Icon d={ICONS.sort} /></button>} />
+            <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="strip-btn" aria-label="Table" title="Table" onMouseDown={keep}><Icon d={ICONS.table} /></button>} />
+            <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="strip-btn" aria-label="Sort" title="Sort" onMouseDown={keep}><Icon d={ICONS.sort} /></button>} />
           </span>
         </span>
       </ToolbarControls>
@@ -655,8 +671,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           />
           <span className="sheet-find-count" role="status" aria-live="polite">{finding.query.trim() ? (matches.length ? `${Math.min(finding.at, matches.length - 1) + 1} of ${matches.length}` : 'Not found') : ''}</span>
           <span className="sheet-tool-group">
-            <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
-            <button type="button" className="sheet-tool" aria-label="Next match" title="Next (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
+            <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
+            <button type="button" className="sheet-tool" aria-label="Next match" title="Next match (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
           </span>
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
         </div>
@@ -781,7 +797,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                       onDoubleClick={() => { if (!edit) { select({ r, c }); setEdit({ at: { r, c }, text: raw(r, c), where: 'cell', caret: raw(r, c).length }); } }}
                     >
                       {here
-                        ? <input ref={cellInput} className="sheet-cell-input" style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
+                        ? <input ref={cellInput} className="sheet-cell-input" data-formula={edit.text.startsWith('=') ? true : undefined} style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
                         : display(r, c)}
                       {!edit && r === sel.r1 && c === sel.c1 && (
                         <span className="sheet-fill" aria-hidden="true" title="Drag to fill" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); drag.current = 'fill'; setFillTo(null); }} />
@@ -835,7 +851,7 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
             <input autoFocus className="sheet-tab-name" aria-label="Sheet name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
           </form>
         ) : (
-          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename; right-click for more" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
+          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
             onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
         )))}
         <button type="button" className="sheet-tab-add" aria-label="New sheet" title="New sheet" onClick={() => void sheets.addSheet(`Sheet ${data.sheets.length + 1}`)}>

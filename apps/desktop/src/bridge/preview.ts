@@ -77,11 +77,12 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'core.getStatus': () => 'ready',
   'extensions.connectors': () => previewConnectors(),
   'extensions.addConnector': (draft: { name: string }) => {
+    if (previewLeaving.delete(draft.name)) return { ok: true, status: previewConnectors() };
     if (['github', 'linear', ...previewWaiting].includes(draft.name)) return { ok: false, error: `There is already a connector called ${draft.name}.` };
     previewWaiting.add(draft.name);
     return { ok: true, status: previewConnectors() };
   },
-  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors() }; },
+  'extensions.removeConnector': (name: string) => { if (!previewWaiting.delete(name)) previewLeaving.add(name); return { ok: true, status: previewConnectors(), removed: { command: 'npx', args: ['-y', name] } }; },
   // The look is kept for the session, so choices in the preview stick and a change never answers with a failure.
   'appearance.get': () => ({ ...previewLook }),
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,

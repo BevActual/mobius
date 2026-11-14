@@ -11,7 +11,7 @@ import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
 import { growFrom, morphOut, useMorphIn } from './motion';
 import { ConversationSidebar, type SideMode } from './ConversationSidebar';
-import { ActivityPage, ActivitySidebar, useActivityFeed } from './ActivityApp';
+import { ActivityPage, ActivitySidebar, activitySub, useActivityFeed } from './ActivityApp';
 import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
@@ -58,7 +58,8 @@ import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
-import { ExtensionsPage, ExtensionsSidebar, type ExtensionPlace } from './Extensions';
+// Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
+import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
 import { MailPlanCard } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
@@ -291,7 +292,7 @@ export function App() {
   const inStudio = app === 'studio';
   const inVideo = app === 'video';
   const inSkills = app === 'skills';
-  const [extPlace, setExtPlace] = useState<ExtensionPlace>('apps');
+  const [extPlace, setExtPlace] = useState<ExtensionPlace>('installed');
   const inTasks = app === 'tasks';
   const inCalendar = app === 'calendar';
   const inSearch = app === 'search';
@@ -420,7 +421,7 @@ export function App() {
   // An app not added yet opens Abilities, where it can be added.
   const openApp = useCallback((id: AppId) => {
     if (isAvailable(id)) { setApp(id); setSettingsOpen(false); }
-    else if (findApp(id)?.available) { setExtPlace('apps'); setApp('skills'); setSettingsOpen(false); }
+    else if (findApp(id)?.available) { setExtPlace('available'); setApp('skills'); setSettingsOpen(false); }
   }, []);
   // However an app was opened (the sidebar, the hub, a shortcut, a pinned item), it goes to the top of Recent.
   useEffect(() => noteOpened(app), [app]);
@@ -508,7 +509,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -564,7 +565,8 @@ export function App() {
   const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent');
+  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
+    || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
   const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const [agentListOpen, setAgentListOpen] = useState(true);
@@ -674,7 +676,9 @@ export function App() {
   const [selectionMenu, setSelectionMenu] = useState(false);
   // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
   const [menuOpen, setMenuOpen] = useState(false);
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen);
+  // Browser: the address bar's suggestions are open, so the page is covered by a picture of it.
+  const [addressSuggesting, setAddressSuggesting] = useState(false);
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || addressSuggesting);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
@@ -889,6 +893,7 @@ export function App() {
     { id: 'research', label: 'New research', app: 'research', run: () => { closeSettings(); openApp('research'); setAskingResearch(true); } },
     { id: 'song', label: 'New song', app: 'studio', run: () => { closeSettings(); openApp('studio'); void (async () => { const folder = songs.page?.path.split('/')[0] ?? songs.notebooks[0]?.name ?? (await songs.createNotebook('Songs')); if (folder) await songs.createPage(folder, 'Untitled song'); })(); } },
     { id: 'workbook', label: 'New workbook', app: 'sheets', run: () => { closeSettings(); openApp('sheets'); void sheets.createWorkbook('Workbook'); } },
+    { id: 'skill', label: 'New skill', app: 'skills', run: () => { closeSettings(); openApp('skills'); setExtPlace('skills'); skills.close(); requestNewSkill(); } },
     { id: 'event', label: 'New event', app: 'calendar', run: () => { closeSettings(); openApp('calendar'); setEventToken((n) => n + 1); } },
   ];
   /** The one thing worth starting in the app you are in: the panel's New button changes with it. */
@@ -982,7 +987,7 @@ export function App() {
             ) : inTasks ? (
               <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} />
+          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
@@ -1320,7 +1325,10 @@ export function App() {
         return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
         if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
-        return <SkillEditor skills={skills} review={skills.open && turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />;
+        return <>
+          <SkillsToolbar skills={skills} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />
+          {skills.open ? <SkillEditor skills={skills} review={turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} /> : <SkillList skills={skills} />}
+        </>;
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
@@ -1362,7 +1370,7 @@ export function App() {
         return (
           <ViewPage
             views={views}
-            apps={{ tasks: tasks.all, events: calendar.events, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
+            apps={{ tasks: tasks.all, events: calendar.events, calendars: calendar.calendars, mail: { messages: mail.messages, unread: mail.counts.all, accounts: mail.accounts.length }, notes: notes.notebooks, conversations: conversation.list }}
             review={views.page && viewMarks.has(views.page.path) ? { conversation: conversation.state.conversation } : null}
             onOpen={(t) => {
               if (t.kind === 'app') openApp(t.app);
@@ -1402,7 +1410,7 @@ export function App() {
           />
         );
       case 'agent':
-        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenSchedules={() => openSettingsAt('schedules')} />;
+        if (inActivity) return <ActivityPage feed={activityFeed} conversations={conversation.list} active={conversation.id} onOpenConversation={(id) => { conversation.select(id); setSideMode('sessions'); }} onOpenApp={openApp} onOpenSchedules={() => openSettingsAt('schedules')} />;
         return (
           <ChatPanel
             surface={surface}
@@ -1497,6 +1505,7 @@ export function App() {
             onPlace={openHub}
             menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
             onHide={hideRight}
+            {...(window.mobius.mini ? { onPopOut: toggleMini } : {})}
             onOpenVoice={() => openSettingsAt('voice')}
             {...(askHint ? { hint: askHint } : {})}
           />
@@ -1519,6 +1528,7 @@ export function App() {
       notice={notice}
       setNotice={setNotice}
       onSubmit={submit}
+      onSuggesting={setAddressSuggesting}
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
@@ -1579,7 +1589,8 @@ export function App() {
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank.
         title: place || (!settingsOpen && appName(app)) || undefined,
-        sub: inAgent && !inActivity ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
+        sub: inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
+          : inAgent ? (settings?.configured ? `Talking to ${settings.model}` : 'No model connected')
           : inNotes && notes.page ? <>{notes.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={notes.status}>{notes.message || statusText(notes.status)}</span></>
           // Docs (marked, Docs' own line): the document's folder and whether it is saved, as Notes has it.
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
@@ -1589,11 +1600,11 @@ export function App() {
           : inCalendar ? (eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
           : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
+          : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
           : inDatabase ? databaseSub(databases) // Database: the table's database and columns
           : undefined,
         middle: <>
-        {inBrowser && !settingsOpen && browserChrome}
         </>,
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
@@ -1622,6 +1633,8 @@ export function App() {
       }}
     >
       <div className="body" style={layout}>
+        {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
+        {inBrowser && !settingsOpen && browserChrome}
         {hasLeft && leftOpen && (
           <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
             <SidebarHead

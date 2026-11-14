@@ -44,7 +44,7 @@ async function openFiles(): Promise<void> {
 test('Files shows the workspace as a drive, folder by folder, and a file opens in its app', async () => {
   await start();
   await openFiles();
-  const page = shell().getByRole('region', { name: 'Files' });
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
   // As in Finder: a click selects, a double-click opens.
   const notes = page.getByRole('row', { name: 'notes', exact: true });
   await notes.click();
@@ -85,10 +85,10 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await openFiles();
   const side = shell().getByRole('complementary', { name: 'Files sidebar' });
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
-  const made = shell().getByRole('region', { name: 'Made by Mobius' });
+  const made = shell().getByRole('region', { name: 'Made by Mobius', exact: true });
   await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: 'Workspace' }).click();
-  const page = shell().getByRole('region', { name: 'Files' });
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
   // A folder holding something from Mobius has an indigo dot, here and in the sidebar until it is looked in.
   await expect(page.getByRole('row', { name: 'notes, from Mobius' }).getByRole('img', { name: '1 from Mobius' })).toBeVisible();
   const notesSide = side.getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' });
@@ -106,7 +106,7 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
 test('a new folder is named in place, a file renamed with F2, and Delete moves it to the Trash with Undo', async () => {
   await start();
   await openFiles();
-  const page = shell().getByRole('region', { name: 'Files' });
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
   await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await tools().getByRole('button', { name: 'New folder' }).click();
@@ -147,7 +147,7 @@ test('a new folder is named in place, a file renamed with F2, and Delete moves i
 test('the Trash lists what was trashed and where it was, puts it back there, and empties only after asking', async () => {
   await start();
   await openFiles();
-  const page = shell().getByRole('region', { name: 'Files' });
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
   await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
   await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
@@ -158,7 +158,7 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
   const side = shell().getByRole('complementary', { name: 'Files sidebar' });
   await side.getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(title()).toHaveText('Trash');
-  const trash = shell().getByRole('region', { name: 'Trash' });
+  const trash = shell().getByRole('region', { name: 'Trash', exact: true });
   const held = trash.getByRole('row', { name: 'Plan.md', exact: true });
   await expect(held).toContainText('Notes › Work');
   await held.click();

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { AccountInfo, AccountStatus, ProviderInfo } from '@mobius/shared';
-import { Empty, Row } from './primitives';
+import { Empty, Placeholder, Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
 import { SettingsForm } from './ModelForm';
@@ -24,7 +24,7 @@ export function ProvidersSection({ highlight, settings, onSaveSettings }: Sectio
           <SettingsForm key={`${settings.baseUrl}|${settings.model}|${settings.system}`} settings={settings} onSave={onSaveSettings} />
           <button type="button" className="btn" onClick={() => setCustom(false)}>Done</button>
         </div>
-      ) : <Empty>Loading…</Empty>}
+      ) : <Placeholder />}
     </Row>
     </>
   );
@@ -141,7 +141,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
         {signingIn && <button type="button" className="btn" onClick={cancelSignIn}>Cancel</button>}
         {p.needsKey && !p.hasKey && open !== 'key' && !signingIn && <button type="button" className="btn" aria-label={`Add a key for ${p.name}`} onClick={() => { setOpen('key'); setProblem(null); }}>Add key</button>}
         {usable && open !== 'use' && <button type="button" className="btn" aria-label={`Use ${p.name}`} onClick={() => void startUse()}>Use…</button>}
-        {p.hasKey && !confirming && <button type="button" className="btn link danger" aria-label={`Remove the key for ${p.name}`} onClick={() => setConfirming(true)}>Remove key…</button>}
+        {p.hasKey && !confirming && <button type="button" className="btn link" aria-label={`Remove the key for ${p.name}`} onClick={() => setConfirming(true)}>Remove key…</button>}
         {confirming && (
           <span className="prow-confirm" role="group" aria-label={`Remove the key for ${p.name}?`}>
             <span className="prow-note">Remove the key for {p.name}?</span>

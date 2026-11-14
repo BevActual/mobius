@@ -31,6 +31,7 @@ There is no Tailwind. Colours, sizes, spaces and timings come only from `tokens.
 | `AppMenu` | `import { AppMenu } from './ui'` | Your app's own commands in the one ⋯ at the toolbar's end: `<AppMenu label="Message" entries={[…]} />` (the same `MenuEntry` rows as `Menu`), anywhere in your app. They go at the top of your app's menu there, and the ⋯ opens on it. Never draw a second ⋯ of your own in `ToolbarControls` |
 | `KeyCaps` | `import { KeyCaps } from './ui'` | A shortcut drawn as key caps (`<KeyCaps keys="Ctrl+Shift+N" />`), as menus, tooltips and the New button show them. Menus draw their `keys` this way already |
 | Tooltips | nothing to import | Every control's `title` shows as the shared ink tooltip. End the title with its shortcut in brackets (`title="Undo (Ctrl+Z)"`) and the shortcut is drawn as key caps after the name. An icon-only button always has a title |
+| `KeyHintBar` | `import { KeyHintBar } from './ui'` | The key-hint bar for a list view: `<KeyHintBar id="mail" hints={[{ keys: 'E', label: 'Archive' }]} />` as the last child of the scrolling list. Up to five keys; it hides itself after the keys have been used a dozen times, and never shows when Key hints is off in Settings › Appearance. Mail uses it |
 | `AppFrame` | used by `App.tsx` only | The five zones every app sits in. Apps do not render it; they fill its parts with the pieces above |
 
 Each row (`MenuEntry`) has a `label`, a `run`, and optionally an `icon`, `keys` (its shortcut), `danger`, `disabled`
