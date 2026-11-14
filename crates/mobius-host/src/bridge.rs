@@ -1242,17 +1242,35 @@ impl Bridge {
             return Err("method not found".into());
         }
         // How long each tool took, when it was a second or more: a turn whose reply never came can be traced to it.
+        // One that is still running after a few seconds is said too, with the step it is on, as it may never end.
         let started = std::time::Instant::now();
-        let out = self.run_host_tool(params);
-        slow("tool", params.get("tool").and_then(Value::as_str).unwrap_or("?"), started);
+        let name = params.get("tool").and_then(Value::as_str).unwrap_or("?").to_owned();
+        let stage = Arc::new(std::sync::atomic::AtomicU8::new(0));
+        let watched = (stage.clone(), name.clone());
+        let _ = std::thread::Builder::new().name("mobius-tool-watch".into()).spawn(move || {
+            // Said at 3, 10 and 30 seconds.
+            for (seconds, wait) in [(3u64, 3u64), (10, 7), (30, 20)] {
+                std::thread::sleep(std::time::Duration::from_secs(wait));
+                let step = match watched.0.load(std::sync::atomic::Ordering::Relaxed) {
+                    0 => "waiting for the checkpoint before the turn",
+                    1 => "running",
+                    _ => return,
+                };
+                eprintln!("[slow] tool {} still {step} after {seconds} s", watched.1);
+            }
+        });
+        let out = self.run_host_tool(params, &stage);
+        stage.store(2, std::sync::atomic::Ordering::Relaxed);
+        slow("tool", &name, started);
         out
     }
 
-    fn run_host_tool(&self, params: &Value) -> Result<Value, String> {
+    fn run_host_tool(&self, params: &Value, stage: &std::sync::atomic::AtomicU8) -> Result<Value, String> {
         // Nothing runs before the checkpoint at the start of the turn is taken.
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
+        stage.store(1, std::sync::atomic::Ordering::Relaxed);
         let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
