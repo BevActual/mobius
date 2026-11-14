@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mobius_agent::message::ToolCall;
 use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError};
 use serde_json::{Value, json};
 
@@ -149,6 +150,10 @@ impl Drop for Run {
 
 impl Provider for ClaudeCodeProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        self.complete_with_calls(request, on_text, &mut |_| {})
+    }
+
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&ToolCall)) -> Result<Completion, ProviderError> {
         let prepared = frames::prepare(request, &self.natives).map_err(protocol)?;
         let tmp = TempDir::new().map_err(|e| protocol(e.to_string()))?;
         let file = |name: &str, body: &str| -> Result<PathBuf, ProviderError> {
@@ -240,10 +245,35 @@ impl Provider for ClaudeCodeProvider {
         let started = Instant::now();
         let mut emitted = String::new();
         let mut native_error: Option<(String, String)> = None;
+        // Tool calls being written, by block index: the block (id and name) and its arguments so far.
+        let mut writing: BTreeMap<u64, (Value, String)> = BTreeMap::new();
         while let Some(event) = run.next()? {
             match event["type"].as_str() {
                 Some("stream_event") => {
-                    let delta = &event["event"]["delta"];
+                    let inner = &event["event"];
+                    let index = inner["index"].as_u64().unwrap_or(0);
+                    match inner["type"].as_str() {
+                        Some("message_start") => writing.clear(),
+                        Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
+                            writing.insert(index, (inner["content_block"].clone(), String::new()));
+                        }
+                        Some("content_block_stop") => {
+                            // A call is whole when its block closes: give it now, while the model writes the rest.
+                            if let Some((mut block, json)) = writing.remove(&index)
+                                && let Ok(input) = serde_json::from_str::<Value>(if json.is_empty() { "{}" } else { &json })
+                            {
+                                block["input"] = input;
+                                on_call(&frames::tool_call(&block, &prepared.names));
+                            }
+                        }
+                        _ => {}
+                    }
+                    let delta = &inner["delta"];
+                    if delta["type"] == "input_json_delta"
+                        && let (Some((_, json)), Some(piece)) = (writing.get_mut(&index), delta["partial_json"].as_str())
+                    {
+                        json.push_str(piece);
+                    }
                     if delta["type"] == "text_delta"
                         && let Some(t) = delta["text"].as_str()
                     {

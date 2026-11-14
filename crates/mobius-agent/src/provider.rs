@@ -82,6 +82,14 @@ pub enum ProviderError {
 /// `on_text` receives text as it streams; returning `false` asks the provider to stop (`Cancelled`).
 pub trait Provider: Send + Sync {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError>;
+
+    /// As `complete`, also giving each tool call as soon as the model has finished writing it, while it may still be
+    /// writing more, so it can run straight away. Every call given this way is also in the completion, with the same id.
+    /// A provider that cannot tell gives none early: they all come with the completion, as with `complete`.
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&ToolCall)) -> Result<Completion, ProviderError> {
+        let _ = on_call;
+        self.complete(request, on_text)
+    }
 }
 
 /// A provider that replays a fixed script and records what it was asked. For tests.

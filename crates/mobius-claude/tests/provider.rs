@@ -170,6 +170,17 @@ fn a_tool_call_comes_back_as_a_mobius_call_and_the_next_request_replays_its_sign
 }
 
 #[test]
+fn each_tool_call_is_given_as_soon_as_its_block_closes_and_is_also_in_the_completion() {
+    let up = upstream(|_, _| (200, tool_reply()));
+    let dir = tempfile::tempdir().unwrap();
+    let p = provider(&up, dir.path());
+    let mut early = Vec::new();
+    let done = p.complete_with_calls(&request("opus", vec![Message::user("read it")]), &mut |_| true, &mut |c| early.push(c.clone())).unwrap();
+    assert_eq!(early, vec![ToolCall { id: "toolu_1".into(), name: "files.read".into(), arguments: json!({ "path": "notes/a.md" }) }]);
+    assert_eq!(done.tool_calls, early);
+}
+
+#[test]
 fn a_second_attempt_by_the_cli_is_refused_locally() {
     let up = upstream(|_, _| (200, text_reply("Once")));
     let dir = tempfile::tempdir().unwrap();

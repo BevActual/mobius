@@ -210,16 +210,7 @@ pub fn session_id(system: &str, frames: &[Value]) -> String {
 pub fn completion(message: &Value, names: &HashMap<String, String>) -> Completion {
     let blocks = message["content"].as_array().cloned().unwrap_or_default();
     let text: String = blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect();
-    let tool_calls: Vec<ToolCall> = blocks
-        .iter()
-        .filter(|b| b["type"] == "tool_use")
-        .map(|b| {
-            let raw = b["name"].as_str().unwrap_or("");
-            let native = raw.strip_prefix(PREFIX).unwrap_or(raw);
-            let name = names.get(native).cloned().unwrap_or_else(|| from_wire_name(native));
-            ToolCall { id: b["id"].as_str().unwrap_or("").to_owned(), name, arguments: b["input"].clone() }
-        })
-        .collect();
+    let tool_calls: Vec<ToolCall> = blocks.iter().filter(|b| b["type"] == "tool_use").map(|b| tool_call(b, names)).collect();
     let stop = match message["stop_reason"].as_str() {
         Some("refusal") => StopReason::Other("refusal".into()),
         _ if !tool_calls.is_empty() => StopReason::ToolUse,
@@ -230,6 +221,14 @@ pub fn completion(message: &Value, names: &HashMap<String, String>) -> Completio
     // A refused turn must not run the call the refusal cut off.
     let tool_calls = if matches!(&stop, StopReason::Other(r) if r == "refusal") { Vec::new() } else { tool_calls };
     Completion { text, tool_calls, stop, usage: usage_of(&message["usage"]) }
+}
+
+/// One `tool_use` block as a Mobius call: its name without the prefix, as Mobius names it.
+pub fn tool_call(block: &Value, names: &HashMap<String, String>) -> ToolCall {
+    let raw = block["name"].as_str().unwrap_or("");
+    let native = raw.strip_prefix(PREFIX).unwrap_or(raw);
+    let name = names.get(native).cloned().unwrap_or_else(|| from_wire_name(native));
+    ToolCall { id: block["id"].as_str().unwrap_or("").to_owned(), name, arguments: block["input"].clone() }
 }
 
 /// Anthropic's usage: `input_tokens` counts only what was not read from or written to the cache, so the whole input

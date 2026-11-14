@@ -215,8 +215,11 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'question':
           return withQuestion(base, { callId: event.call_id, question: event.question, choices: event.choices });
         case 'message': {
-          const last = base.items.at(-1);
-          if (last?.kind === 'assistant' && last.streaming) return { ...base, items: [...base.items.slice(0, -1), { ...last, text: event.text, streaming: false }] };
+          // Calls now run while the model is still writing, so their rows can come after the text it streamed. That text
+          // is this message: it is settled where it is, not added again below the calls.
+          const streamed = base.items.filter((item) => item.kind === 'assistant' && item.streaming);
+          if (streamed.length === 1) return { ...base, items: base.items.map((item) => (item === streamed[0] ? { ...item, text: event.text, streaming: false } : item)) };
+          if (streamed.length > 1) return { ...base, items: settleStreaming(base.items) };
           return withItem(base, (id) => ({ kind: 'assistant', id, text: event.text, streaming: false }));
         }
         case 'tool_call': {

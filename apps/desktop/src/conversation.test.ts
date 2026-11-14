@@ -22,6 +22,19 @@ describe('conversation state', () => {
     expect(s.busy).toBe(true);
   });
 
+  it('keeps streamed text above calls that ran while the model was still writing, without adding it again', () => {
+    const s = run(
+      { type: 'sent', text: 'plan my day', turn: 1 },
+      delta('Moving three tasks.'),
+      note({ kind: 'tool_call', call_id: 'c1', name: 'tasks.update', arguments: {} }),
+      note({ kind: 'tool_result', call_id: 'c1', name: 'tasks.update', is_error: false }),
+      note({ kind: 'message', text: 'Moving three tasks.' }),
+    );
+    expect(kinds(s)).toEqual(['user', 'assistant', 'tool']);
+    expect(s.items[1]).toMatchObject({ text: 'Moving three tasks.', streaming: false });
+    expect(s.items[2]).toMatchObject({ status: 'done' });
+  });
+
   it('shows a send that failed as an error and stops waiting', () => {
     const s = run({ type: 'sent', text: 'hi' }, { type: 'send-failed', message: 'no model is set up yet' });
     expect(s.items.at(-1)).toMatchObject({ kind: 'error', text: 'no model is set up yet' });
