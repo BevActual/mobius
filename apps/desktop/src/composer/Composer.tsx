@@ -15,7 +15,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { CHAT_MODES, PERMISSIONS, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
+import { CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, loadChatMode, nextChatMode, permissionOf, saveApply, saveChatMode, sendOptionsOf, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -37,7 +37,7 @@ export interface ComposerProps {
   /** How the ideas show where they are placed: centred chips (an empty chat), or rows of the panel's Actions list. */
   startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
-  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -57,7 +57,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
   onStop: () => void;
   /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
   onTakeOver?: () => Promise<string | null>;
@@ -196,7 +196,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
   };
-  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; model?: string; images?: string[] } | undefined, queue: boolean) => {
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] } | undefined, queue: boolean) => {
     if (going.current) return;
     going.current = true;
     void withHere(items).then((all) => {
@@ -219,9 +219,9 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     }
     if (!canSend && !canQueue) return;
     setProblem(null);
-    const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, mode);
+    const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, modeInfo.id);
     const answering = quick ? quickName : modelName;
-    const options = { ...sendOptionsOf(mode), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
+    const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
     go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
@@ -233,7 +233,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     // Shift+Tab goes to the next mode: Agent, Ask, Plan.
     if (event.key === 'Tab' && event.shiftKey && !event.ctrlKey && !event.altKey && !event.metaKey) {
       event.preventDefault();
-      setMode(nextChatMode(mode));
+      setMode(nextChatMode(mode, surface?.app));
     }
     // Ctrl+Shift+Space (Cmd on a Mac) starts or stops dictation, wherever the mic is shown.
     if (event.key === ' ' && event.shiftKey && (event.ctrlKey || event.metaKey) && !event.altKey && canType && !busy && dictation.state !== 'transcribing') {
@@ -360,7 +360,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
   const permission = permissionOf(preferences.value.approvalMode, apply);
   const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
-  const modeInfo = chatModeOf(mode);
+  const modeInfo = chatModeOf(mode, surface?.app);
   // The row gives way in one order and never truncates: first Permission drops to its shield, then the effort suffix, then the model to its chip.
   const toolsRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -518,10 +518,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
           <span className="popmenu">
             <ChoiceMenu
               label="Mode"
-              value={mode}
+              value={modeInfo.id}
               onChange={setMode}
-              choices={CHAT_MODES.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
-              footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode)) }]}
+              choices={modesFor(surface?.app).map((option, i) => ({ value: option.id, label: option.name, meaning: option.hint, ...(i === CHAT_MODES.length ? { separated: true } : {}) }))}
+              footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode, surface?.app)) }]}
               trigger={<button type="button" className="pill pill-compact" aria-label="Mode" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
           </span>

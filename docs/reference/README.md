@@ -13,6 +13,7 @@ Working notes that inform how Mobius is built. They are kept for reference and a
 | [Rival agents and target apps](rival-agents.md) | The agents Mobius competes with and the app each Mobius app is measured against, November 2026 |
 | [ElevenLabs ideas](elevenlabs-ideas.md) | Voice and audio ideas from ElevenLabs for Mobius |
 | [Launch assessment, November 2026](launch-assessment-2026-11.md) | Where Mobius stood on 12 November, how people may react, and where to share it |
+| [Apps roadmap](apps-roadmap.md) | Every app's state, its next round, and the rounds that cross apps |
 | [Music roadmap](music-roadmap.md) | The instruments, effects, note tools and studio features Music works toward, each with its status |
 
 Hermes Agent (Nous Research) is a reference, not a dependency. See

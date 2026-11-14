@@ -63,14 +63,14 @@ test('with approvals off (from before the three modes) the agent opens a site wi
   await card().getByRole('button', { name: 'Decline' }).click();
 });
 
-test('the settings page shows Ask first, explains Propose, and the choice survives a restart into the core', async () => {
+test('the settings page shows Ask each time, explains Review changes, and the choice survives a restart into the core', async () => {
   await start([]);
   await openSettings(shell());
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Approvals and safety', exact: true }).click();
-  await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask first' })).toBeChecked();
+  await expect(page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Ask each time' })).toBeChecked();
   await expect(page().getByTestId('approval-mode-help')).toContainText('asked about every time');
-  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Propose' }).check();
+  await page().getByRole('radiogroup', { name: 'Approval mode' }).getByRole('radio', { name: 'Review changes' }).check();
   await expect(page().getByTestId('approval-mode-help')).toContainText('Keep it, Discard it or ask it to Try another way');
   await expect.poll(coreMode).toBe('propose');
   await mobius!.close({ keepUserData: true });
