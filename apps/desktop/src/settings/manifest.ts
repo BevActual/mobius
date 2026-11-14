@@ -62,7 +62,7 @@ const SECTIONS: readonly SettingsSection[] = [
       { id: 'main', label: 'Defaults', rows: [
         row('second-model', 'Second model', 'Asked when the first is busy, down or cannot be reached.', 'fallback', 'backup', 'failover', 'second model', 'outage', 'rate limit'),
         row('chat-model', 'Chat model', 'The model Mobius talks to, from the services connected in Gateways.', 'model', 'chat model', 'default model', 'which model', 'switch model', 'gpt', 'claude', 'qwen', 'llama'),
-        row('quick-model', 'Quick model', 'For quick jobs, like checking a step in Act mode before it runs.', 'quick', 'fast model', 'small model', 'reviewer', 'smart approval', 'models by task', 'task model', 'cheap model'),
+        row('quick-model', 'Quick model', 'For quick jobs, like checking a step in Auto before it runs.', 'quick', 'fast model', 'small model', 'reviewer', 'smart approval', 'models by task', 'task model', 'cheap model'),
         row('images', 'Images', 'Makes pictures for Photo, Design and Slides when you ask.', 'image generation', 'pictures', 'dall-e', 'gpt image', 'flux', 'generate image', 'art', 'models by task', 'image model'),
         row('listen', 'Listen', 'Turns your speech into text when you dictate.', 'speech to text', 'stt', 'dictation', 'transcribe', 'models by task', 'voice model'),
         row('speak', 'Speak', 'Reads replies aloud.', 'text to speech', 'tts', 'read aloud', 'models by task', 'voice model'),
@@ -103,7 +103,7 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'What the agent may do, and a record of what it did.',
     subpages: [
       { id: 'approvals', label: 'Approvals', rows: [
-        row('approval-mode', 'Approval mode', 'Manual asks before the agent acts. Smart lets a reviewer model approve the clearly safe ones. Off lets it act without asking.', 'approval mode', 'manual', 'smart', 'off', 'yolo', 'permissions', 'prompts', 'confirm', 'ask', 'guardian', 'reviewer'),
+        row('approval-mode', 'Permission', 'How much Mobius does without asking: Ask each time, Review changes, Apply changes or Auto.', 'permission', 'ask each time', 'review changes', 'apply changes', 'auto', 'approval mode', 'smart approvals', 'manual', 'smart', 'off', 'yolo', 'permissions', 'prompts', 'confirm', 'ask', 'guardian', 'reviewer'),
         row('app-access', 'What Mobius may do in each app', 'For the browser, notes and tasks: off, ask first, read without asking, or act without asking. Risky actions still ask.', 'per app', 'autonomy', 'access', 'permissions', 'browser', 'notes', 'tasks', 'off limits', 'read', 'act'),
         row('always-allowed', 'Always allowed', 'Actions you chose to always allow. Remove one to be asked again.', 'revoke', 'permissions', 'grants', 'remove', 'allow'),
         row('each-time', 'Asked every time', 'Some actions can only ever be allowed one use at a time.', 'once', 'command', 'delete', 'secrets', 'click', 'type'),
@@ -327,7 +327,10 @@ export function searchSettings(query: string): SearchHit[] {
         const name = item.label.toLowerCase();
         const rest = [item.description, ...item.keywords, page.label, section.label, ...(section.keywords ?? [])].join(' ').toLowerCase();
         if (!words.every((word) => name.includes(word) || rest.includes(word))) continue;
-        const score = words.filter((word) => name.includes(word)).length * 2;
+        // A word in the row's name counts most; a keyword that is exactly the phrase typed (an old name, such as
+        // "approval mode" for Permission) counts more still.
+        const exact = words.length > 1 && item.keywords.some((k) => k.toLowerCase() === words.join(' ')) ? 3 : 0;
+        const score = words.filter((word) => name.includes(word)).length * 2 + exact;
         hits.push({ section: section.id, subpage: page.id, row: item.id, label: item.label, description: item.description, where: `${section.label} › ${page.label}`, score });
       }
     }

@@ -15,7 +15,7 @@ import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem,
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
-import { CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, nextChatMode, permissionOf, saveApply, sendOptionsOf, useChatMode, type ChatMode, type PermissionInfo } from '../chat-mode';
+import { APPLY_EVENT, CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, nextChatMode, permissionOf, saveApply, sendOptionsOf, useChatMode, type ChatMode, type PermissionInfo } from '../chat-mode';
 
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
@@ -91,6 +91,12 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const [mode, setMode] = useChatMode();
   // Permission: the approval mode, with Apply changes as Review changes that keeps each turn at once.
   const [apply, setApplyState] = useState(loadApply);
+  // Settings › Approvals and safety sets the same choice; follow it there too.
+  useEffect(() => {
+    const read = () => setApplyState(loadApply());
+    window.addEventListener(APPLY_EVENT, read);
+    return () => window.removeEventListener(APPLY_EVENT, read);
+  }, []);
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<ModelList>({ state: 'idle' });
   const [find, setFind] = useState('');
