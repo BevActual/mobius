@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeChange, icsEvents, rememberTitles, reviewShortcut } from './ReviewStrip';
+import { describeChange, icsEvents, rememberTitles, reviewable, reviewShortcut } from './ReviewStrip';
 import { changeTarget } from './actions';
 
 describe('review strip names', () => {
@@ -40,5 +40,14 @@ describe('a calendar file, by event', () => {
     expect(events.get('a1')).toEqual({ title: 'P2 brake kit review, with Priya', start: '20261119T100000' });
     expect(events.get('b2')).toEqual({ title: 'Long title that is folded here', start: '20261120' });
     expect(events.size).toBe(2);
+  });
+});
+
+describe('what a turn has to review', () => {
+  it('leaves out the comment threads Mobius answered in, and keeps everything else', () => {
+    expect(reviewable('.comments/mail/inbox~7.json')).toBe(false);
+    expect(reviewable('.comments\\sheets\\Budget~Costs.json')).toBe(false);
+    expect(reviewable('notes/Work/Plan.md')).toBe(true);
+    expect(reviewable('docs/.comments/Brief.json')).toBe(true);
   });
 });
