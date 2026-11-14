@@ -147,9 +147,8 @@ test('a part from Mobius is a new track of notes, dashed until kept or discarded
     callsTool('files-write', { path: 'studio/Songs/Night Drive.json', content: JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }) }),
     says(['Added a bass line on the roots, on 1 and the and of 3.']),
   ]);
-  // The right panel is Mobius's. The window is made wide enough for the panel to sit beside the page rather than over it.
+  // The right panel is Mobius alone (devices are in the bottom area), made wide enough to sit beside the page rather than over it.
   await resizeWindow(mobius!.app, 1440, 900);
-  await shell().getByRole('tab', { name: 'Mobius' }).click();
   await shell().getByRole('button', { name: 'Add a bass line' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
