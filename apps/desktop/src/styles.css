@@ -2499,3 +2499,36 @@ body { font-variant-numeric: tabular-nums; }
 .chat .mail-plan { margin: var(--sp-1) var(--sp-2) 0; }
 .chat .mail-plan-start { display: flex; align-items: center; justify-self: stretch; justify-content: flex-start; text-align: left; height: var(--row-side); padding: 0 var(--sp-2); border: 0; background: none; box-shadow: none; font-weight: var(--fw-medium); }
 .chat .mail-plan-start:hover { background: var(--sel); }
+
+/* One summary per turn (Instrument, the Done state): "N changes" with a quiet note, a row per app with Show, then
+   quiet Discard all and Try another and one ink Keep all. */
+.turn-summary { margin: 4px 0 8px; border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--bg); font-size: var(--fs-md); animation: app-in var(--dur-med) var(--ease); }
+.chat:not(.full) .turn-summary { margin-left: 12px; margin-right: 12px; }
+.chat.full .turn-summary { width: 100%; max-width: 760px; margin-left: auto; margin-right: auto; box-sizing: border-box; }
+.turn-summary-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-h); padding: 0 var(--sp-3); }
+.turn-summary-toggle { flex: 1 1 auto; min-width: 0; justify-content: flex-start; padding: 0; height: auto; background: none; font-weight: var(--fw-medium); color: var(--ink); }
+.turn-summary-toggle:hover, .turn-summary-toggle:focus-visible { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.turn-summary-note { flex: none; color: var(--muted); font-size: var(--fs-sm); }
+.turn-summary-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--hairline); }
+.turn-summary-row { display: flex; align-items: center; gap: var(--sp-1); min-height: var(--row-h); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: 1px solid var(--hairline); }
+.turn-summary-app { flex: none; color: var(--ink); }
+.turn-summary-sep { flex: none; color: var(--faint); }
+.turn-summary-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: start; color: var(--ink); }
+.turn-summary-name.link-btn { color: var(--ink); }
+.turn-summary-name.link-btn:hover, .turn-summary-name.link-btn:focus-visible { text-decoration: underline; text-underline-offset: 3px; }
+.turn-summary-undo, .turn-summary-show { flex: none; display: inline-flex; align-items: center; gap: 2px; height: 26px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control, 6px); background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.turn-summary-undo { opacity: 0; }
+.turn-summary-row:hover .turn-summary-undo, .turn-summary-undo:focus-visible { opacity: 1; }
+.turn-summary-undo:hover, .turn-summary-show:hover, .turn-summary-undo:focus-visible, .turn-summary-show:focus-visible { background: var(--sel); color: var(--ink); }
+.turn-summary-show svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; }
+.turn-summary-foot { display: flex; align-items: center; gap: var(--sp-1); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-1); }
+.turn-summary-foot .review-btn { flex: none; height: 30px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control, 6px); background: none; color: var(--muted); font: inherit; font-weight: var(--fw-regular); cursor: pointer; }
+.turn-summary-foot .review-btn:hover:not(:disabled), .turn-summary-foot .review-btn:focus-visible { background: var(--sel); color: var(--ink); }
+.turn-summary-foot .review-btn[data-kind="keep"] { margin-left: auto; padding: 0 var(--sp-3); background: var(--ink); color: var(--bg); font-weight: var(--fw-medium); }
+.turn-summary-foot .review-btn[data-kind="keep"]:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 88%, var(--bg)); color: var(--bg); }
+.turn-summary .review-problem { margin: 0; padding: 0 var(--sp-3) var(--sp-2); }
+.resting .turn-summary { margin-left: 0; margin-right: 0; }
+.turn-summary-icon { flex: none; width: 14px; height: 14px; margin-right: var(--sp-1); fill: none; stroke: var(--muted); stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.turn-summary-icon path[fill="currentColor"] { fill: var(--muted); }
+/* In the resting panel the summary lines up with the headings and rows around it. */
+.chat .resting .turn-summary { margin-left: 0; margin-right: 0; }
