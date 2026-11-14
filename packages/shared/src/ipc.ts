@@ -335,6 +335,9 @@ export interface MobiusBridge {
     rename(id: string, name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
     remove(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
     switch(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    /** Open the demo workspace (profile `demo`) fresh from the seed shipped with Mobius, or start it over when it is
+     *  open. Mobius starts again on it. */
+    openDemo?(): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
   };
   /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
   /** Sign in once per task: the sites a conversation's task is signed in to. Only the Tauri shell has it. */
