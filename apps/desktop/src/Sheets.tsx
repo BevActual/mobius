@@ -199,7 +199,7 @@ const ICONS = {
 };
 
 /** The open sheet: a grid of cells, the formula bar above it, and its sheets as tabs below. */
-export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { conversation: string } | null }) {
+export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsState; review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean }) {
   const data = sheets.data;
   const [anchor, setAnchor] = useState<Pos>({ r: 0, c: 0 });
   const [focus, setFocus] = useState<Pos>({ r: 0, c: 0 });
@@ -715,7 +715,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
         </div>
       )}
-      {showReview && (
+      {showReview && !working && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{`Mobius changed ${changed.size === 1 ? 'one cell' : `${changed.size} cells`} here in its last turn, marked below.`}{review && <WhyThis conversation={review.conversation} />}</span>
