@@ -393,6 +393,14 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   const dueAll = days.map((d) => tasksOn(calendar.due, d));
   const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null));
   const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null));
+  // Each timed task as a half-hour slot, so it is laid out beside the events it meets instead of over them.
+  const slotTask = new Map<string, DueTask>();
+  const asSlot = (t: DueTask): Shown => {
+    const id = `task:${t.list}:${t.task.line}`;
+    slotTask.set(id, t);
+    const start = `${t.task.due}T${t.task.time}`;
+    return { id, calendar: '', title: t.task.text, start, end: isoTime(new Date(localDate(start).getTime() + 30 * 60000)), allDay: false, location: '', notes: '', repeats: false };
+  };
   const slotAt = (day: Date, y: number) => {
     const minutes = Math.max(0, Math.min(23 * 60 + 30, Math.floor(y / HOUR_PX * 2) * 30));
     return isoTime(new Date(day.getFullYear(), day.getMonth(), day.getDate(), 0, minutes));
@@ -459,7 +467,10 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
                 onSlotMenu({ day: d, minutes, rect: slotRect(e.currentTarget, minutes, 60) }, e.clientX, e.clientY);
               }}
             >
-              {placeDay(shown, d, 30).map((p) => {
+              {placeDay([...shown, ...timed[i]!.map(asSlot)], d, 30).map((p) => {
+                // A timed task takes its place among the events, side by side with any it falls inside.
+                const task = slotTask.get(p.event.id);
+                if (task) return <TaskChip key={p.event.id} calendar={calendar} item={task} style={{ top: p.top / 60 * HOUR_PX + 1, left: `calc(${p.column / p.columns * 100}% + 2px)`, width: `calc(${100 / p.columns}% - 4px)` }} />;
                 const can = movable(calendar, p.event);
                 const key = keyOf(p.event);
                 const isDragged = drag?.moved === true && drag.key === key;
@@ -476,12 +487,6 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
                     style={{ top: p.top / 60 * HOUR_PX + 1, height: p.height / 60 * HOUR_PX - 2, left: `calc(${p.column / p.columns * 100}% + 2px)`, width: `calc(${100 / p.columns}% - 4px)` }}
                   />
                 );
-              })}
-              {/* A task with a due time is a thin line at its hour, over any event there; two at one time stack. */}
-              {timed[i]!.map((t, n, list) => {
-                const at = taskMinutes(t)!;
-                const before = list.slice(0, n).filter((o) => taskMinutes(o) === at).length;
-                return <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} style={{ top: at / 60 * HOUR_PX + 1 + before * 24 }} />;
               })}
               {!sweep?.moved && pending && sameDay(localDate(pending.start), d) && (
                 <span className="cal-sweep" data-pending aria-hidden="true" style={{ top: minutesIn(pending.start) / 60 * HOUR_PX + 1, height: Math.max(15, minutesIn(pending.end, pending.start) - minutesIn(pending.start)) / 60 * HOUR_PX - 2 }}>
