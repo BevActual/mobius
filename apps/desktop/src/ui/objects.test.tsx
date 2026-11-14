@@ -54,3 +54,14 @@ describe('popovers', () => {
     expect(typeof mod.ChoiceMenu).toBe('function');
   });
 });
+
+describe('content tabs', () => {
+  it('makes only the open tab tabbable and names each close', async () => {
+    const { ContentTabs } = await import('./Tabs');
+    const html = renderToStaticMarkup(<ContentTabs label="Open files" value="b" onChange={noop} onClose={noop} tabs={[{ id: 'a', label: 'A.md' }, { id: 'b', label: 'B.md', unsaved: true }]} />);
+    expect(html.match(/tabindex="0"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-selected="true" tabindex="0"[^>]*>.*B\.md/);
+    expect(html).toContain('aria-label="Close A.md"');
+    expect(html).toContain('data-unsaved="true"');
+  });
+});

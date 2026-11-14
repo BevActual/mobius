@@ -114,6 +114,21 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
   value={feel} start={mobiusFeel} onChange={setFeel} onCommit={remakePart} />
 ```
 
+### Pad grid
+
+`PadGrid` is a drum kit's pads, four to a row (`columns` changes that). Each `Pad` is `{ id, name, color?, key?, empty?, proposed? }`.
+- Pressing a pad calls `onChoose(i)` and `onPlay(i, velocity)`. Higher on the pad plays louder, as on a hardware pad. `onRelease` runs when the press ends.
+- `lit` pads flash in ink as they sound, so a playing pattern shows on the pads.
+- The chosen pad has an ink ring, and its settings (`children`) show under the grid with its name.
+- Keys: arrows move between pads, Space or Enter plays, and a pad's own `key`, shown in its corner, plays it from anywhere in the grid.
+- An empty pad has a plain edge and says Empty. A pad Mobius changed has the dashed indigo edge.
+
+```tsx
+<PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={sounding} onChoose={setChosen} onPlay={(i, v) => kit.play(i, v)}>
+  <ParamGrid>…the chosen drum's Tune, Decay, Tone…</ParamGrid>
+</PadGrid>
+```
+
 ### Popover and choice menus
 
 | Control | Use it for |
@@ -125,6 +140,44 @@ nudge by `step` and Shift+arrows by ten steps. Each axis can `format` its readou
 <ChoiceMenu label="Permission" value={permission} onChange={setPermission} trigger={<Button kind="quiet">{name}</Button>}
   choices={[{ value: 'review', label: 'Review changes', meaning: 'Changes show dashed until you keep them' }, …]} />
 ```
+
+### Dialogs and content tabs
+
+| Control | Use it for |
+| --- | --- |
+| `Dialog` | A small form or choice over a dimmed window (rename, export, a few settings): `open`, `onOpenChange`, `title`, one short `description`, the fields as children, and `actions` (buttons, primary last). Focus stays inside; Escape or a click outside closes it |
+| `Confirm` | Only for paying, sending, deleting for good and running commands. `action` names the button ("Delete 3 files"), `permanent` adds "This can’t be undone.", `onConfirm` and `onCancel`. A click outside does not close it; Cancel and Escape do |
+| `ContentTabs` | Apps that open several things at once (Browser, Code, Files): plain text tabs, the open one ink with an ink underline, a close on hover. `unsaved` shows a dot in place of the close, `byMobius` a dashed underline. Arrows move, Delete or Ctrl+W closes, middle-click closes. Give the content `role="tabpanel"` and `aria-labelledby={tabId(id)}` |
+
+### Date and time fields
+
+| Control | Use it for |
+| --- | --- |
+| `DateField` | Any day to pick (due dates, event days, snooze). Shows the day in words ("Thu 20 Nov") and opens a 280px popover downward: a line to type into ("tomorrow", "fri 3pm", "20 nov"), the quick picks Today (T), Tomorrow (M), Next week (W) and No date (Backspace) with the day each means in grey, then the month. Arrows move by day, Page Up and Down by month, Home and End to the week's ends, T to today, Enter picks. `onChange(day, time)` gets the time too when one was typed. `proposed` gives the dashed edge; `quick` swaps the quick picks |
+| `TimeField` | A time of day, as minutes since midnight. Takes typing ("9:30", "3pm", "noon") and lists quarter hours scrolled to the time, or to now. With `from` (an end time) the list starts after the start and shows each time's length in grey |
+| `TimeRange` | A start and an end side by side. Moving the start moves the end with it, keeping the length |
+| `MonthPicker` | The month on its own, for a sidebar or a panel |
+
+Read typed text with `parseDate(text, now)` and `parseTime(text)` from the same module, so apps and the agent read
+dates the same way. Week start, day and month order, and the 12 or 24 hour clock come from `dates.ts` (`weekStart`,
+`dayMonthOrder`, `uses12Hour`); never set them per app.
+
+### Pro controls
+
+Music uses these first, and then Video, Photo, Design and Code. Live values use the mono face with tabular figures, so they never jitter.
+
+| Control | Use it for |
+| --- | --- |
+| `NumberField` | A number you can type, nudge or scrub: tempo, bars, transpose, frame, size. Arrows nudge it, Shift+arrows by ten, Page Up and Down by ten, Home and End to the ends. Drag up or down to scrub, with Shift for fine control. Enter or a typed figure opens it for typing and Escape cancels. Double-click goes back to `reset`. Out-of-range values are clamped, and the tooltip says so. Props: `min`, `max`, `step`, `unit` (grey), `signed` and `decimals`. `onCommit` fires once per drag, key or typed value, for undo |
+| `Readout` | A read-only live value at a fixed width ("12 . 3 . 2"). With more than one entry in `formats`, a click switches between them (Bars and Time). With `copy`, a click copies it. `size="lg"` for the transport position. Use `barsLabel(beats)` and `clockLabel(seconds)` to write the text |
+| `LetterToggle` | M (mute), S (solo) and R (record) on a track, and lock and hide on a layer. `label` is its full name ("Mute Drums"). `armed` turns an R red while it is on. `dimmed` greys the letter of a track that another track's solo silences |
+| `Transport` | Play/Pause, Stop, then the latching Record, Loop and Metronome. The app binds the keys itself, so pass `keys` to make the tooltips match (Space, Enter, R, L and K by default) |
+| `LevelMeter` | A vertical level meter per track and on the master, stereo by default, from -60 to +6 dB. Feed it through a ref, with `ref.current.set(leftDb, rightDb)` about 30 times a second. It writes straight to the bars, so nothing re-renders. The peak holds for 1.5 seconds and then falls. Only the part over 0 dB is red, and the clip light stays lit until it is clicked (or `reset()` is called) |
+
+A step grid and the timeline pieces (ruler, playhead, clip, lane) come next, shaped by what Music needs.
+
+Popovers that stay in place and toasts other than the undo pill are not shared yet; ask the library thread before
+building one in an app.
 
 ### Instrument controls
 

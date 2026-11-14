@@ -7,6 +7,7 @@ import './ui.css';
 import './controls.css';
 import './objects.css';
 import './instrument.css';
+import './pads.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -31,5 +32,11 @@ export {
   type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,
 } from './Instrument';
 export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
+export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
+export { Dialog, Confirm } from './Dialog';
+export { ContentTabs, tabId, type TabItem } from './Tabs';
+export { NumberField, Readout, LetterToggle, Transport, LevelMeter, TRANSPORT_ICONS, levelPosition, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed } from './Pro';
+export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
+export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';

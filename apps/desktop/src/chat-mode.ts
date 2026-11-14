@@ -64,3 +64,23 @@ export function permissionOf(approval: ApprovalModeChoice, apply: boolean): Perm
   if (approval === 'smart' || approval === 'off') return PERMISSIONS[3]!;
   return apply ? PERMISSIONS[2]! : PERMISSIONS[1]!;
 }
+
+/** Best fit (Instrument, Control 3): the model picker's default, which sends a short question to the quick model chosen
+ * in Settings and everything else to the chat model. Kept on this computer. */
+const BEST_FIT_KEY = 'mobius.bestFit';
+export function loadBestFit(): boolean {
+  try { return window.localStorage.getItem(BEST_FIT_KEY) !== '0'; } catch { return true; }
+}
+export function saveBestFit(on: boolean): void {
+  try { window.localStorage.setItem(BEST_FIT_KEY, on ? '1' : '0'); } catch { /* Not kept. */ }
+}
+
+/** The longest message Best fit still counts as a short question. */
+export const BEST_FIT_SHORT = 160;
+
+/** Whether Best fit sends this message to the quick model: a short question of one line, with nothing attached, that
+ * is not a plan. Anything bigger goes to the chat model. */
+export function bestFitQuick(text: string, attached: number, mode: ChatMode): boolean {
+  const t = text.trim();
+  return mode !== 'plan' && attached === 0 && t.length > 0 && t.length <= BEST_FIT_SHORT && !t.includes('\n');
+}

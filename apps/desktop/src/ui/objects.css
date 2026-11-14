@@ -152,3 +152,187 @@ button.ui-object-chip:focus-visible { outline: var(--focus-w) solid var(--ink); 
 .ui-popover-link:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
 .ui-popover-link svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .ui-popover:has(> .ui-popover-link:last-child) { padding-bottom: 0; overflow: hidden; }
+
+/* Dialogs: paper, large corners, the one soft shadow, over a dimmed window. Title, one sentence, buttons trailing. */
+.ui-dialog-backdrop { position: fixed; inset: 0; z-index: var(--z-dialog); background: color-mix(in srgb, var(--ink) 24%, transparent); }
+.ui-dialog {
+  position: fixed; z-index: var(--z-dialog); top: 50%; left: 50%; transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; gap: var(--sp-2); box-sizing: border-box;
+  width: min(var(--dialog-w), calc(100vw - 2 * var(--sp-6))); max-height: calc(100vh - 2 * var(--sp-8)); overflow: auto;
+  padding: var(--sp-5) var(--sp-6) var(--sp-5); border-radius: calc(var(--radius-panel) + var(--sp-1));
+  background: var(--raised); color: var(--ink); box-shadow: var(--shadow-3); outline: 0; font-size: var(--fs-md);
+}
+.ui-dialog[data-wide] { width: min(calc(var(--dialog-w) * 1.5), calc(100vw - 2 * var(--sp-6))); }
+.ui-dialog-title { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+.ui-dialog-text { margin: 0; color: var(--body); line-height: var(--lh-body); }
+.ui-dialog-permanent { color: var(--muted); }
+.ui-dialog-body { display: flex; flex-direction: column; gap: var(--sp-3); margin-top: var(--sp-2); }
+.ui-dialog-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); margin-top: var(--sp-3); }
+@media (prefers-reduced-motion: no-preference) {
+  .ui-dialog[data-starting-style], .ui-dialog[data-ending-style] { opacity: 0; transform: translate(-50%, -48%) scale(0.98); }
+  .ui-dialog { transition: opacity var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+  .ui-dialog-backdrop { transition: opacity var(--dur-fast) var(--ease); }
+  .ui-dialog-backdrop[data-starting-style], .ui-dialog-backdrop[data-ending-style] { opacity: 0; }
+}
+
+/* Content tabs: plain text; the open one ink with an ink underline; close on hover. */
+.ui-tabs { display: flex; align-items: stretch; min-width: 0; height: var(--tab-h); border-bottom: var(--hairline-w) solid var(--line); }
+.ui-tabs-list { display: flex; align-items: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ui-tabs-trailing { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-1); }
+.ui-tab { position: relative; display: flex; align-items: center; flex: none; max-width: calc(var(--card-w) * 0.75); padding: 0 calc(var(--sp-2) + var(--hairline-w) * 2) 0 calc(var(--sp-2) + var(--hairline-w) * 2); color: var(--muted); }
+.ui-tab::after { content: ""; position: absolute; left: 0; right: 0; bottom: calc(var(--hairline-w) * -1); height: var(--focus-w); border-radius: var(--radius-pill); }
+.ui-tab[data-current] { color: var(--ink); }
+.ui-tab[data-current]::after { background: var(--ink); }
+.ui-tab[data-by-mobius]::after { background: none; border-bottom: var(--focus-w) dashed var(--mobius); border-radius: 0; height: 0; }
+.ui-tab:hover { color: var(--ink); }
+.ui-tab:hover:not([data-current]) { background: color-mix(in srgb, var(--sel) 50%, transparent); border-radius: var(--radius-control) var(--radius-control) 0 0; }
+.ui-tab-button {
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; height: 100%; padding: 0; border: 0;
+  background: transparent; color: inherit; font: inherit; font-size: var(--fs-md); white-space: nowrap; cursor: default;
+}
+.ui-tab[data-current] .ui-tab-button { font-weight: var(--fw-medium); }
+.ui-tab-button:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); border-radius: var(--radius-small); }
+.ui-tab-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ui-tab-icon { display: inline-grid; place-items: center; }
+.ui-tab-icon svg { width: var(--sp-4); height: var(--sp-4); }
+.ui-tab-close {
+  display: inline-grid; place-items: center; flex: none; width: calc(var(--sp-4) + var(--sp-1)); height: calc(var(--sp-4) + var(--sp-1));
+  margin-left: var(--sp-1); padding: 0; border: 0; border-radius: var(--radius-small); background: transparent; color: var(--muted);
+  visibility: hidden; cursor: default;
+}
+.ui-tab:hover .ui-tab-close, .ui-tab[data-current] .ui-tab-close, .ui-tab-close[data-unsaved] { visibility: visible; }
+.ui-tab-close:hover { background: var(--sel); color: var(--ink); }
+.ui-tab-close svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.ui-tab-close[data-unsaved] svg { display: none; }
+.ui-tab-close[data-unsaved]::before { content: ""; width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-pill); background: var(--muted); }
+.ui-tab:hover .ui-tab-close[data-unsaved] svg { display: block; }
+.ui-tab:hover .ui-tab-close[data-unsaved]::before { display: none; }
+.ui-tab .ui-tab-button:is(:hover, :active):not(:disabled) { background: transparent; }
+
+/* Date and time fields. The date field is a field-shaped button showing the day in words; its popover is the card
+   width: a line to type into, quick picks (name, the day in grey, the key), then the month. Days are square cells in
+   tabular figures: today an ink badge, the chosen day a grey fill, days of other months faint. */
+.ui-date-trigger { width: 100%; box-sizing: border-box; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default; }
+.ui-field-box.ui-date-trigger:hover:not(:disabled, [data-popup-open]) { border-color: var(--line-strong); background: var(--paper); }
+.ui-date-trigger:focus-visible, .ui-date-trigger[data-popup-open] { outline: none; border-color: var(--ink); }
+.ui-date-trigger[data-empty] .ui-date-value { color: var(--faint); }
+.ui-date-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.ui-date-icon { display: inline-grid; place-items: center; flex: none; color: var(--muted); }
+.ui-date-icon svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ui-field-box[data-proposed] { border-style: dashed; border-color: var(--mobius); }
+.ui-date-popover { width: var(--card-w); min-width: 0; max-width: none; box-sizing: border-box; padding: var(--sp-2); gap: var(--sp-2); }
+.ui-date-type { display: flex; flex-direction: column; gap: var(--sp-1); padding: 0 var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); margin: 0 calc(var(--sp-2) * -1); padding-bottom: var(--sp-2); }
+.ui-date-type .ui-field-input { height: var(--button-h); padding: 0 var(--sp-2); }
+.ui-date-type .ui-field-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+.ui-date-read { padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-date-quick { display: flex; flex-direction: column; }
+.ui-date-pick {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--menu-row-h); padding: 0 var(--sp-2); border: 0;
+  border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md); text-align: left; cursor: default;
+}
+.ui-date-pick-label { flex: none; }
+.ui-date-pick-day { flex: 1; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-date-quick .ui-date-pick:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-date-pick:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+
+.ui-month { display: flex; flex-direction: column; gap: var(--sp-1); padding-top: var(--sp-1); border-top: var(--hairline-w) solid var(--line); }
+.ui-month-head { display: flex; align-items: center; gap: var(--sp-1); padding-left: var(--sp-2); }
+.ui-month-name { flex: 1; font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.ui-month-grid { display: flex; flex-direction: column; align-items: center; }
+.ui-month-row { display: grid; grid-template-columns: repeat(7, var(--day-cell)); }
+.ui-month-weekday { display: grid; place-items: center; height: var(--day-cell); font-size: var(--fs-sm); color: var(--muted); }
+.ui-day {
+  display: grid; place-items: center; width: var(--day-cell); height: var(--day-cell); padding: 0; border: 0;
+  border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md);
+  font-variant-numeric: tabular-nums; cursor: default;
+}
+.ui-month-grid .ui-day:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-day[data-outside] { color: var(--faint); }
+.ui-month-grid .ui-day[data-chosen], .ui-month-grid .ui-day[data-chosen]:hover:not(:disabled) { background: var(--sel); font-weight: var(--fw-medium); }
+.ui-month-grid .ui-day[data-today], .ui-month-grid .ui-day[data-today]:hover:not(:disabled) { background: var(--ink); color: var(--on-ink); font-weight: var(--fw-semibold); border-radius: var(--radius-pill); }
+.ui-day:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.ui-day[data-today]:focus-visible { outline-offset: var(--hairline-w); }
+
+/* The time list: the shared menu, quarter hours in rows the height of a control, the length grey at the right. */
+.ui-time-menu { padding: var(--sp-1); background: var(--raised); }
+.ui-time-list { max-height: var(--time-list-h); overflow-y: auto; min-width: calc(var(--card-w) / 2); }
+.ui-time-option { height: var(--button-h); font-variant-numeric: tabular-nums; }
+/* The row under the pointer or the keyboard gets the grey hover fill (indigo is Mobius's alone); the chosen time has
+   the check, as in a choice menu. */
+.ui-time-option { gap: var(--sp-2); }
+.ui-time-option[aria-selected="true"] .ui-menu-label { font-weight: var(--fw-medium); }
+.ui-time-list .ui-time-option:hover, .ui-time-list .ui-time-option[data-highlighted] { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-time-length { margin-left: auto; padding-left: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.ui-time-field .ui-field-box { min-width: calc(var(--card-w) / 2.5); }
+.ui-time-range { display: flex; align-items: center; gap: var(--sp-2); }
+.ui-time-to { color: var(--muted); }
+
+/* Pro controls. Number field: the field's box at the pro height and one shared least width, the value right-aligned in
+   mono tabular figures with the unit grey after it, so a column of fields lines up on the digits; dragging shows the
+   up-down cursor. */
+.ui-number { display: inline-flex; flex-direction: column; gap: var(--sp-1); min-width: 0; }
+.ui-number[data-disabled] { opacity: 0.4; }
+.ui-number-box {
+  display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); box-sizing: border-box; height: var(--pro-h);
+  min-width: calc(var(--card-w) / 3); padding: 0 var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); cursor: ns-resize;
+  font-family: var(--font-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; color: var(--ink); user-select: none; outline: none;
+}
+.ui-number-box:hover { border-color: var(--line-strong); }
+.ui-number-box:focus-visible, .ui-number-box[data-typing] { border-color: var(--ink); }
+.ui-number-box[data-clamped] { border-color: var(--line-strong); }
+.ui-number[data-disabled] .ui-number-box { cursor: default; }
+.ui-number-value { display: inline-block; min-width: calc(var(--chars) * 1ch); text-align: right; }
+.ui-number-input {
+  width: calc(var(--chars) * 1ch + var(--sp-1)); min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ink);
+  font: inherit; text-align: right; cursor: text;
+}
+.ui-number-box .ui-number-input:not([type='checkbox'], [type='radio']):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
+.ui-number-unit { color: var(--muted); font-family: var(--font); font-size: var(--fs-sm); }
+
+/* Readout: mono, tabular, fixed to its widest text; the format's name grey after it. Plain text unless it switches
+   or copies, then a quiet button. */
+.ui-readout {
+  display: inline-flex; align-items: baseline; gap: var(--sp-2); height: var(--pro-h); box-sizing: border-box; padding: 0 var(--sp-2);
+  align-items: center; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink);
+  font-family: var(--font-mono); font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: pre; cursor: default;
+}
+.ui-readout[data-size="lg"] { font-size: var(--fs-lg); font-weight: var(--fw-medium); }
+.ui-readout-value { display: inline-block; min-width: calc(var(--chars) * 1ch); text-align: right; }
+.ui-readout-format { font-family: var(--font); font-size: var(--fs-xs); color: var(--muted); }
+button.ui-readout:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+
+/* Letter toggle: a hairline square with a grey letter; on, an ink square with a paper letter (red when an R is armed). */
+.ui-letter {
+  display: inline-grid; place-items: center; flex: none; width: var(--letter-size); height: var(--letter-size); padding: 0;
+  border: var(--hairline-w) solid var(--line-strong); border-radius: var(--radius-small); background: transparent; color: var(--muted);
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1; cursor: default;
+}
+.ui-letter:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
+.ui-letter[aria-pressed="true"], .ui-letter[aria-pressed="true"]:hover:not(:disabled) { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+.ui-letter[data-armed][aria-pressed="true"], .ui-letter[data-armed][aria-pressed="true"]:hover:not(:disabled) { border-color: var(--red); background: var(--red); color: var(--on-ink); }
+.ui-letter[data-dimmed]:not([aria-pressed="true"]) { color: var(--faint); border-color: var(--line); }
+.ui-letter:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
+.ui-letter:disabled { opacity: 0.4; }
+
+/* Transport: icon buttons in a row; filled glyphs for play, pause, stop and record. */
+.ui-transport { display: inline-flex; align-items: center; gap: calc(var(--sp-1) / 2); }
+.ui-transport svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.ui-transport svg[data-fill] { fill: currentColor; stroke: none; }
+.ui-transport .ui-transport-record[aria-pressed="true"] { color: var(--red); }
+
+/* Level meter: a bar per channel from the floor up. Ink up to 0 dB, red only over it; a peak line that holds then
+   falls; the clip light above stays lit until clicked. Positions come from --level and --peak (0 to 1) set by the
+   feed, and --zero from the scale. */
+.ui-level { display: inline-flex; flex-direction: column; align-items: center; gap: var(--sp-1); height: var(--level-h); }
+.ui-level-clip {
+  flex: none; width: calc(var(--level-w) * 2 + var(--hairline-w) * 2); height: var(--level-w); padding: 0; border: 0;
+  border-radius: var(--radius-pill); background: var(--line); cursor: default;
+}
+.ui-level-clip[data-on] { background: var(--red); }
+.ui-level-bars { display: flex; gap: calc(var(--hairline-w) * 2); flex: 1; min-height: 0; }
+.ui-level-bar { position: relative; width: var(--level-w); height: 100%; border-radius: var(--radius-pill); background: var(--line); overflow: hidden; --level: 0; --peak: 0; }
+.ui-level-fill { position: absolute; left: 0; right: 0; bottom: 0; height: calc(min(var(--level), var(--zero)) * 100%); background: var(--ink); }
+.ui-level-over { position: absolute; left: 0; right: 0; bottom: calc(var(--zero) * 100%); height: calc(max(var(--level) - var(--zero), 0) * 100%); background: var(--red); }
+.ui-level-peak { position: absolute; left: 0; right: 0; bottom: calc(var(--peak) * 100%); height: var(--hairline-w); margin-bottom: calc(var(--hairline-w) * -1); background: var(--ink); }

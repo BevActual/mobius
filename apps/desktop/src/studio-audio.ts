@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, audible, type Instrument, type Song, type Sound } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, audible, type Instrument, type KitSound, type Song, type Sound } from './song-format';
 import { songBeat, type Cycle } from './studio-view';
 
 /**
@@ -14,19 +14,23 @@ function noise(ctx: AudioContext): AudioBuffer {
   return buf;
 }
 
-function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer) {
+/** One drum hit through the kit: tuned up or down in semitones, its ring stretched by `decay`, brighter or darker by `tone`. */
+function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velocity: number, noiseBuf: AudioBuffer, kit: KitSound = KIT_DEFAULTS) {
   const gain = ctx.createGain();
   gain.connect(out);
+  const tune = 2 ** (kit.tune / 12);
+  const bright = 2 ** ((kit.tone - 0.5) * 2);
   if (pitch === 36 || pitch === 45) {
     // Kick or tom: a sine falling in pitch.
     const osc = ctx.createOscillator();
-    osc.frequency.setValueAtTime(pitch === 36 ? 140 : 220, at);
-    osc.frequency.exponentialRampToValueAtTime(pitch === 36 ? 45 : 90, at + 0.15);
+    const ring = 0.35 * kit.decay;
+    osc.frequency.setValueAtTime((pitch === 36 ? 140 : 220) * tune, at);
+    osc.frequency.exponentialRampToValueAtTime((pitch === 36 ? 45 : 90) * tune, at + 0.15 * kit.decay);
     gain.gain.setValueAtTime(velocity, at);
-    gain.gain.exponentialRampToValueAtTime(0.001, at + 0.35);
+    gain.gain.exponentialRampToValueAtTime(0.001, at + ring);
     osc.connect(gain);
     osc.start(at);
-    osc.stop(at + 0.4);
+    osc.stop(at + ring + 0.05);
     return;
   }
   const src = ctx.createBufferSource();
@@ -35,8 +39,8 @@ function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velo
   const open = pitch === 46;
   const hat = pitch === 42 || open;
   filter.type = hat ? 'highpass' : 'bandpass';
-  filter.frequency.value = hat ? 7000 : pitch === 39 ? 1500 : 1800;
-  const len = hat ? (open ? 0.3 : 0.05) : 0.18;
+  filter.frequency.value = Math.min(16000, (hat ? 7000 : pitch === 39 ? 1500 : 1800) * tune * bright);
+  const len = (hat ? (open ? 0.3 : 0.05) : 0.18) * kit.decay;
   gain.gain.setValueAtTime(velocity * (hat ? 0.35 : 0.7), at);
   gain.gain.exponentialRampToValueAtTime(0.001, at + len);
   src.connect(filter);
@@ -45,39 +49,87 @@ function drum(ctx: AudioContext, out: AudioNode, pitch: number, at: number, velo
   src.stop(at + len + 0.05);
 }
 
-/** A note through a track's own sound settings: a sine and a saw mixed by shape, one or two voices, a filter, an envelope. */
+/** A soft clip for Drive: none at 0, warm and then square-ish towards 1. */
+const curves = new Map<number, Float32Array>();
+function driveCurve(amount: number): Float32Array {
+  const key = Math.round(amount * 20);
+  let curve = curves.get(key);
+  if (!curve) {
+    const k = 1 + key * 1.5;
+    curve = new Float32Array(1024);
+    for (let i = 0; i < curve.length; i++) { const x = (i / (curve.length - 1)) * 2 - 1; curve[i] = Math.tanh(k * x) / Math.tanh(k); }
+    curves.set(key, curve);
+  }
+  return curve;
+}
+
+/**
+ * A note through a track's own sound: a sine and a saw mixed by shape (two voices when detuned) and a sine sub an
+ * octave down, through drive, a low-pass filter the envelope can sweep open, and an attack, decay, sustain and release
+ * envelope. Vibrato wobbles every voice's pitch.
+ */
 function shaped(ctx: AudioContext, out: AudioNode, instrument: Instrument, sound: Sound, pitch: number, at: number, seconds: number, velocity: number) {
   const gain = ctx.createGain();
   const filter = ctx.createBiquadFilter();
   filter.type = 'lowpass';
-  filter.frequency.value = sound.cutoff;
   filter.Q.value = 0.7 + sound.resonance * 14;
+  const { attack, decay, sustain, release } = sound;
+  const held = Math.max(attack, seconds);
+  const end = at + held + release;
+  // The filter opens by up to four octaves at the note's start and closes back over the decay.
+  const open = Math.min(18000, sound.cutoff * 2 ** (sound.envAmount * 4));
+  filter.frequency.setValueAtTime(sound.cutoff, at);
+  if (sound.envAmount > 0.001) {
+    filter.frequency.linearRampToValueAtTime(open, at + attack);
+    filter.frequency.setTargetAtTime(sound.cutoff, at + attack, decay / 3);
+  }
+  let into: AudioNode = filter;
+  if (sound.drive > 0.001) {
+    const shaper = ctx.createWaveShaper();
+    shaper.curve = driveCurve(sound.drive) as Float32Array<ArrayBuffer>;
+    shaper.oversample = '2x';
+    shaper.connect(filter);
+    into = shaper;
+  }
   filter.connect(gain);
   gain.connect(out);
-  const { attack, release } = sound;
   const peak = velocity * (instrument === 'pad' ? 0.18 : instrument === 'lead' ? 0.12 : instrument === 'bass' ? 0.35 : 0.3);
-  const held = Math.max(attack, seconds);
+  const rest = Math.max(0.0001, peak * sustain);
   gain.gain.setValueAtTime(0, at);
   gain.gain.linearRampToValueAtTime(peak, at + attack);
-  if (instrument === 'piano') gain.gain.exponentialRampToValueAtTime(Math.max(0.001, peak * 0.3), at + Math.max(attack + 0.01, seconds));
-  else gain.gain.setValueAtTime(peak, at + held);
-  gain.gain.exponentialRampToValueAtTime(0.0001, at + held + release);
+  gain.gain.setTargetAtTime(rest, at + attack, decay / 3);
+  gain.gain.setTargetAtTime(0.0001, at + held, release / 4);
+  // Vibrato: one slow sine moving every voice's pitch by up to `vibrato` cents.
+  let wobble: GainNode | null = null;
+  if (sound.vibrato > 0.5) {
+    const lfo = ctx.createOscillator();
+    lfo.frequency.value = sound.rate;
+    wobble = ctx.createGain();
+    wobble.gain.value = sound.vibrato;
+    lfo.connect(wobble);
+    lfo.start(at);
+    lfo.stop(end + 0.05);
+  }
+  const voice = (type: OscillatorType, hz: number, cents: number, level: number) => {
+    const osc = ctx.createOscillator();
+    const mix = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = hz;
+    osc.detune.value = cents;
+    if (wobble) wobble.connect(osc.detune);
+    mix.gain.value = level;
+    osc.connect(mix);
+    mix.connect(into);
+    osc.start(at);
+    osc.stop(end + 0.05);
+  };
   const detunes = sound.detune > 0 ? [-sound.detune / 2, sound.detune / 2] : [0];
   for (const cents of detunes) {
     for (const [type, level] of [['sine', 1 - sound.shape], ['sawtooth', sound.shape]] as const) {
-      if (level <= 0.001) continue;
-      const osc = ctx.createOscillator();
-      const mix = ctx.createGain();
-      osc.type = type;
-      osc.frequency.value = freq(pitch);
-      osc.detune.value = cents;
-      mix.gain.value = level / detunes.length;
-      osc.connect(mix);
-      mix.connect(filter);
-      osc.start(at);
-      osc.stop(at + held + release + 0.05);
+      if (level > 0.001) voice(type, freq(pitch), cents, level / detunes.length);
     }
   }
+  if (sound.sub > 0.001) voice('sine', freq(pitch) / 2, 0, sound.sub * 0.8);
 }
 
 function tone(ctx: AudioContext, out: AudioNode, instrument: Instrument, pitch: number, at: number, seconds: number, velocity: number, sound?: Sound) {
@@ -123,12 +175,12 @@ function tick(ctx: AudioContext, out: AudioNode, at: number, accent: boolean) {
 
 let sampler: AudioContext | null = null;
 /** One note heard at once, as a key is pressed or a note is put on the roll. */
-export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound): void {
+export function previewNote(instrument: Instrument, pitch: number, velocity = 0.8, seconds = 0.35, sound?: Sound, kit?: KitSound): void {
   try {
     sampler ??= new AudioContext();
     void sampler.resume().catch(() => {});
     const at = sampler.currentTime + 0.01;
-    if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler));
+    if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler), kit);
     else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity, sound);
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
@@ -175,12 +227,17 @@ export function play(song: Song, fromBeat = 0, loop: Cycle | null = null, click 
       for (const t of tracks) {
         const out = ctx.createGain();
         out.gain.value = t.volume;
-        out.connect(master);
+        if (t.pan) {
+          const pan = ctx.createStereoPanner();
+          pan.pan.value = t.pan;
+          out.connect(pan);
+          pan.connect(master);
+        } else out.connect(master);
         for (const n of t.notes) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
-          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf);
+          if (t.instrument === 'drums') drum(ctx, out, n.pitch, at(n.start), n.velocity, noiseBuf, t.kit);
           else tone(ctx, out, t.instrument, n.pitch, at(n.start), length * spb, n.velocity, t.sound);
         }
       }
