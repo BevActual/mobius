@@ -1,10 +1,12 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
+  PadGrid, type Pad,
   DateField, TimeField, TimeRange, MonthPicker,
+  NumberField, Readout, LetterToggle, Transport, LevelMeter, barsLabel, clockLabel, type LevelFeed,
 } from '../ui';
 
 /**
@@ -106,6 +108,25 @@ function Wave() {
         <WaveformView label="Sample" peaks={peaks} duration={4} value={range} onChange={setRange} playhead={1.4} /></div>
       <div className="sheet-col"><span className="sheet-note">Untrimmed, no loop: press the strip along the top to add one</span>
         <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
+    </div>
+  );
+}
+
+function DrumPads() {
+  const names = ['Kick', 'Snare', 'Clap', 'Closed hat', 'Open hat', 'Tom', 'Rim', 'Shaker', 'Low tom', 'Crash', 'Cowbell', 'Perc'];
+  const keys = ['Z', 'X', 'C', 'V', 'A', 'S', 'D', 'F', 'Q', 'W', 'E', 'R', '1', '2', '3', '4'];
+  const colors = ['coral', 'amber', 'yellow', 'teal', 'teal', 'violet', 'stone', 'green', 'violet', 'blue', 'pink', 'stone'] as const;
+  const pads: Pad[] = keys.map((key, i) => (names[i]
+    ? { id: `p${i}`, name: names[i]!, key, color: colors[i], proposed: i === 7 }
+    : { id: `p${i}`, name: `Pad ${i + 1}`, key, empty: true }));
+  const [chosen, setChosen] = useState(1);
+  const [lit, setLit] = useState<number[]>([0]);
+  const [tune, setTune] = useState(0);
+  return (
+    <div className="sheet-col"><span className="sheet-note">Press to play and choose (higher on a pad is louder); arrows move, Space plays, a pad&apos;s key plays it. Kick is sounding; Shaker was changed by Mobius (dashed).</span>
+      <PadGrid label="Drum kit" pads={pads} chosen={chosen} lit={lit} onChoose={setChosen} onPlay={(i) => { setLit([i]); setTimeout(() => setLit([]), 120); }}>
+        <div className="sheet-row"><Slider label="Tune" value={tune} min={-12} max={12} step={1} format={(v) => (v > 0 ? `+${v} st` : `${v} st`)} onChange={setTune} /></div>
+      </PadGrid>
     </div>
   );
 }
@@ -340,6 +361,10 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" wide>
+          <ProControls />
+        </Card>
+
         <Card title="Date and time fields (open downward)" wide>
           <Dates />
         </Card>
@@ -350,6 +375,9 @@ export function Sheet() {
 
         <Card title="Waveform (Music's sampler)" wide>
           <Wave />
+        </Card>
+        <Card title="Pad grid (Music's drum kit)">
+          <DrumPads />
         </Card>
         <Card title="List rows" wide>
           <div className="sheet-grid">
@@ -398,6 +426,61 @@ function Dates() {
       </div>
       <div className="sheet-month">
         <MonthPicker value={day} onPick={setDay} now={SHEET_NOW} label="Month on its own" />
+      </div>
+    </div>
+  );
+}
+
+function ProControls() {
+  const [tempo, setTempo] = useState(120);
+  const [bars, setBars] = useState(16);
+  const [transpose, setTranspose] = useState(-3);
+  const [playing, setPlaying] = useState(false);
+  const [loop, setLoop] = useState(true);
+  const [click, setClick] = useState(false);
+  const [rec, setRec] = useState(false);
+  const [tracks, setTracks] = useState([
+    { name: 'Drums', m: false, s: true, r: false },
+    { name: 'Bass', m: false, s: false, r: true },
+    { name: 'Keys', m: true, s: false, r: false },
+  ]);
+  const anySolo = tracks.some((t) => t.s);
+  const flip = (i: number, k: 'm' | 's' | 'r') => setTracks((ts) => ts.map((t, j) => (j === i ? { ...t, [k]: !t[k] } : t)));
+  const beats = 45.25; // 12 . 2 . 2 at 4/4
+  const meters = [useRef<LevelFeed>(null), useRef<LevelFeed>(null), useRef<LevelFeed>(null)];
+  const levels = [[-14, -11], [-6, -7.5], [2.5, -1]];
+  useEffect(() => {
+    // Fixed levels so the sheet and its shots hold still; ?live=1 moves them.
+    meters.forEach((m, i) => m.current?.set(...levels[i]!));
+    if (!new URLSearchParams(location.search).has('live')) return;
+    const timer = setInterval(() => meters.forEach((m, i) => m.current?.set(...levels[i]!.map((d) => d - Math.random() * 12))), 33);
+    return () => clearInterval(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <div className="sheet-pro">
+      <div className="sheet-row">
+        <Transport playing={playing} onPlay={() => setPlaying((p) => !p)} onStop={() => setPlaying(false)} recording={rec} onRecord={() => setRec((r) => !r)} loop={loop} onLoop={() => setLoop((l) => !l)} metronome={click} onMetronome={() => setClick((c) => !c)} />
+        <Readout label="Position" size="lg" formats={[{ name: 'Bars', text: barsLabel(beats) }, { name: 'Time', text: clockLabel((beats * 60) / tempo) }]} />
+        <NumberField label="Tempo" hideLabel value={tempo} onChange={setTempo} min={30} max={300} reset={120} unit="BPM" />
+        <Readout label="Time signature" formats={[{ name: '', text: '4/4' }]} />
+      </div>
+      <div className="sheet-row">
+        <NumberField label="Tempo" value={tempo} onChange={setTempo} min={30} max={300} reset={120} unit="BPM" />
+        <NumberField label="Length" value={bars} onChange={setBars} min={1} max={256} reset={16} unit="bars" />
+        <NumberField label="Transpose" value={transpose} onChange={setTranspose} min={-24} max={24} reset={0} signed unit="st" />
+        <NumberField label="Swing" value={0} onChange={() => {}} min={0} max={100} unit="%" disabled />
+        <Readout label="Selection" copy formats={[{ name: 'Time', text: '0:22.5' }]} />
+      </div>
+      <div className="sheet-row sheet-tracks">
+        {tracks.map((t, i) => (
+          <div key={t.name} className="sheet-track">
+            <span className="sheet-track-name">{t.name}</span>
+            <LetterToggle letter="M" label={`Mute ${t.name}`} pressed={t.m} onChange={() => flip(i, 'm')} dimmed={anySolo && !t.s} />
+            <LetterToggle letter="S" label={`Solo ${t.name}`} pressed={t.s} onChange={() => flip(i, 's')} />
+            <LetterToggle letter="R" label={`Arm ${t.name}`} pressed={t.r} onChange={() => flip(i, 'r')} armed />
+            <LevelMeter ref={meters[i]} label={`${t.name} level`} />
+          </div>
+        ))}
       </div>
     </div>
   );

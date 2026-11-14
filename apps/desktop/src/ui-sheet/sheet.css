@@ -25,6 +25,11 @@ body { overflow: auto; background: var(--frame); }
 .sheet-spacer { flex: 1; }
 .sheet-stack { display: flex; flex-direction: column; gap: 16px; max-width: 320px; }
 .sheet-month { width: 248px; }
+.sheet-pro { display: flex; flex-direction: column; gap: 20px; }
+.sheet-row { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.sheet-tracks { align-items: stretch; gap: 32px; }
+.sheet-track { display: flex; align-items: center; gap: 6px; }
+.sheet-track-name { width: 48px; font-size: 13px; }
 .sheet-sub { font-size: 12px; color: var(--muted); }
 .sheet-bar { display: flex; align-items: center; gap: 12px; width: 400px; overflow: hidden; border: 1px dashed var(--line); padding: 4px; }
 .sheet-bar-fill { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--muted); }
