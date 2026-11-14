@@ -354,9 +354,12 @@ test('automation draws a volume line under a track with points, kept in the song
   await shell().getByRole('button', { name: 'Automation' }).click();
   const lane = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Volume automation' });
   await expect(lane).toBeVisible();
-  const plot = (await lane.locator('.ui-lane-plot').boundingBox())!;
-  await shell().mouse.click(plot.x + plot.width * 0.25, plot.y + plot.height * 0.8);
-  await shell().mouse.click(plot.x + plot.width * 0.75, plot.y + plot.height * 0.2);
+  // Clicks on the plot itself, which waits for the lane to finish opening (a box read early can miss it).
+  const plot = lane.locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.25, y: box.height * 0.8 } });
+  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: unknown[] }).volumeAuto?.length).toBe(1);
+  await plot.click({ position: { x: box.width * 0.75, y: box.height * 0.2 } });
   await expect.poll(() => (saved().tracks[0] as { volumeAuto?: { beat: number; value: number }[] }).volumeAuto?.length).toBe(2);
   const [a, b] = (saved().tracks[0] as unknown as { volumeAuto: { beat: number; value: number }[] }).volumeAuto;
   expect(a!.beat).toBeLessThan(b!.beat);

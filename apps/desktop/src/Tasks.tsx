@@ -2,7 +2,7 @@ import { RowMark } from './RowMark';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
-import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, timeWords, type Located, type SmartView } from './tasks-view';
+import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
 import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
@@ -11,6 +11,14 @@ import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast } from './ui';
 import './tasks.css';
+import { AppGlance, useGlanceSlot } from './PanelSlots';
+
+/** Tasks' Glance (Instrument, "The Mobius panel: slots"): across every list, what is overdue, due today and flagged. */
+export function TasksGlance({ tasks }: { tasks: TasksState }) {
+  const slot = useGlanceSlot();
+  if (!slot) return null;
+  return <AppGlance slot={slot} title="Your day" facts={tasksGlance(tasks.all, new Date())} />;
+}
 
 /** A task being dragged: which list it is in and where. */
 const DRAG = 'application/x-mobius-task';
