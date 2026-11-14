@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
 import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
@@ -621,6 +621,15 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const [resultSlot, setResultSlot] = useState<HTMLDivElement | null>(null);
   const done = variant === 'panel' && !desk && settled && lastAssistant >= 0 && lastAssistant === state.items.length - 1 && (state.items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming !== true;
   const glanceHere = resting || done ? glanceSlot : null;
+  // Once the last turn's changes are all kept or discarded, the ideas come back as chips, so the next one is a press
+  // away without a new chat. A new message (or another conversation) waits for its own review again.
+  const [reviewed, setReviewed] = useState(false);
+  const hadChanges = useRef(false);
+  const onReviewShown = useCallback((shown: boolean) => {
+    if (shown) { hadChanges.current = true; setReviewed(false); } else if (hadChanges.current) { hadChanges.current = false; setReviewed(true); }
+  }, []);
+  const asked = state.items.filter((item) => item.kind === 'user').length;
+  useEffect(() => { hadChanges.current = false; setReviewed(false); }, [asked, state.conversation]);
   const resultHere = done ? resultSlot : null;
   // Number keys pick an action while the panel has the focus and nothing is being typed.
   useEffect(() => {
@@ -830,7 +839,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                 <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
               ),
             )}
-            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} onShown={onReviewShown} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <WorkingIndicator state={state} onStop={onStop} />
@@ -855,7 +864,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             startersAs={resting ? 'rows' : 'chips'}
-            started={state.items.length > 0}
+            started={state.items.length > 0 && !(done && reviewed)}
             draft={draft}
             onDraft={setDraft}
             context={context}
