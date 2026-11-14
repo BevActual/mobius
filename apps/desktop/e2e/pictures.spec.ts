@@ -56,7 +56,7 @@ test('Show Mobius takes one still from the camera and attaches it; the camera is
   const composer = shell.getByRole('textbox', { name: 'Message Mobius' });
   await expect(composer).toBeEnabled({ timeout: 15_000 });
   await shell.getByRole('button', { name: 'Add context' }).click();
-  await shell.getByRole('menuitem', { name: /Show Mobius/ }).click();
+  await shell.getByRole('menuitem', { name: /A camera photo/ }).click();
   const dialog = shell.getByRole('dialog', { name: 'Show Mobius' });
   await expect(dialog.getByRole('button', { name: 'Take' })).toBeEnabled({ timeout: 10_000 });
   await dialog.getByRole('button', { name: 'Take' }).click();

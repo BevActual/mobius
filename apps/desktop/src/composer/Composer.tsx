@@ -63,7 +63,10 @@ export interface ComposerProps {
   onTakeOver?: () => Promise<string | null>;
   /** The model on the server was changed from here. */
   onModelChanged: () => void;
-  onOpenSettings: () => void;
+  /** Settings, or one of its pages (Safety for what Mobius may use and the always-ask lists). */
+  onOpenSettings: (section?: 'safety') => void;
+  /** Abilities, where skills, connectors and modes are added or removed. */
+  onOpenAbilities?: (() => void) | undefined;
   fieldRef: RefObject<HTMLTextAreaElement | null>;
   /** Where the person is: the message box suggests what is worth asking there. */
   surface?: SurfaceState;
@@ -82,7 +85,7 @@ const ARROW = <svg className="popmenu-arrow-icon" viewBox="0 0 16 16" aria-hidde
 const clock = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 const total = (items: ContextItem[]) => items.reduce((sum, item) => sum + item.text.length, 0);
 
-export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
+export function Composer({ takeFocus = true, draft, onDraft, context, onContext, canType, busy, configured, coreReady, settings, effort, onEffort, onSend, onStop, onTakeOver, onModelChanged, onOpenSettings, onOpenAbilities, fieldRef, surface, here = null, onRemoveHere, activity, contextUse, startersIn, startersAs = 'chips', started = false, onOpenVoice, onQueue, hint, onAnswer }: ComposerProps) {
   // Mode, the kind of help: Agent, Ask (reads and answers, changes nothing) or Plan (nothing runs until you start the
   // plan). Kept on this computer.
   const [mode, setModeState] = useState<ChatMode>(loadChatMode);
@@ -477,22 +480,37 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                 <button type="button" role="menuitem" className="popmenu-item popmenu-dictate popmenu-keys" disabled={busy || dictation.state === 'transcribing'} onClick={() => { close(); dictation.toggle(); }}>
                   <span>Dictate</span><KeyCaps keys={DICTATE_KEYS} />
                 </button>
-                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void attach('page'); }}>
-                  <span>This page</span><span className="popmenu-hint">What is showing in the browser</span>
+                {/* The plus menu in the build sheet's order: Add context, then the rows that lead elsewhere, then Abilities. */}
+                <p className="popmenu-heading popmenu-plus-heading" aria-hidden="true">Add context</p>
+                {(!surface || surface.app === 'browser') && (
+                  <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="What is showing in the browser" onClick={() => { close(); void attach('page'); }}>
+                    <span>This page</span>
+                  </button>
+                )}
+                <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="A text file from this computer" onClick={() => { close(); void attach('file'); }}>
+                  <span>A file…</span>
                 </button>
-                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void attach('file'); }}>
-                  <span>A file…</span><span className="popmenu-hint">A text file from this computer</span>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="For models that read pictures; you can paste one too" onClick={() => { close(); pictureInput.current?.click(); }}>
+                  <span>A picture…</span>
                 </button>
-                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); pictureInput.current?.click(); }}>
-                  <span>A picture…</span><span className="popmenu-hint">For models that read pictures; you can paste one too</span>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="One still of a window you choose, nothing more" onClick={() => { close(); void lookAtWindow(); }}>
+                  <span>Look at a window…</span>
                 </button>
-                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); void lookAtWindow(); }}>
-                  <span>Look at a window…</span><span className="popmenu-hint">One still of a window you choose, nothing more</span>
-                </button>
-                <button type="button" role="menuitem" className="popmenu-item" onClick={() => { close(); setCamera(true); }}>
-                  <span>Show Mobius…</span><span className="popmenu-hint">One still from the camera</span>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-one" title="One still from the camera" onClick={() => { close(); setCamera(true); }}>
+                  <span>A camera photo…</span>
                 </button>
                 <p className="popmenu-note">Up to {MAX_CONTEXT_ITEMS} things, {MAX_CONTEXT_ITEM_CHARS / 1000}k characters each. The agent reads them as material, never as instructions.</p>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-arrow popmenu-separated" onClick={() => { close(); onOpenSettings('safety'); }}>
+                  <span>Apps Mobius can use</span>{ARROW}
+                </button>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-arrow" onClick={() => { close(); onOpenSettings('safety'); }}>
+                  <span>Permissions</span>{ARROW}
+                </button>
+                {onOpenAbilities && (
+                  <button type="button" role="menuitem" className="popmenu-item popmenu-arrow popmenu-separated" onClick={() => { close(); onOpenAbilities(); }}>
+                    <span>Manage in Abilities</span>{ARROW}
+                  </button>
+                )}
               </>
             )}
           </PopMenu>
@@ -513,7 +531,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               value={permission.id}
               onChange={(id) => { const option = PERMISSIONS.find((p) => p.id === id); if (option) choosePermission(option); }}
               choices={PERMISSIONS.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
-              footer={[{ label: 'Always ask and never lists…', run: onOpenSettings }]}
+              footer={[{ label: 'Always ask and never lists…', run: () => onOpenSettings('safety') }]}
               trigger={<button type="button" className="pill pill-compact" aria-label="Permission" title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
           </span>

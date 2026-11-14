@@ -35,7 +35,9 @@ There is no Tailwind. Colours, sizes, spaces and timings come only from `tokens.
 | `AppFrame` | used by `App.tsx` only | The five zones every app sits in. Apps do not render it; they fill its parts with the pieces above |
 
 Each row (`MenuEntry`) has a `label`, a `run`, and optionally an `icon`, `keys` (its shortcut), `danger`, `disabled`
-and `separated` (a line before it), and `checked` for a row that is on or off (it then shows a tick). The chosen row runs at once as the menu goes (a copy of it fades out in place), so focus goes where the row sends it and keys typed straight after land there, not in the menu.
+and `separated` (a line before it), `checked` for a row that is on or off (it then shows a tick), and `detail` for a grey
+line under the label on what it does ("Echo: Repeats that fade"). Use `Menu` for commands; `ChoiceMenu` is for a setting
+that stays chosen. The chosen row runs at once as the menu goes (a copy of it fades out in place), so focus goes where the row sends it and keys typed straight after land there, not in the menu.
 
 ### Controls
 
@@ -52,7 +54,7 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 | `Switch` | On and off at the trailing end of its row, the label leading, an optional grey `detail` line. Use it in settings lists and Adjust cards |
 | `Checkbox` | A rounded square, ink when checked; `indeterminate` for "some of them". Tasks keeps its round circles |
 | `Slider` | Photo's slider: a grey track filled in ink from the `origin` (zero, or `min`) to the value, a slim tick, the value grey until it moves. `format` for units, `scale="log"` for Hz and times, `ends={['Shorter', 'Longer']}` to name the ends, `remake` for an Adjust control that makes the result again when let go (it shows the Mobius mark). `onChange` runs as it moves, `onCommit` once when let go. Shift+arrows nudge further; double-click goes back to `reset` |
-| `ParamCell`, `ParamGrid` | Pro app readouts: a small all-caps label, the value large in mono with its `unit`, a thin slider under it, and an optional `keyHint` letter in the corner. Same props as `Slider`. `ParamGrid` puts them two to a row |
+| `ParamCell`, `ParamGrid` | Pro app readouts: a small all-caps label, the value large in mono with its `unit`, a thin slider under it, and an optional `keyHint` letter in the corner. Same props as `Slider`. `ParamGrid` puts them two to a row. `size="compact"` is for a dense pro panel (Music's Device): the name in sentence case, small and grey, and the value at body size |
 | `Meter`, `Progress` | A level set elsewhere (storage, a track's level), `threshold` makes only the part past it red (clipping, nearly full); and known progress as a thin ink line. No spinners in content |
 | `Chip` | A label or tag: outlined pill, a content-colour dot, grey text. `onRemove` adds ×, `onClick` makes it a filter (`pressed` when on) |
 | `Dot`, `CONTENT_COLORS` | A content colour as a small dot (the one palette of eight plus stone), or `red` for overdue or failed |
@@ -206,6 +208,26 @@ What a synth's or drum kit's Device panel draws. Music uses them first; Video's 
 <EnvelopeGraph value={sound.env} reset={base.env} onChange={(env) => set({ env })} />
 <FilterGraph value={{ cutoff, resonance }} min={80} max={12000} envAmount={sound.filterEnv} onChange={setFilter} />
 <StepGrid label="Drums" rows={DRUM_ROWS} cells={pattern} now={playingStep} onChange={setStep} />
+```
+
+### Devices
+
+Instruments and effects sit in devices, and devices sit in a chain in signal order.
+
+| Control | Use it for |
+| --- | --- |
+| `DeviceChain` | The row of devices: `label`, `count` and `onMove(from, to)`. It scrolls sideways when the devices don't fit |
+| `DeviceFrame` | One device. The head has a grip, an on/off `Switch`, the title, optional `actions` and a fold. To move a device, drag its grip along the chain, or focus the grip and use the arrow keys (Home and End go to the ends). Off dims the controls but keeps them editable, as a bypass does. `collapsed` shows the head alone. `proposed` gives the dashed indigo edge for a device Mobius added that waits for Keep |
+| `EqGraph` | Three or four bands (`{ type: 'lowshelf' \| 'peak' \| 'highshelf', freq, gain, q, on? }`) over 20 Hz to 20 kHz and ±18 dB. Each band has a numbered dot: across is frequency and up is gain (a shelf's dot sits halfway up its step). The wheel or Alt+drag sets Q, and on a focused dot Alt+Up and Alt+Down do. The chosen band's own shape shows faintly under the whole curve, and every band's values read in a column underneath. `bandLevel` and `eqLevel` give the curve in dB, the same way Web Audio's BiquadFilter computes it |
+
+```tsx
+<DeviceChain label="Bass effects" count={devices.length} onMove={moveDevice}>
+  {devices.map((d, i) => (
+    <DeviceFrame key={d.id} title={d.name} index={i} on={d.on} onToggle={(on) => setOn(d.id, on)} collapsed={d.folded} onCollapse={(f) => fold(d.id, f)}>
+      {d.kind === 'eq' && <EqGraph bands={d.bands} onChange={(i, band) => setBand(d.id, i, band)} />}
+    </DeviceFrame>
+  ))}
+</DeviceChain>
 ```
 
 More controls are added one at a time.
