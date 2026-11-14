@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 import type { Item } from './conversation';
@@ -6,7 +6,12 @@ import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
+import { UndoToast } from './ui';
 import { relativeTime } from './relative-time';
+import { DocEditor } from './Docs';
+import { dayLabel, nearDayLabel, timeLabel } from './dates';
+import { diffCounts, diffLines } from './line-diff';
+import { readable } from './knowledge-lines';
 import './knowledge.css';
 
 /** The kinds of things Mobius remembers. */
@@ -28,13 +33,15 @@ export type WikiPlace = { kind: 'mine' } | { kind: 'shared' } | { kind: 'page' }
 export function useWikiIncoming() {
   const api = window.mobius.wiki;
   const [waiting, setWaiting] = useState<WikiChange[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const load = useCallback(async () => {
     const got = await api?.incoming?.().catch(() => null);
     setWaiting(Array.isArray(got) ? got : []);
+    setLoaded(true);
   }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChanged(() => void load()), [api, load]);
-  return { waiting, load };
+  return { waiting, loaded, load };
 }
 export type WikiIncoming = ReturnType<typeof useWikiIncoming>;
 
@@ -103,7 +110,9 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
  */
 export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; onAnswer?: (requestId: number, approve: boolean) => void }) {
   const api = window.mobius.memory;
-  const [items, setItems] = useState<MemoryItem[]>([]);
+  const [loadedItems, setItems] = useState<MemoryItem[] | null>(null);
+  const items = loadedItems ?? [];
+  const addRef = useRef<HTMLInputElement>(null);
   const [kind, setKind] = useState<MemoryCategory>('you');
   const [editing, setEditing] = useState<{ old: string; text: string; category: MemoryCategory } | null>(null);
   // What Mobius would like to remember waits here too, as it waits in the conversation.
@@ -132,7 +141,15 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const line = (m: MemoryItem) => (
     <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
       onContextMenu={(e) => { if (editing?.old === m.text) return; e.preventDefault(); setMenu({ text: m.text, x: e.clientX, y: e.clientY }); }}
-      onKeyDown={(e) => { if (e.key === 'F10' && e.shiftKey && editing?.old !== m.text) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); } }}>
+      tabIndex={editing?.old === m.text ? undefined : 0}
+      onKeyDown={(e) => {
+        if (editing?.old === m.text) return;
+        if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); return; }
+        // The keys the menu shows, on the line itself: Enter edits (or keeps what Mobius learned), Delete forgets.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === 'Enter') { e.preventDefault(); if (m.learned) void keep(m); else setEditing({ old: m.text, text: m.text, category: m.category }); }
+        else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); void (m.learned ? notTrue(m) : forget(m)); }
+      }}>
       {editing?.old === m.text ? (
         <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => setEditing(null)); }}>
           <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
@@ -157,19 +174,19 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
             <span className="wiki-line-actions">
               <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
               <button type="button" className="review-btn" title="Offer this line to the Knowledge others share" onClick={() => void share(m)}>Share</button>
-              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (you can undo it)" onClick={() => void forget(m)}>Forget</button>
+              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (Del)" onClick={() => void forget(m)}>Forget</button>
             </span>
           )}
         </>
       )}
       {menu?.text === m.text && createPortal(
         <ContextMenu x={menu.x} y={menu.y} label={m.text} onClose={() => setMenu((x) => (x?.text === m.text ? null : x))} items={m.learned ? [
-          { label: 'Keep', run: () => void keep(m) },
-          { label: 'Not true', run: () => void notTrue(m) },
+          { label: 'Keep', keys: 'Enter', run: () => void keep(m) },
+          { label: 'Not true', keys: 'Del', run: () => void notTrue(m) },
         ] : [
-          { action: 'rename', label: 'Edit', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
+          { action: 'rename', label: 'Edit', keys: 'Enter', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
           { action: 'share', label: 'Share', run: () => void share(m) },
-          { action: 'delete', label: 'Forget', danger: true, separated: true, run: () => void forget(m) },
+          { action: 'delete', label: 'Forget', danger: true, separated: true, keys: 'Del', run: () => void forget(m) },
         ]} />,
         document.body,
       )}
@@ -180,14 +197,9 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
     <section className="skills-page wiki-page" aria-label="How I work">
       <header className="kn-head">
         <h1>How I work</h1>
-        <p className="wiki-private">Only you and your Mobius see this page. Mobius reads it before every reply.</p>
+        <span className="kn-about" role="img" tabIndex={0} aria-label="Only you and your Mobius see this page. Mobius reads it before every reply." title="Only you and your Mobius see this page. Mobius reads it before every reply."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4.5M10 6.6v.1" /></svg></span>
       </header>
-      {undo && (
-        <p className="cal-undo" role="status">
-          <span>{undo.label}</span>
-          <button type="button" className="review-btn" onClick={() => { const u = undo; setUndo(null); void u.run().then(load); }}>Undo</button>
-        </p>
-      )}
+      {undo && <UndoToast text={undo.label} onUndo={() => { const u = undo; setUndo(null); void u.run().then(load); }} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {(asks.length > 0 || learned.length > 0) && (
         <section className="kn-group" aria-label="Waiting for you" data-waiting>
@@ -210,7 +222,8 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
           {learned.length > 0 && <ul className="wiki-lines" role="list" aria-label="Mobius learned">{learned.map(line)}</ul>}
         </section>
       )}
-      {items.length === 0 && asks.length === 0 && (
+      {loadedItems === null && <LoadingRows label="How I work" />}
+      {loadedItems !== null && items.length === 0 && asks.length === 0 && (
         <EmptyState app="wiki" title="Nothing here yet" line="Add how you work below. What Mobius learns waits here until you keep it." label="Nothing here yet" />
       )}
       {MEMORY_KINDS.map((k) => {
@@ -218,16 +231,18 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
         if (these.length === 0) return null;
         return (
           <section key={k.id} className="kn-group" aria-label={k.name}>
-            <h2 className="kn-group-head">{k.name}</h2>
+            <h2 className="kn-group-head">{k.name} <span className="kn-badge">{these.length}</span>
+              <button type="button" className="kn-group-add" aria-label={`Add to ${k.name}`} title={`Add to ${k.name}`} onClick={() => { setKind(k.id); addRef.current?.focus(); }}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>
+            </h2>
             <ul className="wiki-lines" role="list" aria-label={k.name}>{these.map(line)}</ul>
           </section>
         );
       })}
       <form className="wiki-add" onSubmit={(e) => { e.preventDefault(); const t = adding.trim(); if (!t) return; void api.add(t, kind).then((r) => done(r, null)).then(() => setAdding('')); }}>
         <span className="wiki-add-plus" aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M10 4v12M4 10h12" /></svg></span>
-        <input aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
+        <input ref={addRef} aria-label="Add a line" placeholder="Add how you work, in one line" value={adding} maxLength={300} onChange={(e) => setAdding(e.target.value)} />
         <span className="kn-popup"><select aria-label="Kind of line" value={kind} onChange={(e) => setKind(e.target.value as MemoryCategory)}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
-        <button type="submit" className="review-btn" data-kind="keep" disabled={!adding.trim()}>Add</button>
+        {adding.trim() && <button type="submit" className="review-btn" data-kind="keep">Add</button>}
       </form>
     </section>
   );
@@ -264,16 +279,16 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
     <section className="skills-page wiki-page" aria-label="Suggested changes">
       <header className="kn-head">
         <h1>Suggested changes</h1>
-        <p className="wiki-private">Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it.</p>
+        <span className="kn-about" role="img" tabIndex={0} aria-label="Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it." title="Lines offered by people, by your own How I work and by Mobius. Nothing reaches a page until you keep it."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4.5M10 6.6v.1" /></svg></span>
       </header>
-      {undo && <p className="cal-undo" role="status"><span>{undo.label}</span><button type="button" className="review-btn" onClick={() => void undoLast()}>Undo</button></p>}
+      {undo && <UndoToast text={undo.label} onUndo={() => void undoLast()} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
-      {incoming.waiting.length === 0 && <EmptyState app="wiki" title="Nothing is waiting" line="When someone, or Mobius, offers a line for a page, it waits here for you." label="Nothing is waiting" />}
+      {!incoming.loaded && <LoadingRows label="Suggested changes" />}
+      {incoming.loaded && incoming.waiting.length === 0 && <EmptyState app="wiki" title="Nothing is waiting" line="When someone, or Mobius, offers a line for a page, it waits here for you." label="Nothing is waiting" />}
       {incoming.waiting.length > 0 && (
         <ul className="wiki-lines kn-changes" role="list" aria-label="Waiting">
           {incoming.waiting.map((c) => (
             <li key={c.id} className="wiki-line wiki-change" data-proposed aria-label={`From ${fromName(c.from)}: ${c.text}`}>
-              <span className="wiki-from">From {fromName(c.from)} · for {pageName(c.page)}{c.whenMs ? ` · ${relativeTime(c.whenMs, at)}` : ''}</span>
               {editing?.id === c.id ? (
                 <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void keep(c, editing.text); }}>
                   <input autoFocus aria-label="Edit the line" value={editing.text} onChange={(e) => setEditing({ id: c.id, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
@@ -282,7 +297,10 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
                 </form>
               ) : (
                 <>
-                  <span className="wiki-line-text">{c.text}</span>
+                  <span className="wiki-line-body">
+                    <span className="wiki-from">From {fromName(c.from)} · for {pageName(c.page)}{c.whenMs ? ` · ${relativeTime(c.whenMs, at)}` : ''}</span>
+                    <span className="wiki-line-text">{c.text}</span>
+                  </span>
                   <span className="wiki-line-actions" data-always>
                     <button type="button" className="review-btn" onClick={() => void decline(c)}>Decline</button>
                     <button type="button" className="review-btn" onClick={() => setEditing({ id: c.id, text: c.text })}>Edit first</button>
@@ -295,6 +313,15 @@ export function SharedQueue({ incoming }: { incoming: WikiIncoming }) {
         </ul>
       )}
     </section>
+  );
+}
+
+/** While something loads: grey bars the shape of the rows that are coming, never a spinner. */
+function LoadingRows({ label, rows = 4 }: { label: string; rows?: number }) {
+  return (
+    <div className="kn-loading" role="status" aria-label={`Loading ${label}`}>
+      {Array.from({ length: rows }, (_, i) => <span key={i} className="kn-loading-bar" style={{ width: `${[72, 54, 64, 46][i % 4]}%` }} />)}
+    </div>
   );
 }
 
@@ -311,41 +338,115 @@ function sections(notebooks: NotesState['notebooks'], query = ''): NotesState['n
 
 const pageName = (path: string) => path.split('/').pop()?.replace(/\.md$/, '') ?? path;
 
-/** A page's earlier versions, from the workspace checkpoints: look at one, and put it back. */
-export function WikiVersions({ wiki }: { wiki: NotesState }) {
+/**
+ * A Knowledge page: the shared document editor, with Versions as one more button at the end of its toolbar. Versions
+ * opens in place of the page, as History does in Docs and Notes.
+ */
+export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocus: boolean; busy: boolean }) {
   const path = wiki.page?.path ?? null;
   const [open, setOpen] = useState(false);
-  const [versions, setVersions] = useState<WikiVersion[]>([]);
-  const [shown, setShown] = useState<WikiVersion | null>(null);
-  useEffect(() => {
-    if (!open || !path) return;
-    let live = true;
-    void window.mobius.wiki?.versions?.(path).then((v) => { if (live) setVersions(Array.isArray(v) ? v : []); }).catch(() => undefined);
-    return () => { live = false; };
-  }, [open, path, wiki.text]);
-  if (!path || !window.mobius.wiki?.versions) return null;
-  const when = (ms: number) => new Date(ms).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  // The last version put back, so it can be undone: the page as it was, and when the version was from.
+  const [putBack, setPutBack] = useState<{ was: string; label: string } | null>(null);
+  useEffect(() => { setOpen(false); setPutBack(null); }, [path]);
+  const canLook = Boolean(path && window.mobius.wiki?.versions);
+  const button = canLook ? (
+    <button type="button" className="doc-tool" aria-label="Versions" aria-pressed={open} title="Versions" onClick={() => setOpen((o) => !o)}>
+      <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 1.8-4.3M4 4v3.5h3.5M10 6.5V10l2.5 1.5" /></svg>
+    </button>
+  ) : null;
   return (
-    <div className="wiki-versions">
-      <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen((o) => !o)}>Versions</button>
-      {open && (
-        <section className="wiki-versions-list" aria-label="Versions">
-          {versions.length === 0 && <p className="note-empty">No earlier versions yet.</p>}
-          <ul role="list">
-            {versions.map((v) => (
-              <li key={v.checkpoint}><button type="button" className="list-row" aria-current={shown?.checkpoint === v.checkpoint ? 'true' : undefined} onClick={() => setShown(v)}>{when(v.whenMs)}</button></li>
-            ))}
-          </ul>
-          {shown && (
-            <div className="wiki-version">
-              <pre aria-label="That version">{shown.content}</pre>
-              <button type="button" className="btn" onClick={() => { wiki.edit(shown.content); setShown(null); setOpen(false); }}>Put this version back</button>
-            </div>
-          )}
-        </section>
+    <div className="wiki-doc">
+      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
+      {putBack && !open && (
+        <UndoToast text={`Put back the version from ${putBack.label}.`} onUndo={() => { wiki.edit(putBack.was); setPutBack(null); }} onDismiss={() => setPutBack(null)} />
       )}
+      {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
   );
+}
+
+/**
+ * A page's earlier versions, from the workspace checkpoints, newest first under their day. The chosen one is shown as
+ * what putting it back would change: lines that come back, and lines that go.
+ */
+function WikiVersions({ path, text, onPutBack, onClose }: { path: string; text: string; onPutBack: (version: WikiVersion) => void; onClose: () => void }) {
+  const [versions, setVersions] = useState<WikiVersion[] | null>(null);
+  const [shown, setShown] = useState<WikiVersion | null>(null);
+  useEffect(() => {
+    let live = true;
+    void window.mobius.wiki?.versions?.(path).then((v) => { if (live) setVersions(Array.isArray(v) ? v : []); }).catch(() => { if (live) setVersions([]); });
+    return () => { live = false; };
+  }, [path]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const now = Date.now();
+  const days: { day: string; versions: WikiVersion[] }[] = [];
+  for (const v of versions ?? []) {
+    const day = nearDayLabel(v.whenMs, now) ?? dayLabel(v.whenMs, { weekday: 'long', now });
+    const last = days[days.length - 1];
+    if (last?.day === day) last.versions.push(v); else days.push({ day, versions: [v] });
+  }
+  const lines = shown ? diffLines(text, shown.content) : [];
+  const counts = diffCounts(lines);
+  return (
+    <section className="kn-versions" aria-label="Versions">
+      <header className="kn-versions-head">
+        <h2>Versions</h2>
+        <button type="button" className="btn" onClick={onClose}>Done</button>
+      </header>
+      <div className="kn-versions-body">
+        <nav className="kn-versions-list" aria-label="Earlier versions">
+          {versions === null && <LoadingRows label="Versions" rows={3} />}
+          {versions?.length === 0 && <p className="note-empty">No earlier versions yet. A version is kept each time Mobius starts a turn.</p>}
+          {days.map((d) => (
+            <div key={d.day} className="kn-versions-day">
+              <h3 className="kn-side-heading">{d.day}</h3>
+              <ul role="list">
+                {d.versions.map((v) => (
+                  <li key={v.checkpoint}>
+                    <button type="button" className="list-row" aria-current={shown?.checkpoint === v.checkpoint ? 'true' : undefined} onClick={() => setShown(v)}>
+                      <span className="list-name">{timeLabel(v.whenMs)}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+        <div className="kn-version">
+          {!shown && versions && versions.length > 0 && <p className="note-empty">Choose a version to see how it differs from the page now.</p>}
+          {shown && (
+            <>
+              <div className="kn-version-bar">
+                <span className="kn-version-sum">{summary(counts)} You can undo it afterwards.</span>
+                <button type="button" className="btn primary" onClick={() => onPutBack(shown)}>Put this version back</button>
+              </div>
+              <div className="kn-diff" aria-label="That version" role="document">
+                {lines.map((l, i) => { const r = readable(l.text); return <div key={i} className="kn-diff-line" data-kind={l.kind} data-block={r.block}><span className="kn-diff-mark" aria-hidden="true">{l.kind === 'added' ? '+' : l.kind === 'removed' ? '−' : ''}</span><span className="kn-diff-text">{r.text || ' '}</span></div>; })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** "Today, 10:06 PM" or "12 Nov, 10:06 PM": when a version is from. */
+function whenLabel(ms: number): string {
+  return `${nearDayLabel(ms) ?? dayLabel(ms)}, ${timeLabel(ms)}`;
+}
+
+/** What putting a version back changes, in words: "1 line comes back, 1 line goes". */
+function summary({ added, removed }: { added: number; removed: number }): string {
+  const parts = [
+    added ? `${added} ${added === 1 ? 'line comes' : 'lines come'} back` : '',
+    removed ? `${removed} ${removed === 1 ? 'line goes' : 'lines go'}` : '',
+  ].filter(Boolean);
+  return parts.length ? `${parts.join(', ')}.` : 'The same as the page now.';
 }
 
 /** Who offered a change, in today's words: lines shared before Knowledge was renamed say they came from "your wiki". */

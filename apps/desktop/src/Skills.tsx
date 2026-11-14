@@ -1,4 +1,5 @@
 import { RowMark } from './RowMark';
+import { dateTimeLabel } from './dates';
 import { FromMobius } from './FromMobius';
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -7,60 +8,6 @@ import { parseSkill, writeSkill, type Skill } from './skill-format';
 import { useFileReview } from './useFileReview';
 import type { SkillsState } from './useSkills';
 import { ReviewActions, WhyThis } from './ReviewBar';
-
-/**
- * The skills Mobius keeps, by name. Inside Abilities, Add and Search come first (`places`); `query` narrows the list and
- * each new `nameToken` opens the naming field (New skill in the Add menu).
- */
-export function SkillsSidebar({ skills, pin, changed, places, query = '', nameToken = 0 }: { skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string>; /** Abilities' Add, Search and places, above the skills. */ places?: ReactNode; query?: string; nameToken?: number }) {
-  const [naming, setNaming] = useState(nameToken > 0);
-  const [name, setName] = useState('');
-  const [about, setAbout] = useState('');
-  useEffect(() => { if (nameToken > 0) setNaming(true); }, [nameToken]);
-  const submit = async (e: FormEvent) => { e.preventDefault(); if (await skills.create(name.trim() || 'New skill', about)) { setNaming(false); setName(''); setAbout(''); } };
-  const q = query.trim().toLowerCase();
-  const shown = q ? skills.list.filter((s) => s.name.toLowerCase().includes(q) || (s.description ?? '').toLowerCase().includes(q)) : skills.list;
-  return (
-    <aside className="side skills-side" aria-label="Skills sidebar">
-      <div className="side-head">
-        <span className="side-title">{places ? 'Abilities' : 'Skills'}</span>
-        <span className="side-actions">{pin}</span>
-      </div>
-      {places}
-      {naming && (
-        <form className="skill-new" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Skill name" placeholder="Compare stays" value={name} maxLength={64} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-          <input aria-label="When to use it" placeholder="When to use it, in one sentence" value={about} maxLength={300} onChange={(e) => setAbout(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-          <span className="skill-new-actions">
-            <button type="button" className="btn" onClick={() => setNaming(false)}>Cancel</button>
-            <button type="submit" className="btn primary">Create</button>
-          </span>
-        </form>
-      )}
-      {skills.list.length === 0 && !naming && (
-        <div className="side-empty notes-empty">
-          <p>A skill is a procedure Mobius follows when a task comes back: the steps in plain words, kept as SKILL.md in your workspace.</p>
-          <button type="button" className="btn primary" onClick={() => setNaming(true)}>New skill</button>
-        </div>
-      )}
-      {skills.list.length > 0 && shown.length === 0 && <p className="side-empty">No skills match “{query.trim()}”.</p>}
-      <nav className="task-lists" aria-label="Skills">
-        <ul role="list">
-          {shown.map((s) => (
-            <li key={s.name}>
-              <button type="button" className="list-row skill-row" aria-current={skills.open?.name === s.name ? 'page' : undefined} onClick={() => void skills.openSkill(s.name)}>
-                <span className="list-name">/{s.name}</span>
-                <RowMark changed={changed?.has(s.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                <span className="list-count">v{s.version}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
-      <FromMobius items={skills.list.filter((s) => changed?.has(s.name)).map((s) => ({ key: s.name, name: `/${s.name}`, current: skills.open?.name === s.name, onOpen: () => void skills.openSkill(s.name) }))} />
-    </aside>
-  );
-}
 
 /**
  * A skill someone shared, before it is added: what it is for, its steps, and what it says it will use. Nothing in it
@@ -104,7 +51,7 @@ export function InstallDialog({ text, skills, onClose }: { text: string; skills:
 }
 
 /** One skill: when it is used, its steps to edit one by one, its versions, and Run. */
-export function SkillEditor({ skills, review, onRun }: { skills: SkillsState; review?: { conversation: string } | null; onRun: (name: string) => void }) {
+export function SkillEditor({ skills, review }: { skills: SkillsState; review?: { conversation: string } | null }) {
   const skill = useMemo(() => parseSkill(skills.text), [skills.text]);
   const file = skills.open ? `skills/${skills.open.name}/SKILL.md` : null;
   const { before, keep, discard } = useFileReview(review, file, skills.open?.modified);
@@ -112,18 +59,11 @@ export function SkillEditor({ skills, review, onRun }: { skills: SkillsState; re
   const changedRows = rows?.filter((r) => r.kind !== 'same') ?? [];
   const set = (fn: (s: Skill) => void) => { const next = structuredClone(skill); fn(next); skills.edit(writeSkill(next)); };
   if (!skills.available) return <section className="skills-page empty" aria-label="Skills"><p className="note-empty">Skills are not available here.</p></section>;
-  if (!skills.open) return <section className="skills-page empty" aria-label="Skills"><p className="note-empty">Make a skill on the left: a task you do again and again, in plain steps.</p></section>;
+  if (!skills.open) return <section className="skills-page empty" aria-label="Skills"><p className="note-empty">No skill is open.</p></section>;
   const name = skills.open.name;
   return (
     <section className="skills-page" aria-label="Skills">
-      <header className="skill-head">
-        <h2>/{name}</h2>
-        <span className="photo-meta">{`Version ${skills.open.version}${skills.saved ? '' : ' · Saving…'}`}</span>
-        <span className="code-head-actions">
-          <button type="button" className="btn" onClick={() => void skills.remove()}>Delete</button>
-          <button type="button" className="btn primary" onClick={() => onRun(name)}>Run</button>
-        </span>
-      </header>
+      <h2 className="sr-only">/{name}</h2>
       {skills.message && <p className="tasks-message" role="alert">{skills.message}</p>}
       {changedRows.length > 0 && (
         <div className="skill-review" role="group" aria-label="Mobius's change">
@@ -166,7 +106,7 @@ export function SkillEditor({ skills, review, onRun }: { skills: SkillsState; re
             {[...skills.open.versions].reverse().map((v) => (
               <li key={v.version} className="skill-version">
                 <span>v{v.version}</span>
-                <span className="photo-meta">{new Date(v.modified).toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                <span className="photo-meta">{dateTimeLabel(v.modified)}</span>
                 <button type="button" className="btn" aria-label={`Restore version ${v.version}`} onClick={() => void skills.restore(v.version)}>Restore</button>
               </li>
             ))}

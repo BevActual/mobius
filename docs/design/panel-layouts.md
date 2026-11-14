@@ -2,8 +2,8 @@
 
 Decided 2026-11-13. This page says what the frame is in every app, what a view and a panel are, and where each
 app's panels sit when it is first opened. The values the frame is painted with are in
-[Theme tokens](theme-tokens.md). It replaces the parts of [Workspace layout](workspace-layout.md) that describe the
-sidebar, the toolbar and where Mobius opens.
+[Theme tokens](theme-tokens.md). [Workspace layout](workspace-layout.md) and [Design rules](rules.md) give the frame
+and the rules; this page adds the detail the Builder needs.
 
 ## The five zones
 

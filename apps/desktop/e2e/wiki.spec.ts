@@ -43,7 +43,7 @@ test('How I work is what Mobius remembers: what it learned is dashed until Keep,
   await start();
   await openWiki();
   const page = shell().getByRole('region', { name: 'How I work' });
-  await expect(page).toContainText('Only you and your Mobius see this page.');
+  await expect(page.getByRole('img', { name: /Only you and your Mobius see this page\./ })).toBeVisible();
   const learned = page.getByRole('listitem', { name: 'Answers mail in the morning, Mobius learned this' });
   await expect(learned).toHaveAttribute('data-proposed');
   await expect(learned).toContainText('Mobius learned this · Mail');
@@ -127,7 +127,7 @@ test('in How I work a line can be added with its kind, changed and forgotten, in
   await expect(lines.getByRole('listitem', { name: 'Likes boutique hotels' })).toContainText('From Browser, June');
   await page.getByRole('textbox', { name: 'Add a line' }).fill('Ana and Ken fly from London');
   await page.getByRole('combobox', { name: 'Kind of line' }).selectOption('people');
-  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
   await expect.poll(() => fs.readFileSync(memory(), 'utf8')).toContain('- Ana and Ken fly from London <!-- people · you added it -->');
   await lines.getByRole('listitem', { name: 'Rui runs the terrace venue' }).getByRole('button', { name: 'Edit' }).click();
   await page.getByRole('textbox', { name: 'Line', exact: true }).fill('Rui runs the terrace venue; prefers email');

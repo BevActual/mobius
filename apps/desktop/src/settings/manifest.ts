@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'advanced' | 'about';
+export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -33,7 +33,7 @@ const SECTIONS: readonly SettingsSection[] = [
     label: 'Appearance',
     description: 'How Mobius looks.',
     subpages: [
-      { id: 'theme', label: 'Theme', rows: [row('theme', 'Theme', 'Follow the system, or always use light or dark.', 'color', 'colour', 'mode', 'dark', 'light', 'night')] },
+      { id: 'theme', label: 'Theme', rows: [row('theme', 'Theme', 'Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark.', 'color', 'colour', 'mode', 'dark', 'light', 'night', 'grey', 'gray', 'mid', 'cool')] },
       { id: 'typography', label: 'Typography', rows: [
         row('ui-zoom', 'Interface zoom', 'Make everything in the window larger or smaller.', 'scale', 'zoom', 'bigger', 'smaller', 'size'),
         row('chat-text', 'Conversation text size', 'The size of text in the agent panel.', 'font', 'chat', 'text', 'size', 'bigger', 'smaller'),
@@ -45,8 +45,8 @@ const SECTIONS: readonly SettingsSection[] = [
         row('left-sidebar', 'Tab and conversation list', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'left'),
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
         row('sidebar-size', 'Sidebar sizes', 'Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
-        row('agent-place', 'Where Mobius opens', 'In the sidebar, which turns into Mobius, or pinned beside the page.', 'mobius', 'sidebar', 'beside', 'pin', 'panel', 'right', 'agent panel', 'morph'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),
+        row('key-hints', 'Key hints', 'A small bar under lists with their most useful keys. It hides itself once you use them.', 'keyboard', 'shortcuts', 'keys', 'hints', 'hint bar'),
       ] },
       { id: 'chat-display', label: 'Conversation', rows: [
         row('text-direction', 'Text direction', 'Left to right, right to left, or decided by each message.', 'rtl', 'ltr', 'right to left', 'left to right', 'arabic', 'hebrew', 'bidi', 'direction'),
@@ -123,6 +123,24 @@ const SECTIONS: readonly SettingsSection[] = [
         row('keep-history', 'Keep browsing history', 'Remember the pages you visit, on this computer only.', 'browsing history', 'remember', 'pages visited', 'privacy', 'off'),
         row('history-list', 'Pages you visited', 'Search the pages you visited, remove one, or clear them all.', 'browsing history', 'clear history', 'search history', 'delete', 'visited'),
       ] },
+    ],
+  },
+  // Mail: its accounts live here, so the Mail app's sidebar holds only mail.
+  {
+    id: 'mail',
+    label: 'Mail',
+    description: 'The accounts Mail reads and sends from.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('mail-accounts', 'Mail accounts', 'Add a mail account, or remove one. Its mail stays with your provider.', 'email', 'imap', 'smtp', 'icloud', 'gmail', 'fastmail', 'yahoo', 'app password', 'add account', 'remove account')] },
+    ],
+  },
+  // Calendar: its accounts live here, so the Calendar app's sidebar holds only calendars.
+  {
+    id: 'calendar',
+    label: 'Calendar',
+    description: 'The calendars Calendar reads from elsewhere.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('calendar-accounts', 'Calendar accounts', 'Subscribe to a calendar link, or connect iCloud, Fastmail or Nextcloud. Refresh or remove one.', 'calendar', 'caldav', 'subscribe', 'webcal', 'ics', 'icloud', 'fastmail', 'nextcloud', 'google calendar', 'outlook', 'add account', 'remove account', 'refresh')] },
     ],
   },
   {
@@ -206,6 +224,20 @@ const SECTIONS: readonly SettingsSection[] = [
     ],
   },
   {
+    id: 'usage',
+    label: 'Usage',
+    description: 'Tokens used and what they may have cost, by day.',
+    keywords: ['cost', 'spend', 'billing', 'tokens', 'money', 'price'],
+    subpages: [{ id: 'usage', label: 'Usage', rows: [
+      row('usage-period', 'Period', 'Which days to show: the last 7, 30 or 90 days, or this month.', 'days', 'week', 'month', 'range'),
+      row('usage-summary', 'Totals', 'Tokens, estimated cost and requests for the period.', 'tokens', 'cost', 'spend', 'total', 'money', 'billing'),
+      row('usage-chart', 'Tokens by day', 'How many tokens each day used.', 'chart', 'daily', 'graph'),
+      row('usage-breakdown', 'Breakdown', 'The period by model, service or app.', 'by model', 'by app', 'by service', 'gateway', 'provider', 'cost per model'),
+      row('usage-export', 'Export', 'Every day, service, model and app as CSV.', 'csv', 'spreadsheet', 'download', 'copy', 'excel'),
+      row('usage-clear', 'Clear usage', 'Forget every count kept so far.', 'reset', 'delete', 'forget'),
+    ] }],
+  },
+  {
     id: 'voice',
     label: 'Voice',
     description: 'Who listens when you dictate, and who speaks answers aloud. Each has its own service and a fallback.',
@@ -266,9 +298,9 @@ const SECTIONS: readonly SettingsSection[] = [
 /** The sidebar's order, under its headings, as in System Settings. */
 const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
-  ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'],
+  ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 

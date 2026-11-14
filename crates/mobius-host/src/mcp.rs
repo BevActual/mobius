@@ -69,3 +69,69 @@ impl McpState {
         }
     }
 }
+
+/// The servers listed in mcp.json now, by name; none when there is no file or it cannot be used.
+pub fn configured(config: &std::path::Path) -> Vec<String> {
+    std::fs::read_to_string(config).ok().and_then(|t| mobius_mcp::config::parse(&t).ok()).map(|s| s.into_keys().collect()).unwrap_or_default()
+}
+
+/// The file as it is, or a new one with no servers. A file that is not JSON is never overwritten.
+fn read_root(config: &std::path::Path) -> Result<Value, String> {
+    match std::fs::read_to_string(config) {
+        Ok(text) => {
+            let root: Value = serde_json::from_str(&text).map_err(|_| "mcp.json is not valid JSON, so it was left as it is. Fix it in the data folder first.".to_owned())?;
+            if !root.is_object() {
+                return Err("mcp.json is not a JSON object, so it was left as it is.".into());
+            }
+            Ok(root)
+        }
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(json!({ "servers": {} })),
+        Err(_) => Err("mcp.json could not be read".into()),
+    }
+}
+
+/// Write the file only if Mobius can start everything in it, keeping whatever else it holds.
+fn write_root(config: &std::path::Path, root: &Value) -> Result<(), String> {
+    let text = serde_json::to_string_pretty(root).map_err(|e| e.to_string())?;
+    mobius_mcp::config::parse(&text)?;
+    let tmp = config.with_extension("json.tmp");
+    std::fs::write(&tmp, format!("{text}\n")).map_err(|_| "mcp.json could not be written".to_owned())?;
+    std::fs::rename(&tmp, config).map_err(|_| "mcp.json could not be written".to_owned())
+}
+
+/// Add a server to mcp.json (Abilities › Add a Connector). It starts the next time Mobius opens.
+pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[String], env: &serde_json::Map<String, Value>) -> Result<(), String> {
+    if !mobius_mcp::config::is_server_name(name) {
+        return Err("Use a short name in lowercase letters, digits and _, starting with a letter (such as github).".into());
+    }
+    if command.trim().is_empty() {
+        return Err("Give the command that runs the server.".into());
+    }
+    let mut root = read_root(config)?;
+    let Some(object) = root.as_object_mut() else { return Err("mcp.json is not a JSON object, so it was left as it is.".into()) };
+    let servers = object.entry("servers").or_insert_with(|| json!({}));
+    let Some(servers) = servers.as_object_mut() else { return Err("mcp.json's \"servers\" is not an object, so it was left as it is.".into()) };
+    if servers.contains_key(name) {
+        return Err(format!("There is already a connector called {name}."));
+    }
+    let mut entry = serde_json::Map::new();
+    entry.insert("command".into(), json!(command.trim()));
+    if !args.is_empty() {
+        entry.insert("args".into(), json!(args));
+    }
+    if !env.is_empty() {
+        entry.insert("env".into(), Value::Object(env.clone()));
+    }
+    servers.insert(name.to_owned(), Value::Object(entry));
+    write_root(config, &root)
+}
+
+/// Take a server out of mcp.json, giving back its entry so it can be put back (Undo). A server that is running stops
+/// the next time Mobius opens.
+pub fn remove_server(config: &std::path::Path, name: &str) -> Result<Value, String> {
+    let mut root = read_root(config)?;
+    let removed = root.get_mut("servers").and_then(Value::as_object_mut).and_then(|s| s.remove(name));
+    let Some(entry) = removed else { return Err(format!("There is no connector called {name} in mcp.json.")) };
+    write_root(config, &root)?;
+    Ok(entry)
+}

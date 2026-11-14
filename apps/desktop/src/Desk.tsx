@@ -3,15 +3,13 @@ import type { AgentWaiting, ConversationInfo, ScheduleInfo } from '@mobius/share
 import type { Activity } from './activity';
 import { describeAction } from './actions';
 import { appName, type AppId } from './apps';
+import type { DeskRow } from './desk-apps';
+import type { HubTarget } from './search-hub';
 import { agoLabel, deskGreeting, deskTitle, recent, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
 import './desk.css';
 
-export interface DeskRow {
-  app: AppId;
-  /** What is there, in a few words ("3 due today"). */
-  text: string;
-}
+export type { DeskRow } from './desk-apps';
 
 interface Props {
   /** What is open or due in each app right now. Apps with nothing to say are left out. */
@@ -21,6 +19,8 @@ interface Props {
   activity: Activity | null;
   conversations: readonly ConversationInfo[];
   onOpenApp: (app: AppId) => void;
+  /** Opens the thing a row names (an event's day, a task's list, a page, a message). */
+  onOpenTarget?: (target: HubTarget) => void;
   onOpenConversation: (id: string) => void;
   /** Settings › Schedules, for a row under Next. */
   onOpenSchedules?: () => void;
@@ -57,7 +57,8 @@ function useSchedules(): ScheduleInfo[] {
   return list;
 }
 
-const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="true" style={{ background: `var(--app-${app})` }}>{APP_ICONS[app]}</svg>;
+/** An app is known by its line icon, never a coloured tile. */
+const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph" data-app={app}>{APP_ICONS[app]}</svg>;
 
 /**
  * The desk: the Agent app's home, where an empty conversation used to show nothing. One greeting with the date and what
@@ -65,7 +66,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then the conversations to pick up again; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenConversation, onOpenSchedules, starters, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -120,7 +121,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {earlier.length > 0 && (
         <div className="desk-group" role="group" aria-label="Recent">
           <h3 className="desk-head">Recent</h3>
-          <ul className="desk-rows" data-columns>
+          <ul className="desk-rows">
             {earlier.map((c) => (
               <li key={c.id}>
                 <button type="button" className="desk-row" aria-label={`${name(c)}, ${agoLabel(c.updated_ms, now)}`} onClick={() => onOpenConversation(c.id)}>
@@ -136,12 +137,13 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {apps.length > 0 && (
         <div className="desk-group" role="group" aria-label="In your apps">
           <h3 className="desk-head">In your apps</h3>
-          <ul className="desk-rows" data-columns>
-            {apps.map(({ app, text }) => (
+          <ul className="desk-rows">
+            {apps.map(({ app, item, text, target }) => (
               <li key={app}>
-                <button type="button" className="desk-row" data-changed={changed.has(app) || undefined} onClick={() => onOpenApp(app)}>
+                <button type="button" className="desk-row" data-changed={changed.has(app) || undefined} onClick={() => (target && onOpenTarget ? onOpenTarget(target) : onOpenApp(app))}>
                   <Icon app={app} />
                   <span className="desk-name">{appName(app)}</span>
+                  {item && <span className="desk-item" title={item}>{item}</span>}
                   <span className="desk-text">{changed.has(app) && text !== 'Changed by Mobius' ? `${text} · changed by Mobius` : text}</span>
                 </button>
               </li>
@@ -152,7 +154,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
       {next.length > 0 && (
         <div className="desk-group" role="group" aria-label="Next">
           <h3 className="desk-head">Next</h3>
-          <ul className="desk-rows" data-columns>
+          <ul className="desk-rows">
             {next.map(({ schedule, at }) => (
               <li key={schedule.id}>
                 <button type="button" className="desk-row" onClick={onOpenSchedules} disabled={!onOpenSchedules}>

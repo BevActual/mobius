@@ -1,6 +1,7 @@
 import { Menu as Base } from '@base-ui/react/menu';
 import { useCallback, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { growFrom, morphOut } from '../motion';
+import { KeyCaps } from './Tooltip';
 
 /**
  * Menus for every app, built on Base UI so keyboard, focus, typeahead, screen readers and keeping inside the window
@@ -19,30 +20,58 @@ export interface MenuEntry {
   disabled?: boolean;
   /** A line before this row. */
   separated?: boolean;
+  /** A row that is on or off (a panel shown or hidden): a tick when on. */
+  checked?: boolean;
 }
 
-/** Open state that waits for the closing morph before the menu really goes, then runs what was chosen. */
+/**
+ * A copy of a closing menu that fades where the menu was, so the menu itself can go at once: the row that was chosen
+ * runs straight away and what the person types next reaches where it sends them, not the fading menu.
+ */
+function fadeCopy(node: HTMLElement | null) {
+  if (!node || typeof document === 'undefined') return;
+  const box = node.getBoundingClientRect();
+  if (!box.width || !box.height) return;
+  const copy = node.cloneNode(true) as HTMLElement;
+  copy.removeAttribute('id');
+  copy.querySelectorAll('[id]').forEach((el) => el.removeAttribute('id'));
+  copy.setAttribute('aria-hidden', 'true');
+  copy.inert = true;
+  Object.assign(copy.style, { position: 'fixed', left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px`, margin: '0', pointerEvents: 'none', zIndex: '2147483000' });
+  document.body.appendChild(copy);
+  void morphOut(copy, 'left').then(() => copy.remove());
+}
+
+/**
+ * Open state for a menu. Escape or a click elsewhere waits for the closing morph before the menu really goes; choosing
+ * a row closes it at once (a copy fades in its place), then `onClosed` is called and the row runs.
+ */
 function useMorphingOpen(initial: boolean, onClosed?: () => void) {
   const [open, setOpen] = useState(initial);
   const popup = useRef<HTMLElement | null>(null);
   const closing = useRef(false);
-  const then = useRef<(() => void) | undefined>(undefined);
   // When a row was chosen, focus is left where that row puts it (a field to rename, a button to confirm); otherwise
   // it goes back to what had it before the menu opened.
   const chose = useRef(false);
   const finalFocus = useCallback(() => !chose.current, []);
   const close = useCallback((after?: () => void) => {
-    if (after) then.current = after;
-    chose.current = Boolean(after) || chose.current;
+    if (after) {
+      if (chose.current) return;
+      chose.current = true;
+      closing.current = true;
+      fadeCopy(popup.current);
+      setOpen(false);
+      onClosed?.();
+      after();
+      return;
+    }
     if (closing.current) return;
     closing.current = true;
     if (popup.current) popup.current.style.pointerEvents = 'none';
     void morphOut(popup.current, 'left').then(() => {
+      if (chose.current) return;
       setOpen(false);
       onClosed?.();
-      const run = then.current;
-      then.current = undefined;
-      run?.();
     });
   }, [onClosed]);
   const show = useCallback(() => { closing.current = false; chose.current = false; setOpen(true); }, []);
@@ -54,8 +83,25 @@ function useMorphingOpen(initial: boolean, onClosed?: () => void) {
   return { open, show, close, popupRef, finalFocus };
 }
 
+const TICK = <svg className="ui-menu-icon ui-menu-tick" viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" /></svg>;
+
 function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: () => void) => void }) {
-  return entries.map((entry, i) => (
+  return entries.map((entry, i) => entry.checked !== undefined ? (
+    <Base.CheckboxItem
+      key={`${entry.label}-${i}`}
+      className="ui-menu-item"
+      label={entry.label}
+      disabled={entry.disabled}
+      closeOnClick={false}
+      checked={entry.checked}
+      data-separated={entry.separated || undefined}
+      onClick={() => pick(entry.run)}
+    >
+      {entry.checked ? TICK : <span className="ui-menu-icon" aria-hidden="true" />}
+      <span className="ui-menu-label">{entry.label}</span>
+      {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
+    </Base.CheckboxItem>
+  ) : (
     <Base.Item
       key={`${entry.label}-${i}`}
       className="ui-menu-item"
@@ -68,7 +114,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     >
       {entry.icon ?? <span className="ui-menu-icon" aria-hidden="true" />}
       <span className="ui-menu-label">{entry.label}</span>
-      {entry.keys && <kbd className="ui-menu-keys">{entry.keys}</kbd>}
+      {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.Item>
   ));
 }

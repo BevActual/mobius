@@ -25,6 +25,10 @@ test.afterEach(async () => {
 });
 
 const shell = () => mobius!.shell;
+/** The toolbar's title: the open folder's name. */
+const title = () => shell().locator('.strip-title');
+/** Files' own controls, in the toolbar. */
+const tools = () => shell().getByRole('group', { name: 'Files' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
@@ -40,11 +44,30 @@ async function openFiles(): Promise<void> {
 test('Files shows the workspace as a drive, folder by folder, and a file opens in its app', async () => {
   await start();
   await openFiles();
-  const page = shell().getByRole('region', { name: 'Files' });
-  await page.getByRole('button', { name: 'notes', exact: true }).click();
-  await page.getByRole('button', { name: 'Work', exact: true }).click();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  // As in Finder: a click selects, a double-click opens.
+  const notes = page.getByRole('row', { name: 'notes', exact: true });
+  await notes.click();
+  await expect(notes).toHaveAttribute('aria-selected', 'true');
+  await expect(notes).toContainText('Notes folder');
+  await notes.dblclick();
+  await expect(title()).toHaveText('Notes');
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
   await expect(page.getByRole('navigation', { name: 'Folder' })).toHaveText('Workspace › notes › Work');
-  await page.getByRole('button', { name: 'Plan.md', exact: true }).click();
+  // Back and Forward, in the toolbar, walk the folders visited; the sidebar lists the workspace's folders.
+  await tools().getByRole('button', { name: 'Back' }).click();
+  await expect(title()).toHaveText('Notes');
+  await tools().getByRole('button', { name: 'Forward' }).click();
+  await expect(title()).toHaveText('Work');
+  await expect(shell().getByRole('complementary', { name: 'Files sidebar' }).getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
+  // The sidebar's search narrows the folder; the keyboard selects and opens.
+  await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('nothing like it');
+  await expect(page).toContainText('Nothing here matches');
+  await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('pla');
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await expect(plan).toContainText('Note');
+  await plan.press('Enter');
   await expect(shell().getByRole('region', { name: 'Note: Plan' })).toBeVisible();
 });
 
@@ -60,18 +83,142 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('I wrote a brief');
   await openFiles();
-  const side = shell().getByRole('navigation', { name: 'Files' });
+  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
-  const made = shell().getByRole('region', { name: 'Made by Mobius' });
-  await expect(made.getByRole('button', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
+  const made = shell().getByRole('region', { name: 'Made by Mobius', exact: true });
+  await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: 'Workspace' }).click();
-  const page = shell().getByRole('region', { name: 'Files' });
-  await expect(page.getByRole('button', { name: 'notes, from Mobius' })).toBeVisible();
-  await page.getByRole('button', { name: 'notes, from Mobius' }).click();
-  await page.getByRole('button', { name: 'Work, from Mobius' }).click();
-  await expect(page.getByRole('button', { name: 'Brief.md, from Mobius' })).toBeVisible();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  // A folder holding something from Mobius has an indigo dot, here and in the sidebar until it is looked in.
+  await expect(page.getByRole('row', { name: 'notes, from Mobius' }).getByRole('img', { name: '1 from Mobius' })).toBeVisible();
+  const notesSide = side.getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' });
+  await expect(notesSide).toHaveAttribute('data-proposed', 'true');
+  await page.getByRole('row', { name: 'notes, from Mobius' }).dblclick();
+  await expect(notesSide).not.toHaveAttribute('data-proposed', 'true');
+  await page.getByRole('row', { name: 'Work, from Mobius' }).dblclick();
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
   await made.getByRole('group', { name: "Mobius's change" }).getByRole('button', { name: 'Keep' }).click();
   await expect(made).toContainText('Nothing is waiting');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toContain('From Mobius.');
+});
+
+test('a new folder is named in place, a file renamed with F2, and Delete moves it to the Trash with Undo', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await tools().getByRole('button', { name: 'New folder' }).click();
+  const naming = page.getByRole('textbox', { name: 'New name for New folder' });
+  await naming.fill('Battery');
+  await naming.press('Enter');
+  await expect(page.getByRole('row', { name: 'Battery', exact: true })).toBeVisible();
+  expect(fs.statSync(path.join(userData, 'workspace', 'notes', 'Work', 'Battery')).isDirectory()).toBe(true);
+
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await plan.press('F2');
+  const renaming = page.getByRole('textbox', { name: 'New name for Plan.md' });
+  await renaming.fill('Build plan.md');
+  await renaming.press('Enter');
+  const renamed = page.getByRole('row', { name: 'Build plan.md', exact: true });
+  await expect(renamed).toBeVisible();
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'))).toBe(true);
+
+  await renamed.click();
+  await renamed.press('Delete');
+  await expect(page.getByRole('status')).toContainText('Moved “Build plan.md” to the Trash');
+  await expect(renamed).toHaveCount(0);
+  expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'))).toBe(false);
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(renamed).toBeVisible();
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Build plan.md'), 'utf8')).toBe('# Plan\n');
+
+  // An app's own folder cannot be renamed or thrown away from Files.
+  await tools().getByRole('button', { name: 'Back' }).click();
+  await tools().getByRole('button', { name: 'Back' }).click();
+  await page.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+  const menu = shell().getByRole('menu', { name: 'notes' });
+  await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeVisible();
+  await expect(menu.getByRole('menuitem', { name: /Rename|Move to Trash/ })).toHaveCount(0);
+});
+
+test('a file dragged onto a folder moves into it with Undo, and Cut and Paste move one too', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await tools().getByRole('button', { name: 'New folder' }).click();
+  const naming = page.getByRole('textbox', { name: 'New name for New folder' });
+  await naming.fill('Archive');
+  await naming.press('Enter');
+  const work = path.join(userData, 'workspace', 'notes', 'Work');
+
+  // The drag as the webview sees it: start on the file, hover the folder, drop.
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  const archive = page.getByRole('row', { name: 'Archive', exact: true });
+  const dataTransfer = await shell().evaluateHandle(() => new DataTransfer());
+  await plan.dispatchEvent('dragstart', { dataTransfer });
+  await archive.dispatchEvent('dragover', { dataTransfer });
+  await expect(archive).toHaveAttribute('data-drop', 'true');
+  await archive.dispatchEvent('drop', { dataTransfer });
+  await expect(page.getByRole('status')).toContainText('Moved “Plan.md” to Archive');
+  await expect(plan).toHaveCount(0);
+  expect(fs.readFileSync(path.join(work, 'Archive', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect(plan).toBeVisible();
+  expect(fs.existsSync(path.join(work, 'Plan.md'))).toBe(true);
+
+  // Cut here, Paste in the folder above.
+  await plan.click();
+  await plan.press('Control+x');
+  await expect(plan).toHaveAttribute('data-cut', 'true');
+  await page.getByRole('navigation', { name: 'Folder' }).getByRole('button', { name: 'notes' }).click();
+  const workRow = page.getByRole('row', { name: 'Work', exact: true });
+  await workRow.click();
+  await workRow.press('Control+v');
+  await expect(page.getByRole('row', { name: 'Plan.md', exact: true })).toBeVisible();
+  await expect(page.getByRole('status')).toContainText('Moved “Plan.md” to Notes');
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+});
+
+test('the Trash lists what was trashed and where it was, puts it back there, and empties only after asking', async () => {
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
+  await plan.click();
+  await plan.press('Delete');
+  await expect(plan).toHaveCount(0);
+
+  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await expect(title()).toHaveText('Trash');
+  const trash = shell().getByRole('region', { name: 'Trash', exact: true });
+  const held = trash.getByRole('row', { name: 'Plan.md', exact: true });
+  await expect(held).toContainText('Notes › Work');
+  await held.click();
+  await tools().getByRole('button', { name: 'Put Back' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'), 'utf8')).toBe('# Plan\n');
+
+  // Gone for good only after saying so: Cancel keeps it, Delete empties the Trash.
+  await side.getByRole('button', { name: 'Workspace' }).click();
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).click();
+  await page.getByRole('row', { name: 'Plan.md', exact: true }).press('Delete');
+  await side.getByRole('button', { name: 'Trash', exact: true }).click();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  const ask = trash.getByRole('alertdialog', { name: 'Delete for good?' });
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await expect(trash.getByRole('row', { name: 'Plan.md', exact: true })).toBeVisible();
+  await tools().getByRole('button', { name: 'Empty Trash…' }).click();
+  await ask.getByRole('button', { name: 'Delete' }).click();
+  await expect(trash).toContainText('The Trash is empty');
+  expect(fs.readdirSync(path.join(userData, 'workspace', '.trash')).filter((n) => !n.startsWith('.'))).toEqual([]);
 });

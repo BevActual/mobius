@@ -2,36 +2,35 @@
    handles on all sides, pink guides while moving, and an inspector in titled sections. Rules sit under .design-page so
    they win over the older ones in styles.css. */
 
-.design-page .design-bar { gap: 8px; padding: 6px 10px; border-bottom: 0.5px solid var(--line); background: var(--bg); }
-.design-page .design-tools { display: flex; align-items: center; gap: 2px; padding: 2px; border-radius: 9px; background: var(--field); }
-.design-page .design-tool { width: 32px; height: 28px; display: grid; place-items: center; border-radius: 7px; color: var(--ink); }
-.design-page .design-tool svg, .design-page .design-zoombox svg, .design-page .design-align svg, .design-page .design-segment svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.design-page .design-tool:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.design-page .design-tool[aria-pressed="true"] { background: var(--bg); color: var(--accent); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); }
-.design-page .design-tool:disabled { opacity: 0.35; }
-.design-page .design-tools-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
-.design-page .design-tool-hint { font-size: var(--fs-sm); color: var(--accent); }
-.design-page .design-zoombox { display: flex; align-items: center; gap: 0; padding: 2px; border-radius: 9px; background: var(--field); }
-.design-page .design-zoombox .strip-btn { min-width: 28px; height: 26px; }
-.design-page .design-zoom { min-width: 52px; height: 26px; border-radius: 6px; font-size: var(--fs-sm); color: var(--ink); font-variant-numeric: tabular-nums; }
-.design-page .design-zoom:hover { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.design-page .design-bar > .btn { height: 30px; }
+/* The tools sit in the window's toolbar (its middle), as bare icons in groups split by a hairline, like Mail's. */
+.design-tools { display: flex; align-items: center; gap: var(--sp-2); }
+.design-tools-group { display: inline-flex; align-items: center; gap: 2px; }
+.design-tools-group + .design-tools-group { padding-left: var(--sp-2); border-left: 1px solid var(--line); }
+.design-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
+.design-tools .strip-btn:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
+.design-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.design-tools .design-tool[aria-pressed="true"] { background: var(--soft); color: var(--ink); }
+.design-tools .design-tool:disabled { opacity: 0.35; }
+.design-zoom { min-width: 48px; height: 28px; padding: 0 4px; border: 0; border-radius: var(--radius-control); background: none; font: inherit; font-size: var(--fs-sm); color: var(--body, var(--ink)); font-variant-numeric: tabular-nums; }
+.design-zoom:hover { background: var(--soft); color: var(--ink); }
+.design-page .design-tool-hint { position: absolute; z-index: 3; left: 50%; bottom: var(--sp-3); transform: translateX(-50%); padding: 4px 10px; border-radius: var(--radius-control); background: var(--bg); box-shadow: 0 0 0 var(--hairline-w) var(--line); font-size: var(--fs-sm); color: var(--muted); pointer-events: none; white-space: nowrap; }
+.design-page .design-align svg, .design-page .design-segment svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Layers */
-.design-page .design-body { grid-template-columns: 200px 1fr 252px; }
-.design-page .design-layers, .design-page .design-inspector { background: var(--bg); }
+.design-page .design-body { height: 100%; grid-template-columns: 184px 1fr; }
+.design-page .design-layers { background: var(--bg); }
 .design-page .design-layers { border-right: 0.5px solid var(--line); }
-.design-page .design-inspector { border-left: 0.5px solid var(--line); gap: 10px; padding: 10px; }
+.design-inspector { display: flex; flex-direction: column; gap: 10px; padding: 10px; overflow-x: hidden; }
 .design-page .design-layer { height: 26px; gap: 6px; font-size: var(--fs-sm); color: var(--ink); }
 .design-page .design-layer[data-frame] { font-weight: 600; }
-.design-page .design-layer[aria-current] { background: var(--accent); color: var(--on-accent, #fff); }
+.design-page .design-layer[aria-current] { background: var(--soft); color: var(--ink); }
 .design-page .design-layer[aria-current] .design-layer-kind { color: inherit; }
 .design-page .design-layer-kind { width: 16px; display: grid; place-items: center; }
 .design-page .design-layer-kind svg { width: 13px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .design-page .design-rename { width: 100%; height: 26px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--accent); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
 
 /* Canvas */
-.design-page .design-view { cursor: default; background-color: color-mix(in srgb, var(--ink) 4%, var(--bg)); background-image: radial-gradient(color-mix(in srgb, var(--ink) 14%, transparent) 1px, transparent 1px); background-size: 20px 20px; }
+.design-page .design-view { position: relative; cursor: default; background-color: var(--bg); background-image: radial-gradient(var(--line) 1px, transparent 1px); background-size: 20px 20px; }
 .design-page .design-view[data-tool]:not([data-tool="move"]) { cursor: crosshair; }
 .design-page .design-view[data-panning] { cursor: grab; }
 .design-page .design-view:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 40%, transparent); }
@@ -94,7 +93,7 @@
 .design-page .design-layer-row { display: flex; align-items: center; border-radius: 6px; }
 .design-page .design-layer-row .design-layer { flex: 1; min-width: 0; background: none; }
 .design-page .design-layer-row:hover { background: color-mix(in srgb, var(--ink) 6%, transparent); }
-.design-page .design-layer-row[aria-current] { background: var(--accent); color: var(--on-accent, #fff); }
+.design-page .design-layer-row[aria-current] { background: var(--soft); color: var(--ink); }
 .design-page .design-layer-row[aria-current] .design-layer { color: inherit; }
 .design-page .design-layer-row[data-hidden] .design-layer { opacity: 0.45; }
 .design-page .design-layer-name { overflow: hidden; text-overflow: ellipsis; }
@@ -119,3 +118,14 @@
 .design-page .design-layers li[data-drop="true"] > .design-layer { box-shadow: inset 0 0 0 1.5px var(--accent); }
 .design-page .design-export { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
 .design-page .design-export .design-segment button { font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+
+/* Components: their frames and copies are marked in purple in the layer list, as in Figma; a copy draws the component. */
+.design-page .design-layer-kind[data-component] { color: #af52de; }
+.design-page .design-layer-row[aria-current] .design-layer-kind[data-component], .design-page .design-layer[aria-current] .design-layer-kind[data-component] { color: inherit; }
+.design-page .design-node[data-type="instance"] { overflow: visible; }
+.design-page .design-copy { position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none; overflow: hidden; }
+.design-page .design-copy-missing { position: absolute; inset: 0; display: grid; place-items: center; border: 1px dashed var(--danger); color: var(--danger); font-size: 12px; }
+
+/* The page under the shell's panel layout: the canvas fills the content, the inspector sits in the right dock. */
+.design-page > .ui-panels { flex: 1; min-height: 0; height: auto; }
+.design-page .design-inspector { border-left: 0; background: none; }

@@ -65,7 +65,11 @@ impl TurnHistory {
             start: start.to_owned(),
             end: None,
             when: now_ms(),
+            // A suggestion's hidden steps (after "<steps>", see withSteps in the shared package) are not what was asked.
             ask: ask
+                .split("\n\n<steps>\n")
+                .next()
+                .unwrap_or(ask)
                 .split_whitespace()
                 .collect::<Vec<_>>()
                 .join(" ")
@@ -218,6 +222,9 @@ mod tests {
             again.find("c1", "aaaa").unwrap().ask,
             "Add a task for Friday"
         );
+        // A suggestion's hidden steps are not part of what was asked.
+        h.started("c3", "dddd", "Take care of this\n\n<steps>\nTake care of the attached email.\n</steps>");
+        assert_eq!(h.turns("c3")[0].ask, "Take care of this");
         for i in 0..40 {
             h.started("c2", &format!("{i:04}"), "x");
         }

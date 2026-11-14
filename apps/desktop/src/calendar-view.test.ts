@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
-import { dayLabel, parseDayText, parseTimeText, allDayOn, clock, daysFor, dragged, draftEnd, movedByDays, eventsOn, heading, isoDay, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { setLocaleForTests } from './dates';
+import { dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -18,6 +19,14 @@ describe('the days on screen', () => {
     expect(daysFor('day', day('2026-11-20')).map(isoDay)).toEqual(['2026-11-20']);
   });
 
+  it('numbers weeks as ISO does, Monday to Sunday', () => {
+    expect(isoWeek(new Date(2026, 10, 12))).toBe(46);
+    expect(isoWeek(new Date(2026, 10, 15))).toBe(46);
+    expect(isoWeek(new Date(2026, 10, 16))).toBe(47);
+    expect(isoWeek(new Date(2027, 0, 1))).toBe(53);
+    expect(isoWeek(new Date(2026, 0, 1))).toBe(1);
+  });
+
   it('steps by a day, a week or a month, keeping to real dates', () => {
     expect(isoDay(step('day', day('2026-11-30'), 1))).toBe('2026-12-01');
     expect(isoDay(step('week', day('2026-11-30'), -1))).toBe('2026-11-23');
@@ -32,9 +41,15 @@ describe('the days on screen', () => {
     expect(heading('week', day('2026-12-31'), 'en-GB')).toBe('Dec 2026 – Jan 2027');
   });
 
-  it('shows times on the 24-hour clock', () => {
+  it('shows times as the computer keeps its clock, 24-hour or with AM and PM', () => {
+    setLocaleForTests('en-GB');
     expect(clock('2026-11-12T09:05')).toBe('9:05');
     expect(clock('2026-11-12T13:30')).toBe('13:30');
+    expect(hourLabel(13)).toBe('13:00');
+    setLocaleForTests('en-US');
+    expect(clock('2026-11-12T13:30').replace(/\s/g, ' ')).toBe('1:30 PM');
+    expect(hourLabel(13).replace(/\s/g, ' ')).toBe('1 PM');
+    setLocaleForTests(null);
   });
 });
 
@@ -133,5 +148,48 @@ describe('the event sheet day and time fields', () => {
     expect(parseDayText('fri', now, parseWhen)).toBe('2026-11-13');
     expect(parseDayText(dayLabel('2026-12-03'), now, parseWhen)).toBe('2026-12-03');
     expect(parseDayText('whenever', now, parseWhen)).toBeNull();
+  });
+});
+
+describe('what Mobius changed in a calendar file', () => {
+  const file = (body: string) => `BEGIN:VCALENDAR\r\nVERSION:2.0\r\n${body}END:VCALENDAR\r\n`;
+  const event = (uid: string, title: string, start: string) => `BEGIN:VEVENT\r\nUID:${uid}\r\nDTSTART:${start}\r\nSUMMARY:${title}\r\nBEGIN:VALARM\r\nSUMMARY:Alarm\r\nEND:VALARM\r\nEND:VEVENT\r\n`;
+  const at = (id: string, title: string, start: string, repeats = false): CalendarEvent => ({ ...ev(title, start, start), id, repeats });
+  it('finds events added, moved or renamed, soonest first, and leaves the rest', () => {
+    const before = file(event('a', 'Standup', '20261112T090000') + event('b', 'Lunch\\, with Sam', '20261113T120000') + event('c', 'Gym', '20261114T180000'));
+    const now = [at('c', 'Gym', '2026-11-14T18:00'), at('a', 'Standup', '2026-11-12T10:00'), at('b', 'Lunch, with Sam', '2026-11-13T12:00'), at('d', 'Kickoff', '2026-11-19T09:00')];
+    expect(changedSince(before, now).map((e) => e.id)).toEqual(['a', 'd']);
+    expect(changedSince(before, [at('c', 'Gym class', '2026-11-14T18:00')]).map((e) => e.id)).toEqual(['c']);
+  });
+  it('counts every event in a file the turn made, and a repeating one once', () => {
+    expect(changedSince(null, [at('r', 'Run', '2026-11-12T07:00', true), at('r', 'Run', '2026-11-13T07:00', true)]).map((e) => e.start)).toEqual(['2026-11-12T07:00']);
+    const before = file(event('r', 'Run', '20261101T070000'));
+    expect(changedSince(before, [at('r', 'Run', '2026-11-12T07:00', true)])).toEqual([]);
+  });
+  it('reads folded lines and all-day dates', () => {
+    const before = file('BEGIN:VEVENT\r\nUID:t\r\nDTSTART;VALUE=DATE:20261112\r\nSUMMARY:A long\r\n  trip\r\nEND:VEVENT\r\n');
+    expect(eventsInFile(before).get('t')).toEqual({ title: 'A long trip', start: '20261112' });
+    expect(changedSince(before, [{ ...at('t', 'A long trip', '2026-11-12'), allDay: true }])).toEqual([]);
+  });
+});
+
+describe('searching events', () => {
+  const at = (id: string, title: string, start: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({ ...ev(title, start, start), id, ...extra });
+  const today = day('2026-11-12');
+  it('matches every word in the title, place or notes, each event once at its next time', () => {
+    const events = [
+      at('a', 'Crash test', '2026-11-15T09:00', { location: 'Northfield sled' }),
+      at('r', 'Standup', '2026-11-10T09:30', { repeats: true }), at('r', 'Standup', '2026-11-13T09:30', { repeats: true }), at('r', 'Standup', '2026-11-14T09:30', { repeats: true }),
+      at('b', 'Motor call', '2026-11-11T10:00', { notes: 'Ask Sam about the sled' }),
+      at('c', 'Lunch', '2026-11-12T12:30'),
+    ];
+    expect(searchEvents(events, 'sled', today).map((e) => e.id)).toEqual(['b', 'a']);
+    expect(searchEvents(events, 'SLED north', today).map((e) => e.id)).toEqual(['a']);
+    expect(searchEvents(events, 'standup', today).map((e) => e.start)).toEqual(['2026-11-13T09:30']);
+    expect(searchEvents(events, '  ', today)).toEqual([]);
+  });
+  it('shows a past repeating event by its latest time', () => {
+    const past = [at('r', 'Retro', '2026-10-01T16:00', { repeats: true }), at('r', 'Retro', '2026-10-15T16:00', { repeats: true })];
+    expect(searchEvents(past, 'retro', today).map((e) => e.start)).toEqual(['2026-10-15T16:00']);
   });
 });

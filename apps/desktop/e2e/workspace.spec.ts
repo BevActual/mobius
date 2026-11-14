@@ -25,9 +25,10 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 const rail = (): Locator => shell().getByRole('navigation', { name: 'Apps' });
 const railButton = (name: string): Locator => rail().getByRole('button', { name, exact: true });
-// The sidebar belongs to the open app; its head switches the same column to the list of apps.
-// Waits for the full sidebar to show a face first: just after start it can still be settling.
-const showApps = async (): Promise<void> => { await expect(rail()).toHaveAttribute('data-face', /^(app|apps|mobius)$/); if ((await rail().getAttribute('data-face')) !== 'apps') await rail().locator('[data-app-switcher]').click(); await expect(rail()).toHaveAttribute('data-face', 'apps'); };
+// The apps are always in the rail (zone 1 of the five zones): nothing to open first.
+const showApps = async (): Promise<void> => { await expect(rail()).toBeVisible(); };
+const mobiusButton = (): Locator => shell().locator('.context-strip [data-mobius-face]');
+const leftSide = (): Locator => shell().locator('.dock.left');
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -46,7 +47,7 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   await start();
   await showApps();
   await expect(railButton('Browser')).toHaveAttribute('aria-current', 'page');
-  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Agent', '.chat.full']] as const) {
+  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
     await showApps();
     await railButton(name).click();
     await expect(shell().locator(view)).toBeVisible();
@@ -57,8 +58,8 @@ test('the rail opens every app, shows where you are, and holds Settings', async 
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
-  // The foot holds only the profile: Settings is one of Mobius's apps in the switcher, and closes from there too.
-  await expect(rail().locator('.rail-end').getByRole('button', { name: 'Settings', exact: true })).toHaveCount(0);
+  // Settings is one of Mobius's own apps at the rail's end, and closes from there too.
+  await expect(rail().locator('.rail-end').getByRole('button', { name: 'Settings', exact: true })).toHaveCount(1);
   await showApps();
   await railButton('Settings').click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toHaveCount(0);
@@ -101,7 +102,7 @@ test('asking from Search hands the question to the agent', async () => {
   await shell().getByRole('searchbox', { name: 'Search everything' }).fill('what did I plan for the garden');
   await shell().getByRole('button', { name: /Ask Mobius/ }).click();
   await showApps();
-  await expect(railButton('Agent')).toHaveAttribute('aria-current', 'page');
+  await expect(railButton('Home')).toHaveAttribute('aria-current', 'page');
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Here is what I found.');
 });
 
@@ -191,184 +192,134 @@ test('the app hub shows every app with what is happening in it, starts new thing
   await expect(hub).toBeHidden();
 });
 
-test('the full sidebar is the default: it belongs to the open app, with the apps one press away in its head; folding it to the rail is remembered', async () => {
+test('the rail holds the apps, and the sidebar is its own full-height column that belongs to the open app', async () => {
   seed();
   await start();
-  await expect(rail()).toHaveAttribute('data-expanded', 'true');
-  // The Create button follows the app you are in.
-  await expect(railButton('Create')).toHaveAttribute('title', 'New tab');
-  await expect(rail().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
-  await expect(shell().locator('.body > .dock.left')).toHaveCount(0);
-  await showApps();
+  await expect.poll(async () => Math.round((await rail().boundingBox())!.width)).toBe(52);
+  // The sidebar's head names the app, and its New follows the app you are in.
+  await expect(leftSide().getByRole('heading', { name: 'Browser', exact: true })).toBeVisible();
+  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveAttribute('title', 'New tab');
+  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  // It runs from the top of the window, beside the toolbar, not under it.
+  const side = (await leftSide().boundingBox())!;
+  const bar = (await shell().locator('.context-strip').boundingBox())!;
+  expect(side.y).toBeLessThanOrEqual(bar.y + 1);
+  expect(bar.x).toBeGreaterThanOrEqual(side.x + side.width - 1);
   await railButton('Tasks').click();
   // In Tasks, New is the first row of the app's sidebar (after search), and adding a task the first row of a list, so the
-  // sidebar's own Create button gives way.
-  const lists = rail().getByRole('navigation', { name: 'Lists' });
+  // head's own Create button gives way.
+  const lists = shell().getByRole('navigation', { name: 'Lists' });
   await expect(lists).toBeVisible();
-  await expect(railButton('Create')).toHaveCount(0);
-  await expect(rail().getByRole('complementary', { name: 'Tasks sidebar' }).getByRole('button', { name: 'New list' })).toBeVisible();
+  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Tasks sidebar' }).getByRole('button', { name: 'New list' })).toBeVisible();
   await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
-
-  await railButton('Collapse sidebar').click();
-  await expect(rail()).not.toHaveAttribute('data-expanded');
-  await expect(shell().locator('.body > .dock.left')).toHaveCount(1);
-  // Remembered after a restart.
-  await mobius!.close({ keepUserData: true });
-  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model!.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
-  await expect(composer()).toBeEnabled({ timeout: 15_000 });
-  await expect(rail()).not.toHaveAttribute('data-expanded');
-  await railButton('Expand sidebar').click();
-  await expect(rail()).toHaveAttribute('data-expanded', 'true');
+  // The toolbar's sidebar button hides and shows it; the rail stays.
+  await shell().getByRole('button', { name: 'Show lists' }).click();
+  await expect(leftSide()).toHaveCount(0);
+  await expect(railButton('Tasks')).toHaveAttribute('aria-current', 'page');
+  await shell().getByRole('button', { name: 'Show lists' }).click();
+  await expect(lists).toBeVisible();
 });
 
-test('Mobius can sit in the sidebar: the conversation takes the column, the panel beside the page goes, and it comes back', async () => {
+test('the Mobius button shows and hides Mobius in the right panel, and the sidebar stays the app’s', async () => {
   await start();
-  const face = rail().locator('[data-mobius-face]');
-  await expect(shell().locator('.dock.right')).toHaveCount(1);
+  // The Mobius button is the last thing in the toolbar.
+  const face = mobiusButton();
+  await expect(shell().getByRole('group', { name: 'Applications' }).getByRole('button').last()).toHaveAttribute('data-mobius-face');
+  const beside = shell().locator('.dock.right > .chat');
+  await expect(beside).toBeVisible();
+  await expect(face).toHaveAttribute('aria-pressed', 'true');
   await face.click();
-  await expect(rail()).toHaveAttribute('data-face', 'mobius');
   await expect(shell().locator('.dock.right')).toHaveCount(0);
-  await expect(rail().getByRole('textbox', { name: 'Message Mobius' })).toBeVisible();
-  // The browser's address stays with it.
-  await expect(rail().getByRole('textbox', { name: 'Address or question' })).toBeVisible();
-  // The same button gives the sidebar back to the app; Mobius stays out of the way.
+  await expect(face).toHaveAttribute('aria-pressed', 'false');
   await face.click();
-  await expect(rail()).toHaveAttribute('data-face', 'app');
-  await expect(shell().locator('.dock.right')).toHaveCount(0);
-  await face.click();
-  await rail().getByRole('button', { name: 'Pin beside' }).click();
-  await expect(shell().locator('.dock.right')).toHaveCount(1);
-  await expect(rail()).toHaveAttribute('data-face', 'app');
+  await expect(beside).toBeVisible();
+  await expect(composer()).toBeFocused();
+  // The sidebar stays the app's own.
+  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  await expect(leftSide().getByRole('textbox', { name: 'Message Mobius' })).toHaveCount(0);
 });
 
-test('a narrow window folds the sidebar to the rail without changing the choice', async () => {
-  await start();
-  await expect(rail()).toHaveAttribute('data-expanded', 'true');
-  await resizeWindow(mobius!.app, 900, 700);
-  await expect(rail()).not.toHaveAttribute('data-expanded');
-  await railButton('Expand sidebar').click();
-  await expect(rail()).toHaveAttribute('data-expanded', 'true');
-  await resizeWindow(mobius!.app, 1300, 800);
-  await expect(rail()).toHaveAttribute('data-expanded', 'true');
-  expect((await shell().evaluate(() => window.mobius.appearance.get())).navigation).toBe('sidebar');
-});
-
-test('with the agent panel put away, Mobius opens in the sidebar and its message box says what it would ask about', async () => {
+test('with the agent panel put away, the Mobius button brings it back on the right and its message box says what it would ask about', async () => {
   await start([says(['That page is the fixture home.'])]);
-  // No panel toggle and no second ask box in the toolbar: Mobius opens from the sidebar's trefoil, and the corner
-  // glyphs say what they are.
+  // No second ask box in the toolbar: Mobius opens from the trefoil at the toolbar's end, and the corner glyphs say
+  // what they are.
   await expect(shell().getByRole('button', { name: 'Show agent' })).toHaveCount(0);
   await expect(shell().getByRole('search', { name: 'Ask the agent' })).toHaveCount(0);
   for (const glyph of await shell().getByRole('group', { name: 'Applications' }).getByRole('button').all()) expect(await glyph.getAttribute('title')).toBeTruthy();
-  await shell().getByRole('complementary', { name: 'Agent' }).getByRole('button', { name: 'Hide' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Agent' })).toHaveCount(0);
-  await rail().locator('[data-mobius-face]').click();
-  const ask = rail().getByRole('textbox', { name: 'Message Mobius' });
+  await shell().getByRole('complementary', { name: 'Agent', exact: true }).getByRole('button', { name: 'Hide' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
+  await mobiusButton().click();
+  const ask = composer();
   await expect(ask).toHaveAttribute('placeholder', 'Ask about this page');
   await ask.fill('What is this page?');
   await ask.press('Enter');
-  await expect(rail().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
+  await expect(shell().locator('.dock.right').getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('That page is the fixture home.');
 });
 
-test('Mobius’s own apps sit in the switcher: Bots and Activity open their views of the Agent app, and Settings opens Settings', async () => {
+test('Mobius’s own apps open from All apps and show in the rail while open; Mobius and Settings sit at its foot', async () => {
   await start();
-  await showApps();
-  const own = rail().getByRole('region', { name: 'Mobius’s apps' });
-  await own.getByRole('button', { name: 'Agents', exact: true }).click();
-  const side = shell().getByRole('complementary', { name: 'Conversation list' });
-  await expect(side.getByRole('tab', { name: 'Agents' })).toHaveAttribute('aria-selected', 'true');
-  await expect(rail().locator('[data-app-switcher]')).toHaveAttribute('aria-label', 'Switch app. Current: Agents');
-  await showApps();
-  // Only Bots is where you are: not Agent too.
+  const own = rail().locator('.rail-end');
+  await expect(own.getByRole('button')).toHaveCount(2);
+  const fromHub = async (name: string) => { await rail().locator('[data-app-library]').click(); await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name, exact: true }).click(); };
+  await fromHub('Agents');
+  const side = shell().getByRole('complementary', { name: 'Agent sidebar' });
+  await expect(side.getByRole('region', { name: 'Agents' })).toBeVisible();
+  // Open, it shows in the rail, lit; only Agents is where you are, not Home too.
+  await expect(railButton('Agents')).toHaveAttribute('aria-current', 'page');
   await expect(rail().locator('[aria-current="page"]')).toHaveCount(1);
-  await own.getByRole('button', { name: 'Activity', exact: true }).click();
-  await expect(side.getByRole('tab', { name: 'Activity' })).toHaveAttribute('aria-selected', 'true');
+  await fromHub('Activity');
+  // Activity has its own sidebar and page in the Agent app's place.
+  await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
-  await showApps();
-  await railButton('Agent').click();
-  await expect(side.getByRole('tab', { name: 'Sessions' })).toHaveAttribute('aria-selected', 'true');
-  await showApps();
+  await railButton('Home').click();
+  await expect(railButton('Home')).toHaveAttribute('aria-current', 'page');
+  await expect(side.getByRole('region', { name: 'Agents' })).toHaveCount(0);
+  await expect(railButton('Agents')).toHaveCount(0);
   await own.getByRole('button', { name: 'Settings', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
-/** Start as a new person does: Mobius lives in the sidebar, closed until asked. */
-async function startInSidebar(replies: ModelReply[] = []): Promise<void> {
-  model = await startModel(replies);
-  mobius = await launch(fixture.origin + '/', { userData, mobiusInSidebar: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
-  await expect(rail()).toHaveAttribute('data-face', 'app', { timeout: 15_000 });
-}
-
-test('by default Mobius opens in the sidebar: the column turns into Mobius, one head, and turns back', async () => {
-  await startInSidebar([says(['Hello from the sidebar.'])]);
-  // Nothing beside the page, and the app's own list in the sidebar.
-  await expect(shell().locator('.dock.right')).toHaveCount(0);
-  await expect(composer()).toHaveCount(0);
-  await rail().locator('[data-mobius-face]').click();
-  await expect(rail()).toHaveAttribute('data-face', 'mobius');
-  await expect(shell().locator('.dock.right')).toHaveCount(0);
-  // One head: the app's tile (the switcher), Mobius and where, then its icons.
-  const head = rail().locator('.chat-head');
-  await expect(head).toHaveCount(1);
-  await expect(head.locator('[data-app-switcher]')).toBeVisible();
-  await expect(head).toContainText('Mobius');
-  await expect(head).toContainText('In Browser');
-  await expect(rail().locator('.rail-head')).toHaveCount(0);
-  await expect(composer()).toBeEnabled();
-  await composer().fill('hi');
-  await composer().press('Enter');
-  await expect(rail().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Hello from the sidebar.');
-  // Closing turns the column back into the app's sidebar.
-  await head.getByRole('button', { name: 'Back to the sidebar' }).click();
-  await expect(rail()).toHaveAttribute('data-face', 'app');
-  await expect(composer()).toHaveCount(0);
+test('every app and Mobius page is found in All apps by its name and opens with Enter', async () => {
+  await start();
+  const hub = shell().getByRole('dialog', { name: 'Applications' });
+  const byKeys = async (name: string) => {
+    await rail().locator('[data-app-library]').click();
+    await expect(hub).toBeVisible();
+    await hub.getByRole('searchbox', { name: 'Find apps' }).fill(name);
+    await expect(hub.getByRole('button', { name: new RegExp(`^${name}`) }).first()).toBeVisible();
+    await shell().keyboard.press('Enter');
+    await expect(hub).toBeHidden();
+  };
+  for (const [name, id] of [['Projects', 'projects'], ['Reader', 'reader'], ['Views', 'views'], ['Mail', 'mail'], ['Abilities', 'skills']] as const) {
+    await byKeys(name);
+    await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
+  }
+  await byKeys('Agents');
+  await expect(railButton('Agents')).toHaveAttribute('aria-current', 'page');
+  await byKeys('Activity');
+  await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
+  await byKeys('Settings');
+  await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
-test('Pin beside puts Mobius on the right with the app sidebar back, is remembered, and Unpin returns it to the sidebar', async () => {
-  await startInSidebar();
-  await rail().locator('[data-mobius-face]').click();
-  await rail().getByRole('button', { name: 'Pin beside' }).click();
-  const beside = shell().locator('.dock.right');
-  await expect(beside).toHaveCount(1);
-  await expect(rail()).toHaveAttribute('data-face', 'app');
-  await expect.poll(async () => (await shell().evaluate(() => window.mobius.appearance.get())).agentPlace).toBe('beside');
-  // Beside the page too, "In Browser" opens the app switcher.
-  await beside.getByRole('button', { name: 'In Browser: switch app' }).click();
-  await expect(rail()).toHaveAttribute('data-face', 'apps');
-  await rail().locator('[data-app-switcher]').first().click();
-  await expect(rail()).toHaveAttribute('data-face', 'app');
-  // Unpinning puts it back in the sidebar, open.
-  await beside.getByRole('button', { name: 'Unpin from beside' }).click();
-  await expect(beside).toHaveCount(0);
-  await expect(rail()).toHaveAttribute('data-face', 'mobius');
-  await expect.poll(async () => (await shell().evaluate(() => window.mobius.appearance.get())).agentPlace).toBe('sidebar');
-});
-
-test('with the sidebar folded to the rail, Mobius opens the column, and closing folds it back', async () => {
-  await startInSidebar();
-  await rail().getByRole('button', { name: 'Collapse sidebar' }).click();
-  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
-  await rail().locator('[data-mobius-face]').click();
-  await expect(rail()).toHaveAttribute('data-face', 'mobius');
-  await expect(composer()).toBeVisible();
-  await rail().getByRole('button', { name: 'Back to the sidebar' }).click();
-  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
-  expect((await shell().evaluate(() => window.mobius.appearance.get())).navigation).toBe('rail');
-});
-
-test('a narrow window still opens Mobius in the sidebar column at its usual width', async () => {
-  await startInSidebar();
+test('a narrow window still opens Mobius on the right, at no less than its narrowest width', async () => {
+  await start();
   await resizeWindow(mobius!.app, 900, 700);
-  await expect(rail()).not.toHaveAttribute('data-expanded', /.*/);
-  await rail().locator('[data-mobius-face]').click();
-  await expect(rail()).toHaveAttribute('data-face', 'mobius');
-  await expect.poll(async () => Math.round((await rail().boundingBox())!.width)).toBeGreaterThan(240);
+  const face = mobiusButton();
+  if ((await face.getAttribute('aria-pressed')) === 'true') await face.click();
+  await expect(shell().locator('.dock.right')).toHaveCount(0);
+  await face.click();
+  await expect(shell().locator('.dock.right > .chat')).toBeVisible();
+  // A narrow window draws Mobius narrower than saved (dock-fit.ts), never under 280px.
+  await expect.poll(async () => Math.round((await shell().locator('.dock.right').boundingBox())!.width)).toBeGreaterThanOrEqual(280);
   await expect(composer()).toBeVisible();
 });
 
-test('Mobius pinned beside is a card with no line between it and the page, in every app, light and dark', async () => {
+test('Mobius beside the page is set off by one hairline and nothing else, in every app, light and dark', async () => {
   await start();
   for (const theme of ['light', 'dark'] as const) {
     await shell().emulateMedia({ colorScheme: theme });
@@ -378,21 +329,26 @@ test('Mobius pinned beside is a card with no line between it and the page, in ev
       await shell().keyboard.press('Enter');
       await expect(shell().locator('.app')).toHaveAttribute('data-app', id!);
       await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
-      // Every element whose left or right edge is within a few pixels of where the page meets the card: none draws a line.
+      // Every element whose left or right edge is where the page meets the panel: none draws a second line.
       const lines = await shell().evaluate(() => {
         const card = document.querySelector('.dock.right:not([data-floating]) > .chat');
         if (!card) return ['no pinned card'];
-        const edge = card.getBoundingClientRect().left;
+        const edge = card.closest('.dock.right')!.getBoundingClientRect().left;
         const visible = (width: string, color: string) => parseFloat(width) > 0 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(color);
         const found: string[] = [];
+        // The timeless frame: the right panel's own left edge is the one hairline between it and the page.
+        const dock = card.closest('.dock.right')!;
+        if (getComputedStyle(dock).borderLeftWidth !== '1px') found.push('no hairline on the right panel');
         for (const el of Array.from(document.querySelectorAll('*'))) {
+          // A table's own grid running up to the edge is content, not a line between zones.
+          if (el === dock || el.closest('td, th')) continue;
           const r = el.getBoundingClientRect();
           if (r.height < 20) continue;
           const st = getComputedStyle(el);
           const label = el.tagName.toLowerCase() + '.' + String(el.className);
-          if (Math.abs(r.left - edge) <= 12 && visible(st.borderLeftWidth, st.borderLeftColor)) found.push('left border on ' + label);
-          if (Math.abs(r.right - edge) <= 12 && visible(st.borderRightWidth, st.borderRightColor)) found.push('right border on ' + label);
-          if (Math.abs(r.left - edge) <= 12 && r.width <= 3 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(st.backgroundColor)) found.push('hairline ' + label);
+          if (Math.abs(r.left - edge) <= 2 && visible(st.borderLeftWidth, st.borderLeftColor)) found.push('left border on ' + label);
+          if (Math.abs(r.right - edge) <= 2 && visible(st.borderRightWidth, st.borderRightColor)) found.push('right border on ' + label);
+          if (Math.abs(r.left - edge) <= 2 && r.width <= 3 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(st.backgroundColor)) found.push('hairline ' + label);
         }
         return found;
       });
@@ -421,17 +377,15 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await expect(scopes.getByRole('button')).toHaveCount(9);
   await scopes.getByRole('button', { name: 'Tasks' }).click();
   await expect(scopes.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
-  await expect(rail().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
   // The scopes show once: in the sidebar while it shows, as chips under the field when it is folded away.
   const chips = shell().locator('.search-page').getByRole('radiogroup', { name: 'Show' });
   await expect(chips).toHaveCount(0);
-  await rail().getByRole('button', { name: 'Collapse sidebar' }).click();
   const scopesToggle = shell().getByRole('button', { name: 'Show scopes' });
   if ((await scopesToggle.getAttribute('aria-pressed')) === 'true') await scopesToggle.click();
   await expect(chips.getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
   await scopesToggle.click();
   await expect(chips).toHaveCount(0);
-  await rail().getByRole('button', { name: 'Expand sidebar' }).click();
   // The Agent home: what is in your apps is as wide as the message box, and centred with it.
   await open('Agent');
   // Measured once the page has settled (it grows in as the app opens).
@@ -449,7 +403,7 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await open('Tasks');
   const filter = shell().getByRole('button', { name: /From Mobius/ });
   await expect(filter).toContainText('1');
-  const lists = shell().locator('.dock.left, .rail');
+  const lists = shell().locator('.dock.left');
   await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
   await filter.click();
   await expect(filter).toHaveAttribute('aria-pressed', 'true');

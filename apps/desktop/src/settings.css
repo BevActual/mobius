@@ -1,34 +1,35 @@
-/* Settings' own look, after the shared rules in styles.css. It follows macOS System Settings: one centred column,
-   a pane head with the section's icon, inset grouped cards, the name on the left and its control trailing. */
+/* Settings' own look, after the shared rules in styles.css. It follows Mail's timeless pattern: the toolbar names the
+   page, one quiet grey line says what it is for, then plain rows with hairlines between them in a readable column
+   aligned to the content's left edge. No cards, no centred heads, no coloured tiles. */
 
-/* One centred column for every pane, so the switcher, the head and the cards share the same edges. */
-.settings-page .settings-content { padding: 24px 28px 48px; }
+.settings-page .settings-content { padding: 18px 32px 48px; }
 .settings-page { --settings-control-w: 200px; }
-.settings-page .settings-column { width: 100%; max-width: 640px; margin: 0 auto; }
-.settings-page .settings-card { max-width: none; }
-.settings-page .settings-card + .settings-card { margin-top: 14px; }
+.settings-page .settings-column { width: 100%; max-width: 640px; margin: 0; }
+.settings-page .settings-lede { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
 
-/* The pane's head: icon, name, one line. Centred, as at the top of a System Settings pane. */
-.settings-hero { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 4px 0 18px; text-align: center; }
-.settings-hero-icon { width: 44px; height: 44px; padding: 10px; border-radius: 11px; fill: none; stroke: #fff; stroke-width: 1.1; stroke-linecap: round; stroke-linejoin: round; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12); }
-.settings-hero .settings-section-title { margin: 6px 0 0; font-size: 20px; font-weight: 650; letter-spacing: -0.01em; }
-.settings-hero .settings-section-desc { margin: 0; max-width: 460px; font-size: 13px; color: var(--muted); }
-.settings-page .settings-tabs { margin: 0 auto 14px; }
+/* The rows sit straight on the content: no border, fill or corners, a hairline between each. */
+.settings-page .settings-card { max-width: none; border: 0; border-radius: 0; background: transparent; overflow: visible; }
+.settings-page .settings-card + .settings-card { margin-top: 24px; }
+.settings-page .settings-card .srow { padding: 12px 0; }
+.settings-page .settings-card .srow + .srow::before { left: 0; background: var(--line); }
+
+/* A section's pages switch with a quiet segmented control at the left, under the line; the chosen one a light fill. */
+.settings-page .settings-tabs { margin: 0 0 10px; }
 
 /* A row: the name and its help on the left, the control trailing on the same line. A wide control (a list, a
    table, the gateways) takes the full row under the name. */
 .settings-page .settings-card .srow { min-height: 44px; }
 .settings-page .settings-card .srow-head { flex: 1 1 260px; }
 .settings-page .settings-card .srow-body { gap: 6px; }
-.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .providers, > .provider-list, > .memory-body, > .saved-servers, > .share-setup, > .sidebar-apps, > .schedule-list) { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
+.settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .providers, > .provider-list, > .memory-body, > .saved-servers, > .share-setup, > .sidebar-apps, > .schedule-list, > .usage-breakdown) { flex: 1 1 100%; align-items: stretch; margin-left: 0; }
 /* Small print under a control (which model, what to add first) reads as help: grey, right aligned, wrapping. */
 .settings-page .settings-card .srow-body > .srow-text { max-width: 280px; font-size: 12px; color: var(--muted); text-align: right; }
 .settings-page .settings-card .srow-body:has(> ul, > .slist, > table, > .memory-list) > .srow-text { max-width: none; text-align: left; }
-.settings-page .settings-card .srow-body > .srow-text.mono { font-family: var(--font-mono, ui-monospace, monospace); font-size: 11px; overflow-wrap: anywhere; }
+.settings-page .settings-card .srow-body > .srow-text.mono { font-family: var(--font-mono); font-size: 11px; overflow-wrap: anywhere; }
 
 /* A paragraph set straight in the card (a note above the rows) gets the rows' padding and grey help text. */
-.settings-page .settings-card > .srow-text, .settings-page .settings-card > p.srow-note { margin: 0; padding: 11px 14px 0; font-size: 12px; color: var(--muted); }
-.settings-page .settings-card > .field-error { margin: 0; padding: 8px 14px; }
+.settings-page .settings-card > .srow-text, .settings-page .settings-card > p.srow-note { margin: 0; padding: 4px 0 0; font-size: 12px; color: var(--muted); }
+.settings-page .settings-card > .field-error { margin: 0; padding: 8px 0; }
 
 /* Pop-up buttons: a choice of several shows its value and the up-down chevrons, never a bare box like a text field. */
 .settings-page select, .settings-page .popup {
@@ -39,10 +40,9 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='12' viewBox='0 0 8 12'%3E%3Cpath d='M1 4.5 4 1.5l3 3M1 7.5l3 3 3-3' fill='none' stroke='%238e8e93' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center; background-size: 8px 12px;
   color: var(--ink); font: inherit; font-size: 13px; text-overflow: ellipsis;
-  box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); cursor: default;
+  cursor: default;
 }
 .settings-page select:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
-@media (prefers-color-scheme: dark) { .settings-page select, .settings-page .popup { background-color: color-mix(in srgb, var(--ink) 10%, var(--bg)); } }
 
 /* Text and number fields in a row: the same height and corners as the pop-ups beside them. */
 .settings-page .settings-card .srow-body input:not([type="checkbox"]):not([type="radio"]):not([role="switch"]):not([type="range"]) { height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
@@ -70,11 +70,11 @@
 .key-reset:hover { text-decoration: underline; }
 .shortcut-foot { display: flex; justify-content: flex-end; padding-top: 8px; }
 
-/* About: the app's mark, name and version centred at the top, as an About window. */
-.settings-page .about-brand { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 18px 14px 14px; text-align: center; }
+/* About: the app's mark, name and version at the top of the page. */
+.settings-page .about-brand { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 4px 0 14px; text-align: left; }
 .settings-page .about-brand .about-name { margin: 0; font-size: 17px; font-weight: 650; }
 .settings-page .about-brand .about-line { margin: 0; font-size: 12px; color: var(--muted); }
-.settings-page .about-brand + .srow::before { left: 14px; }
+.settings-page .about-brand + .srow::before { left: 0; }
 
 /* Memory: what Mobius remembers, full width under the row's name, with where it is kept in small grey print. */
 .memory-body { display: flex; flex-direction: column; gap: 8px; width: 100%; font-size: 13px; }
@@ -92,20 +92,84 @@
 /* The clear button shows only on the row under the pointer or with the keyboard in it, so the list stays quiet. */
 .shortcut-item:hover .key-clear, .shortcut-item:focus-within .key-clear, .key-clear:focus-visible { opacity: 1; }
 
-/* The sidebar's search keeps its height in the column of sections (it is a flex item there). */
-.settings-nav .settings-search, .settings-side .settings-search { flex: none; height: 28px; min-height: 28px; }
 
 /* Saved servers: the list as rows, and Save Current Server… trailing under it. */
 .saved-servers { display: flex; flex-direction: column; gap: 8px; width: 100%; }
 .saved-servers-foot { display: flex; justify-content: flex-end; }
 
 /* A small sheet over Settings: a title, a line of help, one field, Cancel and the default button. */
-.settings-sheet { width: min(360px, calc(100vw - 32px)); padding: 18px; border: 0.5px solid var(--hairline); border-radius: 12px; background: var(--bg); color: var(--ink); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
-.settings-sheet::backdrop { background: rgba(0, 0, 0, 0.18); }
+.settings-sheet { width: min(360px, calc(100vw - 32px)); padding: 18px; border: 0.5px solid var(--hairline); border-radius: 12px; background: var(--raised); color: var(--ink); box-shadow: var(--shadow-3); }
+.settings-sheet::backdrop { background: color-mix(in srgb, black 18%, transparent); }
 .settings-sheet-title { margin: 0 0 4px; font-size: 13px; font-weight: 650; }
 .settings-sheet-text { margin: 0 0 12px; font-size: 12px; color: var(--muted); }
 .settings-sheet-field { display: flex; align-items: center; gap: 10px; font-size: 13px; }
 .settings-sheet-field input { flex: 1; height: 26px; padding: 0 8px; border: 0.5px solid var(--hairline); border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: 13px; }
 .settings-sheet-field input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px; }
 .settings-sheet-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
-@media (prefers-color-scheme: dark) { .settings-sheet { background: color-mix(in srgb, var(--ink) 8%, var(--bg)); } }
+
+/* Usage: three totals as tiles, tokens by day as thin bars, and the breakdown as a plain table. */
+.settings-page .settings-card .srow.usage-summary { padding: 12px 0; }
+.usage-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 0; }
+.usage-tile { min-width: 0; padding: 10px 12px; border-radius: 10px; background: var(--field); }
+.usage-tile dt { font-size: 12px; color: var(--muted); }
+.usage-tile dd { margin: 2px 0 0; font-size: 22px; font-weight: 650; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.usage-tile > span { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { .usage-tiles { grid-template-columns: minmax(0, 1fr); } }
+
+.settings-page .settings-card .srow.usage-chart-row, .settings-page .settings-card .srow.usage-summary { display: block; }
+.usage-chart-row .srow-title { margin: 0 0 10px; }
+.usage-chart { display: flex; align-items: stretch; gap: 2px; height: 140px; }
+.usage-col { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; outline: none; border-radius: 4px; }
+.usage-col:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 50%, transparent); }
+.usage-bar-track { flex: 1; width: 100%; max-width: 56px; display: flex; align-items: flex-end; border-bottom: 1px solid var(--hairline); }
+.usage-bar { width: 100%; border-radius: 4px 4px 0 0; background: var(--accent); transition: height var(--dur-med) var(--ease); }
+.usage-col:hover .usage-bar, .usage-col:focus-visible .usage-bar { background: color-mix(in srgb, var(--accent) 80%, var(--ink)); }
+.usage-day { position: relative; z-index: 1; font-size: 10px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.usage-none { margin: 0; font-size: 12px; color: var(--muted); }
+
+.usage-breakdown { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+.settings-page .usage-breakdown .usage-group { margin: 0; }
+.usage-table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+.usage-table th, .usage-table td { padding: 6px 8px; text-align: right; white-space: nowrap; }
+.usage-table th:first-child { text-align: left; font-weight: 400; max-width: 220px; overflow: hidden; text-overflow: ellipsis; padding-left: 0; }
+.usage-table td:last-child { padding-right: 0; }
+.usage-table thead th { font-size: 11px; font-weight: 500; color: var(--muted); border-bottom: 0.5px solid var(--hairline); }
+.usage-table tbody tr + tr > * { border-top: 0.5px solid var(--hairline); }
+.usage-actions { display: inline-flex; gap: 8px; }
+
+/* The sidebar (the shared AppSidebar), at the same edges as Mail's: plain text rows under quiet headings. */
+.dock.left .app-side-body > .settings-side { padding: 0; }
+.settings-side { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.settings-side > .ui-side { flex: 1; min-height: 0; }
+.settings-side .settings-nav { display: flex; flex-direction: column; min-height: 0; overflow: auto; }
+
+/* A narrow column (the window is small, or Mobius is open beside Settings): rows stack their control under the name,
+   so help text set beside a control reads left aligned under it, and wide pieces fit rather than clip. */
+.settings-page .settings-column { container-type: inline-size; container-name: settings-column; }
+@container settings-column (max-width: 560px) {
+  .settings-page .settings-card .srow-body > .srow-text { max-width: none; text-align: left; }
+  .usage-tile { padding: 8px 10px; }
+  .usage-tile dd { font-size: 18px; }
+  .usage-tile > span { white-space: normal; }
+  .usage-table th:first-child { max-width: 140px; }
+}
+/* The breakdown scrolls sideways rather than clipping its last column. */
+.usage-table-wrap { width: 100%; overflow-x: auto; }
+
+/* Gateways: the name and its status on the left, its buttons trailing, so a long status never runs under the name. */
+.settings-page .prow { grid-template-columns: minmax(0, 1fr) auto; }
+.settings-page .prow-status { grid-column: 1; grid-row: 2; white-space: normal; }
+.settings-page .prow-actions { grid-column: 2; grid-row: 1 / span 2; flex-wrap: wrap; justify-content: flex-end; }
+.settings-page .prow-badge { white-space: nowrap; }
+
+/* Lists in a row (saved conversations, memories, mail accounts) read as plain rows with hairlines, as Mail's list. */
+.settings-page :is(.slist, .memory-list) { border: 0; border-radius: 0; background: transparent; gap: 0; padding: 0; }
+.settings-page :is(.slist-item, .memory-item) { border: 0; border-radius: 0; background: transparent; padding: 8px 0; box-shadow: none; }
+.settings-page :is(.slist-item, .memory-item) + :is(.slist-item, .memory-item) { border-top: 0.5px solid var(--line); }
+/* An empty list's line reads as help under the name, at the left. */
+.settings-page .settings-card .srow-body:has(> .srow-empty) { flex: 1 1 100%; margin-left: 0; align-items: stretch; }
+.settings-page .settings-card .srow-body > .srow-empty { margin: 0; text-align: left; color: var(--muted); font-size: 12px; }
+
+/* Loading: placeholder bars, not "Loading…" text or a spinner. */
+.settings-placeholder { display: flex; flex-direction: column; gap: 12px; padding: 12px 0; width: 100%; }
+.settings-placeholder-bar { display: block; height: 10px; border-radius: 3px; background: var(--field); }

@@ -9,30 +9,38 @@
 .desk-hello { margin: 0 0 var(--sp-6); }
 .chat.full[data-empty] .desk .greeting { margin: 0; font-size: 28px; font-weight: var(--fw-semibold); letter-spacing: -0.02em; line-height: 1.2; }
 .desk-title { margin: var(--sp-1) 0 0; font-size: var(--fs-md); color: var(--muted); }
-.desk .starters { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--sp-2); margin-top: var(--sp-4); }
-.desk .starter { height: 30px; padding: 0 14px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
-.desk .starter:hover { background: var(--soft); }
-.desk-group + .desk-group { margin-top: var(--sp-5); }
+/* The suggestions are quiet text links, as in the Mobius panel: no capsule, no border. */
+.desk .starters { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0 var(--sp-4); margin-top: var(--sp-3); }
+.desk .starter { height: auto; padding: 2px 0; border-radius: 0; background: none; box-shadow: none; font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--muted); }
+.desk .starter:hover { background: none; color: var(--ink); }
+.desk-group + .desk-group { margin-top: var(--sp-6); }
 /* Section headers in the sidebars' style: small, semibold, grey, sentence case. */
-.desk-head { margin: 0 0 var(--sp-2); padding-left: 2px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); letter-spacing: 0.01em; color: var(--muted); }
-.desk-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-/* Two columns when there is room; a lone row takes the whole width rather than half. */
-.desk-rows[data-columns] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.desk-rows[data-columns] > li:only-child { grid-column: 1 / -1; }
-.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 44px; padding: 0 6px 0 10px; border: 1px solid transparent; border-radius: 12px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--hairline), 0 1px 2px rgba(0, 0, 0, 0.04); color: var(--ink); text-align: left; transition: background var(--dur-fast) var(--ease); }
-button.desk-row { padding-right: 12px; }
-button.desk-row:hover:not(:disabled) { background: color-mix(in srgb, var(--soft) 60%, var(--bg)); }
-button.desk-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.desk-head { margin: 0 0 var(--sp-1); padding-left: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); letter-spacing: 0.01em; color: var(--muted); }
+/* Plain rows with a hairline between them, as in Mail's list: no card per row. */
+.desk-rows { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
+.desk-rows > li + li { border-top: var(--hairline-w) solid var(--line); }
+.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 8px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink); text-align: left; transition: background var(--dur-fast) var(--ease); }
+button.desk-row:hover:not(:disabled) { background: var(--line-soft, var(--soft)); }
+button.desk-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 button.desk-row:disabled { opacity: 1; cursor: default; }
-.desk-row > svg { flex: none; width: 24px; height: 24px; padding: 4.5px; border-radius: 7px; color: #fff; stroke-width: 1.9; }
-.desk-row > svg.desk-glyph { background: var(--soft); color: var(--muted); stroke-width: 1.6; fill: none; stroke: currentColor; stroke-linejoin: round; stroke-linecap: round; }
+/* Line icons, muted: an app is known by its shape, never a coloured tile. */
+.desk-row > svg.desk-glyph { flex: none; width: 16px; height: 16px; padding: 0; border-radius: 0; background: none; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
 .desk-name { flex: none; max-width: 55%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); font-weight: var(--fw-medium); }
 .desk-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { text-align: left; }
-.desk-act { flex: none; height: 28px; padding: 0 12px; border-radius: var(--radius-pill); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: var(--capsule); box-shadow: inset 0 0 0 0.5px var(--hairline); }
-.desk-act:hover:not(:disabled) { background: var(--soft); }
+/* The one thing in an app worth a look ("Standup", "Ana Lopes"), between the app's name and its detail. */
+.desk-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
+.desk-item + .desk-text { flex: none; max-width: 45%; }
+.desk-row:has(.desk-item) .desk-name { width: 84px; color: var(--muted); font-weight: var(--fw-regular); }
+/* Answering in place: quiet buttons with a hairline; Allow is the one filled. */
+.desk-act { flex: none; height: 26px; padding: 0 10px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: none; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.desk-act:hover:not(:disabled) { background: var(--line-soft, var(--soft)); }
 .desk-act[data-primary] { color: var(--on-accent); background: var(--accent); box-shadow: none; }
 .desk-act[data-primary]:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
-.desk-row[data-changed] { box-shadow: none; border: 1px dashed var(--accent); }
-.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--accent); }
-@container (max-width: 520px) { .desk-rows[data-columns] { grid-template-columns: 1fr; } }
+/* An app Mobius changed carries the dashed indigo edge until you look, as Mail marks a suggestion. */
+.desk-row[data-changed] { outline: 1px dashed var(--mobius); outline-offset: -3px; border-radius: var(--row-radius, 6px); }
+.desk-row[data-changed] .desk-text, .desk-row[data-needs] .desk-text, .desk-row[data-working] .desk-text { color: var(--mobius); }
+/* The Agent app's message box: one hairline, as the Mobius panel's composer, not a double outline. */
+.chat.full .composer, html .chat.full .composer { border: 0; border-radius: var(--radius-panel); background: var(--paper); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.chat.full .composer:focus-within { box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.chat.full .composer[data-working="agent"] { box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 55%, var(--line)); }

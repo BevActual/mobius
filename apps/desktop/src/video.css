@@ -1,55 +1,58 @@
-/* Video: the viewer with its transport floating over it and the chosen shot beside it, the edit tools, and the cut as
-   a timeline of filmstrips under a ruler. */
-.stage .video-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
+/* Video in the frame: the viewer and its transport, the cut as a timeline of filmstrips under a ruler (the content's
+   bottom detail area), and a status line. The edit tools sit in the toolbar; the chosen shot is a panel on the right. */
+.stage .video-root { position: absolute; z-index: 1; inset: 0; }
+.stage .video-page.empty { position: absolute; z-index: 1; inset: 0; }
+.video-page { display: flex; flex-direction: column; min-height: 0; background: var(--bg); }
 .video-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }
-.video-page svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.video-page svg, .ui-toolbar-group .video-zoom svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .video-page svg[data-fill] { fill: currentColor; stroke: none; }
 
-/* The viewer: the picture on black with rounded corners, the transport a glass capsule over its foot. */
-.video-top { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: var(--sp-3); padding: var(--sp-3) var(--sp-3) 0; }
-.video-viewer { position: relative; min-width: 0; min-height: 0; display: flex; }
-.video-screen { position: relative; flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: var(--radius-panel, 14px); background: #000; }
-.video-player { max-width: 100%; max-height: 100%; cursor: pointer; }
-.video-title { position: absolute; left: 0; right: 0; bottom: 18%; text-align: center; color: #fff; font-size: clamp(18px, 3.2vw, 34px); font-weight: 700; letter-spacing: -0.01em; text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6); pointer-events: none; }
-.video-empty { position: absolute; max-width: 360px; margin: 0; padding: var(--sp-5); text-align: center; color: rgba(255, 255, 255, 0.7); font-size: var(--fs-sm); }
-.video-hud { position: absolute; left: 50%; bottom: var(--sp-3); transform: translateX(-50%); display: flex; align-items: center; gap: 2px; padding: 4px 14px 4px 6px; border-radius: var(--radius-pill); box-shadow: var(--glass-edge), 0 8px 28px rgba(0, 0, 0, 0.28); }
-.video-hud .strip-btn { width: 32px; height: 32px; border-radius: 50%; }
-.video-hud .strip-btn svg { width: 15px; height: 15px; }
-.video-play { width: 38px; height: 38px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--ink); color: var(--bg); cursor: pointer; transition: transform var(--dur-fast) var(--ease); }
-.video-play:active:not(:disabled) { transform: scale(0.92); }
+/* The viewer: the picture as large as fits on the page, with plain transport under it. */
+.video-viewer { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-6) var(--sp-2); }
+.video-screen { position: relative; flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; container-type: size; }
+.video-frame { position: relative; width: min(100cqw, 100cqh * var(--ar)); height: min(100cqh, 100cqw / var(--ar)); background: #000; }
+.video-player { display: block; width: 100%; height: 100%; object-fit: contain; cursor: pointer; }
+.video-title { position: absolute; left: 0; right: 0; bottom: 18%; text-align: center; color: #fff; font-size: clamp(16px, 6cqh, 40px); font-weight: 700; letter-spacing: -0.01em; text-shadow: 0 2px 14px rgba(0, 0, 0, 0.6); pointer-events: none; }
+.video-empty { position: absolute; max-width: 360px; margin: 0; padding: var(--sp-5); text-align: center; color: var(--muted); font-size: var(--fs-sm); }
+.video-transport { flex: none; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 36px; }
+.video-buttons { display: flex; align-items: center; gap: var(--sp-1); }
+.video-buttons .strip-btn svg { width: 16px; height: 16px; }
+.video-play { width: 32px; height: 32px; display: grid; place-items: center; border: 0; border-radius: var(--radius-control); background: var(--ink); color: var(--on-ink, var(--bg)); cursor: pointer; }
 .video-play:disabled { opacity: 0.4; cursor: default; }
-.video-play svg { width: 16px; height: 16px; }
-.video-time { margin-left: 8px; font: 600 13px/1 ui-monospace, Menlo, Consolas, monospace; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.video-play svg { width: 14px; height: 14px; }
+.video-time { font-size: var(--fs-md); font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.video-length { justify-self: end; color: var(--muted); }
+.video-viewer:fullscreen { padding: var(--sp-4); background: #000; }
+.video-viewer:fullscreen .video-time, .video-viewer:fullscreen .strip-btn { color: #fff; }
 
 /* The chosen shot: grouped, as an inspector in Final Cut or Photos is. */
-.video-inspector { min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-1) 2px var(--sp-3); }
-.video-inspector-head { display: flex; flex-direction: column; gap: 2px; padding: 0 var(--sp-1); }
-.video-inspector-head h2 { margin: 0; font-size: var(--fs-lg, 15px); font-weight: var(--fw-semibold, 600); }
+.video-inspector { display: flex; flex-direction: column; gap: var(--sp-4); padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+.video-inspector-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-2); }
+.video-inspector-head h2 { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
 .video-inspector-head span { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.video-group { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-group); background: var(--field); }
-.video-group h3 { margin: 0; color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold, 600); }
+.video-group { display: flex; flex-direction: column; gap: var(--sp-2); }
+.video-group h3 { margin: 0; color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
 .video-fields { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .video-field { display: flex; flex-direction: column; gap: 3px; font-size: var(--fs-xs); color: var(--muted); }
 .video-field input, .video-text { width: 100%; height: 28px; padding: 0 8px; border: 0; border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; box-shadow: inset 0 0 0 0.5px var(--line); }
 .video-field input:focus-visible, .video-text:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent), inset 0 0 0 1px var(--accent); }
 .video-pair { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
-.video-pair .btn { justify-content: center; }
+.video-pair .btn { justify-content: center; height: 28px; padding: 0 10px; border: var(--hairline-w) solid var(--line); background: transparent; box-shadow: none; font-size: var(--fs-md); font-weight: var(--fw-regular, 400); }
+.video-pair .btn:hover:not(:disabled) { background: color-mix(in srgb, var(--ink) 6%, transparent); }
 .video-note { margin: 0; color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
-.video-remove { align-self: center; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.video-remove { align-self: flex-start; padding-left: 0 !important; height: 28px; padding: 0 12px; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .video-remove:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
-.video-inspector-empty { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-2) var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
-.video-inspector-empty p { margin: 0; }
-.video-keys { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; margin: 0; font-size: var(--fs-xs); }
-.video-keys dt { justify-self: start; padding: 1px 6px; border-radius: 5px; background: var(--field); color: var(--ink); font-weight: var(--fw-medium); }
-.video-keys dd { margin: 0; }
+.video-inspector-empty { margin: 0; padding: var(--sp-3) var(--sp-4); color: var(--muted); font-size: var(--fs-sm); }
 
-/* The edit tools, between the viewer and the timeline. */
-.video-tools { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); }
-.video-tools .cap-group svg { width: 16px; height: 16px; }
-.video-meta { flex: 1; color: var(--muted); font-size: var(--fs-xs); }
+/* The zoom, in the toolbar. */
 .video-zoom { display: flex; align-items: center; gap: 4px; color: var(--muted); }
-.video-zoom svg { width: 12px; height: 12px; }
-.video-zoom input { width: 110px; accent-color: var(--accent); }
+.ui-toolbar-group .video-zoom svg { width: 12px; height: 12px; }
+.video-zoom input { width: 96px; accent-color: var(--ink); }
+
+/* The status line under the timeline: the chosen shot, or the cut, and where an export went. */
+.video-status { flex: none; display: flex; align-items: center; height: 28px; padding: 0 var(--sp-4); border-top: var(--hairline-w) solid var(--line); background: var(--panel); color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; }
+.video-status > span { overflow: hidden; text-overflow: ellipsis; }
+.video-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
 /* The timeline: a ruler to scrub, the shots as filmstrips, and the playhead over both. */
 .video-timeline { flex-shrink: 0; height: 132px; overflow-x: auto; overflow-y: hidden; padding: 0 var(--sp-4) var(--sp-3); background: var(--panel); border-top: 0.5px solid var(--line); }
@@ -64,18 +67,18 @@
 .video-shot-frame { flex: 1 1 0; min-width: 0; background: linear-gradient(135deg, #2c2c2e, #1c1c1e); border-right: 1px solid rgba(0, 0, 0, 0.35); }
 .video-shot-frame img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .video-shot-label { position: absolute; left: 6px; bottom: 4px; max-width: calc(100% - 12px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #fff; font-size: 10.5px; font-weight: var(--fw-medium); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); }
-.video-shot-title { position: absolute; left: 0; right: 0; bottom: calc(100% + 3px); height: 14px; padding: 0 6px; overflow: hidden; border-radius: 4px; background: color-mix(in srgb, var(--accent) 85%, transparent); color: var(--on-accent, #fff); font-size: 10px; line-height: 14px; font-weight: var(--fw-semibold, 600); white-space: nowrap; text-overflow: ellipsis; text-align: left; }
+.video-shot-title { position: absolute; left: 0; right: 0; bottom: calc(100% + 3px); height: 14px; padding: 0 6px; overflow: hidden; border-radius: 4px; background: var(--c-violet); color: var(--on-content); font-size: 10px; line-height: 14px; font-weight: var(--fw-semibold, 600); white-space: nowrap; text-overflow: ellipsis; text-align: left; }
 .video-shot[data-playing]::after { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35); }
 .video-shot[aria-selected="true"] { z-index: 2; }
-.video-shot[aria-selected="true"]::after { box-shadow: 0 0 0 2.5px #ffcc00; }
-.video-shot[data-proposed]::after { box-shadow: none; outline: 2px dashed var(--accent); outline-offset: -2px; }
+.video-shot[aria-selected="true"]::after { box-shadow: 0 0 0 2px var(--ink); }
+.video-shot[data-proposed]::after { box-shadow: none; outline: 2px dashed var(--mobius); outline-offset: -2px; }
 .video-shot:focus-visible { outline: none; }
 .video-shot:focus-visible::after { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent); }
 .video-shot[draggable="true"]:active { cursor: grabbing; }
-.video-trim { position: absolute; top: -2.5px; bottom: -2.5px; width: 10px; background: #ffcc00; cursor: ew-resize; touch-action: none; }
-.video-trim[data-edge="in"] { left: -2.5px; border-radius: 6px 2px 2px 6px; }
-.video-trim[data-edge="out"] { right: -2.5px; border-radius: 2px 6px 6px 2px; }
-.video-trim::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 14px; margin: -7px 0 0 -1px; border-radius: 1px; background: rgba(0, 0, 0, 0.55); }
+.video-trim { position: absolute; top: -2px; bottom: -2px; width: 10px; background: var(--ink); cursor: ew-resize; touch-action: none; }
+.video-trim[data-edge="in"] { left: -2px; border-radius: 6px 2px 2px 6px; }
+.video-trim[data-edge="out"] { right: -2px; border-radius: 2px 6px 6px 2px; }
+.video-trim::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 14px; margin: -7px 0 0 -1px; border-radius: 1px; background: var(--bg); }
 .video-drop { position: absolute; z-index: 3; top: 12px; bottom: -4px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--accent); pointer-events: none; }
 .video-playhead { position: absolute; z-index: 4; top: 4px; bottom: 0; width: 2px; margin-left: -1px; background: #ff3b30; cursor: ew-resize; touch-action: none; }
 .video-playhead::before { content: ""; position: absolute; top: 0; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 3px 3px 6px 6px; background: #ff3b30; }
@@ -100,14 +103,15 @@
 .video-clip:hover .strip-btn, .video-clip .strip-btn:focus-visible { opacity: 1; }
 .video-clip .strip-btn svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; }
 
-/* A narrow window keeps the inspector, narrower: trimming and titling need it. */
-@media (max-width: 1100px) { .video-top { grid-template-columns: minmax(0, 1fr) 200px; } .video-hud .video-time { font-size: 12px; } }
-@media (prefers-reduced-motion: reduce) { .video-play { transition: none; } }
 
 /* Round 1 polish: Earlier and Later as one capsule, a field that does not read as a time, and the viewer full screen. */
-.video-order { align-self: stretch; }
-.video-order > .strip-btn { flex: 1; padding: 0 10px; font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .video-field input[aria-invalid] { box-shadow: inset 0 0 0 1px var(--danger); }
-.video-viewer:fullscreen { background: #000; }
-.video-viewer:fullscreen .video-screen { border-radius: 0; }
-.video-viewer:fullscreen .video-hud { bottom: var(--sp-6); }
+
+/* Export: the button at the end of the edit tools, its progress while the film plays through, and where it went. */
+.video-export { display: inline-flex; align-items: center; gap: 6px; }
+.video-export svg { width: 15px; height: 15px; }
+.video-exporting { display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.video-progress { width: 120px; height: 4px; overflow: hidden; border-radius: 2px; background: var(--soft); }
+.video-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--accent); transition: width var(--dur-fast) var(--ease); }
+.video-done { display: inline-flex; align-items: center; gap: var(--sp-3); }
+@media (prefers-reduced-motion: reduce) { .video-progress > span { transition: none; } }

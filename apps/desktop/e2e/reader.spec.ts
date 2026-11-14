@@ -39,9 +39,9 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(article).toContainText('Nine rooms in Príncipe Real.');
   await expect(article).toContainText('Breakfast included.');
   await expect(article).not.toContainText('ignore()');
-  const bar = page.getByRole('toolbar', { name: 'Article' });
-  await expect(bar).toContainText('1 min read');
-  await expect(bar).toContainText('Saved today');
+  // The article's own controls sit in the window's toolbar; when it was saved and how long it is, above its title.
+  const bar = shell.getByRole('group', { name: 'Reader' });
+  await expect(article).toContainText('Saved today · 1 min read');
   const file = path.join(userData, 'workspace', 'reading', 'Reading list', 'Casa Amora.md');
   const kept = fs.readFileSync(file, 'utf8');
   expect(kept).toContain(`(${fixture.origin}/casa-amora) · saved `);
@@ -50,7 +50,7 @@ test('a link is kept as just its words, read with Mobius, and archived when done
 
   // Aa: larger text and a sepia page, remembered on this computer.
   await bar.getByRole('button', { name: 'Text and page' }).click();
-  const look = page.getByRole('dialog', { name: 'Text and page' });
+  const look = shell.getByRole('dialog', { name: 'Text and page' });
   await look.getByRole('button', { name: 'Larger' }).click();
   await expect(article).toHaveAttribute('data-size', 'l');
   await look.getByRole('button', { name: 'Sepia' }).click();
@@ -58,7 +58,8 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await look.press('Escape');
   await expect(look).toBeHidden();
 
-  // Mobius reads along: the article goes with the request.
+  // Mobius reads along: the article goes with the request. Reader's right panel opens on Highlights, so go to Mobius.
+  await shell.getByRole('tab', { name: 'Mobius' }).click();
   await shell.getByRole('button', { name: 'Summarise this' }).click();
   await expect(shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toContainText('breakfast included');
   expect(JSON.stringify(model.requests[0]!.messages)).toContain('Nine rooms in Príncipe Real.');
@@ -69,13 +70,29 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await passage.dispatchEvent('mouseup');
   await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: /Highlight/ }).click();
   await expect(article.locator('mark')).toHaveText('Breakfast included.');
-  await expect(article.getByRole('region', { name: 'Highlights' })).toContainText('1 highlight');
+  // Highlights collect in their own tab in the right panel, before Mobius.
+  await shell.getByRole('tab', { name: 'Highlights' }).click();
+  await expect(shell.getByRole('region', { name: 'Highlights' })).toContainText('Breakfast included.');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
+
+  // Ask Mobius about a passage: the message starts with it quoted, ready to finish.
+  const other = article.getByText('Nine rooms in Príncipe Real.');
+  await other.selectText();
+  await other.dispatchEvent('mouseup');
+  await article.getByRole('toolbar', { name: 'Selected text' }).getByRole('button', { name: 'Ask Mobius' }).click();
+  await expect(shell.getByRole('tab', { name: 'Mobius' })).toHaveAttribute('aria-selected', 'true');
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/> Nine rooms in Príncipe Real\./);
 
   await bar.getByRole('button', { name: 'Done reading' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'reading', 'Archive', 'Casa Amora.md'))).toBe(true);
   await expect.poll(() => fs.existsSync(file)).toBe(false);
   await expect(bar.getByRole('button', { name: 'Done reading' })).toBeHidden();
+  // Undo puts it back in the reading list; done again, it stays archived.
+  await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => fs.existsSync(file)).toBe(true);
+  await expect(bar.getByRole('button', { name: 'Done reading' })).toBeVisible();
+  await bar.getByRole('button', { name: 'Done reading' }).click();
+  await expect.poll(() => fs.existsSync(file)).toBe(false);
 
   // The link field shows only when asked for while an article is open. A page that cannot be read says so.
   await expect(page.getByRole('textbox', { name: 'Link to save' })).toBeHidden();

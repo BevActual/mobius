@@ -95,6 +95,27 @@ export function nudgeVelocity(notes: readonly SongNote[], picked: Picked, by: nu
 /** How tall the track list is when it fits its tracks: the ruler plus one lane each, at least room for one. */
 export const fitTracks = (tracks: number, ruler = 24, lane = 49) => ruler + Math.max(1, tracks) * lane;
 
+/** A loop of whole bars, in beats: from `from` up to (not including) `to`. */
+export interface Cycle { from: number; to: number }
+
+/**
+ * Where the song is after `played` beats of playing from `start`, going round `cycle` when there is one. Playing from
+ * before the loop runs into it and then goes round; playing from after it starts at the loop.
+ */
+export function songBeat(played: number, start: number, cycle: Cycle | null): number {
+  if (!cycle) return start + played;
+  const from = start >= cycle.to ? cycle.from : start;
+  const at = from + played;
+  return at < cycle.to ? at : cycle.from + ((at - cycle.to) % (cycle.to - cycle.from));
+}
+
+/** The loop between two bars picked on the ruler (either way round, counted from 0), kept inside the song. */
+export function cycleOf(barA: number, barB: number, bars: number): Cycle {
+  const a = Math.max(0, Math.min(bars - 1, Math.min(barA, barB)));
+  const b = Math.max(a + 1, Math.min(bars, Math.max(barA, barB) + 1));
+  return { from: a * BEATS_PER_BAR, to: b * BEATS_PER_BAR };
+}
+
 /** The notes inside a box drawn on the roll, from beat `b0` to `b1` and pitch `p0` to `p1` (either way round). */
 export function notesIn(notes: readonly SongNote[], b0: number, b1: number, p0: number, p1: number): Set<number> {
   const [s, e] = b0 < b1 ? [b0, b1] : [b1, b0];
@@ -121,3 +142,44 @@ export const GRIDS: readonly { label: string; beats: number }[] = [
 
 /** Whether a MIDI pitch is a black key. */
 export const isBlack = (pitch: number) => [1, 3, 6, 8, 10].includes(((pitch % 12) + 12) % 12);
+
+/**
+ * A track's notes as clips along the arrangement: each run of bars that has notes, split where a whole bar is empty.
+ * `from` and `to` are bars counted from 0, `to` not included.
+ */
+export function clipsOf(notes: readonly SongNote[], bars: number): { from: number; to: number }[] {
+  const used = new Array<boolean>(bars).fill(false);
+  for (const n of notes) {
+    const first = Math.floor(n.start / BEATS_PER_BAR);
+    const last = Math.min(bars - 1, Math.floor((n.start + n.length - 1e-6) / BEATS_PER_BAR));
+    for (let b = Math.max(0, first); b <= last; b++) used[b] = true;
+  }
+  const clips: { from: number; to: number }[] = [];
+  used.forEach((on, b) => {
+    if (!on) return;
+    const was = clips[clips.length - 1];
+    if (was && was.to === b) was.to = b + 1; else clips.push({ from: b, to: b + 1 });
+  });
+  return clips;
+}
+
+/** A Device setting's value as the panel writes it: "35%", "12 ct", "1.2 kHz", "840 ms", "2.1 s". */
+export function soundText(key: 'shape' | 'detune' | 'cutoff' | 'resonance' | 'attack' | 'release', v: number): string {
+  if (key === 'shape' || key === 'resonance') return `${Math.round(v * 100)}%`;
+  if (key === 'detune') return `${Math.round(v)} ct`;
+  if (key === 'cutoff') return v >= 1000 ? `${(v / 1000).toFixed(v >= 10000 ? 0 : 1)} kHz` : `${Math.round(v)} Hz`;
+  return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+}
+
+/**
+ * Where a setting sits along its slider, from 0 to 1, and back. Cutoff, attack and release are heard in ratios, so
+ * they move evenly in octaves rather than in Hz or seconds.
+ */
+export function toSlider(v: number, lo: number, hi: number, log: boolean): number {
+  return log ? Math.log(v / lo) / Math.log(hi / lo) : (v - lo) / (hi - lo);
+}
+export function fromSlider(t: number, lo: number, hi: number, log: boolean): number {
+  const x = Math.max(0, Math.min(1, t));
+  const v = log ? lo * (hi / lo) ** x : lo + x * (hi - lo);
+  return Math.round(v * 1000) / 1000;
+}

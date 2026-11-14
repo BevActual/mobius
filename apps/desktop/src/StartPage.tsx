@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isNotesFailure, type BookmarkEntry, type HistoryEntry } from '@mobius/shared';
-import { tileHue, tileLetter } from './browser-view';
+import { tileColour, tileLetter } from './browser-view';
 
 const host = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
 
@@ -24,7 +24,7 @@ function Tile({ url, title, onOpen }: { url: string; title: string; onOpen: (url
   const site = host(url);
   return (
     <button type="button" className="start-tile" title={url} onClick={() => onOpen(url)}>
-      <span className="start-tile-mark" aria-hidden="true" style={{ ['--hue' as string]: tileHue(site) }}>{tileLetter(site)}</span>
+      <span className="start-tile-mark" aria-hidden="true" style={{ ['--tile' as string]: tileColour(site) }}>{tileLetter(site)}</span>
       <span className="start-tile-title">{title || site}</span>
     </button>
   );
@@ -38,34 +38,44 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
   const [favourites, setFavourites] = useState<BookmarkEntry[]>([]);
   const [frequent, setFrequent] = useState<{ url: string; title: string; site: string }[]>([]);
   const [reading, setReading] = useState<{ path: string; title: string }[]>([]);
+  // Until bookmarks and history have come back, placeholder bars hold their place (no spinner).
+  const [loaded, setLoaded] = useState(false);
   useEffect(() => {
     let live = true;
-    void window.mobius.bookmarks.get('').then((b) => { if (live) setFavourites(b.slice(0, 8)); }).catch(() => {});
-    void window.mobius.history.get('').then((h) => { if (live) setFrequent(h.enabled ? frequentSites(h.entries.slice(0, 300)) : []); }).catch(() => {});
+    const favs = window.mobius.bookmarks.get('').then((b) => { if (live) setFavourites(b.slice(0, 8)); }).catch(() => {});
+    const seen = window.mobius.history.get('').then((h) => { if (live) setFrequent(h.enabled ? frequentSites(h.entries.slice(0, 300), 12) : []); }).catch(() => {});
+    void Promise.all([favs, seen]).then(() => { if (live) setLoaded(true); });
     void window.mobius.reading?.list().then((lists) => {
       if (!live || isNotesFailure(lists)) return;
       setReading(lists.filter((nb) => nb.name !== 'Archive').flatMap((nb) => nb.pages).sort((a, b) => b.modified - a.modified).slice(0, 4).map((p) => ({ path: p.path, title: p.title })));
     }).catch(() => {});
     return () => { live = false; };
   }, []);
-  const empty = favourites.length === 0 && frequent.length === 0 && reading.length === 0;
+  // A site already in Favourites is not shown again under Frequently visited.
+  const favouriteSites = new Set(favourites.map((b) => host(b.url)));
+  const others = frequent.filter((f) => !favouriteSites.has(f.site)).slice(0, 8);
+  const empty = favourites.length === 0 && others.length === 0 && reading.length === 0;
   return (
     <section className="start-page" aria-label="New tab">
       <div className="start-inner">
         <header className="start-head">
           <h1 className="start-greeting">{greeting(new Date().getHours())}</h1>
-          <p className="start-hint">Type an address or a question in the bar, or start from here.</p>
         </header>
+        {!loaded && (
+          <div className="start-grid start-loading" aria-hidden="true">
+            {Array.from({ length: 5 }, (_, i) => <span key={i} className="start-tile"><span className="start-tile-mark" /><span className="start-bar" /></span>)}
+          </div>
+        )}
         {favourites.length > 0 && (
           <section aria-label="Favourites">
             <h2 className="start-heading">Favourites</h2>
             <div className="start-grid">{favourites.map((b) => <Tile key={b.url} url={b.url} title={b.title} onOpen={onOpen} />)}</div>
           </section>
         )}
-        {frequent.length > 0 && (
+        {others.length > 0 && (
           <section aria-label="Frequently visited">
             <h2 className="start-heading">Frequently visited</h2>
-            <div className="start-grid">{frequent.map((f) => <Tile key={f.site} url={f.url} title={f.site} onOpen={onOpen} />)}</div>
+            <div className="start-grid">{others.map((f) => <Tile key={f.site} url={f.url} title={f.site} onOpen={onOpen} />)}</div>
           </section>
         )}
         {reading.length > 0 && (
@@ -76,7 +86,7 @@ export function StartPage({ onOpen, onRead }: { onOpen: (url: string) => void; o
             </ul>
           </section>
         )}
-        {empty && <p className="start-empty">Pages you bookmark and visit often show up here, with what you saved to read.</p>}
+        {loaded && empty && <p className="start-empty">Sites you bookmark and visit often show here.</p>}
       </div>
     </section>
   );

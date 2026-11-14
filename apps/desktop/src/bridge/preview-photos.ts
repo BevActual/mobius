@@ -34,19 +34,98 @@ function paint(s: Scene): string {
   return c.toDataURL('image/jpeg', 0.9);
 }
 
-const albums = () => {
-  const names = [...new Set(Object.keys(SCENES).map((p) => p.split('/')[0]!))];
-  return names.map((name) => ({ name, photos: Object.keys(SCENES).filter((p) => p.startsWith(`${name}/`)).map((path) => ({ path, name: path.slice(name.length + 1), modified: MODIFIED, edited: path in EDITS })) }));
+/** The library as the preview keeps it: each album's photos (their paths), and what each path shows. */
+const SHOWS: Record<string, string> = Object.fromEntries(Object.keys(SCENES).map((p) => [p, p]));
+const ALBUMS = new Map<string, string[]>();
+for (const p of Object.keys(SCENES)) { const a = p.split('/')[0]!; ALBUMS.set(a, [...(ALBUMS.get(a) ?? []), p]); }
+const BIN = new Map<string, { from: string; shows: string }>();
+const nameOf = (p: string) => p.slice(p.indexOf('/') + 1);
+function free(album: string, name: string, taken: (p: string) => boolean): string {
+  const dot = name.lastIndexOf('.');
+  const [stem, ext] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ''];
+  let chosen = name;
+  for (let n = 2; taken(`${album}/${chosen}`); n++) chosen = `${stem} ${n}${ext}`;
+  return `${album}/${chosen}`;
+}
+const inAlbum = (p: string) => ALBUMS.get(p.split('/')[0]!)?.includes(p) ?? false;
+function moveTo(path: string, to: string) {
+  const from = path.split('/')[0]!;
+  ALBUMS.set(from, (ALBUMS.get(from) ?? []).filter((p) => p !== path));
+  const album = to.split('/')[0]!;
+  ALBUMS.set(album, [...(ALBUMS.get(album) ?? []), to].sort((a, b) => a.localeCompare(b)));
+  SHOWS[to] = SHOWS[path]!;
+  if (path in EDITS) { EDITS[to] = EDITS[path]!; EDITED[to] = EDITED[path]!; delete EDITS[path]; delete EDITED[path]; }
+  if (to !== path) delete SHOWS[path];
+}
+const read = (path: string, shows: string | undefined) => {
+  const scene = shows ? SCENES[shows] : undefined;
+  if (!scene || !shows) return { ok: false, message: 'that photo is not there' };
+  PICTURES[shows] ??= paint(scene);
+  return { path, dataUrl: PICTURES[shows], edits: EDITS[path] ?? null, modified: MODIFIED, editsModified: EDITED[path] ?? null };
 };
+
+const albums = () => [...ALBUMS.keys()].sort((a, b) => a.localeCompare(b)).map((name) => ({ name, photos: (ALBUMS.get(name) ?? []).map((path) => ({ path, name: nameOf(path), modified: MODIFIED, edited: path in EDITS })) }));
 
 export const PREVIEW_PHOTOS: Record<string, (...args: never[]) => unknown> = {
   'photos.albums': () => albums(),
-  'photos.read': ((path: string) => {
-    const scene = SCENES[path];
-    if (!scene) return { ok: false, message: 'that photo is not there' };
-    PICTURES[path] ??= paint(scene);
-    return { path, dataUrl: PICTURES[path], edits: EDITS[path] ?? null, modified: MODIFIED, editsModified: EDITED[path] ?? null };
-  }) as never,
+  'photos.createAlbum': ((name: string) => { let n = name || 'Album'; for (let i = 2; ALBUMS.has(n); i++) n = `${name} ${i}`; ALBUMS.set(n, []); return { name: n }; }) as never,
+  'photos.read': ((path: string) => read(path, inAlbum(path) ? SHOWS[path] : undefined)) as never,
   'photos.saveEdits': ((path: string, text: string) => { EDITS[path] = text; EDITED[path] = Date.now(); (window as unknown as { savedEdits?: string }).savedEdits = text; return { path, editsModified: EDITED[path] }; }) as never,
   'photos.export': ((path: string) => ({ path: path.replace(/\.[^.]+$/, ' edited.jpg') })) as never,
+  'photos.rename': ((path: string, name: string) => {
+    if (!inAlbum(path)) return { ok: false, message: 'that photo is not there' };
+    const ext = path.slice(path.lastIndexOf('.'));
+    const wanted = /\.(jpe?g|png|webp|gif)$/i.test(name) ? name.trim() : `${name.trim()}${ext}`;
+    if (wanted === nameOf(path)) return { path };
+    const to = free(path.split('/')[0]!, wanted, inAlbum);
+    moveTo(path, to);
+    return { path: to };
+  }) as never,
+  'photos.move': ((path: string, album: string) => {
+    if (!inAlbum(path) || !ALBUMS.has(album)) return { ok: false, message: 'that album is not there' };
+    if (path.startsWith(`${album}/`)) return { path };
+    const to = free(album, nameOf(path), inAlbum);
+    moveTo(path, to);
+    return { path: to };
+  }) as never,
+  'photos.delete': ((path: string) => {
+    if (!inAlbum(path)) return { ok: false, message: 'that photo is not there' };
+    const album = path.split('/')[0]!;
+    const to = free(album, nameOf(path), (p) => BIN.has(p));
+    BIN.set(to, { from: path, shows: SHOWS[path]! });
+    ALBUMS.set(album, (ALBUMS.get(album) ?? []).filter((p) => p !== path));
+    if (path in EDITS) { EDITS[`.deleted/${to}`] = EDITS[path]!; delete EDITS[path]; delete EDITED[path]; }
+    return { path, deleted: to };
+  }) as never,
+  'photos.deleted': () => [...BIN.keys()].map((path) => ({ path, name: nameOf(path), album: path.split('/')[0], modified: MODIFIED, edited: `.deleted/${path}` in EDITS })),
+  'photos.readDeleted': ((path: string) => { const r = read(path, BIN.get(path)?.shows); return 'dataUrl' in r ? { ...r, edits: EDITS[`.deleted/${path}`] ?? null } : r; }) as never,
+  'photos.recover': ((path: string) => {
+    const got = BIN.get(path);
+    if (!got) return { ok: false, message: 'that photo is not in Recently Deleted' };
+    const album = path.split('/')[0]!;
+    if (!ALBUMS.has(album)) ALBUMS.set(album, []);
+    const to = free(album, nameOf(path), inAlbum);
+    BIN.delete(path);
+    SHOWS[to] = got.shows;
+    ALBUMS.set(album, [...ALBUMS.get(album)!, to].sort((a, b) => a.localeCompare(b)));
+    if (`.deleted/${path}` in EDITS) { EDITS[to] = EDITS[`.deleted/${path}`]!; EDITED[to] = Date.now(); delete EDITS[`.deleted/${path}`]; }
+    return { path: to };
+  }) as never,
+  'photos.emptyDeleted': () => { BIN.clear(); return { emptied: true }; },
+  'photos.renameAlbum': ((album: string, name: string) => {
+    if (!ALBUMS.has(album)) return { ok: false, message: 'that album is not there' };
+    let n = name.trim() || album;
+    if (n === album) return { name: album };
+    for (let i = 2; ALBUMS.has(n); i++) n = `${name.trim()} ${i}`;
+    for (const p of [...ALBUMS.get(album)!]) moveTo(p, `${n}/${nameOf(p)}`);
+    ALBUMS.delete(album);
+    return { name: n };
+  }) as never,
+  'photos.deleteAlbum': ((album: string) => {
+    const list = ALBUMS.get(album);
+    if (!list) return { ok: false, message: 'that album is not there' };
+    for (const p of [...list]) PREVIEW_PHOTOS['photos.delete']!(p as never);
+    ALBUMS.delete(album);
+    return { name: album, deleted: list.length };
+  }) as never,
 };

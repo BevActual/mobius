@@ -1,125 +1,135 @@
-/* Sheets: a Numbers-like grid. Quiet hairlines, a header row that reads as one, the selection as a tinted block with an
-   accent edge, a fill handle, and the formula bar as a field in the toolbar. Light and dark come from the theme tokens. */
+/* Sheets: a Numbers-like grid in the Instrument style (docs/design/instrument.md). Sheets is a compact app (COMPACT_APPS):
+   the frame sets data-density="compact" while it is open, so every size below comes from the compact tokens. Quiet
+   hairlines, a header row that reads as one, the selection as a grey block with an ink edge, cell values in tabular
+   figures and formulas in the mono face. Light and dark come from the theme tokens. */
 
-.stage .sheet-page { background: var(--bg); }
+.stage .sheet-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); font-size: var(--fs-md); }
+.sheet-page.empty { align-items: center; justify-content: center; }
+.sheet-page .sheet-review { width: auto; margin: var(--sp-2) var(--sp-3) 0; max-width: none; }
 
-/* ---------- Toolbar ---------- */
-.sheet-page .sheet-toolbar { gap: 8px; padding: 8px var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); }
-.sheet-tool-group { display: inline-flex; align-items: center; gap: 2px; flex: none; }
-.sheet-tool { height: 28px; min-width: 28px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 7px; border: 0; border-radius: 7px; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); cursor: default; }
-.sheet-tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.sheet-tool:hover:not(:disabled), .sheet-tool[aria-expanded="true"] { background: var(--soft); }
-.sheet-tool:disabled { opacity: 0.35; }
-.sheet-tool:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-.sheet-page .sheet-address { min-width: 64px; height: 28px; padding: 0 10px; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-semibold, 600); white-space: nowrap; }
-.sheet-fx { flex: none; color: var(--muted); font-style: italic; font-family: Georgia, "Times New Roman", serif; font-size: 14px; margin: 0 -2px 0 2px; }
-.sheet-page .sheet-formula { height: 28px; border: 0; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); font-family: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace; font-size: 12.5px; }
-.sheet-page .sheet-formula:focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
+/* ---------- Toolbar and formula row ---------- */
+/* Undo, quick formula, number format, Table and Sort sit in the shell toolbar like Mail's tools. The cell reference and
+   the formula field are one slim row fastened to the grid, as in Numbers and Excel. */
+.sheet-tools { display: flex; align-items: center; gap: var(--sp-2); }
+.sheet-tools-group { display: inline-flex; align-items: center; gap: 2px; }
+.sheet-tools-group + .sheet-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
+.sheet-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
+.sheet-tools .strip-btn:hover:not(:disabled), .sheet-tools .strip-btn[aria-expanded="true"] { background: var(--soft); color: var(--ink); }
+.sheet-tools .strip-btn:disabled { opacity: 0.35; }
+.sheet-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-page .sheet-formula-row { flex-shrink: 0; display: flex; align-items: stretch; height: var(--row-side); border-bottom: var(--hairline-w) solid var(--line); background: var(--bg); }
+.sheet-page .sheet-address { flex: none; min-width: 72px; display: inline-grid; place-items: center start; padding: 0 var(--sp-3); border-right: var(--hairline-w) solid var(--line); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-page .sheet-fx { flex: none; align-self: center; padding: 0 var(--sp-1) 0 var(--sp-3); color: var(--muted); font-style: italic; font-size: var(--fs-md); }
+.sheet-page .sheet-formula { flex: 1; min-width: 120px; padding: 0 var(--sp-3) 0 var(--sp-1); border: 0; border-radius: 0; background: transparent; color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.sheet-page .sheet-formula:focus { outline: none; box-shadow: inset 0 -2px 0 var(--ink); }
+/* The find bar's small buttons. */
+.sheet-page .sheet-tool-group { display: inline-flex; align-items: center; gap: 2px; flex: none; }
+.sheet-page .sheet-tool { height: var(--row-h); min-width: var(--row-h); display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-1); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); cursor: default; }
+.sheet-page .sheet-tool svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-page .sheet-tool:hover:not(:disabled) { background: var(--soft); }
+.sheet-page .sheet-tool:disabled { opacity: 0.35; }
 
 /* ---------- Grid ---------- */
-.sheet-page .sheet-scroll { background: var(--bg); scroll-padding: 22px 0 0 44px; }
-.sheet-page .sheet-scroll[data-header] { scroll-padding-top: 46px; }
-.sheet-page .sheet-table { font-size: 13px; }
-.sheet-page .sheet-table th { background: color-mix(in srgb, var(--ink) 3.5%, var(--bg)); color: var(--muted); font-weight: 500; font-size: 11px; border-right: 0.5px solid var(--line); border-bottom: 0.5px solid var(--line); }
-.sheet-page .sheet-table thead th { min-width: 0; height: 22px; position: sticky; top: 0; z-index: 3; cursor: default; }
-.sheet-page .sheet-table thead th:first-child { z-index: 4; }
-.sheet-page .sheet-table tbody th { z-index: 2; cursor: default; }
-.sheet-page .sheet-table th[data-on] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); color: var(--accent); font-weight: 600; }
-.sheet-corner { cursor: default; }
-.sheet-col-more { position: absolute; top: 3px; right: 6px; width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; background: transparent; color: inherit; opacity: 0; cursor: default; transition: opacity var(--dur-fast) var(--ease); }
-.sheet-col-more svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.sheet-page .sheet-table thead th:hover .sheet-col-more, .sheet-col-more:focus-visible, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { opacity: 1; }
-.sheet-col-more:hover, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { background: color-mix(in srgb, currentColor 16%, transparent); }
-.sheet-col-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
-.sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--accent) 3px, var(--accent) 4px, transparent 4px); }
-.sheet-page .sheet-table td { max-width: none; height: 24px; padding: 0 7px; border-right: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); border-bottom: 0.5px solid color-mix(in srgb, var(--line) 75%, transparent); outline: none; overflow: visible; text-overflow: clip; }
-.sheet-page .sheet-table td { overflow: hidden; text-overflow: ellipsis; }
+/* The column letters are one control-high strip; the header row sticks under it. */
+.sheet-page { --sheet-head-h: var(--control-h); }
+.sheet-page .sheet-scroll { flex: 1; min-height: 0; overflow: auto; outline: none; background: var(--bg); scroll-padding: var(--sheet-head-h) 0 0 44px; }
+.sheet-page .sheet-scroll[data-header] { scroll-padding-top: calc(var(--sheet-head-h) + var(--row-list)); }
+.sheet-page .sheet-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.sheet-page .sheet-table th { position: sticky; z-index: 2; background: var(--panel); color: var(--muted); font-weight: var(--fw-medium); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; border-right: var(--hairline-w) solid var(--line); border-bottom: var(--hairline-w) solid var(--line); user-select: none; cursor: default; }
+.sheet-page .sheet-table thead th { top: 0; z-index: 3; height: var(--sheet-head-h); min-width: 0; width: 96px; }
+.sheet-page .sheet-table tbody th { left: 0; width: 44px; min-width: 44px; text-align: right; padding-right: var(--sp-2); }
+.sheet-page .sheet-table thead th:first-child { left: 0; z-index: 4; width: 44px; min-width: 44px; }
+.sheet-page .sheet-table th[data-on] { background: var(--sel); color: var(--ink); font-weight: var(--fw-semibold); }
+.sheet-page .sheet-corner { cursor: default; }
+.sheet-page .sheet-col-more { position: absolute; top: 50%; right: var(--sp-1); width: 16px; height: 16px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-small); background: transparent; color: inherit; opacity: 0; cursor: default; transform: translateY(-50%); transition: opacity var(--dur-fast) var(--ease); }
+.sheet-page .sheet-col-more svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.sheet-page .sheet-table thead th:hover .sheet-col-more, .sheet-page .sheet-col-more:focus-visible, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { opacity: 1; }
+.sheet-page .sheet-col-more:hover, .sheet-page .sheet-table thead th[data-menu] .sheet-col-more { background: var(--soft); }
+.sheet-page .sheet-col-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 1; }
+.sheet-page .sheet-col-resize:hover { background: linear-gradient(to right, transparent 3px, var(--ink) 3px, var(--ink) 4px, transparent 4px); }
+/* One row height for every cell: the compact content row. */
+.sheet-page .sheet-table td { position: relative; height: var(--row-list); max-width: none; padding: 0 var(--sp-2); border-right: var(--hairline-w) solid var(--line-soft); border-bottom: var(--hairline-w) solid var(--line-soft); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none; cursor: cell; }
+.sheet-page .sheet-table td[data-num] { text-align: right; }
+.sheet-page .sheet-table td[data-error] { color: var(--red); }
 .sheet-page .sheet-table td[aria-selected="true"] { outline: none; }
 /* Picking cells selects cells, not the words in them: dragging or Shift-clicking never paints page text. */
 .sheet-page .sheet-table td { user-select: none; -webkit-user-select: none; }
-.sheet-page .sheet-cell-input { user-select: text; -webkit-user-select: text; }
-.sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--accent) 11%, var(--bg)); }
+.sheet-page .sheet-table td[data-in] { background: color-mix(in srgb, var(--sel) 60%, var(--bg)); }
 .sheet-page .sheet-table td[data-focus] { z-index: 1; }
-.sheet-page .sheet-table td[data-formula]:not([data-error]) { color: var(--ink); }
-.sheet-page .sheet-table td[data-changed] { box-shadow: none; }
-.sheet-page .sheet-table td[data-ref="0"] { background: color-mix(in srgb, #0a84ff 10%, var(--bg)); }
-.sheet-page .sheet-table td[data-ref="1"] { background: color-mix(in srgb, #ff9f0a 12%, var(--bg)); }
-.sheet-page .sheet-table td[data-ref="2"] { background: color-mix(in srgb, #30d158 12%, var(--bg)); }
-.sheet-page .sheet-table td[data-ref="3"] { background: color-mix(in srgb, #bf5af2 11%, var(--bg)); }
-.sheet-page .sheet-table td[data-ref="4"] { background: color-mix(in srgb, #ff375f 10%, var(--bg)); }
-.sheet-page .sheet-table td[data-ref="5"] { background: color-mix(in srgb, #64d2ff 14%, var(--bg)); }
-.sheet-page .sheet-cell-input { right: auto; max-width: 640px; outline: none; padding: 0 7px; box-shadow: inset 0 0 0 2px var(--accent), 0 2px 10px rgba(0, 0, 0, 0.12); border-radius: 1px; font-family: inherit; }
+.sheet-page .sheet-table td[data-fresh] { animation: cal-fresh var(--dur-slow) var(--ease) 2; }
+/* What Mobius changed in its last turn: the shared dashed indigo edge, as in Docs and Tasks, until you keep it. */
+.sheet-page .sheet-table td[data-changed] { background: var(--mobius-wash); outline: var(--hairline-w) dashed var(--mobius); outline-offset: -2px; }
+/* The ranges a formula names, each in its own content colour from the shared palette, as a soft tint. */
+.sheet-page .sheet-table td[data-ref="0"] { background: color-mix(in srgb, var(--c-blue) 16%, var(--bg)); }
+.sheet-page .sheet-table td[data-ref="1"] { background: color-mix(in srgb, var(--c-amber) 16%, var(--bg)); }
+.sheet-page .sheet-table td[data-ref="2"] { background: color-mix(in srgb, var(--c-green) 18%, var(--bg)); }
+.sheet-page .sheet-table td[data-ref="3"] { background: color-mix(in srgb, var(--c-violet) 16%, var(--bg)); }
+.sheet-page .sheet-table td[data-ref="4"] { background: color-mix(in srgb, var(--c-pink) 16%, var(--bg)); }
+.sheet-page .sheet-table td[data-ref="5"] { background: color-mix(in srgb, var(--c-teal) 16%, var(--bg)); }
+/* Editing a cell: the value as typed, in the mono face when it is a formula. */
+.sheet-page .sheet-cell-input { position: absolute; inset: 0; right: auto; width: 100%; max-width: 640px; height: 100%; padding: 0 var(--sp-2); border: 0; outline: none; border-radius: var(--radius-small); background: var(--bg); color: inherit; font: inherit; box-shadow: inset 0 0 0 2px var(--ink), var(--shadow-2); user-select: text; -webkit-user-select: text; }
+.sheet-page .sheet-cell-input[data-formula] { font-family: var(--font-mono); font-size: var(--fs-sm); }
 
 /* The fill handle: a small dot on the selection's corner, as in Numbers. */
-.sheet-fill { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 1.5px var(--bg); cursor: crosshair; z-index: 2; }
+.sheet-page .sheet-fill { position: absolute; right: -4px; bottom: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 1.5px var(--bg); cursor: crosshair; z-index: 2; }
 .sheet-page .sheet-table td:has(.sheet-fill), .sheet-page .sheet-table td:has(.sheet-cell-input) { overflow: visible; }
 .sheet-page .sheet-table td:has(.sheet-cell-input) { z-index: 4; }
 
-/* A header row: bold, tinted, and kept in view while the rows scroll under it. */
-.sheet-page .sheet-table .sheet-header-row td, .sheet-page .sheet-table .sheet-header-row th { position: sticky; top: 22px; z-index: 2; }
-.sheet-page .sheet-header-row td { background: color-mix(in srgb, var(--ink) 5%, var(--bg)); font-weight: 600; border-bottom: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); }
-.sheet-page .sheet-header-row td[data-in] { background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+/* A header row: semibold on a grey band, kept in view while the rows scroll under it. */
+.sheet-page .sheet-table .sheet-header-row td, .sheet-page .sheet-table .sheet-header-row th { position: sticky; top: var(--sheet-head-h); z-index: 2; }
+.sheet-page .sheet-header-row td { background: var(--panel); font-weight: var(--fw-semibold); border-bottom: var(--hairline-w) solid var(--line-strong); }
+.sheet-page .sheet-header-row td[data-in] { background: var(--sel); }
 .sheet-page .sheet-table .sheet-header-row th { z-index: 3; }
 
 /* A total row: bold, with a rule above it, as Numbers sets a footer row apart. */
-.sheet-page .sheet-footer-row td { font-weight: 600; border-top: 1px solid color-mix(in srgb, var(--ink) 22%, transparent); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); }
-.sheet-page .sheet-footer-row td[data-in] { background: color-mix(in srgb, var(--accent) 14%, var(--bg)); }
+.sheet-page .sheet-footer-row td { font-weight: var(--fw-semibold); border-top: var(--hairline-w) solid var(--line-strong); }
 
 /* ---------- Find ---------- */
-.sheet-find { display: flex; align-items: center; gap: 8px; padding: 6px var(--sp-3); border-bottom: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--bg)); animation: sheet-pop var(--dur-fast) var(--ease); }
-.sheet-find-icon { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
-.sheet-find input { flex: 0 1 320px; min-width: 120px; height: 26px; padding: 0 9px; border: 0; border-radius: 7px; background: var(--bg); box-shadow: inset 0 0 0 0.5px var(--line); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
-.sheet-find input:focus { box-shadow: inset 0 0 0 1px var(--accent), 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); }
-.sheet-find-count { min-width: 64px; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sheet-find-done { margin-left: auto; height: 26px; padding: 0 12px; }
-/* Cells that match what is looked for are tinted yellow, as a find highlights words on a page. */
-.sheet-page .sheet-table td[data-match] { background: color-mix(in srgb, #ffd60a 30%, var(--bg)); }
-.sheet-page .sheet-table td[data-match][data-focus] { background: color-mix(in srgb, #ffd60a 55%, var(--bg)); }
+.sheet-page .sheet-find { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--bg); }
+.sheet-page .sheet-find-icon { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.sheet-page .sheet-find input { flex: 0 1 320px; min-width: 120px; height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--field); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
+.sheet-page .sheet-find input:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent); }
+.sheet-page .sheet-find-count { min-width: 64px; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-page .sheet-find-done { margin-left: auto; height: var(--control-h); padding: 0 var(--sp-3); }
+/* Cells that match what is looked for get a soft yellow tint, as a find highlights words on a page. */
+.sheet-page .sheet-table td[data-match] { background: color-mix(in srgb, var(--c-yellow) 30%, var(--bg)); }
+.sheet-page .sheet-table td[data-match][data-focus] { background: color-mix(in srgb, var(--c-yellow) 55%, var(--bg)); }
 
-/* ---------- Menus and the function list ---------- */
-.sheet-scrim { position: fixed; inset: 0; z-index: 900; }
-.sheet-menu { position: fixed; z-index: 901; display: grid; padding: 5px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 32px rgba(0, 0, 0, 0.18); animation: sheet-pop var(--dur-fast, var(--dur-fast)) var(--ease, var(--ease)); }
-.sheet-menu-item { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-md, 13px); text-align: left; cursor: default; }
-.sheet-menu-item:hover:not(:disabled), .sheet-menu-item:focus-visible { background: var(--accent); color: var(--on-accent, #fff); outline: none; }
-.sheet-menu-item:disabled { opacity: 0.4; }
-.sheet-menu-item[data-danger]:not(:hover) { color: var(--danger); }
-.sheet-menu-item kbd { all: unset; font-size: 11.5px; opacity: 0.55; }
-.sheet-menu-check { font-size: 12px; text-align: center; }
-.sheet-menu-sep { height: 0.5px; margin: 4px 8px; background: var(--line); }
-@keyframes sheet-pop { from { opacity: 0; } to { opacity: 1; } }
-
-.sheet-suggest { position: fixed; z-index: 902; width: 300px; max-height: 260px; overflow: auto; padding: 4px; border-radius: 10px; background: color-mix(in srgb, var(--bg) 97%, transparent); box-shadow: 0 0 0 0.5px var(--line), 0 10px 28px rgba(0, 0, 0, 0.16); }
-.sheet-suggest ul { margin: 0; padding: 0; list-style: none; }
-.sheet-suggest li { display: grid; gap: 1px; padding: 5px 8px; border-radius: 6px; cursor: default; }
-.sheet-suggest li b { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; font-weight: 600; }
-.sheet-suggest li span { font-size: 11.5px; color: var(--muted); }
-.sheet-suggest li[aria-selected="true"] { background: var(--accent); color: var(--on-accent, #fff); }
-.sheet-suggest li[aria-selected="true"] span { color: inherit; opacity: 0.85; }
-.sheet-hint { margin: 0; padding: 4px 6px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 12px; }
-.sheet-hint span { display: block; margin-top: 2px; font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif; font-size: 11.5px; color: var(--muted); }
+/* ---------- The function list ---------- */
+.sheet-page .sheet-suggest { position: fixed; z-index: 902; width: 300px; max-height: 260px; overflow: auto; padding: var(--menu-pad, 4px); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-2); }
+.sheet-page .sheet-suggest ul { margin: 0; padding: 0; list-style: none; }
+.sheet-page .sheet-suggest li { display: grid; gap: 1px; padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-control); cursor: default; }
+.sheet-page .sheet-suggest li b { font-family: var(--font-mono); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.sheet-page .sheet-suggest li span { font-size: var(--fs-xs); color: var(--muted); }
+.sheet-page .sheet-suggest li[aria-selected="true"] { background: var(--sel); color: var(--ink); }
+.sheet-page .sheet-hint { margin: 0; padding: var(--sp-1) var(--sp-2); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.sheet-page .sheet-hint span { display: block; margin-top: 2px; font-family: inherit; font-size: var(--fs-xs); color: var(--muted); }
 
 /* ---------- Sheet tabs and the status line ---------- */
-.sheet-foot { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 36px; padding: 4px var(--sp-3); border-top: 0.5px solid var(--line); background: color-mix(in srgb, var(--ink) 2.5%, var(--bg)); container-type: inline-size; }
-.sheet-page .sheet-tabs { flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none; padding: 0; border: 0; background: transparent; gap: 2px; }
-.sheet-page .sheet-tab { height: 26px; padding: 0 12px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-sm); white-space: nowrap; }
+.sheet-page .sheet-foot { flex-shrink: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-list); padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); background: var(--bg); container-type: inline-size; }
+.sheet-page .sheet-tabs { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; overflow-x: auto; scrollbar-width: none; padding: 0; border: 0; background: transparent; gap: 2px; }
+.sheet-page .sheet-tabs .spacer { flex: 1; }
+.sheet-page .sheet-tab { height: var(--row-h); padding: 0 var(--sp-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); font: inherit; font-size: var(--fs-sm); white-space: nowrap; }
 .sheet-page .sheet-tab:hover { background: var(--soft); color: var(--ink); }
-.sheet-page .sheet-tab[aria-selected="true"] { background: var(--bg); color: var(--ink); box-shadow: 0 0 0 0.5px var(--line), 0 1px 2px rgba(0, 0, 0, 0.08); font-weight: 600; }
-.sheet-tab-add { width: 26px; height: 26px; flex: none; display: inline-grid; place-items: center; border: 0; border-radius: 7px; background: transparent; color: var(--muted); }
-.sheet-tab-add:hover { background: var(--soft); color: var(--ink); }
-.sheet-tab-add svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
-.sheet-tab-confirm { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; font-size: var(--fs-sm); color: var(--ink); white-space: nowrap; }
-.sheet-tab-confirm .btn { height: 24px; padding: 0 10px; }
-.sheet-status { flex: none; display: flex; gap: 14px; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sheet-status b { color: var(--ink); font-weight: 600; margin-left: 3px; }
+.sheet-page .sheet-tab[aria-selected="true"] { background: transparent; color: var(--ink); box-shadow: none; font-weight: var(--fw-semibold); }
+.sheet-page .sheet-tab[aria-selected="true"]:hover { background: var(--soft); }
+.sheet-page .sheet-tab-name { height: var(--row-h); width: 120px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--field); box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
+.sheet-page .sheet-tab-add { width: var(--row-h); height: var(--row-h); flex: none; display: inline-grid; place-items: center; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--muted); }
+.sheet-page .sheet-tab-add:hover { background: var(--soft); color: var(--ink); }
+.sheet-page .sheet-tab-add svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.sheet-page .sheet-tab-confirm { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: var(--sp-2); font-size: var(--fs-sm); color: var(--ink); white-space: nowrap; }
+.sheet-page .sheet-tab-confirm .btn { height: var(--control-h); padding: 0 var(--sp-3); }
+.sheet-page .sheet-status { flex: none; display: flex; gap: var(--sp-4); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sheet-page .sheet-status b { color: var(--ink); font-weight: var(--fw-semibold); margin-left: var(--sp-1); }
 @container (max-width: 640px) { .sheet-status span:nth-child(n+3) { display: none; } }
 
-/* ---------- Empty ---------- */
-.sheet-empty { display: grid; justify-items: center; gap: 6px; max-width: 320px; text-align: center; color: var(--muted); font-size: var(--fs-sm); }
-.sheet-empty p { margin: 0; color: var(--ink); font-size: var(--fs-lg, 15px); font-weight: 600; }
-.sheet-empty-icon { width: 48px; height: 48px; display: grid; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--app-sheets, #30d158) 16%, var(--bg)); color: var(--app-sheets, #30d158); margin-bottom: 4px; }
-.sheet-empty-icon svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+/* ---------- Loading ---------- */
+/* While a workbook is read: placeholder bars where the grid will be, never a spinner. They hold still. */
+.sheet-page .sheet-loading { flex: 1; display: grid; align-content: start; gap: 0; padding-top: var(--sheet-head-h); }
+.sheet-page .sheet-loading span { display: block; height: var(--row-list); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.sheet-page .sheet-loading span::before { content: ""; display: block; width: var(--w, 40%); height: 8px; margin: calc((var(--row-list) - 8px) / 2) 0 0 calc(44px + var(--sp-2)); border-radius: var(--radius-small); background: var(--sel); }
 
 @media print {
-  .sheet-toolbar, .sheet-find, .sheet-foot, .sheet-fill { display: none; }
+  .sheet-page .sheet-formula-row, .sheet-page .sheet-find, .sheet-page .sheet-foot, .sheet-page .sheet-fill { display: none; }
   .sheet-page .sheet-scroll { overflow: visible; }
 }

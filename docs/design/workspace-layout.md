@@ -1,64 +1,119 @@
-# Workspace layout: one adaptive surface
+# Workspace layout: one frame, a shape per app
 
-> The frame, the sidebar order, where Mobius opens and the theme were redecided on 2026-11-13. Where this page
-> differs, [Panel layouts](panel-layouts.md) and [Theme tokens](theme-tokens.md) win until this page is rewritten.
+Owner direction (adopted 2026-11-13, "One Mobius layout for every app"): every app has the same five-zone window. Only
+what is inside the zones changes per app, so moving between apps never feels like moving between products. Mobius sits
+beside the work in a right panel, opened from the same place in every app. The theme is timeless: flat surfaces, type,
+spacing and restraint, not this year's materials. [Design rules](rules.md) says how each part must look and behave.
 
-Owner direction (2026-11-07): an app in Mobius should not feel like a window into another application. The UI
-morphs: the controls that exist change with what you are doing, inside one unified design, and the agent can be used
-while you work in any app.
+## The five zones
 
-## The parts, the same in every app
+```
+┌──────┬────────────┬──────────────────────────────────────────┬──────────────┐
+│ Rail │  Sidebar   │ Toolbar: ☰ Title · line │ app controls │ Share ⋯ ✦ │
+│      │            ├──────────────────────────────────────────┤  Right panel │
+│ Home │ New        │                                          │  (Mobius, or │
+│ Find │ Search     │                 Content                  │  inspector,  │
+│ Apps │ Places     │            (one or more views)           │  as tabs)    │
+│  …   │ From Mobius│                                          │              │
+│ ⚙ 👤 │ More       ├──────────────── bottom dock ─────────────┤              │
+└──────┴────────────┴──────────────────────────────────────────┴──────────────┘
+```
 
-| Part | What it is | How it adapts |
-|---|---|---|
-| Sidebar (left) | The apps by name, then the open app's own list (tabs, notebooks, lists, conversations). Folds to an icon rail. | The **Create** button follows the app (New tab / New note / New task / New conversation). Counts and dots show what is waiting and what the agent changed elsewhere. A narrow window folds it to the rail on its own. |
-| Toolbar (top) | Where you are (title + one line about it), then the app's own controls, then the agent. | Browser: back, forward, address. Notes: notebook and save state. Tasks: how many to do, Clear completed. Agent: which model. |
-| Work area | The app's content as one sheet on the window. | Only the content changes between apps; headers live in the toolbar, not in each page. |
-| Agent | One conversation across all apps. | Three sizes: **in the sidebar**, where the Mobius button turns the app's sidebar into the conversation; the **panel** beside the work (the composer turns into a live status line while the agent works); the **Agent app** full size. On-canvas actions work on text selected in a note or on a web page. |
-| App hub | Every app as a tile with a live status, ways to start something, apps still to come. | Opens from the sidebar; type to narrow it. |
+| Zone | Its job | Always the same | Filled by the app |
+| --- | --- | --- | --- |
+| 1. App rail (far left, about 52px) | Get to any app, see what needs you | Home, Search, pinned apps, then Mobius, Activity with its badge, Settings and profile at the foot. Never folds away. | Nothing. Badges and dots only. |
+| 2. Sidebar | Move around inside the app | New, Search, the app's places in sections, From Mobius, More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
+| 3. Toolbar (one row) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
+| 4. Content | The work | A solid surface, the shared empty state, the shared review bar | One or more views, and a bottom dock |
+| 5. Right panel | Details and Mobius | One column, same width and card. Mobius docks here by default; other panels dock here as tabs. | Whether the app has an inspector |
 
-## Rules taken from Apple's HIG (Sidebars, Toolbars) and Microsoft's 2026 Copilot redesign
+Little Mobius and split view are in the Window menu and their keys, where the launcher also finds them. Comments keep a
+toolbar button before Share, because it shows the count of open threads and whether comment mode is on; it is also in
+View › Comments. Below 980px the sidebar folds and the right panel closes; each comes back over the content from its toggle.
 
-- Do not hide the sidebar by default; let people hide it, and fold it when the window is narrow (macOS Mail).
-- Sidebar icons use the accent colour; at most two levels of hierarchy; nothing critical at the bottom.
-- One entry point for the agent that sits above the work and opens a side pane that works with the content, with
-  clear signals of what it is doing (M365 Copilot, May 2026). Invoking it on the content itself comes after.
-- Progressive disclosure: start clean, reveal controls in context, never every path at once.
-- Glass only on the top layer (the app hub, menus); the sidebar and toolbar are solid.
+## What changes per app
 
-## Mobius 2 shell
+Apps differ in three ways only: what fills the toolbar middle, whether the sidebar starts open, and which panels they
+have. Five kinds cover every app.
 
-- One window. The sidebar runs edge to edge; one toolbar spans the work area; controls are capsules; indigo is the one
-  accent. Glass stays on the top layer only, so Linux stays readable.
-- **Split view**: the toolbar's split button (or Ctrl+\\) puts a second app beside the first. Each pane has a small header (choose
-  its app, swap, close) outside the page view; the toolbar and sidebar follow the focused pane. Drag the divider, or
-  focus it and use the arrow keys. Below 980 px the second pane folds away until the window is wide again. With the
-  Agent app in a pane, the agent panel steps aside.
+| Kind | Apps | Sidebar at start | Toolbar middle | Inspector on the right |
+| --- | --- | --- | --- | --- |
+| Organise | Mail, Tasks, Calendar, Files, Projects | Open | View switch (Day, Week, Month), Today, the main actions (Reply, Reply All, Forward) | No. Mail and Calendar open details in the content |
+| Write | Notes, Docs, Knowledge, Reader | Open, folds on its own while typing | Aa, insert, history. The Docs outline moves into the sidebar under the document | No |
+| Browse | Browser, Research, Search | Open | Back, forward, reload and the address bar | No |
+| Data | Sheets, Database, Views | Open | Formula or query bar, then filter and sort | Optional (cell or column details) |
+| Make | Slides, Design, Canvas, Photo, Video, Music, Code, Terminal | Folded, to give the canvas room | Tools and play or run (Add slide, Play, transport, crop) | Yes: Slides style, Design layers, Photo adjust, Music device |
+
+The Agent app is the one special case. Its content is the conversation, so the right panel stays closed there and the
+Mobius button opens the conversation list instead.
+
+## Views and panels
+
+Complex apps are made of views and panels that people can show, hide, resize, rearrange and pop out.
+
+- A **view** fills the content zone and is switched in the toolbar (Session or Arrange in Music; Library or Edit in
+  Photo; Day, Week, Month in Calendar).
+- A **panel** is a named piece around the view (Clip, Devices, Mixer, Inspector, Timeline, Filmstrip, Outline, and also
+  the sidebar and Mobius). It can be turned on or off, resized, docked left, bottom or right, or popped out into its own
+  window. Little Mobius is the Mobius panel popped out.
+- A **layout** is a saved arrangement of panels (Arranging, Mixing, Sound design), picked, saved or reset from the
+  app's Panels menu.
+
+Every panel has the same header (name, dock, pop out, close), and each app has one Panels menu. Panels arrive in three
+stages: show, hide and resize; then move between docks; then pop out into a window.
+
+## Mobius's three sizes
+
+- **Full**: Home and the Agent app, where the conversation is the content.
+- **Beside**: the right panel in every other app, opened from the Mobius button or the rail. The sidebar never changes
+  face, so you keep your lists while you talk.
+- **In place**: verbs on a selection (Ask, Rewrite, Summarise, Make a task), with the result dashed where it lands.
+
+## The theme
+
+Three flat surfaces (a neutral frame, paper content, raised) separated by hairlines; shadows only on floating things;
+no blur or glass. The frame is neutral and uses ink for state; indigo marks Mobius; colour belongs to the person's
+content. Inter for the interface and Inter Display for titles on every platform. Two densities from the same tokens:
+comfortable for daily apps, compact for Music, Video, Code and Sheets. Several themes (Light, Mid grey, Dark, Cool
+dark). Single-weight line icons in the frame; colour tiles only in the launcher. Details are in
+[Design rules](rules.md#theme).
+
+## Roll-out
+
+1. **Shell (Builder):** an `AppFrame` in `apps/desktop/src/ui/` with slots for the sidebar, toolbar title, toolbar
+   controls and inspector; the app rail; the right panel with Mobius; the window icons moved to menus; the theme tokens
+   (three surfaces, two densities, Inter).
+2. **Sidebar skeleton (Builder):** a shared `AppSidebar` that enforces New, Search, sections, From Mobius, More.
+3. **Apps adopt (app threads):** each app moves its second row into the toolbar slot and its help text out of the
+   sidebar, one small PR each. Daily apps first: Mail, Calendar, Tasks, Notes, Docs, Browser.
+
+## Shell features
+
+- **Split view**: Window › Split view (or Ctrl+\\) puts a second app beside the first. Each pane has a small header
+  (choose its app, swap, close); the toolbar and sidebar follow the focused pane. Drag the divider, or focus it and use
+  the arrow keys. Below 980 px the second pane folds away until the window is wide again.
 - **Beside the conversation**: when the agent writes a note, changes a task list or opens a web page while you are in the
-  Agent app, it opens in the second pane, and typing stays in the conversation. A pane you chose for something else is never
-  replaced; that app gets its dot in the sidebar instead.
+  Agent app, it opens in the second pane, and typing stays in the conversation. A pane you chose for something else is
+  never replaced; that app gets its dot on the rail instead.
 - **Replies read as formatting**: headings, lists, quotes, code, bold and links (links open as tabs in Mobius). The
   reply is read into plain data, never HTML, and only web and mail links are followed.
-- **Little Mobius**: a small window, kept above other apps, with the conversation and nothing else. It opens (Ctrl+Shift+M) from the
-  toolbar, shares conversations with the main window, and closes with it.
-
+- **Little Mobius**: the Mobius panel popped out into a small window kept above other apps (Ctrl+Shift+M). It shares
+  conversations with the main window and closes with it.
 - **On-canvas actions**: select text in a note and a capsule appears above it: Ask (the text joins the agent's message
   box as a Note chip), Rewrite (the agent changes it in the note), Summarise, and Make a task (added straight to the
-  first list, no agent needed). On a web page, the toolbar's selection menu offers Ask, Summarise, Explain, Make a task and Save to Notes (quoted on a Clippings page, with a link back; "Save to another page…" picks a different page and keeps saving there)
-  (the page is a native view, so its picture covers it while the menu is open).
+  first list, no agent needed). On a web page, the selection menu offers Ask, Summarise, Explain, Make a task and Save
+  to Notes (quoted on a Clippings page, with a link back).
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
   what that turn changed, so edits made since elsewhere are kept. A changed note says so above the page, with Show
-  changes (the page line by line: added, removed, kept, with an Undo on each change) and Undo all; changed pages and lists carry a dot in their sidebars.
-- **Your sidebar**: drag an app in the sidebar to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it, hide it, or edit the list. Settings ›
-  Appearance › Layout has the full list with a checkbox and order buttons for each. At least one app always stays,
-  and hidden apps are still in All apps. Pin a note or a task list (the pin beside it), or a web page (the pin in the browser toolbar), and it stays under
-  the apps, up to eight; drag pinned items (or Alt+Up/Down) to reorder them. A pinned page opens in its tab if one is open.
+  changes and Undo all; changed pages and lists carry a dot in their sidebars.
+- **Your rail**: drag an app on the rail to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it,
+  hide it, or edit the list. Settings › Appearance › Layout has the full list. Hidden apps are still in the launcher.
+  Pin a note, a task list or a web page, and it stays in its app's sidebar.
 
-## Following the Mobius Agent design canvas
+## What the shell and apps hold
 
-The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follows. The one-window decision stands
-(option B on the canvas: one window, split view, Little Mobius).
+These came from the Mobius Agent design canvas (Mobius 2 boards), which is now history. The one-window decision stands.
 
 - **Mark and icon**: the thin trefoil from the Logo board (V10), one ribbon knotted three times with rounded cuts, filled in the current colour at every size; the glossy coloured ring is the app icon only.
 - **Menus**: File, Edit, View, Go, the app's own menu, Window, Help, from one definition (`menus.ts`). In the toolbar on
@@ -77,7 +132,7 @@ The Mobius Agent design canvas (Mobius 2 boards) is the reference for what follo
 - **Presence on the desktop**: the print in the menu bar or notification area shows idle, working, needs you, or done
   while away; its menu opens Mobius, asks, lists what is running, and stops it all.
 - **Privacy report**: what Mobius read and changed in each app this week, and where requests are answered.
-- **Accessibility**: glass turns solid with Reduce Transparency, Increase Contrast or forced colours.
+- **Accessibility**: with Increase Contrast or forced colours, hairlines get stronger and fills turn to outlines.
 - **Profiles**: separate sets of data (Personal, Work…), switched in Settings › Advanced › Profiles or File › Profiles…;
   models are shared. Each reply says what it was **based on**.
 
@@ -86,9 +141,9 @@ The apps on the canvas, each keeping its data as ordinary files other apps can o
 - **Calendar** (`calendar/*.ics`): day, week and month; subscribed links and CalDAV accounts (iCloud, Fastmail,
   Nextcloud) beside the person's own calendars; Mobius's suggestions dashed with Decline and Add. Google and Microsoft
   sign-in need app registrations ([calendar sign-in](../reference/calendar-sign-in.md)).
-- **Notes** format bar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
-  to ten minutes, turned into words by the speech model and kept as a section), and in the ⋯ menu Clip a web page (a
-  page's first paragraphs quoted with its link) and the Markdown view.
+- **Notes** controls, in the toolbar: Aa (styles and marks in one panel), a checklist, a table or a link at the cursor, Record (up
+  to ten minutes, turned into words by the speech model and kept as a section) and Share; the Notes menu (⋯)
+  has Version history, Clip a web page (a page's first paragraphs quoted with its link) and the Markdown view.
 - **Docs** (`docs/<folder>/*.md`): a page with formatting, an outline, writing tools, and the agent's changes as
   proposals in the page.
 - **Sheets** (`sheets/<workbook>/*.csv`): formulas worked out in Rust for the window and the agent alike; cells the

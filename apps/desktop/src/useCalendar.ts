@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure, type TaskItem } from '@mobius/shared';
-import { daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
+import { CALENDAR_ACCOUNTS_EVENT, daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
 /** Whether tasks with a due date are shown on their days, per device; shown unless turned off. */
@@ -82,6 +82,12 @@ export function useCalendar() {
       window.setTimeout(() => setFresh(new Set()), FRESH_MS);
     });
   }), [api, refresh]);
+  // An account added, removed or refreshed in Settings › Calendar: read the calendars again.
+  useEffect(() => {
+    const again = () => { void refresh(); };
+    window.addEventListener(CALENDAR_ACCOUNTS_EVENT, again);
+    return () => window.removeEventListener(CALENDAR_ACCOUNTS_EVENT, again);
+  }, [refresh]);
   // The calendars are ordinary files another app may change: read them again when the window comes back.
   useEffect(() => {
     const again = () => { if (document.visibilityState === 'visible') { void refresh(); void loadDue(); } };

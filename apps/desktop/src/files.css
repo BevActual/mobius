@@ -1,0 +1,90 @@
+/* Files: the workspace as a drive, laid out like Finder's list view. What Mobius made is dashed until kept. */
+.files-page { gap: var(--sp-3); }
+.files-page { --files-col: min(100%, 720px); }
+.files-crumbs, .files-table, .files-empty, .files-page > .field-error { width: var(--files-col); margin-inline: auto; }
+
+/* The path bar at the foot, as Finder's: where this folder is, each part a way back up. */
+.files-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-top: auto; padding-top: var(--sp-2); border-top: 1px solid var(--hairline); color: var(--muted); font-size: var(--fs-sm); }
+.files-crumbs .review-btn[aria-current="page"] { color: var(--ink); }
+
+/* The list: a header row of sortable columns, then one row per entry. */
+.files-head, .files-row { display: grid; grid-template-columns: minmax(0, 1fr) 110px 196px 64px; align-items: center; column-gap: var(--sp-3); }
+.files-table[aria-label="Made by Mobius"] .files-row { grid-template-columns: minmax(0, 1fr) 90px minmax(0, 200px); }
+.files-head { padding: 0 var(--sp-3) var(--sp-1); border-bottom: 1px solid var(--line); }
+.files-col { justify-self: start; display: inline-flex; align-items: center; gap: 4px; padding: 2px 4px; margin-left: -4px; border-radius: var(--radius-small, 4px); font-size: var(--fs-xs); font-weight: 400; color: var(--muted); }
+.files-col:hover { background: var(--wash); color: var(--ink); }
+.files-col[data-col="size"] { justify-self: end; margin-left: 0; margin-right: -4px; }
+.files-sort { font-size: 9px; }
+
+.files-row { min-height: 36px; padding: 0 var(--sp-3); border-bottom: 1px solid var(--line); cursor: default; user-select: none; transition: background var(--dur-fast) var(--ease); }
+.files-row:hover { background: var(--line-soft, var(--soft)); }
+.files-row:focus { outline: none; }
+.files-row[aria-selected="true"] { background: var(--sel, var(--wash)); }
+/* Moving: the folder a dragged item would land in is ringed in ink; what is being dragged or cut stays, faded. */
+.files-row[data-drop],
+.files-path .review-btn[data-drop],
+.list-row[data-drop] { background: var(--sel, var(--wash)); box-shadow: inset 0 0 0 1.5px var(--ink); }
+.files-row[data-dragging],
+.files-row[data-cut] { opacity: .5; }
+.files-row:focus-visible { box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent); }
+.files-row[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -4px; }
+.files-cell { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
+.files-name { display: flex; align-items: center; gap: var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); }
+.files-label { overflow: hidden; text-overflow: ellipsis; }
+.files-size, .files-date { text-align: right; font-variant-numeric: tabular-nums; }
+.files-col[data-col="modified"] { justify-self: end; margin-left: 0; margin-right: -4px; }
+.files-page .list-count { font-variant-numeric: tabular-nums; }
+.files-dot { flex: none; width: 6px; height: 6px; border-radius: 3px; background: var(--mobius, var(--accent)); }
+.files-none { padding: var(--sp-3); }
+
+/* Icons: the frame's neutral line glyphs; colour shows only as Mobius's dot. */
+.files-icon { flex: none; width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+/* The sidebar's glyphs are one size, the shared 16px row glyph, for places and folders alike. */
+.files-icon[data-size="side"] { width: 16px; height: 16px; padding: 0; }
+
+
+.files-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-8) 0; text-align: center; }
+.files-empty .files-icon[data-glyph="folder"] { color: var(--muted); fill: none; }
+
+.files-review { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 6px 6px 12px; width: fit-content; max-width: var(--files-col); margin-left: max(0px, calc((100% - 720px) / 2)); border-radius: var(--radius-panel); background: var(--mobius-wash); font: var(--fs-sm)/1.2 var(--font); }
+.files-review > span { margin-right: var(--sp-2); }
+
+/* The shared undo toast keeps its own width (the page's column rule would stretch it) and stands above the path bar. */
+.files-page > .ui-undo { width: auto; margin: 0; }
+.files-page:has(> .files-path) > .ui-undo { bottom: calc(var(--sp-6) + 44px); }
+
+/* Back, Forward and New folder in the toolbar, and renaming in place. */
+.files-tool { border-radius: var(--radius-control); color: var(--ink); }
+.files-tool:hover:not(:disabled) { background: var(--wash); }
+.files-tool:disabled { color: var(--muted); opacity: 0.45; }
+.files-tool svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.files-rename { flex: 1; min-width: 0; margin: -2px 0; padding: 2px 6px; border: 1px solid var(--accent); border-radius: var(--radius-small, 4px); background: var(--bg); color: var(--ink); font: inherit; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.files-notice { display: flex; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font-size: var(--fs-sm); }
+.files-notice { background: var(--red-wash); }
+.files-notice .review-btn { margin-left: auto; }
+
+/* A narrow page (Mobius pinned beside, a small window): the name and size stay, Date and Kind step out first. */
+.files-page { container-type: inline-size; }
+@container (max-width: 620px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 150px 64px; }
+  .files-head [data-col="modified"], .files-date { display: none; }
+}
+@container (max-width: 440px) {
+  .files-head, .files-row { grid-template-columns: minmax(0, 1fr) 64px; }
+  .files-head [data-col="kind"], .files-kind { display: none; }
+}
+
+/* The Trash: asking before anything is deleted for good. */
+.files-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); width: var(--files-col); margin: 0 auto; padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--red-wash); font-size: var(--fs-sm); }
+.files-confirm p { flex: 1 1 14em; margin: 0; }
+.files-icon[data-glyph="trash"] { color: var(--muted); fill: none; stroke: currentColor; }
+.files-trash .files-col { cursor: default; }
+
+/* Loading: placeholder bars in the list's place, never a spinner. */
+.files-loading { display: grid; width: var(--files-col); margin-inline: auto; }
+.files-loading span { height: var(--row-list, 40px); border-bottom: 1px solid var(--line); display: flex; align-items: center; padding: 0 var(--sp-3); }
+.files-loading span::before { content: ""; height: 10px; width: var(--w, 40%); border-radius: var(--radius-small, 4px); background: var(--sel, var(--wash)); }
+@media (prefers-reduced-motion: no-preference) { .files-loading span::before { animation: files-pulse var(--dur-loop) var(--ease) infinite alternate; } }
+@keyframes files-pulse { to { opacity: 0.45; } }
+/* The shared empty state fills the space between the toolbar and the path bar, not the whole page. */
+.files-page > .empty-state { flex: 1 1 auto; min-height: 0; }

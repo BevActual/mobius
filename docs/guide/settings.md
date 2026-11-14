@@ -4,8 +4,8 @@ Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Se
 at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
 and where it is explained.
 
-Each section opens with its icon, name and one line on what it is for, then its settings in grouped cards: the name
-and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
+The toolbar names the section, and the page opens on one grey line on what it is for. Then come its settings, one per
+row with a hairline between them: the name and a line of help on the left, the control on the right. Settings take effect as soon as you change them; there is no
 Save button.
 
 ![Settings in Mobius, on the Models section](../readme/apps/settings.png)
@@ -26,6 +26,7 @@ Save button.
 | **Gateways** | Plans you sign in to, API keys, local and custom servers, instructions | [Models and gateways](models-and-gateways.md#gateways) |
 | **Models** | Which model does each job; models on this computer | [Models and gateways](models-and-gateways.md#a-model-for-each-job) |
 | **Voice** | Who listens when you dictate, and who reads replies aloud | [Voice](voice.md) |
+| **Usage** | Tokens used and estimated cost by day, by model, service or app; CSV export | [Usage](#usage) below |
 
 ## Safety
 
@@ -53,6 +54,23 @@ Save button.
 
 ## Appearance
 
-- **Theme:** follow the system, or always light or dark.
+- **Theme:** follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark. Every theme keeps the frame neutral so your own colours stand out.
 - **Typography:** interface zoom, conversation text size and font (system, serif or mono), text direction.
 - **Layout and Conversation:** list density, and whether finished tool steps are shown or hidden.
+
+## Usage
+
+**Settings › Usage** shows what your model calls used, counted on this computer:
+
+- **Period:** the last 7, 30 or 90 days, or this month.
+- **Totals:** tokens (in and out), estimated cost, and requests, with how many tokens came from the server's cache.
+- **Tokens by day:** one bar per day. Point at a bar, or move to it with Tab, for that day's tokens, requests and cost.
+- **Breakdown:** the period by **Model**, **Service** (the gateway) or **App** (where you were when you asked).
+- **Export:** **Copy as CSV**, or **Export CSV…** for a file with one line per day, service, model, app and kind, for
+  a spreadsheet.
+- **Clear Usage…** forgets every count so far (it asks first).
+
+Costs are **estimates** from OpenRouter's public price list, refreshed at most once a day. Models on this computer cost
+nothing and show **Free**. Calls through a plan you signed in to (Claude, ChatGPT, Copilot) count against that plan, so
+they show **Plan** rather than a price; a model with no known price shows **—**. Your gateway's own bill is the final
+word. Nothing on this page leaves your computer.

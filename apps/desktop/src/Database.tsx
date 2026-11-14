@@ -4,11 +4,12 @@ import { createPortal } from 'react-dom';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { isNotesFailure, type DbCell, type DbResult, type WorkbookInfo } from '@mobius/shared';
-import { columnDecimals, createdQuery, nextSort, PAGE_ROWS, pageLine, sheetToCsv, showCellIn, structureQuery, toCsv, type Browse } from './db-view';
+import { columnDecimals, createdQuery, editText, ROWID, typedValue, nextSort, PAGE_ROWS, pageLine, sheetToCsv, showCellIn, structureQuery, toCsv, type Browse } from './db-view';
 import type { DatabasesState, DbView } from './useDatabases';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
+import { ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import './database.css';
 
 /** The empty page's Import asks the sidebar, which holds the file picker. */
@@ -72,22 +73,24 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   };
   const items = (m: Menu): ContextMenuItem[] => m.table
     ? [
-        { action: 'open', label: 'Open', run: () => void db.choose(m.db, m.table) },
+        { action: 'open', label: 'Open', keys: 'Enter', run: () => void db.choose(m.db, m.table) },
         { action: 'copy', label: 'Copy as CSV', run: () => void copyTable(m.db, m.table!) },
-        { action: 'rename', label: 'Rename…', run: () => setRenaming({ db: m.db, table: m.table }) },
-        { action: 'delete', label: 'Delete table…', danger: true, separated: true, run: () => setDeleting({ db: m.db, table: m.table }) },
+        { action: 'rename', label: 'Rename…', keys: 'F2', run: () => setRenaming({ db: m.db, table: m.table }) },
+        { action: 'delete', label: 'Delete table…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db, table: m.table }) },
       ]
     : [
         { label: 'Import a CSV file…', run: () => { if (db.open !== m.db) void db.choose(m.db).then(() => file.current?.click()); else file.current?.click(); } },
-        { action: 'delete', label: 'Delete database…', danger: true, separated: true, run: () => setDeleting({ db: m.db }) },
+        { label: 'Delete database…', keys: 'Delete', danger: true, separated: true, run: () => setDeleting({ db: m.db }) },
       ];
   const openMenu = (e: React.MouseEvent, at: Omit<Menu, 'x' | 'y'>, fromButton = false) => {
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     setMenu(fromButton ? { ...at, x: r.left, y: r.bottom + 4 } : { ...at, x: e.clientX, y: e.clientY });
   };
-  /** Shift+F10 or the menu key opens a row's menu, as right-click does. */
+  /** Shift+F10 or the menu key opens a row's menu, as right-click does; F2 renames a table, Delete asks to delete. */
   const menuKey = (e: React.KeyboardEvent, at: Omit<Menu, 'x' | 'y'>) => {
+    if (e.key === 'F2' && at.table) { e.preventDefault(); setRenaming({ db: at.db, table: at.table }); return; }
+    if (e.key === 'Delete') { e.preventDefault(); setDeleting(at.table ? { db: at.db, table: at.table } : { db: at.db }); return; }
     if (!((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu')) return;
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
@@ -143,7 +146,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                 <DbIcon />
                 <span className="db-name">{d.name}</span>
               </button>
-              <button type="button" className="db-more" aria-label={`More for ${d.name}`} aria-haspopup="menu" aria-expanded={menu?.db === d.name && !menu.table} title="More" onClick={(e) => openMenu(e, { db: d.name }, true)}><MoreIcon /></button>
+              <button type="button" className="db-more" aria-label={`More for ${d.name}`} aria-haspopup="menu" aria-expanded={menu?.db === d.name && !menu.table} title="More (Shift+F10)" onClick={(e) => openMenu(e, { db: d.name }, true)}><MoreIcon /></button>
             </div>
             {deleting?.db === d.name && !deleting.table && (
               <Confirm label={`Delete “${d.name}”?`} line={`Its ${d.tables.length === 1 ? 'table' : `${d.tables.length} tables`} and ${rowsIn(d.name).toLocaleString()} ${rowsIn(d.name) === 1 ? 'row' : 'rows'} go too. This can’t be undone.`}
@@ -166,7 +169,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
                           <TableIcon />
                           <span className="db-name">{t.name}</span><span className="db-count">{t.rows < 0 ? '' : t.rows.toLocaleString()}</span>
                         </button>
-                        <button type="button" className="db-more" aria-label={`More for ${t.name}`} aria-haspopup="menu" aria-expanded={menu?.table === t.name} title="More" onClick={(e) => openMenu(e, { db: d.name, table: t.name }, true)}><MoreIcon /></button>
+                        <button type="button" className="db-more" aria-label={`More for ${t.name}`} aria-haspopup="menu" aria-expanded={menu?.table === t.name} title="More (Shift+F10)" onClick={(e) => openMenu(e, { db: d.name, table: t.name }, true)}><MoreIcon /></button>
                       </div>
                     )}
                     {deleting?.db === d.name && deleting.table === t.name && (
@@ -215,12 +218,41 @@ function useDbReview(review: { conversation: string } | null | undefined, name: 
   return { show: Boolean(review) && !kept, keep, discard };
 }
 
-/** Rows as a table. With `onSort`, a column's heading sorts by it. */
-function Grid({ columns, rows, sort, onSort }: { columns: string[]; rows: DbCell[][]; sort?: Browse['sort']; onSort?: (column: string) => void }) {
+/** What the Data view's grid needs to change its rows: typing a cell's new value, and a cell's menu. */
+type At = { row: number; col: number };
+interface GridEdit {
+  save: (row: number, col: number, text: string) => Promise<boolean>;
+  menu: (e: React.MouseEvent | React.KeyboardEvent, row: number, col: number) => void;
+  editing: At | null; setEditing: (at: At | null) => void;
+  /** The one cell the grid's Tab stop lands on; the arrow keys move it. */
+  active: At; setActive: (at: At) => void;
+  onKey: (e: React.KeyboardEvent) => void;
+}
+
+/** One cell being typed into: Enter or leaving it keeps the text, Escape puts it back. */
+function CellInput({ start, onDone }: { start: string; onDone: (text: string | null, byKey: boolean) => void }) {
+  const done = useRef(false);
+  const finish = (text: string | null, byKey = false) => { if (!done.current) { done.current = true; onDone(text, byKey); } };
+  return (
+    <input className="db-cell-input" size={1} autoFocus aria-label="Cell value" defaultValue={start} onFocus={(e) => e.currentTarget.select()}
+      onBlur={(e) => finish(e.currentTarget.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); finish(e.currentTarget.value, true); } else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(null, true); } }} />
+  );
+}
+
+/** Rows as a table. With `onSort`, a column's heading sorts by it; with `edit`, a double-click changes a cell. */
+function Grid({ columns, rows, sort, onSort, edit }: { columns: string[]; rows: DbCell[][]; sort?: Browse['sort']; onSort?: (column: string) => void; edit?: GridEdit }) {
   const decimals = columns.map((_, j) => columnDecimals(rows, j));
+  const table = useRef<HTMLTableElement>(null);
+  // The active cell takes focus when it moves, and again when typing into it ends, if the grid had it.
+  const key = edit ? `${edit.active.row}:${edit.active.col}:${edit.editing ? 1 : 0}` : '';
+  useEffect(() => {
+    if (!edit || edit.editing || !table.current?.contains(document.activeElement)) return;
+    table.current.querySelector<HTMLElement>('td[tabindex="0"]')?.focus();
+  }, [key]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="db-grid-wrap">
-      <table className="db-grid" aria-label="Rows">
+      <table ref={table} className="db-grid" aria-label="Rows" role={edit ? 'grid' : undefined} data-editable={edit ? true : undefined} onKeyDown={edit?.onKey}>
         <thead>
           <tr>{columns.map((c, i) => {
             const by = sort?.column === c ? (sort.desc ? 'descending' : 'ascending') : undefined;
@@ -238,7 +270,24 @@ function Grid({ columns, rows, sort, onSort }: { columns: string[]; rows: DbCell
         </thead>
         <tbody>
           {rows.map((row, i) => (
-            <tr key={i}>{row.map((v, j) => <td key={j} data-kind={v === null ? 'null' : typeof v} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}>{showCellIn(v, decimals[j] ?? 0)}</td>)}</tr>
+            <tr key={i}>{row.map((v, j) => {
+              const typing = edit?.editing?.row === i && edit.editing.col === j;
+              const active = edit?.active.row === i && edit.active.col === j;
+              return (
+                <td key={j} data-kind={v === null ? 'null' : typeof v} data-editing={typing || undefined} data-active={active || undefined} title={typeof v === 'string' && v.length > 40 ? v.slice(0, 2000) : undefined}
+                  tabIndex={edit ? (active ? 0 : -1) : undefined}
+                  onMouseDown={edit && !typing ? () => edit.setActive({ row: i, col: j }) : undefined}
+                  onDoubleClick={edit && !typing ? () => edit.setEditing({ row: i, col: j }) : undefined}
+                  onContextMenu={edit ? (e) => { edit.setActive({ row: i, col: j }); edit.menu(e, i, j); } : undefined}>
+                  {typing ? <CellInput start={editText(v)} onDone={(text, byKey) => {
+                    edit.setEditing(null);
+                    // Finished from the keyboard, the cell keeps focus, so the keys go on working in the grid.
+                    if (byKey) window.requestAnimationFrame(() => table.current?.querySelector<HTMLElement>('td[tabindex="0"]')?.focus());
+                    if (text !== null) void edit.save(i, j, text);
+                  }} /> : showCellIn(v, decimals[j] ?? 0)}
+                </td>
+              );
+            })}</tr>
           ))}
         </tbody>
       </table>
@@ -246,10 +295,26 @@ function Grid({ columns, rows, sort, onSort }: { columns: string[]; rows: DbCell
   );
 }
 
-/** A table's rows: filtered, sorted by a column, a page at a time. */
+type CellMenu = { x: number; y: number; row: number; col: number };
+
+/** A table's rows: filtered, sorted by a column, a page at a time; in a table with rowids, changed in place. */
+/** Grey bars the shape of the rows that are coming: loading never shows a spinner. */
+function Loading() {
+  return (
+    <div className="db-loading" aria-label="Loading rows" role="status">
+      {[62, 48, 70, 40, 56, 66, 44, 58].map((w, i) => <span key={i} style={{ '--w': `${w}%` } as React.CSSProperties} />)}
+    </div>
+  );
+}
+
+const hasNoFilter = (b: Browse) => b.filter.trim() === '';
+
 function DataView({ db }: { db: DatabasesState }) {
   const [filter, setFilter] = useState(db.browse.filter);
-  useEffect(() => setFilter(db.browse.filter), [db.table]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [editing, setEditing] = useState<At | null>(null);
+  const [active, setActive] = useState<At>({ row: 0, col: 0 });
+  const [menu, setMenu] = useState<CellMenu | null>(null);
+  useEffect(() => { setFilter(db.browse.filter); setEditing(null); setActive({ row: 0, col: 0 }); }, [db.table]); // eslint-disable-line react-hooks/exhaustive-deps
   // Typing settles for a moment before the rows are read again.
   useEffect(() => {
     if (filter === db.browse.filter) return undefined;
@@ -259,25 +324,97 @@ function DataView({ db }: { db: DatabasesState }) {
   const r = db.rows;
   const shown = r?.ok ? r.rows.length : 0;
   const last = db.total !== null ? (db.browse.page + 1) * PAGE_ROWS >= db.total : shown < PAGE_ROWS;
+  // In a table that can be changed, each row comes with its rowid first; it is kept, not shown.
+  const hasId = db.editable && r?.ok === true && r.columns[0] === ROWID;
+  const columns = r?.ok ? (hasId ? r.columns.slice(1) : r.columns) : [];
+  const rows = r?.ok ? (hasId ? r.rows.map((x) => x.slice(1)) : r.rows) : [];
+  const rowid = (i: number) => (r?.ok && hasId ? Number(r.rows[i]?.[0]) : NaN);
+  const types = db.list.find((d) => d.name === db.open)?.tables.find((t) => t.name === db.table)?.columns ?? [];
+  const typeOf = (c: string) => types.find((t) => t.name === c)?.type ?? '';
+  const save = (i: number, j: number, text: string) => db.setCell(rowid(i), columns[j]!, rows[i]![j] ?? null, typedValue(text, typeOf(columns[j]!)));
+  const setNull = (i: number, j: number) => { if (rows[i]?.[j] !== null && rows[i]) void db.setCell(rowid(i), columns[j]!, rows[i]![j] ?? null, null); };
+  const removeRow = (i: number) => { if (rows[i]) void db.deleteRow(rowid(i), columns, rows[i]!); };
+  /** The grid's keys, as the ARIA grid pattern has them, while no cell is being typed into. */
+  const onKey = (e: React.KeyboardEvent) => {
+    if (editing || (e.target as HTMLElement).tagName === 'INPUT' || rows.length === 0) return;
+    const last = { row: rows.length - 1, col: columns.length - 1 };
+    const { row, col } = { row: Math.min(active.row, last.row), col: Math.min(active.col, last.col) };
+    const ctrl = e.ctrlKey || e.metaKey;
+    const move: Record<string, At | undefined> = {
+      ArrowUp: { row: Math.max(0, row - 1), col }, ArrowDown: { row: Math.min(last.row, row + 1), col },
+      ArrowLeft: { row, col: Math.max(0, col - 1) }, ArrowRight: { row, col: Math.min(last.col, col + 1) },
+      Home: ctrl ? { row: 0, col: 0 } : { row, col: 0 }, End: ctrl ? last : { row, col: last.col },
+      PageUp: { row: Math.max(0, row - 10), col }, PageDown: { row: Math.min(last.row, row + 10), col },
+    };
+    const to = move[e.key];
+    if (to) { e.preventDefault(); setActive(to); return; }
+    if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); setEditing({ row, col }); }
+    else if ((e.shiftKey && e.key === 'F10') || e.key === 'ContextMenu') { e.preventDefault(); const b = (e.target as HTMLElement).getBoundingClientRect(); setMenu({ x: b.left + 8, y: b.bottom, row, col }); }
+    else if (e.key === 'Delete' && ctrl) { e.preventDefault(); removeRow(row); }
+    else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setNull(row, col); }
+    else if (ctrl && e.key.toLowerCase() === 'c') { e.preventDefault(); void navigator.clipboard?.writeText(editText(rows[row]![col] ?? null)); }
+    else if (ctrl && e.key.toLowerCase() === 'z' && db.undo) { e.preventDefault(); void db.undoLast(); }
+  };
+  const edit: GridEdit | undefined = hasId ? {
+    save, editing, setEditing, active, setActive, onKey,
+    menu: (e, row, col) => { e.preventDefault(); const at = 'clientX' in e ? { x: e.clientX, y: e.clientY } : (() => { const b = e.currentTarget.getBoundingClientRect(); return { x: b.left + 8, y: b.bottom }; })(); setMenu({ ...at, row, col }); },
+  } : undefined;
+  // Text only, with each item's keys: there is no standard icon for Set to NULL, so none of the items has one.
+  const items = (m: CellMenu): ContextMenuItem[] => [
+    { label: `Edit ${columns[m.col]}`, keys: 'Enter', run: () => setEditing({ row: m.row, col: m.col }) },
+    { label: 'Copy value', keys: 'Ctrl+C', run: () => void navigator.clipboard?.writeText(editText(rows[m.row]![m.col] ?? null)) },
+    { label: 'Set to NULL', keys: 'Delete', disabled: rows[m.row]![m.col] === null, run: () => setNull(m.row, m.col) },
+    { label: 'Delete row', keys: 'Ctrl+Delete', danger: true, separated: true, run: () => removeRow(m.row) },
+  ];
+  // A new row opens its first cell for typing once it is on the page.
+  const [fresh, setFresh] = useState<number | null>(null);
+  useEffect(() => {
+    if (fresh === null || !r?.ok || !hasId) return;
+    const at = r.rows.findIndex((x) => x[0] === fresh);
+    if (at >= 0) { const c = Math.max(0, types.findIndex((x) => !/^id$/i.test(x.name))); setActive({ row: at, col: c }); setEditing({ row: at, col: c }); setFresh(null); }
+  }, [r, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
+  const undo = db.undo && db.undo.db === db.open && db.undo.table === db.table ? db.undo : null;
   return (
     <>
-      <div className="db-bar">
+      <DbTools db={db}>
         <input className="side-search db-filter" type="search" aria-label="Filter rows" placeholder="Filter rows" value={filter} onChange={(e) => setFilter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setFilter(''); }} />
-        <span className="db-gap" />
-        {r?.ok && <span className="db-status" role="status">{pageLine(db.browse.page, shown, db.total, db.browse.filter.trim() !== '')}</span>}
-        <div className="db-pager">
-          <button type="button" className="strip-btn" aria-label="Previous rows" title="Previous rows" disabled={db.browse.page === 0} onClick={() => db.setBrowse({ page: db.browse.page - 1 })}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
+        {hasId && (
+          <button type="button" className="strip-btn db-add" aria-label="Add row" title="Add a row at the end" onClick={() => void db.addRow().then((id) => setFresh(id))}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label="Next rows" title="Next rows" disabled={last} onClick={() => db.setBrowse({ page: db.browse.page + 1 })}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
-          </button>
-        </div>
-      </div>
+        )}
+      </DbTools>
       <div className="db-result" aria-label="Result">
         {r && !r.ok && <p className="db-error" role="alert">{r.message}</p>}
-        {r?.ok && <Grid columns={r.columns} rows={r.rows} sort={db.browse.sort} onSort={(c) => db.setBrowse({ sort: nextSort(db.browse.sort, c) })} />}
+        {!r && <Loading />}
+        {r?.ok && <Grid columns={columns} rows={rows} sort={db.browse.sort} onSort={(c) => db.setBrowse({ sort: nextSort(db.browse.sort, c) })} edit={edit} />}
+        {r?.ok && shown === 0 && db.browse.page === 0 && (
+          <div className="db-empty">
+            <p>{db.browse.filter.trim() ? 'No rows match.' : 'No rows yet.'}</p>
+            {hasNoFilter(db.browse) && hasId && <button type="button" className="btn" onClick={() => void db.addRow().then((id) => setFresh(id))}>Add row</button>}
+          </div>
+        )}
+        {r?.ok && shown > 0 && (
+          <footer className="db-foot">
+            <span className="db-foot-line" role="status">
+              {pageLine(db.browse.page, shown, db.total, db.browse.filter.trim() !== '')}
+              {!hasId && db.editable === false && shown > 0 && ' · This table has no rowids, so change it in SQL.'}
+            </span>
+            {(db.browse.page > 0 || !last) && (
+              <span className="db-pager" role="group" aria-label="Pages">
+                <button type="button" className="strip-btn" aria-label="Previous rows" title="Previous rows" disabled={db.browse.page === 0} onClick={() => db.setBrowse({ page: db.browse.page - 1 })}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg>
+                </button>
+                <button type="button" className="strip-btn" aria-label="Next rows" title="Next rows" disabled={last} onClick={() => db.setBrowse({ page: db.browse.page + 1 })}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg>
+                </button>
+              </span>
+            )}
+          </footer>
+        )}
       </div>
+      {undo && <UndoToast text={undo.label} onUndo={() => void db.undoLast()} onDismiss={() => db.setUndo(null)} />}
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={`Row ${menu.row + 1}`} items={items(menu)} onClose={() => { setMenu(null); document.querySelector<HTMLElement>('.db-grid td[tabindex="0"]')?.focus(); }} />, document.body)}
     </>
   );
 }
@@ -301,6 +438,7 @@ function StructureView({ db }: { db: DatabasesState }) {
   }, [db.open, db.table, info?.columns.map((c) => `${c.name}:${c.type}`).join()]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <div className="db-structure">
+      {!cols && <Loading />}
       {cols && !cols.ok && <p className="db-error" role="alert">{cols.message}</p>}
       {cols?.ok && (
         <table className="db-columns" aria-label="Columns">
@@ -379,6 +517,27 @@ function SqlView({ db, placeholder }: { db: DatabasesState; placeholder: string 
 
 const VIEWS: { id: DbView; name: string }[] = [{ id: 'data', name: 'Data' }, { id: 'structure', name: 'Structure' }, { id: 'sql', name: 'SQL' }];
 
+/** The open table's controls in the toolbar's middle: the view's own tools, then Data, Structure and SQL, last so they stay put. */
+function DbTools({ db, children }: { db: DatabasesState; children?: ReactNode }) {
+  return (
+    <ToolbarControls label="Database">
+      {children}
+      {children && <span className="db-tools-sep" aria-hidden="true" />}
+      <ViewSwitch label="View" views={VIEWS} value={db.view} onChange={db.show} />
+    </ToolbarControls>
+  );
+}
+
+/** The toolbar's title for Database: the open table, or the database when no table is open. */
+export const databasePlace = (db: DatabasesState): string | null => (db.open ? db.table ?? db.open : null);
+
+/** The toolbar's grey line: which database the table is in, and how many columns it has. */
+export function databaseSub(db: DatabasesState): string | undefined {
+  const table = db.list.find((d) => d.name === db.open)?.tables.find((t) => t.name === db.table);
+  if (!db.open || !table) return undefined;
+  return `${db.open} · ${table.columns.length === 1 ? '1 column' : `${table.columns.length} columns`}`;
+}
+
 /** The open database: a table's rows or columns, or a statement to run, and what it gave. */
 export function DatabasePage({ db, review }: { db: DatabasesState; review?: { conversation: string } | null }) {
   const { show, keep, discard } = useDbReview(review, db.open);
@@ -403,17 +562,8 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
           <ReviewActions onKeep={keep} onDiscard={discard} />
         </div>
       )}
-      <header className="db-head">
-        <div className="db-title">
-          <h2>{table ? table.name : db.open}</h2>
-          {table && <span className="db-sub">{db.open} · {table.columns.length === 1 ? '1 column' : `${table.columns.length} columns`}</span>}
-        </div>
-        {table && (
-          <div className="segmented" role="radiogroup" aria-label="View">
-            {VIEWS.map((v) => <button key={v.id} type="button" role="radio" aria-checked={view === v.id} onClick={() => db.show(v.id)}>{v.name}</button>)}
-          </div>
-        )}
-      </header>
+      {/* The table's name and its line are the toolbar's title (databasePlace); its views and tools sit in the toolbar's middle. */}
+      {table && view !== 'data' && <DbTools db={db} />}
       {db.message && <p className="db-message" role="alert">{db.message}</p>}
       {view === 'data' && <DataView db={db} />}
       {view === 'structure' && <StructureView db={db} />}

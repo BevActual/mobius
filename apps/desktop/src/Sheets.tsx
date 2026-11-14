@@ -6,12 +6,13 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, inRange, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 
 const NEW_WORKBOOK = 'mobius-sheets-new-workbook';
 /** Whether a sidebar is shown to ask for the name; with the sidebar hidden, the workbook is made as "Workbook". */
@@ -45,7 +46,7 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
   return (
     <aside className="side sheets-side" aria-label="Sheets sidebar">
       <div className="side-head">
-        <span className="side-title" title="Workbooks are kept as CSV files in your workspace, one for each sheet, so any spreadsheet app can open them.">Workbooks</span>
+        <span className="side-title">Workbooks</span>
         <span className="side-actions">
           {pin}
         </span>
@@ -90,12 +91,15 @@ const HEAD_H = 22;
 const COL_W = 104;
 /** The widest a column grows to fit its words by itself. */
 const FIT_MAX = 260;
-const REF_COLORS = ['#0a84ff', '#ff9f0a', '#30d158', '#bf5af2', '#ff375f', '#64d2ff'];
+// The ranges a formula names take the shared content colours, in this order (sheets.css tints the cells to match).
+const REF_COLORS = ['var(--c-blue)', 'var(--c-amber)', 'var(--c-green)', 'var(--c-violet)', 'var(--c-pink)', 'var(--c-teal)'];
 const keep = (e: { preventDefault: () => void }) => e.preventDefault();
 
 /** Per sheet, kept on this device: column widths, and whether the first row is a header. */
 const WIDTHS_KEY = 'mobius.sheets.widths';
 const HEADER_KEY = 'mobius.sheets.header';
+/** Per sheet, kept on this device: how each column shows its numbers (the CSV keeps them plain). */
+const FORMATS_KEY = 'mobius.sheets.formats';
 function readKept<T>(key: string): Record<string, T> {
   try { const v: unknown = JSON.parse(window.localStorage.getItem(key) ?? '{}'); return typeof v === 'object' && v !== null ? v as Record<string, T> : {}; } catch { return {}; }
 }
@@ -117,21 +121,29 @@ function looksLikeHeader(values: readonly (readonly string[])[]): boolean {
   return labels.length >= 2 && labels.every((v) => v.length <= 24) && rest.length >= 2;
 }
 /** Each column's width to fit what is in it, between the usual width and a wide one; worked out once per sheet as read. */
-const fits = new WeakMap<object, { header: boolean; widths: number[] }>();
-function fittedWidths(values: readonly (readonly string[])[], header: boolean): number[] {
+const fits = new WeakMap<object, { header: boolean; shape: string; widths: number[] }>();
+function fittedWidths(values: readonly (readonly string[])[], header: boolean, formats: Readonly<Record<number, NumberFormat>> = {}): number[] {
+  const shape = JSON.stringify(formats);
   const kept = fits.get(values);
-  if (kept && kept.header === header) return kept.widths;
+  if (kept && kept.header === header && kept.shape === shape) return kept.widths;
   const rows = values.slice(0, 400);
   const cols = Math.max(0, ...rows.map((r) => r.length));
-  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(r[c] ?? '', header && i === 0) + 18)))));
-  fits.set(values, { header, widths });
+  const font = gridFont();
+  const widths = Array.from({ length: cols }, (_, c) => Math.round(Math.min(FIT_MAX, Math.max(COL_W, ...rows.map((r, i) => textWidth(formatted(r[c] ?? '', formats[c]), header && i === 0, font) + 18)))));
+  fits.set(values, { header, shape, widths });
   return widths;
 }
 let measurer: CanvasRenderingContext2D | null = null;
-function textWidth(text: string, bold = false): number {
+/** The grid's own type, read from the page, so widths fit whatever size and face the theme's tokens give it. */
+function gridFont(): string {
+  const page = document.querySelector('.sheet-page');
+  const style = page ? getComputedStyle(page) : null;
+  return `${style?.fontSize || '13px'} ${style?.fontFamily || 'system-ui, sans-serif'}`;
+}
+function textWidth(text: string, bold = false, font = gridFont()): number {
   measurer ??= document.createElement('canvas').getContext('2d');
   if (!measurer) return text.length * 7;
-  measurer.font = `${bold ? 600 : 400} 13px -apple-system, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`;
+  measurer.font = `${bold ? 600 : 400} ${font}`;
   return measurer.measureText(text).width;
 }
 
@@ -152,39 +164,6 @@ function functionAround(text: string, caret: number): (typeof FUNCTIONS)[number]
   return null;
 }
 
-/** A menu from a toolbar button, drawn above everything. */
-function ToolMenu({ label, button, title, children, wide }: { label: string; button: ReactNode; title: string; children: (close: () => void) => ReactNode; wide?: boolean }) {
-  const [open, setOpen] = useState(false);
-  const at = useRef<HTMLButtonElement>(null);
-  const r = open ? at.current?.getBoundingClientRect() : undefined;
-  const width = wide ? 240 : 200;
-  return (
-    <>
-      <button ref={at} type="button" className="sheet-tool" aria-label={label} title={title} aria-haspopup="menu" aria-expanded={open} onMouseDown={keep} onClick={() => setOpen((o) => !o)}>{button}</button>
-      {open && r && createPortal(
-        <>
-          <div className="sheet-scrim" onMouseDown={() => setOpen(false)} />
-          <div className="sheet-menu" role="menu" aria-label={label} style={{ top: r.bottom + 6, left: Math.max(8, Math.min(r.left, window.innerWidth - width - 8)), minWidth: width }} onKeyDown={(e) => { if (e.key === 'Escape') { setOpen(false); at.current?.focus(); } }}>
-            {children(() => setOpen(false))}
-          </div>
-        </>,
-        document.body,
-      )}
-    </>
-  );
-}
-
-function Item({ onPick, children, keys, disabled, danger, checked }: { onPick: () => void; children: ReactNode; keys?: string; disabled?: boolean; danger?: boolean; checked?: boolean }) {
-  return (
-    <button type="button" role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'} aria-checked={checked} className="sheet-menu-item" data-danger={danger || undefined} disabled={disabled} onMouseDown={keep} onClick={onPick}>
-      <span className="sheet-menu-check" aria-hidden="true">{checked ? '✓' : ''}</span>
-      <span className="sheet-menu-label">{children}</span>
-      {keys && <kbd>{keys}</kbd>}
-    </button>
-  );
-}
-const Sep = () => <div className="sheet-menu-sep" role="separator" />;
-
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
 const ICONS = {
   undo: 'M7.5 5.5 4 9l3.5 3.5M4.5 9H12a4 4 0 0 1 0 8h-2',
@@ -193,6 +172,7 @@ const ICONS = {
   table: 'M3.5 4.5h13v11h-13zM3.5 8.5h13M3.5 12h13M8 4.5v11',
   sort: 'M6 4v12M3.5 13.5 6 16l2.5-2.5M11 6h6M11 10h4.5M11 14h3',
   header: 'M3.5 4.5h13v11h-13zM3.5 8h13',
+  format: 'M14.5 5.5l-9 9M6.5 5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3zM13.5 12a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3z',
 };
 
 /** The open sheet: a grid of cells, the formula bar above it, and its sheets as tabs below. */
@@ -222,13 +202,17 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const place = data ? `${data.workbook}/${data.sheet}` : '';
   const [widths, setWidths] = useState<Record<string, number>>({});
   const [header, setHeader] = useState<boolean | undefined>(undefined);
+  const [formats, setFormats] = useState<Record<number, NumberFormat>>({});
   useEffect(() => {
     setWidths(readKept<Record<string, number>>(WIDTHS_KEY)[place] ?? {});
+    setFormats(readKept<Record<number, NumberFormat>>(FORMATS_KEY)[place] ?? {});
     setHeader(readKept<boolean>(HEADER_KEY)[place]);
   }, [place]);
 
   const raw = (r: number, c: number) => data?.cells[r]?.[c] ?? '';
   const shown = (r: number, c: number) => data?.values[r]?.[c] ?? '';
+  // What a cell shows in its column's number format; copying and sums still use the plain value.
+  const display = (r: number, c: number) => formatted(shown(r, c), formats[c]);
   const sel = rangeOf(anchor, focus);
   const select = (a: Pos, b: Pos = a) => { setAnchor(a); setFocus(b); };
   useEffect(() => { select({ r: 0, c: 0 }); setEdit(null); setPick(null); setFinding((f) => (f ? { ...f, at: 0 } : f)); }, [data?.workbook, data?.sheet]);
@@ -295,6 +279,14 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   useEffect(() => onCommand('undo', () => { if (!edit && data) void undo(); }));
   useEffect(() => onCommand('redo', () => { if (!edit && data) void redo(); }));
 
+  if (!data && !sheets.settled && sheets.available) {
+    const bars = ['46%', '38%', '52%', '30%', '44%', '36%'];
+    return (
+      <section className="sheet-page" aria-label="Sheet" aria-busy="true">
+        <div className="sheet-loading" aria-hidden="true">{bars.map((w, i) => <span key={i} style={{ ['--w' as string]: w }} />)}</div>
+      </section>
+    );
+  }
   if (!data) {
     return (
       <section className="sheet-page empty" aria-label="Sheet">
@@ -310,7 +302,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   // A last row that adds up the rows above reads as the table's total, set apart as in Numbers.
   const footerAt = hasFooter(data.cells) ? used.rows - 1 : -1;
   // A column the person has not sized fits its words, so names and labels are not cut short.
-  const fitted = fittedWidths(data.values, headerOn);
+  const fitted = fittedWidths(data.values, headerOn, formats);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
@@ -333,6 +325,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
       else data.cells.forEach((row, r) => { const text = row[at] ?? ''; if (text) held.push({ row: r, col: at, text }); });
     }
     if (record) { steps.undo.push({ kind: 'shift', what, at, insert, held }); steps.redo = []; setTick((t) => t + 1); }
+    if (what === 'column') keepFormats(shiftFormats(formats, at, insert));
     await sheets.shift(what, at, insert);
   };
   const run = async (step: Step, back: boolean) => {
@@ -499,6 +492,12 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     void apply([{ row: t.at.r, col: t.at.c, text: `=${fn}(${rangeName(t.over)})` }]);
     select(t.at);
   };
+  const keepFormats = (next: Record<number, NumberFormat>) => { setFormats(next); writeKept(FORMATS_KEY, place, Object.keys(next).length ? next : undefined); };
+  const setFormat = (c0: number, c1: number, format: NumberFormat) => {
+    const next = { ...formats };
+    for (let c = c0; c <= c1; c++) { if (format === 'auto') delete next[c]; else next[c] = format; }
+    keepFormats(next);
+  };
   const setHeaderRow = (on: boolean) => { setHeader(on); writeKept(HEADER_KEY, place, on); };
   const setWidth = (c: number, w: number | undefined) => {
     setWidths((cur) => {
@@ -510,7 +509,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   };
   const fitColumn = (c: number) => {
     let w = textWidth(columnName(c)) + 24;
-    for (let r = 0; r < used.rows; r++) w = Math.max(w, textWidth(shown(r, c), headerOn && r === 0) + 18);
+    for (let r = 0; r < used.rows; r++) w = Math.max(w, textWidth(display(r, c), headerOn && r === 0) + 18);
     setWidth(c, w);
   };
   const resizeFrom = (c: number, e: ReactPointerEvent<HTMLSpanElement>) => {
@@ -574,39 +573,65 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const rowsWord = sel.r1 > sel.r0 ? `${sel.r1 - sel.r0 + 1} rows` : 'row';
   const colsWord = sel.c1 > sel.c0 ? `${sel.c1 - sel.c0 + 1} columns` : 'column';
 
-  const tableMenu = (close: () => void) => (
-    <>
-      <Item onPick={() => { close(); void shiftAt('row', sel.r0, true); }}>Add row above</Item>
-      <Item onPick={() => { close(); void shiftAt('row', sel.r1 + 1, true); }}>Add row below</Item>
-      <Item onPick={() => { close(); void shiftAt('column', sel.c0, true); }}>Add column before</Item>
-      <Item onPick={() => { close(); void shiftAt('column', sel.c1 + 1, true); }}>Add column after</Item>
-      <Sep />
-      <Item danger onPick={() => { close(); void (async () => { for (let r = sel.r1; r >= sel.r0; r--) await shiftAt('row', r, false); })(); }}>{`Delete ${rowsWord}`}</Item>
-      <Item danger onPick={() => { close(); void (async () => { for (let c = sel.c1; c >= sel.c0; c--) await shiftAt('column', c, false); })(); }}>{`Delete ${colsWord}`}</Item>
-      <Sep />
-      <Item checked={headerOn} onPick={() => { close(); setHeaderRow(!headerOn); }}>Header row</Item>
-      <Item onPick={() => { close(); fitColumn(focus.c); }}>Fit column to its contents</Item>
-    </>
-  );
-  const sortMenu = (close: () => void) => (
-    <>
-      <Item onPick={() => { close(); sortBy(focus.c, true); }}>{`Sort by ${columnName(focus.c)}, A to Z`}</Item>
-      <Item onPick={() => { close(); sortBy(focus.c, false); }}>{`Sort by ${columnName(focus.c)}, Z to A`}</Item>
-    </>
-  );
-  const sumMenu = (close: () => void) => (
-    <>
-      {['SUM', 'AVERAGE', 'MIN', 'MAX', 'COUNT'].map((fn) => <Item key={fn} disabled={!quickTarget(data.cells, data.values, sel)} onPick={() => { close(); quick(fn); }}>{({ SUM: 'Sum', AVERAGE: 'Average', MIN: 'Minimum', MAX: 'Maximum', COUNT: 'Count' } as Record<string, string>)[fn]}</Item>)}
-    </>
-  );
+  const back = (run: () => void) => () => { grid.current?.focus(); run(); };
+  const check = (on: boolean) => <span className="ui-menu-icon" aria-hidden="true">{on ? '✓' : ''}</span>;
+  const tableEntries: MenuEntry[] = [
+    { label: 'Add row above', run: back(() => void shiftAt('row', sel.r0, true)) },
+    { label: 'Add row below', run: back(() => void shiftAt('row', sel.r1 + 1, true)) },
+    { label: 'Add column before', run: back(() => void shiftAt('column', sel.c0, true)) },
+    { label: 'Add column after', run: back(() => void shiftAt('column', sel.c1 + 1, true)) },
+    { label: 'Header row', icon: check(headerOn), separated: true, run: back(() => setHeaderRow(!headerOn)) },
+    { label: 'Fit column to its contents', run: back(() => fitColumn(focus.c)) },
+    { label: `Delete ${rowsWord}`, danger: true, separated: true, run: back(() => void (async () => { for (let r = sel.r1; r >= sel.r0; r--) await shiftAt('row', r, false); })()) },
+    { label: `Delete ${colsWord}`, danger: true, run: back(() => void (async () => { for (let c = sel.c1; c >= sel.c0; c--) await shiftAt('column', c, false); })()) },
+  ];
+  const sortEntries: MenuEntry[] = [
+    { label: `Sort by ${columnName(focus.c)}, A to Z`, run: back(() => sortBy(focus.c, true)) },
+    { label: `Sort by ${columnName(focus.c)}, Z to A`, run: back(() => sortBy(focus.c, false)) },
+  ];
+  const canQuick = quickTarget(data.cells, data.values, sel) !== null;
+  const sumEntries: MenuEntry[] = ([['SUM', 'Sum'], ['AVERAGE', 'Average'], ['MIN', 'Minimum'], ['MAX', 'Maximum'], ['COUNT', 'Count']] as const)
+    .map(([fn, label]) => ({ label, disabled: !canQuick, run: back(() => quick(fn)) }));
+  const cellEntries: MenuEntry[] = [
+    { label: 'Cut', keys: 'Ctrl+X', run: back(() => document.execCommand('cut')) },
+    { label: 'Copy', keys: 'Ctrl+C', run: back(() => document.execCommand('copy')) },
+    { label: 'Paste', keys: 'Ctrl+V', run: back(() => void navigator.clipboard?.readText().then((t) => { if (t) pasteText(t); }).catch(() => {})) },
+    { label: 'Clear', keys: 'Delete', run: back(() => clearRange(sel)) },
+    ...sortEntries.map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
+    ...tableEntries.map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
+  ];
+  const formatEntries = (c0: number, c1: number): MenuEntry[] => NUMBER_FORMATS.map((f) => ({
+    label: `${f.label} (${f.example})`, icon: check((formats[c0] ?? 'auto') === f.id), run: back(() => setFormat(c0, c1, f.id)),
+  }));
+  const columnEntries = (c: number): MenuEntry[] => [
+    { label: 'Sort A to Z', run: back(() => sortBy(c, true)) },
+    { label: 'Sort Z to A', run: back(() => sortBy(c, false)) },
+    { label: 'Add column before', separated: true, run: back(() => void shiftAt('column', c, true)) },
+    { label: 'Add column after', run: back(() => void shiftAt('column', c + 1, true)) },
+    { label: 'Fit to contents', run: back(() => fitColumn(c)) },
+    ...formatEntries(c, c).map((e, i) => (i === 0 ? { ...e, separated: true } : e)),
+    { label: 'Delete column', danger: true, separated: true, run: back(() => void shiftAt('column', c, false)) },
+  ];
 
   return (
     <section className="sheet-page" aria-label={`Sheet: ${data.sheet}`}>
-      <div className="sheet-toolbar" role="toolbar" aria-label="Sheet">
-        <span className="sheet-tool-group">
-          <button type="button" className="sheet-tool" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={steps.undo.length === 0} onMouseDown={keep} onClick={() => void undo()}><Icon d={ICONS.undo} /></button>
-          <button type="button" className="sheet-tool" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={steps.redo.length === 0} onMouseDown={keep} onClick={() => void redo()}><Icon d={ICONS.redo} /></button>
+      <ToolbarControls label="Sheet">
+        <span className="sheet-tools">
+          <span className="sheet-tools-group">
+            <button type="button" className="strip-btn" aria-label="Undo" title="Undo (Ctrl+Z)" disabled={steps.undo.length === 0} onMouseDown={keep} onClick={() => void undo()}><Icon d={ICONS.undo} /></button>
+            <button type="button" className="strip-btn" aria-label="Redo" title="Redo (Ctrl+Y)" disabled={steps.redo.length === 0} onMouseDown={keep} onClick={() => void redo()}><Icon d={ICONS.redo} /></button>
+          </span>
+          <span className="sheet-tools-group">
+            <Menu label="Quick formula" entries={sumEntries} trigger={<button type="button" className="strip-btn" aria-label="Quick formula" title="Quick formula" onMouseDown={keep}><Icon d={ICONS.sum} /></button>} />
+            <Menu label="Number format" entries={formatEntries(sel.c0, sel.c1)} trigger={<button type="button" className="strip-btn" aria-label="Number format" title="Number format" onMouseDown={keep}><Icon d={ICONS.format} /></button>} />
+          </span>
+          <span className="sheet-tools-group">
+            <Menu label="Table" entries={tableEntries} trigger={<button type="button" className="strip-btn" aria-label="Table" title="Table" onMouseDown={keep}><Icon d={ICONS.table} /></button>} />
+            <Menu label="Sort" entries={sortEntries} trigger={<button type="button" className="strip-btn" aria-label="Sort" title="Sort" onMouseDown={keep}><Icon d={ICONS.sort} /></button>} />
+          </span>
         </span>
+      </ToolbarControls>
+      <div className="sheet-formula-row">
         <span className="sheet-address" aria-label="Selected cell">{rangeName(sel)}</span>
         <span className="sheet-fx" aria-hidden="true">ƒx</span>
         <input
@@ -622,11 +647,6 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           onKeyDown={onEditorKey}
           onBlur={(e) => { if (edit?.where === 'bar' && e.relatedTarget !== cellInput.current) commit(null); }}
         />
-        <span className="sheet-tool-group">
-          <ToolMenu label="Quick formula" title="Sum, average and more of the cells picked" button={<Icon d={ICONS.sum} />}>{sumMenu}</ToolMenu>
-          <ToolMenu label="Table" title="Add or delete rows and columns" button={<><Icon d={ICONS.table} /><span>Table</span></>}>{tableMenu}</ToolMenu>
-          <ToolMenu label="Sort" title="Sort the rows" button={<><Icon d={ICONS.sort} /><span>Sort</span></>}>{sortMenu}</ToolMenu>
-        </span>
       </div>
       {finding && (
         <div className="sheet-find" role="search" aria-label="Find in sheet">
@@ -651,8 +671,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           />
           <span className="sheet-find-count" role="status" aria-live="polite">{finding.query.trim() ? (matches.length ? `${Math.min(finding.at, matches.length - 1) + 1} of ${matches.length}` : 'Not found') : ''}</span>
           <span className="sheet-tool-group">
-            <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
-            <button type="button" className="sheet-tool" aria-label="Next match" title="Next (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
+            <button type="button" className="sheet-tool" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at - 1)}><Icon d="M12.5 5 7.5 10l5 5" /></button>
+            <button type="button" className="sheet-tool" aria-label="Next match" title="Next match (Enter)" disabled={matches.length === 0} onMouseDown={keep} onClick={() => goMatch(finding.at + 1)}><Icon d="M7.5 5l5 5-5 5" /></button>
           </span>
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
         </div>
@@ -736,11 +756,10 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                   const value = shown(r, c);
                   const key = `${r}:${c}`;
                   const shadows: string[] = [];
-                  if (!edit) shadows.push(...edges(sel, r, c, 'var(--accent)'));
-                  else if (edit.at.r === r && edit.at.c === c) shadows.push(...edges({ r0: r, c0: c, r1: r, c1: c }, r, c, 'var(--accent)'));
+                  if (!edit) shadows.push(...edges(sel, r, c, 'var(--ink)'));
+                  else if (edit.at.r === r && edit.at.c === c) shadows.push(...edges({ r0: r, c0: c, r1: r, c1: c }, r, c, 'var(--ink)'));
                   refs.forEach((g, i) => { if (inRange(g, r, c)) shadows.push(...edges(g, r, c, REF_COLORS[i % REF_COLORS.length]!, 2)); });
-                  if (fillRange && inRange(fillRange, r, c)) shadows.push(...edges(fillRange, r, c, 'color-mix(in srgb, var(--accent) 70%, transparent)', 1.5));
-                  if (showReview && changed.has(key)) shadows.push('inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 55%, transparent)');
+                  if (fillRange && inRange(fillRange, r, c)) shadows.push(...edges(fillRange, r, c, 'color-mix(in srgb, var(--ink) 55%, transparent)', 1.5));
                   const refAt = refs.findIndex((g) => inRange(g, r, c));
                   return (
                     <td
@@ -778,8 +797,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
                       onDoubleClick={() => { if (!edit) { select({ r, c }); setEdit({ at: { r, c }, text: raw(r, c), where: 'cell', caret: raw(r, c).length }); } }}
                     >
                       {here
-                        ? <input ref={cellInput} className="sheet-cell-input" style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
-                        : value}
+                        ? <input ref={cellInput} className="sheet-cell-input" data-formula={edit.text.startsWith('=') ? true : undefined} style={{ width: Math.max(colWidth(c), textWidth(edit.text) + 24) }} aria-label={`Edit ${cellName(r, c)}`} value={edit.text} spellCheck={false} onChange={(e) => typed(e.target.value, caretOf(e.target))} onSelect={(e) => { const caret = caretOf(e.currentTarget); setEdit((v) => (v && v.caret !== caret ? { ...v, caret } : v)); }} onKeyDown={onEditorKey} onBlur={(e) => { if (e.relatedTarget !== barInput.current) commit(null); }} />
+                        : display(r, c)}
                       {!edit && r === sel.r1 && c === sel.c1 && (
                         <span className="sheet-fill" aria-hidden="true" title="Drag to fill" onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); drag.current = 'fill'; setFillTo(null); }} />
                       )}
@@ -807,38 +826,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
         </div>,
         document.body,
       )}
-      {menu && createPortal(
-        <>
-          <div className="sheet-scrim" onMouseDown={() => setMenu(null)} onContextMenu={(e) => { e.preventDefault(); setMenu(null); }} />
-          <div className="sheet-menu" role="menu" aria-label="Cells" style={{ top: Math.min(menu.y, window.innerHeight - 380), left: Math.min(menu.x, window.innerWidth - 230), minWidth: 220 }} onKeyDown={(e) => { if (e.key === 'Escape') { setMenu(null); grid.current?.focus(); } }}>
-            <Item keys="Ctrl+X" onPick={() => { setMenu(null); grid.current?.focus(); document.execCommand('cut'); }}>Cut</Item>
-            <Item keys="Ctrl+C" onPick={() => { setMenu(null); grid.current?.focus(); document.execCommand('copy'); }}>Copy</Item>
-            <Item keys="Ctrl+V" onPick={() => { setMenu(null); grid.current?.focus(); void navigator.clipboard?.readText().then((t) => { if (t) pasteText(t); }).catch(() => {}); }}>Paste</Item>
-            <Item keys="Delete" onPick={() => { setMenu(null); clearRange(sel); }}>Clear</Item>
-            <Sep />
-            {tableMenu(() => setMenu(null))}
-            <Sep />
-            {sortMenu(() => setMenu(null))}
-          </div>
-        </>,
-        document.body,
-      )}
-      {colMenu && createPortal(
-        <>
-          <div className="sheet-scrim" onMouseDown={() => setColMenu(null)} onContextMenu={(e) => { e.preventDefault(); setColMenu(null); }} />
-          <div className="sheet-menu" role="menu" aria-label={`Column ${columnName(colMenu.c)}`} style={{ top: Math.min(colMenu.y, window.innerHeight - 260), left: Math.max(8, Math.min(colMenu.x, window.innerWidth - 230)), minWidth: 220 }} onKeyDown={(e) => { if (e.key === 'Escape') { setColMenu(null); grid.current?.focus(); } }}>
-            <Item onPick={() => { const c = colMenu.c; setColMenu(null); sortBy(c, true); }}>Sort A to Z</Item>
-            <Item onPick={() => { const c = colMenu.c; setColMenu(null); sortBy(c, false); }}>Sort Z to A</Item>
-            <Sep />
-            <Item onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c, true); }}>Add column before</Item>
-            <Item onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c + 1, true); }}>Add column after</Item>
-            <Item onPick={() => { const c = colMenu.c; setColMenu(null); fitColumn(c); }}>Fit to contents</Item>
-            <Sep />
-            <Item danger onPick={() => { const c = colMenu.c; setColMenu(null); void shiftAt('column', c, false); }}>Delete column</Item>
-          </div>
-        </>,
-        document.body,
-      )}
+      {menu && <PointMenu x={menu.x} y={menu.y} label="Cells" entries={cellEntries} onClose={() => setMenu(null)} />}
+      {colMenu && <PointMenu x={colMenu.x} y={colMenu.y} label={`Column ${columnName(colMenu.c)}`} entries={columnEntries(colMenu.c)} onClose={() => setColMenu(null)} />}
       <SheetTabs sheets={sheets} status={stats && (stats.numbers > 0
         ? <><span>Sum <b>{statNumber(stats.sum)}</b></span><span>Average <b>{statNumber(stats.average)}</b></span><span>Min <b>{statNumber(stats.min)}</b></span><span>Max <b>{statNumber(stats.max)}</b></span><span>Count <b>{stats.count}</b></span></>
         : <span>Count <b>{stats.count}</b></span>)}
@@ -862,7 +851,7 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
             <input autoFocus className="sheet-tab-name" aria-label="Sheet name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
           </form>
         ) : (
-          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" title="Double-click to rename; right-click for more" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
+          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
             onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
         )))}
         <button type="button" className="sheet-tab-add" aria-label="New sheet" title="New sheet" onClick={() => void sheets.addSheet(`Sheet ${data.sheets.length + 1}`)}>

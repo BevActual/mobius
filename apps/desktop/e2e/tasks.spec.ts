@@ -56,8 +56,9 @@ test('a task typed into a list is a line in a real file, and ticking it off fold
   await expect(todo().getByRole('checkbox')).toHaveCount(0);
   await expect(page().getByText('Completed · 1')).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n- [x] Call the plumber\n');
-  await page().getByRole('button', { name: 'Completed · 1' }).click();
-  await page().getByRole('button', { name: 'Clear', exact: true }).click();
+  // Clearing them is in the Completed fold's own menu (and the window's ⋯ menu), not a button in the toolbar.
+  await page().getByRole('button', { name: 'More for Completed' }).click({ force: true });
+  await shell().getByRole('menuitem', { name: 'Clear 1 Completed' }).click();
   await expect(page().getByText('Completed · 1')).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n');
 });
@@ -231,4 +232,34 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Pay the gas bill');
   await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('Pay the gas bill');
+});
+
+test('a task can have a time and repeat: typed in words, set in Details, and ticking it off moves it to its next day', async () => {
+  const day = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  fs.mkdirSync(path.dirname(file('Home')), { recursive: true });
+  fs.writeFileSync(file('Home'), `# Home\n\n- [ ] Water the plants (due ${day(0)} 08:00) (every week)\n- [ ] Fix the tap\n`);
+  await start();
+  await lists().getByRole('button', { name: /^Home/ }).click();
+  // The row says it repeats; ticking it off moves it a week on and leaves it open.
+  await expect(todo().locator('.task', { hasText: 'Water the plants' }).getByRole('img', { name: 'Repeats every week' })).toBeVisible();
+  await todo().getByRole('checkbox', { name: 'Water the plants' }).click();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Water the plants (due ${day(7)} 08:00) (every week)`);
+  await expect(todo().getByRole('checkbox', { name: 'Water the plants' })).toBeVisible();
+
+  // A time said after the day sets both.
+  const field = page().getByRole('textbox', { name: 'New task', exact: true });
+  await field.fill('Call the plumber tomorrow at 3pm');
+  await field.press('Enter');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Call the plumber (due ${day(1)} 15:00)`);
+
+  // Details: a date, then a time and a repeat; no date clears the time too.
+  await page().getByRole('button', { name: 'Details for Fix the tap' }).click({ force: true });
+  const details = page().getByRole('complementary', { name: 'Details' });
+  await details.getByRole('button', { name: 'Tomorrow', exact: true }).click();
+  await details.getByLabel('Time', { exact: true }).fill('09:30');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30)`);
+  await details.getByRole('combobox', { name: 'Repeat' }).selectOption('month');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Fix the tap (due ${day(1)} 09:30) (every month)`);
+  await details.getByRole('button', { name: 'No date', exact: true }).click();
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Fix the tap (every month)\n');
 });

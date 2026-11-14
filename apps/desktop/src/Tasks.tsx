@@ -3,14 +3,16 @@ import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
-import type { TaskItem } from '@mobius/shared';
-import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhen, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, type Located, type SmartView } from './tasks-view';
+import type { TaskItem, TaskRepeat } from '@mobius/shared';
+import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { dayLabel } from './dates';
+import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, UndoToast } from './ui';
 import './tasks.css';
 
 /** A task being dragged: which list it is in and where. */
@@ -44,8 +46,9 @@ function SmartIcon({ id }: { id: SmartView }) {
   return <span className="smart-icon" data-view={id} aria-hidden="true"><svg viewBox="0 0 20 20">{glyph[id]}</svg></span>;
 }
 
+/** A list's mark in the sidebar: a small dot in its colour, as Calendar marks its calendars. */
 function ListIcon({ name }: { name: string }) {
-  return <span className="list-icon" data-color={listColor(name)} aria-hidden="true"><svg viewBox="0 0 20 20"><path d="M7.5 7h6M7.5 10h6M7.5 13h6" /><circle cx="5.3" cy="7" r=".6" /><circle cx="5.3" cy="10" r=".6" /><circle cx="5.3" cy="13" r=".6" /></svg></span>;
+  return <span className="list-dot" data-color={listColor(name)} aria-hidden="true" />;
 }
 
 /** The lists: a search field, the views across every list as tiles, then each list with how many tasks are open. */
@@ -81,38 +84,24 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   });
   const deletingInfo = tasks.lists.find((l) => l.name === deleting);
   return (
-    <aside className="side tasks-side" aria-label="Tasks sidebar">
-      <label className="tasks-search">
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
-        <input type="search" aria-label="Search tasks" placeholder="Search" value={tasks.query} onChange={(e) => tasks.setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') tasks.setQuery(''); }} />
-      </label>
-      <SideNew item="list" onNew={() => setNaming(true)} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
-      <div className="side-head">
-        <span className="side-title">Lists</span>
-        <span className="side-actions">
-          {pin}
-        </span>
-      </div>
-      <nav className="task-lists" aria-label="Lists">
-        <ul role="list" className="smart-tiles" aria-label="Views">
+    <AppSidebar label="Tasks sidebar">
+      <SidebarSearch label="Search tasks" value={tasks.query} onChange={tasks.setQuery} />
+      <SideNew item="list" onNew={() => setNaming(true)} />
+      <nav className="task-lists tasks-nav" aria-label="Lists">
+        <SidebarSection title="Smart lists">
           {SMART_VIEWS.map((v) => (
-            <li key={v.id}>
-              <button type="button" className="smart-tile" aria-current={current('smart', v.id)} onClick={() => tasks.setView({ kind: 'smart', id: v.id })}>
-                <SmartIcon id={v.id} />
-                <span className="list-name">{v.name}</span>
-                <span className="smart-count">{v.id === 'completed' ? '' : count(v.id) || ''}</span>
-              </button>
-            </li>
+            <SidebarRow key={v.id} icon={<SmartIcon id={v.id} />} label={v.name} count={count(v.id)} current={current('smart', v.id) === 'page'} onSelect={() => tasks.setView({ kind: 'smart', id: v.id })} />
           ))}
-        </ul>
-        <h2 className="tasks-side-heading">My Lists</h2>
+        </SidebarSection>
+        <SidebarSection title="My lists" action={pin}>
         {naming && (
+          <li>
           <form className="notes-name" onSubmit={(e) => void submit(e)}>
             <input autoFocus aria-label="List name" placeholder="List name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
             <button type="submit" className="btn primary">Create</button>
           </form>
+          </li>
         )}
-        <ul role="list" aria-label="My lists">
           {tasks.lists.map((l) => (
             <li key={l.name} className="list-item" data-drop={dropOn === l.name || undefined} {...drop(l.name)}>
               {renaming === l.name ? (
@@ -157,17 +146,27 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
               )}
             </li>
           ))}
-        </ul>
+        </SidebarSection>
         <FromMobius items={tasks.lists.filter((l) => changed?.has(l.name)).map((l) => ({ key: l.name, name: l.name, current: current('list', l.name) === 'page', onOpen: () => tasks.setView({ kind: 'list', name: l.name }) }))} />
       </nav>
-    </aside>
+    </AppSidebar>
   );
 }
 
-function Due({ due, now }: { due: string; now: Date }) {
+/** When a task is due, as its row says it: "Tomorrow, 09:30" and a repeat mark. `dayShown: false` when a heading names the day. */
+function Due({ due, time, repeat, now, dayShown = true }: { due: string; time?: string | null | undefined; repeat?: TaskRepeat | null | undefined; now: Date; dayShown?: boolean }) {
   const { text, tone } = dueLabel(due, now);
-  return <span className="task-due" data-tone={tone}>{text}</span>;
+  const words = [dayShown ? text : '', time ? timeWords(time, now) : ''].filter(Boolean).join(', ');
+  if (!words && !repeat) return null;
+  return (
+    <span className="task-due" data-tone={words ? tone : undefined}>
+      {words}
+      {repeat && <span className="task-repeat" data-after={words ? true : undefined} role="img" aria-label={`Repeats ${repeatName(repeat).toLowerCase()}`} title={repeatName(repeat)}><RepeatGlyph /></span>}
+    </span>
+  );
 }
+
+const RepeatGlyph = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 9.5a5.5 5.5 0 0 1 9.6-3.7M15.5 10.5a5.5 5.5 0 0 1-9.6 3.7M14.5 3v3.2h-3.2M5.5 17v-3.2h3.2" /></svg>;
 
 const FlagGlyph = () => <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 16.5V4.5c2.6-1.4 4.6 1.1 7.5-.2v6.4c-2.9 1.3-4.9-1.2-7.5.2" /></svg>;
 
@@ -307,9 +306,9 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <button type="button" className="task-text" title="Click to change" onClick={() => { setWords(task.text); setEditing(true); }}>{task.text}</button>
           )}
           {note && <span className="task-note">{note}</span>}
-          {((task.due && !hideDue) || showList || subtasks.length > 0) && (
+          {((task.due && (!hideDue || task.time || task.repeat)) || task.repeat || showList || subtasks.length > 0) && (
             <span className="task-meta">
-              {task.due && !hideDue && <Due due={task.due} now={now} />}
+              {task.due ? <Due due={task.due} time={task.time} repeat={task.repeat} now={now} dayShown={!hideDue} /> : task.repeat && <Due due="" repeat={task.repeat} now={now} dayShown={false} />}
               {showList && <span className="task-list">{list}</span>}
               {subtasks.length > 0 && <span className="task-subcount">{subsDone} of {subtasks.length}</span>}
             </span>
@@ -388,6 +387,17 @@ function useListReview(conversation: string | null, list: string | null) {
   };
 }
 
+/** A due date for the details panel: "Tomorrow, 13 Nov" near now, else "Fri 20 Nov", in the computer's format. */
+function longDue(due: string, now: Date, time?: string | null): string {
+  return time ? `${dayOnly(due, now)}, ${timeWords(time, now)}` : dayOnly(due, now);
+}
+function dayOnly(due: string, now: Date): string {
+  const [y, m, d] = due.split('-').map(Number);
+  const date = new Date(y!, m! - 1, d!);
+  const near = dueLabel(due, now).text;
+  return ['Today', 'Tomorrow', 'Yesterday'].includes(near) ? `${near}, ${dayLabel(date, { now })}` : dayLabel(date, { now, weekday: 'short' });
+}
+
 /** Quick days for a due date: today, tomorrow, the next Monday. */
 function quickDays(now: Date): { label: string; day: string }[] {
   const plus = (n: number) => isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + n));
@@ -400,6 +410,7 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
   const [title, setTitle] = useState(task.text);
   const [notes, setNotes] = useState(task.notes ?? '');
   const [sub, setSub] = useState('');
+  const dateField = useRef<HTMLInputElement>(null);
   useEffect(() => { setTitle(task.text); }, [task.text]);
   useEffect(() => { setNotes(task.notes ?? ''); }, [task.notes, task.line]);
   useEffect(() => {
@@ -424,12 +435,35 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
         <button type="button" className="btn" onClick={() => tasks.pick(null)}>Done</button>
       </header>
       <textarea className="task-inspector-title" aria-label="Task" rows={2} value={title} maxLength={500} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))} onBlur={keepTitle} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
-      <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Notes" rows={4} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
+      <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Add notes" rows={2} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
       <section className="inspector-group" aria-label="When">
         <div className="inspector-row">
           <span className="inspector-label">Due</span>
-          <input type="date" className="task-date" aria-label="Due date" value={task.due ?? ''} onChange={(e) => void tasks.change(list, task, { due: e.target.value || null })} />
+          {/* A pop-up button with the date in words; the system's date picker opens from it. */}
+          <span className="inspector-date" data-tone={task.due ? dueLabel(task.due, now).tone : undefined}>
+            <button type="button" className="inspector-date-btn" aria-hidden="true" tabIndex={-1} onClick={() => { try { dateField.current?.showPicker(); } catch { dateField.current?.focus(); } }}>
+              {task.due ? longDue(task.due, now, task.time) : 'None'}
+            </button>
+            <input ref={dateField} type="date" className="inspector-date-input" aria-label="Due date" value={task.due ?? ''} onChange={(e) => void tasks.change(list, task, { due: e.target.value || null })} />
+          </span>
         </div>
+        {task.due && (
+          <div className="inspector-row">
+            <span className="inspector-label">Time</span>
+            <span className="inspector-time">
+              <input type="time" className="task-time" aria-label="Time" value={task.time ?? ''} onChange={(e) => void tasks.change(list, task, { time: e.target.value || null })} />
+              {task.time && <button type="button" className="strip-btn" aria-label="Clear the time" title="Clear the time" onClick={() => void tasks.change(list, task, { time: null })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg></button>}
+            </span>
+          </div>
+        )}
+        <label className="inspector-row">
+          <span className="inspector-label"><span className="task-repeat"><RepeatGlyph /></span>Repeat</span>
+          <select aria-label="Repeat" value={task.repeat ?? ''} onChange={(e) => void tasks.change(list, task, { repeat: (e.target.value || null) as TaskRepeat | null })}>
+            <option value="">Never</option>
+            {REPEATS.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+          </select>
+        </label>
+        {task.repeat && <p className="inspector-hint">Ticking it off moves it to its next day.</p>}
         <div className="inspector-chips">
           {quickDays(now).map((q) => <button key={q.label} type="button" className="chip" aria-pressed={task.due === q.day} onClick={() => void tasks.change(list, task, { due: q.day })}>{q.label}</button>)}
           {task.due && <button type="button" className="chip" onClick={() => void tasks.change(list, task, { due: null })}>No date</button>}
@@ -463,7 +497,7 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
             </ul>
           )}
           <form className="inspector-add" onSubmit={(e) => void addSub(e)}>
-            <span className="task-check ghost" aria-hidden="true" />
+            <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
             <input aria-label="New subtask" placeholder="Add a subtask" value={sub} maxLength={500} onChange={(e) => setSub(e.target.value)} />
           </form>
         </section>
@@ -481,6 +515,8 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
   );
 }
 
+const saidWords = (said: { due: string; time?: string }, now: Date) => [dueLabel(said.due, now).text, said.time ? timeWords(said.time, now) : ''].filter(Boolean).join(', ');
+
 /** The add field: a date said at the end ("tomorrow", "by fri") becomes the due date, shown as a chip to take back. */
 function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks: TasksState; placeholder: string; target: string; defaultDue: string | null; focusToken: number }) {
   const [text, setText] = useState('');
@@ -494,7 +530,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   useEffect(() => { if (!went) return; const t = window.setTimeout(() => setWent(null), 6000); return () => window.clearTimeout(t); }, [went]);
   useEffect(() => { if (focusToken) input.current?.focus(); }, [focusToken]);
   const now = new Date();
-  const said = literal || due ? null : parseWhen(text, now);
+  const said = literal || due ? null : parseWhenAndTime(text, now);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const words = (said ? said.text : text).trim();
@@ -504,19 +540,19 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
     const typed = { text, due, literal };
     setText(''); setDue(''); setLiteral(false);
     input.current?.focus();
-    const added = await tasks.add(target, words, date);
+    const added = await tasks.add(target, words, date, said?.time && date === said.due ? { time: said.time } : undefined);
     if (!added && typing.current === '') { setText(typed.text); setDue(typed.due); setLiteral(typed.literal); }
     if (added && tasks.view.kind === 'smart' && tasks.view.id === 'today' && date && date > isoDay(now)) setWent({ text: words, when: dueLabel(date, now).text });
   };
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
-      <span className="task-check ghost" aria-hidden="true" />
+      <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
       <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
-        <button type="button" className="chip task-when" title={`“${said.phrase}” sets the due date. Click to keep it as words.`} aria-label={`Due ${dueLabel(said.due, now).text}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
+        <button type="button" className="chip task-when" title={`“${said.phrase}” sets when it is due. Click to keep it as words.`} aria-label={`Due ${saidWords(said, now)}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13" /></svg>
-          {dueLabel(said.due, now).text}
+          {saidWords(said, now)}
           <span aria-hidden="true" className="chip-x">×</span>
         </button>
       )}
@@ -558,6 +594,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     .map((at) => ({ at, subtasks: rows.filter((r) => r.list === at.list && r.task.parent === at.task.line).map((r) => r.task) }));
 
   let body: ReactNode;
+  let changeShown = false;
   let empty = '';
   if (query) {
     const found = searchTasks(query, tasks.all);
@@ -572,10 +609,21 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
     const list = tasks.all[view.name] ?? [];
     const { open, done } = splitDone(nest(list).map((n) => n.task));
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
+    // The changed tasks are boxed where they are; the answers sit under the last of them, as under a change in Docs.
+    const lastNew = review ? [...open].reverse().find((task) => proposal.isNew(task.text)) : undefined;
+    changeShown = lastNew !== undefined;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
-          {open.map((task) => row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }))}
+          {open.map((task) => [
+            row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
+            task === lastNew && review && (
+              <li key="mobius-change" className="task-change">
+                <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                  discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
+              </li>
+            ),
+          ])}
         </ul>
         <div className="task-drop-end" data-drop={dropEnd || undefined}
           onDragOver={(e) => { if (isTaskDrag(e)) { e.preventDefault(); setDropEnd(true); } }} onDragLeave={() => setDropEnd(false)}
@@ -587,7 +635,8 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
                 <svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg>
                 <span>Completed · {done.length}</span>
               </button>
-              {showDone && <button type="button" className="btn" onClick={() => void tasks.clearDone(view.name)}>Clear</button>}
+              <Menu label="Completed" align="end" entries={[{ label: `Clear ${done.length} Completed`, run: () => void tasks.clearDone(view.name) }]}
+                trigger={<button type="button" className="strip-btn tasks-done-more" aria-label="More for Completed" title="More"><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg></button>} />
             </div>
             {showDone && (
               <ul className="task-items" role="list" aria-label="Completed">
@@ -626,7 +675,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
   return (
     <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
       <div className="tasks-main">
-        {review && view.kind === 'list' && (
+        {review && view.kind === 'list' && !changeShown && (
           <div className="note-review" role="status">
             <span className="review-dot" aria-hidden="true" />
             <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>
@@ -645,11 +694,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, onAsk }: { tas
       </div>
       {picked && <TaskInspector key={`${picked.list}:${picked.task.text}`} tasks={tasks} list={picked.list} task={picked.task} onAsk={ask} />}
       {tasks.deleted && (
-        <div className="tasks-undo" role="status">
-          <span>{tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “{(tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text).replace(/^(.{39}).{2,}$/, '$1…')}”</span>
-          <button type="button" className="btn" onClick={() => void tasks.undoDelete()}>Undo</button>
-          <button type="button" className="tasks-undo-x" aria-label="Dismiss" onClick={tasks.dismissDeleted}>×</button>
-        </div>
+        <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
       )}
     </section>
   );

@@ -1,12 +1,12 @@
 import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
-import { ContextMenu } from './ContextMenu';
+import { Menu, ToolbarControls, UndoToast } from './ui';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
-import { Extension } from '@tiptap/core';
+import { Extension, generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
@@ -21,7 +21,9 @@ import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from '.
 import type { NotesState } from './useNotes';
 import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock, tidyMarkdown } from './note-insert';
 import { useDictation } from './composer/useDictation';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
+import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
+import { acceptGroup } from './docs-view';
 import { showTag, tagRanges, tagsIn } from './note-tags';
 import { countWords } from './Docs';
 import { relativeTime } from './relative-time';
@@ -143,11 +145,19 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
     }),
   });
-  const [panel, setPanel] = useState(false);
+  // Where the panel opens: under the Aa button. It is drawn over the page (in body), not inside the toolbar, so its
+  // glass blurs the page behind it.
+  const [panel, setPanel] = useState<{ top: number; left: number } | null>(null);
   const wrap = useRef<HTMLDivElement>(null);
+  const sheet = useRef<HTMLDivElement>(null);
+  const toggle = () => setPanel((o) => {
+    if (o) return null;
+    const at = wrap.current?.getBoundingClientRect();
+    return at ? { top: at.bottom + 8, left: at.left } : null;
+  });
   useEffect(() => {
     if (!panel) return;
-    const away = (e: PointerEvent) => { if (!wrap.current?.contains(e.target as Node | null)) setPanel(false); };
+    const away = (e: PointerEvent) => { const t = e.target as Node | null; if (!wrap.current?.contains(t) && !sheet.current?.contains(t)) setPanel(null); };
     window.addEventListener('pointerdown', away);
     return () => window.removeEventListener('pointerdown', away);
   }, [panel]);
@@ -162,11 +172,11 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
   return (
     <>
       <div className="note-aa" ref={wrap}>
-        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel} data-marked={marked || undefined} onPointerDown={keep} onClick={() => setPanel((o) => !o)}>
+        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Styles, bold, italic and lists" aria-haspopup="dialog" aria-expanded={panel !== null} data-marked={marked || undefined} onPointerDown={keep} onClick={toggle}>
           <span aria-hidden="true">Aa</span>
         </button>
-        {panel && (
-          <div className="note-aa-panel glass" role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(false); editor.commands.focus(); } }}>
+        {panel && createPortal(
+          <div ref={sheet} className="note-aa-panel glass" style={{ top: panel.top, left: panel.left }} role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(null); editor.commands.focus(); } }}>
             <div className="note-aa-styles" role="group" aria-label="Paragraph style">
               {STYLES_SHOWN.map((s) => (
                 <button key={s.id} type="button" className="note-aa-style" data-style={s.id} aria-pressed={state.style === s.id} onPointerDown={keep} onClick={() => setStyle(s.id)}>{s.label}</button>
@@ -193,7 +203,8 @@ function FormatButtons({ editor, onLink }: { editor: Editor; onLink: () => void 
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
       <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
@@ -260,6 +271,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => noteComments(() => quotesNow.current), []);
+  // What Mobius's last turn changed, drawn in the page as dashed blocks to keep or discard one at a time (as in Docs).
+  const changesNow = useRef<ChangeView | null>(null);
+  const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
+  const tryAnother = useContext(TryAnotherContext);
+  const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -273,6 +289,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       NoteTags,
       image,
       commentMarks,
+      changeMarks,
     ],
     content: '',
     editorProps: {
@@ -362,19 +379,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     editor.chain().focus().setTextSelection(found).scrollIntoView().run();
   };
   // Share: copy the page, save a copy in Exports, or print it (and so save it as a PDF).
-  const [sharing, setSharing] = useState(false);
   const [shared, setShared] = useState<string | null>(null);
-  useEffect(() => { setSharing(false); setShared(null); }, [path]);
-  useEffect(() => {
-    if (!sharing) return;
-    const away = (e: PointerEvent) => { if (!(e.target as HTMLElement | null)?.closest('.note-share')) setSharing(false); };
-    window.addEventListener('pointerdown', away);
-    return () => window.removeEventListener('pointerdown', away);
-  }, [sharing]);
+  useEffect(() => { setShared(null); }, [path]);
   useEffect(() => { if (!shared) return; const t = window.setTimeout(() => setShared(null), 6000); return () => window.clearTimeout(t); }, [shared]);
   const pageTitle = () => liveTitle(notes.text, notes.page?.title || 'Note');
   const share = async (how: 'markdown' | 'formatted' | 'html' | 'md' | 'print') => {
-    setSharing(false);
     const page = pathNow.current;
     if (!page) return;
     if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
@@ -402,7 +411,6 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   const caret = useRef<number | null>(null);
   useEffect(() => { caret.current = null; }, [path]);
   const [clipping, setClipping] = useState<string | null>(null);
-  const [more, setMore] = useState<{ x: number; y: number } | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
@@ -518,9 +526,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const id = last && 'checkpoint' in last ? turnId(review.conversation, last.checkpoint) : null;
     if (id) keepTurn(id, 'notes');
     setDiff(null);
+    setChanges(null);
     setKept(true);
   };
-  useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); }, [path, review?.conversation]);
+  // The turn's changes as the page shows them, read when the page opens: the page before the turn, and the lines since.
+  const [changes, setChanges] = useState<DiffLine[] | null>(null);
+  const [was, setWas] = useState<string | null>(null);
+  useEffect(() => { setDiff(null); setBefore(null); setReviewProblem(null); setChanges(null); setWas(null); }, [path, review?.conversation]);
   const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   const showChanges = async () => {
     if (!review || !path) return;
@@ -537,15 +549,59 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const rest = compare(before, next);
     setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
+  useEffect(() => {
+    if (!review || kept || !path || changes) return undefined;
+    let live = true;
+    void window.mobius.changes.before(review.conversation, `notes/${path}`).then((got) => {
+      // A page the turn made has nothing to compare with: it keeps the bar above it.
+      if (!live || !got || !got.ok || got.text === null) return;
+      setWas(got.text);
+      const d = diffLines(got.text, notes.text);
+      if (d.some((l) => l.kind !== 'same')) setChanges(d);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
+  // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
+  const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
+  const keepOne = (group: number) => {
+    if (!changes || was === null) return;
+    const next = acceptGroup(changes, changeGroups(changes), group);
+    setWas(next);
+    const rest = diffLines(next, notes.text);
+    if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
+  };
+  const discardOne = (group: number) => {
+    if (!changes || was === null) return;
+    const next = undoGroup(changes, group);
+    notes.edit(next);
+    const rest = diffLines(was, next);
+    if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
+  };
+  const showingChanges = Boolean(review && !kept && changes && was !== null && !source && diff === null);
+  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}` : '';
+  const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
+  // Markdown as this editor would draw it, for the words a change took out.
+  const renderMarkdown = (markdown: string): string | null => {
+    if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
+    try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
+  };
+  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current } : null;
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
   useEffect(() => onCommand('show-changes', () => void showLatest.current()), []);
+  // The Notes menu (⋯ in the toolbar): Clip a web page, and Show Markdown or the formatted page.
+  const toggleLatest = useRef(toggleSource);
+  toggleLatest.current = toggleSource;
+  useEffect(() => onCommand('clip-page', () => setClipping('')), []);
+  useEffect(() => onCommand('show-history', () => { if (window.mobius.notes?.versions) setHistory(true); }), []);
+  useEffect(() => onCommand('show-markdown', () => toggleLatest.current()), []);
   const undoChanges = async () => {
     if (!review || !path) return;
     const result = await window.mobius.changes.undoFile(review.conversation, `notes/${path}`).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
     if (!result.ok) setReviewProblem(result.error);
     setDiff(null);
+    setChanges(null);
   };
 
   // In Markdown, the selection bar follows the pointer, as the text box has no positions to ask for.
@@ -594,7 +650,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       )}
       {history && path && <NoteHistory path={path} text={notes.text} onRestore={restore} onClose={() => setHistory(false)} />}
       {diff === null && !history && (
-        <div className="doc-toolbar note-format" role="toolbar" aria-label="Format">
+        // The page's controls sit in the window's toolbar (ui/AppFrame), not in a row of their own above the page.
+        <ToolbarControls label="Notes">
+        <div className="note-format" role="toolbar" aria-label="Format">
           {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} />}
           {source && (
             <>
@@ -622,44 +680,25 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
               </>
             )}
           </div>
-          <span className="spacer" />
-          <div className="note-share">
-            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page" aria-haspopup="menu" aria-expanded={sharing} onClick={() => setSharing((o) => !o)}>
+          <Menu label="Share" align="end" entries={[
+            { label: 'Copy', run: () => void share('formatted') },
+            { label: 'Copy as Markdown', run: () => void share('markdown') },
+            ...(window.mobius.notes?.export ? [
+              { label: 'Export as web page', run: () => void share('html'), separated: true },
+              { label: 'Export as Markdown', run: () => void share('md') },
+            ] : []),
+            { label: 'Print or save as PDF…', run: () => void share('print'), separated: true },
+          ]} trigger={
+            <button type="button" className="doc-tool" aria-label="Share" title="Copy, export or print this page">
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 12.5V3.5M6.8 6.5 10 3.3l3.2 3.2M6.5 9H5.5A1.5 1.5 0 0 0 4 10.5v5A1.5 1.5 0 0 0 5.5 17h9a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 14.5 9h-1" /></svg>
             </button>
-            {sharing && (
-              <div className="note-share-menu" role="menu" aria-label="Share" onKeyDown={(e) => { if (e.key === 'Escape') setSharing(false); }}>
-                <button type="button" role="menuitem" autoFocus onClick={() => void share('formatted')}>Copy</button>
-                <button type="button" role="menuitem" onClick={() => void share('markdown')}>Copy as Markdown</button>
-                {window.mobius.notes?.export && (
-                  <>
-                    <hr />
-                    <button type="button" role="menuitem" onClick={() => void share('html')}>Export as web page</button>
-                    <button type="button" role="menuitem" onClick={() => void share('md')}>Export as Markdown</button>
-                  </>
-                )}
-                <hr />
-                <button type="button" role="menuitem" onClick={() => void share('print')}>Print or save as PDF…</button>
-              </div>
-            )}
-          </div>
-          {window.mobius.notes?.versions && (
-            <button type="button" className="doc-tool" aria-label="History" title="Earlier versions of this page" onClick={() => setHistory(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.8 10a6.2 6.2 0 1 0 1.9-4.5M3.5 3.5v3h3M10 6.5V10l2.5 1.6" /></svg>
-            </button>
-          )}
+          } />
           {source && <button type="button" className="doc-tool text note-source" aria-pressed title="Show the page formatted" onClick={toggleSource}>Markdown</button>}
-          <button type="button" className="doc-tool" aria-label="More" title="More for this page" aria-haspopup="menu" aria-expanded={more !== null}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMore((m) => (m ? null : { x: r.right - 220, y: r.bottom + 6 })); }}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.1" /><circle cx="10" cy="10" r="1.1" /><circle cx="15" cy="10" r="1.1" /></svg>
-          </button>
-          {more && createPortal(
-            <ContextMenu x={more.x} y={more.y} label="More" onClose={() => setMore(null)} items={[
-              { label: 'Clip a web page…', run: () => setClipping('') },
-              { label: source ? 'Show formatted' : 'Show Markdown', run: toggleSource, separated: true },
-            ]} />,
-            document.body,
-          )}
+        </div>
+        </ToolbarControls>
+      )}
+      {diff === null && !history && (clipping !== null || linking !== null || (insertProblem ?? recording.problem)) && (
+        <div className="note-forms">
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
               <input autoFocus aria-label="Address to clip" placeholder="Paste a link" value={clipping} onChange={(e) => setClipping(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setClipping(null); }} />
@@ -691,14 +730,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
         </div>
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
-      {restored && !history && (
-        <div className="note-restored" role="status">
-          <span>Restored the version from {restored.label}.</span>
-          <button type="button" className="review-btn" onClick={() => { notes.edit(restored.was); setRestored(null); }}>Undo</button>
-          <button type="button" className="review-btn" aria-label="Dismiss" onClick={() => setRestored(null)}>OK</button>
-        </div>
-      )}
-      {review && !kept && !history && (
+      {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
+      {review && !kept && !history && !showingChanges && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>
@@ -727,7 +760,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
           })()}
         </ol>
       )}
-      <div className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
+      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
           <span>{words === 1 ? '1 word' : `${words} words`}</span>

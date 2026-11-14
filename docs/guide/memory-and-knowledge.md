@@ -18,8 +18,9 @@ grouped as About you, Preferences, Projects, People and Learned skills.
 
 - Something Mobius learned waits at the top under **Waiting for you**, drawn **dashed**, until you **Keep** it, or say
   **Not true** and it is forgotten.
-- Point at a line (or reach it with Tab) to **Edit**, **Forget** or **Share** it. Add a line, with its kind, in the row
-  at the foot of the page.
+- Point at a line (or reach it with Tab) to **Edit**, **Forget** or **Share** it. On a line, Enter edits it and Delete
+  forgets it (for what Mobius learned, Enter keeps it and Delete says Not true). Add a line, with its kind, in the row
+  at the foot of the page, or with the **+** beside a section's name.
 - **Settings › Memory** lists the same facts with **Forget**.
 
 ## Shared knowledge
@@ -29,8 +30,10 @@ written straight in: a line from How I work you chose to share, a line Mobius pr
 waits under **Suggested changes** with **Decline**, **Edit first** and **Keep**, and either answer can be undone.
 
 Pages are Markdown files in `workspace/wiki/`, listed in the sidebar under their folder: **Pages**, **Projects** and
-**Shared**. Their earlier versions come from the workspace checkpoints, so any page
-can be put back as it was.
+**Shared**. Their earlier versions come from the workspace checkpoints. The **Versions** button (the clock at the end
+of the page's toolbar) lists them by day and shows what putting one back would change, line by line: what comes back
+in green, what goes in red. **Put this version back** restores it, and **Undo** in the line that appears brings the
+page back as it was.
 
 ## Project memory
 

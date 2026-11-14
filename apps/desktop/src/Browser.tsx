@@ -9,7 +9,8 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, hostOf, suggestionsFor, tileHue, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColour, tileLetter, type Suggestion } from './browser-view';
+import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
 import './browser.css';
 
@@ -49,14 +50,13 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); window.mobius.browser.close(tab.id); } }}
     >
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
-        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true" style={tab.url ? { ['--hue' as string]: tileHue(site) } : undefined}>{tab.url ? tileLetter(site) : ''}</span>}
+        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true" style={tab.url ? { ['--tile' as string]: tileColour(site) } : undefined}>{tab.url ? tileLetter(site) : ''}</span>}
         <span className="tab-title">{tab.title}</span>
         {tab.driver && (
-          // A small mark, not a word, so the title keeps its room: Mobius's mark while it reads or uses the tab, a hand once you took it over.
+          // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
+          // took it over it is a plain row again (the words stay for screen readers).
           <span className="tab-driver" data-driver={tab.driver} title={TAB_DRIVER_TITLE[tab.driver]}>
-            {tab.driver === 'yours'
-              ? <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 10V4.8a1.2 1.2 0 0 1 2.4 0V9m0-.5V3.8a1.2 1.2 0 0 1 2.4 0V9m0-.2V5a1.2 1.2 0 0 1 2.4 0v6.5c0 3-2 5-4.8 5-2 0-3.2-.9-4.4-2.6L4.2 11a1.2 1.2 0 0 1 2-1.3L7 11" /></svg>
-              : <MobiusMark size={14} turning={tab.driver === 'mobius'} />}
+            {tab.driver !== 'yours' && <MobiusMark size={14} turning={tab.driver === 'mobius'} />}
             <span className="sr-only">{TAB_DRIVER[tab.driver]}</span>
           </span>
         )}
@@ -64,12 +64,12 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       </button>
       <span className="tab-actions">
         {window.mobius.browser.pin && (
-          <button type="button" className="tab-close tab-pin" aria-label={`${tab.pinned ? 'Unpin' : 'Pin'} ${tab.title}`} aria-pressed={tab.pinned === true} title={tab.pinned ? 'Unpin' : 'Pin'} onClick={() => window.mobius.browser.pin?.(tab.id, !tab.pinned)}>
+          <button type="button" className="tab-close tab-pin" aria-label={`${tab.pinned ? 'Unpin' : 'Pin'} ${tab.title}`} aria-pressed={tab.pinned === true} title={tab.pinned ? 'Unpin tab' : 'Pin tab'} onClick={() => window.mobius.browser.pin?.(tab.id, !tab.pinned)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6l-1 5 3 3H5l3-3-1-5ZM10 11v6" /></svg>
           </button>
         )}
         {window.mobius.browser.duplicate && (
-          <button type="button" className="tab-close" aria-label={`Duplicate ${tab.title}`} title="Duplicate" onClick={() => void window.mobius.browser.duplicate?.(tab.id)}>
+          <button type="button" className="tab-close" aria-label={`Duplicate ${tab.title}`} title="Duplicate tab" onClick={() => void window.mobius.browser.duplicate?.(tab.id)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 7h9v9H7zM4 13V4h9" /></svg>
           </button>
         )}
@@ -128,22 +128,26 @@ function useTabDrag(tabs: readonly BrowserTabState[]): TabDrag {
  * A tab's right-click menu, the shared one. It is kept inside the sidebar, since the page is drawn over everything beside
  * it, so it opens from a point that leaves room for it there.
  */
-function TabMenu({ tab, x, y, tabs, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; onClose: () => void }) {
+function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onClose: () => void }) {
   const side = document.querySelector('.side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - TAB_MENU_W - 4)) : x;
   const others = tabs.filter((t) => t.id !== tab.id && !t.pinned);
   const below = tabs.slice(tabs.findIndex((t) => t.id === tab.id) + 1).filter((t) => !t.pinned);
   const web = /^https?:/i.test(tab.url);
   const api = window.mobius.browser;
+  // Plain words, no icons: in a menu every item has an icon or none does.
   const items: ContextMenuItem[] = [
-    ...(api.pin ? [{ action: tab.pinned ? 'unpin' as const : 'pin' as const, label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => api.pin?.(tab.id, !tab.pinned) }] : []),
-    ...(api.duplicate ? [{ action: 'duplicate' as const, label: 'Duplicate tab', run: () => void api.duplicate?.(tab.id) }] : []),
-    { label: 'Reload', run: () => api.reload(tab.id), disabled: !tab.url },
-    { action: 'copy', label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
+    ...(api.pin ? [{ label: tab.pinned ? 'Unpin tab' : 'Pin tab', run: () => api.pin?.(tab.id, !tab.pinned) }] : []),
+    ...(api.duplicate ? [{ label: 'Duplicate tab', run: () => void api.duplicate?.(tab.id) }] : []),
+    { label: 'Reload', keys: tab.active ? 'Ctrl+R' : undefined, run: () => api.reload(tab.id), disabled: !tab.url },
+    ...(api.reopenClosed ? [{ label: 'Reopen closed tab', keys: 'Ctrl+Shift+T', run: () => void api.reopenClosed?.() }] : []),
+    { label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
     { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
-    { label: 'Close tab', run: () => api.close(tab.id), separated: true },
+    // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
+    { label: pinnedPages.has(tab.url) ? 'Unpin from the sidebar' : 'Pin to the sidebar', run: () => onPinPage(tab), disabled: !web },
+    { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
     { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
-    { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0, danger: true },
+    { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
   ];
   return createPortal(<ContextMenu x={left} y={y} label={tab.title} items={items} onClose={onClose} />, document.body);
 }
@@ -154,52 +158,96 @@ const TAB_MENU_W = 210;
  * The tabs, as Safari's and Arc's sidebars keep them: pinned tabs in their own group above the rest, actions only on the
  * row under the pointer, drag to reorder (or across the line to pin), and a right-click menu. Downloads open from a button in its head.
  */
-export function BrowserSidebar({ tabs, pin, onNewTab, downloads }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[] }) {
+export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, onPinPage, onOpenBookmark }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void }) {
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
+  const [query, setQuery] = useState('');
+  const bookmarks = useBookmarks();
   const drag = useTabDrag(tabs);
-  const pinned = tabs.filter((t) => t.pinned);
-  const open = tabs.filter((t) => !t.pinned);
+  const matches = (title: string, url: string) => sidebarMatch(query, title, url);
+  // Tabs Mobius is reading or using for its work; "From Mobius" can narrow the list to them.
+  const fromMobius = tabs.filter((t) => t.driver === 'reading' || t.driver === 'mobius');
+  const [mobiusOnly, setMobiusOnly] = useState(false);
+  const only = mobiusOnly && fromMobius.length > 0;
+  const shown = (t: BrowserTabState) => matches(t.title, t.url) && (!only || t.driver === 'reading' || t.driver === 'mobius');
+  const pinned = tabs.filter((t) => t.pinned && shown(t));
+  const open = tabs.filter((t) => !t.pinned && shown(t));
+  const saved = bookmarks.filter((b) => matches(b.title, b.url)).slice(0, 20);
+  const searching = query.trim() !== '';
   const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
   return (
-        <aside className="side browser-side" aria-label="Browser sidebar">
-          <div className="side-head">
-            <span className="side-title">Tabs</span>
-            <span className="side-actions">
-              {pin}
-              <DownloadsButton entries={downloads} />
-              {window.mobius.browser.reopenClosed && (
-                <button type="button" className="strip-btn" aria-label="Reopen closed tab" title="Reopen closed tab (Ctrl+Shift+T)" onClick={() => void window.mobius.browser.reopenClosed?.()}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10a6 6 0 1 0 2-4.5M4 3v4h4" /></svg>
+    <AppSidebar label="Browser sidebar">
+      <div className="browser-side">
+        <SidebarSearch label="Search tabs and bookmarks" placeholder="Search" value={query} onChange={setQuery} />
+        <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
+          <section className="ui-side-section">
+            <div className="side-head">
+              <span className="side-title">Tabs</span>
+              <div className="side-actions">
+                {pin}
+                <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={onNewTab}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
                 </button>
-              )}
-              <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={onNewTab}>
-                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-              </button>
-            </span>
-          </div>
-          <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
-            {pinned.length > 0 && (
-              <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
-                <AnimatePresence initial={false}>{pinned.map(row)}</AnimatePresence>
-              </ul>
-            )}
+              </div>
+              {/* Downloads stays in sight, at the end of the head, while it has something to show; the other tools wait for the pointer. */}
+              <DownloadsButton entries={downloads} />
+            </div>
             <ul className="tabs" role="list" aria-label="Open tabs">
               <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
             </ul>
-            {open.length === 0 && pinned.length > 0 && <p className="tabs-empty">No other tabs. Press Ctrl+T for a new one.</p>}
+            {!searching && !only && open.length === 0 && pinned.length > 0 && <p className="tabs-empty">No other tabs.</p>}
+            {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
+          </section>
+          {pinned.length > 0 && (
+            <section className="ui-side-section">
+              <div className="side-head"><span className="side-title">Pinned</span></div>
+              <ul className="tabs tabs-pinned" role="list" aria-label="Pinned tabs">
+                <AnimatePresence initial={false}>{pinned.map(row)}</AnimatePresence>
+              </ul>
+            </section>
+          )}
+        </div>
+        {searching && saved.length > 0 && (
+          <SidebarSection title="Bookmarks">
+            {saved.map((b) => (
+              <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)}
+                icon={<span className="tab-icon placeholder" aria-hidden="true" style={{ ['--tile' as string]: tileColour(hostOf(b.url)) }}>{tileLetter(hostOf(b.url))}</span>} />
+            ))}
+          </SidebarSection>
+        )}
+        {fromMobius.length > 0 && (
+          // The tabs Mobius opened for its work, as one row: pressed, Tabs shows only those.
+          <div className="from-mobius">
+            <span className="side-title from-mobius-title">From Mobius</span>
+            <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
+              <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
+              <span className="from-mobius-count">{fromMobius.length}</span>
+            </button>
           </div>
-          {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} onClose={closeMenu} />}
-        </aside>
+        )}
+        {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} pinnedPages={pinnedPages} onPinPage={onPinPage} onClose={closeMenu} />}
+      </div>
+    </AppSidebar>
   );
+}
+
+/** The saved pages, newest first, kept up to date while the sidebar shows. */
+function useBookmarks(): BookmarkEntry[] {
+  const [list, setList] = useState<BookmarkEntry[]>([]);
+  useEffect(() => {
+    let live = true;
+    const load = () => void window.mobius.bookmarks.get('').then((b) => { if (live) setList(b); }).catch(() => {});
+    load();
+    const off = window.mobius.bookmarks.onChanged(load);
+    return () => { live = false; off(); };
+  }, []);
+  return list;
 }
 
 export interface BrowserChromeProps {
   active: BrowserTabState | undefined;
   saved: boolean;
-  pagePinned: boolean;
-  onTogglePagePin: () => void;
   selectionMenu: boolean;
   setSelectionMenu: (update: boolean | ((open: boolean) => boolean)) => void;
   /** A picture of the page covers it, so the selection menu can sit over it. */
@@ -214,46 +262,76 @@ export interface BrowserChromeProps {
   notice: string;
   setNotice: (notice: string) => void;
   onSubmit: (event: FormEvent) => void;
+  /** Whether the address bar's suggestions are showing: the page is covered by a picture of it meanwhile, since the
+   * native page is drawn over everything below the toolbar. */
+  onSuggesting: (open: boolean) => void;
   findOpen: boolean;
   finding: number;
   onCloseFind: () => void;
 }
 
-/** Back, forward, reload, bookmark, pin, the selection menu and the address bar, with Find under them. */
-export function BrowserChrome({ active, saved, pagePinned, onTogglePagePin, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+/**
+ * The Browser's own keys, as in every browser: Alt+Left and Alt+Right go back and forward, Ctrl+R reloads (instead of
+ * reloading Mobius itself) and Ctrl+Shift+T reopens the tab closed last. Only while the Browser shows.
+ */
+function useBrowserKeys(active: BrowserTabState | undefined) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.repeat) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const editing = (e.target as Element | null)?.closest?.('input, textarea, select, [contenteditable="true"]');
+      const api = window.mobius.browser;
+      if (e.altKey && !mod && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if (editing || !active) return;
+        e.preventDefault();
+        if (e.key === 'ArrowLeft') { if (active.canGoBack) api.back(active.id); } else if (active.canGoForward) api.forward(active.id);
+      } else if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyR') {
+        e.preventDefault();
+        if (active?.url) api.reload(active.id);
+      } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
+        e.preventDefault();
+        void api.reopenClosed?.();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [active]);
+}
+
+/** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
+export function BrowserChrome({ active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+  useBrowserKeys(active);
+  // In the toolbar's middle, as the frame has every app's own controls (ui/AppFrame).
   return (
-  <div className="strip-middle" role="group" aria-label="Browser">
+  <ToolbarControls label="Browser">
+  <div className="strip-middle browser-chrome">
         <div className="cap-group">
-          <button type="button" className="strip-btn" aria-label="Back" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
+          <button type="button" className="strip-btn" aria-label="Back" title="Back (Alt+Left)" disabled={!active?.canGoBack} onClick={() => active && window.mobius.browser.back(active.id)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 4 6 10l6 6" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label="Forward" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
+          <button type="button" className="strip-btn" aria-label="Forward" title="Forward (Alt+Right)" disabled={!active?.canGoForward} onClick={() => active && window.mobius.browser.forward(active.id)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 4 6 6-6 6" /></svg>
           </button>
-          <button type="button" className="strip-btn" aria-label="Reload" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
+          <button type="button" className="strip-btn" aria-label="Reload" title="Reload (Ctrl+R)" disabled={!active} onClick={() => active && window.mobius.browser.reload(active.id)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
           </button>
         </div>
+        <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting} />
         <div className="cap-group" role="group" aria-label="This page">
-        <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
+          <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
         </button>
-        <button type="button" className="strip-btn" data-page-pin aria-pressed={pagePinned} aria-label={pagePinned ? 'Unpin this page from the sidebar' : 'Pin this page to the sidebar'} title={pagePinned ? 'Unpin from the sidebar' : 'Pin to the sidebar'} disabled={!active || !/^https?:/.test(active.url)} onClick={onTogglePagePin}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5h5l-.8 4.2 2.8 2.8H5.5l2.8-2.8zM10 10.5v6" /></svg>
-        </button>
         </div>
+        {/* Selected text… is in ⋯ (the Browser menu); its menu drops from the end of the address. */}
         <div className="selection-menu-wrap">
-          <button type="button" className="strip-btn" data-selection-ask aria-haspopup="menu" aria-expanded={selectionMenu} aria-label="Selected text" title="Do something with the text selected on this page" disabled={!active || !/^https?:/.test(active.url)} onClick={() => setSelectionMenu((open) => !open)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5h7M3.5 9h5M3.5 13h4" /><path d="M13 4.5h3M13 15.5h3M14.5 4.5v11" /></svg>
-          </button>
           {selectionMenu && selectionReady && (
             <SelectionMenu onClose={() => setSelectionMenu(false)} onChoose={onSelection} clipTo={clipTo} pages={clipPages} onClipTo={onClipTo} />
           )}
         </div>
-        <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} />
         {notice && <span className="notice" role="status">{notice}</span>}
         {findOpen && active && <FindBar key={active.id} tabId={active.id} focusToken={finding} onClose={onCloseFind} />}
       </div>
+  </ToolbarControls>
   );
 }
 
@@ -268,12 +346,10 @@ const SUGGESTION_ICON = {
  * edit, and suggests open tabs, bookmarks and pages from history as you type. A suggestion is only taken when it is
  * picked with the arrows or the pointer; otherwise Enter goes, or asks, as before.
  */
-function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit'>) {
+function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onSuggesting }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit' | 'onSuggesting'>) {
   const [list, setList] = useState<Suggestion[]>([]);
   const [lit, setLit] = useState(-1);
   const known = useRef<{ tabs: BrowserTabState[]; bookmarks: BookmarkEntry[]; history: HistoryEntry[] }>({ tabs: [], bookmarks: [], history: [] });
-  // Suggestions only show where nothing covers them: in the sidebar, not in the toolbar over the page.
-  const roomy = useRef(false);
   const editing = draft !== null;
   const parts = !editing && active ? addressParts(active.url) : null;
 
@@ -284,7 +360,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit }: P
   };
   const suggest = (text: string) => {
     const { tabs, bookmarks, history } = known.current;
-    setList(roomy.current && text !== active?.url ? suggestionsFor(text, tabs, bookmarks, history) : []);
+    setList(text !== active?.url ? suggestionsFor(text, tabs, bookmarks, history) : []);
     setLit(-1);
   };
   const done = () => { setList([]); setLit(-1); setDraft(null); address.current?.blur(); };
@@ -294,6 +370,10 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit }: P
     else void window.mobius.browser.open(s.url);
     done();
   };
+
+  const showing = list.length > 0;
+  useEffect(() => { onSuggesting(showing); }, [showing, onSuggesting]);
+  useEffect(() => () => onSuggesting(false), [onSuggesting]);
 
   return (
     <form className="address" onSubmit={(e) => { if (lit >= 0 && list[lit]) { e.preventDefault(); pick(list[lit]!); return; } setList([]); onSubmit(e); }} data-editing={editing || undefined} data-loading={active?.loading || undefined}>
@@ -310,7 +390,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit }: P
         value={draft ?? active?.url ?? ''}
         onChange={(event) => { setDraft(event.target.value); setNotice(''); suggest(event.target.value); }}
         // From the moment it is focused the text is the person's draft: a page finishing loading meanwhile cannot change it under their typing.
-        onFocus={(event) => { roomy.current = event.target.closest('.rail-chrome') !== null; learn(); setDraft(event.target.value); event.target.select(); }}
+        onFocus={(event) => { learn(); setDraft(event.target.value); event.target.select(); }}
         onBlur={() => { setList([]); setLit(-1); setDraft(null); }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' && list.length > 0) { event.preventDefault(); setLit((i) => (i + 1) % list.length); }
@@ -326,7 +406,8 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit }: P
       {parts && (
         <span className="address-rest" aria-hidden="true">
           {parts.secure && <svg viewBox="0 0 20 20"><path d="M6 9V7a4 4 0 0 1 8 0v2M5 9h10v8H5z" /></svg>}
-          <span>{parts.host}</span>
+          <span className="address-host">{parts.host}</span>
+          {parts.path && <span className="address-path">/ {parts.path}</span>}
         </span>
       )}
       {active?.loading && <span className="address-progress" role="status" aria-label="Loading" />}

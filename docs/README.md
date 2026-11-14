@@ -51,9 +51,11 @@ you want to build or change Mobius, go to **Developers**.
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
-| [Design](design/workspace-layout.md) | One adaptive surface: the layout rules every app follows |
-| [Theme tokens](design/theme-tokens.md) | The timeless theme: exact colours for four themes, type, density, shape and motion |
-| [Panel layouts](design/panel-layouts.md) | The five-zone frame, views and panels, and each app's default layout |
+| [Workspace layout](design/workspace-layout.md) | One frame for every app: the five zones, views and panels, and the theme |
+| [Instrument](design/instrument.md) | The agreed design style in full: sizes, colour, every element, pop-out, and the Mobius panel with its modes, permissions and cards |
+| [Design rules](design/rules.md) | The eight principles, and how the zones, controls, menus, theme and motion look and behave in every app |
+| [Theme tokens](design/theme-tokens.md) | The timeless theme as exact values: four themes, content colours, type, density, shape, motion, and the mapping from today's tokens |
+| [Panel layouts](design/panel-layouts.md) | Views and panels, the panel header and docks, build stages, and each app's default layout |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, and calendar sign-in requirements |
 
 ## Help

@@ -3,7 +3,7 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['general', 'appearance', 'notifications', 'keyboard', 'providers', 'model', 'voice', 'safety', 'memory', 'privacy', 'browser', 'sessions', 'schedules', 'extensions', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['general', 'appearance', 'notifications', 'keyboard', 'providers', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'sessions', 'schedules', 'extensions', 'advanced', 'about']);
     // Under headings, as in System Settings.
     expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
     for (const section of SETTINGS) {
@@ -50,7 +50,6 @@ describe('searching settings', () => {
     expect(top('compact')).toMatchObject({ section: 'appearance', row: 'density' });
     expect(top('hide tool steps')).toMatchObject({ section: 'appearance', row: 'tool-steps' });
     expect(top('reopen last conversation')).toMatchObject({ section: 'general', row: 'resume-last' });
-    expect(top('where mobius opens')).toMatchObject({ section: 'appearance', row: 'agent-place' });
     expect(top('whisper')).toMatchObject({ section: 'voice' });
     expect(top('kokoro')).toMatchObject({ section: 'voice', subpage: 'speaking' });
     expect(top('elevenlabs')).toBeDefined();

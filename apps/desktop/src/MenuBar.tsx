@@ -1,3 +1,4 @@
+import { KeyCaps } from './ui';
 import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { describeCombo } from '@mobius/shared';
 import type { Menu, MenuItem } from './menus';
@@ -81,7 +82,7 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
       >
         <span className="menu-check" aria-hidden="true">{it.checked ? '✓' : ''}</span>
         <span className="menu-label">{it.label}</span>
-        {it.keys && <kbd className="menu-keys">{describeCombo(it.keys, window.mobius.platform)}</kbd>}
+        {it.keys && describeCombo(it.keys, window.mobius.platform) && <KeyCaps className="menu-keys" keys={describeCombo(it.keys, window.mobius.platform)} />}
       </div>
     );
 
@@ -89,8 +90,8 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
     <div ref={bar} className="menubar" role="menubar" aria-label="Menus" data-compact={compact || undefined}>
       {compact ? (
         <button type="button" className="strip-btn menu-title" role="menuitem" aria-haspopup="menu" aria-expanded={open !== null} aria-label="Menu" title="Menu"
-          onClick={() => (open === null ? openMenu(menus[0]?.id ?? 'file') : close(true))}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" /></svg>
+          onClick={() => (open === null ? openMenu((menus.find((m) => m.id === 'app') ?? menus[0])?.id ?? 'file') : close(true))}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
         </button>
       ) : (
         menus.map((m) => (

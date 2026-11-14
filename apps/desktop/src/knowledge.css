@@ -4,74 +4,127 @@
  * Knowledge app's look is scoped to .wiki-page and .wiki-side.
  */
 .wiki-private { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
-.wiki-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
-.wiki-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 6px 10px; border-radius: 8px; }
-.wiki-line[data-proposed] { outline: 1px dashed var(--accent); outline-offset: -1px; }
+.wiki-lines { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+.wiki-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3); border-radius: var(--radius-control); }
+.wiki-line[data-proposed] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -1); }
 .wiki-line-text { flex: 1; min-width: 12em; }
-.wiki-line-actions { display: inline-flex; align-items: center; gap: 6px; }
-.wiki-learned, .wiki-from { color: var(--accent); font-size: var(--fs-xs); }
+.wiki-line-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.wiki-learned, .wiki-from { color: var(--muted); font-size: var(--fs-xs); }
 .wiki-from { flex-basis: 100%; }
 .wiki-from-line { color: var(--muted); font-size: var(--fs-xs); }
-.wiki-add input, .wiki-edit input { width: 100%; padding: 6px 10px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--field); color: inherit; font: inherit; }
-.wiki-edit { display: flex; flex: 1; gap: 6px; }
-.wiki-add { display: flex; gap: 6px; }
+.wiki-add input, .wiki-edit input { width: 100%; height: var(--control-h); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--hairline); border-radius: var(--radius-control); background: var(--field); color: inherit; font: inherit; }
+.wiki-edit { display: flex; flex: 1; align-items: center; gap: var(--sp-1); }
+.wiki-add { display: flex; gap: var(--sp-1); }
 .wiki-add input { flex: 1; }
 
-/* The page: a large title and one grey line, then the lines in groups, as Reminders and Settings list things. */
-.wiki-page.skills-page { gap: var(--sp-5); padding-top: var(--sp-8); }
-.wiki-page > .cal-undo, .wiki-page > .field-error { margin-top: calc(var(--sp-2) * -1); margin-bottom: 0; }
-.kn-head { display: grid; gap: 4px; }
-.kn-head h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); letter-spacing: -0.01em; }
-.kn-group { display: grid; gap: 6px; }
-.kn-group-head { display: flex; align-items: baseline; gap: var(--sp-2); margin: 0; padding: 0 4px; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
-.kn-badge { min-width: 18px; height: 18px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--on-accent); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 18px; text-align: center; font-variant-numeric: tabular-nums; }
+/* How I work and Suggested changes are list views: Instrument's comfortable rows (--row-list), one height per view, in
+   the reading column. Every size and colour comes from the tokens. */
+.wiki-page.skills-page { gap: var(--sp-3); padding-top: var(--sp-8); font-size: var(--fs-md); }
+.wiki-page.skills-page > * { max-width: var(--reading-w); }
+.wiki-page > .field-error { margin-top: calc(var(--sp-2) * -1); margin-bottom: 0; }
+.kn-head { display: flex; align-items: center; gap: var(--sp-2); }
+.kn-head h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }
+.kn-about, .kn-group-add { display: grid; place-items: center; width: var(--control-h); height: var(--control-h); padding: 0; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); }
+.kn-about { cursor: help; }
+.kn-group-add { margin-left: auto; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.kn-group:hover .kn-group-add, .kn-group-add:focus-visible { opacity: 1; }
+.kn-about:hover, .kn-group-add:hover { background: var(--soft); color: var(--ink); }
+.kn-about:focus-visible, .kn-group-add:focus-visible, .wiki-page .wiki-line:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+.kn-about svg, .kn-group-add svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.kn-group { display: grid; }
+/* A group header is a quiet band: the name, a grey count, and a plus at the right to add to that group. */
+.kn-group-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); margin: 0; padding: 0 var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.kn-badge { color: var(--muted); font-weight: var(--fw-regular); }
 
-/* Each group is one rounded card of rows with hairlines between them. */
-.wiki-page .wiki-lines { gap: 0; border-radius: 10px; background: var(--field); overflow: hidden; }
-.wiki-page .wiki-line { min-height: 40px; padding: 8px 12px; border-radius: 0; flex-wrap: nowrap; }
-.wiki-page .wiki-lines > .wiki-line + .wiki-line { box-shadow: inset 0 0.5px 0 var(--hairline); }
-.wiki-page .wiki-line[data-proposed] { outline: 0; background: color-mix(in srgb, var(--accent) 6%, transparent); }
-/* What Mobius proposes is dashed, as everywhere in Mobius: here the whole Waiting card is. */
-.wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { outline: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -1px; }
-.wiki-page .wiki-ask { border-radius: 10px; margin-bottom: 4px; }
-.wiki-line-body { flex: 1; min-width: 0; display: grid; gap: 1px; }
-.wiki-page .wiki-line-text { min-width: 0; }
+/* One line per row: the line in full ink, where it came from in grey at the right, a hairline under it. */
+.wiki-page .wiki-lines { gap: 0; }
+.wiki-page .wiki-line { height: var(--row-list); padding: 0 var(--sp-1); border-radius: 0; flex-wrap: nowrap; box-shadow: inset 0 calc(var(--hairline-w) * -1) 0 var(--hairline); }
+.wiki-page .wiki-line:focus-visible { border-radius: var(--radius-control); }
+.wiki-line-body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--sp-3); }
+.wiki-page .wiki-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wiki-page .wiki-line-body > :not(.wiki-line-text) { flex: none; margin-left: auto; white-space: nowrap; }
 .wiki-page .wiki-line-actions { flex: none; }
-.wiki-page .wiki-line[data-editing] { padding: 6px 8px; }
+/* What Mobius proposes is dashed indigo with a soft tint, as everywhere in Mobius: here the whole Waiting block is. */
+.wiki-page .wiki-line[data-proposed] { outline: 0; padding-inline: var(--sp-3); background: color-mix(in srgb, var(--mobius) 6%, transparent); }
+.wiki-page .kn-group[data-waiting] .wiki-lines, .wiki-page .wiki-ask, .wiki-page .kn-changes { border-radius: var(--radius-panel); overflow: hidden; outline: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 70%, transparent); outline-offset: calc(var(--hairline-w) * -1); }
+.wiki-page .wiki-ask { margin-bottom: var(--sp-1); }
+.wiki-page .kn-group[data-waiting] .wiki-line:last-child, .wiki-page .kn-changes .wiki-line:last-child, .wiki-page .wiki-ask { box-shadow: none; }
 
-/* Edit, Forget and Share wait until the pointer is on the line, or a key reaches it: the words come first. */
-.wiki-page .wiki-line-actions:not([data-always]) { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
-.wiki-page .wiki-line:hover .wiki-line-actions, .wiki-page .wiki-line-actions:focus-within { opacity: 1; }
+/* Edit, Forget and Share wait until the pointer is on the line, or a key reaches it: the words come first.
+   As in Mail, they take the place of the grey detail at the right, so the detail sits at the row's edge at rest. */
+.wiki-page .wiki-line { position: relative; }
+.wiki-page .wiki-line-actions:not([data-always]) { position: absolute; right: var(--sp-1); top: 50%; transform: translateY(-50%); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.wiki-page .wiki-line:is(:hover, :focus-within) .wiki-line-actions { opacity: 1; }
+.wiki-page .wiki-line:is(:hover, :focus-within):has(.wiki-line-actions:not([data-always])) .wiki-line-body > :not(.wiki-line-text) { visibility: hidden; }
 
-/* Suggested changes: who offered it and for which page on top, the line, then the three answers. */
-.wiki-page .kn-changes .wiki-line { flex-wrap: wrap; padding: 10px 12px; }
-.wiki-page .kn-changes .wiki-line-text { flex: 1 1 16em; }
+/* Suggested changes: every row is two lines (who offered it, for which page and when, over the line), then the answers. */
+.wiki-page .kn-changes .wiki-line { height: calc(var(--row-list) + var(--sp-5)); }
+.wiki-page .kn-changes .wiki-line-body { flex-direction: column; align-items: stretch; gap: 2px; }
+.wiki-page .kn-changes .wiki-line-body > .wiki-from { margin-left: 0; }
 
-/* Adding a line: a quiet row at the foot, as a new reminder is. */
-.wiki-page .wiki-add { align-items: center; gap: var(--sp-2); padding: 4px 4px 4px 12px; border-radius: 10px; background: var(--field); }
-.wiki-page .wiki-add input { padding: 6px 0; border: 0; background: none; outline: none; }
+/* Adding a line: one hairline row at the foot, the kind as quiet text, Add only once there is something to add. */
+.wiki-page .wiki-add { align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-1); box-shadow: inset 0 calc(var(--hairline-w) * -1) 0 var(--hairline); }
+.wiki-page .wiki-add input { padding: 0; border: 0; background: none; outline: none; }
+.wiki-page .wiki-add .kn-popup select { box-shadow: none; background: none; color: var(--muted); }
+.wiki-page .wiki-add .kn-popup select:hover { background: var(--soft); color: var(--ink); }
 /* Which kind a line is: a pop-up button with up-and-down chevrons, as the shared rules ask. */
 .kn-popup { position: relative; display: inline-flex; flex: none; }
-.kn-popup select { appearance: none; height: 24px; padding: 0 24px 0 10px; border: 0; border-radius: 6px; background: var(--capsule, var(--bg)); box-shadow: inset 0 0 0 0.5px var(--line-strong), 0 0.5px 1px rgba(0, 0, 0, 0.06); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.kn-popup select { appearance: none; height: var(--control-h); padding: 0 var(--sp-6) 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--capsule, var(--bg)); box-shadow: inset 0 0 0 var(--hairline-w) var(--line-strong); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .kn-popup::after { content: ''; position: absolute; right: 8px; top: 50%; width: 8px; height: 12px; transform: translateY(-50%); pointer-events: none; background: currentColor; color: var(--muted); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 12'%3E%3Cpath d='M1.5 4.5 4 2l2.5 2.5M1.5 7.5 4 10l2.5-2.5' fill='none' stroke='black' stroke-width='1.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
-.kn-popup select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.kn-popup select:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .wiki-page .review-btn[data-kind="danger"] { color: var(--danger); }
-.wiki-add-plus { display: grid; place-items: center; width: 18px; height: 18px; color: var(--accent); }
-.wiki-add-plus svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-.wiki-page .wiki-add .review-btn:disabled { opacity: 0.4; }
+.wiki-add-plus { display: grid; place-items: center; width: 20px; height: 20px; color: var(--muted); }
+.wiki-add-plus svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .wiki-page .empty-state { min-height: 0; padding: var(--sp-6) var(--sp-4); }
+
+/* Loading: grey bars the shape of the rows that are coming, never a spinner. */
+.kn-loading { display: grid; }
+.kn-loading-bar { display: block; height: var(--sp-3); margin: calc((var(--row-list) - var(--sp-3)) / 2) var(--sp-1); border-radius: var(--radius-small); background: var(--soft); }
+.kn-versions-list .kn-loading-bar { margin-block: calc((var(--row-side) - var(--sp-3)) / 2); }
 
 /* The sidebar: each folder of pages under its own small heading. */
 .wiki-side .wiki-pages { flex: 1; min-height: 0; overflow: auto; padding-bottom: var(--sp-3); }
 .kn-side-section { margin-top: var(--sp-3); }
 .kn-side-heading { margin: 0 var(--sp-2) var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); letter-spacing: 0.02em; }
 
-/* A page: a slim bar with its versions above the editor. The editor fills the rest instead of covering the bar. */
-.wiki-doc { position: absolute; inset: 0; display: flex; flex-direction: column; }
-.wiki-doc > :last-child { flex: 1; position: relative; }
-.stage .wiki-doc > .doc-editor { position: relative; inset: auto; flex: 1; min-height: 0; }
-.wiki-versions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-2); padding: 6px var(--sp-3); background: var(--panel); box-shadow: inset 0 -0.5px 0 var(--hairline); }
-.wiki-versions > .btn { height: 26px; padding: 0 12px; font-size: var(--fs-sm); }
-.wiki-versions-list { flex-basis: 100%; display: grid; gap: 4px; }
-.wiki-versions-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px; }
-.wiki-version pre { max-height: 240px; overflow: auto; padding: 8px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
+/* A page is a reading page: the shared editor's words straight on the paper in one column of --reading-w, the body at
+   --fs-reading and the title at --fs-display. (Docs owns the editor; this only sets Knowledge's page in it.) */
+.wiki-doc { position: absolute; inset: 0; }
+.wiki-doc .doc-editor .doc-body { background: var(--paper, var(--bg)); }
+.wiki-doc .doc-editor .doc-paper { max-width: var(--reading-w); border-radius: 0; box-shadow: none; background: none; }
+.wiki-doc .doc-editor .doc-page { min-height: 0; padding: var(--sp-8) var(--sp-6) 0; font-size: var(--fs-reading); line-height: var(--lh-body); }
+.wiki-doc .doc-editor .doc-page h1 { font-size: var(--fs-display); line-height: var(--lh-tight); }
+.wiki-doc .doc-editor .doc-page h2 { font-size: var(--fs-xl); }
+.wiki-doc .doc-editor .doc-page h3 { font-size: var(--fs-lg); }
+
+/* Versions opens in place of the page, over the editor: the list of times at the left, the chosen one as a diff. */
+.kn-versions { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; background: var(--paper, var(--bg)); }
+.kn-versions-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); min-height: var(--toolbar-h); padding: 0 var(--sp-4); box-shadow: inset 0 calc(var(--hairline-w) * -1) 0 var(--hairline); }
+.kn-versions-head h2 { margin: 0; font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
+.kn-versions-body { flex: 1; min-height: 0; display: flex; }
+.kn-versions-list { flex: none; width: var(--side); overflow: auto; padding: var(--sp-3) var(--sp-2); box-shadow: inset calc(var(--hairline-w) * -1) 0 0 var(--hairline); }
+.kn-versions-list ul { list-style: none; margin: 0 0 var(--sp-3); padding: 0; }
+.kn-versions-list .note-empty { padding: 0 var(--sp-2); font-size: var(--fs-sm); }
+.kn-version { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-4) var(--sp-6); }
+.kn-version > .note-empty { margin-top: var(--sp-6); text-align: center; }
+.kn-version-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); max-width: var(--reading-w); margin: 0 auto var(--sp-3); }
+.kn-version-sum { color: var(--muted); font-size: var(--fs-sm); }
+/* The diff reads as the page does; what comes back is a soft green tint, what goes a soft red one, struck through. */
+.kn-diff { max-width: var(--reading-w); margin: 0 auto; padding: var(--sp-2) 0; font-size: var(--fs-reading); line-height: var(--lh-body); overflow-wrap: anywhere; }
+.kn-diff-line { display: flex; align-items: baseline; padding: 2px var(--sp-4) 2px 0; border-radius: var(--radius-small); }
+.kn-diff-mark { flex: none; width: var(--sp-6); text-align: center; font-weight: var(--fw-semibold); }
+.kn-diff-text { flex: 1; min-width: 0; white-space: pre-wrap; }
+.kn-diff-line[data-kind="added"] { background: var(--success-wash); }
+.kn-diff-line[data-kind="added"] .kn-diff-mark { color: var(--success); }
+.kn-diff-line[data-kind="removed"] { background: var(--danger-wash); }
+.kn-diff-line[data-kind="removed"] .kn-diff-mark { color: var(--danger); }
+.kn-diff-line[data-kind="removed"] .kn-diff-text { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 60%, transparent); }
+/* Lines as people read them: headings in heading weight, list items with a bullet, checklist items with a box. */
+.kn-diff-line[data-block="h1"] { font-size: var(--fs-2xl); font-weight: var(--fw-semibold); padding-top: var(--sp-2); }
+.kn-diff-line[data-block="h2"] { font-size: var(--fs-xl); font-weight: var(--fw-semibold); padding-top: var(--sp-1); }
+.kn-diff-line[data-block="h3"] { font-weight: var(--fw-semibold); }
+.kn-diff-line[data-block="li"] .kn-diff-text::before { content: '•'; display: inline-block; width: 1.1em; margin-left: 0.4em; color: var(--muted); }
+.kn-diff-line[data-block="todo"] .kn-diff-text::before, .kn-diff-line[data-block="done"] .kn-diff-text::before { content: '○'; display: inline-block; width: 1.3em; margin-left: 0.4em; color: var(--muted); }
+.kn-diff-line[data-block="done"] .kn-diff-text::before { content: '●'; color: var(--ink); }
+.kn-diff-line[data-block="quote"] .kn-diff-text { padding-left: var(--sp-3); box-shadow: inset 3px 0 0 var(--line-strong); color: var(--muted); }
+.kn-version-bar .btn { flex: none; white-space: nowrap; }

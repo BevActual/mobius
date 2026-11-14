@@ -10,9 +10,11 @@ import {
   type Adjustment, type AreaKind, type FilterId, type Geometry, type PhotoEdits,
 } from './photo-edit';
 import { ASPECTS, GRID_SIZES, HANDLES, aspectRatio, dragCrop, fitAspect, flippedCrop, groupChanged, resetGroup, stepTo, turnedCrop, zoomStep, type AspectId, type Handle } from './photo-view';
-import type { PhotosState } from './usePhotos';
+import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
+import { AppSidebar, PanelTab, SidebarSearch, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
+
 import './photo.css';
 
 const PREVIEW_MAX = 1600;
@@ -25,55 +27,104 @@ const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>
 );
 const PLUS = 'M10 4v12M4 10h12';
+const TRASH = 'M4.5 6h11M8 6V4.5h4V6M6 6l.8 10h6.4L14 6M8.5 9v4.5M11.5 9v4.5';
+/** What a photo dragged from the grid carries: its path, so an album in the sidebar can take it. */
+const DRAG_TYPE = 'application/x-mobius-photo';
+
+/** A name typed in place (a photo or an album): Enter keeps it, Escape or leaving puts the old one back. */
+function RenameField({ label, value, onDone }: { label: string; value: string; onDone: (name: string | null) => void }) {
+  const [text, setText] = useState(value);
+  const done = useRef(false);
+  const finish = (name: string | null) => { if (done.current) return; done.current = true; onDone(name); };
+  return (
+    <input
+      className="photo-rename" aria-label={label} value={text} maxLength={120} autoFocus
+      onFocus={(e) => { const dot = e.currentTarget.value.lastIndexOf('.'); e.currentTarget.setSelectionRange(0, dot > 0 ? dot : e.currentTarget.value.length); }}
+      onChange={(e) => setText(e.target.value)}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') { e.preventDefault(); finish(text.trim() && text.trim() !== value ? text.trim() : null); } else if (e.key === 'Escape') { e.preventDefault(); finish(null); } }}
+      onBlur={() => finish(text.trim() && text.trim() !== value ? text.trim() : null)}
+    />
+  );
+}
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
 
 /** Albums down the side, as Photos lists them; the album's photos show as a grid. */
 export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
   const [naming, setNaming] = useState(false);
   const [name, setName] = useState('');
+  const [menu, setMenu] = useState<{ album: string; x: number; y: number } | null>(null);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [over, setOver] = useState<string | null>(null);
+  const dropOn = (album: string) => ({
+    onDragOver: (e: DragEvent) => { if (e.dataTransfer.types.includes(DRAG_TYPE)) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setOver(album); } },
+    onDragLeave: () => setOver((o) => (o === album ? null : o)),
+    onDrop: (e: DragEvent) => { const path = e.dataTransfer.getData(DRAG_TYPE); setOver(null); if (path) { e.preventDefault(); void photos.movePhoto(path, album); } },
+  });
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const made = await photos.createAlbum(name.trim() || 'Album');
     if (made) { setNaming(false); setName(''); photos.showAlbum(made); }
   };
+  // The search narrows the albums by name, as the sidebar's search does in every app.
+  const [query, setQuery] = useState('');
+  const shownAlbums = query.trim() ? photos.albums.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase())) : photos.albums;
   return (
-    <aside className="side photo-side" aria-label="Photo sidebar">
-      <div className="side-head">
-        <span className="side-title">Albums</span>
-        <span className="side-actions">
-          {pin}
-          <button type="button" className="strip-btn" aria-label="New album" title="New album" onClick={() => setNaming(true)}><Icon d={PLUS} /></button>
-        </span>
-      </div>
-      {naming && (
-        <form className="notes-name" onSubmit={(e) => void submit(e)}>
-          <input autoFocus aria-label="Album name" placeholder="Album name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
-          <button type="submit" className="btn primary">Create</button>
-        </form>
+    <AppSidebar label="Photo sidebar" className="photo-side">
+      {photos.albums.length > 0 && <SidebarSearch label="Search albums" placeholder="Search albums" value={query} onChange={setQuery} />}
+      {(photos.albums.length > 0 || photos.deleted.length > 0) && (
+        <SidebarSection title="Library">
+          <li>
+            <button type="button" className="list-row photo-album-row" aria-current={photos.album === RECENTLY_DELETED ? 'page' : undefined} onClick={() => { void photos.refreshDeleted(); photos.showAlbum(RECENTLY_DELETED); }}>
+              <span className="list-name">Recently Deleted</span>
+              {photos.deleted.length > 0 && <span className="photo-album-count">{photos.deleted.length}</span>}
+            </button>
+          </li>
+        </SidebarSection>
       )}
-      {photos.albums.length === 0 && !naming && (
-        <div className="side-empty notes-empty">
-          <p>Albums are folders of pictures in your workspace. Edits are kept beside each picture, never in it.</p>
-          <button type="button" className="btn primary" onClick={() => setNaming(true)}>New album</button>
-        </div>
+      <SidebarSection title="Albums" action={<>{pin}<button type="button" className="strip-btn" aria-label="New album" title="New album" onClick={() => setNaming(true)}><Icon d={PLUS} /></button></>}>
+        {naming && (
+          <li>
+            <form className="notes-name" onSubmit={(e) => void submit(e)}>
+              <input autoFocus aria-label="Album name" placeholder="Album name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
+              <button type="submit" className="btn primary">Create</button>
+            </form>
+          </li>
+        )}
+        {photos.albums.length === 0 && !naming && (
+          <li className="side-empty notes-empty">
+            <p>Albums are folders of pictures in your workspace. Edits are kept beside each picture, never in it.</p>
+            <button type="button" className="btn primary" onClick={() => setNaming(true)}>New album</button>
+          </li>
+        )}
+        {shownAlbums.map((a) => (
+          <li key={a.name} {...dropOn(a.name)} data-drop={over === a.name || undefined}>
+            {renaming === a.name ? (
+              <div className="list-row photo-album-row" data-renaming>
+                <RenameField label="Album name" value={a.name} onDone={(n) => { setRenaming(null); if (n) void photos.renameAlbum(a.name, n); }} />
+              </div>
+            ) : <button
+              type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ album: a.name, x: e.clientX, y: e.clientY }); }}
+              onKeyDown={(e) => { if (e.key === 'F2') { e.preventDefault(); setRenaming(a.name); } }}
+            >
+              <span className="list-name">{a.name}</span>
+              {a.photos.some((p) => changed?.has(p.path))
+                ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
+                : <span className="photo-album-count">{a.photos.length}</span>}
+            </button>}
+          </li>
+        ))}
+      </SidebarSection>
+      {menu && createPortal(
+        <ContextMenu x={menu.x} y={menu.y} label={menu.album} onClose={() => setMenu(null)} items={[
+          { action: 'rename', label: 'Rename Album', keys: 'F2', run: () => setRenaming(menu.album) },
+          { action: 'delete', label: 'Delete Album', danger: true, separated: true, run: () => void photos.deleteAlbum(menu.album) },
+        ]} />,
+        document.body,
       )}
-      <nav className="photo-albums" aria-label="Albums">
-        <ul role="list">
-          {photos.albums.map((a) => (
-            <li key={a.name}>
-              <button type="button" className="list-row photo-album-row" aria-current={a.name === photos.album ? 'page' : undefined} onClick={() => photos.showAlbum(a.name)}>
-                <svg className="photo-album-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2.5" y="4" width="15" height="12" rx="2.5" /><path d="M2.5 13l4-4 3.5 3.5 2.5-2.5 5 5" /></svg>
-                <span className="list-name">{a.name}</span>
-                {a.photos.some((p) => changed?.has(p.path))
-                  ? <RowMark changed changedTitle="Edited by Mobius in its last turn" />
-                  : <span className="photo-album-count">{a.photos.length}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
       <FromMobius items={photos.albums.flatMap((a) => a.photos.filter((p) => changed?.has(p.path)).map((p) => ({ key: p.path, name: p.name, where: a.name, current: photos.open?.path === p.path, onOpen: () => void photos.openPhoto(p.path) })))} />
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -121,15 +172,15 @@ const loadImage = (src: string) => new Promise<HTMLImageElement>((resolve, rejec
 
 /** Small pictures of an album's photos with their edits, made one at a time and kept while the app is open. */
 const THUMBS = new Map<string, string>();
-function useThumbs(photos: PhotosState, paths: readonly { path: string; modified: number }[]) {
+function useThumbs(read: PhotosState['read'], paths: readonly { path: string; modified: number }[], kind = '') {
   const [, setStamp] = useState(0);
   useEffect(() => {
     let live = true;
     void (async () => {
       for (const p of paths) {
-        const key = `${p.path}@${p.modified}`;
+        const key = `${kind}${p.path}@${p.modified}`;
         if (THUMBS.has(key)) continue;
-        const got = await photos.read(p.path)?.catch(() => null);
+        const got = await read(p.path)?.catch(() => null);
         if (!live) return;
         if (!got || !('dataUrl' in got)) continue;
         const img = await loadImage(got.dataUrl).catch(() => null);
@@ -139,16 +190,20 @@ function useThumbs(photos: PhotosState, paths: readonly { path: string; modified
       }
     })();
     return () => { live = false; };
-  }, [paths.map((p) => `${p.path}@${p.modified}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (p: { path: string; modified: number }) => THUMBS.get(`${p.path}@${p.modified}`);
+  }, [kind, paths.map((p) => `${p.path}@${p.modified}`).join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (p: { path: string; modified: number }) => THUMBS.get(`${kind}${p.path}@${p.modified}`);
 }
 const forgetThumb = (path: string) => { for (const k of THUMBS.keys()) if (k.startsWith(`${path}@`)) THUMBS.delete(k); };
 
 /** The album's photos as a grid of square pictures, as Photos shows a library. */
 function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEvent) => void }) {
+  const bin = photos.album === RECENTLY_DELETED;
   const album = photos.albums.find((a) => a.name === photos.album) ?? null;
-  const list = album?.photos ?? [];
-  const thumb = useThumbs(photos, list);
+  const list = bin ? photos.deleted : album?.photos ?? [];
+  const thumb = useThumbs(bin ? (path) => photos.readDeleted(path) : photos.read, list, bin ? 'bin:' : '');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [emptying, setEmptying] = useState(false);
+  useEffect(() => { if (!emptying) return undefined; const t = window.setTimeout(() => setEmptying(false), 4000); return () => window.clearTimeout(t); }, [emptying]);
   const grid = useRef<HTMLUListElement>(null);
   const picker = useRef<HTMLInputElement>(null);
   const [zoom, setZoomState] = useState(() => { try { return zoomStep(Number(window.localStorage.getItem(ZOOM_KEY) ?? 2), 0); } catch { return 2; } });
@@ -174,12 +229,16 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
     if (at < 0) return;
     const cols = Math.max(1, getComputedStyle(grid.current!).gridTemplateColumns.split(' ').length);
     if (e.key === '+' || e.key === '=' || e.key === '-') { e.preventDefault(); setZoom(zoomStep(zoom, e.key === '-' ? -1 : 1)); return; }
+    const here = list[at];
+    if (here && bin && e.key === 'Enter') { e.preventDefault(); void photos.recoverPhoto(here.path); return; }
+    if (here && !bin && (e.key === 'Delete' || (e.key === 'Backspace' && (e.metaKey || e.ctrlKey)))) { e.preventDefault(); void photos.deletePhoto(here.path).then(() => tiles[Math.min(at, tiles.length - 2)]?.focus()); return; }
+    if (here && !bin && e.key === 'F2') { e.preventDefault(); setRenaming(here.path); return; }
     const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'ArrowDown' ? at + cols : e.key === 'ArrowUp' ? at - cols : e.key === 'Home' ? 0 : e.key === 'End' ? tiles.length - 1 : null;
     if (to === null) return;
     e.preventDefault();
     tiles[Math.max(0, Math.min(tiles.length - 1, to))]?.focus();
   };
-  if (!album) {
+  if (!album && !bin) {
     return (
       <section className="photo-page empty" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
         <EmptyState app="photo" title="No albums yet" line="Make an album, then drop pictures on the window to add them." action={{ label: 'New album', run: () => void photos.createAlbum('Album').then((made) => { if (made) photos.showAlbum(made); }) }} />
@@ -188,12 +247,10 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
   }
   return (
     <section className="photo-page photo-library" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <header className="photo-bar" role="toolbar" aria-label="Album">
-        {/* The album's name is the window toolbar's title already: here only how many photos it holds. */}
-        <div className="photo-bar-title">
-          <span className="photo-meta">{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
-        </div>
-        <span className="spacer" />
+      {/* The album's own controls sit in the window's toolbar, after its name: how many photos, their size, and adding. */}
+      <ToolbarControls label="Album">
+        <div className="photo-tools">
+        <span className="photo-meta" title={bin && list.length > 0 ? 'Kept until you empty Recently Deleted' : undefined}>{list.length === 1 ? '1 photo' : `${list.length} photos`}</span>
         {list.length > 0 && (
           <label className="photo-zoom" title="Zoom (− and +)">
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="6" y="6" width="8" height="8" rx="1.5" /></svg>
@@ -201,32 +258,57 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="3" width="14" height="14" rx="2" /></svg>
           </label>
         )}
-        <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />
-        <button type="button" className="photo-tool" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>
-      </header>
+        {album && <input ref={picker} type="file" accept="image/jpeg,image/png,image/webp,image/gif" multiple hidden aria-hidden="true" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void photos.addFiles(album.name, files); }} />}
+        {album && <button type="button" className="strip-btn photo-tb" onClick={() => picker.current?.click()}><Icon d={PLUS} /><span>Add photos</span></button>}
+        {bin && list.length > 0 && (
+          <button type="button" className="strip-btn photo-tb" data-danger={emptying || undefined} onClick={() => { if (emptying) { setEmptying(false); void photos.emptyDeleted(); } else setEmptying(true); }}>
+            <Icon d={TRASH} /><span>{emptying ? `Delete ${list.length === 1 ? '1 photo' : `${list.length} photos`} for good` : 'Empty'}</span>
+          </button>
+        )}
+        </div>
+      </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       {list.length === 0 ? (
-        <EmptyState app="photo" title={`No photos in ${album.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
+        bin
+          ? <EmptyState app="photo" title="Nothing in Recently Deleted" line="Photos you delete wait here, with their edits, until you empty it." />
+          : <EmptyState app="photo" title={`No photos in ${album!.name}`} line="Drop pictures on the window to add them." action={{ label: 'Add photos', run: () => picker.current?.click() }} />
       ) : (
-        <ul ref={grid} className="photo-grid" role="list" aria-label={`Photos in ${album.name}`} style={{ ['--tile' as string]: `${GRID_SIZES[zoom]}px` }} onKeyDown={onKey}>
+        <ul ref={grid} className="photo-grid" role="list" aria-label={bin ? 'Photos in Recently Deleted' : `Photos in ${album!.name}`} style={{ ['--tile' as string]: `${GRID_SIZES[zoom]}px` }} onKeyDown={onKey}>
           {list.map((p) => {
             const src = thumb(p);
+            const from = bin ? ` from ${p.path.split('/')[0]}` : '';
             return (
-              <li key={p.path}>
-                <button type="button" className="photo-tile" aria-label={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} title={p.name} onClick={() => void photos.openPhoto(p.path)} onContextMenu={(e) => { e.preventDefault(); setMenu({ ...p, x: e.clientX, y: e.clientY }); }}>
+              <li key={p.path} data-renaming={renaming === p.path || undefined}>
+                <button
+                  type="button" className="photo-tile" aria-label={`${p.name}${from}`} aria-current={!bin && photos.open?.path === p.path ? 'true' : undefined} title={bin ? `${p.name}${from}. Right-click to put it back.` : p.name}
+                  draggable={!bin}
+                  onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, p.path); e.dataTransfer.effectAllowed = 'move'; }}
+                  onClick={() => { if (!bin) void photos.openPhoto(p.path); }}
+                  onContextMenu={(e) => { e.preventDefault(); setMenu({ ...p, x: e.clientX, y: e.clientY }); }}
+                >
                   {src ? <img src={src} alt="" draggable={false} /> : <span className="photo-tile-wait" />}
                   {p.edited && <span className="photo-tile-badge glass-clear" title="Edited"><Icon d="M4 10.5l3.5 3.5L16 5.5" /></span>}
                 </button>
+                {renaming === p.path && (
+                  <div className="photo-tile-rename glass">
+                    <RenameField label="Photo name" value={p.name} onDone={(n) => { setRenaming(null); if (n) void photos.renamePhoto(p.path, n); }} />
+                  </div>
+                )}
               </li>
             );
           })}
         </ul>
       )}
       {menu && createPortal(
-        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={[
+        <ContextMenu x={menu.x} y={menu.y} label={menu.name} onClose={() => setMenu(null)} items={bin ? [
+          { action: 'undo', label: 'Recover', keys: 'Enter', run: () => void photos.recoverPhoto(menu.path) },
+        ] : [
           { action: 'open', run: () => void photos.openPhoto(menu.path) },
+          { action: 'rename', label: 'Rename', keys: 'F2', run: () => setRenaming(menu.path) },
           { label: 'Export', action: 'share', run: () => void exportFrom(menu) },
           { action: 'copy', label: 'Copy name', run: () => void navigator.clipboard?.writeText(menu.name).catch(() => {}) },
+          ...photos.albums.filter((a) => a.name !== album?.name).slice(0, 8).map((a, i) => ({ action: 'move' as const, label: `Move to ${a.name}`, separated: i === 0, run: () => void photos.movePhoto(menu.path, a.name) })),
+          { action: 'delete', label: 'Delete', keys: 'Delete', danger: true, separated: true, run: () => void photos.deletePhoto(menu.path) },
         ]} />,
         document.body,
       )}
@@ -239,13 +321,14 @@ function Slider({ label, value, min = -100, max = 100, step = 1, onChange }: { l
   const fill = ((value - min) / (max - min)) * 100, from = ((zero - min) / (max - min)) * 100;
   return (
     <label className="photo-slider" data-changed={value !== zero || undefined}>
-      <span className="photo-slider-head"><span>{label}</span><output>{value}</output></span>
+      <span className="photo-slider-name">{label}</span>
       <input
         type="range" aria-label={label} min={min} max={max} step={step} value={value}
         style={{ ['--from' as string]: `${Math.min(fill, from)}%`, ['--to' as string]: `${Math.max(fill, from)}%` }}
         onChange={(e) => onChange(Number(e.target.value))}
         onDoubleClick={() => onChange(zero)}
       />
+      <output>{value > 0 && min < 0 ? `+${value}` : value}</output>
     </label>
   );
 }
@@ -261,11 +344,7 @@ function Section({ name, open, changed, onToggle, onReset, children }: { name: s
           <span>{name}</span>
           {!open && changed && <span className="photo-group-dot" aria-label="changed" />}
         </button>
-        {changed && (
-          <button type="button" className="photo-group-reset" aria-label={`Reset ${name}`} title={`Reset ${name}`} onClick={onReset}>
-            <Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" />
-          </button>
-        )}
+        {changed && <button type="button" className="photo-group-reset" aria-label={`Reset ${name}`} title={`Reset ${name}`} onClick={onReset}>Reset</button>}
       </div>
       {open && <div id={id} className="photo-group-body" role="group" aria-label={name}>{children}</div>}
     </div>
@@ -295,6 +374,8 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [before, setBefore] = useState(false);
   const [busy, setBusy] = useState('');
+  // The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward, opening the panel if it is shut.
+  const showPanel = useShowPanelTab();
   const [tab, setTab] = useState<Tab>('adjust');
   const [aspect, setAspect] = useState<AspectId>('free');
   const [zoomed, setZoomed] = useState(false);
@@ -531,33 +612,41 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
   const c = geometry.crop;
   return (
     <section className="photo-page photo-view" aria-label="Photo" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
-      <header className="photo-bar" role="toolbar" aria-label="Photo">
-        <button type="button" className="photo-tool photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title="Back to the album (Esc)" onClick={back}>
+      {/* The photo's controls, in the window's toolbar after its name: where it sits, how it is edited, and what to do. */}
+      <ToolbarControls label="Photo">
+        <div className="photo-tools">
+        <span className="photo-tools-group" role="group" aria-label="Where">
+        <button type="button" className="strip-btn photo-tb photo-back" aria-label={`Back to ${photos.album ?? 'the album'}`} title="Back to the album (Esc)" onClick={back}>
           <Icon d="M12.5 4.5L7 10l5.5 5.5" /><span>{photos.album}</span>
         </button>
-        <div className="photo-bar-title">
-          {/* The photo's name is the window toolbar's title already: here only where it sits in the album. */}
-          <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}{img ? ` · ${shownSize(img, geometry)}` : ''}{photos.saved ? '' : ' · Saving…'}</span>
-        </div>
-        <span className="spacer" />
-        {busy && <span className="photo-meta" role="status">{busy}</span>}
+        <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}</span>
+        </span>
+        <span className="photo-tools-group">
         <div className="photo-tabs" role="tablist" aria-label="Edit">
           {TABS.map((t) => (
-            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => setTab(t.id)}>{t.name}</button>
+            <button key={t.id} type="button" role="tab" id={`photo-tab-${t.id}`} aria-controls="photo-tabpanel" aria-selected={tab === t.id} className="photo-tab" onClick={() => { setTab(t.id); showPanel('adjust'); }}>{t.name}</button>
           ))}
         </div>
-        <span className="spacer" />
-        <button type="button" className="photo-tool" aria-pressed={before} title="Hold to see the original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
-          <Icon d="M3 10c1.8-3.3 4.2-5 7-5s5.2 1.7 7 5c-1.8 3.3-4.2 5-7 5s-5.2-1.7-7-5zM10 12.3a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z" /><span>Show original</span>
+        </span>
+        <span className="photo-tools-group" role="group" aria-label="Photo actions">
+        <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Hold to see the original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
+          <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
         </button>
-        <button type="button" className="photo-tool" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} onClick={revert}>Revert</button>
-        <button type="button" className="photo-export" disabled={!img} onClick={() => void exportIt()}>Export</button>
-      </header>
+        <button type="button" className="strip-btn photo-tb" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} aria-label="Revert" title="Take every edit off this photo" onClick={revert}><Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" /><span>Revert</span></button>
+        <button type="button" className="photo-export" disabled={!img} aria-label="Export" title="Save a new picture with the edits, beside this one" onClick={() => void exportIt()}><Icon d="M10 3v9M6.5 6.5 10 3l3.5 3.5M4.5 11v4.5h11V11" /><span>Export</span></button>
+        </span>
+        </div>
+      </ToolbarControls>
       {photos.message && <p className="tasks-message" role="alert">{photos.message}</p>}
       <div className="photo-body">
         <div className="photo-stage" data-zoomed={zoomed || undefined} data-cropping={cropping || undefined}>
           {!cropping && at > 0 && <button type="button" className="photo-step prev glass-clear" aria-label="Previous photo" title="Previous photo (←)" onClick={() => go(-1)}><Icon d="M12.5 4.5L7 10l5.5 5.5" /></button>}
           {!cropping && at >= 0 && at < order.length - 1 && <button type="button" className="photo-step next glass-clear" aria-label="Next photo" title="Next photo (→)" onClick={() => go(1)}><Icon d="M7.5 4.5L13 10l-5.5 5.5" /></button>}
+          {/* The photo's facts along the foot of the content, as the mock has them: its name and size as it will export. */}
+          <p className="photo-info" role="status">
+            <span>{open.path.split('/').pop()}{img ? ` · ${shownSize(img, geometry)}` : ''}</span>
+            <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
+          </p>
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
             {sel && area && area.kind !== 'all' && !before && !cropping && (
@@ -572,7 +661,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
             )}
             {cropping && !before && (
               <div
-                className="photo-crop" role="group" aria-label="Crop box" tabIndex={0}
+                className="photo-crop" role="group" aria-label="Crop box" tabIndex={0} title="Drag the box or its corners; arrow keys nudge it, R rotates"
                 style={{ left: `${c.x * 100}%`, top: `${c.y * 100}%`, width: `${c.w * 100}%`, height: `${c.h * 100}%` }}
                 onPointerDown={cropDown('move')} onPointerMove={cropMove} onPointerUp={cropUp} onPointerCancel={cropUp} onKeyDown={nudgeCrop}
               >
@@ -581,15 +670,20 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
               </div>
             )}
           </div>
+        </div>
+        {/* Adjust, Filters and Crop live in the right panel as its Adjust tab, before Mobius. The wrapper carries
+            .photo-page so the panel's styles follow it out of the page. */}
+        <PanelTab id="adjust" name="Adjust">
+        <div className="photo-page photo-dock">
+        <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
+          {/* What Mobius changed, once, at the top of the panel: dashed indigo until it is kept or discarded. */}
           {showReview && (
-            <div className="photo-review" role="group" aria-label="Mobius's change">
-              <span className="review-dot" aria-hidden="true" />
-              <span>{`Mobius changed ${named.join(', ') || 'the edits'}; nothing else touched.`}{review && <WhyThis conversation={review.conversation} />}</span>
-              <ReviewActions onKeep={keep} onDiscard={discard} />
+            <div className="photo-proposal" role="group" aria-label="Mobius's change">
+              <p className="photo-proposal-title">Mobius changed {named.join(', ') || 'the edits'}</p>
+              <p className="photo-proposal-line">Nothing else in the photo was touched.{review && <WhyThis conversation={review.conversation} />}</p>
+              <div className="photo-proposal-actions"><ReviewActions onKeep={keep} onDiscard={discard} /></div>
             </div>
           )}
-        </div>
-        <aside className="photo-panel" id="photo-tabpanel" role="tabpanel" aria-label={tab === 'adjust' ? 'Adjustments' : tab === 'filters' ? 'Filters' : 'Crop'}>
           {tab === 'adjust' && (
             <>
               <div className="photo-histogram" role="img" aria-label="Histogram of the photo's brightness">
@@ -600,7 +694,7 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                 <button type="button" className="photo-chip" aria-pressed={auto !== undefined} title="Let Photo set the light and colour" onClick={toggleAuto}>
                   <Icon d="M10 3l1.6 3.9L15.5 8l-3.9 1.6L10 13.5 8.4 9.6 4.5 8l3.9-1.1zM15 13l.7 1.6 1.6.7-1.6.7L15 17.6l-.7-1.6-1.6-.7 1.6-.7z" />Auto
                 </button>
-                <button type="button" className="strip-btn" aria-label="Add adjustment" title="Add adjustment" onClick={add}><Icon d={PLUS} /></button>
+                <button type="button" className="strip-btn" aria-label="Add adjustment" title="Add an adjustment: light and colour for all of the photo or part of it" onClick={add}><Icon d={PLUS} /></button>
               </div>
               <ul
                 className="photo-layers" role="listbox" aria-label="Adjustment layers" tabIndex={0}
@@ -649,13 +743,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                   </Section>
                   <button type="button" className="photo-delete" onClick={() => remove(sel.id)}>Delete adjustment</button>
                 </div>
-              ) : (
-                <p className="photo-hint">Add an adjustment to change light and colour, to all of the photo or part of it, or press Auto. The picture itself is never changed: Export saves a new one.</p>
-              )}
+              ) : null}
             </>
           )}
           {tab === 'filters' && (
-            <div className="photo-filters" role="radiogroup" aria-label="Filters">
+            <div className="photo-filters" role="radiogroup" aria-label="Filters" title="A filter is a layer under your adjustments, so it can be changed in Adjust">
               {[{ id: 'original' as const, name: 'Original' }, ...FILTERS].map((f) => {
                 const on = f.id === 'original' ? filter === null : filter === f.id;
                 return (
@@ -665,7 +757,6 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                   </button>
                 );
               })}
-              <p className="photo-hint">A filter is a layer named for it, under your adjustments, so it can be changed in Adjust.</p>
             </div>
           )}
           {tab === 'crop' && (
@@ -693,10 +784,11 @@ function PhotoView({ photos, review, onDrop }: { photos: PhotosState; review?: {
                 <span className="spacer" />
                 <button type="button" className="photo-export" title="Done (Enter)" onClick={() => setTab('adjust')}>Done</button>
               </div>
-              <p className="photo-hint">Drag the box or its corners; arrow keys nudge it and R rotates. The crop is kept with the edits, so it can be changed later.</p>
             </div>
           )}
         </aside>
+        </div>
+        </PanelTab>
       </div>
     </section>
   );

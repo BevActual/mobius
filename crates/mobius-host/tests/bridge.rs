@@ -472,6 +472,46 @@ mod browser {
     }
 
     #[test]
+    fn a_connector_is_added_to_mcp_json_and_removed_from_it_keeping_the_rest_of_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), json!({ "note": "mine", "servers": { "notes": { "command": "notes-server" } } }).to_string()).unwrap();
+        let file = dir.path().join("mcp.json");
+        let (b, _core, _e, _d) = bridge_in(dir);
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } })]).unwrap();
+        assert_eq!(added["ok"], json!(true), "{added}");
+        let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert_eq!(saved["note"], "mine");
+        assert_eq!(saved["servers"]["github"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
+        assert_eq!(saved["servers"]["notes"]["command"], "notes-server");
+        // Nothing has started yet: both wait for Mobius to open again.
+        let waiting = b.mcp_status()["waiting"].clone();
+        assert!(waiting.as_array().unwrap().contains(&json!("github")), "{waiting}");
+        // A bad name, a missing command or a name already taken changes nothing.
+        for bad in [json!({ "name": "Git Hub", "command": "x" }), json!({ "name": "gh", "command": " " }), json!({ "name": "github", "command": "y" })] {
+            assert_eq!(b.call("extensions", "addConnector", &[bad]).unwrap()["ok"], json!(false));
+        }
+        let removed = b.call("extensions", "removeConnector", &[json!("github")]).unwrap();
+        assert_eq!(removed["ok"], json!(true));
+        // What was removed comes back, so Undo can put it back as it was.
+        assert_eq!(removed["removed"], json!({ "command": "npx", "args": ["-y", "server-github"], "env": { "GITHUB_TOKEN": "t" } }));
+        let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+        assert!(saved["servers"].get("github").is_none());
+        assert_eq!(saved["note"], "mine");
+        assert_eq!(b.call("extensions", "removeConnector", &[json!("github")]).unwrap()["ok"], json!(false));
+    }
+
+    #[test]
+    fn a_connector_is_not_written_into_an_mcp_file_that_is_not_json() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
+        let file = dir.path().join("mcp.json");
+        let (b, _core, _e, _d) = bridge_in(dir);
+        let added = b.call("extensions", "addConnector", &[json!({ "name": "github", "command": "npx" })]).unwrap();
+        assert_eq!(added["ok"], json!(false));
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "{ nope");
+    }
+
+    #[test]
     fn a_bad_mcp_file_changes_nothing_and_is_reported() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
@@ -1054,6 +1094,16 @@ fn a_task_carries_a_flag_notes_and_subtasks_and_moves_between_lists_through_the_
     call(&b, "tasks", "restoreList", json!(["P2 build", gone["text"]]));
     assert!(std::fs::read_to_string(dir.path().join("workspace/tasks/P2 build.md")).unwrap().contains("Book the sled"));
     assert_eq!(call(&b, "tasks", "restore", json!(["Inbox", 0, "# not a task"]))["ok"], false);
+    // A time on the due date and a repeat go with the add options and the change; ticking off a repeat moves it on.
+    let added = call(&b, "tasks", "add", json!(["Home", "Water the plants", "2026-11-12", { "time": "08:00", "repeat": "week" }]));
+    let at = added["tasks"][0]["line"].clone();
+    assert_eq!((added["tasks"][0]["time"].clone(), added["tasks"][0]["repeat"].clone()), (json!("08:00"), json!("week")));
+    call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "done": true }]));
+    let home = dir.path().join("workspace/tasks/Home.md");
+    assert_eq!(std::fs::read_to_string(&home).unwrap(), "# Home\n\n- [ ] Water the plants (due 2026-11-19 08:00) (every week)\n");
+    call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "time": null, "repeat": "" }]));
+    assert_eq!(std::fs::read_to_string(&home).unwrap(), "# Home\n\n- [ ] Water the plants (due 2026-11-19)\n");
+    assert_eq!(call(&b, "tasks", "update", json!(["Home", at, "Water the plants", { "time": 9 }]))["ok"], false);
 }
 
 /// A provider's models endpoint that answers only to one key, and remembers what it was sent.
