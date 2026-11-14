@@ -34,4 +34,8 @@ describe('actions in plain words', () => {
     expect(describeAction('browser.open', null)).toBe('open a page in the browser');
     expect(describeAction('tasks.add', { text: 'x'.repeat(200) })).toMatch(/^add “x+…” to Inbox in Tasks$/);
   });
+  it('counts the tasks and events one call adds with more', () => {
+    expect(describeAction('tasks.update', { list: 'Work', task: 'A', time: '09:00', more: [{ task: 'B' }, { task: 'C' }] })).toBe('change 3 tasks in Work');
+    expect(describeAction('calendar.suggest', { title: 'A', start: '2026-11-16T09:00', more: [{ title: 'B' }] })).toMatch(/^suggest 2 events for /);
+  });
 });
