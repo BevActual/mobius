@@ -196,6 +196,8 @@ async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion
 
 export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
+  // Files the turn moved or renamed, new path to old: each is one change, though both paths changed.
+  const [moved, setMoved] = useState<ReadonlyMap<string, string>>(new Map());
   const [drafts, setDrafts] = useState<MailDraft[]>([]);
   const [suggested, setSuggested] = useState<CalendarSuggestion[]>([]);
   // A calendar file is listed by the events the turn added or changed in it, not by the file's name.
@@ -225,6 +227,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     if (n !== reads.current) return;
     setSuggested(events);
     setEvents(named);
+    setMoved(movesIn(waiting, changes?.moves));
     setFiles(waiting);
   }, [conversation, since]);
   useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
@@ -278,7 +281,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     if (turn) keepTurn(turn, 'all');
   }, [turn, drafts, suggested]);
   // What the strip lists: the files the turn changed, then the replies it suggested in Mail.
-  const listed = suggested.length > 0 ? files.filter((f) => f.replace(/\\/g, '/') !== SUGGESTIONS_FILE) : files;
+  const sources = new Set(moved.values());
+  const listed = (suggested.length > 0 ? files.filter((f) => f.replace(/\\/g, '/') !== SUGGESTIONS_FILE) : files).filter((f) => !sources.has(f));
   const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
@@ -316,7 +320,10 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
       const inCalendar = events[path];
       const names = inCalendar && inCalendar.names.length > 0 ? inCalendar.names : null;
       const target = inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path);
-      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
+      const from = moved.get(path);
+      // A move is one change: both its paths go back together.
+      if (from !== undefined) return { key: path, app: appsOf([path])[0] ?? 'Files', name: described.name, count: 1, unit: 'moved file', title: `${from} to ${path}`, target, undo: () => void run(async () => { const back = await window.mobius.changes.undoFile(conversation, path); return back.ok ? window.mobius.changes.undoFile(conversation, from) : back; }) };
+      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : /\/\.charts\.json$/i.test(path.replace(/\\/g, '/')) ? 'chart' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
     }),
     ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
     ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
@@ -377,6 +384,12 @@ export function countOf(entries: readonly { count: number; unit: string }[]): st
   const by = new Map<string, number>();
   for (const e of entries) by.set(e.unit, (by.get(e.unit) ?? 0) + e.count);
   return [...by].map(([unit, n]) => `${n} ${n === 1 ? unit : unit === 'draft reply' ? 'draft replies' : `${unit}s`}`).join(', ');
+}
+
+/** The turn's moves whose two paths are both still waiting, as new path to old, so each is listed and counted once. */
+export function movesIn(waiting: readonly string[], moves: readonly { from: string; to: string }[] | undefined): Map<string, string> {
+  const left = new Set(waiting);
+  return new Map((moves ?? []).filter((m) => left.has(m.from) && left.has(m.to)).map((m) => [m.to, m.from]));
 }
 
 /** The turn's changes by app, in the order the apps first appear. */

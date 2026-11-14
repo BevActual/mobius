@@ -13,6 +13,7 @@ import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColou
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
 import './browser.css';
+import { afterPaint } from './ui/frame';
 
 /**
  * The Browser app's own UI: the list of tabs, the controls above the page (back, forward, reload, the address bar),
@@ -398,7 +399,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onS
           else if (event.key === 'Escape') {
             event.preventDefault();
             if (list.length > 0) { setList([]); setLit(-1); }
-            else if (draft !== null && draft !== (active?.url ?? '')) { setDraft(active?.url ?? ''); window.requestAnimationFrame(() => address.current?.select()); }
+            else if (draft !== null && draft !== (active?.url ?? '')) { setDraft(active?.url ?? ''); afterPaint(() => address.current?.select()); }
             else done();
           }
         }}

@@ -15,6 +15,7 @@ import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
 import { isNotesFailure } from '@mobius/shared';
 import { AppSidebar, PanelTab, SidebarRow, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
 import './video.css';
+import { afterPaint } from './ui/frame';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
   <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>
@@ -328,7 +329,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   useEffect(() => () => stopExport.current?.abort(), []);
   useEffect(() => { stopExport.current?.abort(); setExported(null); setExportError(''); }, [video.project]);
   const duplicate = (id: string) => { const got = duplicateShot(cut, id); if (got) { edit(got.cut); setSelected(got.id); } };
-  const nameIt = (id: string) => { setSelected(id); window.requestAnimationFrame(() => titleField.current?.focus()); };
+  const nameIt = (id: string) => { setSelected(id); afterPaint(() => titleField.current?.focus()); };
   // Full screen: the viewer with its transport, as QuickTime and iMovie play.
   const fullScreen = () => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);

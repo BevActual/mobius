@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeChange, icsEvents, rememberTitles, reviewable, reviewShortcut } from './ReviewStrip';
+import { countOf, describeChange, icsEvents, movesIn, rememberTitles, reviewable, reviewShortcut } from './ReviewStrip';
 import { changeTarget } from './actions';
 
 describe('review strip names', () => {
@@ -50,5 +50,21 @@ describe('what a turn has to review', () => {
     expect(reviewable('.comments\\sheets\\Budget~Costs.json')).toBe(false);
     expect(reviewable('notes/Work/Plan.md')).toBe(true);
     expect(reviewable('docs/.comments/Brief.json')).toBe(true);
+  });
+});
+
+describe('a moved file', () => {
+  it('is one change, not a delete and an add, while both its paths wait for review', () => {
+    const waiting = ['Downloads/a.zip', 'Downloads/Apps/a.zip', 'Downloads/b.md', 'Downloads/Docs/b.md', 'notes/Plan.md'];
+    const moved = movesIn(waiting, [{ from: 'Downloads/a.zip', to: 'Downloads/Apps/a.zip' }, { from: 'Downloads/b.md', to: 'Downloads/Docs/b.md' }]);
+    expect([...moved]).toEqual([['Downloads/Apps/a.zip', 'Downloads/a.zip'], ['Downloads/Docs/b.md', 'Downloads/b.md']]);
+    const listed = waiting.filter((f) => ![...moved.values()].includes(f));
+    expect(listed).toHaveLength(3);
+    expect(countOf([{ count: 1, unit: 'moved file' }, { count: 1, unit: 'moved file' }])).toBe('2 moved files');
+  });
+
+  it('is two changes again once one of its paths was kept or put back', () => {
+    expect(movesIn(['Downloads/Apps/a.zip'], [{ from: 'Downloads/a.zip', to: 'Downloads/Apps/a.zip' }]).size).toBe(0);
+    expect(movesIn(['x'], undefined).size).toBe(0);
   });
 });

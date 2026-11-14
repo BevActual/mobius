@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
@@ -94,6 +94,7 @@ import { activityOf } from './activity';
 import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
+import { useLiveMarks } from './liveMarks';
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
@@ -496,6 +497,7 @@ export function App() {
     pages: browser.tabs.filter((t) => /^https?:/.test(t.url)).length,
     note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inViews && views.page ? { path: views.page.path, title: views.page.title, text: views.text, folder: 'views' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
+    folder: inFiles && files.place.kind === 'folder' && files.place.path !== '' ? files.place.path : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
     photo: inPhoto && photos.open ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, picture: photos.open.dataUrl, text: `The photo: ${photos.described}\nThe picture itself is attached when your model reads pictures. Change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
@@ -537,7 +539,10 @@ export function App() {
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
   const activity = activityOf(conversation.state);
-  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy);
+  const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
+  const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
+  // Tasks, Calendar and Sheets draw the running turn's changes as each call lands; the other apps when the turn ends.
+  const liveMarks = useLiveMarks(conversation.state.conversation, conversation.state.busy, turnMarks);
   /** The views Mobius changed in its last turn and that wait for Keep. */
   const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
   // An app Mobius changed things in loads, so its changes show there when the turn ends, even if it was never opened.
@@ -1028,15 +1033,15 @@ export function App() {
             ) : inSlides ? (
               <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
             ) : inSheets ? (
-              <SheetsSidebar sheets={sheets} pin={pinNode} changed={turnMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
+              <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (
               <DocsSidebar docs={docs} pin={pinNode} changed={turnMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={turnMarks.calendars} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
+              <CalendarSidebar calendar={calendar} pin={pinNode} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} changed={turnMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
+              <TasksSidebar tasks={tasks} pin={pinNode} changed={liveMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
           <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
@@ -1053,7 +1058,7 @@ export function App() {
   // Mail (marked): a Triage action sends its turn in Mail's Triage mode, whatever the composer's mode.
   // Triage from Mail's panel action: the composer switches to Triage too, so the next turns stay in it until changed.
   // Code's Glance: Find the cause sends the failing test, with the open file and its output, to Mobius.
-  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(DEBUG_TEST, surface.code ? [sheetItem(surface.code)] : []); };
+  const debugTest = () => { if (!shows('agent')) setChatOpen(true); void conversation.send(withSteps('Find the cause of the failing test', DEBUG_TEST), surface.code ? [sheetItem(surface.code)] : []); };
   const triageMail = (prompt: string) => { if (!shows('agent')) setChatOpen(true); setChatMode('triage'); void conversation.send(prompt, [], { mode: 'triage' }); };
   /** Mobius's starts for the open app: the suggestions that need nothing attached. */
   const startsFor = (id: AppId) => suggestionsFor({ ...surface, settings: false, app: id }).filter((s) => !s.attach).slice(0, 2);
@@ -1377,7 +1382,7 @@ export function App() {
       case 'notes':
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && turnMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'tasks':
-        return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} />;
+        return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
         return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && turnMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
@@ -1446,9 +1451,9 @@ export function App() {
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':
-        return <SheetGrid sheets={sheets} review={sheets.data && turnMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} />;
+        return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} review={turnMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...turnMarks.calendars] } : null} />; // Calendar app: what Mobius's last turn changed
+        return <CalendarPage calendar={calendar} newToken={eventToken} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage

@@ -85,6 +85,12 @@ describe('Code in Glance', () => {
     const facts = testsGlance({ passed: false, output: 'running 3 tests\n  ✓ adds\n  ✗ total: expected 30, received 29\n2 passed, 1 failed', seconds: 1.23, timedOut: false }, 'npm test');
     expect(facts).toEqual([{ label: 'Failed', value: '✗ total: expected 30, received 29' }, { label: 'Command', value: 'npm test' }, { label: 'Took', value: '1.2 s' }]);
   });
+  it('names the failing test from node --test, in TAP or spec form', () => {
+    const tap = 'TAP version 13\n# Subtest: voltage\nok 1 - voltage\n# Subtest: pack temperature\nnot ok 2 - pack temperature\n  ---\n  failureType: \'testCodeFailure\'\n  error: |-\n    Expected values to be strictly equal:\n# fail 1';
+    expect(testsGlance({ passed: false, output: tap, seconds: 0.4, timedOut: false }, 'npm test')?.[0]).toEqual({ label: 'Failed', value: 'pack temperature fails' });
+    const spec = '✔ voltage (0.8ms)\n✖ pack temperature (2.1ms)\n  AssertionError [ERR_AssERTION]: Expected values to be strictly equal:\nℹ fail 1\n✖ failing tests:';
+    expect(testsGlance({ passed: false, output: spec, seconds: 0.4, timedOut: false }, 'npm test')?.[0]).toEqual({ label: 'Failed', value: 'pack temperature fails' });
+  });
   it('says a run that ran out of time took too long', () => {
     expect(testsGlance({ passed: false, output: '', seconds: 120, timedOut: true }, 'cargo test')?.[0]).toEqual({ label: 'Failed', value: 'Took too long' });
   });

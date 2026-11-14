@@ -88,8 +88,12 @@ impl Checkpoints {
 
     fn git(&self, folder: &Path, id: &str, args: &[&str]) -> Result<String, Error> {
         let index = self.store.join("indexes").join(id);
+        let started = std::time::Instant::now();
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
+            // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
+            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
+            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
@@ -103,6 +107,7 @@ impl Checkpoints {
             .stdin(Stdio::null())
             .output()
             .map_err(|e| if e.kind() == std::io::ErrorKind::NotFound { Error::NoGit } else { Error::Git(e.to_string()) })?;
+        slow(&format!("git {}", args.first().copied().unwrap_or("")), started);
         if output.status.success() {
             Ok(String::from_utf8_lossy(&output.stdout).into_owned())
         } else {
@@ -145,6 +150,14 @@ impl Checkpoints {
     }
 
     fn tip(&self, folder: &Path, id: &str) -> Option<String> {
+        // The branch's ref is a small file of its own until git packs it (it never does here: gc is off). Read as a
+        // file it costs nothing; a git run costs a process start, which is slow on Windows.
+        if let Ok(text) = std::fs::read_to_string(self.store.join("refs").join("mobius").join(id))
+            && is_checkpoint_id(text.trim())
+            && text.trim().len() == 40
+        {
+            return Some(text.trim().to_owned());
+        }
         self.git(folder, id, &["rev-parse", "--verify", "--quiet", &format!("refs/mobius/{id}^{{commit}}")]).ok().map(|s| s.trim().to_owned()).filter(|s| !s.is_empty())
     }
 
@@ -163,6 +176,17 @@ impl Checkpoints {
         self.commit_locked(&folder, &id, reason, true)?.ok_or_else(|| Error::Git("no checkpoint was made".into()))
     }
 
+    /// Brings the folder's index up to date without saving a checkpoint, so the next one (the first turn's, at the
+    /// start of a session) only has to save. The first look at a folder hashes every file and writes its objects,
+    /// which took over 4 s on a Windows runner, while the person waited on the turn.
+    pub fn warm(&self, folder: &Path) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        self.git(&folder, &id, &["add", "-A", "--", "."])?;
+        self.git(&folder, &id, &["write-tree"])?;
+        Ok(())
+    }
+
     /// [`Checkpoints::snapshot`], with the lock already held and the folder prepared.
     fn snapshot_locked(&self, folder: &Path, id: &str, reason: &str) -> Result<Option<Checkpoint>, Error> {
         self.commit_locked(folder, id, reason, false)
@@ -174,8 +198,12 @@ impl Checkpoints {
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
         let parent = self.tip(&folder, &id);
         if let Some(parent) = parent.as_ref().filter(|_| !always) {
-            let before = self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?;
-            if before.trim() == tree {
+            let memo = format!("{}|{parent}", self.store.display());
+            let before = match memo_get(&TREE_OF, &memo) {
+                Some(tree) => tree,
+                None => self.git(&folder, &id, &["rev-parse", &format!("{parent}^{{tree}}")])?.trim().to_owned(),
+            };
+            if before == tree {
                 return Ok(None);
             }
         }
@@ -186,6 +214,7 @@ impl Checkpoints {
         }
         let commit = self.git(&folder, &id, &args)?.trim().to_owned();
         self.git(&folder, &id, &["update-ref", &format!("refs/mobius/{id}"), &commit])?;
+        memo_put(&TREE_OF, format!("{}|{commit}", self.store.display()), tree);
         Ok(Some(Checkpoint { id: commit, when: now(), reason: message }))
     }
 
@@ -380,23 +409,32 @@ impl Checkpoints {
 
     /// Files that differ between two checkpoints.
     pub fn changed_between(&self, folder: &Path, from: &str, to: &str) -> Result<Vec<String>, Error> {
+        self.diff_between(folder, from, to).map(|d| d.files)
+    }
+
+    /// What differs between two checkpoints, with the files that were moved paired up.
+    pub fn diff_between(&self, folder: &Path, from: &str, to: &str) -> Result<Diff, Error> {
         let _one = one_at_a_time();
         let (folder, id) = self.prepare(folder)?;
         let a = self.known(&folder, &id, from)?;
         let b = self.known(&folder, &id, to)?;
         // Two saved states never change, so neither does what differs between them.
         let memo = format!("{}|{a}|{b}", self.store.display());
-        if let Some(files) = memo_get(&BETWEEN, &memo) {
-            return Ok(files);
+        if let Some(diff) = memo_get(&BETWEEN, &memo) {
+            return Ok(diff);
         }
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &a, &b])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&BETWEEN, memo, files.clone());
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([a.as_str(), b.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&BETWEEN, memo, diff.clone());
+        Ok(diff)
     }
 
     /// Files that differ between `checkpoint` and the folder now: added, changed or removed since.
     pub fn changed_since(&self, folder: &Path, checkpoint: &str) -> Result<Vec<String>, Error> {
+        self.diff_since(folder, checkpoint).map(|d| d.files)
+    }
+
+    /// What differs between `checkpoint` and the folder now, with the files that were moved paired up.
+    pub fn diff_since(&self, folder: &Path, checkpoint: &str) -> Result<Diff, Error> {
         // Several parts of the window ask this at once after a change (the strip, each app's bar, Activity, Review),
         // and each answer takes a few git commands, one at a time. An answer worked out after this call arrived saw
         // the folder as it is for this call too, so it is shared; an older one is not.
@@ -405,18 +443,51 @@ impl Checkpoints {
         let (folder, id) = self.prepare(folder)?;
         let target = self.known(&folder, &id, checkpoint)?;
         let memo = format!("{}|{id}|{target}", self.store.display());
-        if let Some((worked_out, files)) = memo_get(&SINCE, &memo) {
+        if let Some((worked_out, diff)) = memo_get(&SINCE, &memo) {
             if worked_out >= asked {
-                return Ok(files);
+                return Ok(diff);
             }
         }
         let started = std::time::Instant::now();
         self.git(&folder, &id, &["add", "-A", "--", "."])?;
         let tree = self.git(&folder, &id, &["write-tree"])?.trim().to_owned();
-        let out = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "-z", &target, &tree])?;
-        let files: Vec<String> = out.split('\0').filter(|p| !p.is_empty()).map(str::to_owned).collect();
-        memo_put(&SINCE, memo, (started, files.clone()));
-        Ok(files)
+        let diff = Diff::parse(&self.git(&folder, &id, &DIFF_ARGS.iter().copied().chain([target.as_str(), tree.as_str()]).collect::<Vec<_>>())?);
+        memo_put(&SINCE, memo, (started, diff.clone()));
+        Ok(diff)
+    }
+}
+
+/// What differs between two states: every path added, changed or removed, and of those, the files moved (or renamed),
+/// each as its old path and its new one. A moved file's two paths are both in `files`, so putting the turn back still
+/// puts both back; `moves` lets the window show and undo each move as one change.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct Diff {
+    pub files: Vec<String>,
+    pub moves: Vec<(String, String)>,
+}
+
+/// Git's own rename finding pairs a removed file with an added one that has the same (or nearly the same) contents.
+const DIFF_ARGS: [&str; 5] = ["diff-tree", "-r", "-M", "--name-status", "-z"];
+
+impl Diff {
+    /// Reads `diff-tree --name-status -z`: a status, then one path, or two for a move (`R<score>`, old then new).
+    fn parse(out: &str) -> Diff {
+        let mut diff = Diff::default();
+        let mut parts = out.split('\0').filter(|p| !p.is_empty());
+        while let Some(status) = parts.next() {
+            let Some(path) = parts.next() else { break };
+            if status.starts_with('R') || status.starts_with('C') {
+                let Some(to) = parts.next() else { break };
+                if status.starts_with('R') {
+                    diff.files.push(path.to_owned());
+                    diff.moves.push((path.to_owned(), to.to_owned()));
+                }
+                diff.files.push(to.to_owned());
+            } else {
+                diff.files.push(path.to_owned());
+            }
+        }
+        diff
     }
 }
 
@@ -424,8 +495,18 @@ impl Checkpoints {
 /// and the latest answer to what changed since a checkpoint, with when it was worked out.
 type Memo<T> = std::sync::Mutex<Option<std::collections::HashMap<String, T>>>;
 static KNOWN: Memo<String> = std::sync::Mutex::new(None);
-static BETWEEN: Memo<Vec<String>> = std::sync::Mutex::new(None);
-static SINCE: Memo<(std::time::Instant, Vec<String>)> = std::sync::Mutex::new(None);
+static BETWEEN: Memo<Diff> = std::sync::Mutex::new(None);
+static SINCE: Memo<(std::time::Instant, Diff)> = std::sync::Mutex::new(None);
+/// The tree of each checkpoint made here, so the next one can tell whether anything changed without asking git.
+static TREE_OF: Memo<String> = std::sync::Mutex::new(None);
+
+/// Said on stderr when a step took long (the e2e logs keep it), as the host says its own slow steps.
+fn slow(what: &str, started: std::time::Instant) {
+    let ms = started.elapsed().as_millis();
+    if ms >= 300 {
+        eprintln!("[slow] checkpoints {what}: {ms} ms");
+    }
+}
 
 fn memo_get<T: Clone>(memo: &'static Memo<T>, key: &str) -> Option<T> {
     memo.lock().unwrap_or_else(std::sync::PoisonError::into_inner).as_ref().and_then(|m| m.get(key).cloned())
@@ -502,7 +583,9 @@ fn one_at_a_time() -> OneAtATime {
     if HELD.with(std::cell::Cell::get) {
         return OneAtATime(None);
     }
+    let waited = std::time::Instant::now();
     let guard = STORE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    slow("waiting for another checkpoint step", waited);
     HELD.with(|h| h.set(true));
     OneAtATime(Some(guard))
 }

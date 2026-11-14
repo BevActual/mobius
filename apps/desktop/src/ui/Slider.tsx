@@ -74,7 +74,9 @@ export function useGlide(target: number, own: { current: number | null }, ms = 3
       if (k < 1) frame.current = requestAnimationFrame(tick);
     };
     frame.current = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame.current);
+    // A window that draws no frames (covered or minimised) still ends on the value: the glide is only paint.
+    const end = setTimeout(() => { cancelAnimationFrame(frame.current); now.current = target; setShown(target); }, ms + 50);
+    return () => { cancelAnimationFrame(frame.current); clearTimeout(end); };
   }, [target]); // eslint-disable-line react-hooks/exhaustive-deps
   return shown;
 }

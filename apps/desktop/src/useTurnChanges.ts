@@ -43,17 +43,27 @@ export function marksOf(files: readonly string[]): TurnMarks {
   return { files: [...files], notes, lists, docs, sheets, slides, code, designs, boards, research, reading, databases, photos, songs, video, skills, calendars };
 }
 
-/** Read when a turn ends, when another conversation is shown, and after anything is put back. */
-export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
+/**
+ * Said on `window` while a turn runs, a moment after each call it finishes: the workspace files the turn has changed so
+ * far (paths as in `TurnMarks.files`). The marks themselves still come when the turn ends; an app that redraws its
+ * review whenever its own file is named here shows Mobius's changes as they are made.
+ */
+export const TURN_FILES_EVENT = 'mobius:turn-files';
+export interface TurnFiles { conversation: string; files: readonly string[] }
+
+/** Read when a turn ends, when another conversation is shown, and after anything is put back. While the turn runs,
+ * `progress` (how many calls it has finished) changing reads what it changed so far, for `TURN_FILES_EVENT`. */
+export function useTurnChanges(conversation: string, busy: boolean, progress = 0): TurnMarks {
   const [marks, setMarks] = useState<TurnMarks>(NONE);
   // Only the latest read counts: one made before the turn (on opening, say) can come back after the one made when it
   // ended on a busy computer, and would take every dashed edge away (canvas.spec:139 once saw that).
   const reads = useRef(0);
   const load = useCallback(async () => {
     const n = ++reads.current;
+    const asked = performance.now();
     const result = await window.mobius.changes?.lastTurn(conversation).catch(() => null);
     // Said on the console (the e2e logs print it), so a change that never shows dashed can be traced to this read.
-    console.log(`[mobius] marks: ${result && 'files' in result ? `${result.files.length} file(s) changed` : 'no turn'}${n !== reads.current ? ', a newer read is coming' : ''}`);
+    console.log(`[mobius] marks: ${result && 'files' in result ? `${result.files.length} file(s) changed` : 'no turn'} in ${Math.round(performance.now() - asked)} ms${n !== reads.current ? ', a newer read is coming' : ''}`);
     if (n !== reads.current) return;
     // A kept turn's changes are the person's now: they lose their dashed edge.
     const id = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;
@@ -61,6 +71,18 @@ export function useTurnChanges(conversation: string, busy: boolean): TurnMarks {
     setMarks(result && 'files' in result && !(id && keptTurns().includes(id)) ? marksOf(result.files.filter((f) => !(id && fileKept(id, f)))) : NONE);
   }, [conversation]);
   useEffect(() => { if (!busy) void load(); }, [busy, load]);
+  // A burst of calls is one read, a moment after the last of them.
+  useEffect(() => {
+    if (!busy || progress === 0) return;
+    let live = true;
+    const later = setTimeout(() => {
+      void window.mobius.changes?.lastTurn(conversation).catch(() => null).then((result) => {
+        if (!live || !result || !('files' in result)) return;
+        window.dispatchEvent(new CustomEvent<TurnFiles>(TURN_FILES_EVENT, { detail: { conversation, files: result.files } }));
+      });
+    }, 150);
+    return () => { live = false; clearTimeout(later); };
+  }, [busy, progress, conversation]);
   useEffect(() => {
     const kept = () => void load();
     window.addEventListener(KEPT_EVENT, kept);

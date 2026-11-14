@@ -10,8 +10,10 @@ in the [launch checklist](../launch.md).
 
 ## What a moment is
 
-- **One ask or one gesture, and a result in under fifteen seconds.** If it needs explaining first, it is the wrong
-  moment.
+- **One ask or one gesture, and something real on screen fast.** The first real thing appears within five seconds
+  of the ask and the last within fifteen. A moment with several steps (Triage, Plan my day, Compare) may take up to
+  thirty, as long as its results arrive one by one from the fifth second and never all at the end. If it needs
+  explaining first, it is the wrong moment.
 - **The result is a real thing in the app:** a draft, an event, a bassline, a chart, a cut. Never a paragraph of chat
   describing one.
 - **It shows the app is good on its own, then that Mobius makes it better.** Two or three seconds of the app being
@@ -110,6 +112,20 @@ These are a first read; the owning lead confirms or corrects each row in their f
    README and left out of the reel, not shown weak.
 
 An app round that builds its moment comes before that app's other rounds on the [apps roadmap](apps-roadmap.md).
+
+## Timing
+
+Each moment is run with a real model on the demo workspace and timed; the runs are in `demo/results.md`. Three times
+are written down for every run: the ask to the first real thing, to the last, and to Keep being offered. The first
+run of every moment on 14 November 2026 was right in content far more often than in time: single-step moments took 15
+to 23 seconds and the several-step ones 29 to 41, with nothing on screen until late. So speed is worked on in the
+core before any moment is rewritten to hide it:
+
+1. Know where a turn's time goes: the wait for the model's first words, each round, each tool call.
+2. Show each change the moment it is proposed, while the turn carries on.
+3. Make independent reads and writes in one round, not one after another.
+4. Give the model only the open app's tools and guide, so each round is shorter.
+5. Use the quick model for steps that only sort or read.
 
 ## Recording
 

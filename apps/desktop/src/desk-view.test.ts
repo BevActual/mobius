@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { setLocaleForTests } from './dates';
-import { agoLabel, deskGreeting, deskTitle, nextRun, recent, upcoming, whenLabel } from './desk-view';
+import { agoLabel, deskGreeting, deskQuiet, deskTitle, nextRun, recent, upcoming, whenLabel } from './desk-view';
 
 // Monday 9 November 2026, 19:30.
 const now = new Date(2026, 10, 9, 19, 30);
@@ -69,5 +69,14 @@ describe('desk', () => {
   it('lists what runs next, soonest first, leaving out what is off', () => {
     const list = upcoming([schedule('08:00', [1, 2, 3, 4, 5]), schedule('20:00', [1]), schedule('07:00', [2], false)], now);
     expect(list.map((x) => x.schedule.time)).toEqual(['20:00', '08:00']);
+  });
+});
+
+describe('the Desk when Mobius has nothing waiting', () => {
+  it('says what the apps hold for the person, in the order of their rows', () => {
+    expect(deskQuiet([{ app: 'calendar', text: '9:00 · 4 today' }, { app: 'tasks', text: '8 due today' }, { app: 'mail', text: '41 unread' }])).toBe('8 due today · 41 unread');
+  });
+  it('says nothing is waiting only when nothing is', () => {
+    expect(deskQuiet([{ app: 'notes', text: 'Edited just now' }])).toBe('Nothing waiting for you');
   });
 });

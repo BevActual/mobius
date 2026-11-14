@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { createPortal } from 'react-dom';
 import { SIDEBAR_WIDTH } from '@mobius/shared';
 import { Resizer } from '../Resizer';
+import { afterPaint } from './frame';
 
 /**
  * The inspector (zone 5a, docs/design/panel-layouts.md): an app's own panels (Photo's Adjust, Slides' Format, Docs'
@@ -203,7 +204,7 @@ export function InspectorDock() {
               const at = tabs.findIndex((t) => t.id === active);
               const next = tabs[(at + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]!;
               choose(next.id);
-              requestAnimationFrame(() => document.getElementById(`panel-tab-${next.id}`)?.focus());
+              afterPaint(() => document.getElementById(`panel-tab-${next.id}`)?.focus());
             }}>
             {tabs.map((t) => (
               <button key={t.id} id={`panel-tab-${t.id}`} type="button" role="tab" className="panel-tab"
