@@ -70,7 +70,7 @@ async function start(prefs: Record<string, unknown>): Promise<void> {
 
 test('dictation listens with the speech server chosen in Voice and puts the words in the box, not sent', async () => {
   await start({});
-  await shell().getByRole('button', { name: 'Dictate' }).click();
+  await composer().press('Control+Shift+Space');
   await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
   await shell().getByRole('button', { name: 'Stop dictation' }).click();

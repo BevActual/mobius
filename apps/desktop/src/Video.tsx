@@ -1,4 +1,3 @@
-import { RowMark } from './RowMark';
 import { FromMobius } from './FromMobius';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
@@ -14,7 +13,7 @@ import { emptyHistory, recorded, redone, undone, type History } from './photo-vi
 import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
 import { isNotesFailure } from '@mobius/shared';
-import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
+import { AppSidebar, PanelTab, SidebarRow, SidebarSection, ToolbarControls, useShowPanelTab } from './ui';
 import './video.css';
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => (
@@ -31,6 +30,8 @@ const FPS = 30;
 const MOD = () => (window.mobius?.platform === 'darwin' ? '⌘' : 'Ctrl+');
 const FULL = 'M4 8V4h4M16 8V4h-4M4 12v4h4M16 12v4h-4';
 const EXIT_FULL = 'M8 4v4H4M12 4v4h4M8 16v-4H4M12 16v-4h4';
+/** Sound clips take a colour from the shared content palette, so they read as the person's material, not the frame. */
+const CLIP_COLOURS = ['var(--c-teal)', 'var(--c-blue)', 'var(--c-amber)', 'var(--c-green)', 'var(--c-pink)', 'var(--c-coral)'];
 
 /** A menu where it was asked for, over everything (a glass sidebar would otherwise clip it). */
 type MenuAt = { x: number; y: number; label: string; items: ContextMenuItem[] };
@@ -128,63 +129,55 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
       { action: 'reveal', label: 'Show in folder', run: () => void video.showFolder(), separated: true },
     ] });
   };
+  const files = useRef<HTMLInputElement>(null);
+  const addFootage = () => files.current?.click();
   return (
-    <aside className="side video-side" aria-label="Video sidebar">
+    <AppSidebar label="Video sidebar" className="video-side">
       <SideNew item="project" onNew={() => setNaming(true)} />
-      <div className="side-head">
-        <span className="side-title">Projects</span>
-        <span className="side-actions">{pin}</span>
-      </div>
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Project name" placeholder="Project name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setNaming(false); }} />
           <button type="submit" className="btn primary">Create</button>
         </form>
       )}
-      <nav className="task-lists" aria-label="Video projects">
-        {video.projects.length === 0 && !naming && <p className="side-empty">No projects yet.</p>}
-        <ul role="list">
-          {video.projects.map((p) => (
-            <li key={p.name}>
-              <button type="button" className="list-row" aria-current={video.project === p.name ? 'page' : undefined} onClick={() => void video.open(p.name)}>
-                <span className="list-name">{p.name}</span>
-                <RowMark changed={changed?.has(p.name) === true} changedTitle="Cut changed by Mobius in its last turn" />
-                <span className="list-count">{p.clips.length || ''}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SidebarSection title="Projects" action={pin}>
+        {video.projects.length === 0 && !naming && <li className="side-empty">No projects yet.</li>}
+        {video.projects.map((p) => (
+          <SidebarRow key={p.name} label={p.name} count={p.clips.length} current={video.project === p.name}
+            proposed={changed?.has(p.name) === true} title={changed?.has(p.name) ? 'Cut changed by Mobius in its last turn' : undefined}
+            onSelect={() => void video.open(p.name)} />
+        ))}
+      </SidebarSection>
       {video.project && (
-        <section className="video-footage" aria-label="Footage">
-          <div className="video-footage-head">
-            <span>Footage</span>
-            <button type="button" className="strip-btn" aria-label="Show folder" title="Show the project’s folder" onClick={() => void video.showFolder()}><Icon d="M3 6.5V15h14V8H9.5L8 6.5zM3 6.5V5h5l1.5 1.5" /></button>
-          </div>
-          {video.clips.length === 0 && <p className="video-footage-hint">Drop clips on the window, or copy them into the project’s folder.</p>}
-          <ul role="list">
-            {video.clips.map((c) => {
-              const len = video.lengthOf(c.name);
-              const poster = c.kind === 'video' && len ? frame(c.name, Math.round(Math.min(len / 2, 1) * 4) / 4) : undefined;
-              return (
-                <li key={c.name} className="video-clip" draggable title={`${c.name}\nDrag into the timeline, or add it to the end`}
-                  onContextMenu={clipMenu(c.name)}
-                  onDragStart={(e) => { e.dataTransfer.setData(CLIP_TYPE, c.name); e.dataTransfer.effectAllowed = 'copy'; }}>
-                  <span className="video-clip-thumb" data-kind={c.kind} aria-hidden="true">{poster ? <img src={poster} alt="" draggable={false} /> : null}</span>
-                  <span className="video-clip-text">
-                    <span className="video-clip-name">{c.name}</span>
-                    <span className="video-clip-len">{len ? timecode(len) : c.kind === 'audio' ? 'Sound' : ''}</span>
-                  </span>
-                  <button type="button" className="strip-btn" aria-label={`Add ${c.name} to the cut`} title="Add to the end of the cut" onClick={() => addShot(c.name)}><Icon d={PLUS} /></button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <SidebarSection title="Footage" action={<button type="button" className="strip-btn" aria-label="Add footage" title="Add footage" onClick={addFootage}><Icon d={PLUS} /></button>}>
+          {video.clips.length === 0 && (
+            <li className="side-empty">
+              <span>No footage yet.</span>
+              <button type="button" className="btn" onClick={addFootage}>Add footage…</button>
+            </li>
+          )}
+          {video.clips.map((c, i) => {
+            const len = video.lengthOf(c.name);
+            const poster = c.kind === 'video' && len ? frame(c.name, Math.round(Math.min(len / 2, 1) * 4) / 4) : undefined;
+            return (
+              <li key={c.name} className="video-clip" draggable title={`${c.name}\nDrag into the timeline, or add it to the end`}
+                onContextMenu={clipMenu(c.name)}
+                onDragStart={(e) => { e.dataTransfer.setData(CLIP_TYPE, c.name); e.dataTransfer.effectAllowed = 'copy'; }}>
+                <span className="video-clip-thumb" data-kind={c.kind} data-loading={c.kind === 'video' && !poster ? true : undefined} style={{ '--clip': CLIP_COLOURS[i % CLIP_COLOURS.length] } as CSSProperties} aria-hidden="true">{poster ? <img src={poster} alt="" draggable={false} /> : null}</span>
+                <span className="video-clip-text">
+                  <span className="video-clip-name">{c.name}</span>
+                  <span className="video-clip-len">{len ? timecode(len) : c.kind === 'audio' ? 'Sound' : ''}</span>
+                </span>
+                <button type="button" className="strip-btn" aria-label={`Add ${c.name} to the cut`} title="Add to the end of the cut" onClick={() => addShot(c.name)}><Icon d={PLUS} /></button>
+              </li>
+            );
+          })}
+        </SidebarSection>
       )}
+      <input ref={files} type="file" hidden multiple accept="video/*,audio/*" onChange={(e) => { const got = [...(e.target.files ?? [])]; e.target.value = ''; if (got.length) void video.addFiles(got); }} />
       <FromMobius items={video.projects.filter((p) => changed?.has(p.name)).map((p) => ({ key: p.name, name: p.name, current: video.project === p.name, onOpen: () => void video.open(p.name) }))} />
       <Menu menu={menu} onClose={() => setMenu(null)} />
-    </aside>
+    </AppSidebar>
   );
 }
 
@@ -215,7 +208,7 @@ function ShotBlock({ shot, index, width, selected, playing, proposed, frame, onS
         {times.map((t, i) => { const src = frame(shot.clip, t); return <span key={i} className="video-shot-frame">{src ? <img src={src} alt="" draggable={false} /> : null}</span>; })}
       </span>
       {shot.title && <span className="video-shot-title" aria-hidden="true">{shot.title}</span>}
-      <span className="video-shot-label" aria-hidden="true">{width > 70 ? shot.clip.replace(/\.[^.]+$/, '') : ''}</span>
+      <span className="video-shot-label" aria-hidden="true"><span className="video-shot-num">{index + 1}</span>{width > 70 ? shot.clip.replace(/\.[^.]+$/, '') : ''}</span>
       {selected && <>
         <span className="video-trim" data-edge="in" title="Drag to trim the start" onPointerDown={onTrim('in')} />
         <span className="video-trim" data-edge="out" title="Drag to trim the end" onPointerDown={onTrim('out')} />
@@ -247,9 +240,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const [exportError, setExportError] = useState('');
   const stopExport = useRef<AbortController | null>(null);
   const titleField = useRef<HTMLInputElement>(null);
-  // The chosen shot's details: a panel in the right dock, beside Mobius. Its body is drawn from the latest render.
-  const inspector = useRef<() => ReactNode>(() => null);
-  const panels = useMemo<PanelSpec[]>(() => [{ id: 'shot', name: 'Shot', dock: 'right', shown: true, keys: 'mod+shift+i', render: () => inspector.current() }], []);
+  // The chosen shot's details: a tab in the right panel, before Mobius.
+  const showTab = useShowPanelTab();
   const frame = useFrames(video);
   const { cut } = video;
   const file = video.project ? `video/${video.project}/cut.json` : null;
@@ -470,8 +462,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
   const sel = cut.shots.find((s) => s.id === selected) ?? null;
   const selIndex = sel ? cut.shots.indexOf(sel) : -1;
   const shotLabel = (i: number) => `Shot ${i + 1}`;
-  inspector.current = () => (
-    <div className="video-inspector">
+  const inspector = (
+    <section className="video-inspector" aria-label="Shot">
       {sel ? (
         <>
           <header className="video-inspector-head">
@@ -504,9 +496,9 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           <button type="button" className="video-remove" onClick={() => remove(sel.id)}>Remove shot</button>
         </>
       ) : (
-        <p className="video-inspector-empty">Choose a shot in the timeline to trim it, title it or move it.</p>
+        <p className="video-inspector-empty">No shot chosen.</p>
       )}
-    </div>
+    </section>
   );
   const names = [...changed].map((id) => { const i = cut.shots.findIndex((s) => s.id === id); return i >= 0 ? `shot ${i + 1}` : id; });
   const ruler = rulerMarks(Math.max(total, width / pxPerSec), pxPerSec);
@@ -517,20 +509,19 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
       ? `${sel.clip} · in ${timecode(sel.in)} · out ${timecode(sel.out)} · ${timecode(shotLength(sel))}. Drag an edge to trim, S splits at the playhead.`
       : `${cut.shots.length} ${cut.shots.length === 1 ? 'shot' : 'shots'} · ${timecode(total)}${video.saved ? '' : ' · Saving…'}`;
   return (
-    <div className="video-root">
-    <PanelLayout app="video" panels={panels}>
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ToolbarControls label="Edit">
-        <div className="ui-toolbar-group">
+        <div className="video-tools">
+        <div className="ui-toolbar-group video-history">
           <button type="button" className="strip-btn" aria-label="Undo" title={`Undo (${MOD()}Z)`} disabled={history.current.past.length === 0} onClick={undo}><Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></button>
           <button type="button" className="strip-btn" aria-label="Redo" title={`Redo (${MOD()}Y)`} disabled={history.current.future.length === 0} onClick={redo}><Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></button>
         </div>
-        <div className="ui-toolbar-group">
+        <div className="ui-toolbar-group video-cut-tools">
           <button type="button" className="strip-btn" aria-label="Split at the playhead" title="Split at the playhead (S)" disabled={!canSplit} onClick={split}><Icon d="M10 3v14M6 6l-3 4 3 4M14 6l3 4-3 4" /></button>
           <button type="button" className="strip-btn" aria-label="Duplicate shot" title={`Duplicate the chosen shot (${MOD()}D)`} disabled={!sel} onClick={() => sel && duplicate(sel.id)}><Icon d="M4 4h9v9H4zM7 7h9v9H7z" /></button>
           <button type="button" className="strip-btn" aria-label="Remove shot" title="Remove the chosen shot (Delete)" disabled={!sel} onClick={() => sel && remove(sel.id)}><Icon d="M5 6h10M8 6V4.5h4V6M6.5 6l.7 9.5h5.6l.7-9.5" /></button>
         </div>
-        <div className="ui-toolbar-group">
+        <div className="ui-toolbar-group video-zoom-group">
           <label className="video-zoom" title="Zoom the timeline">
             <Icon d="M4 10h12" />
             <input type="range" aria-label="Zoom" min={10} max={240} step={1} value={Math.round(pxPerSec)} onChange={(e) => setZoom(Number(e.target.value))} />
@@ -541,7 +532,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
         <div className="ui-toolbar-group">
           {exporting === null ? (
             <button type="button" className="btn primary video-export" disabled={!format || cut.shots.length === 0} onClick={() => void exportFilm()}
-              title={format ? 'Save the film as a video file in the project’s Exports folder. It plays through once while it is made.' : 'This window cannot record video'}>
+              title={format ? 'Export the film to the project’s Exports folder' : 'This window cannot record video'}>
               Export…
             </button>
           ) : (
@@ -552,6 +543,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
             </span>
           )}
         </div>
+        </div>
       </ToolbarControls>
       <div ref={viewer} className="video-viewer" data-full={full || undefined}>
         <div className="video-screen">
@@ -561,7 +553,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
               onLoadedMetadata={(e) => { setUnplayable(false); const v = e.currentTarget; if (v.videoWidth > 0 && v.videoHeight > 0) setAspect(v.videoWidth / v.videoHeight); }} onClick={toggle} />
             {shot?.title && <div className="video-title">{shot.title}</div>}
           </div>
-          {cut.shots.length === 0 && <p className="video-empty">Drag clips from Footage into the timeline to start the cut, or ask Mobius for a rough cut.</p>}
+          {cut.shots.length === 0 && <p className="video-empty">No shots yet. Drag a clip from Footage into the timeline.</p>}
           {unplayable && <p className="video-empty" role="status">This clip cannot be played in this window. Its file is untouched, and the cut still works.</p>}
         </div>
         <div className="video-transport" role="toolbar" aria-label="Transport">
@@ -593,7 +585,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           <div className="video-track" role="listbox" aria-label="Timeline" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
             {cut.shots.map((s, i) => (
               <ShotBlock key={s.id} shot={s} index={i} width={Math.max(12, shotLength(s) * pxPerSec)} selected={selected === s.id} playing={index === i} proposed={changed.has(s.id)} frame={frame}
-                onSelect={() => { setSelected(s.id); seek(shotStart(cut, i)); }}
+                onSelect={() => { setSelected(s.id); seek(shotStart(cut, i)); showTab('shot'); }}
                 onTrim={trimDown(s.id)}
                 onDragStart={(e) => { e.dataTransfer.setData(SHOT_TYPE, s.id); e.dataTransfer.effectAllowed = 'move'; }}
                 onMenu={shotMenu(s, i)} />
@@ -613,8 +605,7 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
         ) : <span>{status}</span>}
       </footer>
       <Menu menu={menu} onClose={() => setMenu(null)} />
+      <PanelTab id="shot" name="Shot">{inspector}</PanelTab>
     </section>
-    </PanelLayout>
-    </div>
   );
 }

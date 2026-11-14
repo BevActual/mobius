@@ -3,6 +3,7 @@ import { onCommand } from './commands';
 import type { NoteHit, NotePage } from '@mobius/shared';
 import { hasTag, onShowTag, tagCounts } from './note-tags';
 import { relativeTime } from './relative-time';
+import { dayLabel, timeLabel, weekdayLabel } from './dates';
 import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
@@ -26,6 +27,14 @@ const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
  * `tags`: the sidebar has a Tags section (Notes): every `#tag` in the pages, and choosing one lists the pages with it.
  * Pages pinned to the sidebar are listed first, under Pinned. Each page shows how it starts and when it was edited.
  */
+/** A note's date in the list, as Mail shows a message's: the time today, the weekday this week, the day before that. */
+export function listDate(ms: number, now: number): string {
+  const d = new Date(ms);
+  if (d.toDateString() === new Date(now).toDateString()) return timeLabel(d);
+  if (now - ms < 6 * 86_400_000 && ms <= now) return weekdayLabel(d);
+  return dayLabel(d, { now: new Date(now) });
+}
+
 export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart, tags: withTags = false }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void; tags?: boolean }) {
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState<string | null>(null);
@@ -76,18 +85,19 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   /** One page in the list: its title, then when it was edited and how it starts; Pin on hover. `where` names its notebook. */
   const pageRow = (pg: NotePage, where?: string, key = pg.path) => {
     const when = relativeTime(pg.modified, Math.max(now, pg.modified));
+    // Notes: one row height, the title with its date at the end (as Mail dates a message: "9:02" today, "Tue",
+    // "3 Nov") and one grey line of how it starts. Other apps keep their second line (where, when, how it starts).
+    const notesRow = words === NOTES_WORDS;
     const plain = [where, when, pg.preview].filter(Boolean).join(' · ');
-    // Notes: the time stands out and the preview follows it, as in Apple Notes ("1 hr ago  Veltro Cells").
-    const sub = words === NOTES_WORDS
-      ? <>{where && `${where} · `}{when && <span className="note-when">{when}</span>}{when && pg.preview ? ' ' : ''}{pg.preview}</>
-      : plain;
     return (
-      <SidebarRow key={key} label={pg.title} sub={plain ? sub : undefined}
+      <SidebarRow key={key} label={pg.title} sub={notesRow ? ([where, pg.preview].filter(Boolean).join(' · ') || '\u00a0') : plain || undefined}
+        title={notesRow && when ? `Edited ${when}` : undefined}
         current={notes.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
         onSelect={() => void notes.open(pg.path, pg.title)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
         trail={<>
-          {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin to the top of the list and the sidebar'} onClick={() => onPin(pg.path, pg.title)}>
+          {notesRow && pg.modified > 0 && <span className="note-side-when" aria-hidden="true">{listDate(pg.modified, now)}</span>}
+          {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
           </button>}
           {/* Delete is in the row's menu, not on hover; choosing it asks once more, here in the row. It goes away when
@@ -135,7 +145,10 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         </SidebarSection>
       ) : (
         <>
-          {notes.notebooks.length === 0 && !naming && (
+          {!notes.loaded && notes.available && (
+            <ul className="notes-loading" aria-label={`Reading ${words.items}`}><li /><li /><li /></ul>
+          )}
+          {(notes.loaded || !notes.available) && notes.notebooks.length === 0 && !naming && (
             <div className="side-empty notes-empty">
               <p>No {words.items} yet.</p>
             </div>

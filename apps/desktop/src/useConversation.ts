@@ -11,7 +11,7 @@ export interface Conversation {
   id: string;
   list: ConversationInfo[];
   /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
-  send(text: string, context?: ContextItem[], options?: { plan?: boolean; images?: string[] }): Promise<void>;
+  send(text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; images?: string[] }): Promise<void>;
   stop(): void;
   /** Take over the running task, and hand it back. Resolve with what went wrong, or null. */
   takeOver(): Promise<string | null>;
@@ -107,12 +107,12 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   }, [coreStatus]);
 
   const send = useCallback(
-    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; images?: string[] } = {}) => {
+    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; ask?: boolean; images?: string[] } = {}) => {
       const images = options.images ?? [];
       dispatch({ type: 'sent', text, context, images });
       const id = active.current;
       sending.current = id;
-      const extra = { ...(options.plan ? { plan: true } : {}), ...(images.length > 0 ? { images } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
+      const extra = { ...(options.plan ? { plan: true } : {}), ...(options.ask ? { ask: true } : {}), ...(images.length > 0 ? { images } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
       // A choice made just before sending (the effort, say) reaches the core first.
       await preferencesSettled();
       const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);

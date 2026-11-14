@@ -11,7 +11,7 @@ const FRESH_MS = 4000;
 function rememberedMode(): CalendarMode {
   try {
     const v = window.localStorage.getItem(MODE_KEY);
-    if (v === 'day' || v === 'week' || v === 'month') return v;
+    if (v === 'day' || v === 'week' || v === 'month' || v === 'year') return v;
   } catch { /* Nothing kept. */ }
   return 'week';
 }
