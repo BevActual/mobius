@@ -97,6 +97,34 @@ fn tools_get_plain_unique_names_that_fit_and_calls_reach_the_right_tool() {
 }
 
 #[test]
+fn a_server_can_be_started_and_stopped_while_the_others_keep_running() {
+    let mut configs = BTreeMap::new();
+    configs.insert("fake".to_owned(), config(&[]));
+    let (mut hub, _) = Hub::start(&configs);
+    // Started later, beside the first: its tools come under its own name, and only its tools are described for it.
+    hub.start_server("other", &config(&[])).unwrap();
+    assert_eq!(hub.servers(), ["fake", "other"]);
+    let others = hub.descriptions_of(Some("other"));
+    assert!(!others.is_empty() && others.iter().all(|d| d["capability"] == "mcp.other"));
+    assert_eq!(hub.run("mcp.other.echo", &json!({ "text": "y" })).unwrap().lines().next(), Some("y"));
+    // One that cannot start leaves the hub as it was.
+    let broken = ServerConfig { command: "definitely-not-a-program-xyz".into(), args: vec![], env: BTreeMap::new() };
+    assert!(hub.start_server("broken", &broken).is_err());
+    assert_eq!(hub.servers(), ["fake", "other"]);
+    // Starting a running one again restarts it, with the same names.
+    hub.start_server("other", &config(&[])).unwrap();
+    assert_eq!(hub.descriptions_of(Some("other")).len(), others.len());
+    // Stopping gives back its tools' names, and they no longer run; the first server still works.
+    let gone = hub.stop_server("other");
+    assert_eq!(gone.len(), others.len());
+    assert!(gone.contains(&"mcp.other.echo".to_owned()));
+    assert_eq!(hub.run("mcp.other.echo", &json!({})).unwrap_err(), "unknown tool");
+    assert_eq!(hub.servers(), ["fake"]);
+    assert_eq!(hub.run("mcp.fake.echo", &json!({ "text": "x" })).unwrap().lines().next(), Some("x"));
+    assert!(hub.stop_server("never").is_empty());
+}
+
+#[test]
 fn the_config_file_is_checked() {
     let ok = parse(r#"{ "servers": { "notes": { "command": "npx.cmd", "args": ["-y", "x"], "env": { "K": "v" } } } }"#).unwrap();
     assert_eq!(ok["notes"].args, ["-y", "x"]);

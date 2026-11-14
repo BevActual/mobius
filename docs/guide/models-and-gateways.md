@@ -51,7 +51,7 @@ Mobius. If Hugging Face later stops accepting the sign-in, remove the key and si
 | --- | --- |
 | **Chat model** | The model Mobius talks to. Also switchable from the message box. |
 | **Second model** | Asked when the first is busy, down or cannot be reached. |
-| **Quick model** | Quick jobs, such as checking a step in Act mode before it runs. |
+| **Quick model** | Quick jobs, such as checking a step under the Auto permission before it runs. |
 | **Images** | Makes pictures for Photo, Design and Slides when you ask. Pictures are saved to Photo. |
 | **Listen** | Turns your speech into text when you dictate. See [Voice](voice.md). |
 | **Speak** | Reads replies aloud. See [Voice](voice.md). |
