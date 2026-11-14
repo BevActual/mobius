@@ -71,7 +71,7 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(article.locator('mark')).toHaveText('Breakfast included.');
   // Highlights collect in their own panel in the inspector, shown from the Panels menu.
   await shell.getByRole('button', { name: 'Panels' }).click();
-  await shell.getByRole('menuitem', { name: 'Highlights' }).click();
+  await shell.getByRole('menuitemcheckbox', { name: 'Highlights' }).click();
   await expect(shell.getByRole('region', { name: 'Highlights' })).toContainText('Breakfast included.');
   await expect.poll(() => fs.readFileSync(file, 'utf8')).toContain('==Breakfast included.==');
 
