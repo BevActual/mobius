@@ -74,6 +74,88 @@ pub fn base64_decode(text: &str) -> Res<Vec<u8>> {
     Ok(out)
 }
 
+/// The amounts an adjustment sets, each from -100 to 100, in the order Photo writes them.
+const AMOUNTS: [&str; 8] = ["exposure", "highlights", "shadows", "contrast", "saturation", "warmth", "tint", "vignette"];
+/// At most this many photos in one `photos.edit`.
+const MAX_BATCH: usize = 200;
+
+pub fn tool_descriptions() -> Vec<Value> {
+    let amount = |what: &str| json!({ "type": "number", "minimum": -100, "maximum": 100, "description": what });
+    vec![json!({ "name": "photos.edit", "description": "Give many photos in the Photo app the same look in one call: one adjustment (a named set of amounts) added to each photo's edits, or put in place of the adjustment of the same name it already has. The photos themselves are never changed; each photo's edits are kept beside it and can be put back. Name an album to edit all its photos, or list the photos.", "capability": "files.write",
+        "input_schema": { "type": "object", "properties": {
+            "album": { "type": "string", "description": "An album: every photo in it." },
+            "photos": { "type": "array", "items": { "type": "string" }, "description": "Photos as Album/photo.jpg (or file names in `album`)." },
+            "adjustment": { "type": "object", "description": "The look, each amount from -100 to 100 (0 changes nothing).", "properties": {
+                "name": { "type": "string", "description": "A short name for it, such as Warm evening." },
+                "exposure": amount("Brighter or darker."), "highlights": amount("The bright parts."), "shadows": amount("The dark parts."), "contrast": amount("Contrast."),
+                "saturation": amount("Colour strength."), "warmth": amount("Warmer (yellow) or cooler (blue)."), "tint": amount("Green or magenta."), "vignette": amount("Darker (or lighter) corners."),
+                "area": { "type": "object", "description": "Where it applies; all of the photo when left out. kind: all, below or above a line (at from 0 top to 1 bottom, soft), or ellipse (cx, cy, rx, ry, soft).", "properties": { "kind": { "type": "string", "enum": ["all", "below", "above", "ellipse"] }, "at": { "type": "number" }, "soft": { "type": "number" }, "cx": { "type": "number" }, "cy": { "type": "number" }, "rx": { "type": "number" }, "ry": { "type": "number" } } }
+            }, "required": ["name"] }
+        }, "required": ["adjustment"] } })]
+}
+
+pub fn is_photo_tool(name: &str) -> bool {
+    name == "photos.edit"
+}
+
+/// A number clamped to `lo..=hi`, rounded to thousandths, as Photo reads it.
+fn amount_in(v: &Value, lo: f64, hi: f64) -> Option<f64> {
+    v.as_f64().filter(|n| n.is_finite()).map(|n| ((n * 1000.0).round() / 1000.0).clamp(lo, hi))
+}
+
+/// One adjustment as Photo writes it: its id and name, the amounts that are not 0, and its area unless it is all of
+/// the photo.
+fn adjustment_line(id: &str, given: &Value) -> Res<Value> {
+    let name: String = given.get("name").and_then(Value::as_str).map(str::trim).filter(|n| !n.is_empty()).ok_or("the adjustment needs a name")?.chars().take(80).collect();
+    let mut out = serde_json::Map::new();
+    out.insert("id".into(), json!(id));
+    out.insert("name".into(), json!(name));
+    for key in AMOUNTS {
+        if let Some(n) = given.get(key).and_then(|v| amount_in(v, -100.0, 100.0)).filter(|n| *n != 0.0) {
+            out.insert(key.into(), json!(n));
+        }
+    }
+    let area = given.get("area").cloned().unwrap_or(Value::Null);
+    let num = |k: &str, d: f64, lo: f64, hi: f64| area.get(k).and_then(|v| amount_in(v, lo, hi)).unwrap_or(d);
+    match area.get("kind").and_then(Value::as_str) {
+        Some(kind @ ("below" | "above")) => {
+            out.insert("area".into(), json!({ "kind": kind, "at": num("at", 0.5, 0.0, 1.0), "soft": num("soft", 0.1, 0.0, 1.0) }));
+        }
+        Some("ellipse") => {
+            out.insert("area".into(), json!({ "kind": "ellipse", "cx": num("cx", 0.5, 0.0, 1.0), "cy": num("cy", 0.5, 0.0, 1.0), "rx": num("rx", 0.3, 0.01, 2.0), "ry": num("ry", 0.3, 0.01, 2.0), "soft": num("soft", 0.1, 0.0, 1.0) }));
+        }
+        _ => {}
+    }
+    Ok(Value::Object(out))
+}
+
+/// A photo's edits with `line` added, or in place of the adjustment of the same name, written as Photo writes them:
+/// one adjustment to a line, and any geometry kept.
+fn with_adjustment(existing: Option<&str>, given: &Value) -> Res<String> {
+    let raw: Value = existing.and_then(|t| serde_json::from_str(t).ok()).unwrap_or(Value::Null);
+    let mut list: Vec<Value> = raw.get("adjustments").and_then(Value::as_array).cloned().unwrap_or_default();
+    let name = given.get("name").and_then(Value::as_str).map(str::trim).unwrap_or_default();
+    match list.iter().position(|a| a.get("name").and_then(Value::as_str) == Some(name)) {
+        Some(i) => {
+            let id = list[i].get("id").and_then(Value::as_str).unwrap_or("m1").to_owned();
+            list[i] = adjustment_line(&id, given)?;
+        }
+        None => {
+            if list.len() >= 50 {
+                return Err("a photo has at most 50 adjustments".into());
+            }
+            let taken: Vec<&str> = list.iter().filter_map(|a| a.get("id").and_then(Value::as_str)).collect();
+            let id = (1..).map(|n| format!("m{n}")).find(|id| !taken.contains(&id.as_str())).unwrap_or_default();
+            let line = adjustment_line(&id, given)?;
+            list.push(line);
+        }
+    }
+    let body: Vec<String> = list.iter().map(|a| format!("    {a}")).collect();
+    let lines = if body.is_empty() { String::new() } else { format!("\n{}\n  ", body.join(",\n")) };
+    let geometry = raw.get("geometry").filter(|g| g.is_object()).map(|g| format!(",\n  \"geometry\": {g}")).unwrap_or_default();
+    Ok(format!("{{\n  \"version\": 1,\n  \"adjustments\": [{lines}]{geometry}\n}}\n"))
+}
+
 pub struct Photos {
     root: PathBuf,
 }
@@ -174,6 +256,54 @@ impl Photos {
             e.to_string()
         })?;
         Ok(json!({ "path": path, "editsModified": modified_ms(&edits) }))
+    }
+
+    /// The agent's Photo tools. `photos.edit` gives each photo the same adjustment; the photos are never changed.
+    pub fn run(&self, tool: &str, args: &Value) -> Res<String> {
+        if tool != "photos.edit" {
+            return Err(format!("unknown tool {tool}"));
+        }
+        let adjustment = args.get("adjustment").filter(|a| a.is_object()).ok_or("say the adjustment to make")?;
+        let album = args.get("album").and_then(Value::as_str).map(str::trim).filter(|a| !a.is_empty());
+        let listed: Vec<String> = args.get("photos").and_then(Value::as_array).map(|l| l.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
+        let paths: Vec<String> = if listed.is_empty() {
+            let album = album.ok_or("name an album or list the photos")?;
+            let albums = self.albums()?;
+            let found = albums.as_array().into_iter().flatten().find(|a| a["name"].as_str().is_some_and(|n| n.eq_ignore_ascii_case(album))).ok_or_else(|| format!("there is no album {album}"))?;
+            found["photos"].as_array().into_iter().flatten().filter_map(|p| p["path"].as_str().map(str::to_owned)).collect()
+        } else {
+            listed.iter().map(|p| match album {
+                Some(a) if !p.contains('/') => format!("{a}/{p}"),
+                _ => p.trim_start_matches("photos/").to_owned(),
+            }).collect()
+        };
+        if paths.is_empty() {
+            return Err("there are no photos there".into());
+        }
+        if paths.len() > MAX_BATCH {
+            return Err(format!("at most {MAX_BATCH} photos at once"));
+        }
+        // Every photo is checked before any is changed, so a wrong name changes nothing.
+        let mut files = Vec::new();
+        for path in &paths {
+            let file = self.photo(path)?;
+            if !file.is_file() {
+                return Err(format!("{path} is not there"));
+            }
+            files.push((path, PathBuf::from(format!("{}{EDITS_SUFFIX}", file.display()))));
+        }
+        for (_, edits) in &files {
+            let text = with_adjustment(fs::read_to_string(edits).ok().as_deref(), adjustment)?;
+            let temp = PathBuf::from(format!("{}.mobius-tmp", edits.display()));
+            fs::write(&temp, text).map_err(|e| e.to_string())?;
+            fs::rename(&temp, edits).map_err(|e| {
+                let _ = fs::remove_file(&temp);
+                e.to_string()
+            })?;
+        }
+        let name = adjustment.get("name").and_then(Value::as_str).unwrap_or_default().trim();
+        let n = files.len();
+        Ok(format!("Gave {n} photo{} the adjustment \"{name}\": {}. The photos themselves are unchanged.", if n == 1 { "" } else { "s" }, paths.join(", ")))
     }
 
     /// Adds a picture to an album (a file dropped on the window), under a name not yet taken.
@@ -397,6 +527,41 @@ impl Photos {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn one_edit_gives_a_whole_album_the_same_look_and_never_touches_the_photos() {
+        let dir = tempfile::tempdir().unwrap();
+        let photos = Photos::new(dir.path());
+        let album = dir.path().join("photos/Coast");
+        fs::create_dir_all(&album).unwrap();
+        for name in ["a.jpg", "b.jpg", "c.png"] {
+            fs::write(album.join(name), b"picture").unwrap();
+        }
+        // One photo already has an edit of its own, and a crop.
+        fs::write(album.join("b.jpg.edits.json"), r#"{"version":1,"adjustments":[{"id":"a1","name":"Lift","shadows":20}],"geometry":{"turns":1,"flip":false,"straighten":0,"crop":{"x":0,"y":0,"w":1,"h":1}}}"#).unwrap();
+        let look = json!({ "name": "Warm evening", "warmth": 30, "exposure": -5.5, "contrast": 0, "vignette": 400 });
+        let said = photos.run("photos.edit", &json!({ "album": "coast", "adjustment": look })).unwrap();
+        assert!(said.starts_with("Gave 3 photos the adjustment \"Warm evening\""), "{said}");
+        for name in ["a.jpg", "b.jpg", "c.png"] {
+            assert_eq!(fs::read(album.join(name)).unwrap(), b"picture", "{name} itself is unchanged");
+        }
+        let a: Value = serde_json::from_str(&fs::read_to_string(album.join("a.jpg.edits.json")).unwrap()).unwrap();
+        assert_eq!(a["adjustments"], json!([{ "id": "m1", "name": "Warm evening", "exposure": -5.5, "warmth": 30.0, "vignette": 100.0 }]));
+        let b: Value = serde_json::from_str(&fs::read_to_string(album.join("b.jpg.edits.json")).unwrap()).unwrap();
+        assert_eq!(b["adjustments"][0]["name"], "Lift", "its own edit stays, first");
+        assert_eq!(b["adjustments"][1]["name"], "Warm evening");
+        assert_eq!(b["geometry"]["turns"], 1, "its crop and turn stay");
+        // Again with the same name: put in place, not added twice.
+        photos.run("photos.edit", &json!({ "album": "Coast", "photos": ["a.jpg"], "adjustment": { "name": "Warm evening", "warmth": 10 } })).unwrap();
+        let a: Value = serde_json::from_str(&fs::read_to_string(album.join("a.jpg.edits.json")).unwrap()).unwrap();
+        assert_eq!(a["adjustments"], json!([{ "id": "m1", "name": "Warm evening", "warmth": 10.0 }]));
+        // A wrong name changes nothing at all.
+        let before = fs::read_to_string(album.join("c.png.edits.json")).unwrap();
+        assert!(photos.run("photos.edit", &json!({ "photos": ["Coast/c.png", "Coast/nope.jpg"], "adjustment": { "name": "Cool", "warmth": -20 } })).is_err());
+        assert_eq!(fs::read_to_string(album.join("c.png.edits.json")).unwrap(), before);
+        assert!(photos.run("photos.edit", &json!({ "album": "Nowhere", "adjustment": { "name": "x" } })).is_err());
+        assert!(photos.run("photos.edit", &json!({ "album": "Coast", "adjustment": { "warmth": 5 } })).is_err(), "it needs a name");
+    }
 
     #[test]
     fn base64_goes_both_ways() {
