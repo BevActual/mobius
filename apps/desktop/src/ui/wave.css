@@ -20,7 +20,7 @@
 .ui-wave-trim { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--paper) 72%, transparent); pointer-events: none; }
 .ui-wave-trim[data-side="start"] { left: 0; }
 .ui-wave-trim[data-side="end"] { right: 0; }
-/* The playhead is the 2px moving line with no tab; start and end are 1px markers with a tab. */
+/* The playhead is the thicker moving line with no tab; start and end are hairline markers with a tab. */
 .ui-wave-playhead { position: absolute; top: 0; bottom: 0; width: var(--focus-w); margin-left: calc(var(--focus-w) / -2); background: var(--ink); pointer-events: none; }
 /* Edges: a hairline the full height, a wider invisible hit area, and a tab where it is held. */
 .ui-wave-edge {
