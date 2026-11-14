@@ -27,8 +27,8 @@ program. Install it, sign in, then choose **Check again**. See
 
 ## Mobius and your work
 
-**Mobius keeps asking before doing things.** You're in **Ask first**, or the action is one that always asks. Switch
-modes with Shift+Tab in the message box. See [Working with Mobius](guide/working-with-mobius.md).
+**Mobius keeps asking before doing things.** Your permission is **Ask each time**, or the action is one that always asks. Change the
+permission in the message box. See [Working with Mobius](guide/working-with-mobius.md).
 
 **I don't want a change Mobius made.** Choose **Discard** in the app, or **Rewind to here** in the Activity
 app to go back further. The [Review](apps/review.md) app lists everything Mobius changed.

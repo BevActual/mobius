@@ -29,7 +29,7 @@ describe('desk', () => {
     const ago = (minutes: number) => now.getTime() - minutes * 60_000;
     expect(agoLabel(ago(0), now)).toBe('Just now');
     expect(agoLabel(ago(25), now)).toBe('25 min ago');
-    expect(agoLabel(ago(185), now)).toBe('3 h ago');
+    expect(agoLabel(ago(185), now)).toBe('3 hr ago');
     expect(agoLabel(new Date(2026, 10, 8, 23, 0).getTime(), now)).toBe('Yesterday');
     expect(agoLabel(new Date(2026, 10, 5, 9, 0).getTime(), now)).toBe('Thursday');
     expect(agoLabel(new Date(2026, 10, 2, 9, 0).getTime(), now)).toBe('2 Nov');
