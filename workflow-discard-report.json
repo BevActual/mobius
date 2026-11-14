@@ -1,0 +1,25 @@
+{
+  "test": "discard",
+  "started": "2026-11-14T13:58:04.525Z",
+  "steps": [
+    {
+      "n": 1,
+      "name": "discard-asked",
+      "ok": true,
+      "notes": [],
+      "picture": "workflow-discard-01-discard-asked.png",
+      "ms": 2311
+    },
+    {
+      "n": 2,
+      "name": "discarded",
+      "ok": true,
+      "notes": [
+        "discard buttons: 1"
+      ],
+      "picture": "workflow-discard-02-discarded.png",
+      "ms": 2887
+    }
+  ],
+  "approvalsAsked": []
+}
