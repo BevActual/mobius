@@ -154,6 +154,9 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   // The less used actions are at the top of the toolbar's one ⋯.
   await list.getByRole('option').first().click();
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  // Whether this window is drawing frames now: menu items used to wait for one, and in a covered window none came.
+  const frames = await shell().evaluate(() => new Promise<string>((done) => { let drawn = false; requestAnimationFrame(() => { drawn = true; }); setTimeout(() => done(`${document.visibilityState}, frame within 1s: ${drawn}`), 1000); }));
+  console.log(`[e2e frames] mail toolbar menu: ${frames}`);
   await shell().getByRole('menuitem', { name: 'Mark as Unread' }).click();
   // Mark as Unread closes the message, so a failure below is about what the list shows, not which row ran.
   await expect(tools).toHaveCount(0);
