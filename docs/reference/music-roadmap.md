@@ -86,7 +86,7 @@ notes for good, so the file always shows what you hear.
 | Keep to key | Moves stray notes into the song's key. | Next |
 | Chords | Plays a chord from each note, by degree in the key. | Next |
 | Arpeggio | Plays held chords as patterns in time. | Next |
-| Step grid | Sixteen steps per drum, for patterns. | Building |
+| Step sequencer | Sixteen steps a bar: a row per drum, or a row per note of the key for any other instrument, with an octave and a step length. | Building |
 | Strum and humanise | Small timing and loudness changes so parts feel played. | Later |
 | Chance | Each note plays some of the time, for variation. | Later |
 | Echo notes | Repeats each note, softer, in time. | Later |

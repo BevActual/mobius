@@ -139,7 +139,10 @@
 /* The keyboard: paper keys with the black ones short and in ink, C named on each octave. It follows the theme. */
 .studio-key { position: sticky; left: 0; z-index: 2; flex: none; width: var(--keys, 64px); height: 100%; padding-right: var(--sp-1); box-sizing: border-box; text-align: right; font: var(--fw-semibold) var(--fs-floor) / var(--row, 14px) var(--font-mono); color: transparent; background: var(--paper); border-bottom: 0.5px solid var(--line); border-right: var(--hairline-w) solid var(--line); cursor: pointer; }
 .studio-key[data-c] { color: var(--muted); }
-.studio-key[data-black] { background: linear-gradient(90deg, var(--on-content) 0 62%, var(--paper) 62%); border-bottom-color: var(--on-content); }
+/* The keyboard reads at a glance in both themes: white keys on a raised surface, black keys darker than the paper with
+   an edge, so on a dark ground they still stand out. */
+.studio-key:not([data-drum]) { background: var(--raised); }
+.studio-key[data-black] { background: linear-gradient(90deg, var(--on-content) 0 62%, var(--raised) 62%); border-bottom-color: var(--line); box-shadow: inset -1px 0 0 var(--line); }
 .studio-key:active { background: color-mix(in srgb, var(--tc) 40%, var(--paper)); }
 .studio-key[data-drum] { padding: 0 var(--sp-2); text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font: var(--fs-sm) / var(--row, 26px) var(--font); color: var(--ink); background: color-mix(in srgb, var(--ink) 3%, var(--paper)); border-bottom-color: var(--line); }
 /* A note in the track's colour, stronger for louder. */
@@ -166,7 +169,7 @@
 /* A narrower window: the toolbar keeps Play, Stop, the tempo and Loop, and lets the meter and then the position go
    first (the ruler still shows where the song is), so it never runs under the right panel. */
 @media (max-width: 1360px) {
-  .studio-meter, .studio-sep { display: none; }
+  .studio-sep { display: none; }
   .studio-readout { padding: 0 var(--sp-2); }
   .studio-pos { min-width: 0; }
 }

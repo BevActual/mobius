@@ -6,7 +6,7 @@ import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip,
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -223,7 +223,9 @@ const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', lab
 /** The song's two views: its clips to launch and try against each other, and the song laid out from start to end. */
 const VIEWS = [{ id: 'session', name: 'Session' }, { id: 'arrange', name: 'Arrange' }] as const;
 const LENGTH_CHOICES = CLIP_BARS.map((b) => ({ value: String(b), label: `${b} ${b === 1 ? 'bar' : 'bars'}` }));
-const DRUM_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
+/** The octaves a melody's steps can start from, named by the two octaves they show. */
+const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label: `C${o} to C${o + 2}` }));
+const STEP_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
 /** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
@@ -364,6 +366,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const [grid, setGrid] = useState(0.25);
   /** A drums track's notes as a piano roll, or as a bar of steps. */
   const [drumView, setDrumView] = useState<'notes' | 'steps'>('notes');
+  /** The octave a melody's steps show, until it is picked; then it stays for that track. */
+  const [stepOct, setStepOct] = useState<Record<string, number>>({});
   const [stepBar, setStepBar] = useState(0);
   const [drawLength, setDrawLength] = useState(1);
   const [zoom, setZoom] = useState(1);
@@ -612,6 +616,9 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
   const notes = clip ? clip.notes : (track?.notes ?? []);
+  // Steps: a row per drum, or for a melody a row per note of the key across two octaves, from the octave picked.
+  const octave = track ? (stepOct[track.id] ?? stepOctave(notes, track.instrument === 'bass' ? 2 : 4)) : 4;
+  const stepRows = drums ? STEP_ROWS : scaleRows(inKey, octave).map((p) => ({ id: String(p), name: noteName(p) }));
   const pickedNotes = notes.filter((_, i) => picked.has(i));
 
   const setNotes = (fn: (n: SongNote[]) => { notes: SongNote[]; picked: Set<number> } | SongNote[], tag = '') => {
@@ -947,11 +954,10 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
         <IconButton label="Stop" title={playing ? 'Stop' : 'Back to the start'} keys={playing ? 'Space' : 'Enter'} icon={<Icon d={ICONS.stop} />} onClick={stopOrRewind} />
         <span className="studio-sep" aria-hidden="true" />
         <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
-        <label className="studio-readout studio-tempo" title="Tempo, in beats per minute">
+        <label className="studio-readout studio-tempo" title="Tempo, in beats per minute (every song is in 4 / 4 for now)">
           <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
           <span aria-hidden="true">bpm</span>
         </label>
-        <span className="studio-readout studio-meter" aria-label="Meter: 4 beats to a bar" title="Every song is in 4 / 4 for now">4 / 4</span>
         <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
         <span className="studio-sep" aria-hidden="true" />
         <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
@@ -1047,20 +1053,21 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                 </>}
                 <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
                 {detail === 'notes' && (view === 'arrange' || clip) && <>
-                {drums && <Segmented label="View" value={drumView} choices={DRUM_VIEWS} onChange={setDrumView} />}
-                {drums && drumView === 'steps' ? (
+                <Segmented label="View" value={drumView} choices={STEP_VIEWS} onChange={setDrumView} />
+                {drumView === 'steps' ? (
                   <Select inline label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: String(b + 1) }))} onChange={(b) => setStepBar(Number(b))} />
                 ) : <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />}
+                {drumView === 'steps' && !drums && <Select inline label="Octave" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
                 {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
-                {!(drums && drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
+                {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
                 <span className="studio-gap" />
-                {velocity !== null && !(drums && drumView === 'steps') ? (
+                {velocity !== null && !(drumView === 'steps') ? (
                   <>
                     <span className="studio-picked">{pickedNotes.length === 1 ? `${drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at ${position(pickedNotes[0]!.start, song.tempo).bars}` : `${pickedNotes.length} notes`}</span>
                     <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
                     <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
-                ) : <span className="studio-hint">{drums && drumView === 'steps' ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
+                ) : <span className="studio-hint">{drumView === 'steps' ? (drums ? 'Click a step to switch it on or off, Shift+click for an accent.' : 'Rows are the notes of the key. Click a step to play that note there, Shift+click for an accent.') : 'Click to draw a note, drag to move it, drag its end to stretch it.'}</span>}
                 </>}
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
@@ -1068,11 +1075,15 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <StudioDevice track={track} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
           ) : view === 'session' && !clip ? (
             <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
-          ) : drums && drumView === 'steps' ? (
+          ) : drumView === 'steps' ? (
             <div className="studio-steps">
-              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={STEP_ROWS} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), STEP_ROWS.map((r) => Number(r.id)))}
+              <StepGrid fill label={`Steps of ${track.name}, bar ${Math.min(stepBar, spanBars - 1) + 1}`} rows={stepRows} cells={stepCells(notes, Math.min(stepBar, spanBars - 1), stepRows.map((r) => Number(r.id)))}
                 now={playing && rollBeat >= 0 && Math.floor(rollBeat / BEATS_PER_BAR) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat % BEATS_PER_BAR) * 4) : undefined}
-                onChange={(row, step, v) => { const pitch = Number(STEP_ROWS[row]!.id); if (v > 0) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v), 'steps'); }} />
+                onChange={(row, step, v) => {
+                  const pitch = Number(stepRows[row]!.id);
+                  if (v > 0) { if (drums) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); else previewNote(track.instrument, pitch, v, 0.3, track.sound); }
+                  setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v, drums ? 0.25 : drawLength), 'steps');
+                }} />
             </div>
           ) : <>
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>

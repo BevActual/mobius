@@ -91,7 +91,7 @@ A small studio for writing songs as notes.
   track of it to the open song. **From Mobius** lists songs with a part Mobius wrote that you have not kept yet. The
   last song you had open opens when you come back. Right-click a song to delete it; Music asks first.
 - **The toolbar** holds the song's name, its key (change it there) and whether it is saved, then Play (Space), Stop
-  (twice, or Enter, to go back to the start), the position and tempo in mono figures, the meter and Loop (L).
+  (twice, or Enter, to go back to the start), the position and tempo in mono figures, Loop (L), and the Session and Arrange switch. Every song is in 4 / 4 for now.
 - **Two views**, switched in the toolbar. **Arrange** is the song from start to end, as below. **Session** is a grid
   of clips, a column per track and a row per scene. Click an empty slot to make a clip there; its notes open in the
   bottom area, where Clip length sets how long it goes round (1 to 16 bars). Press a clip's triangle to launch it: it
@@ -132,7 +132,9 @@ A small studio for writing songs as notes.
   Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
 - **The notes editor** draws, moves and stretches notes, selects with
-  a box and snaps to the grid. Drums get a tall row per drum, named in full. For drums, **Steps** shows one bar as sixteen steps per drum:
+  a box and snaps to the grid. Drums get a tall row per drum, named in full. **Steps** shows one bar as sixteen steps, the step sequencer: a row per
+  drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Octave, and how
+  long each step plays with Note length). In either:
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
   per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
   side; Home fits the tracks again.

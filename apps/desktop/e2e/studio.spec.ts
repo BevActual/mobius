@@ -257,6 +257,21 @@ test('the Session view has clips to launch in scenes, each with its own notes, k
   await expect(tracks()).toBeVisible();
 });
 
+test('a melody is written as steps too, a row per note of the key', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start([], 'Bass');
+  await shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name: 'Steps' }).click();
+  // A minor's notes from the C of the bass's octave: A2 is a row, A#2 is not.
+  await expect(shell().getByRole('group', { name: 'A2' })).toBeVisible();
+  await expect(shell().getByRole('group', { name: 'A#2' })).toHaveCount(0);
+  await shell().getByRole('group', { name: 'C3' }).getByRole('button', { name: 'C3, step 3', exact: true }).click();
+  await expect.poll(() => saved().tracks[1]!.notes.find((n) => n.pitch === 48)).toMatchObject({ start: 0.5 });
+  // Another octave shows other rows.
+  await shell().getByRole('combobox', { name: 'Octave' }).click();
+  await shell().getByRole('option', { name: 'C4 to C6' }).click();
+  await expect(shell().getByRole('group', { name: 'E5' })).toBeVisible();
+});
+
 test('velocity is drawn under the roll and dragged per note; the track list fits its tracks and resizes', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

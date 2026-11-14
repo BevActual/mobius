@@ -239,11 +239,11 @@ export function stepCells(notes: readonly SongNote[], bar: number, pitches: read
   }));
 }
 
-/** A step switched on (a sixteenth hit at that velocity), changed, or off (velocity 0); the notes stay in order. */
-export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number): SongNote[] {
+/** A step switched on (a hit at that velocity, a sixteenth long unless `length` says), changed, or off (velocity 0); the notes stay in order. */
+export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number, length = 0.25): SongNote[] {
   const at = bar * BEATS_PER_BAR + step / 4;
   const kept = notes.filter((n) => !(n.pitch === pitch && sameBeat(n.start, at)));
-  if (velocity > 0) kept.push({ pitch, start: at, length: 0.25, velocity: Math.min(1, velocity) });
+  if (velocity > 0) kept.push({ pitch, start: at, length, velocity: Math.min(1, velocity) });
   return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
 }
 
@@ -264,3 +264,18 @@ export function clipHits<N extends { start: number }>(notes: readonly N[], lengt
 
 /** The next bar line at or after `beat`, where a launched clip starts, so it lands in time with what is playing. */
 export const nextBar = (beat: number): number => Math.max(0, Math.ceil(beat / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR);
+
+/** A melody's step rows, high to low: `count` notes in the key, from the C of `octave` up (C4 is middle C). */
+export function scaleRows(inKey: ReadonlySet<number>, octave: number, count = 15): number[] {
+  const rows: number[] = [];
+  for (let p = 12 * (octave + 1); rows.length < count && p <= 127; p++) if (inKey.has(p % 12)) rows.push(p);
+  return rows.reverse();
+}
+
+/** The octave a melody's steps open on: the one its notes sit in most, or a starting point for the instrument. */
+export function stepOctave(notes: readonly SongNote[], fallback: number): number {
+  if (notes.length === 0) return fallback;
+  const counts = new Map<number, number>();
+  for (const n of notes) { const o = Math.floor(n.pitch / 12) - 1; counts.set(o, (counts.get(o) ?? 0) + 1); }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0];
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -159,5 +159,20 @@ describe('a clip in the Session view', () => {
     expect(nextBar(0.5)).toBe(4);
     expect(nextBar(4)).toBe(4);
     expect(nextBar(7.99)).toBe(8);
+  });
+});
+
+describe('a melody as steps', () => {
+  it('has a row per note of the key, high to low, from the C of the octave picked', () => {
+    const aMinor = new Set([9, 11, 0, 2, 4, 5, 7]);
+    const rows = scaleRows(aMinor, 4, 8);
+    expect(rows).toEqual([72, 71, 69, 67, 65, 64, 62, 60]);
+  });
+  it('opens on the octave its notes sit in most', () => {
+    expect(stepOctave([], 2)).toBe(2);
+    expect(stepOctave([{ pitch: 45, start: 0, length: 1, velocity: 1 }, { pitch: 64, start: 0, length: 1, velocity: 1 }, { pitch: 60, start: 1, length: 1, velocity: 1 }], 2)).toBe(4);
+  });
+  it('writes a step as long as asked', () => {
+    expect(setStep([], 0, 60, 4, 0.8, 0.5)).toEqual([{ pitch: 60, start: 1, length: 0.5, velocity: 0.8 }]);
   });
 });
