@@ -3269,15 +3269,13 @@ impl Bridge {
                     }
                     Err(e) => failed(e),
                 },
-                (Some(_), Ok(files)) => {
+                (Some(end), Ok(files)) => {
                     // The turn's files only; one changed again since is left as it is, and said.
-                    let mut kept = Vec::new();
-                    for path in &files {
-                        if changed_later(path) {
-                            kept.push(path.clone());
-                        } else if let Err(e) = self.workspace.restore_file(&mark, path) {
-                            return Ok(failed(e));
-                        }
+                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|path| changed_later(path));
+                    // All at once: one by one, each took a checkpoint of its own, and a tidy of a hundred files took
+                    // most of a minute to undo.
+                    if let Err(e) = self.workspace.restore_turn(&mark, end, &back) {
+                        return Ok(failed(e));
                     }
                     self.reload_after_undo(None);
                     json!({ "ok": true, "kept": kept })

@@ -158,6 +158,13 @@ impl Workspace {
         self.checkpoints.restore_file(&root, checkpoint, path).map_err(|e| e.to_string())
     }
 
+    /// Puts a turn's files back as they were at `checkpoint`, all at once, and moves back what its moves (up to `end`)
+    /// left where they went (archives and videos, which checkpoints leave out). Folders left empty are taken away.
+    pub fn restore_turn(&self, checkpoint: &str, end: &str, paths: &[String]) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.restore_files(&root, checkpoint, paths, Some(end)).map_err(|e| e.to_string())
+    }
+
     /// The person browsing a folder in Files: like `files.list`, with when each entry last changed (ms since 1970).
     /// The agent's tool leaves the dates out, so its listings stay short.
     pub fn browse(&self, relative: &str) -> Res<Value> {
@@ -548,9 +555,11 @@ impl Workspace {
                     }
                     planned.push((from_rel, to_rel, source, target));
                 }
-                let checkpointed = self.checkpoint(&format!("before the assistant moved {} in {}", planned.len(), if folder.is_empty() { "the workspace" } else { folder }));
+                // A checkpoint of its own, even when nothing it keeps changed since the last: the moves are counted from it.
+                let reason = format!("before the assistant moved {} in {}", planned.len(), if folder.is_empty() { "the workspace" } else { folder });
                 let root = self.real_root().ok();
-                let before = root.as_deref().and_then(|r| self.checkpoints.latest(r));
+                let before = root.as_deref().and_then(|r| self.checkpoints.snapshot_always(r, &reason).ok()).map(|c| c.id);
+                let checkpointed = before.is_some();
                 let mut done = Vec::new();
                 let mut pairs = Vec::new();
                 let mut failed = None;
@@ -934,8 +943,14 @@ mod tests {
             { "from": "notes.md", "to": "Documents/notes.md" },
             { "from": "Old", "to": "Archive/2026/Old" },
         ] })).unwrap();
-        ws.mark("the turn ends").unwrap();
-        ws.restore(&start).unwrap();
+        let end = ws.mark("the turn ends").unwrap().expect("a checkpoint");
+        // A later turn's move is its own: undoing this turn leaves it.
+        fs::write(root.join("Downloads/later.zip"), b"later").unwrap();
+        call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [{ "from": "later.zip", "to": "Later/later.zip" }] })).unwrap();
+        // Undo of the ended turn, as Mobius does it: its own files, all at once.
+        let files = ws.changed_between(&start, &end).unwrap();
+        ws.restore_turn(&start, &end, &files).unwrap();
+        assert!(root.join("Downloads/Later/later.zip").is_file(), "the later move stays");
         assert_eq!(fs::read(root.join("Downloads/setup.zip")).unwrap(), b"zip one");
         assert_eq!(fs::read(root.join("Downloads/Old/backup.zip")).unwrap(), b"zip two");
         assert_eq!(fs::read_to_string(root.join("Downloads/Old/read.md")).unwrap(), "old");
@@ -943,8 +958,9 @@ mod tests {
         for made in ["Downloads/Installers", "Downloads/Documents", "Downloads/Archive"] {
             assert!(!root.join(made).exists(), "{made} is taken away again");
         }
-        // Restoring again changes nothing: the moves were turned back once and forgotten.
+        // Restoring the whole folder to the start again: the turn's moves were turned back once and forgotten, and the
+        // later move goes back now.
         ws.restore(&start).unwrap();
-        assert!(root.join("Downloads/setup.zip").is_file() && root.join("Downloads").is_dir());
+        assert!(root.join("Downloads/setup.zip").is_file() && root.join("Downloads/later.zip").is_file() && !root.join("Downloads/Later").exists());
     }
 }
