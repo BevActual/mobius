@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
 import { fromPosition, logNudge, toPosition, type SliderProps } from './Slider';
 
 /**
@@ -15,13 +15,13 @@ import { fromPosition, logNudge, toPosition, type SliderProps } from './Slider';
  * or Home puts it back, and `onCommit` runs once when a drag or a key is let go.
  */
 
-function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
+export function clamp(v: number, lo: number, hi: number) { return Math.min(hi, Math.max(lo, v)); }
 function snap(v: number, step: number, min: number) {
   const n = Math.round((v - min) / step) * step + min;
   const digits = (String(step).split('.')[1] ?? '').length;
   return Number(n.toFixed(digits));
 }
-const ARROW: Record<string, 1 | -1> = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
+export const ARROW: Record<string, 1 | -1> = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 };
 
 /** Seconds as people read an envelope: "5 ms", "300 ms", "1.20 s". */
 export function secondsLabel(seconds: number): string {
@@ -135,10 +135,10 @@ export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, ste
 
 /* ------------------------------------------------------------------------------------------------------- Graph bits */
 
-type Handle<K extends string> = { key: K; x: number; y: number; label: string; text: string; now: number; min: number; max: number };
+export type Handle<K extends string> = { key: K; x: number; y: number; label: string; text: string; now: number; min: number; max: number; /** A short mark inside the handle (a band's number). */ mark?: string };
 
 /** Shared drag for a graph: which handle is held, and the pointer as 0 to 1 across and up the surface. */
-function useGraphDrag<K extends string>(onMove: (key: K, x: number, y: number, fine: boolean) => void, onDone: () => void, onReset: (key: K) => void) {
+export function useGraphDrag<K extends string>(onMove: (key: K, x: number, y: number, event: PointerEvent) => void, onDone: () => void, onReset: (key: K) => void) {
   const surface = useRef<HTMLDivElement>(null);
   const [held, setHeld] = useState<K | null>(null);
   // The surface holds the pointer while dragging, so a handle never sees its own dblclick; two presses make one.
@@ -159,19 +159,32 @@ function useGraphDrag<K extends string>(onMove: (key: K, x: number, y: number, f
   };
   const surfaceProps = {
     ref: surface,
-    onPointerMove: (e: PointerEvent<HTMLDivElement>) => { if (held) { const p = where(e); onMove(held, p.x, p.y, e.shiftKey); } },
+    onPointerMove: (e: PointerEvent<HTMLDivElement>) => { if (held) { const p = where(e); onMove(held, p.x, p.y, e); } },
     onPointerUp: () => { if (held) { setHeld(null); onDone(); } },
     onPointerCancel: () => setHeld(null),
   };
   return { held, grab, surfaceProps };
 }
 
-function HandleDot<K extends string>({ h, held, grab, onKey, disabled }: {
+export function HandleDot<K extends string>({ h, held, grab, onKey, onWheel, selected, disabled }: {
   h: Handle<K>; held: K | null; grab: (key: K) => (e: PointerEvent<HTMLElement>) => void;
-  onKey: (key: K, e: KeyboardEvent<HTMLSpanElement>) => void; disabled?: boolean;
+  onKey: (key: K, e: KeyboardEvent<HTMLSpanElement>) => void; onWheel?: (key: K, e: WheelEvent<HTMLSpanElement>) => void;
+  selected?: boolean; disabled?: boolean;
 }) {
+  // The wheel turns a handle (an EQ band's Q) instead of scrolling the page, so it needs a listener that can stop that.
+  const dot = useRef<HTMLSpanElement>(null);
+  const turn = useRef(onWheel);
+  turn.current = onWheel;
+  useEffect(() => {
+    const el = dot.current;
+    if (!el || !onWheel || disabled) return;
+    const wheel = (e: globalThis.WheelEvent) => { e.preventDefault(); turn.current?.(h.key, e as unknown as WheelEvent<HTMLSpanElement>); };
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => el.removeEventListener('wheel', wheel);
+  }, [h.key, !!onWheel, disabled]);
   return (
     <span
+      ref={dot}
       className="ui-graph-handle"
       role="slider"
       tabIndex={disabled ? -1 : 0}
@@ -182,10 +195,12 @@ function HandleDot<K extends string>({ h, held, grab, onKey, disabled }: {
       aria-valuetext={h.text}
       aria-disabled={disabled || undefined}
       data-held={held === h.key || undefined}
+      data-selected={selected || undefined}
+      data-mark={h.mark ? true : undefined}
       style={{ left: `${h.x * 100}%`, top: `${(1 - h.y) * 100}%` } as CSSProperties}
       onPointerDown={disabled ? undefined : grab(h.key)}
       onKeyDown={(e) => { if (!disabled) onKey(h.key, e); }}
-    />
+    >{h.mark}</span>
   );
 }
 

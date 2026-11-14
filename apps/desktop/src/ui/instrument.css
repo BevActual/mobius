@@ -71,3 +71,53 @@
 }
 .ui-steps .ui-step[data-now] { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
 .ui-steps .ui-step:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); z-index: 1; }
+
+/* A numbered handle (an EQ band): a larger dot with its number; the chosen band is filled. */
+.ui-graph-handle[data-mark] {
+  width: var(--band-dot); height: var(--band-dot); margin: calc(var(--band-dot) / -2) 0 0 calc(var(--band-dot) / -2);
+  display: grid; place-items: center; font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); color: var(--ink);
+}
+.ui-graph-handle[data-mark][data-selected], .ui-graph-handle[data-mark]:hover, .ui-graph-handle[data-mark][data-held] { background: var(--ink); color: var(--paper); }
+.ui-graph-guide[data-faint] { stroke-dasharray: 1 3; }
+
+/* EQ readout: a column per band, the chosen one in ink. */
+.ui-eq-readout div { display: grid; gap: 0; padding-top: var(--sp-1); border-top: var(--hairline-w) solid transparent; }
+.ui-eq-readout div[data-chosen] { border-top-color: var(--ink); }
+.ui-eq-readout div[data-chosen] dd { color: var(--ink); }
+.ui-eq-readout dd { font-size: var(--fs-sm); line-height: 1.35; }
+.ui-eq-readout div[data-off] dd { text-decoration: line-through; }
+
+/* Device chain: devices in a row, in signal order; the row scrolls sideways. */
+.ui-chain { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; overflow-x: auto; padding-bottom: var(--sp-1); }
+.ui-device {
+  display: flex; flex-direction: column; flex: none; min-width: var(--device-min-w); border: var(--hairline-w) solid var(--line);
+  border-radius: var(--radius-control); background: var(--paper);
+}
+.ui-device[data-collapsed] { min-width: 0; }
+.ui-device[data-dragging] { box-shadow: var(--shadow-2); }
+.ui-device[data-proposed] { border: var(--hairline-w) dashed var(--mobius); }
+.ui-device-head {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--device-head-h); padding: 0 var(--sp-2);
+  border-bottom: var(--hairline-w) solid var(--line-soft);
+}
+.ui-device[data-collapsed] .ui-device-head { border-bottom: 0; }
+.ui-device-title {
+  flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
+}
+.ui-device[data-off] .ui-device-title { color: var(--muted); }
+.ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
+  display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
+  background: transparent; color: var(--muted); cursor: default;
+}
+.ui-device-head .ui-device-grip { width: calc(var(--hit-min) / 2); cursor: grab; touch-action: none; }
+.ui-device[data-dragging] .ui-device-grip { cursor: grabbing; }
+.ui-device-head .ui-device-grip:hover:not(:disabled), .ui-device-head .ui-device-fold:hover:not(:disabled) { background: var(--sel); color: var(--ink); }
+.ui-device-grip:focus-visible, .ui-device-fold:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.ui-device-grip svg { width: 40%; fill: currentColor; }
+.ui-device-fold svg { width: 50%; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ui-device-body { padding: var(--sp-3); }
+.ui-device[data-off] .ui-device-body { opacity: 0.45; }
+/* An EQ needs more height than an envelope: ±18 dB has to read. */
+.ui-eq .ui-graph-surface { height: var(--eq-h); }

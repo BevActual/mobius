@@ -210,6 +210,10 @@
   --step-size: 20px;
   --step-gap: 2px;
   --step-name-w: 72px;
+  --band-dot: 16px;
+  --eq-h: 144px;
+  --device-min-w: 220px;
+  --device-head-h: 32px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -310,6 +314,8 @@ html[data-density='compact'], .app[data-density='compact'] {
   --knob-size: 32px;
   --graph-h: 80px;
   --step-size: 18px;
+  --device-head-h: 28px;
+  --eq-h: 120px;
 }
 
 /* More contrast: secondary text reads as body text, and hairlines are as strong as secondary text was. */

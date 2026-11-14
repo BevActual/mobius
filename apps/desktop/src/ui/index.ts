@@ -30,5 +30,6 @@ export {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, ENVELOPE_RANGES, musicQ, envelopePoints, filterLevel, secondsLabel, hertzLabel, panLabel,
   type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,
 } from './Instrument';
+export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
