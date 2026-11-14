@@ -10,8 +10,9 @@ import { KeyCaps } from './Tooltip';
  * Escape or a click elsewhere, giving focus back to the button. Behaviour is Base UI's.
  *
  * - `Popover`: any small panel of controls (the composer's plus menu: switches, a few rows, a link onward).
- * - `ChoiceMenu`: pick one of a few choices (Mode, Permission, model). The current one has a check, each shows its key,
- *   and a choice with a `meaning` is a two-line row: its name, then a grey line on what it means.
+ * - `ChoiceMenu`: pick one of a few choices (Mode, Permission, model): a setting that stays chosen. For commands
+ *   ("Add effect", "Export") use `Menu` instead, whose rows run and close (`detail` gives each a grey line on what it
+ *   does). The current choice has a check, each shows its key, and a choice with a `meaning` is a two-line row: its name, then a grey line on what it means.
  */
 
 type Side = 'top' | 'bottom' | 'left' | 'right';

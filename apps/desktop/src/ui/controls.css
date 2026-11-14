@@ -351,3 +351,7 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-swatch[data-color="stone"] { --swatch: var(--c-stone); }
 /* In a cell the hit square overhangs into the padding, so the track lines up with the name and value above it. */
 .ui-param .ui-track { width: calc(100% + var(--hit-min)); margin-inline: calc(var(--hit-min) / -2); }
+
+/* Compact parameter cell (a dense pro panel): the name in sentence case, small and grey; the value at body size. */
+.ui-param[data-size="compact"] .ui-param-name { font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: normal; text-transform: none; }
+.ui-param[data-size="compact"] .ui-param-value { font-size: var(--fs-md); line-height: 1.3; margin-top: 0; }

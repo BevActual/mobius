@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
-  Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
+  Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   DateField, TimeField, TimeRange, MonthPicker,
 } from '../ui';
@@ -269,6 +269,17 @@ export function Sheet() {
             <ParamGrid label="Track" columns={1}>
               <ParamCell label="Volume" unit="dB" min={-60} max={6} step={0.5} value={level} onChange={setLevel} format={(v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))} />
             </ParamGrid>
+            <span className="sheet-note">Compact (size=&quot;compact&quot;): a dense Device panel</span>
+            <ParamGrid label="Device, compact" columns={3}>
+              <ParamCell size="compact" label="Cutoff" unit="Hz" min={20} max={20000} scale="log" value={cutoff} onChange={setCutoff} format={(v) => String(Math.round(v))} />
+              <ParamCell size="compact" label="Decay" unit="s" min={0} max={2} step={0.01} value={decay} onChange={setDecay} format={(v) => v.toFixed(2)} />
+              <ParamCell size="compact" label="Level" unit="dB" min={-60} max={6} step={0.5} value={level} onChange={setLevel} format={(v) => (v > 0 ? `+${v.toFixed(1)}` : v.toFixed(1))} />
+            </ParamGrid>
+            <Menu label="Add effect" trigger={<Button>Add effect (menu with details)</Button>} entries={[
+              { label: 'EQ', detail: 'Shape the tone, band by band', run: () => {} },
+              { label: 'Echo', detail: 'Repeats that fade', run: () => {} },
+              { label: 'Drive', detail: 'Warmth and grit', run: () => {} },
+            ]} />
           </div>
         </Card>
 

@@ -22,6 +22,8 @@ export interface MenuEntry {
   separated?: boolean;
   /** A row that is on or off (a panel shown or hidden): a tick when on. */
   checked?: boolean;
+  /** A grey line under the label on what it does ("Add effect" › "Echo: repeats that fade"); makes the row two lines. */
+  detail?: string;
 }
 
 /**
@@ -90,6 +92,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
     <Base.CheckboxItem
       key={`${entry.label}-${i}`}
       className="ui-menu-item"
+      data-two-line={entry.detail ? true : undefined}
       label={entry.label}
       disabled={entry.disabled}
       closeOnClick={false}
@@ -98,13 +101,16 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
       onClick={() => pick(entry.run)}
     >
       {entry.checked ? TICK : <span className="ui-menu-icon" aria-hidden="true" />}
-      <span className="ui-menu-label">{entry.label}</span>
+      {entry.detail ? (
+        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning">{entry.detail}</span></span>
+      ) : <span className="ui-menu-label">{entry.label}</span>}
       {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.CheckboxItem>
   ) : (
     <Base.Item
       key={`${entry.label}-${i}`}
       className="ui-menu-item"
+      data-two-line={entry.detail ? true : undefined}
       label={entry.label}
       disabled={entry.disabled}
       closeOnClick={false}
@@ -113,7 +119,9 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
       onClick={() => pick(entry.run)}
     >
       {entry.icon ?? <span className="ui-menu-icon" aria-hidden="true" />}
-      <span className="ui-menu-label">{entry.label}</span>
+      {entry.detail ? (
+        <span className="ui-choice-text"><span className="ui-menu-label">{entry.label}</span><span className="ui-choice-meaning">{entry.detail}</span></span>
+      ) : <span className="ui-menu-label">{entry.label}</span>}
       {entry.keys && <KeyCaps className="ui-menu-keys" keys={entry.keys} />}
     </Base.Item>
   ));
