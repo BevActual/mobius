@@ -784,7 +784,13 @@ export interface MobiusBridge {
     onChanged(listener: (change: PhotosChanged) => void): () => void;
   };
   /** The Studio app: songs kept like notes, as JSON in `studio/<folder>/<song>.json`. Only the Tauri shell has it. */
-  songs?: NonNullable<MobiusBridge['notes']>;
+  songs?: NonNullable<MobiusBridge['notes']> & {
+    /** Save a song rendered in the window (WAV, base64, up to 64 MB) in the workspace's `Exports` folder, never over a
+     *  file there: `saved` is where it went (`Exports/<name>`). */
+    saveExport?(path: string, name: string, base64: string): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
+    /** Open the workspace's `Exports` folder in the system's file manager. */
+    showExports?(): Promise<{ ok: true } | NotesFailure>;
+  };
   /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
   designs?: NonNullable<MobiusBridge['notes']>;
   /** The Canvas app: boards kept like notes, as JSON in `boards/<folder>/<board>.json`. Only the Tauri shell has it. */

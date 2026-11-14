@@ -1,5 +1,6 @@
 import { formatWith, timeLabel as timeOf } from './dates';
 import type { CalendarEvent } from '@mobius/shared';
+import { lengthLabel } from './ui/dateText';
 
 /** What the Calendar app shows: one day, a week (Monday first), or a month as whole weeks. */
 export type CalendarMode = 'day' | 'week' | 'month' | 'year';
@@ -136,6 +137,41 @@ export function eventsOn(events: readonly CalendarEvent[], day: Date): CalendarE
     return (s < end && f > start) || (s === f && s >= start && s < end);
   });
   return on.sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start.localeCompare(b.start));
+}
+
+/** When the working day ends, for the Glance's free time. */
+export const DAY_ENDS_AT = 18;
+
+/**
+ * What the Mobius panel's Glance says about the rest of today: how many timed events are still to come or under way,
+ * when the next one starts, and the free time between now and the end of the working day, 6 pm (left out once the
+ * working day is over). All-day events take no time.
+ */
+export function calendarGlance(events: readonly CalendarEvent[], now: Date): { label: string; value: string | null }[] {
+  const at = now.getTime();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DAY_ENDS_AT).getTime();
+  const timed = eventsOn(events, now)
+    .filter((e) => !e.allDay)
+    .map((e) => ({ e, s: localDate(e.start).getTime(), f: localDate(e.end).getTime() }))
+    .filter(({ f }) => f > at)
+    .sort((a, b) => a.s - b.s);
+  const next = timed.find(({ s }) => s >= at);
+  let free: string | null = null;
+  if (end > at) {
+    let busy = 0;
+    let reach = at;
+    for (const { s, f } of timed) {
+      const from = Math.max(s, reach);
+      const to = Math.min(f, end);
+      if (to > from) { busy += to - from; reach = to; }
+    }
+    free = lengthLabel((end - at - busy) / 60000);
+  }
+  return [
+    { label: 'Still to come', value: String(timed.length) },
+    { label: 'Next', value: next ? clock(next.e.start) : 'Nothing' },
+    { label: 'Free time', value: free },
+  ];
 }
 
 /** A colour for each calendar, by its place in the list, the same everywhere it is drawn. */

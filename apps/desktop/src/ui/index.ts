@@ -12,7 +12,8 @@ import './pads.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
-export { AppFrame, ToolbarControls, type ToolbarParts } from './AppFrame';
+export { AppFrame, ToolbarControls, ToolbarItem, type ToolbarParts } from './AppFrame';
+export { type ToolbarPriority } from './toolbarFit';
 export { useKeyboardClaim, keyboardClaimed } from './keyboardClaim';
 export { ViewSwitch, type ViewChoice } from './ViewSwitch';
 export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow, type SidebarRowDrop } from './AppSidebar';
