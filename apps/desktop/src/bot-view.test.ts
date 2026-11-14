@@ -3,8 +3,8 @@ import { agentSchedules, botFromConversation, mayTouch, modelChoices } from './b
 
 describe('bots', () => {
   it('say what they may touch, from the per-app settings and the mode', () => {
-    expect(mayTouch({ browser: 'always', notes: 'follow', tasks: 'follow', mail: 'off' }, 'Propose')).toBe('Off: Mail. Always asks: Browser. Everything else follows your mode, Propose.');
-    expect(mayTouch({ browser: 'follow', notes: 'follow', tasks: 'follow' }, 'Act')).toBe('Every app follows your mode, Act.');
+    expect(mayTouch({ browser: 'always', notes: 'follow', tasks: 'follow', mail: 'off' }, 'Review changes')).toBe('Off: Mail. Always asks: Browser. Everything else follows your permission, Review changes.');
+    expect(mayTouch({ browser: 'follow', notes: 'follow', tasks: 'follow' }, 'Auto')).toBe('Every app follows your permission, Auto.');
   });
 
   it('are made from a conversation: its title, and what was first asked', () => {
