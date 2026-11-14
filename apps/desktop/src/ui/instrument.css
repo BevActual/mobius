@@ -213,3 +213,12 @@
 :is(.ui-param, .ui-slider)[data-proposed] {
   outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: var(--sp-1); border-radius: var(--radius-control);
 }
+
+/* Graphs (EnvelopeGraph, FilterGraph, EqGraph `proposed`): the settings Mobius moved read in indigo, their handles
+   wear a dashed indigo ring, and the shape is drawn in dashed indigo until it is kept. */
+.ui-graph[data-proposed] .ui-graph-line:not([data-ghost]) { stroke: var(--mobius); stroke-dasharray: 5 3; }
+.ui-graph[data-proposed] .ui-graph-area { fill: color-mix(in srgb, var(--mobius) 10%, transparent); }
+.ui-graph-handle[data-proposed] { box-shadow: none; outline: calc(var(--hairline-w) * 2) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -2); }
+.ui-graph-handle[data-proposed][data-mark] { color: var(--mobius); }
+.ui-graph-handle[data-proposed]:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-graph-readout [data-proposed] dd, .ui-graph-readout dd[data-proposed] { color: var(--mobius); }
