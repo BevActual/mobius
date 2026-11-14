@@ -350,6 +350,8 @@ test('Record plays from the playhead and writes what is played on the computer k
 });
 
 test('automation draws a volume line under a track with points, kept in the song', async () => {
+  // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
+  await resizeWindow(mobius!.app, 1600, 900);
   await start();
   await shell().getByRole('button', { name: 'Automation' }).click();
   const lane = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Volume automation' });
@@ -387,6 +389,8 @@ test('Export as WAV renders the song and saves it in the Exports folder', async 
 });
 
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
+  // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.
+  await resizeWindow(mobius!.app, 1600, 900);
   await start();
   const play = shell().getByRole('button', { name: 'Computer keyboard' });
   await play.click();
