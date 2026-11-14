@@ -23,3 +23,5 @@ body { overflow: auto; background: var(--frame); }
 .sheet-pads { align-items: start; }
 .sheet-composer { display: flex; align-items: center; gap: 4px; max-width: 520px; margin-top: 300px; padding: 8px; border: 1px solid var(--line); border-radius: 9px; background: var(--paper); }
 .sheet-spacer { flex: 1; }
+.sheet-stack { display: flex; flex-direction: column; gap: 16px; max-width: 320px; }
+.sheet-month { width: 248px; }
