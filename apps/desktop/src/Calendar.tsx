@@ -34,7 +34,7 @@ const GUTTER = 68;
 const CELL_ROWS = 4;
 /** How many all-day events and tasks a day shows above the hours before "+N more". */
 const ALL_DAY_ROWS = 2;
-const MODES: { id: CalendarMode; name: string }[] = [{ id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }];
+const MODES: { id: CalendarMode; name: string }[] = [{ id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }];
 
 /** A calendar in the sidebar: its colour as a dot, its name; pressed, it is hidden from the grid and pressed again, shown. */
 function CalendarRow({ calendar, name, proposed = false }: { calendar: CalendarState; name: string; proposed?: boolean }) {
@@ -537,6 +537,52 @@ function MonthGrid({ calendar, days, onNew, onOpen, onMove, picking, onSlotMenu,
           );
         })}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Year view: the twelve months small, Monday first. A day with events carries a dot, today is the ink badge, and a
+ * day opens in Day view; a month's name opens it in Month view.
+ */
+function YearGrid({ calendar }: { calendar: CalendarState }) {
+  const shown = onScreen(calendar);
+  const today = new Date();
+  const year = calendar.anchor.getFullYear();
+  const months = Array.from({ length: 12 }, (_, i) => new Date(year, i, 1));
+  const weekdays = daysFor('week', months[0]!).map((d) => formatWith(d, { weekday: 'narrow' }));
+  const go = (d: Date, mode: CalendarMode) => { calendar.setAnchor(d); calendar.setMode(mode); };
+  // Opens with the month in hand on screen, so November is not below the fold.
+  const box = useRef<HTMLDivElement>(null);
+  const anchorMonth = calendar.anchor.getMonth();
+  useLayoutEffect(() => { box.current?.children[anchorMonth]?.scrollIntoView({ block: 'nearest' }); }, [year, anchorMonth]);
+  return (
+    <div className="cal-year" role="list" aria-label={String(year)} ref={box}>
+      {months.map((first) => {
+        const days = daysFor('month', first);
+        const name = formatWith(first, { month: 'long' });
+        return (
+          <section key={first.getMonth()} className="cal-year-month" role="listitem" aria-label={name}>
+            <button type="button" className="cal-year-name" title="Open this month" onClick={() => go(first, 'month')}>{name}</button>
+            <div className="cal-year-days">
+              {weekdays.map((w, i) => <span key={i} className="cal-year-weekday" aria-hidden="true">{w}</span>)}
+              {days.map((d) => {
+                if (d.getMonth() !== first.getMonth()) return <span key={isoDay(d)} aria-hidden="true" />;
+                const events = eventsOn(shown, d).length;
+                const tasks = tasksOn(calendar.due, d).length;
+                const count = events + tasks;
+                const said = [events ? `${events} ${events === 1 ? 'event' : 'events'}` : '', tasks ? `${tasks} ${tasks === 1 ? 'task' : 'tasks'} due` : ''].filter(Boolean);
+                const label = [formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' }), ...said].join(', ');
+                return (
+                  <button key={isoDay(d)} type="button" className="cal-year-day" aria-label={label} title="Open this day" data-today={sameDay(d, today) || undefined} data-busy={count > 0 || undefined} onClick={() => go(d, 'day')}>
+                    {d.getDate()}
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }
@@ -1054,6 +1100,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
       else if (k === 'd') c.setMode('day');
       else if (k === 'w') c.setMode('week');
       else if (k === 'm') c.setMode('month');
+      else if (k === 'y') c.setMode('year');
       else if (k === 'n') make();
       else if (k === 'q') setQuick(true);
       else return;
@@ -1092,7 +1139,9 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
         </div>
       )}
       {calendar.message && !editing && <p className="tasks-message" role="alert">{calendar.message}</p>}
-      {calendar.mode === 'month'
+      {calendar.mode === 'year'
+        ? <YearGrid calendar={calendar} />
+        : calendar.mode === 'month'
         ? <MonthGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />
         : <TimeGrid calendar={calendar} days={days} onNew={setEditing} onOpen={open} onMove={move} picking={picking} pending={pending} onSlotMenu={slotMenu} onEmpty={() => setSelected(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
