@@ -6,6 +6,18 @@ import type { Menu, MenuItem } from './menus';
 type Item = Extract<MenuItem, { kind: 'item' }>;
 
 /**
+ * Runs a chosen item: the menu closes and focus goes back first (focus() is immediate), so Undo, Copy and the rest act
+ * on what you were in, then the item runs at once, still inside the click. Never on the next animation frame: a window
+ * that is covered or not drawn (as the e2e window often is) has no frames, so the item would wait and never run, and
+ * a click's permission to copy would be gone by then.
+ */
+export function chooseItem(item: { disabled?: boolean; run: () => void }, close: () => void): void {
+  if (item.disabled) return;
+  close();
+  item.run();
+}
+
+/**
  * The menus, in the toolbar. With room they are titles (File, Edit, View, Go, the app's own, Help); in a narrow window
  * they fold into one button whose panel lists the menus on the left and the chosen one's items on the right.
  * Keyboard: arrows move, Enter chooses, Escape closes. An item runs after focus is back where it was, so Edit's
@@ -38,12 +50,7 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
     setOpen(null);
     if (restore) before.current?.focus();
   };
-  const choose = (item: Item) => {
-    if (item.disabled) return;
-    close(true);
-    // After focus is back, so Undo, Copy and the rest act on what you were in.
-    requestAnimationFrame(() => item.run());
-  };
+  const choose = (item: Item) => chooseItem(item, () => close(true));
   const step = (by: 1 | -1) => {
     const at = menus.findIndex((m) => m.id === open);
     const next = menus[(at + by + menus.length) % menus.length];
