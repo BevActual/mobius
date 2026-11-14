@@ -261,7 +261,9 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
   border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 9%, transparent); color: var(--muted);
   font-size: calc(var(--avatar-size) * 0.42); font-weight: var(--fw-semibold); line-height: 1; letter-spacing: 0.02em;
 }
-.ui-avatar[data-size="large"] { width: calc(var(--avatar-size) * 2); height: calc(var(--avatar-size) * 2); font-size: calc(var(--avatar-size) * 0.8); }
+.ui-avatar[data-size="chip"] { width: calc(var(--avatar-size) * 2 / 3); height: calc(var(--avatar-size) * 2 / 3); font-size: calc(var(--avatar-size) * 0.28); }
+.ui-avatar[data-size="two"] { width: calc(var(--avatar-size) * 4 / 3); height: calc(var(--avatar-size) * 4 / 3); font-size: calc(var(--avatar-size) * 0.5); }
+.ui-avatar[data-size="large"] { width: calc(var(--avatar-size) * 5 / 3); height: calc(var(--avatar-size) * 5 / 3); font-size: calc(var(--avatar-size) * 0.6); }
 .ui-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .ui-status { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
 .ui-status[data-problem] { color: var(--ink); }
@@ -290,6 +292,10 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row-title[data-unread] { font-weight: var(--fw-semibold); }
 .ui-row[data-current] .ui-row-title { font-weight: var(--fw-medium); }
 .ui-row[data-current] .ui-row-title[data-unread] { font-weight: var(--fw-semibold); }
+.ui-row-title[data-done] { color: var(--muted); }
+.ui-row-line:has(.ui-row-inline) .ui-row-title { flex: 0 1 auto; }
+.ui-row-inline { flex: 1 1 0; }
+.ui-row-meta[data-tone="red"] { color: var(--red); }
 .ui-row-meta { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-row-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }

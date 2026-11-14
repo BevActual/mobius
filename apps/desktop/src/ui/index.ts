@@ -5,6 +5,7 @@
  */
 import './ui.css';
 import './controls.css';
+import './objects.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -22,3 +23,5 @@ export { Segmented, type SegmentChoice } from './Segmented';
 export { Slider, ParamCell, ParamGrid, Meter, Progress, type SliderProps } from './Slider';
 export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, initials, CONTENT_COLORS, type ContentColor } from './Bits';
 export { ListRow } from './ListRow';
+export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
+export { XYPad, type PadAxis, type PadPoint } from './XYPad';

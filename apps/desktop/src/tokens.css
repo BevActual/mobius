@@ -190,10 +190,18 @@
   --tick-h: 16px;
   --hit-min: 24px;
   --focus-w: 2px;
-  --avatar-size: 22px;
+  --avatar-size: 24px;
   --param-value: 30px;
   --progress-h: 2px;
   --dot-size: 6px;
+  --round-check: 16px;
+  --edge-w: 3px;
+  --chip-h: 22px;
+  --card-w: 280px;
+  --pad-h: 232px;
+  --pad-min: 120px;
+  --pad-point: 14px;
+  --pad-start: 8px;
 }
 
 @media (prefers-color-scheme: dark) {
