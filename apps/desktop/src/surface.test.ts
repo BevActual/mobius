@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { isStarter, noteContext, suggestionsFor, tasksContext } from './surface';
+import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -8,6 +8,16 @@ describe('what each app suggests', () => {
     const page = suggestionsFor({ app: 'browser', hasPage: true, note: null });
     expect(page.length).toBeGreaterThan(0);
     expect(page.every((s) => s.attach === 'page')).toBe(true);
+  });
+  it('leads with Compare these once two or more tabs show web pages, and it reads them itself', () => {
+    expect(suggestionsFor({ app: 'browser', hasPage: true, pages: 1, note: null }).map((s) => s.label)).not.toContain('Compare these');
+    const two = suggestionsFor({ app: 'browser', hasPage: true, pages: 2, note: null });
+    expect(two[0]).toEqual({ label: 'Compare these', prompt: COMPARE_TABS });
+    for (const tool of ['browser.tabs', 'browser.read', 'files.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
+    // What the fifth demo run showed: a colon in the name failed on Windows, and rows came from the prompt's examples.
+    expect(COMPARE_TABS).toContain('no colon or slash');
+    expect(COMPARE_TABS).not.toContain('Compare:');
+    expect(COMPARE_TABS).toContain('a row no page answers is left out');
   });
   it('offers note suggestions that attach the open note, and a search when none is open', () => {
     const open = suggestionsFor({ app: 'notes', hasPage: false, note: { path: 'work/plan.md', title: 'Plan', text: '# Plan' } });
@@ -19,6 +29,22 @@ describe('what each app suggests', () => {
   it('suggests nothing from the app underneath while Settings is open', () => {
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null }).length).toBeGreaterThan(0);
     expect(suggestionsFor({ app: 'mail', hasPage: false, note: null, settings: true })).toEqual([]);
+  });
+  it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
+    const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
+    expect(brief).toMatchObject({ label: 'One-page brief', attach: 'note' });
+    expect(brief?.prompt).toContain('Leave this document as it is.');
+    expect(brief?.prompt).toContain('At most 450 words');
+  });
+  it('leads Home and Tasks with Plan my day: the same ask, which times tasks and suggests blocks but sends nothing', () => {
+    for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
+    for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
+    expect(PLAN_MY_DAY).toContain('Do not send anything');
+  });
+  it('offers Make this a deck from an open document, in the deck format with notes', () => {
+    const open = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan', folder: 'docs' } });
+    expect(open.slice(0, 2).map((s) => s.label)).toEqual(['One-page brief', 'Make this a deck']);
+    for (const bit of ['slides/Presentations/', '---', 'Notes:', 'Leave this document as it is.', 'read no other file', 'at most half the slides have bullets']) expect(MAKE_A_DECK).toContain(bit);
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);

@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
@@ -279,13 +280,9 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     // Checked again when the sheet changes: a new turn's change is not kept yet.
   }, [review?.conversation, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file || !data) { setChanged(new Set()); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => {
-      if (!live) return;
-      setChanged(was && was.ok && was.text !== null ? changedCells(parseCsv(was.text), data.cells) : new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
-    }).catch(() => {});
-    return () => { live = false; };
+    const every = () => setChanged(new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
+    return readBefore(review.conversation, file, (text) => { if (text === null) every(); else setChanged(changedCells(parseCsv(text), data.cells)); }, every);
   }, [review?.conversation, kept, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepAll = async () => {
     if (!review) return;

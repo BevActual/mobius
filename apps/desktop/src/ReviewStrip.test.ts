@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { describeChange, icsEvents, rememberTitles, reviewShortcut } from './ReviewStrip';
+import { describeChange, icsEvents, rememberTitles, reviewable, reviewShortcut } from './ReviewStrip';
 import { changeTarget } from './actions';
 
 describe('review strip names', () => {
@@ -7,6 +7,7 @@ describe('review strip names', () => {
     expect(describeChange('notes/Design/Split view.md')).toEqual({ kind: 'Note', name: 'Design / Split view' });
     expect(describeChange('tasks/This week.md')).toEqual({ kind: 'Tasks', name: 'This week' });
     expect(describeChange('calendar/Work.ics')).toEqual({ kind: 'Calendar', name: 'Work' });
+    expect(describeChange('sheets/Trip/.charts.json')).toEqual({ kind: 'Sheet', name: 'Charts in Trip' });
     expect(describeChange('drafts/plan.txt')).toEqual({ kind: 'File', name: 'drafts/plan.txt' });
     expect(describeChange('calendar/.suggestions.json')).toEqual({ kind: 'Calendar', name: 'Suggested events' });
   });
@@ -40,5 +41,14 @@ describe('a calendar file, by event', () => {
     expect(events.get('a1')).toEqual({ title: 'P2 brake kit review, with Priya', start: '20261119T100000' });
     expect(events.get('b2')).toEqual({ title: 'Long title that is folded here', start: '20261120' });
     expect(events.size).toBe(2);
+  });
+});
+
+describe('what a turn has to review', () => {
+  it('leaves out the comment threads Mobius answered in, and keeps everything else', () => {
+    expect(reviewable('.comments/mail/inbox~7.json')).toBe(false);
+    expect(reviewable('.comments\\sheets\\Budget~Costs.json')).toBe(false);
+    expect(reviewable('notes/Work/Plan.md')).toBe(true);
+    expect(reviewable('docs/.comments/Brief.json')).toBe(true);
   });
 });
