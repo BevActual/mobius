@@ -56,6 +56,8 @@ you want to build or change Mobius, go to **Developers**.
 | [Design rules](design/rules.md) | The eight principles, and how the zones, controls, menus, theme and motion look and behave in every app |
 | [Theme tokens](design/theme-tokens.md) | The timeless theme as exact values: four themes, content colours, type, density, shape, motion, and the mapping from today's tokens |
 | [Panel layouts](design/panel-layouts.md) | Views and panels, the panel header and docks, build stages, and each app's default layout |
+| [Design mocks](design/mocks/README.md) | The mock-ups behind Instrument, in light and dark |
+| [Archive](archive/README.md) | Earlier specs and reviews, and where each claude.ai page moved when the project came to the repo |
 | [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, and calendar sign-in requirements |
 
 ## Help
