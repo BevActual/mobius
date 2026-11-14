@@ -1,4 +1,5 @@
 import { KeyCaps } from '../ui/Tooltip';
+import { ChoiceMenu } from '../ui/Popover';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { ActionRow } from '../ActionsSlot';
@@ -450,30 +451,27 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               </>
             )}
           </PopMenu>
-          <PopMenu label="Mode" className="pill pill-compact" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`} trigger={<><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {CHAT_MODES.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === mode} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); setMode(option.id); }}>
-                    <Check on={option.id === mode} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
-                  </button>
-                ))}
-                <p className="popmenu-note popmenu-keys"><span>Next mode</span><KeyCaps keys="Shift+Tab" /></p>
-              </>
-            )}
-          </PopMenu>
-          <PopMenu label="Permission" className="pill pill-compact" title={`Permission: ${permission.name}. ${permission.hint}`} trigger={<><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
-            {(close) => (
-              <>
-                {PERMISSIONS.map((option) => (
-                  <button key={option.id} type="button" role="menuitemradio" aria-checked={option.id === permission.id} className="popmenu-item popmenu-checkable popmenu-two" onClick={() => { close(); choosePermission(option); }}>
-                    <Check on={option.id === permission.id} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
-                  </button>
-                ))}
-                <button type="button" role="menuitem" className="popmenu-item popmenu-link" title="Paying, sending, deleting and running commands always ask, and what you blocked stays blocked" onClick={() => { close(); onOpenSettings(); }}>Always ask and never lists…</button>
-              </>
-            )}
-          </PopMenu>
+          {/* Mode and Permission are the shared ChoiceMenu; the wrapper keeps the composer row's layout rules. */}
+          <span className="popmenu">
+            <ChoiceMenu
+              label="Mode"
+              value={mode}
+              onChange={setMode}
+              choices={CHAT_MODES.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
+              footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode)) }]}
+              trigger={<button type="button" className="pill pill-compact" aria-label="Mode" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+            />
+          </span>
+          <span className="popmenu">
+            <ChoiceMenu
+              label="Permission"
+              value={permission.id}
+              onChange={(id) => { const option = PERMISSIONS.find((p) => p.id === id); if (option) choosePermission(option); }}
+              choices={PERMISSIONS.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
+              footer={[{ label: 'Always ask and never lists…', run: onOpenSettings }]}
+              trigger={<button type="button" className="pill pill-compact" aria-label="Permission" title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+            />
+          </span>
           <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{modelName || 'Model'}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">

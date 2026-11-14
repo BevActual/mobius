@@ -212,6 +212,8 @@
   --dialog-w: 480px;
   --z-dialog: 900;
   --tab-h: 36px;
+  --day-cell: 32px;
+  --time-list-h: 240px;
 }
 
 @media (prefers-color-scheme: dark) {
