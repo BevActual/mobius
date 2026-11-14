@@ -97,6 +97,11 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
     }
 }
 
+/// A turn's moves for the window: each moved file's old path and new one.
+fn moves_json(moves: &[(String, String)]) -> Value {
+    moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
+}
+
 /// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
 /// slow computer can be told from one that hangs.
 fn slow(what: &str, step: &str, started: std::time::Instant) {
@@ -3129,12 +3134,8 @@ impl Bridge {
                     .turns(conversation)
                     .into_iter()
                     .filter_map(|t| {
-                        let files = match &t.end {
-                            Some(end) => self.workspace.changed_between(&t.start, end),
-                            None => self.workspace.changed_since(&t.start),
-                        }
-                        .ok()?;
-                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files }))
+                        let diff = self.workspace.turn_diff(&t.start, t.end.as_deref()).ok()?;
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": diff.files, "moves": moves_json(&diff.moves) }))
                     })
                     .collect();
                 json!({ "ok": true, "turns": turns })
@@ -3305,8 +3306,9 @@ impl Bridge {
         };
         let changed_later = |path: &str| end.as_deref().and_then(|e| self.workspace.changed_since(e).ok()).is_some_and(|f| f.iter().any(|p| p == path));
         Ok(match method {
-            "lastTurn" => match turn_files() {
-                Ok(files) => json!({ "checkpoint": mark, "files": files }),
+            // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
+            "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
+                Ok(diff) => json!({ "checkpoint": mark, "files": diff.files, "moves": moves_json(&diff.moves) }),
                 Err(e) => failed(e),
             },
             "undo" => match (&end, turn_files()) {
