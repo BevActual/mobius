@@ -182,7 +182,7 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   const device = shell().getByRole('region', { name: 'Device' });
   for (const name of ['Delay', 'EQ']) {
     await device.getByRole('button', { name: 'Add effect' }).click();
-    await shell().getByRole('menuitem', { name, exact: true }).click();
+    await shell().getByRole('menuitem', { name: new RegExp('^' + name + ' ') }).click();
   }
   await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay', 'eq']);
   await device.getByRole('button', { name: 'Move EQ up' }).click();

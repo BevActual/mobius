@@ -168,7 +168,7 @@ const KIT_CELLS: readonly { k: keyof KitSound; name: string; step: number; log?:
 /** One of the Device panel's settings, as the shared parameter cell. Double-click puts it back to the instrument's own. */
 function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
   const { lo, hi } = SOUND_RANGE[k];
-  return <ParamCell label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
+  return <ParamCell size="compact" label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
 }
 
 /** How an effect's setting reads: "+3.0 dB", "1.2 kHz", "4:1", "12 ms", "35%", "2.0 s". */
@@ -179,6 +179,12 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   reverb: [{ k: 'size', name: 'Size', step: 0.1, log: true }, { k: 'damp', name: 'Damp', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
 };
 /** A delay's echo time, in beats, as note values (a beat is a quarter note). */
+const EFFECT_DETAILS: { [K in EffectKind]: string } = {
+  eq: 'Lifts or cuts the lows, mids and highs',
+  compressor: 'Evens out loud and quiet notes',
+  delay: 'Echoes that fade, in time with the song',
+  reverb: 'Puts the track in a room or hall',
+};
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
 /** One effect on the track: its name, on or off, moved up or down the chain or taken off, and its settings. */
@@ -205,7 +211,7 @@ function EffectBlock({ effect, at, count, onChange, onMove, onRemove }: {
       <ParamGrid label={`${name} settings`}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
-          return <ParamCell key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
+          return <ParamCell size="compact" key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>
     </section>
@@ -244,8 +250,8 @@ export function StudioDevice({ track, onTrack, proposal }: {
             </div>
           </div>
           <ParamGrid label="Level">
-            <ParamCell label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
-            <ParamCell label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
+            <ParamCell size="compact" label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+            <ParamCell size="compact" label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
           </ParamGrid>
           {sound && base && SOUND_GROUPS.map((g) => (
             <section key={g.name} className="studio-dev-section" aria-label={g.name}>
@@ -259,7 +265,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
             <section className="studio-dev-section" aria-label="Kit">
               <h4 className="studio-dev-head">Kit</h4>
               <ParamGrid label="Kit">
-                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
+                {KIT_CELLS.map(({ k, name, step, log }) => <ParamCell size="compact" key={k} label={name} value={kit[k]} min={KIT_RANGE[k].lo} max={KIT_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={KIT_DEFAULTS[k]} reset={KIT_DEFAULTS[k]} format={(v) => kitText(k, v)} onChange={(v) => setKit(k, v)} />)}
               </ParamGrid>
               <p className="studio-dev-note">Every drum in the kit, together. Each drum has its own row in the notes.</p>
             </section>
@@ -276,7 +282,7 @@ export function StudioDevice({ track, onTrack, proposal }: {
               onMove={(by) => onTrack((t) => { const fx = t.fx ?? []; const j = fx.findIndex((f) => f.id === e.id); const to = j + by; if (j < 0 || to < 0 || to >= fx.length) return; [fx[j], fx[to]] = [fx[to]!, fx[j]!]; })}
               onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
           ))}
-          <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
+          <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
             trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
         </section>
       )}
