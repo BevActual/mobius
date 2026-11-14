@@ -71,7 +71,14 @@ export function Select<T extends string>({ label, hideLabel, inline, quiet, valu
       <span id={labelId} className="ui-field-label" data-hidden={hideLabel || undefined}>{label}</span>
       <BaseSelect.Root items={items} value={value} disabled={disabled} onValueChange={(next) => { if (next !== null) onChange(next as T); }}>
         <BaseSelect.Trigger className="ui-select" data-quiet={quiet || undefined} aria-labelledby={labelId}>
-          <BaseSelect.Value className="ui-select-value" />
+          {inline ? (
+            // Inline boxes sit in crowded bars: every choice is laid in the same cell, unseen, so the box holds the width of
+            // its longest choice and never squeezes to an ellipsis or jumps when the choice changes.
+            <span className="ui-select-fit">
+              <BaseSelect.Value className="ui-select-value" />
+              {choices.map((c) => <span key={c.value} className="ui-select-size" aria-hidden="true">{c.label}</span>)}
+            </span>
+          ) : <BaseSelect.Value className="ui-select-value" />}
           <BaseSelect.Icon className="ui-select-icon">
             <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 4.75 6 2.5l2.5 2.25M3.5 7.25 6 9.5l2.5-2.25" /></svg>
           </BaseSelect.Icon>

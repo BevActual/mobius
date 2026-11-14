@@ -309,6 +309,10 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 /* Inline field: the name beside the box, for toolbars and bars. Quiet pop-up: text and chevrons, a fill on hover. */
 .ui-field[data-inline] { flex-direction: row; align-items: baseline; gap: var(--sp-2); }
 .ui-field[data-inline] .ui-field-label { white-space: nowrap; }
+.ui-field[data-inline] { flex: none; }
+.ui-select-fit { display: grid; flex: 1; }
+.ui-select-fit > * { grid-area: 1 / 1; }
+.ui-select-size { visibility: hidden; white-space: nowrap; }
 .ui-select[data-quiet] { border-color: transparent; background: transparent; color: var(--body); padding-inline: var(--sp-1); }
 .ui-select[data-quiet]:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
 .ui-select[data-quiet][data-popup-open] { border-color: transparent; background: var(--sel); color: var(--ink); }

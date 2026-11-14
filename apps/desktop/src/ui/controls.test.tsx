@@ -105,6 +105,9 @@ describe('Music gaps: inline and quiet pop-ups, swatches, one-column cells, log 
   it('puts a pop-up’s name beside it, or draws it quiet', () => {
     const inline = renderToStaticMarkup(<Select label="Grid" inline value="a" onChange={() => {}} choices={[{ value: 'a', label: 'A' }]} />);
     expect(inline).toContain('data-inline="true"');
+    const fit = renderToStaticMarkup(<Select label="Note length" inline value="q" onChange={() => {}} choices={[{ value: 'q', label: '1/4' }, { value: 't', label: '1/16 triplet' }]} />);
+    expect(fit).toContain('ui-select-fit');
+    expect(fit).toMatch(/class="ui-select-size" aria-hidden="true">1\/16 triplet</);
     const quiet = renderToStaticMarkup(<Select label="Key" quiet value="a" onChange={() => {}} choices={[{ value: 'a', label: 'A' }]} />);
     expect(quiet).toContain('data-quiet="true"');
   });
