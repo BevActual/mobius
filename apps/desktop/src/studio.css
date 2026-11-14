@@ -17,7 +17,8 @@
 .studio-placeholder { display: block; width: var(--w, 60%); height: calc(var(--row-list) - var(--sp-2)); border-radius: var(--radius-small); background: var(--sel); }
 
 /* ---------- Toolbar: transport, position, tempo, meter, loop ---------- */
-.studio-play svg, .ui-toolbar-group .studio-play + .strip-btn svg { fill: currentColor; stroke: none; }
+/* Play and Stop are solid shapes; the shared icon button draws lines. */
+.studio-play svg, .studio-play + .ui-icon-button svg { fill: currentColor; stroke: none; }
 .studio-sep { width: var(--hairline-w); height: var(--fs-xl); margin: 0 var(--sp-2); background: var(--line); }
 .studio-readout { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h-lg); padding: 0 var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: var(--fs-md) / 1 var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .studio-pos { min-width: 9ch; justify-content: center; }
@@ -26,10 +27,6 @@
 .studio-tempo input:focus { outline: none; }
 .studio-tempo:focus-within { border-color: var(--ink); }
 .studio-tempo span { color: var(--muted); font-family: var(--font); font-size: var(--fs-sm); }
-/* The key, in the toolbar's grey line: a quiet choice that reads as text until it is pressed. */
-.studio-key-pick { field-sizing: content; height: auto; min-height: 0; padding: 0; border: 0; box-shadow: none; vertical-align: baseline; background: none; color: inherit; font: inherit; cursor: pointer; appearance: none; }
-.studio-key-pick:hover { color: var(--ink); }
-.studio-key-pick option { color: var(--ink); background: var(--paper); }
 
 /* ---------- Sidebar ---------- */
 .studio-side-when, .studio-to-review { align-self: center; padding-right: var(--sp-3); font-size: var(--fs-sm); white-space: nowrap; }
@@ -73,9 +70,6 @@
 
 /* After the last track: Add track, so a short song never ends in a blank field. */
 .studio-add-row { position: sticky; left: 0; display: flex; align-items: center; gap: var(--sp-3); width: var(--head); height: var(--row-list); padding: 0 var(--sp-2); border-right: var(--hairline-w) solid var(--line); box-sizing: border-box; }
-.studio-page .studio-add { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; white-space: nowrap; }
-.studio-page .studio-add:hover { background: var(--sel); color: var(--ink); }
-.studio-add svg { width: var(--fs-md); height: var(--fs-md); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .studio-none { color: var(--muted); font-size: var(--fs-sm); white-space: nowrap; }
 .studio-arrange[data-empty] .studio-add-row { width: auto; border-right: 0; }
 
@@ -99,25 +93,12 @@
 .studio-dev-dot { flex: none; display: inline-block; width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--tc); }
 .studio-dev-head { margin: var(--sp-4) 0 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
 .studio-dev-group { display: grid; padding-bottom: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
-.studio-dev-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--row-list); }
-.studio-dev-row select { max-width: 60%; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; text-align: right; cursor: pointer; }
-.studio-dev-name { color: var(--ink); }
+.studio-dev-row { padding: var(--sp-1) 0; }
+.studio-colour-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); min-height: var(--row-list); color: var(--ink); }
 .studio-swatches { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--sp-1); }
 .studio-device .studio-swatch { width: var(--fs-lg); height: var(--fs-lg); padding: 0; border: 0; border-radius: var(--radius-pill); background: var(--tc); cursor: pointer; }
 .studio-swatch[aria-checked="true"] { box-shadow: 0 0 0 2px var(--paper), 0 0 0 3.5px var(--ink); }
 .studio-swatch:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
-/* Parameter cells: a small all-caps label above, the value large in mono, and a thin slider under it. */
-.studio-cells { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3) var(--sp-4); margin-top: var(--sp-2); }
-.studio-cell { display: grid; gap: var(--sp-1); cursor: default; }
-.studio-cell-name { font-size: var(--fs-floor); font-weight: var(--fw-semibold); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
-.studio-cell-value { font: var(--fs-2xl) / 1.1 var(--font-mono); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* A slider: a thin track, ink up to the value, with a short upright mark for the thumb. */
-.studio-cell input[type="range"] { width: 100%; height: var(--fs-xl); margin: 0; background: transparent; appearance: none; -webkit-appearance: none; cursor: pointer; }
-.studio-cell input[type="range"]::-webkit-slider-runnable-track { height: 2px; background: linear-gradient(90deg, var(--ink) var(--at, 0%), var(--line) var(--at, 0%)); }
-.studio-cell input[type="range"]::-moz-range-track { height: 2px; background: linear-gradient(90deg, var(--ink) var(--at, 0%), var(--line) var(--at, 0%)); }
-.studio-cell input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 2px; height: var(--fs-md); margin-top: -5.5px; border-radius: 1px; background: var(--ink); }
-.studio-cell input[type="range"]::-moz-range-thumb { width: 2px; height: var(--fs-md); border: 0; border-radius: 1px; background: var(--ink); }
-.studio-cell input[type="range"]:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; border-radius: var(--radius-small); }
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
 .studio-dev-proposal { margin-top: var(--sp-4); }
 .studio-dev-proposal p { margin: var(--sp-1) 0 var(--sp-3); line-height: var(--lh-body); }
@@ -131,14 +112,11 @@
 .studio-divider:hover, .studio-divider:focus-visible { background: var(--ink); }
 .studio-roll-bar { flex: none; display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
 .studio-roll-close { margin-left: var(--sp-1); color: var(--muted); }
-.studio-roll-close svg { width: var(--fs-lg); height: var(--fs-lg); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
-.studio-field { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--muted); white-space: nowrap; }
-.studio-field select { height: var(--control-h); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--field); color: var(--ink); font: inherit; }
-.studio-velocity input { width: 96px; accent-color: var(--ink); }
-.studio-velocity output { min-width: 3ch; font-family: var(--font-mono); color: var(--ink); }
-.studio-chip { height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--field); color: var(--ink); font: inherit; }
-.studio-chip:hover { background: var(--sel); }
+/* Until the shared Select has an inline layout (asked of the library): the roll bar's choices sit beside their names. */
+.studio-roll-bar .ui-field { flex-direction: row; align-items: center; }
+/* Where the velocity slider sits in the roll bar: its width only. */
+.studio-roll-bar .studio-velocity { width: calc(var(--sp-8) * 6); }
 .studio-picked { font-weight: var(--fw-semibold); white-space: nowrap; }
 .studio-hint { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 

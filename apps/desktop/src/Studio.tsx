@@ -5,8 +5,8 @@ import { EmptyState } from './EmptyState';
 import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type Sound, type Track } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
-import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, fromSlider, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, stretchNotes, toSlider, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, PanelTab, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, IconButton, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -83,7 +83,7 @@ export function StudioSub({ songs }: { songs: NotesState }) {
   const setKey = (key: string) => { const next = structuredClone(song); next.key = key; songs.edit(writeSong(next)); };
   return (
     <>
-      <select className="studio-key-pick" aria-label="Key" value={song.key} onChange={(e) => setKey(e.target.value)}>{KEYS.map((k) => <option key={k}>{k}</option>)}</select>
+      <Select className="studio-key-pick" label="Key" hideLabel value={song.key} choices={KEY_CHOICES} onChange={setKey} />
       {' · '}<span className="note-status" role="status" data-status={songs.status}>{songs.message || statusText(songs.status)}</span>
     </>
   );
@@ -150,24 +150,20 @@ function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: numb
   );
 }
 
-/**
- * One of the Device panel's settings, as an instrument's parameter cell: a small label above, the value large in the
- * mono face, and a thin slider under it. Double-click puts it back.
- */
-function DeviceCell({ name, text, at, onSlide, onReset, label = name }: { name: string; text: string; at: number; onSlide: (t: number) => void; onReset: () => void; label?: string }) {
-  return (
-    <label className="studio-cell" onDoubleClick={onReset} title={`${name}. Double-click to put it back.`}>
-      <span className="studio-cell-name">{name}</span>
-      <output className="studio-cell-value">{text}</output>
-      <input type="range" aria-label={label} min={0} max={1000} step={1} value={Math.round(at * 1000)} aria-valuetext={text} onChange={(e) => onSlide(Number(e.target.value) / 1000)} style={{ ['--at' as string]: `${at * 100}%` }} />
-    </label>
-  );
-}
+/** How finely each setting moves with the arrow keys (Shift for ten times as far). */
+const SOUND_STEP: Record<keyof Sound, number> = { shape: 0.01, detune: 1, cutoff: 10, resonance: 0.01, attack: 0.001, release: 0.01 };
+/** Cutoff, attack and release are heard in ratios, so their sliders move evenly in octaves rather than in Hz or seconds. */
+const LOG_SOUND = new Set<keyof Sound>(['cutoff', 'attack', 'release']);
+
+/** One of the Device panel's settings, as the shared parameter cell. Double-click puts it back to the instrument's own. */
 function DeviceSlider({ name, k, value, base, onChange }: { name: string; k: keyof Sound; value: number; base: number; onChange: (v: number) => void }) {
   const { lo, hi } = SOUND_RANGE[k];
-  const log = k === 'cutoff' || k === 'attack' || k === 'release';
-  return <DeviceCell name={name} text={soundText(k, value)} at={toSlider(value, lo, hi, log)} onSlide={(t) => onChange(fromSlider(t, lo, hi, log))} onReset={() => onChange(base)} />;
+  return <ParamCell label={name} value={value} min={lo} max={hi} step={SOUND_STEP[k]} scale={LOG_SOUND.has(k) ? 'log' : 'linear'} reset={base} format={(v) => soundText(k, v)} onChange={onChange} />;
 }
+
+const INSTRUMENT_CHOICES = INSTRUMENTS.map((i) => ({ value: i, label: INSTRUMENT_NAMES[i] }));
+const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
+const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
 /**
  * The Device panel: how the chosen track sounds (its instrument, volume, oscillator, filter and envelope), and what
@@ -189,35 +185,33 @@ export function StudioDevice({ track, onTrack, proposal }: {
             <span className="studio-dev-dot" aria-hidden="true" />{track.name === INSTRUMENT_NAMES[track.instrument] ? track.name : `${track.name} · ${INSTRUMENT_NAMES[track.instrument]}`}
           </h3>
           <div className="studio-dev-group">
-            <label className="studio-dev-row"><span className="studio-dev-name">Instrument</span>
-              <select aria-label="Instrument" value={track.instrument} onChange={(e) => onTrack((t) => { t.instrument = e.target.value as Instrument; delete t.sound; })}>{INSTRUMENTS.map((i) => <option key={i} value={i}>{INSTRUMENT_NAMES[i]}</option>)}</select>
-            </label>
-            <div className="studio-dev-row"><span className="studio-dev-name" id="studio-colour-name">Colour</span>
+            <Select className="studio-dev-row" label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; })} />
+            <div className="studio-colour-row"><span id="studio-colour-name">Colour</span>
               <span className="studio-swatches" role="radiogroup" aria-labelledby="studio-colour-name">
                 {TRACK_COLOURS.map((c) => <button key={c} type="button" role="radio" aria-checked={track.color === c} aria-label={COLOUR_NAMES[c]} title={COLOUR_NAMES[c]} className="studio-swatch" style={{ '--tc': `var(--c-${c})` } as CSSProperties} onClick={() => onTrack((t) => { t.color = c; })} />)}
               </span>
             </div>
           </div>
-          <div className="studio-cells">
-            <DeviceCell name="Volume" label={`Volume of ${track.name}`} text={`${Math.round(track.volume * 100)}%`} at={track.volume} onSlide={(v) => onTrack((t) => { t.volume = Math.round(v * 100) / 100; }, 'volume')} onReset={() => onTrack((t) => { t.volume = 0.8; })} />
-          </div>
+          <ParamGrid label="Level">
+            <ParamCell label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
+          </ParamGrid>
           {sound && base ? (
             <>
               <h4 className="studio-dev-head">Oscillator</h4>
-              <div className="studio-cells">
+              <ParamGrid label="Oscillator">
                 <DeviceSlider name="Shape" k="shape" value={sound.shape} base={base.shape} onChange={(v) => set('shape', v)} />
                 <DeviceSlider name="Detune" k="detune" value={sound.detune} base={base.detune} onChange={(v) => set('detune', v)} />
-              </div>
+              </ParamGrid>
               <h4 className="studio-dev-head">Filter</h4>
-              <div className="studio-cells">
+              <ParamGrid label="Filter">
                 <DeviceSlider name="Cutoff" k="cutoff" value={sound.cutoff} base={base.cutoff} onChange={(v) => set('cutoff', v)} />
                 <DeviceSlider name="Resonance" k="resonance" value={sound.resonance} base={base.resonance} onChange={(v) => set('resonance', v)} />
-              </div>
+              </ParamGrid>
               <h4 className="studio-dev-head">Envelope</h4>
-              <div className="studio-cells">
+              <ParamGrid label="Envelope">
                 <DeviceSlider name="Attack" k="attack" value={sound.attack} base={base.attack} onChange={(v) => set('attack', v)} />
                 <DeviceSlider name="Release" k="release" value={sound.release} base={base.release} onChange={(v) => set('release', v)} />
-              </div>
+              </ParamGrid>
             </>
           ) : <p className="studio-dev-note">The drum kit has no settings yet. Each drum has its own row in the notes.</p>}
         </>
@@ -712,8 +706,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   return (
     <section className="studio-page" aria-label="Music" ref={page} data-editing={editing || undefined}>
       <ToolbarControls label="Transport">
-        <button type="button" className="strip-btn studio-play" aria-label={playing ? 'Pause' : 'Play'} title={playing ? 'Pause (Space)' : 'Play (Space)'} aria-pressed={playing} onClick={() => (playing ? stop() : start())}><Icon d={playing ? 'M6.5 4.5v11M13.5 4.5v11' : ICONS.play} /></button>
-        <button type="button" className="strip-btn" aria-label="Stop" title={playing ? 'Stop (Space)' : 'Back to the start (Enter)'} onClick={stopOrRewind}><Icon d={ICONS.stop} /></button>
+        <IconButton className="studio-play" label={playing ? 'Pause' : 'Play'} keys="Space" pressed={playing} icon={<Icon d={playing ? 'M6.5 4.5v11M13.5 4.5v11' : ICONS.play} />} onClick={() => (playing ? stop() : start())} />
+        <IconButton label="Stop" title={playing ? 'Stop' : 'Back to the start'} keys={playing ? 'Space' : 'Enter'} icon={<Icon d={ICONS.stop} />} onClick={stopOrRewind} />
         <span className="studio-sep" aria-hidden="true" />
         <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
         <label className="studio-readout studio-tempo" title="Tempo, in beats per minute">
@@ -721,7 +715,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           <span aria-hidden="true">bpm</span>
         </label>
         <span className="studio-readout studio-meter" aria-label="Meter: 4 beats to a bar" title="Every song is in 4 / 4 for now">4 / 4</span>
-        <button type="button" className="strip-btn" aria-label="Loop" title={loop ? `Looping ${loopWords} (L)` : 'Loop (L)'} aria-pressed={loop} onClick={() => setLoop((l) => !l)}><Icon d={ICONS.loop} /></button>
+        <IconButton label="Loop" title={loop ? `Looping ${loopWords}` : 'Loop'} keys="L" pressed={loop} icon={<Icon d={ICONS.loop} />} onClick={() => setLoop((l) => !l)} />
       </ToolbarControls>
       <div className="studio-main">
         <div className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px`, ...(editing ? { height: listH, flex: 'none' } : {}) }}
@@ -777,7 +771,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
               </div>
             ))}
             <div className="studio-add-row">
-              <button type="button" className="studio-add" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); soundsMenu(r.left, r.bottom); }}><Icon d="M10 4.5v11M4.5 10h11" />Add track</button>
+              <Button kind="quiet" className="studio-add" icon={<Icon d="M10 4.5v11M4.5 10h11" />} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); soundsMenu(r.left, r.bottom); }}>Add track</Button>
               {song.tracks.length === 0 && <span className="studio-none">No tracks yet.</span>}
             </div>
             <span className="studio-playhead" style={{ left: HEAD_W + beat * bw }} aria-hidden="true" />
@@ -801,18 +795,18 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
               <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
-                <label className="studio-field"><span>Grid</span><select aria-label="Grid" value={grid} onChange={(e) => setGrid(Number(e.target.value))}>{GRIDS.map((g) => <option key={g.beats} value={g.beats}>{g.label}</option>)}</select></label>
-                {!drums && <label className="studio-field"><span>Draw</span><select aria-label="Note length" value={drawLength} onChange={(e) => setDrawLength(Number(e.target.value))}>{GRIDS.map((g) => <option key={g.beats} value={g.beats}>{g.label}</option>)}</select></label>}
-                <button type="button" className="studio-chip" title="Line notes up to the grid (Q)" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</button>
+                <Select label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
+                {!drums && <Select label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
+                <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>
                 <span className="studio-gap" />
                 {velocity !== null ? (
                   <>
                     <span className="studio-picked">{pickedNotes.length === 1 ? `${drums ? (DRUMS.find((d) => d.pitch === pickedNotes[0]!.pitch)?.name ?? '') : noteName(pickedNotes[0]!.pitch)} at ${position(pickedNotes[0]!.start, song.tempo).bars}` : `${pickedNotes.length} notes`}</span>
-                    <label className="studio-field studio-velocity"><span>Velocity</span><input type="range" aria-label="Velocity" min={0} max={1} step={0.01} value={velocity} onChange={(e) => setNotes((n) => setVelocity(n, picked, Number(e.target.value)), 'velocity')} /><output>{Math.round(velocity * 127)}</output></label>
-                    <button type="button" className="studio-chip" aria-label="Delete notes" title="Delete (Delete)" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</button>
+                    <Slider className="studio-velocity" label="Velocity" value={Math.round(velocity * 100) / 100} min={0} max={1} step={0.01} format={(v) => String(Math.round(v * 127))} onChange={(v) => setNotes((n) => setVelocity(n, picked, v), 'velocity')} />
+                    <Button kind="quiet" danger aria-label="Delete notes" title="Delete" keys="Delete" onClick={() => { setNotes((n) => removeNotes(n, picked)); setPicked(new Set()); }}>Delete</Button>
                   </>
                 ) : <span className="studio-hint">Click to draw a note, drag to move it, drag its end to stretch it.</span>}
-                <button type="button" className="strip-btn studio-roll-close" aria-label="Hide notes" title="Hide notes" onClick={() => setEditing(false)}><Icon d="M6 6l8 8M14 6l-8 8" /></button>
+                <IconButton className="studio-roll-close" label="Hide notes" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
           <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
             <div
