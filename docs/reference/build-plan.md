@@ -52,36 +52,33 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
+As of the evening of 14 November 2026. Everything that was here this morning is on `main`: the app panels out of the
+Mobius panel, app modes, the Glance and Result slots, the Permission wording, the demo workspace and the first build of
+every app's demo moment.
+
 | Item | Owner | Status | Unblocks |
 | --- | --- | --- | --- |
-| App panels out of the Mobius panel: the rule, in `docs/design/` | Design lead | Building | The shell change, then one round per app with a panel |
-| App panels out of the Mobius panel: the shell | Builder | Next, ahead of the rest of the shell queue | Docs, Reader, Slides, Design, Photo, Video, Code, Sheets and Music moving their panels |
-| The demo workspace and its profile | Launch, Builder | Next | Every clip in the [demo plan](demo-plan.md) |
-| A pass over every app's moment in the demo plan | Every lead | Next | Knowing what is left to build |
-| Projects Instrument round (#186) | Apps lead | Building | The last app without an Instrument round |
-| Permission wording and shared selects: Settings, then Agents | Apps lead | Building | Old wording gone from the apps |
-| Row sizes for Home and Activity (#245) | Builder | Building | Home's and Activity's next rounds |
-| Glance and Result slots (#249) | Builder | Building | Sheets, Code, then every app |
-| A failed state for runs (#250) | Builder | Building | Agents |
-| `Chart` | Design lead | Building | Sheets' demo moment |
-| Artifacts moved into `docs/` (#242) | Design lead | Building | Retiring the artifacts |
-| Drum pads on the library's `StepGrid` and `PadGrid` | Music | Next | The first new instrument |
-| README screenshots and launch checklist | Launch | Building | The launch list below |
+| Speed of a turn: the first real thing within five seconds ([demo plan](demo-plan.md#timing)) | Builder | Building: calls run as they are written, reads fetched ahead, one round for a suggestion, only the open apps' tools. Timing again is next. | Every demo moment |
+| Changes dashed in the app as they land, not at the end of the turn | Apps lead | Building: Notes first, then Tasks, Calendar, Mail | Plan my day and Triage arriving one by one |
+| Content fixes from the real-model runs (`demo/results.md`) | Apps lead | Building | Recording |
+| Music's folded round, with asking for a sound (#285) | Music | Building | Music's demo moment |
+| One edit across many photos; layers Mobius can write | Builder | Building (#358, #360) | Photo's and Design's moments |
+| WebDAV drives ([Connections](#connections)) | Builder, then Apps lead for Files | Building (#361, #362) | Files on a person's own server |
+| Real-model runs and timings for every moment | Launch | Waiting on Andrew's PC | Knowing which moments are ready to record |
+| Clips and the reel | Launch | Next, once a moment meets the bar | The README and launch |
 
 ## Shell queue
 
-The Builder's order for the pieces apps wait on. Each row names what it lets the apps do.
+The Builder's order. Earlier rows (app modes, row sizes, the slots, failed runs, live connectors, the demo profile,
+`files.move`, finding a time) are on `main`.
 
-| Order | Shell piece | Apps waiting | Status |
+| Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | App modes in the composer, with Mail's Triage as the first | Mail, then Notes and Docs (Review), Sheets and Database (Analyse), Code (Debug) | Have (#239) |
-| 2 | Row sizes and the reading column from the shell for Home and Activity | Home, Activity | Building (#245) |
-| 3 | The panel's Glance and Result slots | Sheets, Code, then every app | Building (#249) |
-| 4 | A failed state for runs | Agents | Building (#250) |
-| 5 | Start and stop a connector while Mobius runs | Abilities | Next |
-
-App modes came first because they unblock the launch workflow's Mail round and four more apps. Home's sizes are second
-because Home is in the launch workflow.
+| 1 | Turn speed, in the demo plan's order | Every demo moment | Building |
+| 2 | Tools for Photo and Design | Their demo moments | Building |
+| 3 | WebDAV drives: the connection, then tools for Mobius that ask before every change on a server | Files | Building |
+| 4 | Video: clip lengths and a clip list, then a first cut | Video's demo moment | Building; the cut waits on footage |
+| 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
 ## Library queue
 
@@ -146,7 +143,7 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | --- | --- | --- | --- |
 | Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts | Builder |
 | Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each |
-| Files | The workspace folder on this computer | WebDAV, which covers Nextcloud and most self-hosted drives; then S3-style storage and network shares | Builder for the connection, Apps lead for Files |
+| Files | The workspace folder on this computer | WebDAV drives you browse, open from and copy to (covers Nextcloud and most self-hosted drives), **Building**; then S3-style storage and network shares as other kinds of drive; then two-way sync of workspace folders, which needs a decision | Builder for the connection, Apps lead for Files |
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |

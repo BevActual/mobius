@@ -57,4 +57,8 @@ describe('devices', () => {
     expect(html.match(/data-changed="true"/g)).toHaveLength(1);
     expect(html).toMatch(/data-selected="true"[^>]*>1</);
   });
+  it('puts a lead control right after the title', () => {
+    const html = renderToStaticMarkup(<DeviceFrame title="Instrument" index={0} on onToggle={noop} lead={<button type="button">Pad</button>}>x</DeviceFrame>);
+    expect(html).toMatch(/ui-device-title">Instrument<\/h3><span class="ui-device-lead"><button type="button">Pad<\/button>/);
+  });
 });

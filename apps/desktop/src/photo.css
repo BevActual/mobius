@@ -37,34 +37,9 @@
 .context-strip .photo-zoom svg:last-of-type { width: 16px; height: 16px; }
 .context-strip .photo-zoom input { width: 96px; }
 
-/* The toolbar row is shared: Photo's tools take the room left after the title and give up words before buttons as it
-   narrows: the back button keeps only its arrow, then Revert and Export only their icons, then the arrow goes. */
-.app .context-strip .ui-toolbar-slot:has(.photo-tools) { flex: 1 1 440px; min-width: 216px; justify-content: flex-end; }
-.app .context-strip .ui-toolbar-slot:has(.photo-tools) > .ui-toolbar-group { flex: 1; min-width: 0; }
-/* In a narrow window the photo's name in the title gives way first: the back button and the foot line name it too. */
-.app .context-strip:has(.photo-tools) .toolbar-place { flex: 0 1 auto; min-width: 0; }
-.app .context-strip:has(.photo-tools) .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.context-strip .photo-tools { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); container-type: inline-size; }
-.context-strip .photo-tools-group { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
-.context-strip .photo-tools-group + .photo-tools-group { position: relative; padding-left: var(--sp-2); }
-.context-strip .photo-tools-group + .photo-tools-group::before { content: ""; position: absolute; left: 0; top: var(--sp-2); bottom: var(--sp-2); width: var(--hairline-w); background: var(--line); }
-.context-strip .photo-tools-group:first-child { margin-right: auto; overflow: hidden; }
-.context-strip .photo-tools-group:not(:first-child) { flex: none; }
-.context-strip .photo-export svg, .context-strip .photo-tools [aria-label="Revert"] svg { display: none; }
-@container (max-width: 480px) { .context-strip .photo-tools .photo-meta, .context-strip .photo-zoom { display: none; } }
-@container (max-width: 400px) { .context-strip .photo-back span { display: none; } }
-@container (max-width: 420px) {
-  .context-strip .photo-tools [aria-label="Revert"] span, .context-strip .photo-export span { display: none; }
-  .context-strip .photo-export svg, .context-strip .photo-tools [aria-label="Revert"] svg { display: block; }
-  .context-strip .photo-export { padding: 0 var(--sp-1); }
-  .context-strip .photo-tab { padding: 0 var(--sp-2); }
-}
-@container (max-width: 330px) {
-  /* Narrowest: Esc and the album in the sidebar still go back, so the back arrow gives way to the edit tools. */
-  .context-strip .photo-tools-group:first-child { display: none; }
-  /* Holding M still shows the original. */
-  .context-strip .photo-tools [aria-label="Show original"] { display: none; }
-}
+/* Photo's toolbar controls are separate items, so the shell's toolbar fit moves the least used into the ⋯ menu when
+   room is short. Revert and Export are words; the edit switch never leaves. */
+.context-strip .photo-export svg, .context-strip .photo-revert svg { display: none; }
 
 /* An album: square pictures on the content surface. While a picture loads its tile is a placeholder, never a spinner. */
 .photo-page .photo-grid { flex: 1; min-height: 0; overflow: auto; list-style: none; margin: 0; padding: var(--sp-4) var(--sp-4) var(--sp-6); display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--tile, 160px), 1fr)); gap: var(--sp-1); align-content: start; }
@@ -165,6 +140,9 @@
 .photo-page .photo-layer[data-base] { background: transparent; box-shadow: none; color: var(--muted); }
 .photo-page .photo-layer-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .photo-page .photo-layer-area { color: var(--muted); font-size: var(--fs-sm); }
+.photo-page .photo-layer-thumb { flex: none; width: 24px; height: 24px; border-radius: var(--radius-control); object-fit: cover; background: var(--sel); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.photo-page .photo-layer-lock { display: grid; place-items: center; width: 20px; height: 20px; color: var(--muted); }
+.photo-page .photo-select { margin-bottom: var(--sp-2); }
 .photo-page .photo-eye { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-control); color: var(--muted); }
 .photo-page .photo-eye:hover { color: var(--ink); background: var(--sel); }
 .photo-page .photo-adjust { display: flex; flex-direction: column; gap: 0; }

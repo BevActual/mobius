@@ -1633,6 +1633,43 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
 }
 
+/// A tidy is discarded in one go: every file back where it was, archives included, and no folder it made left behind.
+/// The window lists each move once.
+#[test]
+fn discarding_a_tidy_puts_the_folder_back_exactly() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("Downloads")).unwrap();
+    std::fs::write(ws.join("Downloads/quote.md"), "# Quote\n").unwrap();
+    std::fs::write(ws.join("Downloads/setup.zip"), b"zip").unwrap();
+    std::fs::write(ws.join("Downloads/plan.md"), "# Plan\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "tidy this folder"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    let moved = b.host_request("host.tool", &json!({ "tool": "files.move", "arguments": { "folder": "Downloads", "moves": [
+        { "from": "quote.md", "to": "Finance/Quotes/quote.md" },
+        { "from": "setup.zip", "to": "Installers/setup.zip" },
+        { "from": "plan.md", "to": "Documents/plan.md" },
+    ] } }));
+    assert!(moved.is_ok(), "{moved:?}");
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    let last = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    assert_eq!(last["moves"].as_array().map(Vec::len), Some(2), "{last}");
+    let files: Vec<String> = last["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap().to_owned()).collect();
+    let undone = call(&b, "changes", "undoFiles", json!(["c-1", files]));
+    assert_eq!(undone["ok"], true, "{undone}");
+    let mut left: Vec<String> = std::fs::read_dir(ws.join("Downloads")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    left.sort();
+    assert_eq!(left, ["plan.md", "quote.md", "setup.zip"], "every file back, the archive too, and no folder left");
+}
+
 /// Each step of a turn is kept with when it happened, so a slow turn can be taken apart afterwards.
 #[test]
 fn a_turns_steps_are_kept_with_their_times() {
@@ -1761,4 +1798,20 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "yesterday", "to": "today" }]))["ok"], false);
     call(&b, "usage", "clear", json!([]));
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
+}
+
+#[test]
+fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    let added = call(&b, "drives", "add", json!([{ "name": "Cloud", "server": address, "username": "ana", "password": "p" }]));
+    assert_eq!(added["ok"], false);
+    assert!(added["message"].as_str().unwrap().starts_with("Could not reach"), "{added}");
+    let missing = call(&b, "drives", "browse", json!(["nope", ""]));
+    assert_eq!((missing["ok"].clone(), missing["message"].clone(), missing["conflict"].clone()), (json!(false), json!("That drive is gone."), json!(false)));
+    assert_eq!(call(&b, "drives", "browse", json!([]))["message"], "A drive is needed.");
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
 }

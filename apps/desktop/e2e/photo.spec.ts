@@ -36,6 +36,8 @@ const panel = (): Locator => shell().getByRole('tabpanel', { name: 'Adjustments'
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar, as on a laptop; a narrow window moves controls into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   // Wide enough for the photo, Adjust in the inspector and Mobius side by side (narrower, they take turns over the page).
   await resizeWindow(mobius.app, 1440, 900);
@@ -51,7 +53,8 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   await panel().getByRole('button', { name: 'Add adjustment' }).click();
   await panel().getByRole('slider', { name: 'Warmth' }).fill('30');
-  await panel().getByRole('combobox', { name: 'Applies to' }).selectOption('below');
+  await panel().getByRole('combobox', { name: 'Applies to' }).click();
+  await shell().getByRole('option', { name: 'Below a line' }).click();
   await expect.poll(() => fs.existsSync(editsFile()) && JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0]).toMatchObject({ warmth: 30, area: { kind: 'below' } });
   expect(fs.readFileSync(path.join(album(), 'coastline.png'))).toEqual(PNG);
   await panel().getByRole('button', { name: 'Hide Adjustment 1' }).click();

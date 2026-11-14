@@ -1,5 +1,5 @@
 import type { EqBand } from './ui';
-import { BEATS_PER_BAR, EFFECT_PARAMS, type Effect, type EffectKind, type KitSound, type SongNote, type Sound } from './song-format';
+import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -80,6 +80,57 @@ export function quantizeNotes(notes: readonly SongNote[], picked: Picked, grid: 
     const length = Math.max(grid, snapNear(note.length, grid));
     return { note: { ...note, start, length: round(Math.min(length, total - start)) }, picked: !all };
   }));
+}
+
+/**
+ * The picked notes cut in two (Ctrl+E): at `at` where it falls inside a note, else on the grid line nearest its middle.
+ * A note too short to cut is left whole. Both halves stay picked.
+ */
+export function splitNotes(notes: readonly SongNote[], picked: Picked, at: number, grid: number) {
+  return settle(notes.flatMap((note, i): { note: SongNote; picked: boolean }[] => {
+    if (!picked.has(i)) return [{ note, picked: false }];
+    const end = note.start + note.length;
+    const inside = at > note.start + 1e-6 && at < end - 1e-6;
+    const cut = round(inside ? at : snapNear(note.start + note.length / 2, grid));
+    if (cut <= note.start + 1e-6 || cut >= end - 1e-6) return [{ note, picked: true }];
+    return [{ note: { ...note, length: round(cut - note.start) }, picked: true }, { note: { ...note, start: cut, length: round(end - cut) }, picked: true }];
+  }));
+}
+
+/**
+ * The picked notes of each pitch made one (Ctrl+J): from the first start to the last end, at the first note's
+ * loudness. Notes alone on their pitch are left as they are.
+ */
+export function joinNotes(notes: readonly SongNote[], picked: Picked) {
+  const groups = new Map<number, number[]>();
+  notes.forEach((n, i) => { if (picked.has(i)) groups.set(n.pitch, [...(groups.get(n.pitch) ?? []), i]); });
+  const gone = new Set<number>();
+  const joined: SongNote[] = [];
+  for (const at of groups.values()) {
+    if (at.length < 2) continue;
+    const these = at.map((i) => notes[i]!).sort(byTime);
+    const first = these[0]!;
+    const end = Math.max(...these.map((n) => n.start + n.length));
+    joined.push({ ...first, length: round(end - first.start) });
+    at.forEach((i) => gone.add(i));
+  }
+  return settle([
+    ...notes.flatMap((note, i) => (gone.has(i) ? [] : [{ note, picked: picked.has(i) }])),
+    ...joined.map((note) => ({ note, picked: true })),
+  ]);
+}
+
+/**
+ * A note played while recording, once its key is let go: from where it was pressed to `end`. When the loop went round
+ * while it was held, it ends at the loop's end. At least a 1/64 note long, and never past the song's end; null if it
+ * began past the end.
+ */
+export function recordedNote(held: { pitch: number; start: number; velocity: number }, end: number, cycle: Cycle | null, total: number): SongNote | null {
+  const start = round(Math.max(0, held.start));
+  if (start >= total) return null;
+  const to = end < held.start && cycle ? cycle.to : end;
+  const length = round(Math.min(total - start, Math.max(1 / 16, to - start)));
+  return { pitch: held.pitch, start, length, velocity: round(Math.max(0, Math.min(1, held.velocity))) };
 }
 
 /** The picked notes set to one loudness (0 to 1). */
@@ -239,10 +290,154 @@ export function stepCells(notes: readonly SongNote[], bar: number, pitches: read
   }));
 }
 
-/** A step switched on (a sixteenth hit at that velocity), changed, or off (velocity 0); the notes stay in order. */
-export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number): SongNote[] {
+/** A step switched on (a hit at that velocity, a sixteenth long unless `length` says), changed, or off (velocity 0); the notes stay in order. */
+export function setStep(notes: readonly SongNote[], bar: number, pitch: number, step: number, velocity: number, length = 0.25): SongNote[] {
   const at = bar * BEATS_PER_BAR + step / 4;
   const kept = notes.filter((n) => !(n.pitch === pitch && sameBeat(n.start, at)));
-  if (velocity > 0) kept.push({ pitch, start: at, length: 0.25, velocity: Math.min(1, velocity) });
+  if (velocity > 0) kept.push({ pitch, start: at, length, velocity: Math.min(1, velocity) });
   return kept.sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+}
+
+/**
+ * Where a looping clip's notes fall in [from, to): the clip started at `start` (in beats played) and goes round every
+ * `length` beats. Each hit is the note and the beat it plays on.
+ */
+export function clipHits<N extends { start: number }>(notes: readonly N[], length: number, start: number, from: number, to: number): { note: N; at: number }[] {
+  if (length <= 0 || to <= from) return [];
+  const hits: { note: N; at: number }[] = [];
+  for (const note of notes) {
+    // The first time round that this note is at or after `from`.
+    let at = start + note.start + Math.max(0, Math.ceil((from - start - note.start) / length - 1e-9)) * length;
+    for (; at < to - 1e-9; at += length) if (at >= from - 1e-9) hits.push({ note, at });
+  }
+  return hits.sort((a, b) => a.at - b.at);
+}
+
+/** The next bar line at or after `beat`, where a launched clip starts, so it lands in time with what is playing. */
+export const nextBar = (beat: number): number => Math.max(0, Math.ceil(beat / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR);
+
+/** A melody's step rows, high to low: `count` notes in the key, from the C of `octave` up (C4 is middle C). */
+export function scaleRows(inKey: ReadonlySet<number>, octave: number, count = 15): number[] {
+  const rows: number[] = [];
+  for (let p = 12 * (octave + 1); rows.length < count && p <= 127; p++) if (inKey.has(p % 12)) rows.push(p);
+  return rows.reverse();
+}
+
+/** The octave a melody's steps open on: the one its notes sit in most, or a starting point for the instrument. */
+export function stepOctave(notes: readonly SongNote[], fallback: number): number {
+  if (notes.length === 0) return fallback;
+  const counts = new Map<number, number>();
+  for (const n of notes) { const o = Math.floor(n.pitch / 12) - 1; counts.set(o, (counts.get(o) ?? 0) + 1); }
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]![0];
+}
+
+const FLAT_KEYS = new Set(['F major', 'Bb major', 'Eb major', 'Ab major', 'Db major', 'Gb major', 'D minor', 'G minor', 'C minor', 'F minor', 'Bb minor', 'Eb minor']);
+const SHARP_NAMES = ['C', 'C♯', 'D', 'D♯', 'E', 'F', 'F♯', 'G', 'G♯', 'A', 'A♯', 'B'];
+const FLAT_NAMES = ['C', 'D♭', 'D', 'E♭', 'E', 'F', 'G♭', 'G', 'A♭', 'A', 'B♭', 'B'];
+/** A note's name as the song's key spells it: B♭5 in F major, A♯5 in B major (C4 is middle C). */
+export function spellIn(pitch: number, key: string): string {
+  return `${(FLAT_KEYS.has(key) ? FLAT_NAMES : SHARP_NAMES)[pitch % 12]}${Math.floor(pitch / 12) - 1}`;
+}
+
+/**
+ * The computer keyboard as an instrument, the way desktop studios lay it out: the middle letter row is the white keys
+ * from C (A S D F G H J K L ;), the row above the black keys between them (W E, T Y U, O P). Gives the semitone above
+ * the octave's C, or null for a key that plays nothing.
+ */
+const KEY_SEMITONES: Record<string, number> = { a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16 };
+export const KEYBOARD_KEYS = Object.keys(KEY_SEMITONES);
+export function keyboardPitch(key: string, octave: number): number | null {
+  const semi = KEY_SEMITONES[key.toLowerCase()];
+  if (semi === undefined) return null;
+  const pitch = 12 * (octave + 1) + semi;
+  return pitch >= 0 && pitch <= 127 ? pitch : null;
+}
+/** For drums, the white keys from A play the drums from the kick up; the others play nothing. */
+export function keyboardDrum(key: string, drumsUp: readonly number[]): number | null {
+  const i = ['a', 's', 'd', 'f', 'g', 'h'].indexOf(key.toLowerCase());
+  return i >= 0 && i < drumsUp.length ? drumsUp[i]! : null;
+}
+/** The keyboard's velocity moves in steps of 20 out of 127 (C softer, V louder), kept between 1 and 127. */
+export const nudgeKeyVelocity = (v: number, by: -1 | 1): number => Math.max(1, Math.min(127, v + by * 20));
+
+/** Sound as a WAV file: 16-bit PCM, the channels interleaved, each sample kept between -1 and 1. */
+export function encodeWav(audio: { numberOfChannels: number; sampleRate: number; length: number; getChannelData(channel: number): Float32Array }): Uint8Array {
+  const channels = audio.numberOfChannels;
+  const frames = audio.length;
+  const data = frames * channels * 2;
+  const out = new DataView(new ArrayBuffer(44 + data));
+  const text = (at: number, s: string) => { for (let i = 0; i < s.length; i++) out.setUint8(at + i, s.charCodeAt(i)); };
+  text(0, 'RIFF'); out.setUint32(4, 36 + data, true); text(8, 'WAVE');
+  text(12, 'fmt '); out.setUint32(16, 16, true); out.setUint16(20, 1, true); out.setUint16(22, channels, true);
+  out.setUint32(24, audio.sampleRate, true); out.setUint32(28, audio.sampleRate * channels * 2, true); out.setUint16(32, channels * 2, true); out.setUint16(34, 16, true);
+  text(36, 'data'); out.setUint32(40, data, true);
+  const sources = Array.from({ length: channels }, (_, c) => audio.getChannelData(c));
+  let at = 44;
+  for (let i = 0; i < frames; i++) {
+    for (const s of sources) {
+      const v = Math.max(-1, Math.min(1, s[i] ?? 0));
+      out.setInt16(at, v < 0 ? Math.round(v * 0x8000) : Math.round(v * 0x7fff), true);
+      at += 2;
+    }
+  }
+  return new Uint8Array(out.buffer);
+}
+
+/** Bytes as base64, in pieces so a long song does not overflow the call stack. */
+export function toBase64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+const SOUND_WORDS: Record<keyof Sound, string> = {
+  shape: 'shape', detune: 'detune', sub: 'sub', drive: 'drive', cutoff: 'cutoff', resonance: 'resonance', envAmount: 'filter envelope',
+  attack: 'attack', decay: 'decay', sustain: 'sustain', release: 'release', vibrato: 'vibrato', rate: 'vibrato rate',
+};
+const KIT_WORDS: Record<keyof KitSound, string> = { tune: 'tune', decay: 'decay', tone: 'tone' };
+
+/** One setting Mobius moved on a track: `key` names the knob (`sound:cutoff`, `kit:tone`, `fx:<id>:mix`, `fx:<id>`, `volume`, `pan`). */
+export interface SoundChange { key: string; text: string }
+
+/**
+ * What changed in how a track sounds, setting by setting, for the review bar: "cutoff 4.2 kHz → 1.1 kHz", "added Delay".
+ * Notes are not counted here. A track that is new has nothing to compare, so it gives none.
+ */
+export function soundChanges(was: Track | undefined, now: Track): SoundChange[] {
+  if (!was) return [];
+  const out: SoundChange[] = [];
+  const pct = (v: number) => `${Math.round(v * 100)}%`;
+  if (was.volume !== now.volume) out.push({ key: 'volume', text: `volume ${pct(was.volume)} → ${pct(now.volume)}` });
+  if (was.pan !== now.pan) out.push({ key: 'pan', text: `pan ${panText(was.pan)} → ${panText(now.pan)}` });
+  const a = soundOf(was), b = soundOf(now);
+  if (a && b && was.instrument === now.instrument) {
+    for (const k of Object.keys(SOUND_WORDS) as (keyof Sound)[]) {
+      if (a[k] !== b[k]) out.push({ key: `sound:${k}`, text: `${SOUND_WORDS[k]} ${soundText(k, a[k])} → ${soundText(k, b[k])}` });
+    }
+  }
+  if (was.instrument === 'drums' && now.instrument === 'drums') {
+    const x = kitOf(was) ?? KIT_DEFAULTS, y = kitOf(now) ?? KIT_DEFAULTS;
+    for (const k of Object.keys(KIT_WORDS) as (keyof KitSound)[]) {
+      if (x[k] !== y[k]) out.push({ key: `kit:${k}`, text: `${KIT_WORDS[k]} ${kitText(k, x[k])} → ${kitText(k, y[k])}` });
+    }
+  }
+  const before = new Map((was.fx ?? []).map((e) => [e.id, e]));
+  for (const e of now.fx ?? []) {
+    const o = before.get(e.id);
+    const name = EFFECT_NAMES[e.kind];
+    if (!o || o.kind !== e.kind) { out.push({ key: `fx:${e.id}`, text: `added ${name}` }); continue; }
+    if (o.on !== e.on) out.push({ key: `fx:${e.id}`, text: `${name} ${e.on ? 'on' : 'off'}` });
+    for (const k of Object.keys(EFFECT_PARAMS[e.kind])) {
+      const p = (o as unknown as Record<string, number>)[k]!, q = (e as unknown as Record<string, number>)[k]!;
+      if (p !== q) out.push({ key: `fx:${e.id}:${k}`, text: `${e.kind === 'eq' ? 'EQ' : name.toLowerCase()} ${k} ${effectText(e.kind, k, p)} → ${effectText(e.kind, k, q)}` });
+    }
+  }
+  const kept = new Set((now.fx ?? []).map((e) => e.id));
+  for (const e of was.fx ?? []) if (!kept.has(e.id)) out.push({ key: `fx:${e.id}`, text: `took out ${EFFECT_NAMES[e.kind]}` });
+  return out;
+}
+
+/** Whether two versions of a track have different notes (by pitch, start, length and velocity). */
+export function notesDiffer(a: Track | undefined, b: Track): boolean {
+  return !a || JSON.stringify(a.notes) !== JSON.stringify(b.notes);
 }

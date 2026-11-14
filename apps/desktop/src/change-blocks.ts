@@ -17,7 +17,7 @@ import { afterPaint } from './ui/frame';
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
  *  added, with the words it took out struck through at the top), and under it Discard, Try another and Keep for that
  *  change alone. Read from `look` when told to look again. */
-export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
+export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
 export const changeKey = new PluginKey<DecorationSet>('doc-changes');
 /** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
 function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
@@ -57,6 +57,7 @@ function changeNote(group: number, removed: boolean, added: boolean, view: Chang
     return b;
   };
   // Asked through `look` when pressed: the note can outlive the render it was drawn in, and its change's number holds.
+  if (view.waiting) { note.append(bar); return note; }
   bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
   if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
   bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
@@ -101,7 +102,8 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
   for (const [g, at] of notes) {
     const removed = removedOf(g);
     const own = [...topGroup].filter(([, og]) => og === g).map(([t]) => t);
-    const key = `${g}-${removed.join('\u0000').length}`;
+    // The same change drawn while Mobius is at work has no answers: a new key, so they come when it is done.
+    const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
       // A change taller than the view also has its answers at its top, so they are never only out of sight.

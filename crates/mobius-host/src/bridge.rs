@@ -226,6 +226,8 @@ pub struct Bridge {
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
+    /// Folders on the person's own servers (WebDAV), opened from Files.
+    drives: crate::drives::Drives,
     mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
@@ -412,6 +414,7 @@ impl Bridge {
                 calendar
             },
             calendar_accounts,
+            drives: crate::drives::Drives::new(&data_dir, secrets.clone()),
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
@@ -600,6 +603,7 @@ impl Bridge {
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
+            ("drives", _) => Ok(self.drives_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -3041,6 +3045,62 @@ impl Bridge {
         }
     }
 
+    /// Drives: folders on the person's own servers, opened from Files. Every answer is what was asked for or
+    /// `{ ok: false, message }`, with `conflict: true` when the file changed on the server since it was read. These
+    /// are the person's own requests from the window; the agent's way in asks every time.
+    fn drives_call(&self, method: &str, args: &[Value]) -> Value {
+        use base64::Engine;
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let drives = &self.drives;
+        let changed = |drive: &str, path: &str| (self.emit)("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "person" }));
+        let result = match (method, text(0)) {
+            ("list", _) => Ok(drives.list()),
+            ("add", _) => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
+                drives.add(field("name"), field("server"), field("username"), field("password"))
+            }
+            ("remove", Some(id)) => drives.remove(id),
+            (_, Some(id)) => drives.open(id).and_then(|drive| {
+                let path = text(1).unwrap_or("");
+                match method {
+                    "browse" => drive.list(path).map(|entries| json!(entries)),
+                    "read" => drive.read(path).map(|file| json!({ "base64": base64::engine::general_purpose::STANDARD.encode(&file.bytes), "size": file.bytes.len(), "etag": file.etag, "contentType": file.content_type })),
+                    "write" => {
+                        let content = args.get(2).unwrap_or(&Value::Null);
+                        let bytes = match (content.get("base64").and_then(Value::as_str), content.get("text").and_then(Value::as_str)) {
+                            (Some(b), _) => base64::engine::general_purpose::STANDARD.decode(b).map_err(|_| "The file did not arrive whole.".to_owned()),
+                            (None, Some(t)) => Ok(t.as_bytes().to_vec()),
+                            (None, None) => Err("Nothing to write.".to_owned()),
+                        };
+                        bytes.and_then(|b| drive.write(path, &b, text(3))).map(|etag| {
+                            changed(id, path);
+                            json!({ "ok": true, "etag": etag })
+                        })
+                    }
+                    "mkdir" => drive.make_folder(path).map(|()| {
+                        changed(id, path);
+                        json!({ "ok": true })
+                    }),
+                    "move" => match text(2) {
+                        Some(to) => drive.rename(path, to).map(|()| {
+                            changed(id, path);
+                            changed(id, to);
+                            json!({ "ok": true })
+                        }),
+                        None => Err("Where to move it is needed.".to_owned()),
+                    },
+                    "delete" => drive.delete(path, text(2)).map(|()| {
+                        changed(id, path);
+                        json!({ "ok": true })
+                    }),
+                    _ => Err(format!("Drives cannot {method}.")),
+                }
+            }),
+            _ => Err("A drive is needed.".to_owned()),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "conflict": message == crate::drives::CHANGED, "message": message }))
+    }
+
     /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
     fn calendar_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::calendar::Draft;
@@ -3360,6 +3420,27 @@ impl Bridge {
                 }
                 (Some(_), Err(e)) => failed(e),
             },
+            // Several of the turn's files back at once (a Discard), with one checkpoint rather than one each. When they are
+            // all its files, what its moves left behind (archives, the folders it made) goes back too, as Undo does.
+            "undoFiles" => {
+                let asked: Vec<String> = arg(1).as_array().map(|l| l.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
+                match (&end, turn_files()) {
+                    (Some(end), Ok(files)) => {
+                        let (kept, back): (Vec<String>, Vec<String>) = files.iter().filter(|f| asked.contains(f)).cloned().partition(|path| changed_later(path));
+                        let whole = files.iter().all(|f| asked.contains(f) || changed_later(f) || f.starts_with(".comments/"));
+                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back) };
+                        match done {
+                            Ok(()) => {
+                                self.reload_after_undo(None);
+                                json!({ "ok": true, "kept": kept })
+                            }
+                            Err(e) => failed(e),
+                        }
+                    }
+                    (None, _) => failed("Mobius is still working on that turn."),
+                    (Some(_), Err(e)) => failed(e),
+                }
+            }
             // The file as it was before the turn, to show what changed. `null` when the turn made it.
             "before" => match arg(1).as_str() {
                 Some(path) => match self.workspace.read_at(&mark, path) {
