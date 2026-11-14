@@ -87,6 +87,12 @@ test('a view shows live tiles from the apps, and tiles are added, resized, moved
   await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => saved().tiles.map((t) => t.id)).toEqual(['t2', 't1', 't3']);
   await page().getByRole('button', { name: 'Done' }).click();
+  // The keyboard: Delete on a focused tile removes it, and Undo puts it back.
+  await tile(/^Mail/).focus();
+  await shell().keyboard.press('Delete');
+  await expect.poll(() => saved().tiles.map((t) => t.id)).toEqual(['t2', 't1']);
+  await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
+  await expect.poll(() => saved().tiles.map((t) => t.id)).toEqual(['t2', 't1', 't3']);
   await expect(page().getByRole('button', { name: 'Remove Notes' })).toBeHidden();
 });
 
