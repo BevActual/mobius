@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { readFileSync } from 'node:fs';
+import { SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -181,5 +182,20 @@ describe('volume automation', () => {
     expect(writeSongForAuto(r.song)).toContain('"volumeAuto":[{"beat":0,"value":0},{"beat":16,"value":1}]');
     r.song.tracks[0]!.volumeAuto = [];
     expect(writeSongForAuto(r.song)).not.toContain('volumeAuto');
+  });
+});
+
+describe('the agent guide (docs/agent/music.md)', () => {
+  // Mobius writes sounds and effects from this page, so every setting it names is the one the app reads, in its range.
+  const guide = readFileSync(new URL('../../../docs/agent/music.md', import.meta.url), 'utf8');
+  const n = (v: number) => String(v);
+  it('names every sound setting with its range', () => {
+    for (const [k, r] of Object.entries(SOUND_RANGE)) expect(guide, k).toMatch(new RegExp(`\`${k}\` ${n(r.lo)}-${n(r.hi)}`));
+  });
+  it('names every effect kind and setting', () => {
+    for (const [kind, params] of Object.entries(EFFECT_PARAMS)) {
+      expect(guide).toContain(`\`${kind}\``);
+      for (const k of Object.keys(params)) expect(guide, `${kind}.${k}`).toContain(`\`${k}\``);
+    }
   });
 });
