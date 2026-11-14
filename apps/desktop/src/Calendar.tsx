@@ -936,7 +936,7 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
     : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
 }
 
-export function CalendarPage({ calendar, newToken = 0, review = null }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null }) {
+export function CalendarPage({ calendar, newToken = 0, review = null, working = false }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -1101,7 +1101,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
           </div>
         </div>
       </ToolbarControls>
-      {review && firstChange && (
+      {review && firstChange && !working && (
         <div className="note-review cal-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{changeSaid(proposal.changed, firstChange)}<WhyThis conversation={review.conversation} /></span>
