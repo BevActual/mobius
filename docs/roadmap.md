@@ -7,7 +7,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 - **Refine before adding.** The apps that exist get genuinely good before new apps are added. Using them for real work
   shows what is missing.
-- **One look.** Apple's Human Interface Guidelines guide every screen, in light and dark.
+- **One look.** One design style, [Instrument](design/instrument.md), for every screen, in light and dark.
 - **The person decides.** Every change the agent makes is reviewable and undoable.
 - **Built by using it.** Agents developing Mobius use Mobius itself, through the
   [driver](developers/driving-the-app.md), to find what to fix and improve.
@@ -19,7 +19,7 @@ promises or dates. Changes to it land in pull requests like any other doc.
 - The workspace: the five zones (a slim rail of apps, each app's own sidebar, one toolbar row, the content and the
   right panel), the launcher, the app hub, split view, the desk,
   Mobius in the right panel beside the work, and Little Mobius.
-- The agent: three modes (Ask first, Propose, Act), Keep / Discard / Try another in every app, Rewind to here, plans,
+- The agent: modes (Agent, Ask, Plan) and permissions (Ask each time, Review changes, Apply changes, Auto), Keep / Discard / Try another in every app, Rewind to here, plans,
   questions, a message queue, memory, past-conversation search, skills, connectors (MCP client and server), schedules
   and Agents.
 - Models: sign-in with ChatGPT, Claude Pro or Max through Claude Code, OpenRouter, API keys for a dozen services, local
@@ -36,7 +36,8 @@ promises or dates. Changes to it land in pull requests like any other doc.
 - **Music as a full small studio**: more instruments (drum pads, a morph synth, a sampler), effects on every track,
   note tools and automation, built on the shared controls. The [Music roadmap](reference/music-roadmap.md) lists each
   one and its status.
-- **Signed installers** through SignPath, so Windows no longer warns on install.
+- **Signed installers** through Azure Artifact Signing, so Windows names the publisher and its warning fades as
+  people install.
 - **Google and Microsoft calendar sign-in**, once Mobius is registered with each
   ([what it needs](reference/calendar-sign-in.md)).
 - **Connectors**: a settings page, HTTP and OAuth transports, and reloading without a restart.

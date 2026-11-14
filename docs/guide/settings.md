@@ -32,7 +32,7 @@ Save button.
 
 | Section | What it holds | Explained in |
 | --- | --- | --- |
-| **Approvals and safety** | The mode, what Mobius may do in each app, always-allowed actions, the activity log | [Working with Mobius](working-with-mobius.md#the-three-modes) |
+| **Approvals and safety** | The permission, what Mobius may do in each app, always-allowed actions, the activity log | [Working with Mobius](working-with-mobius.md#permission) |
 | **Memory** | What Mobius remembers, with Forget | [Memory and Knowledge](memory-and-knowledge.md) |
 | **Privacy** | The privacy report, key storage, how web content is treated, Remove my data | [Privacy, safety and profiles](privacy-and-profiles.md) |
 
