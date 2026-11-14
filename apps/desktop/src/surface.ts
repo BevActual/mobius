@@ -52,7 +52,13 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
-export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each task for today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, making all those calls together in one step, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+
+/**
+ * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them
+ * as a chart and says why, every figure a formula in the sheet.
+ */
+export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers, and in the first empty column a heading "Stands out" with a few words beside each row that is far from the average, such as "2.1× the average". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells.';
 
 /** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
 export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, and run code.test to check, saying nothing until then. Then tell me once, in a sentence or two, what was wrong. I keep or discard the change.';
@@ -76,8 +82,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       return state.note
         ? [
             // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
-            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up at the top of the note, above what is there: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items. Keep the words below exactly as they are. Show me the change before saving.', attach: 'note' },
-            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks in my Tasks Inbox with tasks.add, with any dates the note gives, and list them back as a short to-do list. Change nothing in the note.', attach: 'note' },
+            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up in the note itself with files.edit, under its first heading and above the rest: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items. Keep the heading and the words below exactly as they are. Make the change without asking first: I keep or discard it.', attach: 'note' },
+            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks with tasks.add, with any dates the note gives. Look at tasks.list first: put them in the list for the note\'s project if there is one, otherwise in my Inbox, and leave out any action a task there already covers. Word each as something to do with no name in front; for an action someone else owns, end it with their name in brackets. List them back as a short to-do list, and say which you left out because they were already there. Change nothing in the note.', attach: 'note' },
             { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
@@ -101,6 +107,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'sheets':
       return state.sheet
         ? [
+            // The demo's Sheets moment: what stands out, with the working left in the sheet as formulas.
+            { label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' },
             { label: 'Explain these numbers', prompt: 'Explain what this sheet works out, in plain words, and point at the cells each part comes from.', attach: 'sheet' },
             { label: 'Check the formulas', prompt: 'Check the formulas in this sheet for mistakes, such as a range that misses a row or a total that counts something twice. Say which cells, and ask before changing anything.', attach: 'sheet' },
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },

@@ -377,3 +377,31 @@ export function findCells(cells: readonly (readonly string[])[], values: readonl
   }
   return out;
 }
+
+/** A range written as A1:C7 (or one cell), or null when it is not one. */
+export function parseRange(text: string): Range | null {
+  const m = /^\s*\$?([A-Za-z]{1,3})\$?(\d+)(?::\$?([A-Za-z]{1,3})\$?(\d+))?\s*$/.exec(text);
+  if (!m) return null;
+  const a = { r: Number(m[2]) - 1, c: columnIndex(m[1]!) };
+  const b = m[3] ? { r: Number(m[4]) - 1, c: columnIndex(m[3]) } : a;
+  return a.r < 0 || b.r < 0 ? null : rangeOf(a, b);
+}
+
+/**
+ * A sheet chart's numbers, read from the sheet's shown values: the range's first column names the categories and its
+ * first row the series, as sheets.write describes. Null when the range holds no numbers to draw.
+ */
+export function chartData(range: string, values: readonly (readonly string[])[]): { categories: string[]; series: { name: string; values: (number | null)[] }[] } | null {
+  const g = parseRange(range);
+  if (!g || g.r1 <= g.r0 || g.c1 <= g.c0) return null;
+  const at = (r: number, c: number) => values[r]?.[c] ?? '';
+  const categories: string[] = [];
+  for (let r = g.r0 + 1; r <= g.r1; r++) categories.push(at(r, g.c0));
+  const series: { name: string; values: (number | null)[] }[] = [];
+  for (let c = g.c0 + 1; c <= g.c1; c++) {
+    const nums: (number | null)[] = [];
+    for (let r = g.r0 + 1; r <= g.r1; r++) nums.push(numberIn(at(r, c)));
+    series.push({ name: at(g.r0, c) || columnName(c), values: nums });
+  }
+  return series.some((s) => s.values.some((v) => v !== null)) ? { categories, series } : null;
+}

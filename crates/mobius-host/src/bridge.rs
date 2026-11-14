@@ -183,6 +183,9 @@ pub struct Bridge {
     turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
     marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
+    /// Turns whose end checkpoint is still being taken. What a turn changed is read once it is saved: from the two
+    /// saved states, a quick comparison, rather than a second look at the whole folder racing the first for git.
+    ending: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
     turn_history: Arc<crate::turn_history::TurnHistory>,
     /// The last rewind, so it can be undone: its conversation, the checkpoint before it, and the turns it took out.
@@ -363,6 +366,7 @@ impl Bridge {
             tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
+            ending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
             usage: Arc::new(crate::usage::UsageBook::open(data_dir.join("usage.json"))),
@@ -1121,7 +1125,11 @@ impl Bridge {
         let tab = || arg(0).as_str().filter(|t| is_tab_id(t));
         Ok(match method {
             "getState" => b.state(),
-            "open" => b.open(arg(0).as_str()).map_or(Value::Null, |id| json!(id)),
+            // A link to one of the person's pages from an earlier start goes to where it is served now.
+            "open" => {
+                let moved = arg(0).as_str().and_then(|input| self.pages.current(input));
+                b.open(moved.as_deref().or(arg(0).as_str())).map_or(Value::Null, |id| json!(id))
+            }
             "activate" => {
                 if let Some(t) = tab() {
                     b.activate(t);
@@ -1135,7 +1143,7 @@ impl Bridge {
                 Value::Null
             }
             "navigate" => match (tab(), arg(1).as_str()) {
-                (Some(t), Some(input)) => json!(b.navigate(t, input)),
+                (Some(t), Some(input)) => json!(b.navigate(t, self.pages.current(input).as_deref().unwrap_or(input))),
                 _ => json!("blocked"),
             },
             "back" | "forward" | "reload" | "stopFind" => {
@@ -3266,6 +3274,9 @@ impl Bridge {
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("changes", "waiting for the turn's start to be saved", waited);
+        let waited = std::time::Instant::now();
+        wait_for_marks(&self.ending);
+        slow("changes", "waiting for the turn's end to be saved", waited);
         let started = std::time::Instant::now();
         let out = self.changes_answer(method, conversation, args);
         slow("changes", method, started);
@@ -3582,14 +3593,23 @@ impl Bridge {
             if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed")) {
                 // The task ended: the tabs it used are plain tabs again.
                 self.hand_tabs(conversation, TabChange::End);
-                let (history, conversation, marking) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking));
+                let (history, conversation, marking, ending) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking), Arc::clone(&self.ending));
                 let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
+                // Counted before the turn's end is told to the window, so a read it makes then waits for this.
+                *lock(&ending.0) += 1;
                 std::thread::spawn(move || {
                     wait_for_marks(&marking);
-                    let Some(start) = history.running_start(&conversation) else { return };
-                    if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
-                        history.ended_turn(&conversation, &start, &end);
+                    if let Some(start) = history.running_start(&conversation) {
+                        let started = std::time::Instant::now();
+                        if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
+                            history.ended_turn(&conversation, &start, &end);
+                        }
+                        slow("turn", "checkpoint after the turn", started);
                     }
+                    let (count, done) = &*ending;
+                    let mut n = lock(count);
+                    *n = n.saturating_sub(1);
+                    done.notify_all();
                 });
             }
             (self.emit)("mobius:agent-notification", n.clone());
