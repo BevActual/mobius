@@ -32,12 +32,17 @@ export const GLANCE_FACTS = 3;
 export const glanceFacts = (facts: readonly GlanceFact[]): GlanceFact[] =>
   facts.filter((f) => f.value !== null && f.value !== undefined && f.value !== '').slice(0, GLANCE_FACTS);
 
-/** The Glance card itself. It draws nothing when there are no facts to show. */
-export function GlanceCard({ title, facts, action }: { title?: string; facts: readonly GlanceFact[]; action?: { label: string; run: () => void } }) {
+/** The Glance card itself: a header row (what the facts are about, and the one quiet button), then the facts in equal
+ * columns. It draws nothing when there are no facts to show. */
+export function GlanceCard({ title, facts, action }: { title: string; facts: readonly GlanceFact[]; action?: { label: string; run: () => void } }) {
   const shown = glanceFacts(facts);
   if (shown.length === 0) return null;
   return (
-    <section className="glance" aria-label={title ?? 'At a glance'}>
+    <section className="glance" aria-label={title}>
+      <div className="glance-head">
+        <h3 className="glance-title">{title}</h3>
+        {action && <Button kind="quiet" className="glance-action" onClick={action.run}>{action.label}</Button>}
+      </div>
       <dl className="glance-facts">
         {shown.map((f) => (
           <div key={f.label} className="glance-fact">
@@ -46,22 +51,24 @@ export function GlanceCard({ title, facts, action }: { title?: string; facts: re
           </div>
         ))}
       </dl>
-      {action && <Button kind="quiet" className="glance-action" onClick={action.run}>{action.label}</Button>}
     </section>
   );
 }
 
 /** An app's Glance, placed in the panel. */
-export function AppGlance({ slot, ...card }: { slot: HTMLElement; title?: string; facts: readonly GlanceFact[]; action?: { label: string; run: () => void } }) {
+export function AppGlance({ slot, ...card }: { slot: HTMLElement; title: string; facts: readonly GlanceFact[]; action?: { label: string; run: () => void } }) {
   return createPortal(<GlanceCard {...card} />, slot);
 }
 
-/** The Result card: the app's view of what was made, then Discard and Keep (Keep is the one solid button). */
-export function ResultCard({ title, children, onKeep, onDiscard, keepLabel = 'Keep' }: {
+/** The Result card: the app's view of what was made, then Discard, Try another (when it can be redone) and Keep, in
+ * the order and style of the changes card. Keep is the one solid button. */
+export function ResultCard({ title, children, onKeep, onDiscard, onTryAnother, keepLabel = 'Keep' }: {
   title: string;
   children: ReactNode;
   onKeep: () => void;
   onDiscard: () => void;
+  /** Make it again; left out when there is nothing to redo. */
+  onTryAnother?: (() => void) | undefined;
   keepLabel?: string;
 }) {
   return (
@@ -70,13 +77,14 @@ export function ResultCard({ title, children, onKeep, onDiscard, keepLabel = 'Ke
       <div className="result-body">{children}</div>
       <div className="result-buttons">
         <Button kind="quiet" onClick={onDiscard} keys="Ctrl+Backspace">Discard</Button>
-        <Button kind="primary" onClick={onKeep} keys="Ctrl+Enter">{keepLabel}</Button>
+        {onTryAnother && <Button kind="quiet" onClick={onTryAnother}>Try another</Button>}
+        <Button kind="primary" className="result-keep" onClick={onKeep} keys="Ctrl+Enter">{keepLabel}</Button>
       </div>
     </section>
   );
 }
 
 /** An app's Result, placed under the last reply in the Done state. */
-export function AppResult({ slot, ...card }: { slot: HTMLElement; title: string; children: ReactNode; onKeep: () => void; onDiscard: () => void; keepLabel?: string }) {
+export function AppResult({ slot, ...card }: { slot: HTMLElement; title: string; children: ReactNode; onKeep: () => void; onDiscard: () => void; onTryAnother?: () => void; keepLabel?: string }) {
   return createPortal(<ResultCard {...card} />, slot);
 }

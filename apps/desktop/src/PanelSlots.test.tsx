@@ -16,11 +16,12 @@ describe('the Glance slot', () => {
     expect(facts.map((f) => f.label)).toEqual(['Unread', 'Oldest', 'Drafts']);
   });
   it('draws nothing when there is nothing to say, so the slot stays hidden', () => {
-    expect(renderToStaticMarkup(<GlanceCard facts={[{ label: 'Unread', value: null }]} />)).toBe('');
+    expect(renderToStaticMarkup(<GlanceCard title="Inbox" facts={[{ label: 'Unread', value: null }]} />)).toBe('');
   });
   it('is one card of labels over values, with at most one quiet button', () => {
-    const html = renderToStaticMarkup(<GlanceCard facts={[{ label: 'Selected', value: '4 cells' }, { label: 'Sum', value: '1,240' }]} action={{ label: 'Chart it', run: noop }} />);
+    const html = renderToStaticMarkup(<GlanceCard title="Inbox" facts={[{ label: 'Selected', value: '4 cells' }, { label: 'Sum', value: '1,240' }]} action={{ label: 'Chart it', run: noop }} />);
     expect(html).toContain('<dt class="glance-label">Selected</dt><dd class="glance-value">4 cells</dd>');
+    expect(html).toMatch(/<h3 class="glance-title">Inbox<\/h3><button[^>]*data-kind="quiet"[^>]*>Chart it<\/button>/);
     expect(html.match(/<button/g)).toHaveLength(1);
     expect(html).toContain('data-kind="quiet"');
   });
@@ -31,5 +32,9 @@ describe('the Result slot', () => {
     const html = renderToStaticMarkup(<ResultCard title="Draft reply" onKeep={noop} onDiscard={noop}><p>Thanks, Friday works.</p></ResultCard>);
     expect(html).toContain('aria-label="Draft reply"');
     expect(html).toMatch(/Discard<\/button><button[^>]*data-kind="primary"[^>]*>Keep<\/button><\/div><\/section>$/);
+  });
+  it('offers Try another between them when it can be redone', () => {
+    const html = renderToStaticMarkup(<ResultCard title="Draft reply" onKeep={noop} onDiscard={noop} onTryAnother={noop}>x</ResultCard>);
+    expect(html).toMatch(/Discard<\/button><button[^>]*>Try another<\/button><button[^>]*data-kind="primary"[^>]*>Keep</);
   });
 });
