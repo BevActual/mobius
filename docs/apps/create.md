@@ -6,9 +6,10 @@ Presentations, played as Keynote plays them.
 
 ![The Slides app in Mobius](../readme/apps/slides.png)
 
-- **Slides** down the side, the chosen one at 16:9 to edit, its presenter notes, and a **Format** inspector with two
-  panes: **Slide** (its style and layout) and **Deck** (how long it runs, Play from the start, and Ask Mobius). New
-  slides start from a menu of layouts. Bullets keep their dots while you type them.
+- **Slides** down the side, the chosen one at 16:9 to edit, and its presenter notes in the panel under it (Ctrl+J
+  shows and hides them). Add slide, Duplicate, Delete, Insert picture and Play sit in the toolbar; the arrow beside
+  Add slide starts a new slide from a layout. The **Format** tab, beside Mobius in the right panel, has two panes: **Slide** (its style and layout)
+  and **Deck** (how long it runs, Play from the start, and Ask Mobius). Bullets keep their dots while you type them.
 - **Pictures:** add one with the toolbar's **Insert picture** button, or paste or drop it on the slide. It sits beside the words, or
   fills a slide that has none, and is kept in a `<deck> files` folder beside the deck.
 - **In Play** (in the Slide pane): pick how Play moves on from a slide (None, Dissolve, Push or Move in), and **Skip**
@@ -138,7 +139,8 @@ A code editor for projects in your workspace.
 
 ![The Code app in Mobius](../readme/apps/code.png)
 
-- **Projects** with their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
+- **The sidebar** lists your **Projects** as rows, then **Changes** (the branch, each changed file, and quiet **Commit…** and **Push**), then the open project's **Files** as a tree.
+- **Projects** keep their files as a tree. Files Mobius changed in its last turn have the same dot as in every app.
 - **The editor** types like a text field and reads like code, as in Xcode: the current line is lit, brackets and quotes
   close themselves, Tab and Shift+Tab indent, Ctrl+/ comments lines, Ctrl+F finds and Ctrl+G goes to a line. Every
   change can be undone with Ctrl+Z.
@@ -148,7 +150,8 @@ A code editor for projects in your workspace.
   Mobius asks before either.
 - **With no file open**, a start page shows the project, the files you opened lately, and Open a file, New file and
   Run tests.
-- **Shortcuts** show as your computer writes them: Ctrl on Windows and Linux, ⌘ on a Mac.
+- **Shortcuts** live in tooltips and Help, not the status bar, and show as your computer writes them: Ctrl on Windows
+  and Linux, ⌘ on a Mac. Files wear one grey line icon; colour is kept for git marks and Mobius's changes.
 - **Console**: Mobius can run a command in the project's folder (it asks every time, and stops after five minutes)
   beside your own.
 

@@ -42,7 +42,7 @@ fn is_clippings_page(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || (s.ends_with(".md") && s.chars().count() <= 500 && !s.chars().any(char::is_control)))
 }
 
-static FIELDS: [Field; 17] = [
+static FIELDS: [Field; 18] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "mid", "dark", "cool"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -50,6 +50,8 @@ static FIELDS: [Field; 17] = [
     Field { name: "textDirection", default: || json!("auto"), check: |v| one_of(v, &["auto", "ltr", "rtl"]) },
     Field { name: "density", default: || json!("comfortable"), check: |v| one_of(v, &["comfortable", "compact"]) },
     Field { name: "toolSteps", default: || json!("show"), check: |v| one_of(v, &["show", "hide-finished"]) },
+    // Whether list views show their key-hint bar.
+    Field { name: "keyHints", default: || json!(true), check: is_flag },
     Field { name: "sidebarAtStart", default: || json!(true), check: is_flag },
     Field { name: "resumeLast", default: || json!(true), check: is_flag },
     Field { name: "leftSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
