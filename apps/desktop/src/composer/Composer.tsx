@@ -1,3 +1,4 @@
+import { KeyCaps } from '../ui/Tooltip';
 import { useEffect, useLayoutEffect, useRef, useState, type FormEvent, type KeyboardEvent, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { MobiusMark } from '../MobiusMark';
@@ -434,7 +435,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                     <Check on={option.id === mode} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
                   </button>
                 ))}
-                <p className="popmenu-note">Shift+Tab in the message box goes to the next mode.</p>
+                <p className="popmenu-note popmenu-keys"><span>Next mode</span><KeyCaps keys="Shift+Tab" /></p>
               </>
             )}
           </PopMenu>
@@ -446,7 +447,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                     <Check on={option.id === permission.id} /><span className="popmenu-two-text"><span>{option.name}</span><span className="popmenu-hint">{option.hint}</span></span>
                   </button>
                 ))}
-                <p className="popmenu-note">Paying, sending, deleting and running commands ask every time, and what you blocked stays blocked.</p>
+                <button type="button" role="menuitem" className="popmenu-item popmenu-link" title="Paying, sending, deleting and running commands always ask, and what you blocked stays blocked" onClick={() => { close(); onOpenSettings(); }}>Always ask and never lists…</button>
               </>
             )}
           </PopMenu>

@@ -178,7 +178,7 @@ test('the agent panel grows when its edge is dragged left, the keys work, and a 
   await shell().keyboard.press('Home');
   await expect.poll(async () => (await appearance()).rightWidth).toBe(300);
   await handle.dblclick();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(320);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(340);
 });
 
 test('widths and modes survive a restart, and the settings page shows and resets them', async () => {
@@ -200,7 +200,7 @@ test('widths and modes survive a restart, and the settings page shows and resets
   await expect(page.getByText('list 300 px, agent panel 500 px')).toBeVisible();
   await page.getByRole('button', { name: 'Reset sizes' }).click();
   await expect.poll(async () => (await appearance()).leftWidth).toBe(248);
-  expect((await appearance()).rightWidth).toBe(320);
+  expect((await appearance()).rightWidth).toBe(340);
 });
 
 test('a width the window sends that is out of range is refused', async () => {

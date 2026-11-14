@@ -2547,8 +2547,6 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .composer-tools { flex-wrap: nowrap; }
 .composer-tools .pill { height: 24px; padding: 0 4px; background: none; box-shadow: none; color: var(--muted); font-weight: 400; }
 .composer-tools .pill:hover:not(:disabled), .composer-tools .pill[aria-expanded="true"] { background: var(--sel); color: var(--ink); }
-.composer-tools .pill .chev { display: none; }
-.composer-tools .pill-compact::before { content: "·"; margin-right: 6px; color: var(--faint); }
 .empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
 /* Sidebar pieces as in the timeless mocks. */
 /* Quiet section headers: their tools (float, refresh, +) stay out of sight until the header is hovered or focused. */
@@ -2634,4 +2632,22 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools .pill-model { max-width: 100%; }
 .composer-tools .pill-model-icon { display: none; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
 /* In a narrow Mobius panel the model shows as a chip; its name is in the tooltip and the menu. */
-@container (max-width: 320px) { .composer-tools .pill-model .pill-text { display: none; } .composer-tools .pill-model-icon { display: block; } .composer-tools .pill.pill-model { min-width: 0; } }
+@container (max-width: 260px) { .composer-tools .pill-model .pill-text { display: none; } .composer-tools .pill-model-icon { display: block; } .composer-tools .pill.pill-model { min-width: 0; } }
+.composer-tools .pill { gap: 4px; }
+.composer-tools .pill .chev { display: block; }
+.chat .composer .composer-tools .pill-compact .pill-icon { display: block; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.3; }
+.popmenu-two .popmenu-hint { white-space: nowrap; }
+.composer-tools .popmenu-list:has(.popmenu-two) { min-width: max-content; }
+.popmenu-keys { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+.composer-tools > .popmenu:first-child { flex: none; }
+
+/* Selected text uses the theme's selection grey: indigo is for Mobius alone. */
+::selection { background: var(--sel); color: inherit; }
+.composer-tools .pill.pill-model { min-width: 28px; }
+.composer-tools { gap: 2px; }
+.composer-tools .pill { gap: 3px; padding: 0 4px; }
+.composer-tools .pill-model .chev { display: none; }
+.chat .composer .composer-actions { gap: 2px; }
+.chat .composer { margin-left: 8px; margin-right: 8px; padding-left: 10px; padding-right: 6px; }
+.chat .composer .composer-bar .round { width: 26px; height: 26px; }
+.chat .composer .composer-bar .round.send, .chat .composer .composer-bar .round.stop { width: 28px; height: 28px; }

@@ -11,8 +11,8 @@ export interface ChatModeInfo { id: ChatMode; name: string; hint: string; keys: 
 
 export const CHAT_MODES: readonly ChatModeInfo[] = [
   { id: 'agent', name: 'Agent', hint: 'Does the work, across apps if needed', keys: '1' },
-  { id: 'ask', name: 'Ask', hint: 'Answers and explains. Changes nothing.', keys: '2' },
-  { id: 'plan', name: 'Plan', hint: 'Writes a short plan and waits for you to start it', keys: '3' },
+  { id: 'ask', name: 'Ask', hint: 'Answers and explains, changes nothing', keys: '2' },
+  { id: 'plan', name: 'Plan', hint: 'Writes a plan and waits for you', keys: '3' },
 ];
 
 const MODE_KEY = 'mobius.chatMode';
@@ -43,10 +43,10 @@ export type Permission = 'each' | 'review' | 'apply' | 'auto';
 export interface PermissionInfo { id: Permission; name: string; short: string; hint: string; approval: Exclude<ApprovalModeChoice, 'off'> }
 
 export const PERMISSIONS: readonly PermissionInfo[] = [
-  { id: 'each', name: 'Ask each time', short: 'Each time', hint: 'Reads without asking; asks before every change', approval: 'manual' },
-  { id: 'review', name: 'Review changes', short: 'Review', hint: 'Changes here land dashed and wait for Keep or Discard', approval: 'propose' },
-  { id: 'apply', name: 'Apply changes', short: 'Apply', hint: 'Changes here are kept at once, with Undo and Rewind', approval: 'propose' },
-  { id: 'auto', name: 'Auto', short: 'Auto', hint: 'Does the work and checks each step; the risky ones still ask', approval: 'smart' },
+  { id: 'each', name: 'Ask each time', short: 'Each time', hint: 'Mobius asks before every step', approval: 'manual' },
+  { id: 'review', name: 'Review changes', short: 'Review', hint: 'Changes show dashed until you keep them', approval: 'propose' },
+  { id: 'apply', name: 'Apply changes', short: 'Apply', hint: 'Changes go in; Undo takes them back', approval: 'propose' },
+  { id: 'auto', name: 'Auto', short: 'Auto', hint: 'Runs on its own in apps you switched on', approval: 'smart' },
 ];
 
 const APPLY_KEY = 'mobius.applyChanges';
