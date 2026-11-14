@@ -21,3 +21,4 @@ body { overflow: auto; background: var(--frame); }
 .sheet-chips { margin: 0; line-height: 2; color: var(--ink); }
 .sheet-pads { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .sheet-pads { align-items: start; }
+.sheet-sub { font-size: 12px; color: var(--muted); }

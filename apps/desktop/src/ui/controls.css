@@ -151,15 +151,18 @@
 .ui-track {
   -webkit-appearance: none; appearance: none; width: 100%; height: var(--hit-min); margin: 0;
   background: transparent; cursor: default;
+  /* The thumb's centre travels from half a hit square in to half a hit square from the end, so the fill does too. */
+  --fill-from: calc(var(--hit-min) / 2 + (100% - var(--hit-min)) * var(--from, 0));
+  --fill-to: calc(var(--hit-min) / 2 + (100% - var(--hit-min)) * var(--to, 0));
 }
 .ui-track:focus-visible { outline: none; }
 .ui-track::-webkit-slider-runnable-track {
   height: var(--track-h); border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to));
+  background: linear-gradient(to right, var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to));
 }
 .ui-track::-moz-range-track {
   height: var(--track-h); border-radius: var(--radius-pill);
-  background: linear-gradient(to right, var(--line) var(--from), var(--ink) var(--from), var(--ink) var(--to), var(--line) var(--to));
+  background: linear-gradient(to right, var(--line) var(--fill-from), var(--ink) var(--fill-from), var(--ink) var(--fill-to), var(--line) var(--fill-to));
 }
 /* The thumb is a slim ink tick inside a hit square (a transparent border takes the pointer); keyboard focus rings it. */
 .ui-track::-webkit-slider-thumb {
@@ -299,3 +302,35 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-row-meta { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .ui-row-detail { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 .ui-row-trail { display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; }
+
+/* Inline field: the name beside the box, for toolbars and bars. Quiet pop-up: text and chevrons, a fill on hover. */
+.ui-field[data-inline] { flex-direction: row; align-items: center; gap: var(--sp-2); }
+.ui-field[data-inline] .ui-field-label { white-space: nowrap; }
+.ui-select[data-quiet] { border-color: transparent; background: transparent; color: var(--body); padding-inline: var(--sp-1); }
+.ui-select[data-quiet]:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
+.ui-select[data-quiet][data-popup-open] { border-color: transparent; background: var(--sel); color: var(--ink); }
+
+/* Param grid with one or three cells to a row; a wide cell spans its row. */
+.ui-param-grid[data-columns="1"] { grid-template-columns: minmax(0, 1fr); }
+.ui-param-grid[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ui-param[data-wide] { grid-column: 1 / -1; }
+
+/* Swatches: round content colours; the chosen one has a ring in ink with a paper gap. */
+.ui-swatches { display: inline-flex; flex-wrap: wrap; gap: var(--sp-2); }
+.ui-swatch {
+  width: var(--check-size); height: var(--check-size); padding: 0; border: 0; border-radius: var(--radius-pill); cursor: default;
+  background: var(--swatch); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--ink) 12%, transparent);
+}
+.ui-swatches .ui-swatch:hover:not(:disabled) { background: var(--swatch); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--ink) 30%, transparent); }
+.ui-swatch[aria-checked="true"] { box-shadow: 0 0 0 var(--hairline-w) var(--paper), 0 0 0 calc(var(--hairline-w) * 3) var(--ink); }
+.ui-swatches .ui-swatch[aria-checked="true"]:hover:not(:disabled) { box-shadow: 0 0 0 var(--hairline-w) var(--paper), 0 0 0 calc(var(--hairline-w) * 3) var(--ink); }
+.ui-swatch:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) + var(--hairline-w)); }
+.ui-swatch[data-color="amber"] { --swatch: var(--c-amber); }
+.ui-swatch[data-color="yellow"] { --swatch: var(--c-yellow); }
+.ui-swatch[data-color="green"] { --swatch: var(--c-green); }
+.ui-swatch[data-color="teal"] { --swatch: var(--c-teal); }
+.ui-swatch[data-color="blue"] { --swatch: var(--c-blue); }
+.ui-swatch[data-color="violet"] { --swatch: var(--c-violet); }
+.ui-swatch[data-color="pink"] { --swatch: var(--c-pink); }
+.ui-swatch[data-color="coral"] { --swatch: var(--c-coral); }
+.ui-swatch[data-color="stone"] { --swatch: var(--c-stone); }

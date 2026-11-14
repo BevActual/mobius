@@ -68,6 +68,12 @@ const RemakeMark = () => (
 );
 
 /** The range input itself, shared by Slider and ParamCell. */
+/** A log-scale nudge: `octaves` of an octave up or down, moving at least one `step`. */
+export function logNudge(value: number, by: number, octaves: number, step: number): number {
+  const next = value * Math.pow(2, by * octaves);
+  return by > 0 ? Math.max(next, value + step) : Math.min(next, value - step);
+}
+
 function Track({ id, label, value, onChange, onCommit, min, max, step, bigStep, origin, reset, scale, format, disabled, thin, describedBy }: Required<Pick<SliderProps, 'label' | 'value' | 'onChange' | 'min' | 'max' | 'step' | 'scale'>> & Pick<SliderProps, 'onCommit' | 'bigStep' | 'origin' | 'reset' | 'format' | 'disabled'> & { id: string; thin?: boolean; describedBy?: string }) {
   const zero = origin ?? (min < 0 && max > 0 ? 0 : min);
   const back = reset ?? zero;
@@ -79,14 +85,14 @@ function Track({ id, label, value, onChange, onCommit, min, max, step, bigStep, 
     const by = event.key === 'ArrowRight' || event.key === 'ArrowUp' ? 1 : event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 0;
     if (by && event.shiftKey) {
       event.preventDefault();
-      set(value + by * (bigStep ?? step * 10));
+      set(scale === 'log' && bigStep === undefined ? logNudge(value, by, 1 / 2, step) : value + by * (bigStep ?? step * 10));
     } else if (by && scale === 'log') {
-      // The input runs over positions on a log scale; a nudge is still one `step` of the value.
+      // On a log scale a nudge is a twelfth of an octave (Shift above: half an octave), and at least one `step`.
       event.preventDefault();
-      set(value + by * step);
+      set(logNudge(value, by, 1 / 12, step));
     }
   };
-  const style = { '--from': `${Math.min(at, from) * 100}%`, '--to': `${Math.max(at, from) * 100}%` } as CSSProperties;
+  const style = { '--from': Math.min(at, from), '--to': Math.max(at, from) } as CSSProperties;
   const log = scale === 'log';
   return (
     <input
@@ -132,12 +138,12 @@ export function Slider({ label, value, onChange, onCommit, min = 0, max = 100, s
  * with its unit, and a thin slider under it. `keyHint` is the letter or number in the corner that matches its key. Put
  * cells in a `ParamGrid`, two to a row.
  */
-export function ParamCell({ label, unit, keyHint, ...slider }: Omit<SliderProps, 'ends' | 'hideLabel' | 'hideValue' | 'remake'> & { unit?: string; keyHint?: string }) {
+export function ParamCell({ label, unit, keyHint, wide, ...slider }: Omit<SliderProps, 'ends' | 'hideLabel' | 'hideValue' | 'remake'> & { unit?: string; keyHint?: string; /** Span the whole row of its grid. */ wide?: boolean }) {
   const id = useId();
   const { value, format, min = 0, max = 100, step = 1, scale = 'linear', className, disabled } = slider;
   const shown = format ? format(value) : String(value);
   return (
-    <div className={className ? `ui-param ${className}` : 'ui-param'} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-param ${className}` : 'ui-param'} data-disabled={disabled || undefined} data-wide={wide || undefined}>
       <label className="ui-param-name" htmlFor={id}>{label}</label>
       {keyHint && <span className="ui-param-key" aria-hidden="true">{keyHint}</span>}
       <output className="ui-param-value" htmlFor={id}>{shown}{unit && <span className="ui-param-unit">{unit}</span>}</output>
@@ -146,8 +152,8 @@ export function ParamCell({ label, unit, keyHint, ...slider }: Omit<SliderProps,
   );
 }
 
-export function ParamGrid({ label, children }: { label?: string; children: ReactNode }) {
-  return <div className="ui-param-grid" role="group" aria-label={label}>{children}</div>;
+export function ParamGrid({ label, columns = 2, children }: { label?: string; /** Cells to a row: 2 by default, 1 for a lone cell such as Volume. */ columns?: 1 | 2 | 3; children: ReactNode }) {
+  return <div className="ui-param-grid" role="group" aria-label={label} data-columns={columns === 2 ? undefined : columns}>{children}</div>;
 }
 
 /**
