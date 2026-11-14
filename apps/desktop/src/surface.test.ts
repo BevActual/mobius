@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { isStarter, noteContext, suggestionsFor, tasksContext } from './surface';
+import { isStarter, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext } from './surface';
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
@@ -25,6 +25,13 @@ describe('what each app suggests', () => {
     expect(first.label).toBe('Find a time with…');
     expect(isStarter(first)).toBe(true);
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
+    // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
+    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
+  });
+  it('leads Home and Tasks with Plan my day: the same ask, which times tasks and suggests blocks but sends nothing', () => {
+    for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
+    for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
+    expect(PLAN_MY_DAY).toContain('Do not send anything');
   });
   it('never asks the agent app to attach anything', () => {
     expect(suggestionsFor({ app: 'agent', hasPage: true, note: null }).every((s) => s.attach === undefined)).toBe(true);
