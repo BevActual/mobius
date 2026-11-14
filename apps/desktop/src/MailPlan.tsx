@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { AppAction, useActionsSlot } from './ActionsSlot';
+import { APP_ICONS } from './Rail';
 import { isNotesFailure, type MailMessage, type MailPlan, type MailPlanRow, type Message } from '@mobius/shared';
 
 const GROUPS: readonly { key: keyof MailPlan; verb: string }[] = [
@@ -19,6 +21,7 @@ export function MailPlanCard({ onChanged }: { onChanged?: () => void }) {
   const [state, setState] = useState<'closed' | 'proposed' | 'kept'>('closed');
   const [open, setOpen] = useState<keyof MailPlan | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  const slot = useActionsSlot();
   if (!api?.plan) return null;
   const propose = async () => {
     setProblem(null);
@@ -44,7 +47,10 @@ export function MailPlanCard({ onChanged }: { onChanged?: () => void }) {
   const total = plan ? GROUPS.reduce((n, g) => n + plan[g.key].length, 0) : 0;
   return (
     <section className="mail-plan" aria-label="Get to zero">
-      {state === 'closed' && <button type="button" className="btn mail-plan-start" onClick={() => void propose()}>Get to zero</button>}
+      {/* In the resting panel it is the first of the actions, numbered; in a chat it is a button of its own. */}
+      {state === 'closed' && (slot
+        ? <AppAction slot={slot} icon={APP_ICONS.mail} label="Get to zero" title="Mobius plans the whole inbox: what to archive, answer, put off and turn into tasks" onRun={() => void propose()} />
+        : <button type="button" className="btn mail-plan-start" onClick={() => void propose()}>Get to zero</button>)}
       {state === 'proposed' && plan && (
         total === 0 ? <p className="mail-plan-empty" role="status">Your inbox is already at zero.</p> : (
           <div className="mail-plan-card" data-proposed role="group" aria-label="Mobius’s plan">
