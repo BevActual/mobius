@@ -1042,14 +1042,14 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
   const exportWav = async () => {
     if (exporting || !songs.page) return;
-    const save = (window.mobius?.songs as { saveExport?: (path: string, name: string, data: string) => Promise<{ saved: string; name: string } | { ok: false; message: string } | undefined> } | undefined)?.saveExport;
-    if (!save) { setExported({ text: 'Export needs the desktop app’s Exports folder, which is coming.', kind: 'note' }); return; }
+    const api = window.mobius?.songs;
+    if (!api?.saveExport) { setExported({ text: 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
     setExporting(true);
     const name = `${songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song'}.wav`;
     setExported({ text: `Exporting “${name}”…`, kind: 'busy' });
     try {
       const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was ? { text: `Exporting “${name}”… ${Math.round(done * 100)}%`, kind: 'busy' } : was)))));
-      const done = await save(songs.page.path, name, data);
+      const done = await api.saveExport(songs.page.path, name, data);
       if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
     } catch (err) {
@@ -1321,7 +1321,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
           </>
         )}
       </div>
-      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Hide' : 'OK'} onUndo={() => { if (exported.kind === 'done') void (window.mobius?.songs as { showExports?: () => unknown } | undefined)?.showExports?.(); setExported(null); }} onDismiss={() => setExported(null)} />}
+      {exported && <UndoToast text={exported.text} undoLabel={exported.kind === 'done' ? 'Show in folder' : exported.kind === 'busy' ? 'Hide' : 'OK'} onUndo={() => { if (exported.kind === 'done') void window.mobius?.songs?.showExports?.(); setExported(null); }} onDismiss={() => setExported(null)} />}
       {undoText && <UndoToast text={undoText} onUndo={() => { undo(); setUndoText(null); }} onDismiss={() => setUndoText(null)} />}
       {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={() => setMenu(null)} />, document.body)}
     </section>
