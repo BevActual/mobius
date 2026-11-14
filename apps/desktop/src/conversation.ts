@@ -1,5 +1,5 @@
 import { attachmentApp } from './surface';
-import { splitContext, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
+import { splitContext, splitReads, type AgentNotification, type AgentWaiting, type ContextItem, type Message, type TodoItem } from '@mobius/shared';
 
 /** Tools the agent answers itself: shown as a plan or a question, never as tool steps. */
 export const TODO_TOOL = 'todo.write';
@@ -114,7 +114,7 @@ function fromHistory(state: ConversationState, messages: Message[]): Conversatio
   let next: ConversationState = { ...state, items: [], nextId: 1 };
   for (const message of messages) {
     if (message.role === 'user') {
-      const parts = splitContext(message.text);
+      const parts = splitContext(splitReads(message.text));
       next = withItem(next, (id) => ({ kind: 'user', id, text: parts.text, ...(parts.items.length > 0 ? { attachments: parts.items } : {}), ...(message.images && message.images.length > 0 ? { images: message.images } : {}), ...(message.at_ms !== undefined ? { at: message.at_ms } : {}) }));
     }
     else if (message.role === 'assistant') {

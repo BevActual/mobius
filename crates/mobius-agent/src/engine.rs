@@ -205,7 +205,17 @@ pub struct TurnSetup {
     pub images: Vec<String>,
     /// The project the conversation belongs to: its rules count for the turn's calls.
     pub project: Option<String>,
+    /// Reads the turn always starts with (a suggestion's or a mode's), done before the model is first asked, so it
+    /// does not spend a round asking for them: each tool's name and arguments. Only reads that would run without
+    /// asking anyone are done; the others are left for the model.
+    pub reads: Vec<(String, serde_json::Value)>,
 }
+
+/// Reads done before the model is first asked, with what they gave, kept with the person's message.
+pub const READS_OPEN: &str = "\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\n";
+pub const READS_CLOSE: &str = "\n</reads>";
+/// At most this many reads before a turn.
+pub const MAX_READS: usize = 6;
 
 /// Added to the next request after the person took over and handed back.
 pub const HANDED_BACK: &str = "The person took over for a while and used the apps themself, then handed back. What you read before may have changed: read the current state again (the page, document or list you were working on) before your next step, and carry on from what is there now.";
@@ -243,6 +253,15 @@ pub struct Turn {
     reread: bool,
     /// Calls of the model call in flight that ran as soon as the model finished writing each one.
     early: Early,
+    /// Reads still to do before the model is first asked, and what those done gave.
+    reads: Option<Reads>,
+}
+
+#[derive(Default)]
+struct Reads {
+    waiting: VecDeque<ToolCall>,
+    running: Option<ToolCall>,
+    done: Vec<(ToolCall, String)>,
 }
 
 /// A model round's calls that run while the model is still writing the rest, so the person sees each change as soon
@@ -348,6 +367,11 @@ impl Turn {
     pub fn is_finished(&self) -> bool {
         self.finished
     }
+
+    /// The turn's first reads are still to be done (`Engine::read_first`).
+    pub fn has_reads(&self) -> bool {
+        self.reads.as_ref().is_some_and(|r| r.running.is_none() && !r.waiting.is_empty())
+    }
 }
 
 enum Executed {
@@ -397,9 +421,74 @@ impl Engine {
         let compaction = compaction.filter(|c| c.covers < history.len() && !matches!(history[c.covers], Message::Tool { .. }));
         let at_ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok().and_then(|d| u64::try_from(d.as_millis()).ok());
         history.push(Message::User { text: user_text.to_owned(), images: turn_images(&setup), at_ms });
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default() };
+        let reads: VecDeque<ToolCall> = if setup.plan_only {
+            VecDeque::new()
+        } else {
+            setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
+        };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None };
+        if !reads.is_empty() {
+            // The reads need the core to run them: the caller goes on with `read_first`.
+            turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
+            return (turn, Step::Idle);
+        }
         let step = self.next_model_call(core, &mut turn);
         (turn, step)
+    }
+
+    /// Do the turn's first reads, then ask the model. Each read the person would see the model do shows the same way
+    /// (a call and its result); one that would need anyone's answer, or that is not a read, is left for the model.
+    pub fn read_first(&self, turn: &mut Turn, core: &mut Core) -> Step {
+        loop {
+            let Some(reads) = turn.reads.as_mut() else { return self.next_model_call(core, turn) };
+            if reads.running.is_some() {
+                return Step::Idle;
+            }
+            let Some(call) = reads.waiting.pop_front() else { return self.after_reads(core, turn) };
+            let reading = core.capability_of(&call.name).is_some_and(|c| is_reading(c.as_str()));
+            if !reading || !call.arguments.is_object() || !core.would_run_in(&self.config.principal, &call.name, &call.arguments, turn.setup.project.as_deref()) {
+                continue;
+            }
+            turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
+            match self.execute(core, &call, false, turn.setup.project.as_deref()) {
+                Executed::Result { content, is_error } => self.read_done(turn, call, content, is_error),
+                Executed::Dispatch => {
+                    let step = Step::RunTool { call_id: call.id.clone(), name: call.name.clone(), arguments: call.arguments.clone() };
+                    if let Some(reads) = turn.reads.as_mut() {
+                        reads.running = Some(call);
+                    }
+                    return step;
+                }
+                Executed::Park(request_id) => {
+                    core.withdraw(request_id).ok();
+                    turn.events.push(AgentEvent::ToolResult { call_id: call.id, name: call.name, is_error: true });
+                }
+                Executed::Fatal(_) => turn.events.push(AgentEvent::ToolResult { call_id: call.id, name: call.name, is_error: true }),
+            }
+        }
+    }
+
+    fn read_done(&self, turn: &mut Turn, call: ToolCall, content: String, is_error: bool) {
+        turn.events.push(AgentEvent::ToolResult { call_id: call.id.clone(), name: call.name.clone(), is_error });
+        // A read that failed is left for the model to try itself.
+        if !is_error && let Some(reads) = turn.reads.as_mut() {
+            reads.done.push((call, content));
+        }
+    }
+
+    /// What the reads gave goes with the person's message, each in the envelope that says it is data, then the model
+    /// is asked.
+    fn after_reads(&self, core: &Core, turn: &mut Turn) -> Step {
+        let done = turn.reads.take().map(|r| r.done).unwrap_or_default();
+        if !done.is_empty()
+            && let Some(Message::User { text, .. }) = turn.messages.iter_mut().rev().find(|m| matches!(m, Message::User { .. }))
+        {
+            let blocks: Vec<String> = done.iter().map(|(call, content)| format!("{} {}\n{content}", call.name, call.arguments)).collect();
+            text.push_str(READS_OPEN);
+            text.push_str(&blocks.join("\n\n").replace(READS_CLOSE.trim_start(), "</ reads>"));
+            text.push_str(READS_CLOSE);
+        }
+        self.next_model_call(core, turn)
     }
 
     pub fn on_model(&self, turn: &mut Turn, core: &mut Core, result: Result<Completion, ProviderError>) -> Step {
@@ -521,6 +610,18 @@ impl Engine {
     pub fn on_tool_result(&self, turn: &mut Turn, core: &mut Core, call_id: &str, result: Result<String, String>) -> Step {
         if turn.finished {
             return Step::Done;
+        }
+        if turn.reads.as_ref().and_then(|r| r.running.as_ref()).is_some_and(|c| c.id == call_id) {
+            let Some(call) = turn.reads.as_mut().and_then(|r| r.running.take()) else { return Step::Idle };
+            core.record_external_result(&self.config.principal, &call.name, result.is_ok()).ok();
+            match result {
+                Ok(content) => {
+                    let content = untrusted::wrap(&call.name, &call.arguments, &truncate(content));
+                    self.read_done(turn, call, content, false);
+                }
+                Err(_) => self.read_done(turn, call, String::new(), true),
+            }
+            return self.read_first(turn, core);
         }
         if turn.early.running.as_deref() == Some(call_id) {
             turn.early.running = None;
