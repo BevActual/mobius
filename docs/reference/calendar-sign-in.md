@@ -70,7 +70,7 @@ New registration:
 - **Microsoft**: read and write through Microsoft Graph (`/me/calendars`, `/me/calendarView`, `/me/events`). Events
   are converted to and from the same mirror files.
 - The same rules as today: changes go to the server first and are refused if the event changed elsewhere meanwhile. The
-  agent asks before adding to a calendar unless the person allowed it in Settings › Safety. Mobius never invites anyone.
+  agent asks before adding to a calendar unless the person allowed it in Settings › Approvals and safety. Mobius never invites anyone.
 
 Sources:
 - Google: [Using OAuth 2.0 for desktop apps](https://developers.google.com/identity/protocols/oauth2/native-app), [Google Auth Platform](https://support.google.com/cloud/answer/15544987)
