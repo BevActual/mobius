@@ -37,7 +37,7 @@ import { NotesSidebar } from './NotesSidebar';
 import { TasksPage, TasksSidebar } from './Tasks';
 import { CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
-import { SheetGrid, SheetsSidebar } from './Sheets';
+import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
@@ -1470,7 +1470,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
@@ -1515,7 +1515,7 @@ export function App() {
             onDrive={driveTasks}
             onStop={conversation.stop}
             onTakeOver={conversation.takeOver}
-            appCard={inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}
+            appCard={<>{app === 'sheets' && <SheetsGlance />}{inMail ? (mail.open ? null : <MailPlanCard onChanged={() => void mail.refresh()} />) : <SideThreads projects={projects} conversation={conversation.state.conversation} bots={bots.bots} onOpen={(id) => { conversation.select(id); openApp('agent'); }} />}</>}
             onOpenMail={(id) => { openApp('mail'); void mail.read(id); }}
             onHandBack={conversation.handBack}
             onAnswer={conversation.answer}
