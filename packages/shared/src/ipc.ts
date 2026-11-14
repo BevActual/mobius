@@ -193,7 +193,9 @@ export interface MailDraft {
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
-export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
+/** A chart on a sheet, kept in the workbook's .charts.json: drawn from `range` (first row the series names, first column the categories), its corner at the cell `at`. */
+export interface SheetChart { sheet: string; kind: 'column' | 'line' | 'area'; range: string; at: string; title?: string }
+export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string; /** The sheet's charts (older cores send none). */ charts?: SheetChart[] }
 export interface WorkbookInfo { name: string; sheets: string[] }
 export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Code project's file or folder, as a path inside the project, folders first. */

@@ -21,6 +21,8 @@ export interface SurfaceState {
   app: AppId;
   /** A web page is showing in the browser. */
   hasPage: boolean;
+  /** How many tabs show a web page: two or more can be compared. */
+  pages?: number;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
   /** `extra` is what is said about it, such as its open comments, sent after its text. */
   note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
@@ -41,6 +43,12 @@ export interface SurfaceState {
 }
 
 /**
+ * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
+ * linked to the words on the page it came from.
+ */
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs and read each with browser.read (its tabId). Write the comparison as a new note in my Notes called "Compare: <what they are>": one table with a column for each page, headed by its title linked to its address, and a row for each thing worth comparing (such as price, size, what is included, delivery). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where a page does not say, write "not stated". Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+
+/**
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
@@ -52,9 +60,10 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'browser':
       return state.hasPage
         ? [
-            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' },
-            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' },
-            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' },
+            ...((state.pages ?? 0) >= 2 ? [{ label: 'Compare these', prompt: COMPARE_TABS }] : []),
+            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' as const },
+            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' as const },
+            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' as const },
           ]
         : [];
     case 'notes':
