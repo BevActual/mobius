@@ -162,19 +162,19 @@ test('a sidebar can be dragged wider and narrower, within limits, and the width 
 test('the agent panel grows when its edge is dragged left, the keys work, and a double-click puts the usual width back', async () => {
   await resizeWindow(mobius!.app, 1600, 900);
   const handle = shell().getByRole('separator', { name: 'Resize the agent panel' });
-  await expect(handle).toHaveAttribute('aria-valuenow', '320');
+  await expect(handle).toHaveAttribute('aria-valuenow', '340');
   const box = (await handle.boundingBox())!;
   await shell().mouse.move(box.x + 3, box.y + 200);
   await shell().mouse.down();
   await shell().mouse.move(box.x + 3 - 80, box.y + 200, { steps: 6 });
   await shell().mouse.up();
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(400);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(420);
 
   await handle.focus();
   await shell().keyboard.press('ArrowRight');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(384);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(404);
   await shell().keyboard.press('Shift+ArrowLeft');
-  await expect.poll(async () => (await appearance()).rightWidth).toBe(448);
+  await expect.poll(async () => (await appearance()).rightWidth).toBe(468);
   await shell().keyboard.press('Home');
   await expect.poll(async () => (await appearance()).rightWidth).toBe(300);
   await handle.dblclick();

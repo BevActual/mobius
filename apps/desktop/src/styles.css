@@ -2664,3 +2664,6 @@ body { font-variant-numeric: tabular-nums; }
 @container (max-width: 315px) { .composer-tools .popmenu-item.popmenu-dictate { flex-direction: row; align-items: center; justify-content: space-between; text-align: start; } }
 .composer-tools .pill { gap: 2px; }
 .chat .composer .composer-tools .pill { padding: 0 3px; }
+/* While dictating, the recording readout takes the model's place; the row never runs under Stop. */
+.composer:has(.composer-mic[data-recording]) .composer-tools > .popmenu:has(> .pill-model) { display: none; }
+.composer-actions { position: relative; z-index: 1; }
