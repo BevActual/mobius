@@ -2,11 +2,11 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
-import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, previewNote, type Player } from './studio-audio';
 import { GRIDS, addNote, clipsOf, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, IconButton, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
+import { AppSidebar, Button, IconButton, Swatches, PanelTab, ParamCell, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, UndoToast } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -83,7 +83,7 @@ export function StudioSub({ songs }: { songs: NotesState }) {
   const setKey = (key: string) => { const next = structuredClone(song); next.key = key; songs.edit(writeSong(next)); };
   return (
     <>
-      <Select className="studio-key-pick" label="Key" hideLabel value={song.key} choices={KEY_CHOICES} onChange={setKey} />
+      <Select label="Key" hideLabel quiet value={song.key} choices={KEY_CHOICES} onChange={setKey} />
       {' · '}<span className="note-status" role="status" data-status={songs.status}>{songs.message || statusText(songs.status)}</span>
     </>
   );
@@ -186,13 +186,11 @@ export function StudioDevice({ track, onTrack, proposal }: {
           </h3>
           <div className="studio-dev-group">
             <Select className="studio-dev-row" label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; })} />
-            <div className="studio-colour-row"><span id="studio-colour-name">Colour</span>
-              <span className="studio-swatches" role="radiogroup" aria-labelledby="studio-colour-name">
-                {TRACK_COLOURS.map((c) => <button key={c} type="button" role="radio" aria-checked={track.color === c} aria-label={COLOUR_NAMES[c]} title={COLOUR_NAMES[c]} className="studio-swatch" style={{ '--tc': `var(--c-${c})` } as CSSProperties} onClick={() => onTrack((t) => { t.color = c; })} />)}
-              </span>
+            <div className="studio-colour-row"><span aria-hidden="true">Colour</span>
+              <Swatches label="Colour" value={track.color} colors={TRACK_COLOURS} names={COLOUR_NAMES} onChange={(c) => onTrack((t) => { t.color = c as TrackColour; })} />
             </div>
           </div>
-          <ParamGrid label="Level">
+          <ParamGrid label="Level" columns={1}>
             <ParamCell label="Volume" value={track.volume} min={0} max={1} step={0.01} reset={0.8} format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => onTrack((t) => { t.volume = v; }, 'volume')} />
           </ParamGrid>
           {sound && base ? (
@@ -795,8 +793,8 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
             <div className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
               <div className="studio-roll-bar" role="toolbar" aria-label="Notes">
                 <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
-                <Select label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
-                {!drums && <Select label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
+                <Select inline label="Grid" value={String(grid)} choices={GRID_CHOICES} onChange={(g) => setGrid(Number(g))} />
+                {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
                 <Button kind="quiet" title="Line notes up to the grid" keys="Q" onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, total))}>Quantize</Button>
                 <span className="studio-gap" />
                 {velocity !== null ? (
