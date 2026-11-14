@@ -177,6 +177,8 @@ pub struct Bridge {
     data_dir: PathBuf,
     /// The folder of real files the assistant's file tools work in.
     workspace: mobius_workspace::files::Workspace,
+    /// The workspace's web pages, served to the Browser on this computer.
+    pages: Arc<crate::pages::Pages>,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
@@ -354,6 +356,7 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            pages: Arc::new(crate::pages::Pages::new(data_dir.join("workspace").join(crate::pages::FOLDER))),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
             turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
             rewound: Mutex::new(None),
@@ -1171,6 +1174,11 @@ impl Bridge {
                 Value::Null
             }
             "snapshot" => b.picture().map_or(Value::Null, |p| json!(p)),
+            // A workspace page (pages/…) opens in a tab at the address the shell serves it on.
+            "openPage" => {
+                let url = self.pages.url(arg(0).as_str().unwrap_or("")).map_err(BridgeError::Invalid)?;
+                b.open(Some(&url)).map_or(Value::Null, |id| json!(id))
+            }
             _ => return Err(BridgeError::NotAvailable(format!("browser.{method} is not available in this build yet."))),
         })
     }
@@ -1420,7 +1428,8 @@ impl Bridge {
         }
         let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
-        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)) };
+        let pages = self.pages.clone();
+        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)), own_page: Box::new(move |url| pages.is_own(url)) };
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
         self.mark_driver(&browser, tool, &args, &result, conversation);
