@@ -12,6 +12,7 @@ import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import { liveTitle } from './notes-state';
 import { newItemIn } from './NotesSidebar';
@@ -750,14 +751,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const compare = (was: string | null, now: string): DiffLine[] => (was === null ? now.split('\n').map((text) => ({ kind: 'added' as const, text })) : diffLines(was, now));
   useEffect(() => {
     if (!review || kept || !path || diff) return;
-    let live = true;
-    void window.mobius.changes.before(review.conversation, `docs/${path}`).then((was) => {
-      if (!live || !was || !was.ok) return;
-      setBefore(was.text);
-      const d = compare(was.text, docs.text);
+    return readBefore(review.conversation, `docs/${path}`, (text) => {
+      setBefore(text);
+      const d = compare(text, docs.text);
       if (d.some((l) => l.kind !== 'same')) setDiff(d);
-    }).catch(() => {});
-    return () => { live = false; };
+    });
   }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
   const reviewBar = useRef<HTMLDivElement>(null);
   const keepAll = async () => {

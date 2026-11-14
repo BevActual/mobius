@@ -7,6 +7,7 @@ describe('actions in plain words', () => {
     expect(describeAction('tasks.add', { list: 'Inbox', text: 'Water the plants' })).toBe('add “Water the plants” to Inbox in Tasks');
     expect(describeAction('files.write', { path: 'notes/Work/Plan.md' })).toBe('write the note “Work › Plan”');
     expect(describeAction('files.edit', { path: 'tasks/Groceries.md' })).toBe('change the task list “Groceries”');
+    expect(describeAction('calendar.free', { with: ['Sam'], minutes: 60 })).toBe('look for a time when you and Sam are free');
     expect(describeAction('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }, { from: 'b.jpg', to: 'Pictures/b.jpg' }] })).toBe('move 2 files and folders in “Downloads”');
     expect(previewArguments('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }] })).toEqual({ label: 'The moves', text: 'a.pdf → Documents/a.pdf', mono: true });
     expect(describeAction('calendar.add', { title: 'Dentist', start: 'nonsense' })).toBe('add “Dentist” to your calendar on nonsense');

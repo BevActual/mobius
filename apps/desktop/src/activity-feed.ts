@@ -104,6 +104,7 @@ const DID: Record<string, (on: string) => string> = {
   'calendar.write': (on) => (on ? `Changed “${on}” in your calendar` : 'Changed your calendar'),
   'calendar.update': (on) => (on ? `Changed “${on}” in your calendar` : 'Changed your calendar'),
   'calendar.suggest': () => 'Suggested a time',
+  'calendar.free': () => 'Looked for a free time',
   'files.read': (on) => `Read ${on || 'a file'}`,
   'files.read_all': () => 'Read your files',
   'files.list': () => 'Looked through your files',

@@ -1980,7 +1980,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .comment-on { margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comment-text { margin: 0 0 6px; white-space: pre-wrap; }
 .comment-meta { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--muted); }
-.comment-reply { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
+.comment-reply { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); }
+.comment-reply > :first-child { margin-top: 0; }
+.comment-reply > :last-child { margin-bottom: 0; }
 .comment-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 8px; }
 .comment-row-pin { flex: none; width: 10px; height: 10px; border-radius: 5px 5px 5px 1.5px; background: #5856D6; }
 .comment-row-pin[data-state="note"] { background: #FFCC00; }

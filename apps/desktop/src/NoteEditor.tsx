@@ -1,6 +1,7 @@
 import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, ToolbarControls, UndoToast } from './ui';
@@ -558,15 +559,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   };
   useEffect(() => {
     if (!review || kept || !path || changes) return undefined;
-    let live = true;
-    void window.mobius.changes.before(review.conversation, `notes/${path}`).then((got) => {
+    return readBefore(review.conversation, `notes/${path}`, (text) => {
       // A page the turn made has nothing to compare with: it keeps the bar above it.
-      if (!live || !got || !got.ok || got.text === null) return;
-      setWas(got.text);
-      const d = diffLines(got.text, notes.text);
+      if (text === null) return;
+      setWas(text);
+      const d = diffLines(text, notes.text);
       if (d.some((l) => l.kind !== 'same')) setChanges(d);
-    }).catch(() => {});
-    return () => { live = false; };
+    });
   }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
   // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
   const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;

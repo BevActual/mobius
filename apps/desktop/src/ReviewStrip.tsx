@@ -24,6 +24,8 @@ export function describeChange(path: string): ReturnType<typeof describeFile> {
   const comments = /^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i.exec(p);
   if (comments) { const page = describeChange(`${comments[1]}/${comments[2]}.md`); return { kind: page.kind, name: `Comments on ${page.name}` }; }
   if (p === 'calendar/.suggestions.json') return { kind: 'Calendar', name: 'Suggested events' };
+  const charts = /^sheets\/([^/]+)\/\.charts\.json$/i.exec(p);
+  if (charts) return { kind: 'Sheet', name: `Charts in ${charts[1]}` };
   const title = knownTitles.get(p);
   const described = describeFile(p);
   const folder = p.split('/')[1];
@@ -51,6 +53,11 @@ function describeFile(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' |
   return { kind: 'File', name: path };
 }
 
+/**
+ * Whether a file the turn changed is a change to review. The comment threads kept at the workspace's root
+ * (`.comments/<app>/<document>.json`) are not: Mobius's reply there is its answer, shown on the comment itself.
+ */
+export const reviewable = (path: string): boolean => !/^\.comments\//.test(path.replace(/\\/g, '/'));
 const isChanges = (value: unknown): value is TurnChanges => typeof value === 'object' && value !== null && 'files' in value;
 
 /**
@@ -210,7 +217,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
     // What is left of the turn: an app's own Keep takes its part away, the rest stays here.
-    const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : [];
+    const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => reviewable(f) && !(id && fileKept(id, f))) : [];
     // Suggested events are listed by their titles, not as the file Calendar keeps them in.
     const events = waiting.some((f) => f.replace(/\\/g, '/') === SUGGESTIONS_FILE) ? await suggestedInTurn(conversation) : [];
     const calendars = waiting.filter((f) => /^calendar\/[^/]+\.ics$/i.test(f.replace(/\\/g, '/')));

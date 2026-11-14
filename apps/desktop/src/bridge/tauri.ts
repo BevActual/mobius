@@ -624,6 +624,7 @@ export function createTauriBridge(): MobiusBridge {
       snapshot: () => call('browser', 'snapshot', [], () => null),
       reopenClosed: () => call('browser', 'reopenClosed', [], () => null),
       duplicate: (id) => call('browser', 'duplicate', [id], () => null),
+      openPage: (path) => call('browser', 'openPage', [path], () => null),
       pin: (id, pinned) => fire('browser', 'pin', [id, pinned]),
       moveTab: (id, index) => fire('browser', 'moveTab', [id, index]),
       getState: () => call('browser', 'getState', [], () => EMPTY_BROWSER),

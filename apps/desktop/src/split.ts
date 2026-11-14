@@ -36,6 +36,31 @@ export function savePanes(panes: readonly [AppId, AppId | null]): void {
   try { window.localStorage.setItem(PANES_KEY, JSON.stringify(panes)); } catch { /* Not kept. */ }
 }
 
+/**
+ * Whether Mobius opened the split itself, beside the conversation, rather than the person choosing it. Kept with the
+ * panes, so a restart does not turn Mobius's split into one the person chose. Nothing kept: a split with the
+ * conversation in it is taken as Mobius's, since a split the person opens pairs the browser or notes.
+ */
+const BY_MOBIUS_KEY = 'mobius.split.byMobius';
+export function loadByMobius(panes: readonly [AppId, AppId | null]): boolean {
+  if (panes[1] === null) return false;
+  try {
+    const saved = window.localStorage.getItem(BY_MOBIUS_KEY);
+    if (saved === 'true' || saved === 'false') return saved === 'true';
+  } catch { /* Nothing kept. */ }
+  return panes.includes('agent');
+}
+export function saveByMobius(byMobius: boolean): void {
+  try { window.localStorage.setItem(BY_MOBIUS_KEY, String(byMobius)); } catch { /* Not kept. */ }
+}
+
+/**
+ * Opening another app from a split Mobius opened beside the conversation goes to that app alone, with Mobius in its
+ * panel again, whichever pane has the focus. An app already in a pane just takes the focus.
+ */
+export const leavesSplit = (panes: readonly [AppId, AppId | null], byMobius: boolean, id: AppId): boolean =>
+  byMobius && panes[1] !== null && panes.includes('agent') && id !== 'agent' && !panes.includes(id);
+
 /** The second app to show when split view opens: the browser beside anything else, notes beside the browser. */
 export const companionFor = (app: AppId): AppId => (app === 'browser' ? 'notes' : 'browser');
 

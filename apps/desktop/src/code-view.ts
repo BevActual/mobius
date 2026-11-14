@@ -180,3 +180,18 @@ export function gitMarks(changes: readonly { status: string; path: string }[]): 
   }
   return marks;
 }
+
+/**
+ * Code's Glance after a failed test run: the first line that says what failed, the command, and how long it took.
+ * Nothing when the last run passed or there was none.
+ */
+export function testsGlance(last: { passed: boolean; output: string; seconds: number; timedOut: boolean } | null, command: string | null): { label: string; value: string }[] | null {
+  if (!last || last.passed) return null;
+  const lines = last.output.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const said = last.timedOut ? 'Took too long' : lines.find((l) => /\b(fail(ed|ure)?|error|assert|expected|panicked)\b/i.test(l)) ?? lines.at(-1) ?? 'It failed';
+  return [
+    { label: 'Failed', value: said.length > 60 ? `${said.slice(0, 59)}…` : said },
+    { label: 'Command', value: command ?? '' },
+    { label: 'Took', value: `${Math.round(last.seconds * 10) / 10} s` },
+  ];
+}
