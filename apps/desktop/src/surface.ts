@@ -54,6 +54,9 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
  */
 export const PLAN_MY_DAY = 'Plan my day. Read my open tasks with tasks.list and keep the ones due today or overdue, and any flagged. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search. Then, between now and 6 pm and around my events: give each task worth doing today a time with tasks.update (due today, the time as HH:MM) and suggest a block for it with calendar.suggest, with the task as the title and why in a few words; most important first, and leave room between. If the day has room, hold one free hour for focused work with calendar.suggest. For unread mail that needs an answer from me today, suggest a short reply in my voice with mail.draft. Do not send anything and do not move my events. End with the day as a short list in time order, then one line on what can wait.';
 
+/** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
+export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, a few words each), and after Notes: what to say, in my voice. Open with a title slide, give each main part of the document a section or a bullets slide, put its one key point on a statement slide, and end on what happens next. Keep its facts and numbers exactly. Leave this document as it is.';
+
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
   switch (state.app) {
@@ -85,6 +88,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
             { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then its main points as short sections that follow its outline, each a few lines, and what is decided and what is next. About 400 words. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
+            { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
