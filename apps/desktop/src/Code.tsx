@@ -3,7 +3,7 @@ import { AppGlance, useGlanceSlot } from './PanelSlots';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
@@ -11,7 +11,7 @@ import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName,
 import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
-import { ReviewActions, WhyThis } from './ReviewBar';
+import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
 import './code.css';
@@ -667,8 +667,10 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     await code.reload();
   };
   // ⌘⏎ keeps and ⌘⌫ discards while a suggestion is shown, as in the rest of Mobius.
+  // Not while Mobius's turn still runs: its change is shown as it lands, and kept or put back once it is whole.
+  const running = useContext(TurnRunningContext);
   useEffect(() => {
-    if (!showSuggestion) return;
+    if (!showSuggestion || running) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
       const target = e.target as HTMLElement | null;

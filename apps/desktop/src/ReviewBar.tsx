@@ -31,6 +31,15 @@ export function WhyThis({ conversation, file }: { conversation: string; /** Musi
   );
 }
 
+/**
+ * Mobius's turn is still running in the conversation whose changes an app shows. Its changes are marked as they land,
+ * and Keep and Discard wait for the turn's end, so a change still being made is never kept or put back halfway.
+ */
+export const TurnRunningContext = createContext(false);
+
+/** What the review buttons say while they wait for the turn to end. */
+export const WAITS_FOR_TURN = 'Mobius is still working: Keep and Discard are ready when it finishes';
+
 interface Props {
   onKeep: () => unknown;
   /** Puts the change back. May resolve with a reason it could not, which stops Try another. */
@@ -51,7 +60,9 @@ interface Props {
  */
 export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keepLabel, discardLabel, keepText = 'Keep', discardText = 'Discard', only }: Props & { /** Just Keep, or just Try another and Discard (a compact row keeps those inside Review). */ only?: 'keep' | 'others' }) {
   const tryAnother = useContext(TryAnotherContext);
-  const [busy, setBusy] = useState(false);
+  const running = useContext(TurnRunningContext);
+  const [pending, setBusy] = useState(false);
+  const busy = pending || running;
   const again = async () => {
     setBusy(true);
     try {
@@ -64,9 +75,9 @@ export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keep
   };
   return (
     <>
-      {only !== 'keep' && <button type="button" className="review-btn" disabled={busy} title={discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>{discardText}</button>}
-      {only !== 'keep' && tryAnother && <button type="button" className="review-btn" data-kind="again" disabled={busy} title="Put it back and ask Mobius to do it another way" onClick={() => void again()}>Try another</button>}
-      {only !== 'others' && <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>{keepText}</button>}
+      {only !== 'keep' && <button type="button" className="review-btn" disabled={busy} title={running ? WAITS_FOR_TURN : discardTitle} aria-label={discardLabel} onClick={() => void onDiscard()}>{discardText}</button>}
+      {only !== 'keep' && tryAnother && <button type="button" className="review-btn" data-kind="again" disabled={busy} title={running ? WAITS_FOR_TURN : 'Put it back and ask Mobius to do it another way'} onClick={() => void again()}>Try another</button>}
+      {only !== 'others' && <button type="button" className="review-btn" data-kind="keep" disabled={busy} title={running ? WAITS_FOR_TURN : keepTitle} aria-label={keepLabel} onClick={() => void onKeep()}>{keepText}</button>}
     </>
   );
 }
