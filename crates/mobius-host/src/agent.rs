@@ -156,6 +156,8 @@ pub struct SendRequest {
     pub finish: bool,
     /// The kinds of tools the suggestion works with (`tasks`, `calendar`): only theirs are offered. Empty offers all.
     pub tools: Vec<String>,
+    /// The app it was sent from (`mail`): on a model with a small window, the core offers that app's tools first.
+    pub app: Option<String>,
 }
 
 /// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
@@ -265,7 +267,16 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools })
+    let app = match v.get("app") {
+        None | Some(Value::Null) => None,
+        Some(a) => Some(a.as_str().filter(|a| is_app_name(a))?.to_owned()),
+    };
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools, app })
+}
+
+/// An app's id as the window names it (`mail`, `photo`).
+pub fn is_app_name(app: &str) -> bool {
+    !app.is_empty() && app.len() <= 40 && app.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
 /// At most twelve kinds of tools, each a plain name (the part of a tool's name before the dot).
@@ -588,6 +599,9 @@ impl AgentService {
         }
         if !tools.is_empty() {
             params.insert("tools".into(), json!(tools));
+        }
+        if let Some(app) = &request.app {
+            params.insert("app".into(), json!(app));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
