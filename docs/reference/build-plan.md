@@ -143,14 +143,32 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | --- | --- | --- | --- |
 | Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts | Builder |
 | Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each |
-| Files | The workspace folder on this computer | WebDAV drives you browse, open from and copy to (covers Nextcloud and most self-hosted drives), **Building**; then S3-style storage and network shares as other kinds of drive; then two-way sync of workspace folders, which needs a decision | Builder for the connection, Apps lead for Files |
+| Files | The workspace folder on this computer, and WebDAV drives you browse, open from and copy to (Nextcloud and most self-hosted drives) | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
 | People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Needs a decision: it is close to a new app |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
 
-This work starts after the first group of the [demo plan](demo-plan.md). WebDAV for Files is first because it opens the
+### Drives
+
+Every kind of drive sits behind one interface, so Files, Mobius's drive tools and sync work the same on all of them.
+Mobius reads a drive freely and asks before every change on one. In order:
+
+| Order | Drive | Needs | Status |
+| --- | --- | --- | --- |
+| 1 | WebDAV: Nextcloud, ownCloud, a NAS, Fastmail Files | A server address and an app password | Have |
+| 2 | Two-way sync of chosen workspace folders with a drive, so Notes, Docs and the rest can live on a server. The local folder stays the working copy; a conflict keeps both. | Nothing | Building: Andrew chose to start it on 15 November 2026 |
+| 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Next |
+| 4 | Dropbox | Andrew registering Mobius with Dropbox | Waiting on the registration |
+| 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs | Waiting on the registration |
+| 6 | Google Drive | Andrew registering Mobius with Google. Full access to a person's Drive is a restricted permission that Google reviews before an app is public; until that passes, sign-in is limited to named test accounts. | Waiting on the registration and Google's review |
+| 7 | Network shares (SMB) | Nothing | Later |
+
+Cloud drives sign in on the service's own page and Mobius keeps only the token, in the system's secret store. Sync is
+built against the drive interface, not WebDAV, so each drive added after it can sync too.
+
+This work started after the first group of the [demo plan](demo-plan.md). WebDAV for Files is first because it opens the
 most with one piece: every app that keeps plain files gains a server.
 
 ## Later
