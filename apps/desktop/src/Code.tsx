@@ -13,7 +13,7 @@ import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
-import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from './ui';
+import { AppSidebar, Button, KeyCaps, SidebarRow, SidebarSection } from './ui';
 import './code.css';
 import { afterPaint } from './ui/frame';
 
@@ -101,7 +101,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
           {!matching && code.entries.length === 0 && (
             <div className="code-tree-empty">
               <span>No files yet.</span>
-              <button type="button" className="code-quiet" title={`New file (${keyLabel('N')})`} onClick={() => { setNaming('file'); setName(''); }}>New file</button>
+              <Button kind="quiet" title={`New file (${keyLabel('N')})`} onClick={() => { setNaming('file'); setName(''); }}>New file</Button>
             </div>
           )}
           {removing && (
@@ -169,8 +169,8 @@ function GitBar({ code }: { code: CodeState }) {
       <div className="side-head">
         <h3 className="side-title">Changes</h3>
         <div className="side-actions">
-          <button type="button" className="code-quiet" disabled={changes.length === 0 || writing} onClick={() => setWriting(true)}>Commit…</button>
-          <button type="button" className="code-quiet" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</button>
+          <Button kind="quiet" disabled={changes.length === 0 || writing} onClick={() => setWriting(true)}>Commit…</Button>
+          <Button kind="quiet" disabled={busy} onClick={() => { setBusy(true); void code.push().finally(() => setBusy(false)); }}>Push</Button>
         </div>
       </div>
       <div className="code-git-head">
@@ -180,7 +180,7 @@ function GitBar({ code }: { code: CodeState }) {
       {writing && (
         <form className="code-git-form" onSubmit={(e) => void submit(e)}>
           <input autoFocus aria-label="Commit message" placeholder="What changed, and why" value={message} maxLength={500} onChange={(e) => setMessage(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setWriting(false); }} />
-          <button type="submit" className="btn primary" disabled={busy || !message.trim()}>Commit</button>
+          <Button kind="primary" type="submit" disabled={busy || !message.trim()}>Commit</Button>
         </form>
       )}
       {shown.length > 0 && (
@@ -496,7 +496,7 @@ function TestsPanel({ code }: { code: CodeState }) {
         {summary ? <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span> : <span className="code-tests-summary">{tests.command ? 'Not run yet' : 'No test command'}</span>}
         <span className="code-tests-actions">
           {!editing && tests.command && <code className="code-tests-command" title="The command Mobius runs for this project's tests">{tests.command}</code>}
-          {!editing && <button type="button" className="code-quiet" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</button>}
+          {!editing && <Button kind="quiet" onClick={start}>{tests.command ? 'Change' : 'Choose command'}</Button>}
           {!editing && tests.command && <button type="button" className="btn primary" disabled={tests.running} onClick={() => void code.runTests()}>Run</button>}
         </span>
       </header>
@@ -704,7 +704,7 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
               {code.dirty && <span className="code-dirty" role="status">Not saved</span>}
               <span className="code-head-actions">
                 {code.dirty && <button type="button" className="btn" onClick={() => code.setDraft(code.open?.text ?? '')}>Revert</button>}
-                {code.open.text !== null && <button type="button" className={code.dirty ? 'btn primary' : 'code-quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void code.save()}>Save</button>}
+                {code.open.text !== null && <Button kind={code.dirty ? 'primary' : 'quiet'} disabled={!code.dirty} title={`Save (${keyLabel('S')})`} onClick={() => void code.save()}>Save</Button>}
               </span>
             </header>
             {code.message && <p className="tasks-message" role="alert">{code.message}</p>}
