@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appsOf, rewindQuestion } from './Rewind';
+import { appsOf, rewindQuestion, turnOfLine } from './Rewind';
 
 describe('rewind to here', () => {
   it('names the apps that will change, each once', () => {
@@ -12,5 +12,13 @@ describe('rewind to here', () => {
     expect(rewindQuestion(1, ['Notes'])).toBe('Rewind 1 later turn? Notes will change.');
     expect(rewindQuestion(1, ['Notes'], 4)).toBe('Rewind 1 later turn? Notes will change. This also changes 4 files on your drive.');
     expect(rewindQuestion(0, [])).toBe('Rewind to here? Nothing in your apps will change.');
+  });
+
+  it('finds the turn a line of the history happened in, from turns listed newest first', () => {
+    const turns = [{ start: 'notes', when: 300 }, { start: 'sheets', when: 200 }, { start: 'photos', when: 100 }];
+    expect(turnOfLine(turns, 150)?.start).toBe('photos');
+    expect(turnOfLine(turns, 250)?.start).toBe('sheets');
+    expect(turnOfLine(turns, 999)?.start).toBe('notes');
+    expect(turnOfLine(turns, 50)).toBeUndefined();
   });
 });

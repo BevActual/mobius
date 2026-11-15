@@ -7,7 +7,7 @@ import { MobiusMark } from './MobiusMark';
 import { activityBoard } from './activity-board';
 import { appsIn, byDay, byWho, feedOf, inPlace, type ActivityPlace, type ActivityWho, type FeedItem } from './activity-feed';
 import { ChangesWaiting, ScheduledList } from './ConversationSidebar';
-import { Turns } from './Rewind';
+import { Turns, turnOfLine } from './Rewind';
 import { EmptyState } from './EmptyState';
 import { relativeTime } from './relative-time';
 import { dateTimeLabel, longDateLabel, timeLabel } from './dates';
@@ -21,9 +21,8 @@ const LIMIT = 400;
 type Picked = { kind: 'conversation'; id: string; rewindTo?: string } | { kind: 'item'; seq: number } | null;
 
 /**
- * Where to rewind to so that a line of the history is undone: the turn before the one it happened in, in the
- * conversation that was working then. Only conversations that moved after it are read. Null when there is none (it
- * happened in a conversation's first turn, or no turn is saved).
+ * Where Rewind to here on a line goes: the turn it happened in, in the conversation that was working then. Only
+ * conversations that moved after it are read. Null when no saved turn has it.
  */
 async function rewindFor(when: number, conversations: readonly ConversationInfo[]): Promise<{ id: string; start: string } | null> {
   const api = window.mobius.changes;
@@ -31,10 +30,8 @@ async function rewindFor(when: number, conversations: readonly ConversationInfo[
   let best: { id: string; start: string; at: number } | null = null;
   for (const c of conversations.filter((x) => x.updated_ms >= when).slice(0, 12)) {
     const r = await api.turns(c.id).catch(() => null);
-    const turns = r && r.ok ? r.turns.filter((t) => t.ended) : [];
-    const i = turns.findLastIndex((t) => t.when <= when);
-    const before = i > 0 ? turns[i - 1] : undefined;
-    if (before && (!best || turns[i]!.when > best.at)) best = { id: c.id, start: before.start, at: turns[i]!.when };
+    const turn = turnOfLine(r && r.ok ? r.turns.filter((t) => t.ended) : [], when);
+    if (turn && (!best || turn.when > best.at)) best = { id: c.id, start: turn.start, at: turn.when };
   }
   return best && { id: best.id, start: best.start };
 }

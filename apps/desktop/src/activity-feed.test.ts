@@ -40,8 +40,11 @@ describe('the Activity feed', () => {
     expect(items.find((i) => i.text.startsWith('Your rules'))!.warn).toBe(false);
   });
 
-  it('falls back to the tool’s name for a capability it does not know', () => {
-    expect(feedOf([{ ...entry('tool.completed', 'demo.echo'), tool: 'echo' }])[0]!.text).toBe('Used echo');
+  it('names a tool it has no sentence for in words, never by its code name', () => {
+    expect(feedOf([{ ...entry('tool.completed', 'demo.echo'), tool: 'echo' }])[0]!.text).toBe('Used “echo”');
+    expect(feedOf([{ ...entry('tool.completed', 'sheets.sort'), tool: 'sheets.sort' }])[0]!.text).toBe('Used the Sheets tool “sort”');
+    expect(feedOf([{ ...entry('tool.completed', 'mcp.fake.echo'), tool: 'mcp.fake.echo' }])[0]!.text).toBe('Used “echo” from the fake server');
+    expect(feedOf([{ ...entry('tool.completed', 'sheets.write', 'P2 budget'), tool: 'sheets.write' }])[0]).toMatchObject({ text: 'Changed the workbook P2 budget', app: 'sheets' });
   });
 
   it('puts a changed file in the app it belongs to, by its name there', () => {

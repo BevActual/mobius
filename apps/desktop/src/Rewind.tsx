@@ -23,6 +23,15 @@ export function rewindQuestion(later: number, apps: readonly string[], synced = 
   return `${turns} ${change}${drives}`;
 }
 
+/**
+ * The turn a line of the history happened in, from a conversation's turns (newest first, as they are listed): the
+ * newest one that had started by then. Rewind to here goes back to right after it, so the line stays and every
+ * later turn is taken out, as Rewind to here does on the turn itself.
+ */
+export function turnOfLine<T extends { when: number }>(turns: readonly T[], when: number): T | undefined {
+  return turns.find((t) => t.when <= when);
+}
+
 const when = (ms: number) => timeLabel(ms);
 
 /**
