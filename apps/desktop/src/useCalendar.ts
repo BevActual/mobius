@@ -26,6 +26,8 @@ export function useCalendar() {
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [mode, setModeState] = useState<CalendarMode>(rememberedMode);
   const setMode = useCallback((m: CalendarMode) => { setModeState(m); try { window.localStorage.setItem(MODE_KEY, m); } catch { /* Not kept. */ } }, []);
+  /** Shows one day without remembering the view, for Mobius's changes beside the chat, where a week is too narrow to read. */
+  const showDay = useCallback((day: Date) => { setModeState('day'); setAnchor(day); }, []);
   const [anchor, setAnchor] = useState(() => new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [hidden, setHidden] = useState<Set<string>>(hiddenCalendars);
@@ -147,7 +149,7 @@ export function useCalendar() {
   const readOnly = useCallback((name: string) => sources.some((s) => s.name === name && s.readOnly), [sources]);
 
   const shown = events.filter((e) => !hidden.has(e.calendar));
-  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh, showTasks, toggleTasks, due: showTasks ? due : [], tickTask };
+  return { available: api !== undefined, calendars, sources, accounts, suggestions, accept, decline, addAccount, removeAccount, sync, syncing, readOnly, mode, setMode, showDay, anchor, setAnchor, events: shown, hidden, toggle, message, add, update, remove, createCalendar, fresh, refresh, showTasks, toggleTasks, due: showTasks ? due : [], tickTask };
 }
 
 export type CalendarState = ReturnType<typeof useCalendar>;

@@ -394,6 +394,8 @@ export function App() {
   docsNow.current = docs;
   const slidesNow = useRef(slides);
   slidesNow.current = slides;
+  const calendarNow = useRef(calendar);
+  calendarNow.current = calendar;
   const sheetsNow = useRef(sheets);
   sheetsNow.current = sheets;
   const designsNow = useRef(designs);
@@ -478,7 +480,8 @@ export function App() {
     });
     const offCalendar = window.mobius.calendar?.onChanged((c) => {
       if (c.by === 'person' || c.by === 'undo') return;
-      if (c.by === 'assistant' && showBeside('calendar')) return;
+      // Beside the chat a week is too narrow to read (titles cut mid-word), so Mobius's changes show on today's Day view.
+      if (c.by === 'assistant' && showBeside('calendar')) { calendarNow.current.showDay(new Date()); return; }
       mark('calendar');
     });
     return () => { offNotes?.(); offTasks?.(); offDocs?.(); offSheets?.(); offSlides?.(); offMail?.(); offCalendar?.(); offDesigns?.(); offBoards?.(); offViews?.(); offResearch?.(); offReading?.(); offDatabases?.(); };
