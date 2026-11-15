@@ -35,6 +35,7 @@ describe('research', () => {
     expect(quick).toContain('replace the whole of research/Research/Best venues.md');
     expect(quick).toContain('## Sources');
     expect(researchPrompt('Best venues?', 'thorough', 'f.md')).toContain('at least 10');
+    expect(quick).toContain('Cite only pages you read with web.read');
     expect(followUpPrompt('How about Porto?', 'f.md')).toContain('(f.md): How about Porto?');
   });
 

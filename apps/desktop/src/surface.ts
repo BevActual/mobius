@@ -260,7 +260,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Go deeper', prompt: 'Find three or four more sources for this report, from angles it does not cover yet, and add what they say to the report and its sources. Keep what is already there.', attach: 'note' },
             { label: 'Turn into a doc', prompt: 'Write this report up as a short document for other people in my Docs (docs/Documents/<a short title>.md): the answer, the reasons, and the sources as links. Leave the report as it is.', attach: 'note' },
           ]
-        : [{ label: 'Research…', prompt: 'Research on the web, and write a report with sources in my Research app: ' }];
+        : [{ label: 'Research…', box: 'Research ', prompt: 'Research on the web: search two or three times with web.search, read three or four of the best pages with web.read, and write a report in my Research app (research/Research/<a short title>.md) with the answer first and every fact linked to the page it came from. Cite only pages you read with web.read; a search result you did not read is not a source. The question: ' }];
     case 'canvas':
       return state.note
         ? [
