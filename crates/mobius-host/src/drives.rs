@@ -41,16 +41,35 @@ pub struct Entry {
     pub size: u64,
     /// As the server gave it (an HTTP date).
     pub modified: Option<String>,
-    /// The version to send back with a change.
-    pub etag: Option<String>,
+    /// The version to send back with a change: an ETag on WebDAV and S3, a revision on Dropbox and Google Drive. Opaque;
+    /// sent back exactly as given. The window knows it as `etag`.
+    #[serde(rename = "etag")]
+    pub version: Option<String>,
     pub content_type: Option<String>,
+    /// The service's own id, where it has one (Google Drive, OneDrive): two files there can share a name in a folder.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub id: Option<String>,
+    /// A document that lives only in the service (a Google Doc) has no bytes to read: it opens at this address, and
+    /// sync leaves it alone.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub link: Option<String>,
+}
+
+/// What changed on a drive since a cursor, from the service's own change feed.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Changes {
+    /// Files and folders that are new or changed (as they are now) and paths that are gone.
+    pub changed: Vec<Entry>,
+    pub removed: Vec<String>,
+    /// Where to ask from next time.
+    pub cursor: String,
 }
 
 /// A file read from a drive.
 #[derive(Debug)]
 pub struct File {
     pub bytes: Vec<u8>,
-    pub etag: Option<String>,
+    pub version: Option<String>,
     pub content_type: Option<String>,
 }
 
@@ -60,14 +79,24 @@ pub trait Drive: Send + Sync {
     fn check(&self) -> Res<()>;
     fn list(&self, folder: &str) -> Res<Vec<Entry>>;
     fn read(&self, path: &str) -> Res<File>;
-    /// With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces
-    /// one. Returns the new version when the server says it.
-    fn write(&self, path: &str, bytes: &[u8], etag: Option<&str>) -> Res<Option<String>>;
+    /// With `version`, replaces the file only if it is still that version; without, makes a new file and never
+    /// replaces one. Returns the new version when the server says it.
+    fn write(&self, path: &str, bytes: &[u8], version: Option<&str>) -> Res<Option<String>>;
     fn make_folder(&self, path: &str) -> Res<()>;
     /// Moves or renames; never replaces what is at `to`.
     fn rename(&self, from: &str, to: &str) -> Res<()>;
-    /// With `etag`, only if it is still that version.
-    fn delete(&self, path: &str, etag: Option<&str>) -> Res<()>;
+    /// With `version`, only if it is still that version.
+    fn delete(&self, path: &str, version: Option<&str>) -> Res<()>;
+    /// Whether a write or delete given a version is refused when the file has changed since. Where it isn't, sync
+    /// reads the version just before a change instead.
+    fn guards_versions(&self) -> bool {
+        true
+    }
+    /// What changed since `cursor` (none: from now), where the service keeps a change feed (Google Drive's changes,
+    /// OneDrive's delta, Dropbox's cursor, Nextcloud's sync-collection). `None` when it has none: sync lists instead.
+    fn changes(&self, _cursor: Option<&str>) -> Res<Option<Changes>> {
+        Ok(None)
+    }
 }
 
 /// A drive path split into its names. Empty, `.` and `..` names are refused so a path cannot leave the drive.
@@ -112,7 +141,7 @@ struct Reply {
     body: Vec<u8>,
 }
 
-const PROPS: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:getcontenttype/></d:prop></d:propfind>"#;
+const PROPS: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><d:resourcetype/><d:getcontentlength/><d:getlastmodified/><d:getetag/><d:getcontenttype/><oc:fileid/></d:prop></d:propfind>"#;
 
 pub struct WebDav {
     /// The drive's top folder; always ends in `/`.
@@ -217,8 +246,11 @@ impl WebDav {
                     name: path.rsplit('/').next().unwrap_or("").to_owned(),
                     size: prop("getcontentlength").and_then(|s| s.parse().ok()).unwrap_or(0),
                     modified: prop("getlastmodified"),
-                    etag: prop("getetag"),
+                    version: prop("getetag"),
                     content_type: prop("getcontenttype").filter(|_| !folder),
+                    // Nextcloud and ownCloud give each file an id that a move keeps.
+                    id: prop("fileid"),
+                    link: None,
                     folder,
                     path,
                 })
@@ -244,7 +276,7 @@ impl WebDav {
 
     fn version_of(&self, path: &str) -> Option<String> {
         let (_, doc) = self.propfind(&self.url_of(path, false).ok()?, "0").ok()?;
-        self.entries(&doc?).into_iter().next().and_then(|e| e.etag)
+        self.entries(&doc?).into_iter().next().and_then(|e| e.version)
     }
 }
 
@@ -276,7 +308,7 @@ impl Drive for WebDav {
         }
         let reply = self.send("GET", &url, &[], &[], MAX_FILE)?;
         match reply.status {
-            200 => Ok(File { bytes: reply.body, etag: reply.etag, content_type: reply.content_type }),
+            200 => Ok(File { bytes: reply.body, version: reply.etag, content_type: reply.content_type }),
             s => Err(WebDav::failed(s, None)),
         }
     }
@@ -548,7 +580,7 @@ impl Drives {
                         if e.folder {
                             format!("- {}/", e.path)
                         } else {
-                            format!("- {} ({}{}{})", e.path, kb(e.size), e.modified.as_deref().map(|m| format!(", changed {m}")).unwrap_or_default(), e.etag.as_deref().map(|v| format!(", version {v}")).unwrap_or_default())
+                            format!("- {} ({}{}{})", e.path, kb(e.size), e.modified.as_deref().map(|m| format!(", changed {m}")).unwrap_or_default(), e.version.as_deref().map(|v| format!(", version {v}")).unwrap_or_default())
                         }
                     })
                     .collect();
@@ -558,7 +590,7 @@ impl Drives {
             "drives.read" => {
                 let path = need("path")?;
                 let file = drive.read(path)?;
-                let version = file.etag.as_deref().map(|v| format!("Version: {v}\n")).unwrap_or_default();
+                let version = file.version.as_deref().map(|v| format!("Version: {v}\n")).unwrap_or_default();
                 if !looks_like_text(&file.bytes, file.content_type.as_deref()) {
                     let kind = file.content_type.as_deref().unwrap_or("file");
                     return Ok((format!("{path} is a {kind} of {}. {version}Copy it into the workspace with drives.fetch to work on it.", kb(file.bytes.len() as u64)), None));
@@ -694,10 +726,10 @@ pub(crate) mod tests {
                                     .map(|(p, (b, v))| {
                                         let kind = if p.ends_with('/') { "<d:collection/>" } else { "" };
                                         let length = if p.ends_with('/') { String::new() } else { format!("<d:getcontentlength>{}</d:getcontentlength><d:getcontenttype>text/plain</d:getcontenttype>", b.len()) };
-                                        format!("<d:response><d:href>{host}{}</d:href><d:propstat><d:prop><d:resourcetype>{kind}</d:resourcetype>{length}<d:getetag>{}</d:getetag><d:getlastmodified>Sat, 14 Nov 2026 10:00:00 GMT</d:getlastmodified></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat><d:propstat><d:prop><d:quota-used-bytes/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>", enc(p), tag(*v))
+                                        format!("<d:response><d:href>{host}{}</d:href><d:propstat><d:prop><d:resourcetype>{kind}</d:resourcetype>{length}<d:getetag>{}</d:getetag><oc:fileid>{}</oc:fileid><d:getlastmodified>Sat, 14 Nov 2026 10:00:00 GMT</d:getlastmodified></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat><d:propstat><d:prop><d:quota-used-bytes/></d:prop><d:status>HTTP/1.1 404 Not Found</d:status></d:propstat></d:response>", enc(p), tag(*v), p.len())
                                     })
                                     .collect();
-                                ("207 Multi-Status", String::new(), format!(r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">{items}</d:multistatus>"#).into_bytes())
+                                ("207 Multi-Status", String::new(), format!(r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">{items}</d:multistatus>"#).into_bytes())
                             }
                         },
                         "GET" => match st.get(&k) {
@@ -807,10 +839,11 @@ pub(crate) mod tests {
         assert_eq!(top.iter().map(|e| (e.name.as_str(), e.folder)).collect::<Vec<_>>(), vec![("Plans", true)]);
         let plans = drive.list("Plans").unwrap();
         assert_eq!(plans.len(), 1);
-        assert_eq!((plans[0].path.as_str(), plans[0].size, plans[0].etag.as_deref()), ("Plans/road map.md", 10, Some(v1.as_str())));
+        assert_eq!((plans[0].path.as_str(), plans[0].size, plans[0].version.as_deref()), ("Plans/road map.md", 10, Some(v1.as_str())));
+        assert!(plans[0].id.is_some(), "Nextcloud's file id comes through as the entry's id");
 
         let file = drive.read("Plans/road map.md").unwrap();
-        assert_eq!((file.bytes.as_slice(), file.etag.as_deref()), (b"# Road map".as_slice(), Some(v1.as_str())));
+        assert_eq!((file.bytes.as_slice(), file.version.as_deref()), (b"# Road map".as_slice(), Some(v1.as_str())));
 
         // Someone changes it on the server: a change based on the old version is refused, not written over theirs.
         let v2 = drive.write("Plans/road map.md", b"# Road map v2", Some(&v1)).unwrap().unwrap();
@@ -823,7 +856,7 @@ pub(crate) mod tests {
         drive.write("Plans/road map.md", b"new", None).unwrap();
         assert_eq!(drive.rename("Plans/road map.md", "Archive/road map.md").unwrap_err(), EXISTS, "a move never replaces");
         drive.rename("Archive", "Old").unwrap();
-        assert_eq!(drive.read("Old/road map.md").unwrap().etag.as_deref(), Some(v2.as_str()));
+        assert_eq!(drive.read("Old/road map.md").unwrap().version.as_deref(), Some(v2.as_str()));
         drive.delete("Old", None).unwrap();
         assert_eq!(drive.list("").unwrap().iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), vec!["Plans"]);
         assert!(drive.read("Old/road map.md").unwrap_err().contains("not on the drive"));

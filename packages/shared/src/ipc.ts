@@ -239,7 +239,7 @@ export interface CalendarDraft { title?: string; start?: string; end?: string; l
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
 export interface DriveAccount { id: string; kind: 'webdav'; name: string; url: string; username: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
-export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null }
+export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
