@@ -2664,3 +2664,10 @@ body { font-variant-numeric: tabular-nums; }
 .result-keep { margin-left: auto; }
 /* The app's actions after a finished turn: only when the app has some. */
 .actions-after:not(:has(.action-row)) { display: none; }
+
+/* The resting panel scrolls above the earlier-changes button: a row that does not fit fades out over a whole row
+   height instead of being cut in half, and the same space below the last row keeps it clear once scrolled to the end. */
+.chat:not(.full) .chat-scroll.messages:has(> .resting) {
+  padding-bottom: var(--row-side);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - var(--row-side)), transparent);
+}
