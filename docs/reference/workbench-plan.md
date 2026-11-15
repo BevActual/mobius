@@ -107,6 +107,8 @@ One Music PR at a time, as always.
    `kind: "device"` played and rendered on export; the agent guide's section. No new view yet.
 2. **Workbench, looking.** The canvas shows any device read-only, with live levels on the cables. The Design lead
    builds the shared canvas in this round: `PatchCanvas`, with `PatchBox`, `Port` and `Cable` as its parts.
+   Built: a button on each effect's head opens it in place of the track's devices, a built-in effect shown as the
+   device it is made of. Settings show as readouts here; they become knobs with editing in round 3.
 3. **Workbench, editing.** Add, wire and take out parts; choose the controls; Save to library; the Devices list in the
    sidebar.
 4. **Mobius drafts devices.** Dashed parts with reasons, Try another, and the demo moment.

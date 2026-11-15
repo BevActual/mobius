@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDevice } from './device-format';
 import { newEffect, type Effect } from './song-format';
-import { effectChain } from './studio-audio';
+import { deviceGraph, effectChain, rmsDb } from './studio-audio';
 
 /**
  * A pretend audio context that writes down every node made, every value set on it and every connection, so a graph
@@ -137,5 +137,26 @@ describe('a device of its own', () => {
     const out = effectChain(ctx, input, [{ ...FX[0]!, on: false }], 0.5);
     expect(out).toBe(input);
     expect(log).toEqual([]);
+  });
+});
+
+describe('the levels the Workbench shows', () => {
+  it('listens to each part that sounds, not the LFOs or the output, and adds nothing to the sound', () => {
+    const r = parseDevice({
+      name: 'Wobble', parts: [{ id: 'in', kind: 'input' }, { id: 'tone', kind: 'filter' }, { id: 'lfo', kind: 'lfo', depth: 300 }, { id: 'out', kind: 'output' }],
+      cables: [['in', 'tone'], ['tone', 'out'], ['lfo', 'tone.cutoff']], controls: [],
+    });
+    if (!('device' in r)) throw new Error(r.error);
+    const a = recorder(), b = recorder();
+    deviceGraph(a.ctx, a.input, r.device, 0.5, [], true);
+    const tapped: string[] = [];
+    deviceGraph(b.ctx, b.input, r.device, 0.5, [], true, (part) => tapped.push(part));
+    expect(tapped).toEqual(['in', 'tone']);
+    expect(b.log).toEqual(a.log);
+  });
+  it('reads a level in dB from the samples: full scale is 0, half is about −6, silence −90', () => {
+    expect(rmsDb(new Float32Array(64).fill(1))).toBeCloseTo(0, 6);
+    expect(rmsDb(new Float32Array(64).fill(0.5))).toBeCloseTo(-6.02, 2);
+    expect(rmsDb(new Float32Array(64))).toBe(-90);
   });
 });
