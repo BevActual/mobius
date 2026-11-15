@@ -91,9 +91,11 @@ impl Checkpoints {
         let started = std::time::Instant::now();
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
-            // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
-            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
-            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
+            // Every checkpoint looks at the files themselves. Git's shortcuts trust what Windows says about folders:
+            // the untracked cache skips a folder whose time hasn't moved, and fscache takes file details from the
+            // folder's listing, which NTFS updates late. Either can miss a file, and then the turn shows nothing to
+            // keep or discard (a new database was never seen: database.spec:27).
+            .args(["-c", "core.untrackedCache=false", "-c", "core.fscache=false", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
