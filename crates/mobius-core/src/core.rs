@@ -207,15 +207,22 @@ impl Core {
         }
     }
 
-    /// Note how an application tool went, for the event log. Arguments and results are never recorded.
-    pub fn record_external_result(&mut self, principal: &Principal, tool: &str, succeeded: bool) -> Result<(), CoreError> {
+    /// Note how an application tool went, for the event log, with the resource it was on (as its start was noted), so
+    /// the log can say what it changed. Other arguments and results are never recorded.
+    pub fn record_external_result(&mut self, principal: &Principal, tool: &str, args: &Value, succeeded: bool) -> Result<(), CoreError> {
         principal.validate()?;
-        let capability = match self.tools.get(tool) {
-            Some(entry) if entry.spec.external => entry.spec.capability.clone(),
+        let (capability, resource) = match self.tools.get(tool) {
+            Some(entry) if entry.spec.external => {
+                let spec = &entry.spec;
+                let resource = spec.resource_arg.as_ref().and_then(|key| args.get(key)).and_then(Value::as_str).and_then(|value| {
+                    if spec.resource_origin { origin_of(value).ok() } else { validate_resource(value).ok().map(|()| value.to_owned()) }
+                });
+                (spec.capability.clone(), resource)
+            }
             _ => return Err(CoreError::UnknownTool(tool.to_owned())),
         };
         let kind = if succeeded { "tool.completed" } else { "tool.failed" };
-        self.log(kind, Some(principal), Some(capability.as_str()), None, json!({ "tool": tool }))
+        self.log(kind, Some(principal), Some(capability.as_str()), resource.as_deref(), json!({ "tool": tool }))
     }
 
     pub fn tools(&self) -> Vec<ToolSpec> {

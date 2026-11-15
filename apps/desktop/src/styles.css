@@ -961,6 +961,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant .md-table { overflow-x: auto; max-width: 100%; }
 .msg.assistant .md-table table { border-collapse: collapse; font-size: 0.95em; font-variant-numeric: tabular-nums; }
 .msg.assistant .md-table th, .msg.assistant .md-table td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+/* In the narrow panel a wide table scrolls sideways instead of squeezing a column to a letter per line: words are never
+   broken inside a cell, and each column keeps a floor (the first, which usually names the row, a wider one). */
+.msg.assistant .md-table :is(th, td) { min-width: 4.5em; overflow-wrap: normal; word-break: normal; }
+.msg.assistant .md-table :is(th, td):first-child { min-width: 8em; }
 .msg.assistant .md-table th { font-weight: 600; border-bottom-color: var(--line-strong); white-space: nowrap; }
 .msg.assistant[data-streaming="true"]:not(:empty)::after { content: none; }
 .msg.assistant[data-streaming="true"] > :last-child::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--muted); vertical-align: middle; animation: pulse var(--dur-loop) var(--ease) infinite; }

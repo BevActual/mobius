@@ -133,6 +133,9 @@ const DID: Record<string, (on: string) => string> = {
   'drives.read': (on) => (on ? `Read ${on} on a drive` : 'Looked on a drive'),
   'drives.write': (on) => (on ? `Changed ${on} on a drive` : 'Changed a drive'),
   'payments.pay': (on) => (on ? `Paid ${on}` : 'Made a payment'),
+  'sheets.read': (on) => (on ? `Read the workbook ${on}` : 'Read a workbook'),
+  'sheets.list': () => 'Looked at your workbooks',
+  'sheets.write': (on) => (on ? `Changed the workbook ${on}` : 'Changed a workbook'),
   'clock.read': () => 'Checked the time',
   'clock.now': () => 'Checked the time',
 };
@@ -161,6 +164,15 @@ function about(capability: string | null, tool: string | null): string {
   return (capability && ASKED[capability]) || `use ${tool ?? capability ?? 'a tool'}`;
 }
 
+/** A tool with no sentence of its own, named without its code name: `sheets.sort` reads "the Sheets tool “sort”". */
+function toolWords(tool: string): string {
+  const parts = tool.split('.');
+  if (parts[0] === 'mcp' && parts.length >= 3) return `“${parts.slice(2).join(' ')}” from the ${parts[1]} server`;
+  if (parts.length < 2) return `“${tool.replace(/_/g, ' ')}”`;
+  const app = parts[0]!;
+  return `the ${app.charAt(0).toUpperCase()}${app.slice(1)} tool “${parts.slice(1).join(' ').replace(/_/g, ' ')}”`;
+}
+
 const WHO: Record<string, FeedItem['by']> = { agent: 'mobius', person: 'you' };
 
 /**
@@ -186,7 +198,7 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     switch (e.kind) {
       case 'tool.completed': {
         const did = (e.tool ? DID_TOOL[e.tool] : undefined) ?? (e.capability ? DID[e.capability] : undefined);
-        out.push({ ...base, text: did ? did(on) : `Used ${tool}${on ? ` on ${on}` : ''}`, warn: false });
+        out.push({ ...base, text: did ? did(on) : `Used ${toolWords(tool)}${on ? ` on ${on}` : ''}`, warn: false });
         break;
       }
       case 'tool.failed': out.push({ ...base, text: `Couldn’t ${about(e.capability, e.tool)}${on ? ` (${on})` : ''}`, warn: true }); break;

@@ -19,15 +19,16 @@ pub fn session_of(state: &Value) -> Value {
 }
 
 /// Opens the kept tabs, pinned ones pinned, and shows the one that was active. Returns how many opened; with none,
-/// the caller opens its usual first tab.
-pub fn restore(browser: &Browser, session: &Value) -> usize {
+/// the caller opens its usual first tab. `now` gives where a kept address opens this time: a link to one of the
+/// person's own pages is served at another address after a restart.
+pub fn restore(browser: &Browser, session: &Value, now: &dyn Fn(&str) -> String) -> usize {
     let Some(tabs) = session["tabs"].as_array() else { return 0 };
     let active = session["active"].as_u64().and_then(|i| usize::try_from(i).ok());
     let mut opened = 0;
     let mut show = None;
     for (at, tab) in tabs.iter().take(MAX_TABS).enumerate() {
         let Some(url) = tab["url"].as_str().filter(|u| crate::address::is_web_url(u)) else { continue };
-        let id = browser.open_url(Some(url));
+        let id = browser.open_url(Some(&now(url)));
         if tab["pinned"].as_bool() == Some(true) {
             browser.pin(&id, true);
         }
@@ -69,13 +70,13 @@ mod tests {
     fn a_start_reopens_the_kept_tabs_pins_them_and_shows_the_active_one() {
         let (b, engine) = browser();
         let session = json!({ "tabs": [{ "url": "https://a.example/", "pinned": true }, { "url": "javascript:alert(1)", "pinned": false }, { "url": "https://b.example/x", "pinned": false }], "active": 2 });
-        assert_eq!(restore(&b, &session), 2, "an address that is not a web page is not opened");
+        assert_eq!(restore(&b, &session, &|u| u.replace("b.example/x", "b.example/now")), 2, "an address that is not a web page is not opened");
         let opens: Vec<String> = engine.calls().into_iter().filter(|c| c.starts_with("open ")).collect();
-        assert_eq!(opens, ["open tab-1 https://a.example/", "open tab-2 https://b.example/x"]);
+        assert_eq!(opens, ["open tab-1 https://a.example/", "open tab-2 https://b.example/now"], "each address opens where it is now");
         let state = b.state();
         assert_eq!(state["activeId"], "tab-2");
         assert_eq!(state["tabs"][0]["pinned"], true);
-        assert_eq!(restore(&b, &json!(null)), 0);
-        assert_eq!(restore(&b, &json!({ "tabs": "x" })), 0);
+        assert_eq!(restore(&b, &json!(null), &str::to_owned), 0);
+        assert_eq!(restore(&b, &json!({ "tabs": "x" }), &str::to_owned), 0);
     }
 }
