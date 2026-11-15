@@ -210,7 +210,9 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.')]);
   await resizeWindow(mobius!.app, 1600, 900);
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
-  await shell().getByRole('button', { name: 'Play' }).click();
+  // Space plays it even with a clip focused, as anywhere else in Music.
+  await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
+  await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
   await shell().getByRole('button', { name: 'Bass and a warmer pad' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });

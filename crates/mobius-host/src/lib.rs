@@ -24,6 +24,7 @@ pub mod turn_history;
 pub mod schedules;
 pub mod calendar_accounts;
 pub mod drives;
+pub mod s3;
 pub mod drive_sync;
 pub mod sync_pairs;
 pub mod demo;

@@ -151,8 +151,23 @@ fn is_app_folder(v: &str) -> bool {
     v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
 }
 
+/// A turn's moves for the window: each moved file's old path and new one.
 fn moves_json(moves: &[(String, String)]) -> Value {
     moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
+}
+
+/// What a turn changed, for the window: its diff, plus the moves of files checkpoints leave out (archives, videos),
+/// both paths in `files` and paired in `moves` like any other move, so a tidy is counted file by file.
+fn turn_changes(diff: mobius_workspace::checkpoints::Diff, left_out: Vec<(String, String)>) -> (Vec<String>, Value) {
+    let mut files = diff.files;
+    let mut moves = diff.moves;
+    for (from, to) in left_out {
+        files.push(from.clone());
+        files.push(to.clone());
+        moves.push((from, to));
+    }
+    let moves = moves_json(&moves);
+    (files, moves)
 }
 
 /// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
@@ -860,16 +875,27 @@ impl Bridge {
         self.core.stop_shared();
         // A checkpoint still being taken would write into the folder while it is emptied.
         wait_for_marks(&self.marking);
+        // A few passes: a folder emptied while something still finishes writing into it (a store saving as it stops,
+        // or on Windows a file held a moment by a scanner) fails once and goes on the next pass.
         let mut failures = 0;
         let mut removed = 0;
-        if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
-                match result {
-                    Ok(()) => removed += 1,
-                    Err(_) => failures += 1,
+        for pass in 0..5 {
+            if pass > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            failures = 0;
+            if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
+                    match result {
+                        Ok(()) => removed += 1,
+                        Err(_) => failures += 1,
+                    }
                 }
+            }
+            if failures == 0 {
+                break;
             }
         }
         if let Some(quit) = self.quit.get() {
@@ -3144,7 +3170,10 @@ impl Bridge {
             ("list", _) => Ok(drives.list()),
             ("add", _) => {
                 let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
-                drives.add(field("name"), field("server"), field("username"), field("password"))
+                match field("kind") {
+                    "s3" => drives.add_s3(field("name"), field("server"), field("bucket"), field("folder"), field("region"), field("username"), field("password")),
+                    _ => drives.add(field("name"), field("server"), field("username"), field("password")),
+                }
             }
             ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
             ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
@@ -3339,7 +3368,9 @@ impl Bridge {
                     .into_iter()
                     .filter_map(|t| {
                         let diff = self.workspace.turn_diff(&t.start, t.end.as_deref()).ok()?;
-                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": diff.files, "moves": moves_json(&diff.moves) }))
+                        let left_out = self.workspace.left_out_moves(&t.start, t.end.as_deref(), &diff.files).unwrap_or_default();
+                        let (files, moves) = turn_changes(diff, left_out);
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files, "moves": moves }))
                     })
                     .collect();
                 json!({ "ok": true, "turns": turns })
@@ -3530,7 +3561,11 @@ impl Bridge {
         Ok(match method {
             // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
             "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
-                Ok(diff) => json!({ "checkpoint": mark, "files": diff.files, "moves": moves_json(&diff.moves) }),
+                Ok(diff) => {
+                    let left_out = self.workspace.left_out_moves(&mark, end.as_deref(), &diff.files).unwrap_or_default();
+                    let (files, moves) = turn_changes(diff, left_out);
+                    json!({ "checkpoint": mark, "files": files, "moves": moves })
+                }
                 Err(e) => failed(e),
             },
             "undo" => match (&end, turn_files()) {
@@ -3563,7 +3598,10 @@ impl Bridge {
                     (Some(end), Ok(files)) => {
                         let (kept, back): (Vec<String>, Vec<String>) = files.iter().filter(|f| asked.contains(f)).cloned().partition(|path| changed_later(path));
                         let whole = files.iter().all(|f| asked.contains(f) || changed_later(f) || f.starts_with(".comments/"));
-                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back) };
+                        // A move of a file checkpoints leave out goes back by its own paths when only it was asked for;
+                        // when the whole turn goes back, the noted moves bring it back with the rest.
+                        let left_out: Vec<(String, String)> = if whole { Vec::new() } else { self.workspace.left_out_moves(&mark, Some(end), &files).unwrap_or_default().into_iter().filter(|(from, to)| asked.contains(from) && asked.contains(to)).collect() };
+                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back).and_then(|()| self.workspace.move_back(&left_out)) };
                         match done {
                             Ok(()) => {
                                 self.reload_after_undo(None);
@@ -3788,7 +3826,8 @@ impl Bridge {
             "revokeGrant" => arg(0).as_i64().filter(|n| *n >= 1).map_or_else(refused, |n| self.agent.revoke_grant(n)),
             "activity" => self.agent.activity(arg(0).as_u64().unwrap_or(50).clamp(1, 200)),
             "resolve" => {
-                let duration = arg(2).as_str().filter(|d| ["once", "session", "always"].contains(d));
+                // "turn" is Allow for this question: reading the web, for the rest of the turn that asked.
+                let duration = arg(2).as_str().filter(|d| ["once", "turn", "session", "always"].contains(d));
                 match (arg(0).as_u64().filter(|n| *n >= 1), arg(1).as_bool(), duration) {
                     (Some(id), Some(approve), Some(duration)) => self.agent.resolve(id, approve, duration),
                     _ => refused(),
@@ -3860,7 +3899,7 @@ impl Bridge {
     /// A message from the core that is not an answer. Only well formed conversation progress reaches the window.
     pub fn on_core_notification(&self, method: &str, params: &Value) {
         if method == "agent.timing" {
-            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
+            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "thinking_ms": params["thinking_ms"], "calls_at_ms": params["calls_at_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
             return;
         }
         if method == "agent.event" {

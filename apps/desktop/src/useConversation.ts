@@ -1,6 +1,6 @@
 import type { SuggestedRead } from './surface';
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { MAIN_BOT_ID, botOfConversation, conversationIdFor, splitContext, type ContextItem, type ConversationInfo, type CoreStatus, type Duration } from '@mobius/shared';
+import { MAIN_BOT_ID, botOfConversation, conversationIdFor, splitContext, type ContextItem, type ConversationInfo, type CoreStatus, type AnswerFor } from '@mobius/shared';
 import { preferencesSettled } from './usePreferences';
 import { findToolArguments, findToolResult, initialConversation, reduce, type ConversationState } from './conversation';
 
@@ -26,7 +26,7 @@ export interface Conversation {
   takeOver(): Promise<string | null>;
   handBack(): Promise<string | null>;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
-  answer(requestId: number, approve: boolean, duration: Duration): Promise<string | null>;
+  answer(requestId: number, approve: boolean, duration: AnswerFor): Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent, otherwise null. */
   reply(callId: string, text: string): Promise<string | null>;
   /** Take back the last exchange and send the same message again. */
@@ -153,7 +153,7 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     return result?.ok ? null : result && !result.ok ? result.error : 'Handing back is not available here.';
   }, []);
 
-  const answer = useCallback(async (requestId: number, approve: boolean, duration: Duration) => {
+  const answer = useCallback(async (requestId: number, approve: boolean, duration: AnswerFor) => {
     // Show the answer straight away: the news that follows it can arrive before the reply to this call does.
     dispatch({ type: 'answered', requestId, approve });
     turnLog(approve ? 'allowed' : 'declined');

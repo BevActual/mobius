@@ -164,7 +164,13 @@ impl Provider for ClaudeCodeProvider {
         let tools = file("tools.json", &Value::Array(prepared.manifest.clone()).to_string())?;
         let system = file("system.md", &prepared.system)?;
         // The body travels as a setting, not an argument or variable, so a large tool list never hits OS limits.
-        let settings = file("settings.json", &json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } }).to_string())?;
+        let mut settings = json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } });
+        if prepared.thinking_off {
+            // The CLI turns thinking on by itself; this turn asks for none.
+            settings["alwaysThinkingEnabled"] = json!(false);
+            settings["env"]["MAX_THINKING_TOKENS"] = json!("0");
+        }
+        let settings = file("settings.json", &settings.to_string())?;
         let mcp = file("mcp.json", &json!({ "mcpServers": { "mobius": { "command": self.inert_mcp, "args": [tools] } } }).to_string())?;
         let relay = Relay::start(&self.upstream, self.timeout).map_err(protocol)?;
         let env = cli::child_env(&BTreeMap::from([("ANTHROPIC_BASE_URL".to_owned(), relay.url.clone())]));
@@ -247,6 +253,8 @@ impl Provider for ClaudeCodeProvider {
         let mut native_error: Option<(String, String)> = None;
         // Tool calls being written, by block index: the block (id and name) and its arguments so far.
         let mut writing: BTreeMap<u64, (Value, String)> = BTreeMap::new();
+        // Time in thinking blocks: when the open one started, and the total of those that closed.
+        let (mut thinking_since, mut thought): (Option<Instant>, Option<u64>) = (None, None);
         while let Some(event) = run.next()? {
             match event["type"].as_str() {
                 Some("stream_event") => {
@@ -257,7 +265,12 @@ impl Provider for ClaudeCodeProvider {
                         Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
                             writing.insert(index, (inner["content_block"].clone(), String::new()));
                         }
+                        // Lines written as thinking under `between_tools` are writing, not thinking: they are not timed as thought.
+                        Some("content_block_start") if inner["content_block"]["type"] == "thinking" && !prepared.updates_in_thinking => thinking_since = Some(Instant::now()),
                         Some("content_block_stop") => {
+                            if let Some(since) = thinking_since.take() {
+                                thought = Some(thought.unwrap_or(0).saturating_add(u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)));
+                            }
                             // A call is whole when its block closes: give it now, while the model writes the rest.
                             if let Some((mut block, json)) = writing.remove(&index)
                                 && let Ok(input) = serde_json::from_str::<Value>(if json.is_empty() { "{}" } else { &json })
@@ -274,9 +287,15 @@ impl Provider for ClaudeCodeProvider {
                     {
                         json.push_str(piece);
                     }
-                    if delta["type"] == "text_delta"
-                        && let Some(t) = delta["text"].as_str()
-                    {
+                    // With thinking off as `between_tools`, the model's between-call lines arrive as thinking.
+                    let line = if delta["type"] == "text_delta" {
+                        delta["text"].as_str()
+                    } else if delta["type"] == "thinking_delta" && prepared.updates_in_thinking {
+                        delta["thinking"].as_str()
+                    } else {
+                        None
+                    };
+                    if let Some(t) = line {
                         emitted.push_str(t);
                         if !on_text(t) {
                             return Err(ProviderError::Cancelled);
@@ -309,10 +328,13 @@ impl Provider for ClaudeCodeProvider {
             });
         };
         drop(outcome);
-        let mut completion = frames::completion(&message, &prepared.names);
+        let mut completion = frames::completion_with(&message, &prepared.names, prepared.updates_in_thinking);
         // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
         if let Some(ready) = run.ready_ms.get() {
             completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
+        }
+        if thought.is_some() {
+            completion.usage.get_or_insert_with(Default::default).thinking_ms = thought;
         }
         // The relay's copy is the truth; say whatever the stream did not.
         if let Some(rest) = completion.text.strip_prefix(emitted.as_str())

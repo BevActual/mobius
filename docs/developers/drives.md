@@ -1,15 +1,16 @@
 # Drives
 
 A drive is a folder on a server the person already runs or pays for, opened from Files beside the workspace. Mobius
-needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs`.
+needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV) and
+`crates/mobius-host/src/s3.rs` (S3-style storage).
 
 ## How it works
 
 - **One interface, many kinds.** Every drive implements the `Drive` trait: `check`, `list`, `read`, `write`,
-  `make_folder`, `rename`, `delete`. WebDAV is the first kind. S3-style storage and network shares (SMB) can be added as
-  other implementations without changing the bridge or the window.
-- **Nothing is copied.** Each call goes to the server. There is no local mirror and no sync, so there is nothing to keep
-  in step and no conflicts to merge. Two-way sync of workspace folders is a later step and a decision for Andrew.
+  `make_folder`, `rename`, `delete`. WebDAV and S3-style storage are the kinds so far. Others (network shares, the
+  cloud drives) are other implementations, without changing the bridge, sync or the window.
+- **Browsing copies nothing.** Each call goes to the server, with no local mirror. A workspace folder can also be kept in
+  step with a drive folder both ways: see [Two-way sync](#two-way-sync-design).
 - **Changes carry a version.** A write sends the ETag of the version it was based on (`If-Match`). If someone changed
   the file on the server since, the server answers 412 and Mobius says so (`conflict: true`) instead of writing over
   their change. A new file is sent with `If-None-Match: *`, so it never replaces one that appeared meanwhile. A move
@@ -20,7 +21,7 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 
 | Bridge call | Does |
 | --- | --- |
-| `list`, `add {name, server, username, password}`, `remove id` | The person's drives |
+| `list`, `add {name, server, username, password}`, `remove id` | The person's drives. For S3, `add {kind: "s3", name, server, bucket, folder?, region?, username, password}`: the service's address, the bucket, a folder in it, the access key id and its secret |
 | `browse id folder` | Folders first, then files, with size, date and version |
 | `read id path` | The file as base64, with its version (up to 32 MB) |
 | `write id path {base64 \| text} etag?` | Replace that version, or make a new file |
@@ -52,6 +53,30 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 | Fastmail Files | `https://myfiles.fastmail.com/` | App password with Files access. |
 | Synology, QNAP | The WebDAV address set up on the NAS | Usually its own port (5005 / 5006 on Synology). |
 | Apache `mod_dav`, nginx | The WebDAV folder | A folder named without its final `/` is redirected; Mobius follows. |
+
+## S3-style storage
+
+Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO and the rest of the services that speak the S3 API. The person
+pastes an access key; nothing is registered with anyone.
+
+- **Signing.** Every request is signed with AWS Signature Version 4 (`s3.rs`, checked against the GET example in the
+  S3 API reference). A streamed body is sent as `UNSIGNED-PAYLOAD`; everything else carries its SHA-256.
+- **Addresses.** An account keeps the path-style address of its folder, `https://host/bucket/folder/`, and the region.
+  On `*.amazonaws.com` requests go to `bucket.host` (virtual-hosted), as AWS prefers; elsewhere the bucket is in the
+  path. The region comes from the address where it names one (`s3.eu-west-2.amazonaws.com`, R2's `auto`), otherwise
+  from the form, otherwise `us-east-1`.
+- **Folders.** A bucket has only keys. A folder is every key under its path and a `/`; an empty one is kept as a
+  zero-byte key ending in `/`, as the services' consoles make them. Listing uses ListObjectsV2 with `delimiter=/`,
+  following continuation tokens.
+- **Versions** are ETags, sent with `If-Match`, and `If-None-Match: *` for a new file (AWS, R2 and MinIO honour both).
+  The version is also checked with a `HEAD` just before each change, so a service that ignores those headers still
+  never writes over a file that changed since it was read, except in the moment between.
+- **Moves** are a copy and a delete, key by key for a folder, and never over something already there. A single copy
+  takes files up to 5 GB.
+- **Big files** over 32 MB go up as a multipart upload in 32 MB parts, joined with the version condition. The upload is
+  abandoned (`DELETE ?uploadId`) on any failure, so no parts are left to pay for.
+- **Errors** come from S3's error code: a wrong key or secret says the server did not accept them (sync shows Sign in),
+  a missing bucket names it, and a bucket in another region says to give its region.
 
 ## Known limits and quirks
 

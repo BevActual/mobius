@@ -121,6 +121,9 @@ const ICONS = {
   export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
 };
 
+/** A clip in Arrange or Session: a button that Space doesn't press, since Space plays the song. */
+const isClip = (t: HTMLElement) => t.closest('.studio-clip, .studio-clip-body') !== null;
+
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
 function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: number; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void }) {
   const clips = useMemo(() => clipsOf(track.notes, bars), [track.notes, bars]);
@@ -376,7 +379,7 @@ type Gesture =
   | { kind: 'paint'; row: number; erase: boolean; done: Set<number>; tag: string };
 
 /** One song: transport, tracks laid out by bar, and the chosen track's notes on a piano roll to draw, move and stretch. */
-export function StudioEditor({ songs, review }: { songs: NotesState; review?: { conversation: string } | null }) {
+export function StudioEditor({ songs, review, working = false }: { songs: NotesState; review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean }) {
   const parsed = useMemo(() => (songs.page ? parseSong(songs.text) : null), [songs.page, songs.text]);
   const song = parsed && 'song' in parsed ? parsed.song : null;
   const [selected, setSelected] = useState<string | null>(null);
@@ -633,10 +636,13 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
       const mod = e.ctrlKey || e.metaKey;
       if (!t.isContentEditable && playKeys.current?.(e)) { e.preventDefault(); return; }
       if (pageKeys.current?.(e, t)) { e.preventDefault(); return; }
-      if (e.key === ' ' && t.tagName !== 'BUTTON') { e.preventDefault(); if (playing) stop(); else start(); } else if (e.key === 'Enter' && t.tagName !== 'BUTTON' && !mod) { e.preventDefault(); seek(0); } else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+      if (e.key === ' ' && (t.tagName !== 'BUTTON' || isClip(t))) { e.preventDefault(); if (playing) stop(); else start(); } else if (e.key === 'Enter' && t.tagName !== 'BUTTON' && !mod) { e.preventDefault(); seek(0); } else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
     };
+    // A clip is a button, but Space on it plays the song as anywhere else in Music; its click on key-up is let go.
+    const onUp = (e: KeyboardEvent) => { if (e.key === ' ' && e.target instanceof HTMLElement && isClip(e.target)) e.preventDefault(); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onUp);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }, [playing, start, stop, seek, undo, redo]);
   // The computer keyboard's keys go to playKeys first (in the page's own listener); while it is on, Music holds the
   // keyboard so the shell's single-letter keys (C for comments) stand down.
@@ -1064,7 +1070,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
-  const proposal = changed.size > 0 ? (
+  const proposal = changed.size > 0 && !working ? (
     <div className="studio-review">
       <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
     </div>

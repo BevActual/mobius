@@ -357,3 +357,20 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 /* Compact parameter cell (a dense pro panel): the name in sentence case, small and grey; the value at body size. */
 .ui-param[data-size="compact"] .ui-param-name { font-size: var(--fs-xs); font-weight: var(--fw-medium); letter-spacing: normal; text-transform: none; }
 .ui-param[data-size="compact"] .ui-param-value { font-size: var(--fs-md); line-height: 1.3; margin-top: 0; }
+
+/* Before and after (BeforeAfter, HoldButton): both layers share one box; the one not shown fades out. The tag names
+   the original in the corner while it is held, so a viewer always knows which one is on screen. */
+.ui-before-after { position: relative; display: grid; min-width: 0; min-height: 0; }
+.ui-ba-layer { grid-area: 1 / 1; min-width: 0; min-height: 0; transition: opacity var(--dur-fast) var(--ease); }
+.ui-before-after[data-showing="after"] > .ui-ba-layer[data-layer="before"],
+.ui-before-after[data-showing="before"] > .ui-ba-layer[data-layer="after"]:not(:only-of-type) { opacity: 0; }
+.ui-before-after[data-showing="before"] > .ui-ba-layer[data-layer="before"] { opacity: 1; }
+.ui-ba-tag {
+  position: absolute; top: var(--sp-3); left: var(--sp-3); z-index: 1; pointer-events: none;
+  padding: var(--sp-1) var(--sp-2); border-radius: var(--radius-small); background: var(--bg); color: var(--ink);
+  box-shadow: inset 0 0 0 var(--hairline-w) var(--line), var(--shadow-1);
+  font-size: var(--fs-xs); font-weight: var(--fw-medium); white-space: nowrap;
+}
+.ui-ba-tag:empty { display: none; }
+.ui-hold { touch-action: none; user-select: none; }
+@media (prefers-reduced-motion: reduce) { .ui-ba-layer { transition: none; } }

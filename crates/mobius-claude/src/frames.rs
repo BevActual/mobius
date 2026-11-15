@@ -109,6 +109,33 @@ pub struct Prepared {
     pub names: HashMap<String, String>,
     pub model: String,
     pub effort: Option<String>,
+    /// The model is asked to answer with no thinking first.
+    pub thinking_off: bool,
+    /// Thinking is off the way this model takes it (`between_tools`), so what it writes between calls comes back as
+    /// thinking blocks: those are its lines, and are read as text.
+    pub updates_in_thinking: bool,
+}
+
+/// How a model takes "no thinking": models differ, and a value one refuses is an HTTP 400 for the whole turn.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ThinkingOff {
+    /// `{"type": "disabled"}`.
+    Disabled,
+    /// `{"type": "between_tools"}` (Sonnet 5.5): its between-call lines come back as thinking blocks.
+    BetweenTools,
+    /// Thinking cannot be turned off (Opus 5.5, Fable, Mythos, and any model not known here): the turn runs at low
+    /// effort instead.
+    LowEffort,
+}
+
+/// How `model` (an id as `native_model` gives it) turns thinking off.
+pub fn thinking_off_for(model: &str) -> ThinkingOff {
+    let id = model.strip_suffix("[1m]").unwrap_or(model);
+    if id == "claude-sonnet-5-5" {
+        return ThinkingOff::BetweenTools;
+    }
+    let disabled = ["claude-sonnet-5", "claude-opus-5", "claude-haiku-5-5"].contains(&id) || ["claude-opus-4-", "claude-sonnet-4-", "claude-haiku-4-"].iter().any(|p| id.starts_with(p));
+    if disabled { ThinkingOff::Disabled } else { ThinkingOff::LowEffort }
 }
 
 pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared, String> {
@@ -185,11 +212,28 @@ pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared,
         return Err("the conversation must end with a message or a tool result".into());
     }
     let mut body = json!({ "tools": tools });
-    let effort = request.effort.clone().filter(|e| matches!(e.as_str(), "low" | "medium" | "high"));
+    let model = native_model(&request.model);
+    // No reasoning: the model writes at once, with no thinking first (a mode that sorts and writes, such as Triage),
+    // in the way this model takes it. One that cannot stop thinking runs at low effort instead.
+    let no_reasoning = request.effort.as_deref() == Some(mobius_agent::provider::NO_REASONING);
+    let off = no_reasoning.then(|| thinking_off_for(&model));
+    let mut effort = request.effort.clone().filter(|e| matches!(e.as_str(), "low" | "medium" | "high"));
+    // Models that take thinking off take it only at effort high or below, so the effort is said, not left to the
+    // CLI's own default: low, which also asks for the fewest words between calls.
+    match off {
+        Some(ThinkingOff::Disabled) => body["thinking"] = json!({ "type": "disabled" }),
+        Some(ThinkingOff::BetweenTools) => body["thinking"] = json!({ "type": "between_tools" }),
+        Some(ThinkingOff::LowEffort) | None => {}
+    }
+    if off.is_some() {
+        effort = Some("low".into());
+    }
     if let Some(e) = &effort {
         body["output_config"] = json!({ "effort": e });
     }
-    Ok(Prepared { system: request.system.clone(), frames, manifest, body, names, model: native_model(&request.model), effort })
+    let thinking_off = matches!(off, Some(ThinkingOff::Disabled | ThinkingOff::BetweenTools));
+    let updates_in_thinking = off == Some(ThinkingOff::BetweenTools);
+    Ok(Prepared { thinking_off, updates_in_thinking, system: request.system.clone(), frames, manifest, body, names, model, effort })
 }
 
 /// A session id that stays the same for the whole conversation (the CLI names a scratch folder after it near the top
@@ -208,8 +252,20 @@ pub fn session_id(system: &str, frames: &[Value]) -> String {
 
 /// The captured native message as a Mobius completion. Tool names come back without the prefix and as Mobius names.
 pub fn completion(message: &Value, names: &HashMap<String, String>) -> Completion {
+    completion_with(message, names, false)
+}
+
+/// As `completion`; with `updates_in_thinking`, thinking blocks are the model's between-call lines and read as text.
+pub fn completion_with(message: &Value, names: &HashMap<String, String>, updates_in_thinking: bool) -> Completion {
     let blocks = message["content"].as_array().cloned().unwrap_or_default();
-    let text: String = blocks.iter().filter(|b| b["type"] == "text").filter_map(|b| b["text"].as_str()).collect();
+    let text: String = blocks
+        .iter()
+        .filter_map(|b| match b["type"].as_str() {
+            Some("text") => b["text"].as_str(),
+            Some("thinking") if updates_in_thinking => b["thinking"].as_str(),
+            _ => None,
+        })
+        .collect();
     let tool_calls: Vec<ToolCall> = blocks.iter().filter(|b| b["type"] == "tool_use").map(|b| tool_call(b, names)).collect();
     let stop = match message["stop_reason"].as_str() {
         Some("refusal") => StopReason::Other("refusal".into()),
@@ -269,6 +325,52 @@ mod tests {
         assert_eq!(native_model("claude-haiku-4-5"), "claude-haiku-4-5-20251001");
         assert_eq!(native_model("claude-haiku-4-5-20251001"), "claude-haiku-4-5-20251001");
         assert_eq!(native_model("claude-new-9"), "claude-new-9", "never promised a 1M window");
+    }
+
+    #[test]
+    fn no_reasoning_asks_for_no_thinking_in_the_way_the_model_takes_it() {
+        let mut r = request(vec![Message::user("hi")]);
+        r.effort = Some(mobius_agent::provider::NO_REASONING.into());
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        // Sonnet 5.5 refuses "disabled" with a 400 and takes "between_tools".
+        assert!(p.thinking_off && p.updates_in_thinking);
+        assert_eq!(p.body["thinking"], json!({ "type": "between_tools" }));
+        assert_eq!(p.body["output_config"], json!({ "effort": "low" }), "at an effort the model takes it at");
+        r.model = "claude-opus-4-8".into();
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        assert!(p.thinking_off && !p.updates_in_thinking);
+        assert_eq!(p.body["thinking"], json!({ "type": "disabled" }));
+        // Opus 5.5 cannot stop thinking at all: it runs at low effort, and the CLI is not told to turn thinking off.
+        r.model = "opus".into();
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        assert!(!p.thinking_off && p.body.get("thinking").is_none());
+        assert_eq!(p.body["output_config"], json!({ "effort": "low" }));
+        let p = prepare(&request(vec![Message::user("hi")]), &NativeTurns::default()).unwrap();
+        assert!(!p.thinking_off && p.body.get("thinking").is_none(), "the usual setting leaves thinking to the CLI");
+    }
+
+    #[test]
+    fn each_model_turns_thinking_off_the_way_it_takes_it() {
+        for (model, off) in [
+            ("sonnet", ThinkingOff::BetweenTools),
+            ("opus", ThinkingOff::LowEffort),
+            ("fable", ThinkingOff::LowEffort),
+            ("haiku", ThinkingOff::Disabled),
+            ("claude-sonnet-5", ThinkingOff::Disabled),
+            ("claude-opus-5", ThinkingOff::Disabled),
+            ("claude-opus-4-8", ThinkingOff::Disabled),
+            ("claude-haiku-4-5", ThinkingOff::Disabled),
+            ("claude-new-9", ThinkingOff::LowEffort),
+        ] {
+            assert_eq!(thinking_off_for(&native_model(model)), off, "{model}");
+        }
+    }
+
+    #[test]
+    fn between_tools_lines_in_thinking_blocks_are_read_as_text() {
+        let m = json!({ "content": [{ "type": "thinking", "thinking": "Archived the newsletter. " }, { "type": "text", "text": "Done." }], "stop_reason": "end_turn" });
+        assert_eq!(completion_with(&m, &HashMap::new(), true).text, "Archived the newsletter. Done.");
+        assert_eq!(completion(&m, &HashMap::new()).text, "Done.", "thinking stays hidden otherwise");
     }
 
     #[test]

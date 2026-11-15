@@ -237,7 +237,9 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
-export interface DriveAccount { id: string; kind: 'webdav'; name: string; url: string; username: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3'; name: string; url: string; /** For S3, the access key id. */ username: string; /** S3's region. */ region?: string }
+/** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
+export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
 export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
@@ -462,7 +464,7 @@ export interface MobiusBridge {
     grants(): Promise<AgentGrant[]>;
     revokeGrant(id: number): Promise<AgentResult>;
     activity(limit?: number): Promise<ActivityEntry[]>;
-    resolve(requestId: number, approve: boolean, duration: Duration): Promise<AgentResult>;
+    resolve(requestId: number, approve: boolean, duration: AnswerFor): Promise<AgentResult>;
     getSettings(): Promise<AgentSettings>;
     configure(settings: AgentConfigureRequest): Promise<AgentResult>;
     onNotification(listener: (notification: AgentNotification) => void): () => void;
@@ -674,7 +676,7 @@ export interface MobiusBridge {
   drives?: {
     list(): Promise<DriveAccount[] | DriveFailure>;
     /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
-    add(drive: { name: string; server: string; username: string; password: string }): Promise<DriveAccount | DriveFailure>;
+    add(drive: NewDrive): Promise<DriveAccount | DriveFailure>;
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
     /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
     signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
@@ -1225,15 +1227,22 @@ export function parseRecording(audio: unknown, mime: unknown): { bytes: Uint8Arr
   return { bytes, mime: type };
 }
 
-const DURATIONS: readonly Duration[] = ['once', 'session', 'always'];
+/**
+ * How long a yes lasts: once, for the rest of this question (`turn`: reading the web only, for the turn that asked),
+ * while Mobius runs, or always.
+ */
+export type AnswerFor = Duration | 'turn';
+const DURATIONS: readonly AnswerFor[] = ['once', 'turn', 'session', 'always'];
+/** The tools a yes can cover for the rest of a question: reading the web, and nothing else. */
+export const FOR_THIS_QUESTION: readonly string[] = ['web.search', 'web.read'];
 
-export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: Duration } | null {
+export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: AnswerFor } | null {
   if (!isObject(value)) return null;
   const { requestId, approve, duration } = value;
   if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId < 1) return null;
   if (typeof approve !== 'boolean') return null;
-  if (!isString(duration) || !DURATIONS.includes(duration as Duration)) return null;
-  return { requestId, approve, duration: duration as Duration };
+  if (!isString(duration) || !DURATIONS.includes(duration as AnswerFor)) return null;
+  return { requestId, approve, duration: duration as AnswerFor };
 }
 
 function parseFallback(value: unknown): FallbackRequest | null {

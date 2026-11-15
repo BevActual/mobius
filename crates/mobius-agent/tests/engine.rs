@@ -570,9 +570,21 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 }
 
 #[test]
+fn a_turns_own_effort_stands_in_for_the_chosen_one() {
+    let mut w = smart_world();
+    w.engine.set_effort(Some("high".to_owned()));
+    let (_turn, step) = w.engine.start_with(&w.core, vec![], "triage", 1, TurnSetup { effort: Some("low".to_owned()), ..TurnSetup::default() });
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert_eq!(request.effort.as_deref(), Some("low"), "a mode that sorts and writes thinks less");
+    let (_turn, step) = w.engine.start_with(&w.core, vec![], "go", 2, TurnSetup::default());
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert_eq!(request.effort.as_deref(), Some("high"));
+}
+
+#[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +599,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -910,6 +922,24 @@ fn a_turn_that_ends_in_changes_asks_for_a_reply_when_the_changes_came_with_nothi
 }
 
 #[test]
+fn a_turn_that_ends_in_changes_needs_no_closing_round_when_an_earlier_round_wrote_its_lines() {
+    // Triage on round 17: lines and changes over two rounds, then a third round of changes with no words, and a fourth
+    // round (14.7 s) only to sum up what the change bar already lists.
+    let mut w = reading_world();
+    for t in ["demo.echo", "demo.list"] {
+        allow_always(&mut w, t);
+    }
+    let provider = ScriptedProvider::new(vec![
+        calls("Reply: Priya, about the build dates.", vec![call("l1", "demo.list", json!({})), call("c1", "demo.echo", json!({ "text": "draft" }))]),
+        calls("", vec![call("c2", "demo.echo", json!({ "text": "task" }))]),
+        text("never asked"),
+    ]);
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "triage", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 2, "the turn already wrote to the person, so no round only to sum up");
+}
+
+#[test]
 fn a_turn_that_ends_in_changes_still_asks_again_after_a_failure_a_read_or_a_plan() {
     for (round, why) in [
         (vec![call("c1", "demo.echo", json!({})), call("f1", "demo.fail", json!({}))], "a call failed"),
@@ -980,4 +1010,38 @@ fn a_turn_that_names_its_kinds_of_tools_is_offered_only_those_and_the_engines_ow
     assert_eq!(names, ["tasks.list", "todo.write", "ask.person"]);
     let (_, all) = w.engine.start(&w.core, vec![], "go", 2);
     assert!(request_of(&all).tools.iter().any(|t| t.name == "demo.echo"), "a turn that names none is offered every tool");
+}
+
+#[test]
+fn allowing_the_web_for_this_question_lets_the_rest_of_the_turn_read_the_web_and_nothing_else() {
+    let mut w = world(10);
+    let reads = Arc::new(AtomicUsize::new(0));
+    for (name, capability) in [("web.search", "web.search"), ("web.read", "web.read")] {
+        let counter = reads.clone();
+        w.core.register_tool(ToolSpec::new(name, "Reads the web.", capability).unwrap(), Box::new(move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({ "found": [] }))
+        })).unwrap();
+    }
+    let provider = ScriptedProvider::new(vec![
+        calls("", vec![call("c1", "web.search", json!({ "query": "porto hotels" }))]),
+        calls("", vec![call("c2", "web.search", json!({ "query": "porto prices" })), call("c3", "web.read", json!({ "url": "https://a.example/" })), call("c4", "demo.echo", json!({ "text": "hi" }))]),
+        text("Done."),
+        calls("", vec![call("c5", "web.search", json!({ "query": "lisbon" }))]),
+    ]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "compare hotels", 1);
+    let first = match drive(&mut w, &mut turn, &provider, step) { Step::AwaitApproval { request_id } => request_id, other => panic!("{other:?}") };
+    w.core.resolve_for_turn(first).unwrap();
+    let step = w.engine.on_approval(&mut turn, &mut w.core, first, true);
+    // The next search and the page read go ahead without a question; anything else still asks.
+    let other = match drive(&mut w, &mut turn, &provider, step) { Step::AwaitApproval { request_id } => request_id, other => panic!("{other:?}") };
+    assert_eq!(reads.load(Ordering::SeqCst), 3, "both searches and the read ran");
+    assert!(w.core.pending().iter().any(|r| r.id == other && r.capability.as_str() == "demo.echo"), "{:?}", w.core.pending());
+    assert!(w.core.resolve_for_turn(other).is_err(), "only reading the web can be allowed for the question");
+    w.core.resolve(other, true, Duration::Once).unwrap();
+    let step = w.engine.on_approval(&mut turn, &mut w.core, other, true);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    // A new message asks again.
+    let (mut next, step) = w.engine.start(&w.core, vec![], "and Lisbon?", 2);
+    assert!(matches!(drive(&mut w, &mut next, &provider, step), Step::AwaitApproval { .. }), "the next question asks again");
 }

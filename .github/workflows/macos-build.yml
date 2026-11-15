@@ -8,9 +8,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A newer push to a pull request replaces its run. On main every merge is tested on its own: each commit gets its own
+# group, so two merges seconds apart never cancel each other and no commit on main goes untested.
 concurrency:
-  group: macos-${{ github.ref }}
-  cancel-in-progress: true
+  group: macos-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   build:

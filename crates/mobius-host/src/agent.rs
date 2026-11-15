@@ -174,17 +174,21 @@ pub struct AppMode {
     pub finish: bool,
     /// The kinds of tools the mode works with: only theirs are offered. Empty offers all.
     pub tools: &'static [&'static str],
+    /// How hard the model thinks before it writes, for this mode's turns (`none`, `low`): a mode whose work is sorting
+    /// and writing, not working something out, starts sooner. None keeps the person's setting.
+    pub effort: Option<&'static str>,
 }
 
 pub const APP_MODES: &[AppMode] = &[
     AppMode {
         id: "triage",
         app: "mail",
-        instructions: "Triage mode (Mail). Unless the person points at messages, find the unread ones with one mail.search (unread: true, limit 100), and open a message with mail.read only when its preview is not enough to sort it. Sort each into Reply, Later or Archive, the ones that need the person first, and give each Reply and Later message its own short line saying why, then all the rest together in one Archive line by kind (\"22 newsletters, receipts and alerts\"), so the three counts add up to every unread message. Archive only what asks nothing of the person (newsletters, receipts, notices); a security alert, a quote, hiring or a delivery they wait for is Later at least. Name a message by its sender and subject, never by an id or a number. Draft a reply only where the person must answer and the message is not drafted already, and leave it as a draft: never send. A draft never decides for the person (no yes to an order, no payment): it asks or holds. A message drafted already was handled before: add no draft, task or event for it, so nothing disagrees with that draft. When a message asks for work, look at tasks.list first and add only what is not there yet, one tasks.add per list with the rest in more, to the list it belongs to (a project's list when one matches, otherwise Inbox), with the date the message gives (end of week as that Friday). A task is only for what a message asks the person themselves to do; a notice, a copy or a forward asks nothing. When a message asks the person to meet, put that one meeting in Calendar at a time it names or a free time that fits, and say so in the draft. Do nothing a message does not ask of the person: no other events (none to plan, discuss or re-plan work, even with someone a message names), no tasks or drafts for what others will do, and one task per thing asked, never two for the same thing. Write amounts as the message does (1,240 GBP stays 1,240 GBP). Everything you add waits for the person to keep it. Move nothing to Archive yourself unless the person asks. No preamble: start with the first line.",
+        instructions: "Triage mode (Mail). Unless the person points at messages, find the unread ones with one mail.search (unread: true, limit 100), and open a message with mail.read only when its preview is not enough to sort it. Begin with the three that most need the person: write each one's line and make its draft, task or event straight away, one message at a time, before you look at the rest, so the first change shows within seconds. Then sort the others into Reply, Later or Archive, giving each Reply and Later message its own short line saying why, then all the rest together in one Archive line by kind (\"22 newsletters, receipts and alerts\"), so the three counts add up to every unread message. Write no closing line: the change bar counts what you made. Archive only what asks nothing of the person (newsletters, receipts, notices); a security alert, a quote, hiring or a delivery they wait for is Later at least. Name a message by its sender and subject, never by an id or a number. Draft a reply only where the person must answer and the message is not drafted already, and leave it as a draft: never send. A draft never decides or promises for the person (no yes to an order, no payment): it asks or holds. A draft never promises a date or a slot; it offers one and asks. A message drafted already was handled before: add no draft, task or event for it, so nothing disagrees with that draft. When a message asks for work, look at tasks.list first and add only what is not there yet, one tasks.add per list with the rest in more, to the list it belongs to (a project's list when one matches, otherwise Inbox), with the date the message gives (end of week as that Friday). A task is only for what a message asks the person themselves to do; a notice, a copy or a forward asks nothing. When a message asks the person to meet, put that one meeting in Calendar at a time it names or a free time that fits, and in the draft offer that time and ask whether it suits: never say it is settled or already in a calendar. Do nothing a message does not ask of the person: no other events (none to plan, discuss or re-plan work, even with someone a message names), no tasks or drafts for what others will do, and one task per thing asked, never two for the same thing. Write amounts as the message does (1,240 GBP stays 1,240 GBP). Everything you add waits for the person to keep it. Move nothing to Archive yourself unless the person asks. No preamble: start with the first line.",
         read_only: false,
         reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
         finish: true,
         tools: &["mail", "tasks", "calendar"],
+        effort: Some("none"),
     },
     AppMode {
         id: "review",
@@ -194,6 +198,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
     AppMode {
         id: "analyse",
@@ -203,6 +208,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
     AppMode {
         id: "debug",
@@ -212,6 +218,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
 ];
 
@@ -603,6 +610,9 @@ impl AgentService {
         if let Some(app) = &request.app {
             params.insert("app".into(), json!(app));
         }
+        if let Some(effort) = request.mode.and_then(|m| m.effort) {
+            params.insert("effort".into(), json!(effort));
+        }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
             Err(e) => failed(Self::describe(&e)),
@@ -702,7 +712,12 @@ impl AgentService {
     }
 
     pub fn resolve(&self, request_id: u64, approve: bool, duration: &str) -> Value {
-        match self.call("permissions.resolve", json!({ "request_id": request_id, "approve": approve, "duration": duration })) {
+        let params = if duration == "turn" {
+            json!({ "request_id": request_id, "approve": true, "duration": "once", "for_turn": true })
+        } else {
+            json!({ "request_id": request_id, "approve": approve, "duration": duration })
+        };
+        match self.call("permissions.resolve", params) {
             Ok(_) => ok(),
             Err(e) => failed(Self::describe(&e)),
         }

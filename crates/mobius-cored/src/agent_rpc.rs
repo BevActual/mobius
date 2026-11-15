@@ -115,6 +115,10 @@ struct SendParams {
     /// The app it was sent from (`mail`): a model with a small window is offered that app's tools first.
     #[serde(default)]
     app: Option<String>,
+    /// How hard the model thinks this turn (`none`, `low`, `medium`, `high`), in place of the usual setting: an app's
+    /// mode sets it.
+    #[serde(default)]
+    effort: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -429,6 +433,8 @@ impl Agent {
                         // these with the turn's other steps (turn-timings.jsonl), so a slow turn can be taken apart.
                         let asked = std::time::Instant::now();
                         let mut first_text: Option<u128> = None;
+                        // When each call was whole, so the window's first change can be told from the model's writing.
+                        let mut calls_at: Vec<u128> = Vec::new();
                         let (tools, model) = (request.tools.len(), request.model.clone());
                         let early = inbox.clone();
                         let result = catch_unwind(AssertUnwindSafe(|| {
@@ -440,6 +446,7 @@ impl Agent {
                                 },
                                 // Each call as soon as it is written, to run while the model writes the rest.
                                 &mut |call| {
+                                    calls_at.push(asked.elapsed().as_millis());
                                     if !cancel.load(Ordering::SeqCst) {
                                         early.send(Inbox::CallReady { turn_id, call: call.clone() }).ok();
                                     }
@@ -451,7 +458,7 @@ impl Agent {
                         let calls = result.as_ref().map_or(0, |c| c.tool_calls.len());
                         inbox.send(Inbox::Notify(json!({ "jsonrpc": "2.0", "method": "agent.timing", "params": {
                             "conversation": conversation, "turn": turn_id, "step": "model", "model": model,
-                            "startup_ms": usage.startup_ms, "first_text_ms": first_text, "ms": asked.elapsed().as_millis(),
+                            "startup_ms": usage.startup_ms, "first_text_ms": first_text, "thinking_ms": usage.thinking_ms, "calls_at_ms": calls_at, "ms": asked.elapsed().as_millis(),
                             "input": usage.input, "cached": usage.cached, "output": usage.output, "tools_offered": tools, "tool_calls": calls,
                             "ok": result.is_ok(),
                         } }))).ok();
@@ -581,8 +588,11 @@ impl Extension for Agent {
                 if p.tools.len() > 12 || p.tools.iter().any(|k| k.is_empty() || k.len() > 32 || !k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')) {
                     return Err(ExtensionError::invalid_params("tools are at most twelve kinds, each a plain name such as tasks"));
                 }
+                if p.effort.as_deref().is_some_and(|e| !matches!(e, "none" | "low" | "medium" | "high")) {
+                    return Err(ExtensionError::invalid_params("effort must be none, low, medium or high"));
+                }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')), effort: p.effort.clone() };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.
