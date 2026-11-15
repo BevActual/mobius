@@ -13,7 +13,7 @@ use std::time::UNIX_EPOCH;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::drives::{CHANGED, Drive, EXISTS, Entry, MAX_FILE};
+use crate::drives::{CHANGED, Drive, EXISTS, Entry, MAX_SYNC_FILE};
 
 type Res<T> = Result<T, String>;
 
@@ -80,7 +80,7 @@ pub struct Report {
     pub conflicts: Vec<(String, String)>,
     /// Changed here but waiting for Keep.
     pub held: Vec<String>,
-    /// Over `MAX_FILE`: left alone on both sides.
+    /// Over `MAX_SYNC_FILE`: left alone on both sides.
     pub too_big: Vec<String>,
     /// Changed again while the round ran: looked at next round.
     pub later: Vec<String>,
@@ -137,8 +137,59 @@ pub fn conflict_name(path: &str, stamp: &str) -> String {
     if folder.is_empty() { copy } else { format!("{folder}/{copy}") }
 }
 
-fn hash(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+/// `hash` of a file's contents, read a piece at a time.
+fn hash_file(path: &Path) -> Res<String> {
+    let mut file = fs::File::open(path).map_err(|e| e.to_string())?;
+    let mut hasher = Sha256::new();
+    let mut piece = vec![0; 1024 * 1024];
+    loop {
+        match std::io::Read::read(&mut file, &mut piece).map_err(|e| e.to_string())? {
+            0 => break,
+            n => hasher.update(&piece[..n]),
+        }
+    }
+    Ok(hasher.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Where a file coming from the drive is written before it takes its name, beside it so the rename stays on one disk.
+fn temp_for(root: &Path, rel: &str) -> Res<PathBuf> {
+    let target = root.join(rel);
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    Ok(PathBuf::from(format!("{}.mobius-tmp", target.display())))
+}
+
+/// Brings the drive's file at `target` into a temp file beside `rel`: its path, hash and version. The temp file is
+/// removed if anything fails, and is the caller's to move into place or remove.
+fn fetch(drive: &dyn Drive, root: &Path, rel: &str, target: &str, size: Option<u64>) -> Res<(PathBuf, String, Option<String>)> {
+    let temp = temp_for(root, rel)?;
+    let got = drive.read_into(target, &temp).and_then(|version| {
+        // A connection dropped part way leaves a short file: never taken for the drive's.
+        if let (Some(size), Some((have, _))) = (size, stat(&temp))
+            && have != size
+        {
+            return Err("The file did not arrive whole. It is tried again at the next sync.".to_owned());
+        }
+        Ok((hash_file(&temp)?, version))
+    });
+    match got {
+        Ok((hash, version)) => Ok((temp, hash, version)),
+        Err(e) => {
+            let _ = fs::remove_file(&temp);
+            Err(e)
+        }
+    }
+}
+
+/// Moves a fetched temp file onto `rel`.
+fn place(root: &Path, rel: &str, temp: &Path) -> Res<(u64, u128)> {
+    let target = root.join(rel);
+    fs::rename(temp, &target).map_err(|e| {
+        let _ = fs::remove_file(temp);
+        e.to_string()
+    })?;
+    stat(&target).ok_or_else(|| "the file was not there after writing it".to_owned())
 }
 
 /// A local file as found now.
@@ -194,9 +245,9 @@ fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
         let known = base.files.get(&rel).filter(|b| b.size == size && b.modified_ms == modified_ms);
         let hash = match known {
             Some(b) => b.hash.clone(),
-            None if size > MAX_FILE as u64 => format!("big:{size}:{modified_ms}"),
-            None => match fs::read(&path) {
-                Ok(bytes) => self::hash(&bytes),
+            None if size > MAX_SYNC_FILE => format!("big:{size}:{modified_ms}"),
+            None => match hash_file(&path) {
+                Ok(hash) => hash,
                 Err(_) => continue,
             },
         };
@@ -264,24 +315,9 @@ fn on_drive(remote: &str, rel: &str) -> String {
     if remote.is_empty() { rel.to_owned() } else { format!("{remote}/{rel}") }
 }
 
-/// Writes a file whole: to a temp file beside it, then renamed over, so no app ever reads half of it.
-fn write_here(root: &Path, rel: &str, bytes: &[u8]) -> Res<(u64, u128)> {
-    let target = root.join(rel);
-    if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    let temp = PathBuf::from(format!("{}.mobius-tmp", target.display()));
-    fs::write(&temp, bytes).map_err(|e| e.to_string())?;
-    fs::rename(&temp, &target).map_err(|e| {
-        let _ = fs::remove_file(&temp);
-        e.to_string()
-    })?;
-    stat(&target).ok_or_else(|| "the file was not there after writing it".to_owned())
-}
-
-/// Writes to the drive, making the folders it goes in when the drive says they are missing.
-fn write_there(drive: &dyn Drive, path: &str, bytes: &[u8], version: Option<&str>) -> Res<Option<String>> {
-    match drive.write(path, bytes, version) {
+/// Writes to the drive from a local file, making the folders it goes in when the drive says they are missing.
+fn write_there(drive: &dyn Drive, path: &str, from: &Path, version: Option<&str>) -> Res<Option<String>> {
+    match drive.write_from(path, from, version) {
         Err(e) if e == crate::drives::WebDav::failed(409, None) => {
             let names: Vec<&str> = path.split('/').collect();
             for depth in 1..names.len() {
@@ -291,7 +327,7 @@ fn write_there(drive: &dyn Drive, path: &str, bytes: &[u8], version: Option<&str
                     Err(e) => return Err(e),
                 }
             }
-            drive.write(path, bytes, version)
+            drive.write_from(path, from, version)
         }
         other => other,
     }
@@ -320,7 +356,7 @@ pub fn round(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, opti
     let mut plan: Vec<(String, Step)> = Vec::new();
     for path in paths {
         let (b, h, t) = (base.files.get(&path), here.get(&path), there.get(&path));
-        if h.is_some_and(|h| h.size > MAX_FILE as u64) || t.is_some_and(|t| t.size > MAX_FILE as u64) {
+        if h.is_some_and(|h| h.size > MAX_SYNC_FILE) || t.is_some_and(|t| t.size > MAX_SYNC_FILE) {
             report.too_big.push(path);
             continue;
         }
@@ -398,32 +434,34 @@ fn apply(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, path: &s
             base.files.remove(path);
         }
         Step::Upload => {
-            let bytes = fs::read(root.join(path)).map_err(|e| e.to_string())?;
+            let local = root.join(path);
+            // As it is before it goes: a change made while it is on its way is newer than what went, and goes next round.
+            let (size, modified_ms) = stat(&local).ok_or_else(|| CHANGED.to_owned())?;
+            let sent_hash = here.filter(|h| (h.size, h.modified_ms) == (size, modified_ms)).map_or_else(|| hash_file(&local), |h| Ok(h.hash.clone()))?;
             // Replaces only the version it was based on; a file the drive doesn't have (any more) is made new.
             let based_on = there.and(base.files.get(path)).and_then(|b| b.version.clone());
-            let version = write_there(drive, &target, &bytes, based_on.as_deref())?;
+            let version = write_there(drive, &target, &local, based_on.as_deref())?;
             let version = match version {
                 Some(v) => Some(v),
                 None => drive.list(target.rsplit_once('/').map_or("", |(f, _)| f))?.into_iter().find(|e| e.path == target).and_then(|e| e.version),
             };
-            let (size, modified_ms) = stat(&root.join(path)).unwrap_or((bytes.len() as u64, 0));
-            base.files.insert(path.to_owned(), BaseFile { hash: hash(&bytes), version, size, modified_ms });
+            base.files.insert(path.to_owned(), BaseFile { hash: sent_hash, version, size, modified_ms });
             report.uploaded.push(path.to_owned());
         }
         Step::Download => {
-            let file = drive.read(&target)?;
+            let (temp, theirs, version) = fetch(drive, root, path, &target, there.map(|t| t.size))?;
             // Changed here since this round looked: left for the next.
-            if let Some(h) = here {
-                let now = stat(&root.join(path));
-                if now != Some((h.size, h.modified_ms)) {
-                    return Err(CHANGED.to_owned());
-                }
-            } else if root.join(path).exists() {
+            let moved = match here {
+                Some(h) => stat(&root.join(path)) != Some((h.size, h.modified_ms)),
+                None => root.join(path).exists(),
+            };
+            if moved {
+                let _ = fs::remove_file(&temp);
                 return Err(CHANGED.to_owned());
             }
-            let (size, modified_ms) = write_here(root, path, &file.bytes)?;
-            let version = file.version.or_else(|| there.and_then(|t| t.version.clone()));
-            base.files.insert(path.to_owned(), BaseFile { hash: hash(&file.bytes), version, size, modified_ms });
+            let (size, modified_ms) = place(root, path, &temp)?;
+            let version = version.or_else(|| there.and_then(|t| t.version.clone()));
+            base.files.insert(path.to_owned(), BaseFile { hash: theirs, version, size, modified_ms });
             report.downloaded.push(path.to_owned());
         }
         Step::DeleteThere => {
@@ -448,20 +486,23 @@ fn apply(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, path: &s
             report.deleted_here.push(path.to_owned());
         }
         Step::Both => {
-            let file = drive.read(&target)?;
-            let theirs = hash(&file.bytes);
-            let version = file.version.or_else(|| there.and_then(|t| t.version.clone()));
+            let (temp, theirs, version) = fetch(drive, root, path, &target, there.map(|t| t.size))?;
+            let version = version.or_else(|| there.and_then(|t| t.version.clone()));
             let mine = here.map(|h| h.hash.clone()).unwrap_or_default();
             if theirs == mine {
                 // The same change on both sides.
-                let (size, modified_ms) = stat(&root.join(path)).unwrap_or((file.bytes.len() as u64, 0));
+                let _ = fs::remove_file(&temp);
+                let (size, modified_ms) = stat(&root.join(path)).unwrap_or((0, 0));
                 base.files.insert(path.to_owned(), BaseFile { hash: theirs, version, size, modified_ms });
                 return Ok(());
             }
             // Keep both: ours moves aside as a conflict copy, the drive's takes the name.
             let copy = conflict_name(path, options.stamp);
-            fs::rename(root.join(path), root.join(&copy)).map_err(|e| e.to_string())?;
-            let (size, modified_ms) = write_here(root, path, &file.bytes)?;
+            if let Err(e) = fs::rename(root.join(path), root.join(&copy)) {
+                let _ = fs::remove_file(&temp);
+                return Err(e.to_string());
+            }
+            let (size, modified_ms) = place(root, path, &temp)?;
             base.files.insert(path.to_owned(), BaseFile { hash: theirs, version, size, modified_ms });
             report.conflicts.push((path.to_owned(), copy));
         }
@@ -473,7 +514,7 @@ fn apply(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, path: &s
 mod tests {
     use super::*;
     use crate::drives::WebDav;
-    use crate::drives::tests::{Store, server};
+    use crate::drives::tests::{Store, server, server_with};
 
     struct Pair {
         drive: WebDav,
@@ -827,6 +868,31 @@ mod tests {
                 assert_eq!(drive_files_now(&p), before);
             }
         }
+    }
+
+    #[test]
+    fn a_file_over_32_mb_syncs_both_ways_through_nextcloud_in_pieces() {
+        // Behind a proxy that takes no request over 32 MB, as before the limit was lifted.
+        let (address, store) = server_with("/remote.php/dav/files/ana/", Some(crate::drives::MAX_FILE));
+        let drive = WebDav::new(url::Url::parse(&format!("{address}/remote.php/dav/files/ana/")).unwrap(), "ana", "app-pass");
+        drive.make_folder("Notes").unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut base = Base::default();
+        let big: Vec<u8> = (0..crate::drives::MAX_FILE + 1_000_000).map(|i| u8::try_from(i % 251).unwrap()).collect();
+        fs::write(root.path().join("video.mov"), &big).unwrap();
+        let options = RoundOptions { stamp: "2026-11-15 14.32", ..RoundOptions::default() };
+        let r = round(&drive, root.path(), "Notes", &mut base, &options, &mut |_| {}).unwrap();
+        assert_eq!((r.uploaded.as_slice(), r.too_big.len()), (["video.mov".to_owned()].as_slice(), 0), "{r:?}");
+        assert!(store.lock().unwrap()["/remote.php/dav/files/ana/Notes/video.mov"].0 == big);
+        // Changed on the drive: it comes back whole, a piece at a time, under its name.
+        let mut theirs = big.clone();
+        theirs[0] = 7;
+        store.lock().unwrap().insert("/remote.php/dav/files/ana/Notes/video.mov".into(), (theirs.clone(), 900));
+        let r = round(&drive, root.path(), "Notes", &mut base, &options, &mut |_| {}).unwrap();
+        assert_eq!(r.downloaded, ["video.mov"]);
+        assert!(fs::read(root.path().join("video.mov")).unwrap() == theirs);
+        assert!(!root.path().join("video.mov.mobius-tmp").exists(), "no temp file left");
+        assert_eq!(round(&drive, root.path(), "Notes", &mut base, &options, &mut |_| {}).unwrap(), Report::default(), "settled");
     }
 
     #[test]
