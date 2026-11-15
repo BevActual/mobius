@@ -144,7 +144,8 @@ server. Times are only used to skip hashing, never to decide what changed.
 - **An agent's change waits for Keep.** Files the agent changed in a turn that hasn't been kept are held: not
   uploaded, and Files says "3 wait for Keep". Keep releases them: the window tells the host which paths were kept
   (`changes.kept`). Discard puts the file back as it was, so it matches the base again and there is nothing to send.
-  Nothing unreviewed reaches the server.
+  Nothing unreviewed reaches the server. Only each conversation's newest turn waits: when the next turn starts, Review
+  leaves the earlier one behind, and so does sync. Turns from before a folder was paired never hold it.
 - **What sync brings in can be undone.** Before a round writes or deletes local files, the workspace takes a
   checkpoint ("Before sync from Cloud"). Rewind can go back past it like any other.
 - **Rewind and Discard are local changes like any other.** They are sent on the next round. When a Rewind would change
@@ -159,6 +160,19 @@ server. Times are only used to skip hashing, never to decide what changed.
   A sign-in that stopped working pauses the pair and asks for the app password again.
 - Each pair has a status in Files: Up to date · Syncing 3 of 12 · 2 wait for Keep · 1 conflict · Offline, trying again
   in 2 minutes · Paused. Pause, Resume and Sync now sit beside it.
+
+### In the code
+
+- `drive_sync.rs`: the round, the base, conflicts, the delete guard, and which of the agent's changes are held.
+- `sync_pairs.rs`: the pairs (`drive-sync.json`, each base in `drive-sync/<id>.json`), their status, and the worker.
+- The bridge: `drives.syncPairs`, `syncAdd(folder, drive, remote)`, `syncRemove`, `syncPause(pair, paused)`, `syncNow`,
+  `syncAllowDeletes`, `syncKeepThem` and `syncResolve(pair, path, 'mine' | 'theirs')`, and the event
+  `mobius:drive-sync { pair, status }`. Types are `SyncPair` and `SyncStatus` in the shared package.
+- The soak test, `soak_hundreds_of_files_edited_on_both_sides_lose_nothing`, runs 300 files through eight rounds of edits,
+  deletes and new files on both sides. Every other round is cut off a third of the way, and there is a Rewind in the
+  middle. After each round, both sides must hold every edit, and our side of each conflict must be kept as a copy.
+- `changes.kept(conversation, start, folder)` comes from Keep in the window. `changes.rewindPreview` says how many of
+  the files are in synced folders (`synced`).
 
 ### First version and later
 

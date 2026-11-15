@@ -12,12 +12,17 @@ export interface WebDavFixture {
   folders: Set<string>;
   /** Changes a file as someone else would on the server, so the version Files listed is stale. */
   touch(path: string, body: string): void;
+  /** Deletes a file as someone else would on the server. */
+  remove(path: string): void;
+  /** The account's password changes (an app password revoked): requests with the old one are refused. */
+  setPassword(password: string): void;
   close(): Promise<void>;
 }
 
 const xmlEscape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-export async function startWebDav(user = 'ana', password = 'app-pass'): Promise<WebDavFixture> {
+export async function startWebDav(user = 'ana', firstPassword = 'app-pass'): Promise<WebDavFixture> {
+  let password = firstPassword;
   const root = `/remote.php/dav/files/${user}/`;
   const files = new Map<string, { body: Buffer; version: number }>();
   const folders = new Set<string>(['']);
@@ -96,7 +101,12 @@ export async function startWebDav(user = 'ana', password = 'app-pass'): Promise<
     origin: `http://127.0.0.1:${port}`,
     files,
     folders,
-    touch: (path, body) => { files.set(path, { body: Buffer.from(body), version: next++ }); },
+    touch: (path, body) => {
+      for (let at = path.indexOf('/'); at > 0; at = path.indexOf('/', at + 1)) folders.add(path.slice(0, at));
+      files.set(path, { body: Buffer.from(body), version: next++ });
+    },
+    remove: (path) => { files.delete(path); },
+    setPassword: (p) => { password = p; },
     close: () => new Promise<void>((resolve) => server.close(() => resolve())),
   };
 }

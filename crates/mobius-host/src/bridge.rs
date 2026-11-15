@@ -98,6 +98,54 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
 }
 
 /// A turn's moves for the window: each moved file's old path and new one.
+/// What sync needs from the rest of Mobius.
+struct SyncHost {
+    data_dir: PathBuf,
+    drives: Arc<crate::drives::Drives>,
+    turn_history: Arc<crate::turn_history::TurnHistory>,
+    emit: Emit,
+    changed_outside: crate::mcp_server::Changed,
+}
+
+impl SyncHost {
+    fn workspace(&self) -> mobius_workspace::files::Workspace {
+        mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"))
+    }
+}
+
+impl crate::sync_pairs::SyncHost for SyncHost {
+    fn drive(&self, id: &str) -> Result<Box<dyn crate::drives::Drive>, String> {
+        self.drives.open(id)
+    }
+    fn drive_name(&self, id: &str) -> Option<String> {
+        self.drives.name(id)
+    }
+    fn root(&self) -> Result<PathBuf, String> {
+        let root = self.data_dir.join("workspace");
+        std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        Ok(root)
+    }
+    fn held(&self, folder: &str, since: u64) -> Result<std::collections::HashSet<String>, String> {
+        let workspace = self.workspace();
+        let waiting: Vec<crate::turn_history::Turn> = self.turn_history.waiting(since).into_iter().map(|(_, t)| t).collect();
+        crate::drive_sync::held_paths(&waiting, folder, &|t| match &t.end {
+            Some(end) => workspace.changed_between(&t.start, end),
+            None => workspace.changed_since(&t.start),
+        })
+    }
+    fn checkpoint(&self, reason: &str) -> Result<(), String> {
+        self.workspace().mark(reason).map(|_| ())
+    }
+    fn changed(&self, pair: &crate::sync_pairs::SyncPair, status: &crate::sync_pairs::Status) {
+        (self.emit)("mobius:drive-sync", json!({ "pair": pair.id, "status": status }));
+    }
+    fn brought_in(&self, paths: &[String]) {
+        for path in paths {
+            (self.changed_outside)(path);
+        }
+    }
+}
+
 /// An app's top workspace folder as a Keep names it, such as `tasks/`.
 fn is_app_folder(v: &str) -> bool {
     v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
@@ -232,7 +280,9 @@ pub struct Bridge {
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
-    drives: crate::drives::Drives,
+    drives: Arc<crate::drives::Drives>,
+    /// Workspace folders synced with a folder on a drive.
+    syncs: Arc<crate::sync_pairs::Syncs>,
     mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
@@ -284,12 +334,9 @@ impl Bridge {
         let account = copilot.clone();
         agent.add_token_source(crate::providers::COPILOT_ADDRESS, Arc::new(move || Ok(account.token())));
         let notes_emit = emit.clone();
-        let mcp_server = crate::mcp_server::McpServer::open(
-            data_dir.join("mcp-server.json"),
-            data_dir.join("workspace"),
-            data_dir.join("checkpoints"),
-            secrets.clone(),
-            Arc::new(move |path: &str| {
+        // A workspace file changed outside the apps (through Mobius's MCP server, or brought in by sync): the app
+        // showing it reads it again.
+        let changed_outside: crate::mcp_server::Changed = Arc::new(move |path: &str| {
                 if let Some(page) = path.replace('\\', "/").strip_prefix("notes/") {
                     notes_emit("mobius:notes-changed", json!({ "path": page, "by": "another app" }));
                 }
@@ -341,7 +388,19 @@ impl Bridge {
                 if let Some(name) = path.replace('\\', "/").strip_prefix("calendar/").and_then(|f| f.strip_suffix(".ics")) {
                     notes_emit("mobius:calendar-changed", json!({ "calendar": name, "by": "another app" }));
                 }
-            }),
+            });
+        let mcp_server = crate::mcp_server::McpServer::open(
+            data_dir.join("mcp-server.json"),
+            data_dir.join("workspace"),
+            data_dir.join("checkpoints"),
+            secrets.clone(),
+            changed_outside.clone(),
+        );
+        let turn_history = Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")));
+        let drives = Arc::new(crate::drives::Drives::new(&data_dir, secrets.clone()));
+        let syncs = crate::sync_pairs::Syncs::open(
+            &data_dir,
+            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
         );
         let bridge = Bridge {
             mcp_server,
@@ -373,7 +432,7 @@ impl Bridge {
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             pages: Arc::new(crate::pages::Pages::kept_in(data_dir.join("workspace").join(crate::pages::FOLDER), data_dir.join("pages-address.json"))),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
-            turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
+            turn_history,
             rewound: Mutex::new(None),
             tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
@@ -419,7 +478,8 @@ impl Bridge {
                 calendar
             },
             calendar_accounts,
-            drives: crate::drives::Drives::new(&data_dir, secrets.clone()),
+            drives,
+            syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
@@ -3086,7 +3146,23 @@ impl Bridge {
                 let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
                 drives.add(field("name"), field("server"), field("username"), field("password"))
             }
-            ("remove", Some(id)) => drives.remove(id),
+            ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
+            ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
+            // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").
+            ("syncPairs", _) => Ok(self.syncs.pairs()),
+            ("syncAdd", Some(folder)) => match (text(1), text(2)) {
+                (Some(drive), Some(remote)) => self.syncs.add(folder, drive, remote),
+                _ => Err("Choose a drive and a folder on it.".to_owned()),
+            },
+            ("syncRemove", Some(pair)) => self.syncs.remove(pair),
+            ("syncPause", Some(pair)) => self.syncs.pause(pair, args.get(1).and_then(Value::as_bool).unwrap_or(true)),
+            ("syncNow", Some(pair)) => self.syncs.sync_now(pair),
+            ("syncAllowDeletes", Some(pair)) => self.syncs.allow_deletes(pair),
+            ("syncKeepThem", Some(pair)) => self.syncs.keep_them(pair),
+            ("syncResolve", Some(pair)) => match (text(1), text(2)) {
+                (Some(path), Some(keep)) => self.syncs.resolve(pair, path, keep),
+                _ => Err("Which conflict?".to_owned()),
+            },
             (_, Some(id)) => drives.open(id).and_then(|drive| {
                 let path = text(1).unwrap_or("");
                 match method {
@@ -3278,7 +3354,11 @@ impl Bridge {
             // Rewind to here: what it would change, then everything back as it was right after that turn.
             "rewindPreview" => match turn() {
                 Some(crate::turn_history::Turn { end: Some(end), start, .. }) => match self.workspace.changed_since(&end) {
-                    Ok(files) => json!({ "ok": true, "later": self.turn_history.later_than(conversation, &start).unwrap_or(0), "files": files }),
+                    Ok(files) => {
+                        // Files in synced folders change on their drives too, at the next round: the confirmation says so.
+                        let synced = files.iter().filter(|f| self.syncs.synced_folder(f).is_some()).count();
+                        json!({ "ok": true, "later": self.turn_history.later_than(conversation, &start).unwrap_or(0), "files": files, "synced": synced })
+                    }
                     Err(e) => failed(e),
                 },
                 Some(_) => failed("That turn has not ended."),
@@ -3423,7 +3503,11 @@ impl Bridge {
             if !folder.is_empty() && !is_app_folder(folder) {
                 return Ok(failed("That is not a workspace folder."));
             }
-            return Ok(if self.turn_history.keep(conversation, start, folder) { json!({ "ok": true }) } else { failed("That turn is not known.") });
+            if !self.turn_history.keep(conversation, start, folder) {
+                return Ok(failed("That turn is not known."));
+            }
+            self.syncs.kept();
+            return Ok(json!({ "ok": true }));
         }
         if let Some(out) = self.older_turns_call(method, conversation, args) {
             return Ok(out);

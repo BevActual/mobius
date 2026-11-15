@@ -54,6 +54,8 @@ pub struct RoundOptions<'a> {
     /// Called once before the round first writes or deletes a file here: the workspace's checkpoint "Before sync",
     /// so Rewind can put back what sync brought in. When it fails, nothing is written here this round.
     pub before_here: Option<&'a dyn Fn() -> Res<()>>,
+    /// Called before each file the round sends, brings in or deletes, with how many are done and how many in all.
+    pub progress: Option<&'a dyn Fn(usize, usize)>,
 }
 
 /// Deletes a round held back to ask about.
@@ -152,9 +154,10 @@ fn stat(path: &Path) -> Option<(u64, u128)> {
     Some((meta.len(), ms))
 }
 
-/// Every file under `root`, by path within it. A file whose size and time match the base keeps the base's hash.
-fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
-    let mut out = BTreeMap::new();
+/// Every file under `root`, as its path within it and where it is: conflict copies too, but not what is in a folder
+/// that is left out (`.git`).
+fn walk(root: &Path) -> Res<Vec<(String, PathBuf)>> {
+    let mut out = Vec::new();
     let mut folders = vec![(root.to_path_buf(), String::new())];
     while let Some((dir, prefix)) = folders.pop() {
         let entries = match fs::read_dir(&dir) {
@@ -164,29 +167,75 @@ fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if left_out(&name) {
-                continue;
-            }
             let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
             let Ok(kind) = entry.file_type() else { continue };
-            if kind.is_dir() {
+            if kind.is_dir() && !left_out(&name) {
                 folders.push((entry.path(), rel));
             } else if kind.is_file() {
-                let Some((size, modified_ms)) = stat(&entry.path()) else { continue };
-                let known = base.files.get(&rel).filter(|b| b.size == size && b.modified_ms == modified_ms);
-                let hash = match known {
-                    Some(b) => b.hash.clone(),
-                    None if size > MAX_FILE as u64 => format!("big:{size}:{modified_ms}"),
-                    None => match fs::read(entry.path()) {
-                        Ok(bytes) => self::hash(&bytes),
-                        Err(_) => continue,
-                    },
-                };
-                out.insert(rel, Here { hash, size, modified_ms });
+                out.push((rel, entry.path()));
             }
         }
     }
     Ok(out)
+}
+
+fn synced(rel: &str) -> bool {
+    !left_out(rel.rsplit('/').next().unwrap_or(rel))
+}
+
+/// Every file under `root`, by path within it. A file whose size and time match the base keeps the base's hash.
+fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
+    let mut out = BTreeMap::new();
+    for (rel, path) in walk(root)? {
+        if !synced(&rel) {
+            continue;
+        }
+        let Some((size, modified_ms)) = stat(&path) else { continue };
+        let known = base.files.get(&rel).filter(|b| b.size == size && b.modified_ms == modified_ms);
+        let hash = match known {
+            Some(b) => b.hash.clone(),
+            None if size > MAX_FILE as u64 => format!("big:{size}:{modified_ms}"),
+            None => match fs::read(&path) {
+                Ok(bytes) => self::hash(&bytes),
+                Err(_) => continue,
+            },
+        };
+        out.insert(rel, Here { hash, size, modified_ms });
+    }
+    Ok(out)
+}
+
+/// Whether anything under `root` looks changed since the base, by size and time only: cheap enough to ask every
+/// minute, so a local change is sent soon without asking the drive.
+pub fn changed_here(root: &Path, base: &Base) -> bool {
+    let Ok(files) = walk(root) else { return true };
+    let mut seen = 0;
+    for (rel, path) in files.iter().filter(|(rel, _)| synced(rel)) {
+        seen += 1;
+        match (base.files.get(rel), stat(path)) {
+            (Some(b), Some((size, ms))) if b.size == size && b.modified_ms == ms => {}
+            _ => return true,
+        }
+    }
+    seen != base.files.len()
+}
+
+/// The conflict copies under `root`, each with the path of the file it was a conflict with.
+pub fn conflicts_in(root: &Path) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = walk(root)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(copy, _)| {
+            let (folder, name) = copy.rsplit_once('/').map_or(("", copy.as_str()), |(f, n)| (f, n));
+            let at = name.find(CONFLICT_MARK)?;
+            let close = at + name[at..].find(')')?;
+            let original = format!("{}{}", &name[..at], &name[close + 1..]);
+            let path = if folder.is_empty() { original } else { format!("{folder}/{original}") };
+            Some((path, copy))
+        })
+        .collect();
+    out.sort();
+    out
 }
 
 /// Every file under `remote` on the drive, by path within it.
@@ -326,7 +375,11 @@ pub fn round(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, opti
         plan = rest;
     }
 
-    for (path, step) in plan {
+    let total = plan.len();
+    for (done, (path, step)) in plan.into_iter().enumerate() {
+        if let Some(progress) = options.progress {
+            progress(done, total);
+        }
         let result = apply(drive, root, remote, base, &path, &step, here.get(&path), there.get(&path), options, &mut report);
         match result {
             Ok(()) => save(base),
@@ -640,6 +693,142 @@ mod tests {
         assert_eq!(p.round().downloaded, ["plan.md"]);
     }
 
+    /// The soak (docs/developers/drives.md): a few hundred files, edits on both sides over many rounds, rounds cut off
+    /// part way, and a Rewind in the middle. After each round both sides hold every edit: an edit on one side reaches
+    /// the other, an edit beats a delete, and when both sides changed a file the drive's keeps the name and ours is the
+    /// conflict copy. Not one edit is lost.
+    #[test]
+    fn soak_hundreds_of_files_edited_on_both_sides_lose_nothing() {
+        const FILES: usize = 300;
+        let mut p = pair();
+        let store_dir = tempfile::tempdir().unwrap();
+        let workspace = mobius_workspace::files::Workspace::new(p.root.path(), store_dir.path());
+        // A small fixed random walk, so a failure is the same every time.
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move |n: usize| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            usize::try_from(seed % n as u64).unwrap()
+        };
+        let mut version = 0u32;
+        let name = |i: usize| format!("{}/n{i:03}.md", ["a", "b/c", "d"][i % 3]);
+        let mut put_there = |p: &Pair, rel: &str, text: &str| {
+            version += 1;
+            let mut st = p.store.lock().unwrap();
+            let mut folder = String::from("/dav/Notes/");
+            for part in rel.split('/').rev().skip(1).collect::<Vec<_>>().into_iter().rev() {
+                folder.push_str(part);
+                folder.push('/');
+                st.entry(folder.clone()).or_insert((Vec::new(), 1));
+            }
+            st.insert(format!("/dav/Notes/{rel}"), (text.as_bytes().to_vec(), version * 1_000_000));
+        };
+        let synced_files = |p: &Pair| -> BTreeMap<String, String> {
+            walk(p.root.path()).unwrap().into_iter().filter(|(rel, _)| synced(rel)).map(|(rel, path)| (rel, fs::read_to_string(path).unwrap())).collect()
+        };
+        let drive_files_now = |p: &Pair| -> BTreeMap<String, String> {
+            p.store.lock().unwrap().iter().filter(|(k, _)| !k.ends_with('/')).filter_map(|(k, (b, _))| Some((k.strip_prefix("/dav/Notes/")?.to_owned(), String::from_utf8_lossy(b).into_owned()))).collect()
+        };
+
+        for i in 0..FILES {
+            p.put_here(&name(i), &format!("start {i}"));
+        }
+        assert_eq!(p.round().uploaded.len(), FILES);
+
+        let mut edit = 0;
+        for cycle in 0..8 {
+            tick();
+            // What each side should end with: (path -> the content it must have), and the conflict copies' contents.
+            let mut want: BTreeMap<String, Option<String>> = synced_files(&p).into_iter().map(|(k, v)| (k, Some(v))).collect();
+            let mut copies: Vec<String> = Vec::new();
+            let (mut mine, mut theirs): (BTreeMap<String, Option<String>>, BTreeMap<String, Option<String>>) = (BTreeMap::new(), BTreeMap::new());
+            for _ in 0..25 {
+                edit += 1;
+                mine.insert(name(next(FILES)), Some(format!("here {edit}")));
+                edit += 1;
+                theirs.insert(name(next(FILES)), Some(format!("there {edit}")));
+            }
+            // A few deletes and new files on each side.
+            for _ in 0..2 {
+                mine.insert(name(next(FILES)), None);
+                theirs.insert(name(next(FILES)), None);
+            }
+            edit += 1;
+            mine.insert(format!("new/here {cycle}.md"), Some(format!("here {edit}")));
+            edit += 1;
+            theirs.insert(format!("new/there {cycle}.md"), Some(format!("there {edit}")));
+            for (path, text) in &mine {
+                match text {
+                    Some(t) => p.put_here(path, t),
+                    None => {
+                        let _ = fs::remove_file(p.root.path().join(path));
+                    }
+                }
+            }
+            for (path, text) in &theirs {
+                match text {
+                    Some(t) => put_there(&p, path, t),
+                    None => p.delete_there(path),
+                }
+            }
+            for path in mine.keys().chain(theirs.keys()).collect::<BTreeSet<_>>() {
+                let outcome = match (mine.get(path), theirs.get(path)) {
+                    (Some(Some(m)), Some(Some(t))) if m != t => {
+                        copies.push(m.clone());
+                        Some(t.clone())
+                    }
+                    (_, Some(Some(t))) => Some(t.clone()),
+                    (Some(Some(m)), _) => Some(m.clone()),
+                    // Deleted on one side (or both) and not changed on the other.
+                    _ => None,
+                };
+                want.insert(path.clone(), outcome);
+            }
+            let want: BTreeMap<String, String> = want.into_iter().filter_map(|(k, v)| Some((k, v?))).collect();
+
+            // Every other cycle the round is cut off a third of the way, as if Mobius quit, and then runs again.
+            if cycle % 2 == 1 {
+                let mut saved: Vec<Base> = Vec::new();
+                let options = RoundOptions { stamp: "s", allow_deletes: true, ..RoundOptions::default() };
+                round(&p.drive, p.root.path(), "Notes", &mut p.base, &options, &mut |b| saved.push(b.clone())).unwrap();
+                p.base = saved[saved.len() / 3].clone();
+            }
+            let r = p.round_with(&RoundOptions { stamp: "s", allow_deletes: true, ..RoundOptions::default() });
+            assert!(r.failed.is_empty() && r.later.is_empty(), "cycle {cycle}: {r:?}");
+            assert_eq!(p.round_with(&RoundOptions { stamp: "s", ..RoundOptions::default() }), Report::default(), "cycle {cycle}: a second round has nothing to do");
+
+            assert_eq!(synced_files(&p), want, "cycle {cycle}: here");
+            assert_eq!(drive_files_now(&p), want, "cycle {cycle}: on the drive");
+            let mut found: Vec<String> = conflicts_in(p.root.path()).into_iter().map(|(_, copy)| fs::read_to_string(p.root.path().join(copy)).unwrap()).collect();
+            let mut copies = copies;
+            found.sort();
+            copies.sort();
+            assert_eq!(found, copies, "cycle {cycle}: our side of each conflict is kept as a copy");
+            for (_, copy) in conflicts_in(p.root.path()) {
+                fs::remove_file(p.root.path().join(copy)).unwrap();
+            }
+
+            // A Rewind in the middle: back to before a round's changes here, which are then sent as changes of their own.
+            if cycle == 4 {
+                let mark = workspace.mark("soak").unwrap().unwrap();
+                let before = synced_files(&p);
+                tick();
+                for i in 0..10 {
+                    p.put_here(&name(i * 7), &format!("undone {i}"));
+                }
+                p.round();
+                assert_eq!(drive_files_now(&p).get(&name(0)).map(String::as_str), Some("undone 0"));
+                workspace.restore(&mark).unwrap();
+                tick();
+                let r = p.round();
+                assert_eq!(r.uploaded.len(), 10, "{r:?}");
+                assert_eq!(synced_files(&p), before);
+                assert_eq!(drive_files_now(&p), before);
+            }
+        }
+    }
+
     #[test]
     fn left_out_names_and_service_documents_are_not_synced() {
         let mut p = pair();
@@ -652,6 +841,8 @@ mod tests {
         assert!(left_out("plan (conflict, Mobius, 2026-11-15 14.32).md"));
         assert_eq!(conflict_name("trips/plan.md", "d"), "trips/plan (conflict, Mobius, d).md");
         assert_eq!(conflict_name("README", "d"), "README (conflict, Mobius, d)");
+        p.put_here("trips/plan (conflict, Mobius, 2026-11-15 14.32).md", "x");
+        assert_eq!(conflicts_in(p.root.path()), [("trips/plan.md".to_owned(), "trips/plan (conflict, Mobius, 2026-11-15 14.32).md".to_owned())]);
     }
 
     #[test]
@@ -668,5 +859,15 @@ mod tests {
         assert!(r.uploaded.is_empty() && r.conflicts.is_empty(), "the other three are found already there with the same bytes: {r:?}");
         assert_eq!(p.base.files.len(), 5);
         assert_eq!(p.round(), Report::default());
+        // The minute's cheap look: nothing, then an edit, then a new file.
+        assert!(!changed_here(p.root.path(), &p.base));
+        tick();
+        p.put_here("n1.md", "y");
+        assert!(changed_here(p.root.path(), &p.base));
+        p.round();
+        p.put_here("n9 (conflict, Mobius, d).md", "copies are not changes");
+        assert!(!changed_here(p.root.path(), &p.base));
+        p.put_here("n9.md", "new");
+        assert!(changed_here(p.root.path(), &p.base));
     }
 }
