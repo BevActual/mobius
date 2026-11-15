@@ -27,9 +27,6 @@
 .code-page .tok-com { color: var(--tok-com); font-style: italic; }
 
 /* A quiet button: text on the frame, a fill only under the pointer (Save before a change, Change, Commit…, Push). */
-.code-page .code-quiet, .code-side .code-quiet { height: var(--control-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); }
-.code-page .code-quiet:hover:not(:disabled), .code-side .code-quiet:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 50%, transparent); }
-.code-page .code-quiet:disabled, .code-side .code-quiet:disabled { color: var(--muted); opacity: 0.4; }
 .code-page .btn { height: var(--control-h); padding: 0 var(--sp-3); font-size: var(--fs-sm); }
 
 /* One file icon everywhere: a grey line glyph, no coloured type tiles (colour is for git state and Mobius). */
