@@ -18,6 +18,30 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
 
+## Round 16 (9c227ea, ee43304 for the first runs)
+
+Run on Saturday 14 November, 20:06 to 20:30 local. Times are first change / last change / Keep offered.
+
+| Moment | Time | Result | Weak |
+| --- | --- | --- | --- |
+| Calendar: Find a time with Sam | 7.5 / 9.1 / 13.3 s | Chip fills "Find a time with " (#351 fixed); three slots free for both; invite drafted | Says "afternoon slots first" with one afternoon slot; Mon 16:30 and Fri 16:00 were free |
+| Docs: Shorter, Try another, brief | Shorter 8.8 s; brief 8.5 / 13.8 s | Try another shorter (74, 32, 30 words); brief 351 words, every number right (#331 fixed) | None found |
+| Slides: Make this a deck | 10.6 / 10.6 / 13.7 s | Eight slides, at most four bullets, notes on each | None found |
+| Browser: Compare these | 17.8 / 17.8 / 22.6 s | All 18 values right, no "not stated" rows | Links after a restart (#332) not checked |
+| Files: Tidy this folder | 16.2 / 16.2 / 20.5 s | Listing no longer asks (#357); six folders; reply's count right | Bar says 54 changes and the step "Move 50"; renamed six files to drop " (1)" unasked |
+| Sheets: What stands out? | 7.0 / 7.0 / 11.5 s | Chart beside the grid, column E whole | Cells written at 6.3 s, fine |
+| Music: bassline and warmer pad (#285) | 15.8 / 15.8 / 15.9 s; Try another 8.7 s | Dashed Bass clip bars 1 to 4; Pad knobs marked; playback never stopped | Change shows only at the turn's end; Pad clip dashed though only settings moved; L and Space not driven |
+| Database: Ask about it | 2.4 s query, 7.2 s end | The four right customers | SQL only behind Details; table as raw pipes; chip text shows in the message |
+| Research: LFP or NMC | Report 32.5 s, Keep 39.5 s | 788-word report with a recommendation | Five approval cards; 2 pages read but 13 links cited; no "Check the claims" |
+| Photo: Make these match (typed) | 2.1 / 2.1 / 7.4 s | One edit across ten photos | Chose values "without looking at the pictures"; no dashed marks; a photo attached as context |
+| Design: three takes (typed) | 15.5 / 15.5 / 21.9 s | Three new frames beside Charging, original untouched | Keep takes all three or none |
+| Rewind (Activity) | 0.26 s | Sheets went back byte for byte; Design stayed | Activity calls the Design turn "Changed a file · Files" |
+
+Code (#327) no longer shows the raw prompt. Draft clips for the two moments that meet the bar, Code (18.1 s) and Notes
+(34.0 s), are on Andrew's PC under `mobius-moments-shots\clips\` at 1440 by 900, for him to approve. Both show the
+"Mobius finished" Windows toast at the end under PowerShell's name, which a take from the installed app or with Do Not
+Disturb on would avoid.
+
 ## Round 15 (b344d24: #397)
 
 Run on Saturday 14 November at 19:42 local, after 18:00.
