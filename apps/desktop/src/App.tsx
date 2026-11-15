@@ -97,6 +97,8 @@ import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
 import { useLiveMarks } from './liveMarks';
+import { contactSheet } from './picture';
+
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
@@ -156,6 +158,12 @@ function useWindowWidth(): number {
 const withKeys = (text: string, binding: string) => (binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text);
 
 /** Who is using a tab while a task runs, as the tab says it. */
+
+/** An album's photos as one numbered picture, for Make these match to look at (the first twenty, as shot). */
+async function albumSheet(read: (path: string) => Promise<unknown> | undefined, list: readonly { path: string }[]): Promise<string | null> {
+  const got = await Promise.all(list.slice(0, 20).map((p) => Promise.resolve(read(p.path)).catch(() => null)));
+  return contactSheet(got.flatMap((g) => (g && typeof g === 'object' && 'dataUrl' in g && typeof g.dataUrl === 'string' ? [g.dataUrl] : [])));
+}
 
 export function App() {
   const browser = useBrowser();
@@ -507,7 +515,9 @@ export function App() {
     folder: inFiles && files.place.kind === 'folder' && files.place.path !== '' ? files.place.path : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
-    photo: inPhoto && photos.open ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, picture: photos.open.dataUrl, text: `The photo: ${photos.described}\nThe picture itself is attached when your model reads pictures. Change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
+    album: inPhoto && (photos.browsing || !photos.open) && photos.album && photos.album !== RECENTLY_DELETED ? { name: photos.album, photos: photos.albums.find((x) => x.name === photos.album)?.photos.length ?? 0, sheet: () => albumSheet(photos.read, photos.albums.find((x) => x.name === photos.album)?.photos ?? []) } : null,
+    // Only a photo open in the editor goes along: the grid of an album attaches none, though one was open before.
+    photo: inPhoto && photos.open && !photos.browsing ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, picture: photos.open.dataUrl, text: `The photo: ${photos.described}\nThe picture itself is attached when your model reads pictures. Change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
     code: inCode && code.open && code.project && code.open.text !== null ? { title: `${code.project} › ${code.open.path}`, source: `code/${code.project}/${code.open.path}`, text: `${code.draft}${code.tests.last && !code.tests.last.passed ? `\n\n--- Last test run (${code.tests.command ?? ''}) failed:\n${code.tests.last.output.slice(-4000)}` : ''}`, failing: code.tests.last !== null && !code.tests.last.passed } : null,
     sheet: inSheets && sheets.data ? { title: `${sheets.data.workbook} › ${sheets.data.sheet}`, source: `sheets/${sheets.data.workbook}/${sheets.data.sheet}.csv`, text: sheetContext(sheets.data) } : null,
   };
@@ -1411,7 +1421,7 @@ export function App() {
       case 'studio':
         return <StudioEditor songs={songs} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'photo':
-        return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} changed={liveMarks.photos} />;
       case 'design':
         return <DesignEditor designs={designs} review={designs.page && liveMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':

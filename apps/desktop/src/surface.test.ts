@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+import { COMPARE_TABS, isStarter, MAKE_A_DECK, matchAlbum, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('Plan my day reads before the model is asked', () => {
   it('reads the clock first, so the day is planned from now', () => {
@@ -48,6 +48,14 @@ describe('what each app suggests', () => {
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
     for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft', 'dayStart 13:00']) expect(first.prompt).toContain(words);
+  });
+  it('offers Make these match in an open album of more than one photo, as one photos.edit on the album', () => {
+    expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: null })).toEqual([]);
+    expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Solo', photos: 1 } })).toEqual([]);
+    const open = suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Jasmund cliffs', photos: 10 } });
+    expect(open).toEqual([{ label: 'Make these match', prompt: matchAlbum('Jasmund cliffs'), attach: 'album' }]);
+    expect(isStarter(open[0]!)).toBe(false);
+    for (const words of ['"Jasmund cliffs"', 'one photos.edit on the album', 'Say nothing until it is done', 'the attached picture shows them all']) expect(open[0]!.prompt).toContain(words);
   });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');

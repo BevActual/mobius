@@ -316,7 +316,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     }
     const items = item ? [...context, item].slice(0, MAX_CONTEXT_ITEMS) : context;
     // A photo goes as the picture itself too, for models that read pictures.
-    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
+    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture)
+      : s.attach === 'album' && surface?.album?.sheet ? await surface.album.sheet().catch(() => null) : null;
     const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
     // The chip's words are the message; the steps behind it go along for the model and stay behind Details.
     const reads = s.reads?.(new Date()) ?? [];
