@@ -57,6 +57,26 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
+      # CI only, on GitHub's throwaway runners (Andrew's yes, 2026-11-14). With the next step it keeps every checkpoint
+      # under a second; with the next step alone, some took 1.4 s (#371). Nothing in the app, the installer or any
+      # script that runs on a person's computer does this.
+      - name: Keep Defender out of the test folders (CI runner only)
+        shell: pwsh
+        run: |
+          foreach ($dir in @($env:RUNNER_TEMP, $env:TEMP)) {
+            Add-MpPreference -ExclusionPath $dir -ErrorAction Continue
+            Write-Host "Defender exclusion: $dir"
+          }
+      # The tests make their data folders in the system temp folder, which is on C:, the runner's slow OS disk. D: is
+      # its fast local disk, so temp goes there for the rest of the job.
+      - name: Put temp files on the runner's fast disk (CI runner only)
+        shell: pwsh
+        run: |
+          $temp = Join-Path $env:RUNNER_TEMP 'tmp'
+          New-Item -ItemType Directory -Force $temp | Out-Null
+          "TEMP=$temp" >> $env:GITHUB_ENV
+          "TMP=$temp" >> $env:GITHUB_ENV
+          Write-Host "temp: $temp"
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
