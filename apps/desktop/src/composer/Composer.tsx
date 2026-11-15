@@ -321,7 +321,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
     // The chip's words are the message; the steps behind it go along for the model and stay behind Details.
     const reads = s.reads?.(new Date()) ?? [];
-    const options = { ...(images.length > 0 ? { images } : {}), ...(reads.length > 0 ? { reads } : {}), ...(s.finishes ? { finish: true } : {}), ...(s.tools ? { tools: s.tools } : {}) };
+    const options = { ...(images.length > 0 ? { images } : {}), ...(reads.length > 0 ? { reads } : {}), ...(s.finishes ? { finish: true } : {}), ...(s.tools ? { tools: s.tools } : {}), ...(s.effort ? { effort: s.effort } : {}) };
     go(withSteps(s.label, s.prompt), items, Object.keys(options).length > 0 ? options : undefined, false);
     setPictures([]);
   };

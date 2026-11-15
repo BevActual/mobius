@@ -24,6 +24,8 @@ export interface Suggestion {
   finishes?: true;
   /** The apps whose tools it works with (tasks, calendar): only theirs are offered, so the request is much shorter. */
   tools?: readonly string[];
+  /** How hard the model thinks for its turn: a suggestion whose work is fully laid out starts sooner with little. */
+  effort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 /** A read done before the model is asked: a tool that only reads, and its arguments. */
