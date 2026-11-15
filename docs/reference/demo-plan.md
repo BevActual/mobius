@@ -48,34 +48,35 @@ Every moment runs on one seeded workspace, so clips agree with each other and an
 
 ## The moments
 
-Status: **Have** (works on `main` today), **Partly** (works, but not well enough to show), **Gap** (has to be built).
-These are a first read; the owning lead confirms or corrects each row in their first pass.
+Status: **Have** (works on `main` today and meets the bar), **Partly** (works, but not well enough to show), **Gap**
+(has to be built). Rows with a time were last run with a real model on 14 and 15 November 2026 (`demo/results.md`); the
+others are a first read that the owning lead corrects.
 
 ### First: the apps people open every day
 
 | App | The moment | Needs in the demo workspace | Status | Owner |
 | --- | --- | --- | --- | --- |
-| Home | Open Mobius in the morning. The desk already shows the one thing worth a look in each app. Ask "Plan my day" and a day appears: mail answered in drafts, tasks given times, a free block held. | Unread mail, tasks due today, a half-full calendar. | Partly: the desk is there; Plan my day is not. | Apps lead |
-| Mail | Forty unread. Press Triage: mail is sorted, the three that need you are on top with replies drafted, and the supplier's email has become two tasks and a meeting. Nothing is sent until you press Send. | The seeded inbox, with the supplier email. | Partly: Triage is on `main`; drafts and the task and meeting in one pass need checking. | Apps lead |
-| Calendar | "Find an hour with Sam this week." Three dashed slots appear in the free time; keep one and it is an event with the invitation drafted. | Two people's calendars with a busy week. | Gap: Find a time. | Apps lead |
-| Tasks | Type "Call Sam tomorrow at 3pm, every week" and watch it become a timed, repeating task. Then Plan my day: today's tasks get times and show as blocks in Calendar. | A list of a dozen tasks, some overdue. | Partly: typed times and repeats work; Plan my day is a gap. | Apps lead |
-| Notes | Record two minutes of a meeting. Stop, and the note has the summary, the decisions and a checklist of who does what; one press sends the checklist to Tasks. | A short recording, and a notebook of meeting notes. | Gap: a recording to a written summary. | Apps lead |
-| Docs | Select a rough paragraph and ask for it tighter. The new wording is dashed in place; Try another gives a second take; Keep. Then "Make the outline a one-page brief" from the same document. | A long, messy draft. | Partly: needs checking for speed and Try another in place. | Apps lead |
-| Browser | With three product pages open, ask "Compare these." A table appears in a note, each cell linked to where on the page it came from. | Three saved pages, so the clip does not depend on a live site. | Gap: needs checking for reading several tabs at once. | Apps lead |
-| Files | A Downloads folder of sixty files. "Tidy this folder": the moves are shown dashed, by kind and by date; Keep all, then Undo to show nothing is lost. | The messy folder. | Gap: Tidy this folder. | Apps lead |
+| Home | Open Mobius in the morning. The desk already shows the one thing worth a look in each app. Ask "Plan my day" and a day appears: mail answered in drafts, tasks given times, a free block held. | Unread mail, tasks due today, a half-full calendar. | Partly: Plan my day meets the time (about 10 s, one round). Its blocks need a daytime run. | Apps lead |
+| Mail | Forty unread. Press Triage: mail is sorted, the three that need you are on top with replies drafted, and the supplier's email has become two tasks and a meeting. Nothing is sent until you press Send. | The seeded inbox, with the supplier email. | Partly: the content is right and nothing is sent. The first change shows at 25 s; the bar is 5. | Apps lead |
+| Calendar | "Find an hour with Sam this week." Three dashed slots appear in the free time; keep one and it is an event with the invitation drafted. | Two people's calendars with a busy week. | Partly: Find a time works. 16 s to the first slot and it misses free afternoons. Not timed since the speed work. | Apps lead |
+| Tasks | Type "Call Sam tomorrow at 3pm, every week" and watch it become a timed, repeating task. Then Plan my day: today's tasks get times and show as blocks in Calendar. | A list of a dozen tasks, some overdue. | Partly: typed times and repeats work; Plan my day as for Home. | Apps lead |
+| Notes | Record two minutes of a meeting. Stop, and the note has the summary, the decisions and a checklist of who does what; one press sends the checklist to Tasks. | A short recording, and a notebook of meeting notes. | Have for the summary and checklist: 7 s to the change. The recording step needs checking with a real model. | Apps lead |
+| Docs | Select a rough paragraph and ask for it tighter. The new wording is dashed in place; Try another gives a second take; Keep. Then "Make the outline a one-page brief" from the same document. | A long, messy draft. | Partly: 15 to 16 s each; Try another runs longer than the first. Not timed since the speed work. | Apps lead |
+| Browser | With three product pages open, ask "Compare these." A table appears in a note, each cell linked to where on the page it came from. | Three saved pages, so the clip does not depend on a live site. | Partly: the table is correct, 29 s to the note. Not timed since the speed work. | Apps lead |
+| Files | A Downloads folder of sixty files. "Tidy this folder": the moves are shown dashed, by kind and by date; Keep all, then Undo to show nothing is lost. | The messy folder. | Partly: the moves are right, 21 s; the counts on the bar are wrong. Not timed since the speed work. | Apps lead |
 
 ### Second: the apps that make people say "it does that too?"
 
 | App | The moment | Needs in the demo workspace | Status | Owner |
 | --- | --- | --- | --- | --- |
-| Music | A four-bar chord loop is playing. Ask for "a bassline under this, and make the pad warmer": a dashed bass part appears and plays in time, and the pad's knobs move on screen. Try another gives a new line without stopping. | A song with drums, chords and a pad. | Partly: parts work; asking for a sound is next on the Music roadmap. | Music |
-| Sheets | Select a year of sales and ask "What stands out?" Mobius adds a total row, marks the two odd months and puts a chart beside the numbers, with the formulas it used visible in the cells. | The budget sheet with two odd months. | Gap: charts and "what stands out". Selection sums in Glance are on `main`. | Apps lead |
-| Slides | Open a document and ask "Make this a deck." Eight slides arrive with layouts chosen and notes written; press Play. | The brief from Docs. | Partly: needs checking from a document, with layouts. | Apps lead |
-| Code | A test is failing. Switch to Debug: Mobius runs it, finds the line, and the fix shows as removed and added lines you keep one by one; the test goes green in Glance. | A small project with one failing test. | Partly: per-line review works; Debug with failing tests in Glance is next. | Apps lead |
+| Music | A four-bar chord loop is playing. Ask for "a bassline under this, and make the pad warmer": a dashed bass part appears and plays in time, and the pad's knobs move on screen. Try another gives a new line without stopping. | A song with drums, chords and a pad. | Partly: asking for a sound is on `main` (#285). Not yet run with a real model. | Music |
+| Sheets | Select a year of sales and ask "What stands out?" Mobius adds a total row, marks the two odd months and puts a chart beside the numbers, with the formulas it used visible in the cells. | The budget sheet with two odd months. | Partly: total, odd months and chart are right, 20 s; the chart covers a column. Not timed since the speed work. | Apps lead |
+| Slides | Open a document and ask "Make this a deck." Eight slides arrive with layouts chosen and notes written; press Play. | The brief from Docs. | Partly: a deck in 18 s; two slides are crowded. Not timed since the speed work. | Apps lead |
+| Code | A test is failing. Switch to Debug: Mobius runs it, finds the line, and the fix shows as removed and added lines you keep one by one; the test goes green in Glance. | A small project with one failing test. | Have: the fix at 4 s, tests passing at 4.4 s, Keep at 8 s. | Apps lead |
 | Research | Ask one hard question. Tabs open and are read in view, and a report builds with every claim linked to its source. | Nothing; this one uses the live web. A recorded fallback for offline. | Have, needs checking for pace. | Apps lead |
-| Photo | Pick twelve photos from one shoot and ask "Make these match." All twelve change together; hold Show original to prove nothing was lost. | An album of twelve uneven photos. | Gap: one edit across many photos. | Apps lead |
-| Design | Draw one rough frame and ask for "three takes on this." Three frames appear beside it, dashed; keep one and it is ordinary layers you can edit. | A design with one rough screen. | Gap: needs checking for variations as real layers. | Apps lead |
-| Video | Drop in five clips and ask for "a thirty-second cut." Shots land on the timeline, trimmed and in order; play it. | Five short clips. | Gap: a first cut from footage. | Apps lead |
+| Photo | Pick twelve photos from one shoot and ask "Make these match." All twelve change together; hold Show original to prove nothing was lost. | An album of twelve uneven photos. | Partly: one edit across many photos is on `main`; Show original waits on the library's before and after hold. Not yet run. | Apps lead |
+| Design | Draw one rough frame and ask for "three takes on this." Three frames appear beside it, dashed; keep one and it is ordinary layers you can edit. | A design with one rough screen. | Partly: Mobius can write layers. Not yet run with a real model. | Apps lead |
+| Video | Drop in five clips and ask for "a thirty-second cut." Shots land on the timeline, trimmed and in order; play it. | Five short clips. | Gap: clip lengths and a clip list are on `main`; a first cut waits on footage. | Apps lead |
 | Database | Ask "Which customers haven't ordered since June?" in plain words. The SQL is written where you can read it, and the rows appear under it. | The customer database. | Partly: needs checking; Analyse mode is next. | Apps lead |
 
 ### Third: the apps that show Mobius is safe and yours

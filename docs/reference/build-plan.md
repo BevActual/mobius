@@ -54,20 +54,27 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
-As of the evening of 14 November 2026. Everything that was here this morning is on `main`: the app panels out of the
-Mobius panel, app modes, the Glance and Result slots, the Permission wording, the demo workspace and the first build of
-every app's demo moment.
+As of the evening of 14 November 2026, Pacific time. On `main` since the last refresh: the speed steps (calls run as
+they are written, reads fetched ahead, one round for a suggestion, only the open apps' tools), WebDAV drives with the
+Files screens, tools for Photo and Design, Music's folded round, the design for two-way sync, and the rule for
+[a new app or part of one that exists](#a-new-app-or-part-of-one-that-exists).
+
+Where the moments stand after real-model rounds 13 to 15: Code and Notes meet the bar, Plan my day meets the time,
+and Triage is right in content but shows its first change at 25 seconds.
 
 | Item | Owner | Status | Unblocks |
 | --- | --- | --- | --- |
-| Speed of a turn: the first real thing within five seconds ([demo plan](demo-plan.md#timing)) | Builder | Building: calls run as they are written, reads fetched ahead, one round for a suggestion, only the open apps' tools. Timing again is next. | Every demo moment |
-| Changes dashed in the app as they land, not at the end of the turn | Apps lead | Building: Notes first, then Tasks, Calendar, Mail | Plan my day and Triage arriving one by one |
-| Content fixes from the real-model runs (`demo/results.md`) | Apps lead | Building | Recording |
-| Music's folded round, with asking for a sound (#285) | Music | Building | Music's demo moment |
-| One edit across many photos; layers Mobius can write | Builder | Building (#358, #360) | Photo's and Design's moments |
-| WebDAV drives ([Connections](#connections)) | Builder, then Apps lead for Files | Building (#361, #362) | Files on a person's own server |
-| Real-model runs and timings for every moment | Launch | Waiting on Andrew's PC | Knowing which moments are ready to record |
-| Clips and the reel | Launch | Next, once a moment meets the bar | The README and launch |
+| Triage's first change within five seconds | Builder for the turn, Apps lead for Triage's instructions | Next: the second round writes for 24 s before anything shows | Mail's moment and the reel |
+| Changes dashed in the app as they land | Apps lead | Notes and Photo on `main`; Tasks, Calendar, Mail, Docs, Sheets and Files to follow | Plan my day and Triage arriving one by one |
+| Timing again, on today's `main`: Calendar, Docs, Slides, Browser, Files, Sheets | Launch | Next; these were last timed before the speed steps | Knowing which moments still need work |
+| First real-model runs: Music, Photo, Design, Database, Research, Rewind | Launch, with each owner's script | Next | The rest of the reel |
+| A daytime run of Plan my day, and the model on this computer | Launch | Scheduled for Sunday 15 November | Home's and Settings' moments |
+| Content fixes from the runs (`demo/results.md`) | Apps lead | Building | Recording |
+| A before and after hold | Design lead | Next | Photo's moment |
+| Two-way sync of workspace folders; S3-style storage | Builder, then Apps lead for Files | Building | Notes, Docs and the rest on a person's own server |
+| Unstable tests: `database.spec` | Builder | Open | Every pull request |
+| Clips and the reel | Launch | After a moment meets the bar | The README and launch |
+| Meetings in Calendar and Notes, contacts in Mail and Calendar, the Messages app | Apps lead, Builder for the contacts store | After the demo moments, in that order | |
 
 ## Shell queue
 
@@ -76,9 +83,9 @@ The Builder's order. Earlier rows (app modes, row sizes, the slots, failed runs,
 
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | Turn speed, in the demo plan's order | Every demo moment | Building |
+| 1 | Turn speed, in the demo plan's order: Triage's first change next | Every demo moment | Building |
 | 2 | Tools for Photo and Design | Their demo moments | Building |
-| 3 | WebDAV drives: the connection, then tools for Mobius that ask before every change on a server | Files | Building |
+| 3 | Drives: two-way sync, then S3-style storage ([Drives](#drives)) | Files, and every app that keeps plain files | Building; WebDAV drives are on `main` |
 | 4 | Video: clip lengths and a clip list, then a first cut | Video's demo moment | Building; the cut waits on footage |
 | 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
