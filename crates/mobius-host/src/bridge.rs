@@ -3564,9 +3564,11 @@ impl Bridge {
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();
                 }
-                // and { app: "mail" } says where it was sent from, for Settings, Usage.
-                if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))) {
+                // and { app: "mail" } says where it was sent from: for Settings, Usage, and so a small model is offered
+                // that app's tools first.
+                if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| agent::is_app_name(a))) {
                     lock(&self.sent_from).insert(c.to_owned(), app.to_owned());
+                    request["app"] = json!(app);
                 }
                 // and { images: [data URLs] } attaches pictures, for models that read them.
                 if let Some(images) = arg(3).get("images") {
