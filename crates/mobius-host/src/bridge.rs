@@ -3147,6 +3147,7 @@ impl Bridge {
                 drives.add(field("name"), field("server"), field("username"), field("password"))
             }
             ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
+            ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
             // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").
             ("syncPairs", _) => Ok(self.syncs.pairs()),
             ("syncAdd", Some(folder)) => match (text(1), text(2)) {

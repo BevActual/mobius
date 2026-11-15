@@ -1831,4 +1831,5 @@ fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     assert_eq!(call(&b, "drives", "syncPairs", json!([])), json!([]));
     assert_eq!(call(&b, "drives", "syncAdd", json!(["notes", "nope", "Notes"]))["message"], "That drive is gone.");
     assert_eq!(call(&b, "drives", "syncNow", json!(["nope"]))["message"], "That folder is not synced any more.");
+    assert_eq!(call(&b, "drives", "signIn", json!(["nope", "p"]))["message"], "That drive is gone.");
 }

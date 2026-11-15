@@ -168,6 +168,9 @@ server. Times are only used to skip hashing, never to decide what changed.
 - The bridge: `drives.syncPairs`, `syncAdd(folder, drive, remote)`, `syncRemove`, `syncPause(pair, paused)`, `syncNow`,
   `syncAllowDeletes`, `syncKeepThem` and `syncResolve(pair, path, 'mine' | 'theirs')`, and the event
   `mobius:drive-sync { pair, status }`. Types are `SyncPair` and `SyncStatus` in the shared package.
+- The soak test, `soak_hundreds_of_files_edited_on_both_sides_lose_nothing`, runs 300 files through eight rounds of edits,
+  deletes and new files on both sides. Every other round is cut off a third of the way, and there is a Rewind in the
+  middle. After each round, both sides must hold every edit, and our side of each conflict must be kept as a copy.
 - `changes.kept(conversation, start, folder)` comes from Keep in the window. `changes.rewindPreview` says how many of
   the files are in synced folders (`synced`).
 

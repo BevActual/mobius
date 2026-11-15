@@ -676,6 +676,8 @@ export interface MobiusBridge {
     /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
     add(drive: { name: string; server: string; username: string; password: string }): Promise<DriveAccount | DriveFailure>;
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
+    /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
+    signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
     browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
     read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
     /** With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces one. */

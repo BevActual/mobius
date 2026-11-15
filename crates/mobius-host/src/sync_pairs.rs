@@ -322,6 +322,19 @@ impl Syncs {
         Ok(json!({ "ok": true }))
     }
 
+    /// The drive's password works again: its pairs that stopped for it sync at once.
+    pub fn signed_in(&self, drive: &str) {
+        let mut inner = self.lock();
+        let ids: Vec<String> = inner.pairs.iter().filter(|p| p.drive == drive && !p.paused).map(|p| p.id.clone()).collect();
+        for id in ids {
+            inner.failures.remove(&id);
+            inner.next.remove(&id);
+            inner.now.insert(id);
+        }
+        drop(inner);
+        self.wake.notify_all();
+    }
+
     /// The yes to the deletes a round asked about.
     pub fn allow_deletes(&self, id: &str) -> Res<Value> {
         self.pair(id)?;

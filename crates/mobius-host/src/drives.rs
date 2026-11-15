@@ -475,6 +475,21 @@ impl Drives {
         Ok(json!(account))
     }
 
+    /// A new password for a drive whose sign-in stopped working: checked against the server first, then kept in place
+    /// of the old one.
+    pub fn sign_in(&self, id: &str, password: &str) -> Res<Value> {
+        let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
+        if password.is_empty() {
+            return Err("Enter the password (an app password for Nextcloud and Fastmail).".into());
+        }
+        let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
+        WebDav::with_agent(url, &account.username, password, self.http.clone()).check()?;
+        if !self.secrets.put(&secret_name(id), password) {
+            return Err("The password could not be kept in this computer's secret store.".into());
+        }
+        Ok(json!({ "ok": true }))
+    }
+
     pub fn remove(&self, id: &str) -> Res<Value> {
         let mut all = self.lock();
         let before = all.len();
@@ -836,6 +851,11 @@ pub(crate) mod tests {
         assert_eq!(added["url"], format!("{base}/remote.php/dav/files/ana/"));
         let id = added["id"].as_str().unwrap().to_owned();
         assert_eq!(Drives::new(dir.path(), Arc::new(MemorySecrets::new(true))).list()[0]["name"], "Cloud", "kept across runs");
+        // Signing in again checks the new password first; a wrong one leaves the kept one alone.
+        assert!(drives.sign_in(&id, "wrong").unwrap_err().contains("did not accept"));
+        assert!(drives.open(&id).unwrap().check().is_ok());
+        assert_eq!(drives.sign_in(&id, "app-pass").unwrap()["ok"], true);
+        assert_eq!(drives.sign_in("nope", "app-pass").unwrap_err(), "That drive is gone.");
 
         let drive = drives.open(&id).unwrap();
         drive.make_folder("Plans").unwrap();
