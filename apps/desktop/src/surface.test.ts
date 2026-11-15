@@ -33,6 +33,8 @@ describe('what each app suggests', () => {
     for (const tool of ['browser.tabs', 'browser.read', 'files.read', '#:~:text=']) expect(COMPARE_TABS).toContain(tool);
     // What the fifth demo run showed: a colon in the name failed on Windows, and rows came from the prompt's examples.
     expect(COMPARE_TABS).toContain('no colon or slash');
+    // Round 27: the reply repeated the table, squeezed into the panel one letter a line.
+    expect(COMPARE_TABS).toContain('do not repeat the table');
     expect(COMPARE_TABS).not.toContain('Compare:');
     expect(COMPARE_TABS).toContain('a row no page answers is left out');
   });
