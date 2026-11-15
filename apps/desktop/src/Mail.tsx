@@ -415,10 +415,11 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         ) : (
           <div role="listbox" aria-label="Messages" className="mail-list" title="E archives, R replies, F forwards, U marks unread, H reminds you later" aria-keyshortcuts="E R Shift+R F U H">
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
-            {mail.messages.length > 0 && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
           </div>
         )}
         {!mail.loaded ? <ListLoading /> : <ListEnd mail={mail} count={v.kind === 'drafts' ? drafts.length : mail.messages.length} />}
+        {/* In the pane that fills the height, not the list that only fits its rows, so it sits at the foot and stays there. */}
+        {v.kind !== 'drafts' && mail.messages.length > 0 && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
       </div>
       <div className="mail-reading-pane">
         {mail.message && <p className="tasks-message" role="alert">{mail.message}</p>}
