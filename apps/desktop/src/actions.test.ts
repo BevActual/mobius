@@ -5,6 +5,9 @@ describe('actions in plain words', () => {
   it('says what each tool would do, with what it would touch', () => {
     expect(describeAction('browser.open', { url: 'https://www.example.com/a?b' })).toBe('open www.example.com in the browser');
     expect(describeAction('tasks.add', { list: 'Inbox', text: 'Water the plants' })).toBe('add “Water the plants” to Inbox in Tasks');
+    // Round 27: both showed as their raw tool names in the step rows.
+    expect(describeAction('design.edit', { design: 'designs/Charging.design', add: [] })).toBe('change the design “Charging”');
+    expect(describeAction('photos.edit', { album: 'Trip', photos: ['a.jpg', 'b.jpg'], adjustment: {} })).toBe('change the look of 2 photos in “Trip”');
     expect(describeAction('files.write', { path: 'notes/Work/Plan.md' })).toBe('write the note “Work › Plan”');
     expect(describeAction('files.edit', { path: 'tasks/Groceries.md' })).toBe('change the task list “Groceries”');
     expect(describeAction('calendar.free', { with: ['Sam'], minutes: 60 })).toBe('look for a time when you and Sam are free');

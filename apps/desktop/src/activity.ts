@@ -56,6 +56,8 @@ const LABELS: Record<string, string> = {
   'calendar.update': 'Changing an event',
   'calendar.suggest': 'Suggesting an event',
   'calendar.free': 'Looking for a free time',
+  'design.edit': 'Changing a design',
+  'photos.edit': 'Changing the look of photos',
   'sheets.list': 'Looking at your workbooks',
   'sheets.read': 'Reading a sheet',
   'sheets.write': 'Changing a sheet',
