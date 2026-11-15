@@ -10,7 +10,7 @@ import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
 import { unsureClaims, withoutMarks } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
-import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
+import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type AnswerFor, type EffortChoice, FOR_THIS_QUESTION, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
@@ -226,7 +226,7 @@ function AppLinks({ names, onOpenItem }: { names: readonly string[]; onOpenItem?
 
 /** Three or more of the same finished call in a row, or two or more finished reads, as one line ("Added 6 tasks to P2
  * build", "Read your mail and calendar") that opens to show each. */
-function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [open, setOpen] = useState(false);
   const first = items[0]!;
   // Reads only say what was read; what was changed keeps its own rows, each a link to what it made.
@@ -265,7 +265,7 @@ function toolRuns(items: readonly Item[]): Map<number, number> {
   return runs;
 }
 
-function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
   const [open, setOpen] = useState(false);
@@ -277,7 +277,7 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   };
   const [sending, setSending] = useState(false);
   const shownArgs = describeArguments(item.args);
-  const respond = async (approve: boolean, duration: Duration) => {
+  const respond = async (approve: boolean, duration: AnswerFor) => {
     if (item.requestId === undefined) return;
     setSending(true);
     setProblem(await onAnswer(item.requestId, approve, duration));
@@ -334,10 +334,14 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
             );
           })()}
           {finalNote(item.name) && <p className="approval-final">{finalNote(item.name)}</p>}
+          {!item.onceOnly && FOR_THIS_QUESTION.includes(item.name) && <p className="approval-scope">Allow for this question lets Mobius search and read web pages until it has answered this message. Clicking, typing or signing in on a site still asks.</p>}
           {/* Quiet choices on the left, the one that goes ahead in ink on the right (Instrument, the Asking state). */}
           <div className="approval-actions">
             <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
             {item.onceOnly || finalVerb(item.name) ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
+            {/* Reading the web: one yes covers the rest of this question, so Research asks once, not at every search. */}
+            {!item.onceOnly && FOR_THIS_QUESTION.includes(item.name) && <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'turn')}
+              title="Mobius may search and read web pages without asking until it has answered this message. Clicking, typing or signing in on a site still asks.">Allow for this question</button>}
             {/* Named by what it does when that can't be undone ("Send"); its full name still says it allows it once. */}
             <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>{finalVerb(item.name) ? <><span className="sr-only">Allow once: </span>{finalVerb(item.name)}</> : 'Allow once'}</button>
           </div>
@@ -363,7 +367,7 @@ export interface ChatPanelProps {
   /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
   onTakeOver?: () => Promise<string | null>;
   onHandBack?: () => Promise<string | null>;
-  onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
+  onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;

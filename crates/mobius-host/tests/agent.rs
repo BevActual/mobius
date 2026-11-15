@@ -441,6 +441,9 @@ fn answering_a_question_and_cancelling_reach_the_core() {
     let log = calls(&s.core);
     assert!(log.iter().any(|c| c["method"] == "permissions.resolve" && c["params"] == json!({ "request_id": 5, "approve": true, "duration": "once" })));
     assert!(log.iter().any(|c| c["method"] == "agent.cancel"));
+    // Allow for this question is a yes for now, and the rest of the turn may read the web.
+    assert_eq!(s.service.resolve(6, true, "turn"), json!({ "ok": true }));
+    assert!(calls(&s.core).iter().any(|c| c["method"] == "permissions.resolve" && c["params"] == json!({ "request_id": 6, "approve": true, "duration": "once", "for_turn": true })));
 }
 
 #[test]

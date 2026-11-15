@@ -108,6 +108,10 @@ pub struct ResolveParams {
     pub request_id: u64,
     pub approve: bool,
     pub duration: Duration,
+    /// Allow reading the web for the rest of the turn that asked (web.search and web.read only): answered once, as
+    /// `once`, and the turn asks no more about reading the web.
+    #[serde(default)]
+    pub for_turn: bool,
 }
 
 #[derive(Debug, Deserialize, TS)]
@@ -312,7 +316,11 @@ fn dispatch(core: &mut Core, extension: &mut dyn Extension, method: &str, params
         "permissions.pending" => to_value(core.pending()),
         "permissions.resolve" => {
             let params: ResolveParams = parse_params(params)?;
-            core.resolve(params.request_id, params.approve, params.duration)?;
+            if params.for_turn {
+                core.resolve_for_turn(params.request_id)?;
+            } else {
+                core.resolve(params.request_id, params.approve, params.duration)?;
+            }
             Ok(json!({}))
         }
         // Sign in once per task: what a conversation is signed in to, a new sign-in, Sign out now, and the task's end.

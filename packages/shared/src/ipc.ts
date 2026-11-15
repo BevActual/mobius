@@ -464,7 +464,7 @@ export interface MobiusBridge {
     grants(): Promise<AgentGrant[]>;
     revokeGrant(id: number): Promise<AgentResult>;
     activity(limit?: number): Promise<ActivityEntry[]>;
-    resolve(requestId: number, approve: boolean, duration: Duration): Promise<AgentResult>;
+    resolve(requestId: number, approve: boolean, duration: AnswerFor): Promise<AgentResult>;
     getSettings(): Promise<AgentSettings>;
     configure(settings: AgentConfigureRequest): Promise<AgentResult>;
     onNotification(listener: (notification: AgentNotification) => void): () => void;
@@ -1227,15 +1227,22 @@ export function parseRecording(audio: unknown, mime: unknown): { bytes: Uint8Arr
   return { bytes, mime: type };
 }
 
-const DURATIONS: readonly Duration[] = ['once', 'session', 'always'];
+/**
+ * How long a yes lasts: once, for the rest of this question (`turn`: reading the web only, for the turn that asked),
+ * while Mobius runs, or always.
+ */
+export type AnswerFor = Duration | 'turn';
+const DURATIONS: readonly AnswerFor[] = ['once', 'turn', 'session', 'always'];
+/** The tools a yes can cover for the rest of a question: reading the web, and nothing else. */
+export const FOR_THIS_QUESTION: readonly string[] = ['web.search', 'web.read'];
 
-export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: Duration } | null {
+export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: AnswerFor } | null {
   if (!isObject(value)) return null;
   const { requestId, approve, duration } = value;
   if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId < 1) return null;
   if (typeof approve !== 'boolean') return null;
-  if (!isString(duration) || !DURATIONS.includes(duration as Duration)) return null;
-  return { requestId, approve, duration: duration as Duration };
+  if (!isString(duration) || !DURATIONS.includes(duration as AnswerFor)) return null;
+  return { requestId, approve, duration: duration as AnswerFor };
 }
 
 function parseFallback(value: unknown): FallbackRequest | null {

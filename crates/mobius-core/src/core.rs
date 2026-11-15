@@ -133,6 +133,9 @@ struct Tool {
     handler: ToolHandler,
 }
 
+/// What a person may allow for the rest of one turn ("Allow for this question"): reading the web, and nothing else.
+pub const TURN_SCOPED: &[&str] = &["web.search", "web.read"];
+
 pub struct Core {
     /// Each project's own rules, by project id.
     project_rules: HashMap<String, Vec<crate::permissions::Rule>>,
@@ -153,6 +156,8 @@ pub struct Core {
     person_only: HashSet<u64>,
     /// Answers to questions, held until the asker collects them (oldest dropped first).
     answered: VecDeque<(u64, bool)>,
+    /// Questions answered "for this question": the turn that asked reads the web freely until it ends.
+    for_turn: VecDeque<u64>,
     next_grant_id: u64,
     next_request_id: u64,
 }
@@ -169,7 +174,7 @@ impl Core {
     fn with_store(store: Store, clock: Clock) -> Result<Self, CoreError> {
         let grants = store.load_grants()?;
         let next_grant_id = store.max_grant_id()? + 1;
-        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), next_grant_id, next_request_id: 1, project_rules: HashMap::new(), in_project: None })
+        Ok(Core { store, clock, policy: Policy::default_floors(), signins: crate::signins::SignIns::new(), tools: HashMap::new(), grants, pending: Vec::new(), once_only: HashSet::new(), person_only: HashSet::new(), answered: VecDeque::new(), for_turn: VecDeque::new(), next_grant_id, next_request_id: 1, project_rules: HashMap::new(), in_project: None })
     }
 
     pub fn register_tool(&mut self, spec: ToolSpec, handler: ToolHandler) -> Result<(), CoreError> {
@@ -438,6 +443,28 @@ impl Core {
         let kind = if approve { "permission.approved" } else { "permission.rejected" };
         self.log(kind, Some(&request.principal), Some(request.capability.as_str()), request.resource.as_deref(), json!({ "request_id": request_id, "duration": duration }))?;
         Ok(())
+    }
+
+    /// Approve a question to read the web, and let the turn that asked read the web for the rest of it. Only for
+    /// web.search and web.read: clicking, typing and signing in still ask every time.
+    pub fn resolve_for_turn(&mut self, request_id: u64) -> Result<(), CoreError> {
+        let request = self.pending.iter().find(|r| r.id == request_id).ok_or(CoreError::UnknownRequest(request_id))?;
+        if !TURN_SCOPED.contains(&request.capability.as_str()) || self.is_once_only(request_id) {
+            return Err(CoreError::StandingNotAllowed(request.capability.as_str().to_owned()));
+        }
+        self.resolve(request_id, true, Duration::Once)?;
+        self.for_turn.push_back(request_id);
+        if self.for_turn.len() > MAX_REMEMBERED_ANSWERS {
+            self.for_turn.pop_front();
+        }
+        Ok(())
+    }
+
+    /// Whether a question was answered for the rest of its turn. Returned once, to the turn waiting on it.
+    pub fn take_for_turn(&mut self, request_id: u64) -> bool {
+        let Some(index) = self.for_turn.iter().position(|id| *id == request_id) else { return false };
+        self.for_turn.remove(index);
+        true
     }
 
     /// How a question was answered (`true` = approved), if it has been. Returned once, to whoever is waiting on it.

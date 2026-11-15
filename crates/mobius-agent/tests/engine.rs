@@ -981,3 +981,37 @@ fn a_turn_that_names_its_kinds_of_tools_is_offered_only_those_and_the_engines_ow
     let (_, all) = w.engine.start(&w.core, vec![], "go", 2);
     assert!(request_of(&all).tools.iter().any(|t| t.name == "demo.echo"), "a turn that names none is offered every tool");
 }
+
+#[test]
+fn allowing_the_web_for_this_question_lets_the_rest_of_the_turn_read_the_web_and_nothing_else() {
+    let mut w = world(10);
+    let reads = Arc::new(AtomicUsize::new(0));
+    for (name, capability) in [("web.search", "web.search"), ("web.read", "web.read")] {
+        let counter = reads.clone();
+        w.core.register_tool(ToolSpec::new(name, "Reads the web.", capability).unwrap(), Box::new(move |_| {
+            counter.fetch_add(1, Ordering::SeqCst);
+            Ok(json!({ "found": [] }))
+        })).unwrap();
+    }
+    let provider = ScriptedProvider::new(vec![
+        calls("", vec![call("c1", "web.search", json!({ "query": "porto hotels" }))]),
+        calls("", vec![call("c2", "web.search", json!({ "query": "porto prices" })), call("c3", "web.read", json!({ "url": "https://a.example/" })), call("c4", "demo.echo", json!({ "text": "hi" }))]),
+        text("Done."),
+        calls("", vec![call("c5", "web.search", json!({ "query": "lisbon" }))]),
+    ]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "compare hotels", 1);
+    let first = match drive(&mut w, &mut turn, &provider, step) { Step::AwaitApproval { request_id } => request_id, other => panic!("{other:?}") };
+    w.core.resolve_for_turn(first).unwrap();
+    let step = w.engine.on_approval(&mut turn, &mut w.core, first, true);
+    // The next search and the page read go ahead without a question; anything else still asks.
+    let other = match drive(&mut w, &mut turn, &provider, step) { Step::AwaitApproval { request_id } => request_id, other => panic!("{other:?}") };
+    assert_eq!(reads.load(Ordering::SeqCst), 3, "both searches and the read ran");
+    assert!(w.core.pending().iter().any(|r| r.id == other && r.capability.as_str() == "demo.echo"), "{:?}", w.core.pending());
+    assert!(w.core.resolve_for_turn(other).is_err(), "only reading the web can be allowed for the question");
+    w.core.resolve(other, true, Duration::Once).unwrap();
+    let step = w.engine.on_approval(&mut turn, &mut w.core, other, true);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    // A new message asks again.
+    let (mut next, step) = w.engine.start(&w.core, vec![], "and Lisbon?", 2);
+    assert!(matches!(drive(&mut w, &mut next, &provider, step), Step::AwaitApproval { .. }), "the next question asks again");
+}

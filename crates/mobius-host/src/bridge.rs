@@ -3791,7 +3791,8 @@ impl Bridge {
             "revokeGrant" => arg(0).as_i64().filter(|n| *n >= 1).map_or_else(refused, |n| self.agent.revoke_grant(n)),
             "activity" => self.agent.activity(arg(0).as_u64().unwrap_or(50).clamp(1, 200)),
             "resolve" => {
-                let duration = arg(2).as_str().filter(|d| ["once", "session", "always"].contains(d));
+                // "turn" is Allow for this question: reading the web, for the rest of the turn that asked.
+                let duration = arg(2).as_str().filter(|d| ["once", "turn", "session", "always"].contains(d));
                 match (arg(0).as_u64().filter(|n| *n >= 1), arg(1).as_bool(), duration) {
                     (Some(id), Some(approve), Some(duration)) => self.agent.resolve(id, approve, duration),
                     _ => refused(),
