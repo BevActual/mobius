@@ -56,10 +56,11 @@ export function saveByMobius(byMobius: boolean): void {
 
 /**
  * Opening another app from a split Mobius opened beside the conversation goes to that app alone, with Mobius in its
- * panel again, whichever pane has the focus. An app already in a pane just takes the focus.
+ * panel again, whichever pane has the focus. An app already in a pane just takes the focus, unless the person chose it
+ * from the sidebar: then it is the app alone too, with its own modes and New chat in the panel.
  */
-export const leavesSplit = (panes: readonly [AppId, AppId | null], byMobius: boolean, id: AppId): boolean =>
-  byMobius && panes[1] !== null && panes.includes('agent') && id !== 'agent' && !panes.includes(id);
+export const leavesSplit = (panes: readonly [AppId, AppId | null], byMobius: boolean, id: AppId, fromSidebar = false): boolean =>
+  byMobius && panes[1] !== null && panes.includes('agent') && id !== 'agent' && (fromSidebar || !panes.includes(id));
 
 /** The second app to show when split view opens: the browser beside anything else, notes beside the browser. */
 export const companionFor = (app: AppId): AppId => (app === 'browser' ? 'notes' : 'browser');

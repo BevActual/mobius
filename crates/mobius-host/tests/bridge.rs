@@ -1646,6 +1646,38 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
 }
 
+/// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)
+/// never hides what the second changes. Round 14: Plan my day changed only Mail, was kept, and Triage's tasks vanished.
+#[test]
+fn a_turn_after_one_that_changed_no_files_starts_from_a_checkpoint_of_its_own() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("tasks")).unwrap();
+    std::fs::write(ws.join("tasks/Inbox.md"), "# Inbox\n").unwrap();
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    let turns = |b: &Bridge| call(b, "changes", "turns", json!(["c-1"]))["turns"].as_array().cloned().unwrap_or_default();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan my day"]))["ok"], true);
+    wait(&|| turns(&b).len() == 1);
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| turns(&b)[0]["ended"] == true);
+    let first = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    assert_eq!(first["files"], json!([]), "{first}");
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "triage"]))["ok"], true);
+    wait(&|| turns(&b).len() == 2);
+    std::fs::write(ws.join("tasks/Inbox.md"), "# Inbox\n\n- [ ] Reply to Sam\n").unwrap();
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 2, "event": { "kind": "done" } }));
+    wait(&|| turns(&b).iter().all(|t| t["ended"] == true));
+    let second = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    assert_ne!(second["checkpoint"], first["checkpoint"], "each turn is kept apart");
+    assert_eq!(second["files"], json!(["tasks/Inbox.md"]), "{second}");
+}
+
 /// A tidy is discarded in one go: every file back where it was, archives included, and no folder it made left behind.
 /// The window lists each move once.
 #[test]

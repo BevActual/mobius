@@ -311,6 +311,8 @@ struct Round {
     /// The tools whose results came back.
     tools: Vec<String>,
     troubled: bool,
+    /// The model wrote something to the person in this round, beside its calls.
+    said: bool,
 }
 
 #[derive(Default)]
@@ -571,6 +573,7 @@ impl Engine {
                 if !completion.text.is_empty() {
                     turn.events.push(AgentEvent::Message { text: completion.text.clone() });
                 }
+                turn.round.said = !completion.text.trim().is_empty();
                 // Every call that ran early is in the answer, even if the finished answer somehow lost it.
                 let mut calls: Vec<ToolCall> = turn.early.calls.iter().filter(|(c, _)| !completion.tool_calls.iter().any(|t| t.id == c.id)).map(|(c, _)| c.clone()).collect();
                 calls.extend(completion.tool_calls);
@@ -990,12 +993,13 @@ impl Engine {
                 Executed::Fatal(message) => return self.fail(turn, message),
             }
         }
-        // Everything this round asked for is done, and it all changed something: nothing is left to say that the
-        // summary of the changes does not.
-        // A call that failed or asked, or one that only read, means the model has more to do or say.
+        // Everything this round asked for is done, it all changed something, and the model already said its piece
+        // beside the calls: nothing is left to say that the summary of the changes does not.
+        // A call that failed or asked, or one that only read, means the model has more to do or say. A round of calls
+        // with nothing written would end the turn with no reply at all, so the model is asked once more for it.
         let round = &turn.round;
         let read = round.tools.iter().any(|t| t != TODO_TOOL && core.capability_of(t).is_none_or(|c| is_reading(c.as_str())));
-        if turn.setup.finish_on_changes && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
+        if turn.setup.finish_on_changes && round.said && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
             return self.finish(turn);
         }
         self.next_model_call(core, turn)
