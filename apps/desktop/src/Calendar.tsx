@@ -414,7 +414,9 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   // Tasks with a time sit at their hour; the rest wait in the all-day row.
   const dueAll = days.map((d) => tasksOn(calendar.due, d));
   const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null));
-  const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null));
+  // A timed task with a block of its own (an event or suggestion of the same name that day) is drawn by that block,
+  // which says it is also a task: drawn twice, the two split the column and the block shrinks to a sliver.
+  const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null && !all.some((e) => taskFor([t], e) !== undefined)));
   // Each timed task as a half-hour slot, so it is laid out beside the events it meets instead of over them.
   const slotTask = new Map<string, DueTask>();
   const asSlot = (t: DueTask): Shown => {
