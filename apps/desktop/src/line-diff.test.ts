@@ -33,4 +33,10 @@ describe('undoing one change', () => {
     expect(undoGroup(lines, 0)).toBe('# Plan\n- one\n- two\n\nEnd\n- more\n');
     expect(undoGroup(lines, 1)).toBe('# Plan\n- 1\n- two\n\nEnd\n');
   });
+  it('compares Windows and plain line breaks alike, so a rewrite shows only the paragraph it changed', () => {
+    const before = '# Brief\r\n\r\nA long first paragraph.\r\n\r\nThe rest stays.\r\n';
+    const after = '# Brief\n\nShorter.\n\nThe rest stays.\n';
+    const changed = diffLines(before, after).filter((l) => l.kind !== 'same');
+    expect(changed).toEqual([{ kind: 'removed', text: 'A long first paragraph.' }, { kind: 'added', text: 'Shorter.' }]);
+  });
 });
