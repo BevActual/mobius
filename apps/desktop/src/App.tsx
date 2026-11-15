@@ -1409,7 +1409,8 @@ export function App() {
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
-        return <StudioEditor songs={songs} review={songs.page && turnMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        // Music (marked): the running turn's changes too, so a song Mobius changes is dashed as each call lands.
+        return <StudioEditor songs={songs} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'photo':
         return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'design':

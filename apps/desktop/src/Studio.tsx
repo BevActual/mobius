@@ -12,6 +12,7 @@ import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
 import { useFileReview } from './useFileReview';
+import { useTurnFileChanged } from './liveMarks';
 import type { NotesState } from './useNotes';
 import { ChangeBar, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -475,7 +476,11 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
   const copied = useRef<SongNote[]>([]);
   const history = useRef(new Map<string, { undo: string[]; redo: string[]; tag: string; at: number }>());
   const file = songs.page ? `studio/${songs.page.path}` : null;
-  const { before, keep, discard } = useFileReview(review, file, songs.page?.base);
+  // Each call of a running turn that changes this song reads what it was before the turn again, so Mobius's change is
+  // dashed and named as it lands, not when the turn ends.
+  const [asked, setAsked] = useState(0);
+  useTurnFileChanged(review?.conversation ?? null, file, () => setAsked((n) => n + 1));
+  const { before, keep, discard } = useFileReview(review, file, `${String(songs.page?.base ?? '')}:${asked}`);
   /** The song as it was before Mobius's change (null when Mobius made it), while there is one to review. */
   const wasSong = useMemo(() => {
     if (before === undefined || before === null) return null;
@@ -1231,7 +1236,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}>
-                  <Clips track={t} bars={song.bars} proposed={changed.has(t.id)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
+                  <Clips track={t} bars={song.bars} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
                 </div>
                 {showAuto && <>
                   <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>

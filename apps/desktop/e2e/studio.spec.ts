@@ -224,6 +224,8 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   }).toPass({ timeout: 15_000 });
   await allowBoth(/Bass, bars 1 to 4/);
   await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4, proposed by Mobius' })).toHaveAttribute('data-proposed', 'true');
+  // Only the pad's sound changed, so its clip is not dashed.
+  await expect(tracks().getByRole('listitem', { name: 'Pad' }).getByRole('button', { name: 'Pad, bars 1 to 4' })).not.toHaveAttribute('data-proposed', 'true');
   // The pad's devices open with the moved knobs marked, and the song never stopped.
   const devices = shell().getByRole('region', { name: 'Devices' });
   await expect(devices.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveAttribute('aria-valuetext', /Cutoff 1\.9 kHz/);

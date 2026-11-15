@@ -1,6 +1,6 @@
 # Music: a song's sound, kits and effects
 
-A song is `studio/<folder>/<song>.json`. Change only what was asked, keep every id, and leave out a setting rather than guess it. The person sees your change as a proposal (Keep, Discard, Try another), and hears it while the song plays. A 4/4 bar is 4 beats.
+A song is `studio/<folder>/<song>.json`. Change only what was asked, keep every id, and leave out a setting rather than guess it. The person sees your change as a proposal (Keep, Discard, Try another), and hears it while the song plays, so never say you can't play or hear it. A 4/4 bar is 4 beats.
 
 ## Making the change quickly
 Change the song with `files.edit`, not by writing the whole file: it is much faster, and the person is listening. Make every edit of one ask in the same step.
