@@ -318,10 +318,24 @@ export function appOfTool(name: string, args: unknown): string | null {
 const READS = /\.(read|list|search|tabs|events|calendars|lists|query|tables)$/;
 export const isReadTool = (name: string): boolean => READS.test(name);
 
+/**
+ * Whether the last turn has ended with a reply: the model answered after the person's message and nothing after that
+ * answer is still under way or waiting on them. A turn that finishes on its changes (Plan my day, Triage) writes its
+ * reply before its calls, so the calls can come after it.
+ */
+export function endedWithReply(items: readonly Item[]): boolean {
+  const lastUser = items.findLastIndex((item) => item.kind === 'user');
+  const lastAssistant = items.findLastIndex((item) => item.kind === 'assistant');
+  if (lastAssistant < 0 || lastAssistant < lastUser) return false;
+  if ((items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming) return false;
+  return items.slice(lastAssistant + 1).every((item) => item.kind === 'tool' && item.status !== 'running' && item.status !== 'waiting');
+}
+
 /** Several finished reads in a row, as one line: "Read your mail and calendar". */
 export function readsSummary(calls: readonly { name: string; args?: unknown }[]): string {
   const apps: string[] = [];
-  for (const call of calls) { const app = appOfTool(call.name, call.args) ?? 'Files'; if (!apps.includes(app)) apps.push(app); }
+  // Reading the clock is not reading an app.
+  for (const call of calls) { if (call.name.startsWith('clock.')) continue; const app = appOfTool(call.name, call.args) ?? 'Files'; if (!apps.includes(app)) apps.push(app); }
   const word = (app: string) => (['Mail', 'Calendar', 'Tasks', 'Notes', 'Docs', 'Sheets', 'Files'].includes(app) ? `your ${app === 'Mail' ? 'mail' : app === 'Calendar' ? 'calendar' : app === 'Tasks' ? 'tasks' : app === 'Notes' ? 'notes' : app === 'Docs' ? 'docs' : app === 'Sheets' ? 'sheets' : 'files'}` : app);
   const words = apps.map(word);
   // "your mail and your calendar" says "your" once.

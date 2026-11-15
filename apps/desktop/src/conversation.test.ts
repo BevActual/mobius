@@ -394,7 +394,7 @@ describe('where a reply came from', () => {
   });
 });
 
-import { linkedFrom } from './conversation';
+import { endedWithReply, linkedFrom } from './conversation';
 
 describe('linked from', () => {
   it('names the apps the last turn read, apart from the ones it changed', () => {
@@ -469,9 +469,24 @@ describe('reads in a row fold into one line', () => {
     const { readsSummary, isReadTool } = await import('./conversation');
     expect(readsSummary([{ name: 'mail.search' }, { name: 'mail.read' }, { name: 'calendar.list' }])).toBe('Read your mail and calendar');
     expect(readsSummary([{ name: 'mail.read' }, { name: 'calendar.list' }, { name: 'tasks.list' }])).toBe('Read your mail, calendar and tasks');
+    expect(readsSummary([{ name: 'clock.now' }, { name: 'tasks.list' }])).toBe('Read your tasks');
     expect(readsSummary([{ name: 'browser.read' }])).toBe('Read Browser');
     expect(isReadTool('mail.search')).toBe(true);
     expect(isReadTool('tasks.add')).toBe(false);
+  });
+});
+
+describe('when a turn has ended with a reply', () => {
+  it('a turn that finished on its changes, its reply before its calls, has ended with a reply', () => {
+    const user = { kind: 'user', id: 'u', text: 'Plan my day' } as const;
+    const reply = { kind: 'assistant', id: 'a', text: 'Your day:', streaming: false } as const;
+    const call = (status: 'done' | 'running') => ({ kind: 'tool', id: `t-${status}`, callId: 'c', name: 'tasks.update', status }) as const;
+    expect(endedWithReply([user, reply])).toBe(true);
+    expect(endedWithReply([user, reply, call('done')])).toBe(true);
+    expect(endedWithReply([user, reply, call('running')])).toBe(false);
+    expect(endedWithReply([user, call('done')])).toBe(false);
+    expect(endedWithReply([user, { ...reply, streaming: true }])).toBe(false);
+    expect(endedWithReply([reply, user])).toBe(false);
   });
 });
 
