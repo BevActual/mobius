@@ -15,7 +15,7 @@ import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { useTurnFileChanged } from './liveMarks';
 import { onCommand } from './commands';
-import { AppSidebar, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useShowPanelTab } from './ui';
+import { AppSidebar, BeforeAfter, HoldButton, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useHold, useShowPanelTab } from './ui';
 
 import './photo.css';
 
@@ -377,7 +377,9 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
   const shown = useRef<HTMLCanvasElement>(null);
   const frame = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
-  const [before, setBefore] = useState(false);
+  // Show original: held from the toolbar or with M; it lets go on blur and when the window hides, so it never sticks.
+  const hold = useHold('m');
+  const before = hold.held;
   const [busy, setBusy] = useState('');
   // The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward, opening the panel if it is shut.
   const showPanel = useShowPanelTab();
@@ -555,12 +557,12 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
   const keys = useRef<(e: KeyboardEvent, down: boolean) => void>(() => {});
   keys.current = (e, down) => {
     if (typing(e.target) || e.altKey) return;
-    if (!down) { if (e.key === 'm' || e.key === 'M') setBefore(false); return; }
+    if (!down) return;
     const mod = e.ctrlKey || e.metaKey;
     if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) photos.redo(); else photos.undo(); return; }
     if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); photos.redo(); return; }
     if (mod) return;
-    if ((e.key === 'm' || e.key === 'M') && !e.repeat) { setBefore(true); return; }
+    if (e.key === 'm' || e.key === 'M') return;
     if (e.key === 'Escape') { e.preventDefault(); if (cropping) setTab('adjust'); else back(); return; }
     if (cropping) {
       if ((e.key === 'r' || e.key === 'R') && !e.repeat) { e.preventDefault(); rotate(); }
@@ -638,11 +640,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
           </div>
         </ToolbarItem>
         {/* Holding M still shows the original when this button has moved into the ⋯ menu, where a row cannot be held. */}
-        <ToolbarItem priority="low" menu={[]}>
-          <button type="button" className="strip-btn photo-tb" aria-label="Show original" aria-pressed={before} title="Show original (M)" onPointerDown={() => setBefore(true)} onPointerUp={() => setBefore(false)} onPointerLeave={() => setBefore(false)} onKeyDown={(e) => { if (e.key === ' ') setBefore(true); }} onKeyUp={() => setBefore(false)}>
-            <Icon d="M3.5 4.5h13v11h-13zM10 4.5v11M10 8l6.5-3.5M10 12.5l6.5-3.5" />
-          </button>
-        </ToolbarItem>
+        <ToolbarItem priority="low" menu={[]}><HoldButton hold={hold} /></ToolbarItem>
         <ToolbarItem>
           <button type="button" className="strip-btn photo-tb photo-revert" disabled={edits.adjustments.length === 0 && isPlain(edits.geometry)} aria-label="Revert" title="Revert all edits" onClick={revert}><Icon d="M7.5 5 4 8.5 7.5 12M4 8.5h7.5a4.5 4.5 0 0 1 0 9H9" /><span>Revert</span></button>
         </ToolbarItem>
@@ -661,7 +659,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
             <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
           </p>
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
-            <canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} />
+            <BeforeAfter showing={before}><canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} /></BeforeAfter>
             {sel && area && area.kind !== 'all' && !before && !cropping && (
               <div
                 className="photo-area"
