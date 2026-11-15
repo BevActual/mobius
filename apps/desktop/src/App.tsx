@@ -761,8 +761,11 @@ export function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   // Browser: the address bar's suggestions are open, so the page is covered by a picture of it.
   const [addressSuggesting, setAddressSuggesting] = useState(false);
+  // A menu over the page puts the page away at once, not when its picture arrives: a slow picture left a toolbar menu
+  // drawn under the page, cut off at its top edge. Hovers and drags wait for the picture, so the page never flashes.
   const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || addressSuggesting);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
+  const menuOverPage = shows('browser') && (menuOpen || selectionMenu || addressSuggesting);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
     let live = true;
@@ -1402,7 +1405,7 @@ export function App() {
         return (
           <>
             {cover?.url && <img className="page-cover" src={cover.url} alt="" data-testid="page-cover" />}
-            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />
+            <BrowserPage onStartPage={onStartPage} hidden={launcherOpen || hubOpen || settingsOpen || menuOverPage || cover !== null || onStartPage} onOpen={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); }} onRead={(path, title) => { openApp('reader'); void reading.open(path, title); }} />
           </>
         );
       case 'notes':
