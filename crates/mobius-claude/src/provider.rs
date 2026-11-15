@@ -164,7 +164,13 @@ impl Provider for ClaudeCodeProvider {
         let tools = file("tools.json", &Value::Array(prepared.manifest.clone()).to_string())?;
         let system = file("system.md", &prepared.system)?;
         // The body travels as a setting, not an argument or variable, so a large tool list never hits OS limits.
-        let settings = file("settings.json", &json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } }).to_string())?;
+        let mut settings = json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } });
+        if prepared.thinking_off {
+            // The CLI turns thinking on by itself; this turn asks for none.
+            settings["alwaysThinkingEnabled"] = json!(false);
+            settings["env"]["MAX_THINKING_TOKENS"] = json!("0");
+        }
+        let settings = file("settings.json", &settings.to_string())?;
         let mcp = file("mcp.json", &json!({ "mcpServers": { "mobius": { "command": self.inert_mcp, "args": [tools] } } }).to_string())?;
         let relay = Relay::start(&self.upstream, self.timeout).map_err(protocol)?;
         let env = cli::child_env(&BTreeMap::from([("ANTHROPIC_BASE_URL".to_owned(), relay.url.clone())]));

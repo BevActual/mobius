@@ -307,6 +307,8 @@ pub struct Turn {
     reads: Option<Reads>,
     /// This model round's calls: whether one failed, was declined or asked something, and whether one only read.
     round: Round,
+    /// The model has written something to the person in this turn, in any round.
+    said: bool,
     /// The person allowed reading the web for this question: web.search and web.read run without asking again
     /// until the turn ends.
     web_for_turn: bool,
@@ -490,7 +492,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), web_for_turn: false };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -580,6 +582,7 @@ impl Engine {
                     turn.events.push(AgentEvent::Message { text: completion.text.clone() });
                 }
                 turn.round.said = !completion.text.trim().is_empty();
+                turn.said |= turn.round.said;
                 // Every call that ran early is in the answer, even if the finished answer somehow lost it.
                 let mut calls: Vec<ToolCall> = turn.early.calls.iter().filter(|(c, _)| !completion.tool_calls.iter().any(|t| t.id == c.id)).map(|(c, _)| c.clone()).collect();
                 calls.extend(completion.tool_calls);
@@ -1016,10 +1019,11 @@ impl Engine {
         // Everything this round asked for is done, it all changed something, and the model already said its piece
         // beside the calls: nothing is left to say that the summary of the changes does not.
         // A call that failed or asked, or one that only read, means the model has more to do or say. A round of calls
-        // with nothing written would end the turn with no reply at all, so the model is asked once more for it.
+        // with nothing written ends the turn when an earlier round of it already wrote to the person (its lines, each
+        // beside its change); in a turn that has written nothing yet, the model is asked once more for its reply.
         let round = &turn.round;
         let read = round.tools.iter().any(|t| t != TODO_TOOL && core.capability_of(t).is_none_or(|c| is_reading(c.as_str())));
-        if turn.setup.finish_on_changes && round.said && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
+        if turn.setup.finish_on_changes && (round.said || turn.said) && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
             return self.finish(turn);
         }
         self.next_model_call(core, turn)
