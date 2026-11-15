@@ -7,7 +7,6 @@
 - [ ] Check the torque arm drawings (due {{workday:+0}})
 - [ ] Order spare caliper brackets (due {{workday:+0}} 11:00)
 - [ ] Hold 8 packs at Veltro (due {{workday:+1}} 12:00)
-- [ ] Brief Dana on the gate code
 - [ ] Draft the board pack slide (due {{workday:+8}})
 - [ ] Review Sam's torque curves (due {{workday:+0}} 15:00)
 - [x] Sign off the chassis drawings

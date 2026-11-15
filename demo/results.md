@@ -8,7 +8,7 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#386) | 14 Nov 19:07, 5a33562, chip | Sonnet 5.5 | 10.2 / 10.2 / 11.4 s | Time yes; blocks untested (after 18:00) | Needs a daytime run |
-| Mail: Triage (#384) | 14 Nov, 5a33562, after Plan my day | Sonnet 5.5 | 31.1 / 34.6 / 35.5 s | No | Split hides the chip; no reply; unasked event and tasks; bar under-counts |
+| Mail: Triage (#384) | 14 Nov, 5a33562, after Plan my day | Sonnet 5.5 | 31.1 / 34.6 / 35.5 s | No | Split hides the chip; no reply; bar under-counts |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -29,11 +29,10 @@ Run on Saturday 14 November at 19:07 local, after the 18:00 cutoff, so Plan my d
   1. Going to Mail opened an Agent and Mail split with Home's chat and no "Triage the unread"; closing the Agent pane showed
      the chip without a New chat.
   2. No reply at all: the turn ended after its tools, so there are no Reply, Later and Archive lines to check.
-  3. Still unasked: "Re-plan test order with Sam" (Wed 13:30), a Finance task, and a gate-code task that overlaps one
-     already there.
-  4. The change bar says "2 changes · 2 draft replies" while three tasks and an event were also written.
-  Good: no second Priya draft; nothing sent or archived. A task to brighten the Jasmund photos for Dana comes from mail 38
-  (#380), which asks for that.
+  3. The change bar says "2 changes · 2 draft replies" while three tasks and an event were also written.
+  Good: no second Priya draft; nothing sent or archived. The Sam hour (Wed 13:30), the Finance task (due the 20th), the
+  gate-code task and the Jasmund photos task each answer a mail that asks for it (03, 21, 10 and 38), so they stay. The
+  seeded "Brief Dana on the gate code" task was stale, since Dana sent the code; it is removed from the seed.
 - **Installer:** 0.1.2 from this commit ships `mobius-inert-mcp.exe` (#390); installed on Andrew's PC, Sonnet 5.5 ready.
 
 ## Round 13 (3a8bf78: #342, #344, #348, #349, #350, #353, #355)
