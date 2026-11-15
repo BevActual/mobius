@@ -47,7 +47,7 @@ describe('what each app suggests', () => {
     expect(first.prompt).toContain('say nothing until the end');
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
-    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
+    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft', 'dayStart 13:00']) expect(first.prompt).toContain(words);
   });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');
