@@ -205,8 +205,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'studio':
       return state.note
         ? [
-            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays.
-            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS }] : []),
+            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays. The two
+            // edits are laid out in full, so the model doesn't think first (on 0.1.9 thinking held the first edit to 9.5 s).
+            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS, effort: 'none' as const }] : []),
             { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
