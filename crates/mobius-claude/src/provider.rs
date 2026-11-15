@@ -247,6 +247,8 @@ impl Provider for ClaudeCodeProvider {
         let mut native_error: Option<(String, String)> = None;
         // Tool calls being written, by block index: the block (id and name) and its arguments so far.
         let mut writing: BTreeMap<u64, (Value, String)> = BTreeMap::new();
+        // Time in thinking blocks: when the open one started, and the total of those that closed.
+        let (mut thinking_since, mut thought): (Option<Instant>, Option<u64>) = (None, None);
         while let Some(event) = run.next()? {
             match event["type"].as_str() {
                 Some("stream_event") => {
@@ -257,7 +259,11 @@ impl Provider for ClaudeCodeProvider {
                         Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
                             writing.insert(index, (inner["content_block"].clone(), String::new()));
                         }
+                        Some("content_block_start") if inner["content_block"]["type"] == "thinking" => thinking_since = Some(Instant::now()),
                         Some("content_block_stop") => {
+                            if let Some(since) = thinking_since.take() {
+                                thought = Some(thought.unwrap_or(0).saturating_add(u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)));
+                            }
                             // A call is whole when its block closes: give it now, while the model writes the rest.
                             if let Some((mut block, json)) = writing.remove(&index)
                                 && let Ok(input) = serde_json::from_str::<Value>(if json.is_empty() { "{}" } else { &json })
@@ -313,6 +319,9 @@ impl Provider for ClaudeCodeProvider {
         // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
         if let Some(ready) = run.ready_ms.get() {
             completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
+        }
+        if thought.is_some() {
+            completion.usage.get_or_insert_with(Default::default).thinking_ms = thought;
         }
         // The relay's copy is the truth; say whatever the stream did not.
         if let Some(rest) = completion.text.strip_prefix(emitted.as_str())
