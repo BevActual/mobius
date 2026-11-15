@@ -165,6 +165,8 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
   const { before, keep, discard } = useDesignReview(review, file, designs.page?.base);
   const changed = useMemo(() => (doc && before !== undefined ? changedIds(before, doc) : new Set<string>()), [doc, before]);
   const one = selected.length === 1 ? selected[0]! : null;
+  // Frames Mobius added in its change: when there are several (three takes), each can be kept alone or dropped.
+  const takes = useMemo(() => (doc && before ? doc.frames.filter((f) => !before.frames.some((b) => b.id === f.id)).map((f) => f.id) : []), [doc, before]);
 
   const history = useUndo(designs.page?.path ?? null, designs.text, designs.edit);
   const change = useCallback((fn: (d: DesignDoc) => void) => {
@@ -175,6 +177,8 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
     history.record(designs.text, text);
     designs.edit(text);
   }, [doc, designs, history]);
+  const dropTake = (id: string) => change((d) => { d.frames = d.frames.filter((f) => f.id !== id); });
+  const keepTake = (id: string) => { change((d) => { d.frames = d.frames.filter((f) => f.id === id || !takes.includes(f.id)); }); void keep(); };
   const historyNow = useRef(history);
   historyNow.current = history;
   useEffect(() => {
@@ -801,6 +805,12 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
               const inThis = one !== null && at?.frame.id === f.id;
               return (
                 <div key={f.id} className="design-frame" data-selected={isPicked(f.id) || undefined} data-proposed={changed.has(f.id) || undefined} aria-label={`Frame ${f.name}`} style={{ left: p.x, top: p.y, width: p.w, height: p.h, background: resolveColor(f.fill, doc.styles), borderRadius: f.radius }}>
+                  {takes.length > 1 && takes.includes(f.id) && (
+                    <div className="design-take" role="group" aria-label={`Take ${f.name}`} style={{ top: `calc(100% + ${8 / zoom}px)`, transform: `scale(${1 / zoom})` }} onPointerDown={(e) => e.stopPropagation()}>
+                      <button type="button" className="review-btn" data-kind="keep" onClick={() => keepTake(f.id)}>Keep this one</button>
+                      <button type="button" className="review-btn" onClick={() => dropTake(f.id)}>Discard</button>
+                    </div>
+                  )}
                   <span className="design-frame-name" style={{ fontSize: 12 / zoom, top: -18 / zoom }} onPointerDown={(e) => startMove(e, f.id, null)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>{f.name}</span>
                   <div className="design-clip" style={{ borderRadius: f.radius }}>
                     {f.children.filter((n) => !n.hidden).map((n) => (
