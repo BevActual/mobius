@@ -1206,6 +1206,13 @@ impl Bridge {
     }
 
     /// A page finished loading; remembered unless history is off or the address is not a web page.
+    /// Where a kept address opens now: a link to one of the person's pages from an earlier start goes to where it is
+    /// served this time (which also starts serving them); any other address is left as it is.
+    #[must_use]
+    pub fn page_now(&self, url: &str) -> String {
+        self.pages.current(url).unwrap_or_else(|| url.to_owned())
+    }
+
     pub fn record_visit(&self, url: &str, title: &str) {
         lock(&self.history).visit(url, title);
     }
@@ -3677,6 +3684,10 @@ impl Bridge {
                 // { finish: true }: the suggestion ends in changes, and the turn is done once they are made.
                 if let Some(finish) = arg(3).get("finish") {
                     request["finish"] = finish.clone();
+                }
+                // { effort: "none" }: how hard the model thinks for this suggestion's turn.
+                if let Some(effort) = arg(3).get("effort") {
+                    request["effort"] = effort.clone();
                 }
                 // { tools: ["tasks", "calendar"] }: only the tools of the apps the suggestion works in are offered.
                 if let Some(tools) = arg(3).get("tools") {

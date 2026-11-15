@@ -24,6 +24,8 @@ export interface Suggestion {
   finishes?: true;
   /** The apps whose tools it works with (tasks, calendar): only theirs are offered, so the request is much shorter. */
   tools?: readonly string[];
+  /** How hard the model thinks for its turn: a suggestion whose work is fully laid out starts sooner with little. */
+  effort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 /** A read done before the model is asked: a tool that only reads, and its arguments. */
@@ -78,7 +80,7 @@ export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call fi
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
  * linked to the words on the page it came from.
  */
-export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs. Read a tab that has a file (one of my own pages) with files.read on that file, and any other with browser.read (its tabId). Write the comparison as a new note in my Notes, in the Research notebook (notes/Research/), called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs. Read a tab that has a file (one of my own pages) with files.read on that file, and any other with browser.read (its tabId). Write the comparison as a new note in my Notes, in the Research notebook (notes/Research/), called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else. In your reply, do not repeat the table: name the note in one line, then give the three lines on which suits whom.';
 
 /**
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
@@ -153,7 +155,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       return state.note
         ? [
             // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
-            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then at most four short sections that follow its outline, each two or three lines, and what is decided and what is next in two lines. At most 450 words in all, so leave out detail a reader of one page can do without, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end (when its name already ends in brief, with one-page at the end instead): a title, two or three sentences on what it is and why it matters, then at most four short sections that follow its outline, each two or three lines, and what is decided and what is next in two lines. At most 450 words in all, so leave out detail a reader of one page can do without, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
             // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
             { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
