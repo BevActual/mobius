@@ -15,6 +15,9 @@ export interface Suggestion {
   prompt: string;
   /** What it needs attached first. */
   attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut';
+  /** For a starter: the words put in the box for the person to finish, instead of the prompt itself. What they type
+   * after them goes on the end of the prompt, which is sent behind Details. */
+  box?: string;
   /** The reads it always starts with, done before the model is asked so it spends no round asking for them. */
   reads?: (now: Date) => SuggestedRead[];
   /** It ends in changes: the turn is done once they are all made, and the summary of what changed is its answer. */
@@ -63,7 +66,7 @@ export interface SurfaceState {
 }
 
 /** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
-export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, with only the one total files.move gives back: count nothing yourself.`;
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
@@ -78,7 +81,7 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
 /** The apps Plan my day works in: it reads and changes tasks and the calendar, and reads and drafts mail. */
 export const PLAN_MY_DAY_TOOLS = ['tasks', 'calendar', 'mail'] as const;
 
-export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each of those tasks a time with one tasks.update per list (due today, the time as HH:MM; never one due later; the others in more) and suggest a block for each with one calendar.suggest (the others in more), both in one step, with the task as the title and why in a few words; most important first, and leave room between. Then, if a free hour is left, hold it for focused work with calendar.suggest. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each of those tasks a time with one tasks.update per list (due today, the time as HH:MM; never one due later; the others in more) and suggest a block for each with one calendar.suggest (the others in more), both in one step, with the task as the title and why in a few words; most important first, each 30 or 60 minutes, back to back where they fit so the longest free stretch stays whole. Then hold one hour of that stretch for focused work with calendar.suggest (title Focus time): if an hour is free anywhere, there is one. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
 
 /**
  * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them
@@ -277,8 +280,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Start a project', prompt: 'Make a small project in my Code, in a new folder code/<name>/, that ' }];
     case 'calendar':
       return [
-        // The demo's Calendar moment: the box reads "…meet with " and the person names who, such as Sam.
-        { label: 'Find a time with…', prompt: 'Find an hour this week, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest only the best two or three times, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing. End with the two or three times in one short list. I want to meet with ' },
+        // The demo's Calendar moment: the box reads "Find a time with " and the person names who, such as Sam.
+        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];

@@ -157,3 +157,25 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
   await expect.poll(() => fs.existsSync(editsFile())).toBe(false);
   await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveCount(0);
 });
+
+test('Mobius\'s change to the open photo shows as it lands, and its Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the edits have changed.
+  await start([
+    callsTool('files-write', { path: 'photos/Lisbon/coastline.png.edits.json', content: JSON.stringify(WARM) }),
+    says(['Added Warm ', 'the hills.'], 3000),
+  ]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('warm the hills');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  const change = shell().getByRole('group', { name: "Mobius's change" });
+  await expect(change).toContainText('Mobius changed Warm the hills');
+  await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveAttribute('data-proposed', 'true');
+  await expect(log.locator('.msg.assistant').last()).not.toHaveText('Added Warm the hills.');
+  await expect(change.getByRole('button', { name: 'Keep' })).toHaveCount(0);
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Added Warm the hills.', { timeout: 15_000 });
+  await change.getByRole('button', { name: 'Keep' }).click();
+  await expect(change).toHaveCount(0);
+  expect(JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0].name).toBe('Warm the hills');
+});

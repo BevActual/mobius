@@ -212,6 +212,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
   const sendWhenAdded = useRef(false);
+  const starter = useRef<{ box: string; steps: string } | null>(null);
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     if (adding && canType && !listening && draft.trim().length > 0) {
@@ -227,7 +228,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, modeInfo.id);
     const answering = quick ? quickName : modelName;
     const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
-    go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
+    // A starter's box words, finished by the person, are the message; its steps, with what they typed, go behind Details.
+    const begun = starter.current;
+    starter.current = null;
+    const text = begun && draft.startsWith(begun.box) ? withSteps(draft.trim(), begun.steps + draft.slice(begun.box.length).trim()) : draft;
+    go(text, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -291,7 +296,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const suggest = async (s: Suggestion) => {
     setProblem(null);
     if (isStarter(s)) {
-      onDraft(s.prompt);
+      starter.current = s.box ? { box: s.box, steps: s.prompt } : null;
+      onDraft(s.box ?? s.prompt);
       queueMicrotask(() => fieldRef.current?.focus());
       return;
     }

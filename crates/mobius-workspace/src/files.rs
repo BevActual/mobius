@@ -35,7 +35,7 @@ pub fn tool_descriptions() -> Vec<Value> {
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "content": { "type": "string", "description": "The whole new content." } }, "required": ["path", "content"] } }),
         json!({ "name": "files.edit", "description": "Change part of a text file: replace one piece of text with another. Fails unless the old text appears exactly once (or replaceAll is true), so it cannot change the wrong place; the spaces and line breaks between its words may differ from the file's. A checkpoint is taken first.", "capability": "files.write", "resource_arg": "path",
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "old": { "type": "string", "description": "The exact text to replace." }, "new": { "type": "string", "description": "What to put there." }, "replaceAll": { "type": "boolean", "description": "Replace every occurrence. Defaults to false." } }, "required": ["path", "old", "new"] } }),
-        json!({ "name": "files.move", "description": "Move or rename files and folders inside one folder of the workspace, all in one go (to tidy it: into folders by kind or date, or to clearer names). Paths are relative to that folder; folders are made as needed; nothing is ever replaced. A checkpoint is taken first, so the person sees every move and can undo them all.", "capability": "files.write", "resource_arg": "folder",
+        json!({ "name": "files.move", "description": "Move or rename files and folders inside one folder of the workspace, all in one go (to tidy it: into folders by kind or date, or to clearer names). Paths are relative to that folder; folders are made as needed; nothing is ever replaced. A checkpoint is taken first, so the person sees every move and can undo them all. Answers what moved and `files`, how many files that is (counting those inside moved folders).", "capability": "files.write", "resource_arg": "folder",
             "input_schema": { "type": "object", "properties": { "folder": path("The folder whose contents are moved, relative to the workspace, such as Downloads. Moves stay inside it."), "moves": { "type": "array", "maxItems": MAX_MOVES, "description": "Each move: from (where it is now) and to (where it goes, with its name), both relative to folder, such as {\"from\":\"IMG_2041.jpg\",\"to\":\"Photos/2026-11/IMG_2041.jpg\"}.", "items": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] } } }, "required": ["folder", "moves"] } }),
     ]
 }
@@ -241,6 +241,47 @@ impl Workspace {
         }
         fs::create_dir_all(&target).map_err(|e| e.to_string())?;
         Ok(relative)
+    }
+
+    /// A file from elsewhere (a drive) put into `folder`, never over anything: a taken name gets " 2", " 3" before its
+    /// extension. Returns its path. The person's own action from Files; the agent writes through `write`.
+    pub fn add_file(&self, folder: &str, name: &str, bytes: &[u8]) -> Res<String> {
+        let name = Self::check_name(name)?;
+        if !self.inside(folder)?.is_dir() {
+            return Err("that folder is not there".into());
+        }
+        let (stem, ext) = match name.rfind('.') {
+            Some(dot) if dot > 0 => (&name[..dot], &name[dot..]),
+            _ => (name, ""),
+        };
+        for n in 1..1000 {
+            let candidate = if n == 1 { name.to_owned() } else { format!("{stem} {n}{ext}") };
+            let relative = if folder.is_empty() { candidate } else { format!("{folder}/{candidate}") };
+            let target = self.inside(&relative)?;
+            match fs::OpenOptions::new().write(true).create_new(true).open(&target) {
+                Ok(mut file) => {
+                    use std::io::Write;
+                    file.write_all(bytes).map_err(|e| e.to_string())?;
+                    return Ok(relative);
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Err(format!("there are too many things called {name} here"))
+    }
+
+    /// A workspace file's bytes, for copying it to a drive. Never a folder.
+    pub fn read_file(&self, relative: &str, limit: usize) -> Res<Vec<u8>> {
+        let path = self.locate(relative)?;
+        let meta = fs::metadata(&path).map_err(|e| e.to_string())?;
+        if meta.is_dir() {
+            return Err("only files can be copied to a drive for now, not folders".into());
+        }
+        if usize::try_from(meta.len()).unwrap_or(usize::MAX) > limit {
+            return Err(format!("files bigger than {} MB cannot be sent to a drive yet", limit / (1024 * 1024)));
+        }
+        fs::read(&path).map_err(|e| e.to_string())
     }
 
     /// Renames a file or folder in place. Returns its new path.
@@ -608,11 +649,21 @@ impl Workspace {
                 if let Some(failed) = failed {
                     return Err(failed);
                 }
-                Ok(json!({ "moved": done, "checkpoint": checkpointed }).to_string())
+                // The files moved, counting those inside a moved folder: the number to tell the person.
+                let files: usize = planned.iter().map(|(_, _, _, target)| files_in(target)).sum();
+                Ok(json!({ "moved": done, "files": files, "checkpoint": checkpointed }).to_string())
             }
             _ => Err("unknown tool".into()),
         }
     }
+}
+
+/// How many files `path` is: one for a file, every file under it for a folder.
+fn files_in(path: &Path) -> usize {
+    if !path.is_dir() {
+        return usize::from(path.is_file());
+    }
+    fs::read_dir(path).map(|entries| entries.flatten().map(|e| files_in(&e.path())).sum()).unwrap_or(0)
 }
 
 /// Where `old` is in `text` when the words must match exactly but any run of spaces and line breaks between them may
@@ -963,6 +1014,8 @@ mod tests {
         let before = ws.history(1).unwrap()[0].0.clone();
         let out = call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [{ "from": "IMG_1.txt", "to": "Pictures/IMG_1.txt" }, { "from": "Old", "to": "Archive/Old" }, { "from": "report.md", "to": "Report.md" }] })).unwrap();
         assert_eq!(out["moved"].as_array().unwrap().len(), 3);
+        // Two files and a folder holding one: three files moved.
+        assert_eq!(out["files"], 3);
         let root = ws.root().to_path_buf();
         assert_eq!(fs::read_to_string(root.join("Downloads/Pictures/IMG_1.txt")).unwrap(), "one");
         assert_eq!(fs::read_to_string(root.join("Downloads/Archive/Old/a.md")).unwrap(), "three");
@@ -1045,5 +1098,20 @@ mod tests {
         assert_eq!(safe_name("docs/Plain name.md"), "docs/Plain name.md");
         assert_eq!(safe_name("a/\"quoted\" <b>|c*.md"), "a/'quoted' bc.md");
         assert_eq!(safe_name("trailing./x"), "trailing/x");
+    }
+
+    #[test]
+    fn a_file_from_a_drive_never_lands_on_one_already_there() {
+        let (_d, ws) = setup();
+        ws.new_folder("", "In").unwrap();
+        assert_eq!(ws.add_file("In", "Plan.pdf", b"one").unwrap(), "In/Plan.pdf");
+        assert_eq!(ws.add_file("In", "Plan.pdf", b"two").unwrap(), "In/Plan 2.pdf");
+        assert_eq!(ws.add_file("", "README", b"x").unwrap(), "README");
+        assert_eq!(ws.read_file("In/Plan.pdf", 1024).unwrap(), b"one");
+        assert_eq!(ws.read_file("In/Plan 2.pdf", 1024).unwrap(), b"two");
+        assert!(ws.add_file("Nowhere", "a.txt", b"x").is_err());
+        assert!(ws.add_file("In", "../a.txt", b"x").is_err());
+        assert!(ws.read_file("In", 1024).unwrap_err().contains("not folders"));
+        assert!(ws.read_file("In/Plan.pdf", 2).unwrap_err().contains("bigger"));
     }
 }

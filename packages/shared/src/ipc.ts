@@ -205,7 +205,7 @@ export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
 export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
 export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
-export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
+export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio'; /** How long it plays, read from its header; null when unknown (WebM and MP3 for now). */ durationMs?: number | null }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
 export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[]; moves?: { from: string; to: string }[] }
@@ -236,6 +236,13 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
+/** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
+export interface DriveAccount { id: string; kind: 'webdav'; name: string; url: string; username: string }
+/** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
+export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null }
+/** `conflict` is true when the file changed on the server since it was read: nothing was written. */
+export interface DriveFailure { ok: false; message: string; conflict: boolean }
+export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
@@ -644,6 +651,26 @@ export interface MobiusBridge {
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
+  };
+  /** Drives: folders on the person's own servers, opened from Files. Each call goes to the server. Only the Tauri shell has it. */
+  drives?: {
+    list(): Promise<DriveAccount[] | DriveFailure>;
+    /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
+    add(drive: { name: string; server: string; username: string; password: string }): Promise<DriveAccount | DriveFailure>;
+    remove(id: string): Promise<{ ok: true } | DriveFailure>;
+    browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
+    read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
+    /** With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces one. */
+    write(id: string, path: string, content: { base64: string } | { text: string }, etag: string | null): Promise<{ ok: true; etag: string | null } | DriveFailure>;
+    mkdir(id: string, path: string): Promise<{ ok: true } | DriveFailure>;
+    /** Moves or renames; never replaces what is at `to`. */
+    move(id: string, from: string, to: string): Promise<{ ok: true } | DriveFailure>;
+    delete(id: string, path: string, etag: string | null): Promise<{ ok: true } | DriveFailure>;
+    /** Files: a copy of the drive's file in the workspace's `folder`, under a free name. Answers its workspace path. */
+    download?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    /** Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one there. */
+    upload?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    onChanged(listener: (change: DrivesChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {

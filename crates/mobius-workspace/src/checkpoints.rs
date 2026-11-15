@@ -91,9 +91,11 @@ impl Checkpoints {
         let started = std::time::Instant::now();
         let output = quiet(Command::new("git"))
             .args(["-c", "core.autocrlf=false", "-c", "core.safecrlf=false", "-c", "core.quotepath=false", "-c", "core.hooksPath=NUL", "-c", "gc.auto=0"])
-            // Finding what changed is most of a checkpoint: keep what was learnt about the folder's files between runs
-            // (untracked cache), and on Windows read each folder's file details at once rather than file by file.
-            .args(["-c", "core.untrackedCache=true", "-c", "core.fscache=true", "-c", "core.preloadIndex=true"])
+            // Every checkpoint looks at the files themselves. Git's shortcuts trust what Windows says about folders:
+            // the untracked cache skips a folder whose time hasn't moved, and fscache takes file details from the
+            // folder's listing, which NTFS updates late. Either can miss a file, and then the turn shows nothing to
+            // keep or discard (a new database was never seen: database.spec:27).
+            .args(["-c", "core.untrackedCache=false", "-c", "core.fscache=false", "-c", "core.preloadIndex=true"])
             .args(args)
             .env("GIT_DIR", &self.store)
             .env("GIT_WORK_TREE", folder)
@@ -278,13 +280,41 @@ impl Checkpoints {
         // Only what differs is written again: on a big folder, writing every file took most of a minute.
         let differ = self.git(&folder, &id, &["diff-tree", "-r", "--name-only", "--no-renames", "-z", &head, &target])?;
         let changed: Vec<&str> = differ.split('\0').filter(|p| !p.is_empty() && then_files.contains(*p)).collect();
-        for chunk in changed.chunks(200) {
-            let mut args = vec!["checkout-index", "-f", "--"];
-            args.extend(chunk.iter().copied());
-            self.git(&folder, &id, &args)?;
-        }
+        self.write_from_index(&folder, &id, &changed)?;
         emptied.extend(self.undo_moves(&folder, &id, &target, None));
         prune_empty(&folder, emptied);
+        Ok(())
+    }
+
+    /// Writes `paths` as the index has them, each through a temporary file renamed over the one there. Git itself
+    /// empties a file and then writes it, so an app reading it in that moment (Views after Discard, a file watcher)
+    /// found it empty or cut short; now a reader sees the old version or the new one.
+    fn write_from_index(&self, folder: &Path, id: &str, paths: &[&str]) -> Result<(), Error> {
+        for chunk in paths.chunks(200) {
+            let mut args = vec!["checkout-index", "--temp", "-z", "--"];
+            args.extend(chunk.iter().copied());
+            let out = self.git(folder, id, &args)?;
+            for entry in out.split('\0').filter(|e| !e.is_empty()) {
+                let Some((temp, path)) = entry.split_once('\t') else { continue };
+                let (from, to) = (folder.join(temp), folder.join(path));
+                if !is_inner_path(temp) || !is_inner_path(path) {
+                    let _ = std::fs::remove_file(&from);
+                    continue;
+                }
+                if let Some(parent) = to.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| Error::Git(e.to_string()))?;
+                }
+                if to.is_dir() {
+                    let _ = std::fs::remove_dir_all(&to);
+                }
+                if std::fs::rename(&from, &to).is_err() {
+                    // Windows will not replace a file another program holds open without sharing: write it in place.
+                    let copied = std::fs::copy(&from, &to);
+                    let _ = std::fs::remove_file(&from);
+                    copied.map_err(|e| Error::Git(format!("{path}: {e}")))?;
+                }
+            }
+        }
         Ok(())
     }
 
@@ -381,10 +411,11 @@ impl Checkpoints {
             }
         }
         for chunk in back.chunks(200) {
-            let mut args = vec!["checkout", target.as_str(), "--"];
+            let mut args = vec!["reset", "-q", target.as_str(), "--"];
             args.extend(chunk.iter().copied());
             self.git(&folder, &id, &args)?;
         }
+        self.write_from_index(&folder, &id, &back)?;
         if let Some(until) = moves_until {
             let until = self.known(&folder, &id, until)?;
             emptied.extend(self.undo_moves(&folder, &id, &target, Some(&until)));
@@ -714,6 +745,46 @@ mod tests {
         fs::remove_file(s.folder.join("b.md")).unwrap();
         s.cp.restore_file(&s.folder, &cp1.id, "b.md").unwrap();
         assert_eq!(read(&s.folder, "b.md").as_deref(), Some("b1"), "a deleted file comes back");
+    }
+
+    #[test]
+    fn a_file_put_back_is_never_seen_empty_or_half_written() {
+        let s = setup();
+        let long = "line of the view\n".repeat(20_000);
+        write(&s.folder, "views/Today.json", &long);
+        write(&s.folder, "b.md", "b1");
+        let before = s.cp.snapshot(&s.folder, "before").unwrap().unwrap();
+        write(&s.folder, "views/Today.json", "the agent's version");
+        write(&s.folder, "b.md", "b2");
+        s.cp.snapshot(&s.folder, "the agent's turn").unwrap();
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reader = {
+            let (file, stop) = (s.folder.join("views/Today.json"), stop.clone());
+            std::thread::spawn(move || {
+                let mut torn = 0;
+                while !stop.load(std::sync::atomic::Ordering::Relaxed) {
+                    if let Ok(text) = fs::read_to_string(&file) {
+                        torn += usize::from(text != "the agent's version" && text.len() != 340_000);
+                    }
+                }
+                torn
+            })
+        };
+        // The agent's writes are atomic too (as the file tools' are), so only a restore could tear a read.
+        let agent_writes = |text: &str| {
+            write(&s.folder, "views/.Today.tmp", text);
+            fs::rename(s.folder.join("views/.Today.tmp"), s.folder.join("views/Today.json")).unwrap();
+        };
+        for _ in 0..10 {
+            s.cp.restore_files(&s.folder, &before.id, &["views/Today.json".to_owned()], None).unwrap();
+            agent_writes("the agent's version");
+        }
+        s.cp.restore(&s.folder, &before.id).unwrap();
+        stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        assert_eq!(reader.join().unwrap(), 0, "every read saw a whole version");
+        assert_eq!((read(&s.folder, "views/Today.json").map(|t| t.len()), read(&s.folder, "b.md").as_deref()), (Some(340_000), Some("b1")));
+        let left: Vec<_> = fs::read_dir(&s.folder).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with(".merge_file")).collect();
+        assert!(left.is_empty(), "no temporary files are left: {left:?}");
     }
 
     #[test]

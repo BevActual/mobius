@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
+import { startWebDav, type WebDavFixture } from './webdav-fixture';
 
 let fixture: Fixture;
 let model: ModelFixture | undefined;
@@ -101,6 +102,28 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await made.getByRole('group', { name: "Mobius's change" }).getByRole('button', { name: 'Keep' }).click();
   await expect(made).toContainText('Nothing is waiting');
   expect(fs.readFileSync(path.join(userData, 'workspace', 'notes', 'Work', 'Brief.md'), 'utf8')).toContain('From Mobius.');
+});
+
+test('a file Mobius makes in the open folder shows dashed as the call lands, before the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the file is there.
+  await start([
+    callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n' }),
+    says(['I wrote ', 'a brief.'], 3000),
+  ]);
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).dblclick();
+  await page.getByRole('row', { name: 'Work', exact: true }).dblclick();
+  await expect(page.getByRole('row', { name: /^Plan\.md/ })).toBeVisible();
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Write a brief');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
+  await expect(log.locator('.msg.assistant')).not.toHaveText('I wrote a brief.');
+  await expect(log.locator('.msg.assistant')).toHaveText('I wrote a brief.', { timeout: 15_000 });
+  await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
 });
 
 test('a new folder is named in place, a file renamed with F2, and Delete moves it to the Trash with Undo', async () => {
@@ -221,4 +244,74 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
   await ask.getByRole('button', { name: 'Delete' }).click();
   await expect(trash).toContainText('The Trash is empty');
   expect(fs.readdirSync(path.join(userData, 'workspace', '.trash')).filter((n) => !n.startsWith('.'))).toEqual([]);
+});
+
+test('a drive on the person\'s own server: added from its address, browsed, and files copied both ways', async () => {
+  let dav: WebDavFixture | undefined;
+  try {
+    dav = await startWebDav('ana', 'app-pass');
+    dav.folders.add('Shared');
+    dav.files.set('Shared/Budget.csv', { body: Buffer.from('Item,Cost\nVenue,900\n'), version: 1 });
+    await start();
+    await openFiles();
+    const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+    await side.getByRole('button', { name: 'Add a drive' }).click();
+    const form = shell().getByRole('form', { name: 'New drive' });
+    // A wrong password is said plainly, and nothing is kept.
+    await form.getByRole('textbox', { name: 'Server address', exact: true }).fill(dav.origin);
+    await form.getByRole('textbox', { name: 'User name', exact: true }).fill('ana');
+    await form.getByLabel('App password', { exact: true }).fill('wrong');
+    await form.getByRole('textbox', { name: 'Name', exact: true }).fill('Home cloud');
+    await form.getByRole('button', { name: 'Add drive' }).click();
+    await expect(form.getByRole('alert')).toContainText('did not accept');
+    // The server's address alone is enough: Files finds Nextcloud's folder for the account.
+    await form.getByLabel('App password', { exact: true }).fill('app-pass');
+    await form.getByRole('button', { name: 'Add drive' }).click();
+    const drive = shell().getByRole('region', { name: 'Home cloud drive' });
+    await expect(drive.getByRole('row', { name: 'Shared', exact: true })).toBeVisible();
+    await expect(side.getByRole('button', { name: 'Home cloud', exact: true })).toHaveAttribute('aria-current', 'page');
+
+    // Browse into a folder, and drag its file out onto the workspace in the sidebar: a copy lands there.
+    await drive.getByRole('row', { name: 'Shared', exact: true }).dblclick();
+    await expect(title()).toHaveText('Shared');
+    const budget = drive.getByRole('row', { name: 'Budget.csv', exact: true });
+    await expect(budget).toContainText('CSV');
+    const workspaceRow = side.getByRole('button', { name: 'Workspace', exact: true });
+    let dataTransfer = await shell().evaluateHandle(() => new DataTransfer());
+    await budget.dispatchEvent('dragstart', { dataTransfer });
+    await workspaceRow.dispatchEvent('dragover', { dataTransfer });
+    await expect(workspaceRow).toHaveAttribute('data-drop', 'true');
+    await workspaceRow.dispatchEvent('drop', { dataTransfer });
+    await expect(shell().getByRole('status').filter({ hasText: 'Copied “Budget.csv” to Workspace' })).toBeVisible();
+    await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'Budget.csv'))).toBe(true);
+    expect(fs.readFileSync(path.join(userData, 'workspace', 'Budget.csv'), 'utf8')).toBe('Item,Cost\nVenue,900\n');
+
+    // A workspace file dragged onto the drive in the sidebar goes to the drive's top, never over one there.
+    await workspaceRow.click();
+    const files = shell().getByRole('region', { name: 'Files', exact: true });
+    await files.getByRole('row', { name: 'notes', exact: true }).dblclick();
+    await files.getByRole('row', { name: 'Work', exact: true }).dblclick();
+    const driveRow = side.getByRole('button', { name: 'Home cloud', exact: true });
+    dataTransfer = await shell().evaluateHandle(() => new DataTransfer());
+    await files.getByRole('row', { name: 'Plan.md', exact: true }).dispatchEvent('dragstart', { dataTransfer });
+    await driveRow.dispatchEvent('dragover', { dataTransfer });
+    await expect(driveRow).toHaveAttribute('data-drop', 'true');
+    await driveRow.dispatchEvent('drop', { dataTransfer });
+    await expect(shell().getByRole('status').filter({ hasText: 'Copied “Plan.md” to Home cloud' })).toBeVisible();
+    await expect.poll(() => dav!.files.get('Plan.md')?.body.toString()).toBe('# Plan\n');
+    expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'))).toBe(true);
+
+    // Someone changes the file on the server after Files listed it: Delete is refused, said plainly, and nothing is lost.
+    await driveRow.click();
+    await drive.getByRole('row', { name: 'Shared', exact: true }).dblclick();
+    await expect(budget).toBeVisible();
+    dav.touch('Shared/Budget.csv', 'Item,Cost\nVenue,950\n');
+    await budget.click();
+    await budget.press('Delete');
+    await shell().getByRole('alertdialog').getByRole('button', { name: 'Delete' }).click();
+    await expect(drive.getByRole('alert')).toContainText('changed on the server since Files listed it, so nothing was changed');
+    expect(dav.files.get('Shared/Budget.csv')?.body.toString()).toBe('Item,Cost\nVenue,950\n');
+  } finally {
+    await dav?.close();
+  }
 });
