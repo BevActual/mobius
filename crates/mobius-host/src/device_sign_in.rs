@@ -327,9 +327,17 @@ mod tests {
                 let Ok(mut stream) = stream else { continue };
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
                 let mut line = String::new();
+                let mut length = 0usize;
                 while reader.read_line(&mut line).is_ok_and(|n| n > 2) {
+                    if let Some(v) = line.to_ascii_lowercase().strip_prefix("content-length:") {
+                        length = v.trim().parse().unwrap_or(0);
+                    }
                     line.clear();
                 }
+                // The request's body is read too: closing with it unread resets the connection, and the client then
+                // sees a reset instead of the reply (main, 15 November).
+                let mut body = vec![0; length];
+                let _ = reader.read_exact(&mut body);
                 let reply = r#"{"device_code":"d","user_code":"C","verification_uri":"https://evil.example/device"}"#;
                 let _ = write!(stream, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{reply}", reply.len());
             }
