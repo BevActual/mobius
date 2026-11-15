@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+
+describe('Plan my day reads before the model is asked', () => {
+  it('reads the clock first, so the day is planned from now', () => {
+    const reads = planMyDayReads(new Date(2026, 10, 15, 17, 14));
+    expect(reads.map((r) => r.tool)).toEqual(['clock.now', 'tasks.list', 'calendar.list', 'mail.search']);
+    expect(reads[2]!.arguments).toEqual({ from: '2026-11-15', to: '2026-11-15' });
+  });
+});
 
 describe('what each app suggests', () => {
   it('offers page suggestions in the browser only when a page is showing, and they attach the page', () => {
