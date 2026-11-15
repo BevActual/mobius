@@ -640,9 +640,11 @@ fn main() {
                 // are off (Windows Settings, Personalization, Colors), as prefers-reduced-transparency may not say. And the
                 // regional format, which dates and times follow (the web view knows only the display language).
                 .initialization_script(format!(
-                    "window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {}, locale: {} }};",
+                    "window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {}, locale: {}, space: {} }};",
                     transparency_off(),
-                    serde_json::to_string(&mobius_host::bridge::system_locale()).unwrap_or_else(|_| "null".to_owned())
+                    serde_json::to_string(&mobius_host::bridge::system_locale()).unwrap_or_else(|_| "null".to_owned()),
+                    // Which set of data is open, so the window keeps its view state apart for each profile.
+                    serde_json::to_string(&profiles::space_id(&data_dir)).unwrap_or_else(|_| "null".to_owned())
                 ));
             #[cfg(windows)]
             let interface_view = match webview2_args() { Some(args) => interface_view.additional_browser_args(&args), None => interface_view };
