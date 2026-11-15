@@ -8,7 +8,7 @@ import { APPS } from './apps';
 import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
-import { unsureClaims, withoutMarks } from './markdown';
+import { unsureClaims, withoutMarks, withoutToolTags } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
 import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type AnswerFor, type EffortChoice, FOR_THIS_QUESTION, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
@@ -794,7 +794,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
                   <ClaimChecks.Provider value={{ checked: checkedClaims[item.id] ?? new Set(), check: (key) => setCheckedClaims((cur) => ({ ...cur, [item.id]: new Set([...(cur[item.id] ?? []), key]) })) }}>
-                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={withoutToolTags(item.text)} /></div>
                   </ClaimChecks.Provider>
                   {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on <AppLinks names={from} onOpenItem={onOpenItem} /></p> : null; })()}
                   {!item.streaming && item.text !== '' && onOpenMail && !state.busy && index === state.items.findLastIndex((i) => i.kind === 'assistant') && replySources(state.items, index).includes('Mail') && <MailSources conversation={state.conversation} version={state.items.length} onOpen={onOpenMail} />}

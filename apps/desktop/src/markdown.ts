@@ -172,7 +172,17 @@ export function plainText(nodes: Inline[]): string {
 
 const CLAIM = /\[([^\]\n]+)\]\(trust:(yours|web|unsure)(?:\s+"([^"\n]*)")?\)/g;
 /** A reply's Markdown with its trust marks taken out, for copying: claims keep their words and lose their marks. */
-export const withoutMarks = (markdown: string) => markdown.replace(CLAIM, '$1');
+export const withoutMarks = (markdown: string) => withoutToolTags(markdown).replace(CLAIM, '$1');
+
+// A tool call the model began writing as text instead of making it (round 20 showed "<mcpmobiusmail-draft>" on its own
+// line): the call never ran, so its tags, and what sits between a pair of them, are not part of the reply.
+const TOOL_TAG = String.raw`(?:mcp[\w:-]*|function_calls|invoke|parameter|tool_use|tool_call|antml:[\w-]+)`;
+const TOOL_BLOCK = new RegExp(String.raw`^[ \t]*<(${TOOL_TAG})(?:\s[^<>]*)?>[\s\S]*?</\1>[ \t]*(?:\r?\n|$)`, 'gim');
+const TOOL_LINE = new RegExp(String.raw`^[ \t]*</?${TOOL_TAG}(?:\s[^<>]*)?/?>[ \t]*(?:\r?\n|$)`, 'gim');
+
+/** The reply without tool-call tags the model wrote as text; the rest of it is left as written. */
+export const withoutToolTags = (text: string): string => (text.includes('<') ? text.replace(TOOL_BLOCK, '').replace(TOOL_LINE, '').replace(/\n{3,}/g, '\n\n') : text);
+
 /** The facts a reply marks as not sure, each by its words and why: these are checked before the reply leaves Mobius. */
 export const unsureClaims = (markdown: string): string[] => [...markdown.matchAll(CLAIM)].filter((m) => m[2] === 'unsure').map((m) => claimKey(m[1]!, m[3] ?? ''));
 export const claimKey = (words: string, source: string) => `${words}\u0000${source}`;
