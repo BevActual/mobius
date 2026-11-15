@@ -123,6 +123,9 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'drives.move': return `move ${s('from') ? quote(s('from')) : 'something'} to ${s('to') ? quote(s('to')) : 'another place'} ${onDrive()}`;
     case 'drives.delete': return `delete ${s('path') ? quote(s('path')) : 'something'} ${onDrive()}`;
     case 'video.clips': return s('project') ? `see the clips in the Video project ${quote(s('project'))}` : 'see your Video projects and clips';
+    // The design by its name, not its path ("designs/Charging.design" reads "Charging").
+    case 'design.edit': { const n = (s('design').split('/').pop() ?? '').replace(/\.[^.]+$/, ''); return n ? `change the design ${quote(n)}` : 'change a design'; }
+    case 'photos.edit': { const n = Array.isArray(a.photos) ? a.photos.length : 0; return `change the look of ${n === 1 ? 'a photo' : n > 1 ? `${n} photos` : 'photos'}${s('album') ? ` in ${quote(s('album'))}` : ''}`; }
     case 'skills.list': return 'see your skills';
     case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
     default: return null;
