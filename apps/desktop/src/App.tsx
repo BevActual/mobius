@@ -248,12 +248,15 @@ export function App() {
   panesNow.current = { panes, focused };
   // Whether Mobius opened the second pane itself, beside the conversation, rather than the person choosing a split.
   const splitByMobius = useRef(loadByMobius(panes));
+  // Set while follow-along opens what Mobius just worked on in the pane beside the conversation: that is Mobius's split
+  // carrying on, not the person leaving it.
+  const following = useRef(false);
   /** Open an app in the focused pane. If the other pane already shows it, go there instead. */
   const setApp = useCallback((id: AppId) => {
     const { panes: [a, b], focused: f } = panesNow.current;
     if (b !== null && (f === 0 ? b : a) === id) { setFocused(f === 0 ? 1 : 0); return; }
     // Leaving a split Mobius opened beside the conversation goes to the app alone, with Mobius in its panel again.
-    if (leavesSplit([a, b], splitByMobius.current, id)) {
+    if (!following.current && leavesSplit([a, b], splitByMobius.current, id)) {
       splitByMobius.current = false;
       saveByMobius(false);
       setPanes([id, null]);
@@ -858,7 +861,8 @@ export function App() {
     if (!follow || !target) return;
     const chat: 0 | 1 = follow.pane === 0 ? 1 : 0;
     panesNow.current = { panes, focused: follow.pane };
-    openTargetNow.current(target);
+    following.current = true;
+    try { openTargetNow.current(target); } finally { following.current = false; }
     panesNow.current = { panes: panesNow.current.panes, focused: chat };
     setFocused(chat);
   }, [conversation.state.items]); // eslint-disable-line react-hooks/exhaustive-deps

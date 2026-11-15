@@ -898,6 +898,18 @@ fn a_turn_that_ends_in_changes_is_done_once_they_are_all_made_with_no_closing_ro
 }
 
 #[test]
+fn a_turn_that_ends_in_changes_asks_for_a_reply_when_the_changes_came_with_nothing_written() {
+    // Triage on round 14: five changes, no words, and the turn ended with no message at all.
+    let mut w = reading_world();
+    allow_always(&mut w, "demo.echo");
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", "demo.echo", json!({ "text": "a" }))]), text("Reply to two, archive the rest.")]);
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "triage", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 2, "the model is asked once more, for the words");
+    assert!(turn.is_finished());
+}
+
+#[test]
 fn a_turn_that_ends_in_changes_still_asks_again_after_a_failure_a_read_or_a_plan() {
     for (round, why) in [
         (vec![call("c1", "demo.echo", json!({})), call("f1", "demo.fail", json!({}))], "a call failed"),
