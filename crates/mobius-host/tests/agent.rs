@@ -362,7 +362,7 @@ fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused
     s.service.send(&plain, None);
     let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
     assert!(last["params"].get("reads").is_none() && last["params"].get("finish").is_none());
-    assert_eq!(sends[0]["finish"], json!(true), "Triage ends in its changes");
+    assert!(sends[0].get("finish").is_none(), "Triage writes its lines after its changes, so it is asked again");
     let finishing = parse_send(&json!({ "conversation": "c-4", "text": "plan my day", "finish": true })).unwrap();
     s.service.send(&finishing, None);
     let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
