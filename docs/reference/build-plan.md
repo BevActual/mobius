@@ -208,6 +208,8 @@ their first round comes up, with the answer added here.
   to land.
 - **Unstable tests come before features.** A test with three sightings in [testing](../developers/testing.md) is a
   blocker for its owner: nothing else of theirs starts until it is fixed, or has a named cause and a date.
+- **The author tells the Builder when a pull request is opened,** and the Builder subscribes to it, so a green run
+  wakes the Builder.
 - **A stall is raised, not waited out.** A lead blocked for more than one round on another lead says so to the
   orchestrator, who reorders the queues above.
 
