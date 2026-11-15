@@ -860,16 +860,27 @@ impl Bridge {
         self.core.stop_shared();
         // A checkpoint still being taken would write into the folder while it is emptied.
         wait_for_marks(&self.marking);
+        // A few passes: a folder emptied while something still finishes writing into it (a store saving as it stops,
+        // or on Windows a file held a moment by a scanner) fails once and goes on the next pass.
         let mut failures = 0;
         let mut removed = 0;
-        if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
-                match result {
-                    Ok(()) => removed += 1,
-                    Err(_) => failures += 1,
+        for pass in 0..5 {
+            if pass > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            failures = 0;
+            if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
+                    match result {
+                        Ok(()) => removed += 1,
+                        Err(_) => failures += 1,
+                    }
                 }
+            }
+            if failures == 0 {
+                break;
             }
         }
         if let Some(quit) = self.quit.get() {
