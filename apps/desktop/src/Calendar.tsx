@@ -175,8 +175,11 @@ function asShown(s: CalendarSuggestion): Shown {
   return { id: `suggested:${s.id}`, calendar: s.calendar, title: s.title, start: s.start, end, allDay: s.allDay, location: s.location, notes: s.notes, repeats: false, suggestion: s };
 }
 
-/** Everything to draw: the events, then Mobius's suggestions. */
-const onScreen = (calendar: CalendarState): Shown[] => [...calendar.events, ...calendar.suggestions.filter((s) => !calendar.hidden.has(s.calendar)).map(asShown)];
+/**
+ * Everything to draw: the events, then Mobius's suggestions. A suggestion shows even when its calendar is hidden: it
+ * waits for an answer, and the sidebar counts it, so a hidden one would be counted but nowhere to be found.
+ */
+const onScreen = (calendar: CalendarState): Shown[] => [...calendar.events, ...calendar.suggestions.map(asShown)];
 /** One time of an event: a repeating event's times share its id. */
 const keyOf = (e: CalendarEvent) => `${e.id}:${e.start}`;
 /** Whether an event can be dragged: not a suggestion, and not from a calendar that can only be read. */
