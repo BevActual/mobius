@@ -1,4 +1,5 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { cableEnd, type Device } from './device-format';
 import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
 /**
@@ -195,49 +196,104 @@ function impulse(ctx: BaseAudioContext, size: number, damp: number): AudioBuffer
 }
 
 /**
- * A track's effects, in order, from `input` to the returned output. An effect switched off is left out. The delay's
- * echoes are timed to the song's beat.
+ * A track's effects, in order, from `input` to the returned output. An effect switched off is left out. Each one is a
+ * device: the four built-in effects as their built-in devices, a song's own as written. `lfos` gathers the devices'
+ * moving waves, so a strip that is replaced can stop them.
  */
-export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonly Effect[], secondsPerBeat: number): AudioNode {
+export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonly Effect[], secondsPerBeat: number, lfos: OscillatorNode[] = []): AudioNode {
   let at: AudioNode = input;
   for (const e of fx) {
     if (!e.on) continue;
-    if (e.kind === 'eq') {
-      const low = ctx.createBiquadFilter(); low.type = 'lowshelf'; low.frequency.value = e.lowFreq; low.gain.value = e.low;
-      const mid = ctx.createBiquadFilter(); mid.type = 'peaking'; mid.frequency.value = e.midFreq; mid.Q.value = e.midQ; mid.gain.value = e.mid;
-      const high = ctx.createBiquadFilter(); high.type = 'highshelf'; high.frequency.value = e.highFreq; high.gain.value = e.high;
-      at.connect(low); low.connect(mid); mid.connect(high); at = high;
-    } else if (e.kind === 'compressor') {
-      const comp = ctx.createDynamicsCompressor();
-      comp.threshold.value = e.threshold; comp.ratio.value = e.ratio; comp.attack.value = e.attack; comp.release.value = e.release; comp.knee.value = 6;
-      const makeup = ctx.createGain(); makeup.gain.value = 10 ** (e.makeup / 20);
-      at.connect(comp); comp.connect(makeup); at = makeup;
-    } else {
-      // Delay and reverb: the dry sound goes straight on, the wet one is blended in by `mix`.
-      const out = ctx.createGain();
-      const dry = ctx.createGain(); dry.gain.value = 1 - e.mix * 0.5;
-      const wet = ctx.createGain(); wet.gain.value = e.mix;
-      at.connect(dry); dry.connect(out);
-      if (e.kind === 'delay') {
-        const delay = ctx.createDelay(4); delay.delayTime.value = Math.min(4, e.time * secondsPerBeat);
-        const back = ctx.createGain(); back.gain.value = e.feedback;
-        at.connect(delay); delay.connect(back); back.connect(delay); delay.connect(wet);
-      } else {
-        const room = ctx.createConvolver(); room.buffer = impulse(ctx, e.size, e.damp);
-        at.connect(room); room.connect(wet);
-      }
-      wet.connect(out);
-      at = out;
-    }
+    at = e.kind === 'device' ? deviceGraph(ctx, at, e.device, secondsPerBeat, lfos, true) : deviceGraph(ctx, at, builtinDevice(e), secondsPerBeat, lfos, false);
   }
   return at;
 }
 
+/** A gentle ceiling: unchanged up to 0.8, then rounding off towards 1, so a wild patch can't hurt ears or speakers. */
+let limitCurve: Float32Array | null = null;
+function softLimit(): Float32Array {
+  if (limitCurve) return limitCurve;
+  const n = 2049, curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x);
+    const y = a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2);
+    curve[i] = Math.sign(x) * y;
+  }
+  return (limitCurve = curve);
+}
+
+/**
+ * A device's parts and cables as Web Audio nodes, from `input` (its input part) to the returned node (its output
+ * part). A cable to a setting adds what comes down it to that setting, in the units it is heard in (a filter's cutoff
+ * in Hz, a delay's time in seconds). With `limit`, the device's sound passes a soft limiter on its way out.
+ */
+export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Device, secondsPerBeat: number, lfos: OscillatorNode[] = [], limit = true): AudioNode {
+  const nodes = new Map<string, { in: Record<string, AudioNode>; out: AudioNode | null; params: Record<string, AudioParam> }>();
+  for (const part of device.parts) {
+    const n = (v: string | number | undefined) => (typeof v === 'number' ? v : 0);
+    switch (part.kind) {
+      case 'input': nodes.set(part.id, { in: {}, out: input, params: {} }); break;
+      case 'output': { const g = ctx.createGain(); nodes.set(part.id, { in: { in: g }, out: g, params: {} }); break; }
+      case 'gain': { const g = ctx.createGain(); g.gain.value = n(part.gain); nodes.set(part.id, { in: { in: g }, out: g, params: { gain: g.gain } }); break; }
+      case 'filter': {
+        const f = ctx.createBiquadFilter(); f.type = part.type as BiquadFilterType; f.frequency.value = n(part.cutoff); f.gain.value = n(part.gain);
+        // A shelf has no resonance (Web Audio ignores its Q), so it is left alone there, as the built-in EQ always has.
+        if (part.type !== 'lowshelf' && part.type !== 'highshelf') f.Q.value = n(part.resonance);
+        nodes.set(part.id, { in: { in: f }, out: f, params: { cutoff: f.frequency, resonance: f.Q, gain: f.gain } });
+        break;
+      }
+      case 'delay': { const d = ctx.createDelay(4); d.delayTime.value = Math.min(4, n(part.time) * secondsPerBeat); nodes.set(part.id, { in: { in: d }, out: d, params: { time: d.delayTime } }); break; }
+      case 'lfo': {
+        const osc = ctx.createOscillator(); osc.type = part.shape as OscillatorType; osc.frequency.value = n(part.rate);
+        const depth = ctx.createGain(); depth.gain.value = n(part.depth);
+        osc.connect(depth); osc.start(); lfos.push(osc);
+        nodes.set(part.id, { in: {}, out: depth, params: {} });
+        break;
+      }
+      case 'drive': { const w = ctx.createWaveShaper(); w.curve = driveCurve(n(part.amount)) as Float32Array<ArrayBuffer>; w.oversample = '2x'; nodes.set(part.id, { in: { in: w }, out: w, params: {} }); break; }
+      case 'compressor': {
+        const c = ctx.createDynamicsCompressor();
+        c.threshold.value = n(part.threshold); c.ratio.value = n(part.ratio); c.attack.value = n(part.attack); c.release.value = n(part.release); c.knee.value = n(part.knee);
+        nodes.set(part.id, { in: { in: c }, out: c, params: {} });
+        break;
+      }
+      case 'reverb': { const r = ctx.createConvolver(); r.buffer = impulse(ctx, n(part.size), n(part.damp)); nodes.set(part.id, { in: { in: r }, out: r, params: {} }); break; }
+      case 'pan': { const p = ctx.createStereoPanner(); p.pan.value = n(part.pan); nodes.set(part.id, { in: { in: p }, out: p, params: { pan: p.pan } }); break; }
+      case 'mix': {
+        const out = ctx.createGain();
+        const dry = ctx.createGain(); dry.gain.value = 1 - n(part.amount) * 0.5;
+        const wet = ctx.createGain(); wet.gain.value = n(part.amount);
+        dry.connect(out); wet.connect(out);
+        nodes.set(part.id, { in: { dry, wet }, out, params: {} });
+        break;
+      }
+    }
+  }
+  const parts = new Map(device.parts.map((p) => [p.id, p]));
+  // With one cable into the output, the sound leaves straight from that part, with no extra node on the way.
+  const outPart = device.parts.find((p) => p.kind === 'output');
+  const intoOut = device.cables.filter(([, to]) => to === outPart?.id);
+  const direct = intoOut.length === 1 ? nodes.get(intoOut[0]![0])?.out ?? null : null;
+  for (const [from, to] of device.cables) {
+    if (direct && to === outPart?.id) continue;
+    const src = nodes.get(from)?.out;
+    const end = cableEnd(to, parts);
+    if (!src || typeof end === 'string') continue;
+    const target = nodes.get(end.part);
+    if ('param' in end) { const param = target?.params[end.param]; if (param) src.connect(param); } else { const node = target?.in[end.port]; if (node) src.connect(node); }
+  }
+  const last = direct ?? (outPart && intoOut.length > 0 ? nodes.get(outPart.id)?.out : null) ?? input;
+  if (!limit) return last;
+  const ceiling = ctx.createWaveShaper(); ceiling.curve = softLimit() as Float32Array<ArrayBuffer>;
+  last.connect(ceiling);
+  return ceiling;
+}
+
 /** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
-function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number): AudioNode {
+function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number, lfos: OscillatorNode[] = []): AudioNode {
   const input = ctx.createGain();
   input.gain.value = t.volume;
-  let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat);
+  let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat, lfos);
   if (t.pan) {
     const pan = ctx.createStereoPanner();
     pan.pan.value = t.pan;
@@ -344,11 +400,17 @@ export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? []]);
  * or effects makes a new one (the old one lets what it is playing ring out); a change of volume moves its fader.
  */
 function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): (t: Track) => AudioNode {
-  const strips = new Map<string, { key: string; volume: number; out: AudioNode }>();
+  const strips = new Map<string, { key: string; volume: number; out: AudioNode; lfos: OscillatorNode[] }>();
   return (t) => {
     const key = stripKey(t);
     let s = strips.get(t.id);
-    if (!s || s.key !== key) { s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb) }; strips.set(t.id, s); }
+    if (!s || s.key !== key) {
+      // The old strip rings out; its devices' waves stop once that has had time to fade.
+      for (const o of s?.lfos ?? []) o.stop(ctx.currentTime + 10);
+      const lfos: OscillatorNode[] = [];
+      s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb, lfos), lfos };
+      strips.set(t.id, s);
+    }
     if (s.volume !== t.volume && s.out instanceof GainNode && !t.volumeAuto?.length) s.out.gain.setTargetAtTime(t.volume, ctx.currentTime, 0.02);
     s.volume = t.volume;
     return s.out;

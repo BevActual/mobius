@@ -290,6 +290,45 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect(device.getByRole('region', { name: 'Oscillator' })).toBeVisible();
 });
 
+test('a song’s own device plays on the track with the knobs its file names, kept in the song', async () => {
+  const TONE = { name: 'Dark Echo', about: 'Echoes that get darker each time round', parts: [
+    { id: 'in', kind: 'input' }, { id: 'echo', kind: 'delay', time: 0.75 }, { id: 'tone', kind: 'filter', type: 'lowpass', cutoff: 3000 },
+    { id: 'back', kind: 'gain', gain: 0.45 }, { id: 'mix', kind: 'mix', amount: 0.35 }, { id: 'out', kind: 'output' },
+  ], cables: [['in', 'mix.dry'], ['in', 'echo'], ['echo', 'tone'], ['tone', 'back'], ['back', 'echo'], ['tone', 'mix.wet'], ['mix', 'out']],
+  controls: [{ label: 'Tone', part: 'tone', param: 'cutoff' }, { label: 'Repeats', part: 'back', param: 'gain', max: 0.9 }] };
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ ...SONG.tracks[0], fx: [{ id: 'fx1', kind: 'device', on: true, device: TONE }] }] }));
+  await start();
+  const device = await openDevice('Keys');
+  // It sits in the chain like the built-in effects, with its own name, what it is for, and its controls as knobs.
+  await expect(device.getByText('Echoes that get darker each time round')).toBeVisible();
+  const tone = device.getByRole('slider', { name: 'Tone' });
+  await expect(tone).toHaveAttribute('aria-valuetext', '3.0 kHz');
+  await tone.focus();
+  await shell().keyboard.press('ArrowLeft');
+  const cutoff = () => (saved().tracks[0] as { fx?: { device: { parts: { id: string; cutoff?: number }[] } }[] }).fx?.[0]?.device.parts.find((p) => p.id === 'tone')?.cutoff ?? 3000;
+  await expect.poll(cutoff).toBeLessThan(3000);
+  // It plays: the song starts and stops with the device on the track.
+  await shell().getByRole('button', { name: 'Play' }).click();
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
+  await shell().getByRole('button', { name: 'Stop' }).click();
+  await device.getByRole('switch', { name: 'Dark Echo on' }).click();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { on: boolean }[] }).fx?.[0]?.on).toBe(false);
+});
+
+test('a song with a device that breaks a rule says which, and is left as it is', async () => {
+  const text = JSON.stringify({ ...SONG, tracks: [{ ...SONG.tracks[0], fx: [{ id: 'fx1', kind: 'device', device: { name: 'Loop', parts: [{ id: 'in', kind: 'input' }, { id: 'a', kind: 'gain' }, { id: 'b', kind: 'gain' }, { id: 'out', kind: 'output' }], cables: [['in', 'a'], ['a', 'b'], ['b', 'a'], ['b', 'out']] } }] }] });
+  fs.writeFileSync(file(), text);
+  model = await startModel([]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
+  await shell().keyboard.press('Enter');
+  await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
+  await expect(shell().getByText(/Track “Keys”, effect fx1: Loop has a loop with no delay in it \(a → b → a\)/)).toBeVisible();
+  expect(fs.readFileSync(file(), 'utf8')).toBe(text);
+});
+
 test('a drum kit has a pad per drum with its own settings, and its notes can be written as steps', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ id: 't1', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [{ pitch: 36, start: 0, length: 0.25, velocity: 0.8 }] }] }));
   await start([], 'Drums');

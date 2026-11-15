@@ -191,6 +191,7 @@
 .studio-fx-chain .ui-device { width: calc(var(--sp-8) * 8); }
 .studio-fx-chain .studio-fx-eq { width: calc(var(--sp-8) * 12); }
 .studio-fx-body { display: grid; gap: var(--sp-3); }
+.studio-fx-about { margin: 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.4; }
 .studio-fx-chain > .ui-button { flex: none; }
 .studio-steps { flex: 1; min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: var(--sp-2) var(--sp-3); }
 .studio-steps > .studio-steps-hint { flex: none; margin: 0 0 var(--sp-2); }

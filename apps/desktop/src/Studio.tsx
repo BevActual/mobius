@@ -2,11 +2,12 @@ import { createPortal } from 'react-dom';
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
+import { controlRange, controlValue } from './device-format';
 import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
-import { GRIDS, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -212,6 +213,7 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed 
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
 }) {
+  if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} onChange={onChange} onRemove={onRemove} folded={folded} onFold={onFold} proposed={proposed} />;
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
@@ -235,6 +237,33 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed 
           return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>}
+      </div>
+    </DeviceFrame>
+  );
+}
+
+/** A song's own device on the track: its name, what it is for, and the knobs its file names as controls. */
+function DeviceBlock({ effect, at, onChange, onRemove, folded, onFold, proposed }: {
+  effect: Extract<Effect, { kind: 'device' }>; at: number; proposed?: ReadonlySet<string>;
+  folded: boolean; onFold: (folded: boolean) => void;
+  onChange: (fn: (e: Effect) => void, tag?: string) => void;
+  onRemove: () => void;
+}) {
+  const { device } = effect;
+  return (
+    <DeviceFrame className="studio-fx studio-fx-device" title={device.name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
+      actions={<IconButton label={`Remove ${device.name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      <div className="studio-fx-body">
+        {device.about && <p className="studio-fx-about">{device.about}</p>}
+        {device.controls.length > 0 && <ParamGrid label={`${device.name} controls`} columns={4}>
+          {device.controls.map((c) => {
+            const r = controlRange(device, c);
+            if (!r) return null;
+            const key = `${c.part}.${c.param}`;
+            return <Knob key={key} label={c.label} value={controlValue(device, c)} min={r.lo} max={r.hi} step={(r.hi - r.lo) / 200} scale={r.unit === 'Hz' ? 'log' : 'linear'} reset={r.start} format={(v) => deviceSettingText(r, v)} proposed={proposed?.has(`fx:${effect.id}:${key}`)}
+              onChange={(v) => onChange((e) => { if (e.kind !== 'device') return; const part = e.device.parts.find((p) => p.id === c.part); if (part) part[c.param] = v; }, `fx:${key}`)} />;
+          })}
+        </ParamGrid>}
       </div>
     </DeviceFrame>
   );
