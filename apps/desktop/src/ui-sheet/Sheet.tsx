@@ -192,11 +192,12 @@ function PatchDemo() {
     { id: 'c4', from: { box: 'chorus', port: 'out' }, to: { box: 'mix', port: 'wet' }, proposed: true },
     { id: 'c5', from: { box: 'mix', port: 'out' }, to: { box: 'outp', port: 'in' } },
     { id: 'c6', from: { box: 'lfo', port: 'out' }, to: { box: 'filter', param: 'cutoff' } },
+    { id: 'c7', from: { box: 'mix', port: 'out' }, to: { box: 'chorus', port: 'in' } }, // Feedback: loops back under the boxes.
   ]);
   const [at, setAt] = useState(() => layoutFlow(parts, cables, { column: 200, height: (b) => (['lfo', 'filter', 'mix'].includes(b.id) ? 136 : 72) }));
   const [selected, setSelected] = useState<PatchSelection>({ kind: 'box', id: 'filter' });
   const levels = useRef<PatchLevels>(null);
-  useEffect(() => { [['c1', -10], ['c2', -10], ['c3', -16], ['c4', -18], ['c5', -6], ['c6', -40]].forEach(([id, db]) => levels.current?.set(id as string, db as number)); });
+  useEffect(() => { [['c1', -10], ['c2', -10], ['c3', -16], ['c4', -18], ['c5', -6], ['c6', -40], ['c7', -30]].forEach(([id, db]) => levels.current?.set(id as string, db as number)); });
   return (
     <PatchCanvas
       label="Wobble bass device" boxes={parts.map((p) => ({ ...p, ...at[p.id]! }))} cables={cables} levels={levels}
@@ -616,7 +617,7 @@ export function Sheet() {
         <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
           <MixerDemo />
         </Card>
-        <Card title="Patch canvas (Music's Workbench: a device's parts and cables). Mobius proposed the Chorus and its cables" shot="patch" wide>
+        <Card title="Patch canvas (Music's Workbench: a device's parts and cables). Mobius proposed the Chorus and its cables; the feedback loops under" shot="patch" wide>
           <PatchDemo />
         </Card>
         <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
