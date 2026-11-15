@@ -347,3 +347,66 @@ test('a workspace folder synced with a drive: both ways, a sign-in that stopped 
     await dav.close();
   }
 });
+
+test('Files pairs a folder with a drive, says how its sync stands, pauses, signs in again and stops', async () => {
+  const dav = await startWebDav('ana', 'app-pass');
+  try {
+    await start();
+    await openFiles();
+    const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+    await side.getByRole('button', { name: 'Add a drive' }).click();
+    const form = shell().getByRole('form', { name: 'New drive' });
+    await form.getByRole('textbox', { name: 'Server address', exact: true }).fill(dav.origin);
+    await form.getByRole('textbox', { name: 'User name', exact: true }).fill('ana');
+    await form.getByLabel('App password', { exact: true }).fill('app-pass');
+    await form.getByRole('textbox', { name: 'Name', exact: true }).fill('Cloud');
+    await form.getByRole('button', { name: 'Add drive' }).click();
+    await expect(shell().getByRole('region', { name: 'Cloud drive' })).toBeVisible();
+
+    // Sync is off until the person pairs a folder: right-click it, Sync with a Drive…, Start syncing.
+    await side.getByRole('button', { name: 'Workspace', exact: true }).click();
+    const files = shell().getByRole('region', { name: 'Files', exact: true });
+    await files.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+    await shell().getByRole('menuitem', { name: 'Sync with a Drive…' }).click();
+    const dialog = shell().getByRole('dialog', { name: 'Sync Notes with a drive' });
+    await expect(dialog.getByRole('textbox', { name: 'Folder on the drive' })).toHaveValue('Notes');
+    await dialog.getByRole('button', { name: 'Start syncing' }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect.poll(() => dav.files.get('Notes/Work/Plan.md')?.body.toString('utf8'), { timeout: 20_000 }).toBe('# Plan\n');
+
+    // The synced folder wears the glyph, and its page says how it stands in the line under the title.
+    await expect(side.getByRole('img', { name: /^Synced with Cloud/ })).toBeVisible();
+    await files.getByRole('row', { name: 'notes', exact: true }).dblclick();
+    const line = shell().locator('.sync-sub');
+    await expect(line).toContainText('Up to date', { timeout: 20_000 });
+    await tools().getByRole('button', { name: 'Pause syncing' }).click();
+    await expect(line).toContainText('Paused');
+    await tools().getByRole('button', { name: 'Resume syncing' }).click();
+    await expect(line).toContainText('Up to date', { timeout: 20_000 });
+
+    // The server stops taking the password: the line says so, and its link signs in again; what waited comes in.
+    dav.setPassword('new-pass');
+    dav.touch('Notes/Work/Later.md', 'later');
+    const signIn = line.getByRole('button', { name: 'Sign in to Cloud again' });
+    await expect(signIn).toBeVisible({ timeout: 20_000 });
+    await expect(side.getByRole('img', { name: /^Synced with Cloud: Sign in/ })).toBeVisible();
+    await signIn.click();
+    const again = shell().getByRole('dialog', { name: 'Sign in to Cloud again' });
+    await again.getByLabel('App password', { exact: true }).fill('new-pass');
+    await again.getByRole('button', { name: 'Sign in' }).click();
+    await expect(again).toHaveCount(0);
+    await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Later.md')), { timeout: 20_000 }).toBe(true);
+    await expect(line).toContainText('Up to date', { timeout: 20_000 });
+
+    // Stop syncing asks first, and changes no files on either side.
+    await side.getByRole('button', { name: 'Workspace', exact: true }).click();
+    await files.getByRole('row', { name: 'notes', exact: true }).click({ button: 'right' });
+    await shell().getByRole('menuitem', { name: 'Stop Syncing…' }).click();
+    await shell().getByRole('alertdialog').getByRole('button', { name: 'Stop syncing' }).click();
+    await expect(side.getByRole('img', { name: /^Synced with Cloud/ })).toHaveCount(0);
+    expect(dav.files.get('Notes/Work/Plan.md')?.body.toString('utf8')).toBe('# Plan\n');
+    expect(fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md'))).toBe(true);
+  } finally {
+    await dav.close();
+  }
+});
