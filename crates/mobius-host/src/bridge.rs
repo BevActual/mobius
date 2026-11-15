@@ -3671,7 +3671,13 @@ impl Bridge {
                         let (conversation, text) = (r.conversation.clone(), r.text.clone());
                         std::thread::spawn(move || {
                             let started = std::time::Instant::now();
-                            let marked = workspace.mark("before the agent's turn");
+                            let mut marked = workspace.mark("before the agent's turn");
+                            // Nothing changed since this conversation's last turn began (it changed no files): this turn
+                            // gets a checkpoint of its own, or it would share that turn's id, and keeping that turn
+                            // would hide everything this one changes.
+                            if matches!(&marked, Ok(Some(m)) if lock(&marks).get(&conversation) == Some(m)) {
+                                marked = workspace.mark_new("before the agent's turn").map(Some);
+                            }
                             slow("turn", "checkpoint before the turn", started);
                             match marked {
                                 Ok(Some(mark)) => {

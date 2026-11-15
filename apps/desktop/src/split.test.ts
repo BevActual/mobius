@@ -56,6 +56,12 @@ describe('leaving a split Mobius opened', () => {
     expect(leavesSplit(['agent', 'calendar'], false, 'mail')).toBe(false);
     expect(leavesSplit(['agent', null], true, 'mail')).toBe(false);
   });
+  it('goes to an app already beside the conversation alone when the person picks it in the sidebar', () => {
+    // Round 14: Plan my day put Mail beside the chat; Mail from the sidebar only focused that pane, without Triage.
+    expect(leavesSplit(['agent', 'mail'], true, 'mail', true)).toBe(true);
+    expect(leavesSplit(['agent', 'mail'], true, 'agent', true)).toBe(false);
+    expect(leavesSplit(['agent', 'mail'], false, 'mail', true)).toBe(false);
+  });
   it('remembers who opened the split across a restart', () => {
     window.localStorage.removeItem('mobius.split.byMobius');
     expect(loadByMobius(['agent', 'calendar'])).toBe(true);
