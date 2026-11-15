@@ -13,6 +13,15 @@ describe('the Activity feed', () => {
     expect(item).toMatchObject({ text: 'Opened axion.example', app: 'browser', by: 'mobius', final: false, warn: false });
   });
 
+  it('puts an app’s own tool in that app, said by what it changed, even under the files capability', () => {
+    const [design] = feedOf([{ ...entry('tool.completed', 'files.write'), tool: 'design.edit' }]);
+    expect(design).toMatchObject({ text: 'Changed a design', app: 'design', changed: true });
+    const [photos] = feedOf([{ ...entry('tool.completed', 'files.write'), tool: 'photos.edit' }]);
+    expect(photos).toMatchObject({ text: 'Edited photos', app: 'photo' });
+    const [plain] = feedOf([{ ...entry('tool.completed', 'files.write', 'notes/P2/Plan.md'), tool: 'files.write' }]);
+    expect(plain).toMatchObject({ text: 'Changed P2 / Plan', app: 'notes' });
+  });
+
   it('leaves out starts, already-given approvals and answered questions', () => {
     const items = feedOf([
       entry('permission.asked', 'mail.send'),
