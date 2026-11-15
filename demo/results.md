@@ -8,7 +8,7 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#386) | 14 Nov 19:07, 5a33562, chip | Sonnet 5.5 | 10.2 / 10.2 / 11.4 s | Time yes; blocks untested (after 18:00) | Needs a daytime run |
-| Mail: Triage (#430, #432, #433) | 15 Nov 06:40 UTC, 1c6a158, Mail from the sidebar | Sonnet 5.5 | 18.7 / 49.4 / 50.3 s | Content yes, time no | About 32 s of thinking over four rounds; thinking off is 13 s but handles one message |
+| Mail: Triage (#440, #441, #437) | 15 Nov 07:31 UTC, 2c9afda, Mail from the sidebar | Sonnet 5.5 | 23.4 / 29.9 / 30.8 s (count line at 3.4 s) | Yes, to the last change | 18 s of thinking before the lines; first change after all the lines |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -18,6 +18,21 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Sheets: What stands out? | 15 Nov 06:11 UTC, 2d10a55, chip | Sonnet 5.5 | 7.2 / 10.7 / 10.7 s | Yes | Chart beside the grid (#407 not yet run) |
 | Music: a bassline and a warmer pad (#431) | 15 Nov 06:43 UTC, 1c6a158, typed | Sonnet 5.5 | 10.7 / 13.4 / 18.1 s | Content yes, time nearly | First change 10 s; the chip is in #406 |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Round 20 (2c9afda: #440, #441, #437, and branch runs)
+
+Run on Sunday 15 November, 06:56 to 07:31 UTC, debug build, Demo profile after Reset. All Triage runs, to find a setup that keeps round 19's content in under 30 s.
+
+| Run | Rounds | Time (first / last / Keep) | Content |
+| --- | --- | --- | --- |
+| Haiku 5.5, main 1c6a158 | 3 | 16.2 / 24.5 / 25.8 s | Fails: Priya and Sam only, no counts, a promised date |
+| Opus 5.5, main 1c6a158 | 6 | 21.6 / 55.1 / 72.6 s | Best: counts, all drafts ask, flags the board-pack date; a summary-only last round |
+| Sonnet 5.5, #440 at 68ebc32 | 3 | 15.3 / 35.4 / 35.9 s | Holds; a raw draft tag in the text |
+| Sonnet 5.5, #440 at 680e7fd | 2 | 21.7 / 25.4 / 27.8 s | Holds; nothing on screen for 20 s; Veltro headed with Ardent's subject |
+| Sonnet 5.5, #440 at e7a7e50 | 2 | 21.0 / 25.2 / 26.1 s | Holds; "40 unread, 3 need you." at 3.1 s |
+| **Sonnet 5.5, main 2c9afda** | 2 | 23.4 / 29.9 / 30.8 s | **Holds**: count line at 3.4 s; counts 3, 1, 7, 29; four drafts laid out as emails that ask and promise nothing; no duplicate event; no tags; cards for all four |
+
+A thinking budget is not available (current models reject `budget_tokens`), so effort and the number of rounds are the levers. The 0.1.6 installer from 2c9afda installed cleanly and the model answers on Personal.
 
 ## Round 19 (1c6a158: #430, #431, #432, #433, #418, #427)
 
