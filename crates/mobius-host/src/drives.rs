@@ -137,6 +137,13 @@ fn decoded(path: &str) -> Vec<String> {
     path.split('/').filter(|s| !s.is_empty()).map(|s| percent_decode_str(s).decode_utf8_lossy().into_owned()).collect()
 }
 
+/// An ETag as the HTTP headers give it. Some servers (wsgidav, a few NAS boxes) leave the quotes off `getetag` while
+/// their `ETag` header has them, so the same version would look like a change and `If-Match` would never match.
+fn entity_tag(tag: &str) -> String {
+    let tag = tag.trim();
+    if tag.starts_with('"') || tag.starts_with("W/") { tag.to_owned() } else { format!("\"{tag}\"") }
+}
+
 fn http_agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
@@ -327,7 +334,7 @@ impl WebDav {
                     name: path.rsplit('/').next().unwrap_or("").to_owned(),
                     size: prop("getcontentlength").and_then(|s| s.parse().ok()).unwrap_or(0),
                     modified: prop("getlastmodified"),
-                    version: prop("getetag"),
+                    version: prop("getetag").map(|e| entity_tag(&e)),
                     content_type: prop("getcontenttype").filter(|_| !folder),
                     // Nextcloud and ownCloud give each file an id that a move keeps.
                     id: prop("fileid"),
@@ -897,6 +904,13 @@ pub(crate) mod tests {
     use crate::secrets::MemorySecrets;
     use std::collections::BTreeMap;
     use std::io::{BufRead, BufReader, Read, Write};
+
+    #[test]
+    fn an_etag_a_listing_gives_without_quotes_matches_the_header() {
+        assert_eq!(entity_tag("1028234-1794786647-3"), "\"1028234-1794786647-3\"");
+        assert_eq!(entity_tag("\"abc\""), "\"abc\"");
+        assert_eq!(entity_tag("W/\"abc\""), "W/\"abc\"");
+    }
 
     /// What the fake server holds: path → (bytes, version). Folders end in `/`.
     pub(crate) type Store = Arc<Mutex<BTreeMap<String, (Vec<u8>, u32)>>>;

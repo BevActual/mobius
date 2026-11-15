@@ -738,12 +738,125 @@ mod tests {
     /// part way, and a Rewind in the middle. After each round both sides hold every edit: an edit on one side reaches
     /// the other, an edit beats a delete, and when both sides changed a file the drive's keeps the name and ours is the
     /// conflict copy. Not one edit is lost.
+    /// The drive as someone else changes it, for the soak test: the stand-in server's store, or a real server through a
+    /// second client of its own.
+    trait OtherSide {
+        fn put(&mut self, rel: &str, text: &str);
+        fn delete(&mut self, rel: &str);
+        /// Every file under the paired folder, by its path in the pair, with its text.
+        fn files(&self) -> BTreeMap<String, String>;
+        /// Waits until the server will give a changed file a new version: some servers (wsgidav, Apache) make an ETag
+        /// from the file's time in whole seconds and its size, so a same-size edit in the same second keeps it.
+        fn settle(&self) {}
+    }
+
+    /// The stand-in server's store, changed directly, each change a new version.
+    struct StandIn {
+        store: Store,
+        version: u32,
+    }
+
+    impl OtherSide for StandIn {
+        fn put(&mut self, rel: &str, text: &str) {
+            self.version += 1;
+            let mut st = self.store.lock().unwrap();
+            let mut folder = String::from("/dav/Notes/");
+            for part in rel.split('/').rev().skip(1).collect::<Vec<_>>().into_iter().rev() {
+                folder.push_str(part);
+                folder.push('/');
+                st.entry(folder.clone()).or_insert((Vec::new(), 1));
+            }
+            st.insert(format!("/dav/Notes/{rel}"), (text.as_bytes().to_vec(), self.version * 1_000_000));
+        }
+        fn delete(&mut self, rel: &str) {
+            self.store.lock().unwrap().remove(&format!("/dav/Notes/{rel}"));
+        }
+        fn files(&self) -> BTreeMap<String, String> {
+            self.store.lock().unwrap().iter().filter(|(k, _)| !k.ends_with('/')).filter_map(|(k, (b, _))| Some((k.strip_prefix("/dav/Notes/")?.to_owned(), String::from_utf8_lossy(b).into_owned()))).collect()
+        }
+    }
+
+    /// A real WebDAV server, changed by a client of its own, as another computer would.
+    struct RealServer {
+        drive: WebDav,
+        remote: String,
+    }
+
+    impl OtherSide for RealServer {
+        fn settle(&self) {
+            std::thread::sleep(std::time::Duration::from_millis(1100));
+        }
+        fn put(&mut self, rel: &str, text: &str) {
+            let mut folder = self.remote.clone();
+            for part in rel.split('/').rev().skip(1).collect::<Vec<_>>().into_iter().rev() {
+                folder = format!("{folder}/{part}");
+                let _ = self.drive.make_folder(&folder);
+            }
+            // A write with no version only makes a new file, so an edit sends the version it replaces.
+            let path = format!("{}/{rel}", self.remote);
+            let version = self.drive.read(&path).ok().and_then(|f| f.version);
+            self.drive.write(&path, text.as_bytes(), version.as_deref()).unwrap();
+        }
+        fn delete(&mut self, rel: &str) {
+            let _ = self.drive.delete(&format!("{}/{rel}", self.remote), None);
+        }
+        fn files(&self) -> BTreeMap<String, String> {
+            drive_files(&self.drive, &self.remote).unwrap().into_keys().map(|rel| {
+                let text = String::from_utf8_lossy(&self.drive.read(&format!("{}/{rel}", self.remote)).unwrap().bytes).into_owned();
+                (rel, text)
+            }).collect()
+        }
+    }
+
     #[test]
     fn soak_hundreds_of_files_edited_on_both_sides_lose_nothing() {
-        const FILES: usize = 300;
-        let mut p = pair();
+        let p = pair();
+        let mut other = StandIn { store: p.store.clone(), version: 0 };
+        soak(&p.drive, p.root.path(), "Notes", &mut other, 300);
+    }
+
+    /// The same soak against a real WebDAV server (Nextcloud in CI): MOBIUS_SOAK_WEBDAV is its address, user and
+    /// password, separated by spaces. Each run works in a folder of its own and removes it after.
+    #[test]
+    #[ignore = "needs a real WebDAV server: set MOBIUS_SOAK_WEBDAV"]
+    fn soak_against_a_real_webdav_server_loses_nothing() {
+        let Ok(spec) = std::env::var("MOBIUS_SOAK_WEBDAV") else { panic!("set MOBIUS_SOAK_WEBDAV to \"<address> <user> <password>\"") };
+        let mut parts = spec.split_whitespace();
+        let (Some(address), Some(user), Some(password)) = (parts.next(), parts.next(), parts.next()) else { panic!("MOBIUS_SOAK_WEBDAV is \"<address> <user> <password>\"") };
+        let files: usize = std::env::var("MOBIUS_SOAK_FILES").ok().and_then(|n| n.parse().ok()).unwrap_or(300);
+        let url = url::Url::parse(address).unwrap();
+        let drive = WebDav::new(url.clone(), user, password);
+        let remote = format!("mobius-soak-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis());
+        drive.make_folder(&remote).unwrap();
+        let root = tempfile::tempdir().unwrap();
+        let mut other = RealServer { drive: WebDav::new(url, user, password), remote: remote.clone() };
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| soak(&drive, root.path(), &remote, &mut other, files)));
+        let _ = drive.delete(&remote, None);
+        if let Err(e) = outcome {
+            std::panic::resume_unwind(e);
+        }
+    }
+
+    /// Two sets of files must match; on a failure, only the files that differ are shown.
+    fn same(got: &BTreeMap<String, String>, want: &BTreeMap<String, String>, what: &str) {
+        let differ: Vec<String> = got.keys().chain(want.keys()).collect::<BTreeSet<_>>().into_iter().filter(|k| got.get(*k) != want.get(*k)).map(|k| format!("{k}: {:?}, want {:?}", got.get(k), want.get(k))).collect();
+        assert!(differ.is_empty(), "{what}: {} differ\n{}", differ.len(), differ.join("\n"));
+    }
+
+    /// Hundreds of files through eight rounds of edits, deletes and new files on both sides. Every other round is cut
+    /// off a third of the way, and there is a Rewind in the middle. After each round both sides hold every edit, and our
+    /// side of each conflict is kept as a copy.
+    fn soak(drive: &dyn Drive, root: &Path, remote: &str, other: &mut dyn OtherSide, files: usize) {
+        let mut base = Base::default();
+        let run = |base: &mut Base, options: &RoundOptions| round(drive, root, remote, base, options, &mut |_| {}).unwrap();
+        let plain = RoundOptions { stamp: "2026-11-15 14.32", ..RoundOptions::default() };
+        let put_here = |rel: &str, text: &str| {
+            let path = root.join(rel);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, text).unwrap();
+        };
         let store_dir = tempfile::tempdir().unwrap();
-        let workspace = mobius_workspace::files::Workspace::new(p.root.path(), store_dir.path());
+        let workspace = mobius_workspace::files::Workspace::new(root, store_dir.path());
         // A small fixed random walk, so a failure is the same every time.
         let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
         let mut next = move |n: usize| {
@@ -752,48 +865,34 @@ mod tests {
             seed ^= seed << 17;
             usize::try_from(seed % n as u64).unwrap()
         };
-        let mut version = 0u32;
         let name = |i: usize| format!("{}/n{i:03}.md", ["a", "b/c", "d"][i % 3]);
-        let mut put_there = |p: &Pair, rel: &str, text: &str| {
-            version += 1;
-            let mut st = p.store.lock().unwrap();
-            let mut folder = String::from("/dav/Notes/");
-            for part in rel.split('/').rev().skip(1).collect::<Vec<_>>().into_iter().rev() {
-                folder.push_str(part);
-                folder.push('/');
-                st.entry(folder.clone()).or_insert((Vec::new(), 1));
-            }
-            st.insert(format!("/dav/Notes/{rel}"), (text.as_bytes().to_vec(), version * 1_000_000));
-        };
-        let synced_files = |p: &Pair| -> BTreeMap<String, String> {
-            walk(p.root.path()).unwrap().into_iter().filter(|(rel, _)| synced(rel)).map(|(rel, path)| (rel, fs::read_to_string(path).unwrap())).collect()
-        };
-        let drive_files_now = |p: &Pair| -> BTreeMap<String, String> {
-            p.store.lock().unwrap().iter().filter(|(k, _)| !k.ends_with('/')).filter_map(|(k, (b, _))| Some((k.strip_prefix("/dav/Notes/")?.to_owned(), String::from_utf8_lossy(b).into_owned()))).collect()
+        let synced_files = || -> BTreeMap<String, String> {
+            walk(root).unwrap().into_iter().filter(|(rel, _)| synced(rel)).map(|(rel, path)| (rel, fs::read_to_string(path).unwrap())).collect()
         };
 
-        for i in 0..FILES {
-            p.put_here(&name(i), &format!("start {i}"));
+        for i in 0..files {
+            put_here(&name(i), &format!("start {i}"));
         }
-        assert_eq!(p.round().uploaded.len(), FILES);
+        assert_eq!(run(&mut base, &plain).uploaded.len(), files);
 
         let mut edit = 0;
         for cycle in 0..8 {
             tick();
+            other.settle();
             // What each side should end with: (path -> the content it must have), and the conflict copies' contents.
-            let mut want: BTreeMap<String, Option<String>> = synced_files(&p).into_iter().map(|(k, v)| (k, Some(v))).collect();
+            let mut want: BTreeMap<String, Option<String>> = synced_files().into_iter().map(|(k, v)| (k, Some(v))).collect();
             let mut copies: Vec<String> = Vec::new();
             let (mut mine, mut theirs): (BTreeMap<String, Option<String>>, BTreeMap<String, Option<String>>) = (BTreeMap::new(), BTreeMap::new());
             for _ in 0..25 {
                 edit += 1;
-                mine.insert(name(next(FILES)), Some(format!("here {edit}")));
+                mine.insert(name(next(files)), Some(format!("here {edit}")));
                 edit += 1;
-                theirs.insert(name(next(FILES)), Some(format!("there {edit}")));
+                theirs.insert(name(next(files)), Some(format!("there {edit}")));
             }
             // A few deletes and new files on each side.
             for _ in 0..2 {
-                mine.insert(name(next(FILES)), None);
-                theirs.insert(name(next(FILES)), None);
+                mine.insert(name(next(files)), None);
+                theirs.insert(name(next(files)), None);
             }
             edit += 1;
             mine.insert(format!("new/here {cycle}.md"), Some(format!("here {edit}")));
@@ -801,16 +900,16 @@ mod tests {
             theirs.insert(format!("new/there {cycle}.md"), Some(format!("there {edit}")));
             for (path, text) in &mine {
                 match text {
-                    Some(t) => p.put_here(path, t),
+                    Some(t) => put_here(path, t),
                     None => {
-                        let _ = fs::remove_file(p.root.path().join(path));
+                        let _ = fs::remove_file(root.join(path));
                     }
                 }
             }
             for (path, text) in &theirs {
                 match text {
-                    Some(t) => put_there(&p, path, t),
-                    None => p.delete_there(path),
+                    Some(t) => other.put(path, t),
+                    None => other.delete(path),
                 }
             }
             for path in mine.keys().chain(theirs.keys()).collect::<BTreeSet<_>>() {
@@ -829,43 +928,42 @@ mod tests {
             let want: BTreeMap<String, String> = want.into_iter().filter_map(|(k, v)| Some((k, v?))).collect();
 
             // Every other cycle the round is cut off a third of the way, as if Mobius quit, and then runs again.
+            let all = RoundOptions { stamp: "s", allow_deletes: true, ..RoundOptions::default() };
             if cycle % 2 == 1 {
                 let mut saved: Vec<Base> = Vec::new();
-                let options = RoundOptions { stamp: "s", allow_deletes: true, ..RoundOptions::default() };
-                round(&p.drive, p.root.path(), "Notes", &mut p.base, &options, &mut |b| saved.push(b.clone())).unwrap();
-                p.base = saved[saved.len() / 3].clone();
+                round(drive, root, remote, &mut base, &all, &mut |b| saved.push(b.clone())).unwrap();
+                base = saved[saved.len() / 3].clone();
             }
-            let r = p.round_with(&RoundOptions { stamp: "s", allow_deletes: true, ..RoundOptions::default() });
+            let r = run(&mut base, &all);
             assert!(r.failed.is_empty() && r.later.is_empty(), "cycle {cycle}: {r:?}");
-            assert_eq!(p.round_with(&RoundOptions { stamp: "s", ..RoundOptions::default() }), Report::default(), "cycle {cycle}: a second round has nothing to do");
+            assert_eq!(run(&mut base, &RoundOptions { stamp: "s", ..RoundOptions::default() }), Report::default(), "cycle {cycle}: a second round has nothing to do");
 
-            assert_eq!(synced_files(&p), want, "cycle {cycle}: here");
-            assert_eq!(drive_files_now(&p), want, "cycle {cycle}: on the drive");
-            let mut found: Vec<String> = conflicts_in(p.root.path()).into_iter().map(|(_, copy)| fs::read_to_string(p.root.path().join(copy)).unwrap()).collect();
-            let mut copies = copies;
+            same(&synced_files(), &want, &format!("cycle {cycle}: here"));
+            same(&other.files(), &want, &format!("cycle {cycle}: on the drive"));
+            let mut found: Vec<String> = conflicts_in(root).into_iter().map(|(_, copy)| fs::read_to_string(root.join(copy)).unwrap()).collect();
             found.sort();
             copies.sort();
             assert_eq!(found, copies, "cycle {cycle}: our side of each conflict is kept as a copy");
-            for (_, copy) in conflicts_in(p.root.path()) {
-                fs::remove_file(p.root.path().join(copy)).unwrap();
+            for (_, copy) in conflicts_in(root) {
+                fs::remove_file(root.join(copy)).unwrap();
             }
 
             // A Rewind in the middle: back to before a round's changes here, which are then sent as changes of their own.
             if cycle == 4 {
                 let mark = workspace.mark("soak").unwrap().unwrap();
-                let before = synced_files(&p);
+                let before = synced_files();
                 tick();
                 for i in 0..10 {
-                    p.put_here(&name(i * 7), &format!("undone {i}"));
+                    put_here(&name(i * 7), &format!("undone {i}"));
                 }
-                p.round();
-                assert_eq!(drive_files_now(&p).get(&name(0)).map(String::as_str), Some("undone 0"));
+                run(&mut base, &plain);
+                assert_eq!(other.files().get(&name(0)).map(String::as_str), Some("undone 0"));
                 workspace.restore(&mark).unwrap();
                 tick();
-                let r = p.round();
+                let r = run(&mut base, &plain);
                 assert_eq!(r.uploaded.len(), 10, "{r:?}");
-                assert_eq!(synced_files(&p), before);
-                assert_eq!(drive_files_now(&p), before);
+                assert_eq!(synced_files(), before);
+                assert_eq!(other.files(), before);
             }
         }
     }

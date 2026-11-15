@@ -90,6 +90,12 @@ pastes an access key; nothing is registered with anyone.
   file: it is tried again next round.
 - **Nextcloud's legacy path** `remote.php/webdav/` also works when given in full.
 - **Weak ETags.** Some servers send `W/"…"`; Mobius sends the version back exactly as it got it.
+- **ETags without quotes.** wsgidav and a few NAS boxes leave the quotes off `getetag` in a listing while their `ETag`
+  header has them. Mobius adds them, so the same version never looks like a change and `If-Match` still matches.
+- **ETags that change once a second.** wsgidav and Apache build an ETag from the file's time and size. On a server whose
+  time is in whole seconds, an edit of the same size within the second keeps its ETag, so Mobius can miss it until the
+  file changes again, and `If-Match` can't catch a write in that second. Nextcloud and ownCloud give each change a new
+  ETag. The real-server soak test waits a second between rounds for this.
 - **Servers that ignore `If-Match`.** A few minimal servers do; on those a change can overwrite someone else's. Nextcloud, ownCloud
   and Apache honour it; nginx's WebDAV module is worth checking before relying on it.
 - **Folder versions.** A folder's ETag changes when anything in it changes on Nextcloud, but not on every server, so it
