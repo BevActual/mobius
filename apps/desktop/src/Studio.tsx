@@ -12,6 +12,7 @@ import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
 import { useFileReview } from './useFileReview';
+import { useTurnFileChanged } from './liveMarks';
 import type { NotesState } from './useNotes';
 import { ChangeBar, WhyThis } from './ReviewBar';
 import { onCommand } from './commands';
@@ -119,6 +120,9 @@ const ICONS = {
   auto: 'M3.5 14.5l4-6 4 3 5-7',
   export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
 };
+
+/** A clip in Arrange or Session: a button that Space doesn't press, since Space plays the song. */
+const isClip = (t: HTMLElement) => t.closest('.studio-clip, .studio-clip-body') !== null;
 
 /** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
 function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: number; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void }) {
@@ -475,7 +479,11 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
   const copied = useRef<SongNote[]>([]);
   const history = useRef(new Map<string, { undo: string[]; redo: string[]; tag: string; at: number }>());
   const file = songs.page ? `studio/${songs.page.path}` : null;
-  const { before, keep, discard } = useFileReview(review, file, songs.page?.base);
+  // Each call of a running turn that changes this song reads what it was before the turn again, so Mobius's change is
+  // dashed and named as it lands, not when the turn ends.
+  const [asked, setAsked] = useState(0);
+  useTurnFileChanged(review?.conversation ?? null, file, () => setAsked((n) => n + 1));
+  const { before, keep, discard } = useFileReview(review, file, `${String(songs.page?.base ?? '')}:${asked}`);
   /** The song as it was before Mobius's change (null when Mobius made it), while there is one to review. */
   const wasSong = useMemo(() => {
     if (before === undefined || before === null) return null;
@@ -628,10 +636,13 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
       const mod = e.ctrlKey || e.metaKey;
       if (!t.isContentEditable && playKeys.current?.(e)) { e.preventDefault(); return; }
       if (pageKeys.current?.(e, t)) { e.preventDefault(); return; }
-      if (e.key === ' ' && t.tagName !== 'BUTTON') { e.preventDefault(); if (playing) stop(); else start(); } else if (e.key === 'Enter' && t.tagName !== 'BUTTON' && !mod) { e.preventDefault(); seek(0); } else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
+      if (e.key === ' ' && (t.tagName !== 'BUTTON' || isClip(t))) { e.preventDefault(); if (playing) stop(); else start(); } else if (e.key === 'Enter' && t.tagName !== 'BUTTON' && !mod) { e.preventDefault(); seek(0); } else if (mod && e.key.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) redo(); else undo(); } else if (mod && e.key.toLowerCase() === 'y') { e.preventDefault(); redo(); }
     };
+    // A clip is a button, but Space on it plays the song as anywhere else in Music; its click on key-up is let go.
+    const onUp = (e: KeyboardEvent) => { if (e.key === ' ' && e.target instanceof HTMLElement && isClip(e.target)) e.preventDefault(); };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keyup', onUp);
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('keyup', onUp); };
   }, [playing, start, stop, seek, undo, redo]);
   // The computer keyboard's keys go to playKeys first (in the page's own listener); while it is on, Music holds the
   // keyboard so the shell's single-letter keys (C for comments) stand down.
@@ -1231,7 +1242,7 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}>
-                  <Clips track={t} bars={song.bars} proposed={changed.has(t.id)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
+                  <Clips track={t} bars={song.bars} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
                 </div>
                 {showAuto && <>
                   <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>
