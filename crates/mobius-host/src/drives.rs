@@ -679,6 +679,9 @@ pub(crate) mod tests {
         store.lock().unwrap().insert(root.to_owned(), (Vec::new(), 1));
         let (s, root, host) = (store.clone(), root.to_owned(), base.clone());
         std::thread::spawn(move || {
+            // The highest version each path has had: a file made again after a delete never gets an old version back,
+            // as on a real server.
+            let mut seen: BTreeMap<String, u32> = BTreeMap::new();
             for stream in listener.incoming() {
                 let Ok(mut stream) = stream else { continue };
                 let mut reader = BufReader::new(stream.try_clone().unwrap());
@@ -744,7 +747,8 @@ pub(crate) mod tests {
                             } else if !st.contains_key(&parent_of(&k)) {
                                 ("409 Conflict", String::new(), Vec::new())
                             } else {
-                                let v = st.get(&k).map_or(1, |(_, v)| v + 1);
+                                let v = st.get(&k).map_or_else(|| seen.get(&k).copied().unwrap_or(0) + 1, |(_, v)| v + 1);
+                                seen.insert(k.clone(), v);
                                 st.insert(k.clone(), (body, v));
                                 ("201 Created", format!("ETag: {}\r\n", tag(v)), Vec::new())
                             }
