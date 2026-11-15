@@ -1,7 +1,8 @@
 {
   "bundle": {
     "externalBin": [
-      "binaries/mobius-cored"
+      "binaries/mobius-cored",
+      "binaries/mobius-inert-mcp"
     ],
     "createUpdaterArtifacts": true
   }
