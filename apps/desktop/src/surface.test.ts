@@ -65,7 +65,7 @@ describe('what each app suggests', () => {
     expect(tidyFolder('Downloads')).toContain('one files.move call');
     expect(tidyFolder('Downloads')).toContain('Delete nothing.');
     // What the second demo run showed: two approvals to list, twelve folders, and three different counts.
-    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number']) expect(tidyFolder('Downloads')).toContain(words);
+    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number', 'Rename nothing']) expect(tidyFolder('Downloads')).toContain(words);
   });
   it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
