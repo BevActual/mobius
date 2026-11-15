@@ -340,7 +340,7 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
     assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
     assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
     // What the third demo run showed: one search for the unread, messages named by sender and subject, no duplicate tasks.
-    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides or promises for the person", "add up to every unread message", "a security alert, a quote", "one task per thing asked", "drafted already was handled before", "asks the person themselves to do", "even with someone a message names", "the three that most need the person", "in one round of parallel calls", "as parallel tool calls in that same reply", "make no change before every line is written", "never a tool name or a tag in the text", "write one short opening line with the counts", "that message's own sender and subject", "the sign-off on lines of their own", "Do these steps in order", "no timestamps", "with no day or deadline", "look at calendar.list for those days first", "a draft for each other Reply message", "never promises a date or a slot; it offers one and asks", "ask whether it suits", "write nothing more"] {
+    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides or promises for the person", "add up to every unread message", "a security alert, a quote", "one task per thing asked", "drafted already was handled before", "asks the person themselves to do", "even with someone a message names", "the three that most need the person", "as parallel tool calls in one round", "no other text before the calls: no heading, no names", "write every line as your final reply", "never a tool name or a tag", "calendar.list already given covers the next seven days", "one short opening line with the counts", "that message's own sender and subject", "\"Thanks,\" and the person's name", "add no full stop", "unless that draft says yes", "Do these steps in order", "no timestamps", "with no day or deadline", "look at calendar.list for those days first", "a draft for each other Reply message", "never promises a date or a slot; it offers one and asks", "ask whether it suits", "Write nothing after the lines"] {
         assert!(system.contains(words), "{words}");
     }
     assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
@@ -356,13 +356,13 @@ fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused
     let plan = parse_send(&json!({ "conversation": "c-2", "text": "plan my day", "reads": [{ "tool": "tasks.list", "arguments": {} }, { "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }] })).unwrap();
     s.service.send(&plan, None);
     let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
-    assert_eq!(sends[0]["reads"], json!([{ "tool": "mail.search", "arguments": { "mailbox": "inbox", "unread": true, "limit": 100 } }, { "tool": "tasks.list", "arguments": {} }]));
+    assert_eq!(sends[0]["reads"], json!([{ "tool": "mail.search", "arguments": { "mailbox": "inbox", "unread": true, "limit": 100 } }, { "tool": "tasks.list", "arguments": {} }, { "tool": "calendar.list", "arguments": {} }]));
     assert_eq!(sends[1]["reads"][1], json!({ "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }));
     let plain = parse_send(&json!({ "conversation": "c-3", "text": "hi" })).unwrap();
     s.service.send(&plain, None);
     let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
     assert!(last["params"].get("reads").is_none() && last["params"].get("finish").is_none());
-    assert_eq!(sends[0]["finish"], json!(true), "Triage ends in its changes");
+    assert!(sends[0].get("finish").is_none(), "Triage writes its lines after its changes, so it is asked again");
     let finishing = parse_send(&json!({ "conversation": "c-4", "text": "plan my day", "finish": true })).unwrap();
     s.service.send(&finishing, None);
     let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
