@@ -7,8 +7,8 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day (#348, #349) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 9.3 / 13.8 / 14.7 s | Time yes; content no | Plans 09:00–12:00 at 17:14: the prefetch has no clock |
-| Mail: Triage (#348, #349) | 15 Nov, 3a8bf78, after Plan my day and a New chat | Sonnet 5.5 | 32.6 / 37.2 / 38.0 s | Content nearly, time no | Chip missing after Plan my day; unasked Sam meeting and Finance task |
+| Home and Tasks: Plan my day (#386) | 14 Nov 19:07, 5a33562, chip | Sonnet 5.5 | 10.2 / 10.2 / 11.4 s | Time yes; blocks untested (after 18:00) | Needs a daytime run |
+| Mail: Triage (#397) | 14 Nov, b344d24, after Plan my day, no New chat | Sonnet 5.5 | 24.9 / 30.4 / 42.2 s | Content yes, time no | 25 s before the first change |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -17,6 +17,38 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Files: Tidy this folder (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.8 / 20.8 / 30.8 s | Content yes, time no | Listing asks; step and bar counts wrong (50, 108 for 60) |
 | Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Round 15 (b344d24: #397)
+
+Run on Saturday 14 November at 19:42 local, after 18:00.
+
+- **Plan my day:** one round, 8.5 s to the end. It changed nothing ("no time left between now and 6 pm"), so there was no
+  split to leave; listed the overdue tasks and offered to plan Monday morning.
+- **Triage** (same chat): Mail from the sidebar opened on its own with "Triage the unread" and no New chat. 24.9 / 30.4 /
+  42.2 s, three rounds (the closing summary round adds 10.9 s). A written summary at last: Reply 4 + Later 8 + Archive
+  28 = 40; the sign-in alert, the Ardent quote and the CVs in Later; "I archived nothing". The change bar lists
+  everything: "7 changes · Calendar · Tasks · 2 lists · Mail · 4 draft replies". The Veltro and Northfield drafts commit
+  to nothing; nothing sent or archived.
+- **Weak:** the round 2 write still takes 24.7 s before the first change shows at 24.9 s; the closing round adds 11 s.
+  The gate-code overlap goes once this branch's seed change lands.
+- **Installed:** 0.1.3 from b344d24 on Andrew's PC.
+
+## Round 14 (5a33562: #384, #386, #390)
+
+Run on Saturday 14 November at 19:07 local, after the 18:00 cutoff, so Plan my day had no blocks to place.
+
+- **Plan my day:** 10.2 / 10.2 / 11.4 s, one model round (10.7 s, start-up 0.8 s). The clock is now read first (#386):
+  "It's 19:07 on Saturday, so the 6 pm cutoff has passed", so no times or blocks were set; overdue tasks listed for the next
+  working day, one draft (Priya), one-line Can wait. Blocks and the Focus hour need a daytime run.
+- **Triage:** 31.1 / 34.6 / 35.5 s, two rounds. Weak:
+  1. Going to Mail opened an Agent and Mail split with Home's chat and no "Triage the unread"; closing the Agent pane showed
+     the chip without a New chat.
+  2. No reply at all: the turn ended after its tools, so there are no Reply, Later and Archive lines to check.
+  3. The change bar says "2 changes · 2 draft replies" while three tasks and an event were also written.
+  Good: no second Priya draft; nothing sent or archived. The Sam hour (Wed 13:30), the Finance task (due the 20th), the
+  gate-code task and the Jasmund photos task each answer a mail that asks for it (03, 21, 10 and 38), so they stay. The
+  seeded "Brief Dana on the gate code" task was stale, since Dana sent the code; it is removed from the seed.
+- **Installer:** 0.1.2 from this commit ships `mobius-inert-mcp.exe` (#390); installed on Andrew's PC, Sonnet 5.5 ready.
 
 ## Round 13 (3a8bf78: #342, #344, #348, #349, #350, #353, #355)
 
