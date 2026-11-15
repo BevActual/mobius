@@ -21,8 +21,13 @@ use crate::secrets::Secrets;
 type Res<T> = Result<T, String>;
 
 const MAX_DRIVES: usize = 20;
-/// The largest file read or written in one go. Bigger files need chunked upload, which comes later.
+/// The largest file read into memory in one go: a drive file opened in an app, or sent from one.
 pub const MAX_FILE: usize = 32 * 1024 * 1024;
+/// The largest file sync sends or brings in, a piece at a time through a file on disk. Bigger ones are left alone.
+pub const MAX_SYNC_FILE: u64 = 16 * 1024 * 1024 * 1024;
+/// Nextcloud and ownCloud take files over this in pieces of this size (chunked upload v2), as their own apps do, so a
+/// proxy's limit on one request (100 MB on Cloudflare) never stops a big file.
+const CHUNK: u64 = 32 * 1024 * 1024;
 const MAX_LISTING: u64 = 8 * 1024 * 1024;
 
 /// Said when a file changed on the server since it was read; the window shows it as a conflict.
@@ -97,6 +102,18 @@ pub trait Drive: Send + Sync {
     fn changes(&self, _cursor: Option<&str>) -> Res<Option<Changes>> {
         Ok(None)
     }
+    /// Saves the file at `path` into the local file `to`, a piece at a time where the drive can, so its size is not
+    /// bounded by memory. Returns its version, as `read` does.
+    fn read_into(&self, path: &str, to: &Path) -> Res<Option<String>> {
+        let file = self.read(path)?;
+        std::fs::write(to, &file.bytes).map_err(|e| e.to_string())?;
+        Ok(file.version)
+    }
+    /// `write`, from the local file `from`, a piece at a time where the drive can.
+    fn write_from(&self, path: &str, from: &Path, version: Option<&str>) -> Res<Option<String>> {
+        let bytes = std::fs::read(from).map_err(|e| e.to_string())?;
+        self.write(path, &bytes, version)
+    }
 }
 
 /// A drive path split into its names. Empty, `.` and `..` names are refused so a path cannot leave the drive.
@@ -149,6 +166,31 @@ pub struct WebDav {
     username: String,
     password: String,
     http: ureq::Agent,
+    /// Files over this go up in pieces of this size, where the server takes them that way.
+    chunk: u64,
+}
+
+/// What a request sends.
+#[derive(Clone, Copy)]
+enum Body<'a> {
+    Bytes(&'a [u8]),
+    /// A local file, a piece at a time.
+    File(&'a Path),
+}
+
+/// Where an answer's body goes.
+#[derive(Clone, Copy)]
+enum Sink<'a> {
+    /// Kept in memory, up to this many bytes.
+    Memory(usize),
+    /// A successful answer goes into this local file, a piece at a time; any other is kept in memory.
+    File(&'a Path),
+}
+
+/// Time for a request carrying `bytes`: five minutes, and a second more for each 64 KB, so a big file on a slow line is
+/// not cut off while a stalled small request still is.
+fn time_for(bytes: u64) -> Duration {
+    Duration::from_secs(300 + bytes / (64 * 1024))
 }
 
 impl WebDav {
@@ -163,7 +205,16 @@ impl WebDav {
         }
         base.set_query(None);
         base.set_fragment(None);
-        WebDav { base, username: username.to_owned(), password: password.to_owned(), http }
+        WebDav { base, username: username.to_owned(), password: password.to_owned(), http, chunk: CHUNK }
+    }
+
+    /// Where Nextcloud and ownCloud take chunked uploads for this account: `/remote.php/dav/uploads/<user>/`, beside
+    /// the account's `/remote.php/dav/files/<user>/`. `None` on any other server, which gets one request per file.
+    fn uploads(&self) -> Option<url::Url> {
+        let path = self.base.path();
+        let at = path.find("/remote.php/dav/files/")?;
+        let user = path[at + "/remote.php/dav/files/".len()..].split('/').next().filter(|u| !u.is_empty())?;
+        self.base.join(&format!("{}/remote.php/dav/uploads/{user}/", &path[..at])).ok()
     }
 
     pub fn base(&self) -> &url::Url {
@@ -193,6 +244,11 @@ impl WebDav {
 
     /// One request, following up to five redirects. The password goes only to the same site.
     fn send(&self, method: &str, url: &url::Url, headers: &[(&str, String)], body: &[u8], limit: usize) -> Res<Reply> {
+        self.exchange(method, url, headers, Body::Bytes(body), Sink::Memory(limit))
+    }
+
+    /// `send`, with a body read from a file or an answer written to one.
+    fn exchange(&self, method: &str, url: &url::Url, headers: &[(&str, String)], body: Body, sink: Sink) -> Res<Reply> {
         let mut at = url.clone();
         for _ in 0..6 {
             let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
@@ -204,8 +260,20 @@ impl WebDav {
             for (k, v) in headers {
                 builder = builder.header(*k, v.as_str());
             }
-            let request = builder.body(body.to_vec()).map_err(|e| e.to_string())?;
-            let mut response = self.http.run(request).map_err(|e| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server")))?;
+            let unreachable = |e: ureq::Error| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server"));
+            let mut response = match (body, sink) {
+                (Body::Bytes(bytes), Sink::Memory(_)) => self.http.run(builder.body(bytes.to_vec()).map_err(|e| e.to_string())?).map_err(unreachable)?,
+                (Body::Bytes(bytes), Sink::File(_)) => {
+                    let request = self.http.configure_request(builder.body(bytes.to_vec()).map_err(|e| e.to_string())?).timeout_global(None).build();
+                    self.http.run(request).map_err(unreachable)?
+                }
+                (Body::File(path), _) => {
+                    let file = std::fs::File::open(path).map_err(|e| e.to_string())?;
+                    let size = file.metadata().map_err(|e| e.to_string())?.len();
+                    let request = self.http.configure_request(builder.body(file).map_err(|e| e.to_string())?).timeout_global(Some(time_for(size))).build();
+                    self.http.run(request).map_err(unreachable)?
+                }
+            };
             let status = response.status().as_u16();
             let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
             let (etag, content_type, location) = (header("etag"), header("content-type"), header("location"));
@@ -214,11 +282,24 @@ impl WebDav {
                 at = next.ok_or("The server sent Mobius somewhere it could not follow.")?;
                 continue;
             }
-            let limit = u64::try_from(limit).unwrap_or(u64::MAX);
-            let body = response.body_mut().with_config().limit(limit).read_to_vec().map_err(|e| match e {
-                ureq::Error::BodyExceedsLimit(_) => format!("That file is bigger than {} MB, the most Mobius opens from a drive for now.", MAX_FILE / (1024 * 1024)),
-                e => e.to_string(),
-            })?;
+            let body = match sink {
+                // Written to the file as it arrives; a dropped connection leaves a short file, which the caller checks.
+                Sink::File(path) if (200..300).contains(&status) => {
+                    let mut out = std::fs::File::create(path).map_err(|e| e.to_string())?;
+                    let mut reader = response.body_mut().with_config().limit(MAX_SYNC_FILE).reader();
+                    std::io::copy(&mut reader, &mut out).map_err(|e| e.to_string())?;
+                    out.sync_all().map_err(|e| e.to_string())?;
+                    Vec::new()
+                }
+                Sink::File(_) => response.body_mut().with_config().limit(64 * 1024).read_to_vec().unwrap_or_default(),
+                Sink::Memory(limit) => {
+                    let limit = u64::try_from(limit).unwrap_or(u64::MAX);
+                    response.body_mut().with_config().limit(limit).read_to_vec().map_err(|e| match e {
+                        ureq::Error::BodyExceedsLimit(_) => format!("That file is bigger than {} MB, the most Mobius opens from a drive for now.", MAX_FILE / (1024 * 1024)),
+                        e => e.to_string(),
+                    })?
+                }
+            };
             return Ok(Reply { status, etag, content_type, body });
         }
         Err("The server sent Mobius round in circles.".into())
@@ -364,6 +445,94 @@ impl Drive for WebDav {
             200 | 202 | 204 => Ok(()),
             s => Err(WebDav::failed(s, etag)),
         }
+    }
+
+    fn read_into(&self, path: &str, to: &Path) -> Res<Option<String>> {
+        if names(path)?.is_empty() {
+            return Err("That is a folder.".into());
+        }
+        let reply = self.exchange("GET", &self.url_of(path, false)?, &[], Body::Bytes(&[]), Sink::File(to))?;
+        match reply.status {
+            200 => Ok(reply.etag),
+            s => Err(WebDav::failed(s, None)),
+        }
+    }
+
+    fn write_from(&self, path: &str, from: &Path, etag: Option<&str>) -> Res<Option<String>> {
+        if names(path)?.is_empty() {
+            return Err("A file needs a name.".into());
+        }
+        let size = std::fs::metadata(from).map_err(|e| e.to_string())?.len();
+        if size > MAX_SYNC_FILE {
+            return Err(format!("Files bigger than {} GB are not sent to a drive.", MAX_SYNC_FILE / (1024 * 1024 * 1024)));
+        }
+        if size > self.chunk
+            && let Some(uploads) = self.uploads()
+        {
+            return self.write_in_pieces(&uploads, path, from, size, etag);
+        }
+        let url = self.url_of(path, false)?;
+        let condition = etag.map_or(("If-None-Match", "*".to_owned()), |e| ("If-Match", e.to_owned()));
+        let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
+        match reply.status {
+            200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
+            s => Err(WebDav::failed(s, etag)),
+        }
+    }
+}
+
+impl WebDav {
+    /// Nextcloud's chunked upload (v2): a folder of pieces under `uploads`, each sent on its own, then joined into the
+    /// file by moving the folder's `.file` onto it. The folder is removed if anything fails.
+    ///
+    /// The server compares no version on the join, so the file's version is checked just before it instead: a file
+    /// changed on the server (or made there, for a new one) in the moments between is the one case not caught.
+    fn write_in_pieces(&self, uploads: &url::Url, path: &str, from: &Path, size: u64, etag: Option<&str>) -> Res<Option<String>> {
+        use std::io::Read;
+        let destination = self.url_of(path, false)?.to_string();
+        let folder = uploads.join(&format!("mobius-{}/", new_id())).map_err(|e| e.to_string())?;
+        let headers = [("Destination", destination.clone()), ("OC-Total-Length", size.to_string())];
+        let reply = self.send("MKCOL", &folder, &headers[..1], &[], 64 * 1024)?;
+        if !matches!(reply.status, 200 | 201) {
+            return Err(WebDav::failed(reply.status, None));
+        }
+        let sent = (|| -> Res<Option<String>> {
+            let mut file = std::fs::File::open(from).map_err(|e| e.to_string())?;
+            let mut piece = vec![0; usize::try_from(self.chunk).unwrap_or(usize::MAX)];
+            for n in 1.. {
+                let mut filled = 0;
+                while filled < piece.len() {
+                    match file.read(&mut piece[filled..]).map_err(|e| e.to_string())? {
+                        0 => break,
+                        k => filled += k,
+                    }
+                }
+                if filled == 0 {
+                    break;
+                }
+                let at = folder.join(&format!("{n:05}")).map_err(|e| e.to_string())?;
+                let reply = self.exchange("PUT", &at, &headers, Body::Bytes(&piece[..filled]), Sink::Memory(64 * 1024))?;
+                if !matches!(reply.status, 200 | 201 | 204) {
+                    return Err(WebDav::failed(reply.status, None));
+                }
+            }
+            match (etag, self.version_of(path)) {
+                (Some(e), Some(now)) if now != e => return Err(CHANGED.into()),
+                (Some(_), None) => return Err(CHANGED.into()),
+                (None, Some(_)) => return Err(EXISTS.into()),
+                _ => {}
+            }
+            let join = folder.join(".file").map_err(|e| e.to_string())?;
+            let reply = self.exchange("MOVE", &join, &headers, Body::Bytes(&[]), Sink::Memory(64 * 1024))?;
+            match reply.status {
+                200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
+                s => Err(WebDav::failed(s, etag)),
+            }
+        })();
+        if sent.is_err() {
+            let _ = self.send("DELETE", &folder, &[], &[], 64 * 1024);
+        }
+        sent
     }
 }
 
@@ -693,10 +862,21 @@ pub(crate) mod tests {
     /// user `ana` with password `app-pass`. It speaks enough of RFC 4918 for drives: PROPFIND, GET, PUT with
     /// If-Match / If-None-Match, MKCOL, MOVE with Overwrite, DELETE.
     pub(crate) fn server(root: &str) -> (String, Store) {
+        server_with(root, None)
+    }
+
+    /// `server`, refusing (413) any one PUT over `max_body` bytes outside the uploads folder, as a proxy in front
+    /// of a server can. Under `/remote.php/dav/files/<user>/` it also takes Nextcloud's chunked uploads (v2) at
+    /// `/remote.php/dav/uploads/<user>/`: a folder of pieces, joined by moving its `.file` onto the file.
+    pub(crate) fn server_with(root: &str, max_body: Option<usize>) -> (String, Store) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let base = format!("http://{}", listener.local_addr().unwrap());
         let store: Store = Arc::default();
         store.lock().unwrap().insert(root.to_owned(), (Vec::new(), 1));
+        let uploads = root.contains("/remote.php/dav/files/").then(|| root.replacen("/remote.php/dav/files/", "/remote.php/dav/uploads/", 1));
+        if let Some(u) = &uploads {
+            store.lock().unwrap().insert(u.clone(), (Vec::new(), 1));
+        }
         let (s, root, host) = (store.clone(), root.to_owned(), base.clone());
         std::thread::spawn(move || {
             // The highest version each path has had: a file made again after a delete never gets an old version back,
@@ -733,11 +913,30 @@ pub(crate) mod tests {
                 let parent_of = |p: &str| format!("{}/", p.trim_end_matches('/').rsplit_once('/').map_or("", |(a, _)| a));
                 let (status, extra, reply): (&str, String, Vec<u8>) = if !ok_auth {
                     ("401 Unauthorized", "WWW-Authenticate: Basic realm=\"x\"\r\n".into(), Vec::new())
-                } else if !path.starts_with(&root) && path != root.trim_end_matches('/') {
+                } else if !path.starts_with(&root) && path != root.trim_end_matches('/') && !uploads.as_ref().is_some_and(|u| path.starts_with(u.as_str())) {
                     ("404 Not Found", String::new(), Vec::new())
+                } else if method == "PUT" && max_body.is_some_and(|m| body.len() > m) && !uploads.as_ref().is_some_and(|u| path.starts_with(u.as_str())) {
+                    ("413 Payload Too Large", String::new(), Vec::new())
                 } else {
                     let k = key(&path);
                     match method.as_str() {
+                        // Joining an upload's pieces, in order, into the file at Destination.
+                        "MOVE" if k.ends_with("/.file") => {
+                            let folder = k.trim_end_matches(".file").to_owned();
+                            let to = url::Url::parse(&header("destination")).map(|u| percent_decode_str(u.path()).decode_utf8_lossy().into_owned()).unwrap_or_default();
+                            let joined: Vec<u8> = st.iter().filter(|(p, _)| p.starts_with(&folder) && *p != &folder).flat_map(|(_, (b, _))| b.clone()).collect();
+                            if !st.contains_key(&folder) {
+                                ("404 Not Found", String::new(), Vec::new())
+                            } else if header("oc-total-length").parse::<usize>().ok() != Some(joined.len()) {
+                                ("400 Bad Request", String::new(), Vec::new())
+                            } else {
+                                st.retain(|p, _| !p.starts_with(&folder));
+                                let v = st.get(&to).map_or_else(|| seen.get(&to).copied().unwrap_or(0) + 1, |(_, v)| v + 1);
+                                seen.insert(to.clone(), v);
+                                st.insert(to, (joined, v));
+                                ("201 Created", format!("ETag: {}\r\n", tag(v)), Vec::new())
+                            }
+                        }
                         "PROPFIND" => match st.get(&k) {
                             None => ("404 Not Found", String::new(), Vec::new()),
                             Some(_) => {
@@ -837,6 +1036,44 @@ pub(crate) mod tests {
         assert_eq!(drive.path_of("/remote.php/dav/files/ana/Docs/a%20b.txt").as_deref(), Some("Docs/a b.txt"));
         assert_eq!(drive.path_of("https://cloud.example/remote.php/dav/files/ana/").as_deref(), Some(""));
         assert_eq!(drive.path_of("/remote.php/dav/files/bo/x"), None, "another person's files are not this drive's");
+    }
+
+    #[test]
+    fn big_files_go_to_nextcloud_in_pieces_and_come_back_a_piece_at_a_time() {
+        // Behind a proxy that refuses any request over 64 bytes, a 230-byte file still goes up, in pieces of 50.
+        let (base, store) = server_with("/remote.php/dav/files/ana/", Some(64));
+        let mut drive = WebDav::new(url::Url::parse(&format!("{base}/remote.php/dav/files/ana/")).unwrap(), "ana", "app-pass");
+        drive.chunk = 50;
+        let dir = tempfile::tempdir().unwrap();
+        let big: Vec<u8> = (0..230u32).map(|i| u8::try_from(i % 251).unwrap()).collect();
+        let from = dir.path().join("big.bin");
+        std::fs::write(&from, &big).unwrap();
+        let pieces_left = |store: &Store| store.lock().unwrap().keys().any(|k| k.contains("/mobius-"));
+
+        let v1 = drive.write_from("big.bin", &from, None).unwrap().unwrap();
+        assert_eq!(store.lock().unwrap()["/remote.php/dav/files/ana/big.bin"].0, big);
+        assert!(!pieces_left(&store), "the pieces are joined and gone");
+        // The same rules as one request: a new file never replaces one, and a change is based on the version read.
+        assert_eq!(drive.write_from("big.bin", &from, None).unwrap_err(), EXISTS);
+        let v2 = drive.write_from("big.bin", &from, Some(&v1)).unwrap().unwrap();
+        assert_ne!(v1, v2);
+        assert_eq!(drive.write_from("big.bin", &from, Some(&v1)).unwrap_err(), CHANGED);
+        assert!(!pieces_left(&store), "a refused upload leaves no pieces behind");
+
+        // Read back into a file, a piece at a time.
+        let back = dir.path().join("back.bin");
+        assert_eq!(drive.read_into("big.bin", &back).unwrap().as_deref(), Some(v2.as_str()));
+        assert_eq!(std::fs::read(&back).unwrap(), big);
+        assert_eq!(drive.read_into("gone.bin", &back).unwrap_err(), WebDav::failed(404, None));
+
+        // A small file is one request, and a server without chunked uploads gets one request whatever the size.
+        std::fs::write(&from, b"small").unwrap();
+        assert!(drive.write_from("small.bin", &from, None).is_ok());
+        let (plain, _) = server_with("/dav/", Some(64));
+        let mut plain = WebDav::new(url::Url::parse(&format!("{plain}/dav/")).unwrap(), "ana", "app-pass");
+        plain.chunk = 50;
+        std::fs::write(&from, &big).unwrap();
+        assert_eq!(plain.write_from("big.bin", &from, None).unwrap_err(), WebDav::failed(413, None));
     }
 
     #[test]
@@ -952,7 +1189,7 @@ pub(crate) mod tests {
         let (_, moved) = run("drives.move", json!({ "drive": "Cloud", "from": "Trips/2026", "to": "Trips/Portugal" })).unwrap();
         assert_eq!(moved.unwrap().1, vec!["Trips/2026", "Trips/Portugal"]);
         run("drives.delete", json!({ "drive": "Cloud", "path": "Trips/photo.bin" })).unwrap();
-        let left: Vec<String> = store.lock().unwrap().keys().cloned().collect();
+        let left: Vec<String> = store.lock().unwrap().keys().filter(|k| k.starts_with("/remote.php/dav/files/")).cloned().collect();
         assert_eq!(left, vec!["/remote.php/dav/files/ana/", "/remote.php/dav/files/ana/Trips/", "/remote.php/dav/files/ana/Trips/Portugal/", "/remote.php/dav/files/ana/Trips/Portugal/plan.md"]);
     }
 }

@@ -55,9 +55,14 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 
 ## Known limits and quirks
 
-- **Big files.** One request carries a whole file, up to 32 MB. Nextcloud's chunked upload (v2:
-  `remote.php/dav/uploads/<user>/<id>/`, numbered chunks, then a `MOVE` of `.file`) is how larger files go; it is not
-  built yet. Plain PUT on Nextcloud is limited by the server's PHP and proxy settings, not by WebDAV.
+- **Big files.** Opening a drive file in an app, and the agent's `drives.*` tools, read and write a whole file in
+  memory, up to 32 MB. Sync goes through files on disk a piece at a time (`Drive::read_into`, `Drive::write_from`),
+  up to 16 GB. On Nextcloud and ownCloud a file over 32 MB goes up with chunked upload (v2): a folder at
+  `remote.php/dav/uploads/<user>/mobius-<id>/`, numbered 32 MB pieces, then a `MOVE` of its `.file` onto the file, so a
+  proxy's limit on one request (100 MB on Cloudflare) never stops it. The join compares no version, so the version is
+  checked just before it; the folder is removed if anything fails. Other servers get one streamed `PUT`, limited by
+  their own and their proxy's settings. A download that arrives short (a dropped connection) is never taken for the
+  file: it is tried again next round.
 - **Nextcloud's legacy path** `remote.php/webdav/` also works when given in full.
 - **Weak ETags.** Some servers send `W/"…"`; Mobius sends the version back exactly as it got it.
 - **Servers that ignore `If-Match`.** A few minimal servers do; on those a change can overwrite someone else's. Nextcloud, ownCloud
@@ -101,8 +106,8 @@ Andrew asked for on 2026-11-15) can sync once they implement it. The trait grows
 - **The workspace folder stays the working copy.** Every app, the agent's tools, Review and Rewind keep working on
   local files as now. Sync only moves changes between the folder and the server.
 - **Left out:** names the systems make (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `~$*`), Mobius's temp files
-  (`*.mobius-tmp`), `.git` folders, and conflict copies (below). Files over 32 MB are listed as "too big to sync"
-  until chunked upload is built. They are skipped, never deleted.
+  (`*.mobius-tmp`), `.git` folders, and conflict copies (below). Files over 16 GB are listed as "too big to sync".
+  They are skipped, never deleted.
 
 ### How changes are found
 
@@ -192,7 +197,6 @@ real Nextcloud if one is available.
 **Later:**
 
 - `MOVE` for moves made in Mobius.
-- Chunked upload over 32 MB.
 - Nextcloud's sync-collection `REPORT` (RFC 6578) instead of walking.
 - Line-by-line merge for text Mobius understands (notes, tasks, calendar).
 - The agent reading the sync status.

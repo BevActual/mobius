@@ -35,7 +35,7 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 | Tasks | Shared fields in Details (#248); overdue, due today and flagged in Glance (#271) | "+" on group heads; Plan my day in Actions | |
 | Notes | Instrument (#152) | Review mode in the panel | |
 | Docs | Instrument (#188) | Find and replace (Ctrl+F, Ctrl+H) | |
-| Files | Drives: the person's own WebDAV servers, browsed and copied both ways | Edit a drive's file in place, saved back with its version; copy folders; Nextcloud chunked upload for files over 32 MB; Actions in the panel; preview pane | Preview pane: where app panels go |
+| Files | Drives: the person's own WebDAV servers, browsed and copied both ways | Edit a drive's file in place, saved back with its version; copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
 | Browser | Instrument (#163) | One idea of "keep" (bookmark, pin, pinned tab); one New tab button | |
 | Settings | Permission wording (#241) | Shared selects | |
 | Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
