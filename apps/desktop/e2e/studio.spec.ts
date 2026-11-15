@@ -180,7 +180,12 @@ test('a sound from Mobius opens the track’s devices and says what moved, kept 
   // The track's devices open, so the knobs Mobius moved are in view; its notes are not marked as changed.
   await expect(shell().getByRole('region', { name: 'Devices' })).toBeVisible();
   await expect(shell().getByRole('slider', { name: 'Cutoff and resonance' })).toHaveAttribute('aria-valuetext', /Cutoff 1\.2 kHz/);
+  // The moved knob is marked as Mobius's until it is kept or put back; one Mobius didn't touch is not.
+  const devices = shell().getByRole('region', { name: 'Devices' });
+  await expect(devices.locator('.ui-knob[data-proposed]').filter({ has: shell().getByRole('slider', { name: 'Drive' }) })).toHaveCount(1);
+  await expect(devices.locator('.ui-knob[data-proposed]').filter({ has: shell().getByRole('slider', { name: 'Shape' }) })).toHaveCount(0);
   await change.getByRole('button', { name: 'Discard' }).click();
+  await expect(devices.locator('[data-proposed]')).toHaveCount(0);
   await expect.poll(() => (saved().tracks[0] as { sound?: unknown }).sound).toBeUndefined();
 });
 
