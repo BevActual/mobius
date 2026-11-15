@@ -315,3 +315,35 @@ test('a drive on the person\'s own server: added from its address, browsed, and 
     await dav?.close();
   }
 });
+
+test('a workspace folder synced with a drive: both ways, a sign-in that stopped working, and signing in again', async () => {
+  const dav = await startWebDav('ana', 'app-pass');
+  try {
+    await start();
+    type Bridge = { drives: { add(d: object): Promise<{ id: string }>; syncAdd(f: string, d: string, r: string): Promise<{ id: string }>; syncPairs(): Promise<{ id: string; status: { state: string } }[]>; signIn(id: string, p: string): Promise<{ ok: boolean }> } };
+    const drive = await shell().evaluate((origin) => (window as unknown as { mobius: Bridge }).mobius.drives.add({ name: 'Cloud', server: origin, username: 'ana', password: 'app-pass' }), dav.origin);
+    const pair = await shell().evaluate((id) => (window as unknown as { mobius: Bridge }).mobius.drives.syncAdd('notes', id, 'Notes'), drive.id);
+    expect(pair.id).toBeTruthy();
+    const local = path.join(userData, 'workspace', 'notes', 'Work', 'Plan.md');
+    const there = (p: string) => dav.files.get(p)?.body.toString('utf8');
+    // The first round sends the folder.
+    await expect.poll(() => there('Notes/Work/Plan.md'), { timeout: 20_000 }).toBe('# Plan\n');
+    // Someone changes it on the server: it comes in.
+    dav.touch('Notes/Work/Plan.md', '# Plan\nFrom the server\n');
+    await expect.poll(() => fs.readFileSync(local, 'utf8'), { timeout: 20_000 }).toBe('# Plan\nFrom the server\n');
+    // An edit here goes out.
+    fs.writeFileSync(local, '# Plan\nFrom here\n');
+    await expect.poll(() => there('Notes/Work/Plan.md'), { timeout: 20_000 }).toBe('# Plan\nFrom here\n');
+    // The app password is revoked: the pair says so and stops, until signing in again.
+    dav.setPassword('new-pass');
+    dav.touch('Notes/Work/Later.md', 'later');
+    const state = () => shell().evaluate(() => (window as unknown as { mobius: Bridge }).mobius.drives.syncPairs()).then((p) => p[0]?.status.state);
+    await expect.poll(state, { timeout: 20_000 }).toBe('signIn');
+    expect(await shell().evaluate((id) => (window as unknown as { mobius: Bridge }).mobius.drives.signIn(id, 'wrong'), drive.id)).toMatchObject({ ok: false });
+    expect(await shell().evaluate((id) => (window as unknown as { mobius: Bridge }).mobius.drives.signIn(id, 'new-pass'), drive.id)).toEqual({ ok: true });
+    await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Later.md')), { timeout: 20_000 }).toBe(true);
+    await expect.poll(state).toBe('idle');
+  } finally {
+    await dav.close();
+  }
+});
