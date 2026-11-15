@@ -70,7 +70,30 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 Andrew chose to start sync on 2026-11-15. This is the design for the first version. The code will be
 `crates/mobius-host/src/drive_sync.rs`.
 
-### What is synced
+### Built on the `Drive` trait, for every kind of drive
+
+Sync uses only the `Drive` trait, never WebDAV directly, so S3-style storage, Dropbox, OneDrive and Google Drive (which
+Andrew asked for on 2026-11-15) can sync once they implement it. The trait grows by what those services need:
+
+- **A version, not an ETag.** `Entry::etag` becomes `version`. It is an opaque string sent back to guard a change: an
+  ETag for WebDAV and S3, a revision for Dropbox and Google Drive, a cTag or eTag for OneDrive. A drive that can't
+  guard a change by version says so (`guards_versions() == false`). Sync then reads the version just before writing,
+  and accepts the small gap.
+- **Ids beside paths.** `Entry` gains `id: Option<String>`. Google Drive lets two files share one name in a folder,
+  so sync keys its base by id where there is one, and by path where there isn't. Two files with the same name are
+  synced as `name` and `name (2)` locally, with the base recording which id is which.
+- **A change feed where there is one.** `changes(since: Option<&str>) -> Res<Option<(Vec<Change>, String)>>` returns
+  what changed since a cursor, and the next cursor. Google Drive has its changes list, OneDrive has delta, Dropbox has
+  a list-folder cursor, and Nextcloud has sync-collection `REPORT`. `None` means the drive has no feed, so sync falls
+  back to listing.
+- **Service documents are links, never files.** A Google Doc, Sheet or Slides file has no bytes to download. `Entry`
+  gains `link: Option<String>`. Files shows such a file with its link to open in the browser, and sync leaves it alone
+  on both sides.
+- **Sign-in on the service's own page.** One OAuth piece for every service: PKCE, a loopback redirect on
+  `127.0.0.1`, and the refresh token in the system's secret store, with access tokens refreshed as needed. Calendar
+  sign-in for Google and Microsoft uses the same piece. A drive account records which sign-in it uses (an app
+  password or a token), and `check` says plainly when the sign-in has to be done again.
+
 
 - **A workspace folder, paired with a folder on a drive.** The person turns it on per folder from Files (for example,
   `notes` with `Cloud / Notes`). It is off by default. A folder is in at most one pair, and pairs don't nest. Pairs
