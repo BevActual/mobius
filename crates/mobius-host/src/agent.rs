@@ -188,7 +188,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
         finish: true,
         tools: &["mail", "tasks", "calendar"],
-        effort: Some("low"),
+        effort: Some("none"),
     },
     AppMode {
         id: "review",
