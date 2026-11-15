@@ -27,8 +27,8 @@ in the [launch checklist](../launch.md).
 
 | Piece | What it is | Used |
 | --- | --- | --- |
-| A clip per app | The app's moment, ten to fifteen seconds, uncut, light theme, 1440 by 900. | Beside each app in the README and the app guide; on its own when sharing. |
-| The reel | Six to eight of the strongest clips cut together, 60 to 90 seconds, opening on Home and closing on Rewind. | The top of the README, the release page, launch posts. |
+| A clip per app | The app's moment, uncut, light theme, 1440 by 900, pointer visible. It runs from two or three seconds of the app used by hand to Keep: up to 20 seconds for a single step, up to 35 for Plan my day, Triage and Compare. | Beside each app in the README and the app guide; on its own when sharing. |
+| The reel | Six to eight of the strongest clips cut together, 60 to 90 seconds, opening on Home and closing on Rewind. It cuts between moments, never inside one. | The top of the README, the release page, launch posts. |
 | The cross-app run | The supplier email to tasks to a meeting. No longer the headline. | Mail's moment, and the end-to-end test (`apps/desktop/e2e/demo-workflow.spec.ts`) that every tester build must pass. |
 
 ## The demo workspace
