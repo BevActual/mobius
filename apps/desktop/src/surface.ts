@@ -98,6 +98,8 @@ export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with shee
 /** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
 export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, and run code.test to check, saying nothing until then. Then tell me once, in a sentence or two, what was wrong. I keep or discard the change.';
 
+/** The demo's Database moment: a question in plain words, the SQL shown where it can be read, then the rows. */
+export const ASK_DATABASE = 'Answer my question about the attached database with db.query, changing nothing. Start with the SQL you ran, in a ```sql block, so I can read it; then the answer in a sentence; then the rows it found as a short list, one row a line (not a table). The question: ';
 /** The demo's Photo moment: one look for every photo in an album, in one photos.edit, waiting for Keep. */
 export const matchAlbum = (album: string) => `Make the photos in the album "${album}" match: look at how they differ in light and colour (the attached picture shows them all, numbered in the album's order, when your model reads pictures), then give them all the same look with one photos.edit on the album, one adjustment with a short name, amounts kept gentle (most within 30). Say nothing until it is done, then say in one short line what you set.`;
 
@@ -220,7 +222,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             { label: 'Describe the data', prompt: 'Look at the attached database with db.query (a few rows of each table, counts, ranges) and describe what it holds in a short paragraph per table. Change nothing.', attach: 'note' },
             { label: 'Find problems', prompt: 'Check the attached database for problems with db.query: empty values, duplicates, values that look wrong or out of range. List what you find with the query that shows it. Change nothing.', attach: 'note' },
-            { label: 'Ask about it…', prompt: 'Using db.query on the attached database, ', attach: 'note' },
+            { label: 'Ask about it…', box: 'In this database, ', prompt: ASK_DATABASE, attach: 'note' },
           ]
         : [{ label: 'Make a database', prompt: 'Make a small SQLite database in my Database app (db.execute: CREATE TABLE and INSERT) for ' }];
     case 'reader':

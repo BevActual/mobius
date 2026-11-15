@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, MAKE_A_DECK, matchAlbum, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+import { ASK_DATABASE, COMPARE_TABS, isStarter, MAKE_A_DECK, matchAlbum, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('Plan my day reads before the model is asked', () => {
   it('reads the clock first, so the day is planned from now', () => {
@@ -56,6 +56,14 @@ describe('what each app suggests', () => {
     expect(open).toEqual([{ label: 'Make these match', prompt: matchAlbum('Jasmund cliffs'), attach: 'album' }]);
     expect(isStarter(open[0]!)).toBe(false);
     for (const words of ['"Jasmund cliffs"', 'one photos.edit on the album', 'Say nothing until it is done', 'the attached picture shows them all']) expect(open[0]!.prompt).toContain(words);
+  });
+  it('asks a database in the person\'s words, with the SQL shown and the rows as a list', () => {
+    const note = { path: 'databases/Customers.sqlite', title: 'Customers', text: '', folder: 'databases' as const };
+    const ask = suggestionsFor({ app: 'database', hasPage: false, note }).find((s) => s.label === 'Ask about it…')!;
+    expect(ask.box).toBe('In this database, ');
+    expect(ask.prompt).toBe(ASK_DATABASE);
+    expect(isStarter(ask)).toBe(true);
+    for (const words of ['```sql', 'not a table', 'changing nothing']) expect(ask.prompt).toContain(words);
   });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');
