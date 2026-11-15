@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimKey, parseInline, parseMarkdown, plainText, safeHref, tableCells, unsureClaims, withoutMarks, type Block } from './markdown';
+import { claimKey, parseInline, parseMarkdown, plainText, safeHref, tableCells, unsureClaims, withoutMarks, withoutToolTags, type Block } from './markdown';
 
 describe('agent reply markdown', () => {
   it('reads bold, italic, code and links', () => {
@@ -73,5 +73,16 @@ describe('tables', () => {
     expect(tableCells('| `a|b` | c \\| d |')).toEqual(['`a|b`', 'c | d']);
     expect(parseMarkdown('a | b\n---').map((b) => b.kind)).not.toContain('table');
     expect(parseMarkdown('Text\n\n---').map((b) => b.kind)).toEqual(['paragraph', 'rule']);
+  });
+});
+
+describe('withoutToolTags', () => {
+  it('drops a tool call the model began as text, and keeps the rest of the reply (round 20)', () => {
+    expect(withoutToolTags('Reply: Priya, about the board pack.\n<mcpmobiusmail-draft>\nLater: Veltro.')).toBe('Reply: Priya, about the board pack.\nLater: Veltro.');
+    expect(withoutToolTags('Done.\n<invoke name="mail.draft">\n<parameter name="body">Hi</parameter>\n</invoke>\nThree drafts wait for you.')).toBe('Done.\nThree drafts wait for you.');
+    expect(withoutMarks('Sorted.\n</mcp:mobius>\n')).toBe('Sorted.\n');
+  });
+  it('leaves tags that are part of what the person reads', () => {
+    for (const text of ['Use <b>bold</b> here.', 'Wrap it in `<invoke>` when you call it.', 'a < b and c > d', 'No tags at all.']) expect(withoutToolTags(text)).toBe(text);
   });
 });
