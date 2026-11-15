@@ -98,6 +98,11 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
 }
 
 /// A turn's moves for the window: each moved file's old path and new one.
+/// An app's top workspace folder as a Keep names it, such as `tasks/`.
+fn is_app_folder(v: &str) -> bool {
+    v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
+}
+
 fn moves_json(moves: &[(String, String)]) -> Value {
     moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
 }
@@ -3410,6 +3415,16 @@ impl Bridge {
 
     fn changes_answer(&self, method: &str, conversation: &str, args: &[Value]) -> Out {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
+        // The person kept a turn's changes (all of them, or one app's folder): sync may send them now.
+        if method == "kept" {
+            let (Some(start), folder) = (arg(1).as_str().filter(|c| mobius_workspace::checkpoints::is_checkpoint_id(c)), arg(2).as_str().unwrap_or("")) else {
+                return Ok(failed("Which turn?"));
+            };
+            if !folder.is_empty() && !is_app_folder(folder) {
+                return Ok(failed("That is not a workspace folder."));
+            }
+            return Ok(if self.turn_history.keep(conversation, start, folder) { json!({ "ok": true }) } else { failed("That turn is not known.") });
+        }
         if let Some(out) = self.older_turns_call(method, conversation, args) {
             return Ok(out);
         }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
+import type { CalendarSuggestion, MailDraft, MobiusBridge, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { loadApply } from './chat-mode';
 import { APP_ICONS } from './Rail';
@@ -96,6 +96,10 @@ export const fileKept = (id: string, path: string): boolean => keptEntries().som
 export const keepTurn = (id: string, scope: KeepScope = 'all') => {
   const entry = scope === 'all' ? id : `${id}|${scope}`;
   try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptEntries().filter((x) => x !== entry), entry].slice(-MAX_KEPT))); } catch { /* Not kept. */ }
+  // The host too, so sync sends what was kept (an agent's change waits for Keep before it reaches a drive).
+  const at = id.indexOf(':');
+  const changes = (window as { mobius?: Partial<MobiusBridge> }).mobius?.changes;
+  if (at > 0) void changes?.kept?.(id.slice(0, at), id.slice(at + 1), scope === 'all' ? '' : SCOPE_FOLDERS[scope]).catch(() => undefined);
   window.dispatchEvent(new CustomEvent(KEPT_EVENT, { detail: id }));
 };
 /** The apps a list of changed files belongs to, by name, in the order they first appear: "Tasks, Calendar, Sheets". */

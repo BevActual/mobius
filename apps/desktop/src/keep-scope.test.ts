@@ -11,6 +11,16 @@ beforeEach(() => {
   (globalThis as { CustomEvent?: unknown }).CustomEvent ??= class { constructor(public type: string) {} };
 });
 
+describe('Keep tells the host, so sync sends what was kept', () => {
+  it('names the turn and, for an app\'s own Keep, its folder', () => {
+    const calls: unknown[][] = [];
+    (window as unknown as { mobius: unknown }).mobius = { changes: { kept: (...a: unknown[]) => { calls.push(a); return Promise.resolve({ ok: true }); } } };
+    keepTurn('c1:abc', 'tasks');
+    keepTurn('c1:abc');
+    expect(calls).toEqual([['c1', 'abc', 'tasks/'], ['c1', 'abc', '']]);
+  });
+});
+
 describe('Keep on an app bar keeps only that app\'s changes', () => {
   const turn = 'c1:abc';
   const files = ['tasks/P2 build.md', 'calendar/Work.ics', 'sheets/Kestrel/Costs.csv'];
