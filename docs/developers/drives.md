@@ -65,18 +65,97 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 - **Folder versions.** A folder's ETag changes when anything in it changes on Nextcloud, but not on every server, so it
   is not used to tell whether a listing is fresh.
 
-## Notes for two-way sync (later)
+## Two-way sync (design)
 
-Written down as the drives work went in, for the decision on syncing workspace folders with a drive:
+Andrew chose to start sync on 2026-11-15. This is the design for the first version. The code will be
+`crates/mobius-host/src/drive_sync.rs`.
 
-- The per-file ETag gives safe single-file writes, but sync needs to find what changed in a whole folder. Nextcloud
-  offers `oc:etag` on folders (changes when anything below changes) and a sync-collection `REPORT` (RFC 6578); plain
-  WebDAV servers need a full `PROPFIND` walk and a stored ETag per file.
-- A conflict is both sides changing the same file since the last sync. Two ways to settle it: keep both (the
-  server's copy beside the person's as `name (conflict from <server>).ext`, as Nextcloud's own client does), or ask in
-  the review bar. Text files Mobius understands (notes, tasks, calendar) could merge line by line instead.
-- A delete on one side and a change on the other should keep the changed file, never lose it.
-- Moves cannot be told from a delete plus a new file over plain WebDAV; a rename on the server looks like both. The
-  workspace's checkpoints already record moves, so moves made in Mobius can be sent as `MOVE`.
-- Checkpoints give an undo for what sync changed locally; nothing gives one on the server, so a sync that would delete
-  many files there should ask first.
+### What is synced
+
+- **A workspace folder, paired with a folder on a drive.** The person turns it on per folder from Files (for example,
+  `notes` with `Cloud / Notes`). It is off by default. A folder is in at most one pair, and pairs don't nest. Pairs
+  are kept in `drive-sync.json`.
+- **The workspace folder stays the working copy.** Every app, the agent's tools, Review and Rewind keep working on
+  local files as now. Sync only moves changes between the folder and the server.
+- **Left out:** names the systems make (`.DS_Store`, `Thumbs.db`, `desktop.ini`, `~$*`), Mobius's temp files
+  (`*.mobius-tmp`), `.git` folders, and conflict copies (below). Files over 32 MB are listed as "too big to sync"
+  until chunked upload is built. They are skipped, never deleted.
+
+### How changes are found
+
+Each pair keeps a **base**: for every file, its SHA-256 and the server's ETag when the two last matched. Stat data is
+kept beside it so unchanged files aren't hashed again. A change is a different hash locally, or a different ETag on the
+server. Times are only used to skip hashing, never to decide what changed.
+
+- **Local:** walk the folder, and hash a file only when its size or time differs from the base.
+- **Server:** `PROPFIND` one level at a time. On Nextcloud and ownCloud, a folder's ETag changes when anything below
+  it changes, so an unchanged folder is skipped. Other servers get a full walk.
+- **When:** a minute after the last local change, every 5 minutes while Mobius is open, when Files opens, and on Sync
+  now.
+
+### What each case does
+
+| Local since base | Server since base | Result |
+| --- | --- | --- |
+| changed or new | same or absent | `PUT` with `If-Match` the base ETag (`If-None-Match: *` for a new file) |
+| same | changed or new | `GET`, then write locally (temp file, then rename) |
+| changed | changed | Same bytes: update the base only. Different: a **conflict** |
+| deleted | same | `DELETE` with `If-Match` the base ETag |
+| same | deleted | Delete locally |
+| deleted | changed | **Keep the edit:** download it again |
+| changed | deleted | **Keep the edit:** upload it again, as new |
+
+- **A conflict keeps both and says so.** The server's version keeps the name, because someone else may be using it.
+  The local version is renamed `name (conflict, Mobius, 2026-11-15 14.32).ext` beside it, as Nextcloud's own client
+  does. Conflict copies are never uploaded. Files shows a conflict line with Open both, Keep mine (uploads it under the
+  name) and Keep theirs (deletes the copy).
+- **A `412` from the server** means it changed in between: that file is looked at again next round, never forced.
+- **Many deletes ask first.** If a round would delete more than 10 files, or more than a quarter of the pair, on
+  either side, the pair pauses and Files asks: "Delete 40 files on Cloud?" with Delete and Keep them.
+- **Moves.** Over plain WebDAV, a move on the server looks like a delete plus a new file, and is handled that way, with
+  the guard above. Moves made in Mobius are sent as `MOVE` (with `Overwrite: F`), because the checkpoints record them.
+  That part comes after the first version.
+
+### Mobius's changes, Review and Rewind
+
+- **An agent's change waits for Keep.** Files the agent changed in a turn that hasn't been kept are held: not
+  uploaded, and Files says "3 wait for Keep". Keep releases them: the window tells the host which paths were kept
+  (`changes.kept`). Discard puts the file back as it was, so it matches the base again and there is nothing to send.
+  Nothing unreviewed reaches the server.
+- **What sync brings in can be undone.** Before a round writes or deletes local files, the workspace takes a
+  checkpoint ("Before sync from Cloud"). Rewind can go back past it like any other.
+- **Rewind and Discard are local changes like any other.** They are sent on the next round. When a Rewind would change
+  files in a synced folder, its confirmation says so first: "This also changes 4 files on Cloud". Rewinding a file
+  that was deleted on the server puts it back there too.
+
+### Offline, errors and resume
+
+- The base is saved after every file that goes through, so a round cut off by a quit, a crash or the network
+  resumes where it stopped. A partial `PUT` leaves nothing on Nextcloud, because it writes to a `.part` file first.
+- With no network, or when the server is unreachable, a round tries again after 1, 2, 5 and then every 10 minutes.
+  A sign-in that stopped working pauses the pair and asks for the app password again.
+- Each pair has a status in Files: Up to date · Syncing 3 of 12 · 2 wait for Keep · 1 conflict · Offline, trying again
+  in 2 minutes · Paused. Pause, Resume and Sync now sit beside it.
+
+### First version and later
+
+**First version:**
+
+- Pairing a folder from Files.
+- The base and the round, for both directions.
+- The table above, including conflicts and the delete guard.
+- Holding the agent's changes until Keep.
+- The checkpoint before sync.
+- Offline and resume.
+- The status line, with Pause and Sync now.
+
+It is built and tested against the fake WebDAV server (extended for `If-Match`, deletes and listings), then against a
+real Nextcloud if one is available.
+
+**Later:**
+
+- `MOVE` for moves made in Mobius.
+- Chunked upload over 32 MB.
+- Nextcloud's sync-collection `REPORT` (RFC 6578) instead of walking.
+- Line-by-line merge for text Mobius understands (notes, tasks, calendar).
+- The agent reading the sync status.
