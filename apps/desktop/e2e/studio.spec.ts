@@ -220,7 +220,7 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   const allowBoth = (bass: RegExp) => expect(async () => {
     if (await allow.count()) await allow.first().click();
     await expect(change).toContainText(bass, { timeout: 500 });
-    await expect(change).toContainText('Pad: drive 0% → 10%', { timeout: 500 });
+    await expect(change).toContainText('Pad: shape 100% → 60%, drive 0% → 10%, cutoff 4.2 kHz → 1.9 kHz', { timeout: 500 });
   }).toPass({ timeout: 15_000 });
   await allowBoth(/Bass, bars 1 to 4/);
   await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4, proposed by Mobius' })).toHaveAttribute('data-proposed', 'true');
