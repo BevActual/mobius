@@ -14,7 +14,7 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut' | 'album';
   /** For a starter: the words put in the box for the person to finish, instead of the prompt itself. What they type
    * after them goes on the end of the prompt, which is sent behind Details. */
   box?: string;
@@ -59,6 +59,8 @@ export interface SurfaceState {
   cut?: { title: string; source: string; text: string } | null;
   /** The photo open in Photo: described in words, with its edits file. */
   photo?: { title: string; source: string; text: string; /** The picture as shown, to send to models that read pictures. */ picture?: string } | null;
+  /** The album open in Photo when no photo is: its name and how many photos it has. */
+  album?: { name: string; photos: number; /** Its photos, as one picture of them all numbered in order, for models that read pictures. */ sheet?: () => Promise<string | null> } | null;
   /** The file open in Code, with the last test output if it failed. */
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
@@ -70,7 +72,7 @@ export interface SurfaceState {
 }
 
 /** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
-export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them. Rename nothing: every file keeps its name exactly, a copy such as "Invoice (1).pdf" too. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
@@ -95,6 +97,11 @@ export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with shee
 
 /** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
 export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, and run code.test to check, saying nothing until then. Then tell me once, in a sentence or two, what was wrong. I keep or discard the change.';
+
+/** The demo's Database moment: a question in plain words, the SQL shown where it can be read, then the rows. */
+export const ASK_DATABASE = 'Answer my question about the attached database with db.query, changing nothing. Start with the SQL you ran, in a ```sql block, so I can read it; then the answer in a sentence; then the rows it found as a short list, one row a line (not a table). The question: ';
+/** The demo's Photo moment: one look for every photo in an album, in one photos.edit, waiting for Keep. */
+export const matchAlbum = (album: string) => `Make the photos in the album "${album}" match: look at how they differ in light and colour (the attached picture shows them all, numbered in the album's order, when your model reads pictures), then give them all the same look with one photos.edit on the album, one adjustment with a short name, amounts kept gentle (most within 30). Say nothing until it is done, then say in one short line what you set.`;
 
 /** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
 export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, never more, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
@@ -210,7 +217,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Brighten the shadows', prompt: 'The bottom of this photo looks darker than the top. Add one adjustment to its edits file that brightens only the lower part, softly, and leaves the sky alone. Say what you changed.', attach: 'photo' },
             { label: 'Adjust…', prompt: 'In this photo, ', attach: 'photo' },
           ]
-        : [];
+        : state.album && state.album.photos > 1
+          ? [{ label: 'Make these match', prompt: matchAlbum(state.album.name), attach: 'album' as const }]
+          : [];
     case 'design':
       return state.note
         ? [
@@ -231,7 +240,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             { label: 'Describe the data', prompt: 'Look at the attached database with db.query (a few rows of each table, counts, ranges) and describe what it holds in a short paragraph per table. Change nothing.', attach: 'note' },
             { label: 'Find problems', prompt: 'Check the attached database for problems with db.query: empty values, duplicates, values that look wrong or out of range. List what you find with the query that shows it. Change nothing.', attach: 'note' },
-            { label: 'Ask about it…', prompt: 'Using db.query on the attached database, ', attach: 'note' },
+            { label: 'Ask about it…', box: 'In this database, ', prompt: ASK_DATABASE, attach: 'note' },
           ]
         : [{ label: 'Make a database', prompt: 'Make a small SQLite database in my Database app (db.execute: CREATE TABLE and INSERT) for ' }];
     case 'reader':
@@ -271,7 +280,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Go deeper', prompt: 'Find three or four more sources for this report, from angles it does not cover yet, and add what they say to the report and its sources. Keep what is already there.', attach: 'note' },
             { label: 'Turn into a doc', prompt: 'Write this report up as a short document for other people in my Docs (docs/Documents/<a short title>.md): the answer, the reasons, and the sources as links. Leave the report as it is.', attach: 'note' },
           ]
-        : [{ label: 'Research…', prompt: 'Research on the web, and write a report with sources in my Research app: ' }];
+        : [{ label: 'Research…', box: 'Research ', prompt: 'Research on the web: search two or three times with web.search, read three or four of the best pages with web.read, and write a report in my Research app (research/Research/<a short title>.md) with the answer first and every fact linked to the page it came from. Cite only pages you read with web.read; a search result you did not read is not a source. The question: ' }];
     case 'canvas':
       return state.note
         ? [
@@ -303,7 +312,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'calendar':
       return [
         // The demo's Calendar moment: the box reads "Find a time with " and the person names who, such as Sam.
-        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them (such as afternoons) and follow it. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
+        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them and follow it: for afternoons, call calendar.free with dayStart 13:00 so every free afternoon is there. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];

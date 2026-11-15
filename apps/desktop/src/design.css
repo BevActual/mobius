@@ -119,6 +119,8 @@
 .design-clip { position: absolute; inset: 0; overflow: hidden; cursor: default; }
 .design-frame-name { position: absolute; left: 0; white-space: nowrap; color: var(--muted); cursor: default; user-select: none; line-height: 1; }
 .design-frame-name:hover { color: var(--ink); }
+/* Under each of several new frames Mobius added (three takes): keep that one alone, or drop it. */
+.design-take { position: absolute; left: 0; display: flex; gap: var(--sp-2); transform-origin: top left; white-space: nowrap; }
 .design-frame[data-selected] > .design-frame-name { color: var(--accent); }
 .design-frame-stroke { position: absolute; inset: 0; pointer-events: none; }
 .design-node { position: absolute; cursor: default; user-select: none; white-space: pre-wrap; overflow-wrap: anywhere; overflow: hidden; }

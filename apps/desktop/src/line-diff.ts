@@ -8,8 +8,10 @@ export interface DiffLine { kind: 'same' | 'added' | 'removed'; text: string }
 export function diffLines(before: string, after: string): DiffLine[] {
   // Lines both end with are kept as they are first, so a page that grew at the end shows only the new lines,
   // not its old last line (often blank) matched early and a copy of it "added" at the end.
-  const allA = before.split('\n');
-  const allB = after.split('\n');
+  // Windows line breaks (\r\n) and plain ones compare alike: a file saved again with the other kind is not a change
+  // to every line, so a rewrite that changed one paragraph shows only that paragraph.
+  const allA = before.split(/\r?\n/);
+  const allB = after.split(/\r?\n/);
   let tail = 0;
   while (tail < allA.length && tail < allB.length && allA[allA.length - 1 - tail] === allB[allB.length - 1 - tail]) tail++;
   const kept = allA.slice(allA.length - tail).map((text) => ({ kind: 'same' as const, text }));

@@ -34,7 +34,7 @@ const SUGGESTIONS: &str = ".suggestions.json";
 /// Other people's calendars, read only to see when they are busy (shared with the person, or seeded in the demo):
 /// `calendar/people/<Name>.ics`. Never listed as the person's own.
 pub const PEOPLE: &str = "people";
-const MAX_FREE: usize = 8;
+const MAX_FREE: usize = 10;
 
 /// When an event starts or ends: a whole day, or a time of day.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -564,7 +564,7 @@ fn tool_list() -> Vec<Value> {
                 "location": { "type": "string" }, "notes": { "type": "string" },
                 "why": { "type": "string", "description": "One short sentence the person reads: why this, and why then." } }, "required": ["title", "start", "why"] } }),
         json!({ "name": "calendar.free", "capability": "calendar.read",
-            "description": "Find times when the person is free, and the people named are too (from the calendars they share), for a meeting of a given length. Weekdays, in working hours, from now on. Then offer the best two or three with calendar.suggest; to invite, draft an email with mail.draft.",
+            "description": "Find times when the person is free, and the people named are too (from the calendars they share), for a meeting of a given length. Weekdays, in working hours, from now on: the first free time of each morning and each afternoon (from 13:00). For afternoons only, set dayStart to 13:00; for mornings only, dayEnd to 12:00. Then offer the best two or three with calendar.suggest; to invite, draft an email with mail.draft.",
             "input_schema": { "type": "object", "properties": {
                 "with": { "type": "array", "items": { "type": "string" }, "description": "People who must be free too, by name (a first name is enough)." },
                 "minutes": { "type": "integer", "description": "How long, in minutes. Defaults to 60." },
@@ -820,7 +820,8 @@ impl Calendar {
                 let mut taken_half = [false, false];
                 while at + length <= close && free.len() < MAX_FREE {
                     let end = at + length;
-                    let half = usize::from(at.time() >= NaiveTime::from_hms_opt(12, 0, 0).unwrap_or(NaiveTime::MIN));
+                    // A morning and an afternoon each, the afternoon from 13:00, after lunch, so a week gives all ten.
+                    let half = usize::from(at.time() >= NaiveTime::from_hms_opt(13, 0, 0).unwrap_or(NaiveTime::MIN));
                     if !taken_half[half] && !busy.iter().any(|(s, f)| *s < end && *f > at) {
                         free.push(json!({ "start": at.format("%Y-%m-%dT%H:%M").to_string(), "end": end.format("%Y-%m-%dT%H:%M").to_string() }));
                         taken_half[half] = true;
@@ -1083,6 +1084,11 @@ mod tests {
         let alone = c.free(&[], 60, (monday, monday), day, at("2026-11-16", "12:10")).unwrap();
         assert_eq!(alone["free"][0]["start"], "2026-11-16T12:30");
         assert!(c.free(&[], 5, (monday, monday), day, at("2026-11-16", "08:00")).is_err());
+        // A free week gives a morning and an afternoon (from 13:00, after lunch) on each of its five weekdays.
+        let next = c.free(&[], 60, (monday + Duration::days(7), monday + Duration::days(13)), day, at("2026-11-16", "08:00")).unwrap();
+        let starts: Vec<&str> = next["free"].as_array().unwrap().iter().map(|f| f["start"].as_str().unwrap()).collect();
+        assert_eq!(starts.len(), 10, "{starts:?}");
+        assert!(starts.iter().step_by(2).all(|s| s.ends_with("T09:00")) && starts.iter().skip(1).step_by(2).all(|s| s.ends_with("T13:00")), "{starts:?}");
         let tool: Value = serde_json::from_str(&c.run("calendar.free", &json!({ "with": ["Sam"], "from": "2026-11-16", "to": "2026-11-16", "minutes": 30 })).unwrap()).unwrap();
         assert_eq!(tool["with"], json!(["Sam Okafor"]));
     }
