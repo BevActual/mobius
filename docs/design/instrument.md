@@ -449,6 +449,14 @@ The frame holds and the app shapes its tools. This draws the line, so app thread
 | Shared controls, menus, the undo pill and the empty state | Its empty-state drawing and one line of text |
 | Comfortable or compact row heights | Which density it starts in |
 
+### A new app, or part of one that exists
+
+The build plan's test decides whether something becomes an app or folds into one (docs/reference/build-plan.md, "A new app, or part of one that exists"). For design, both routes are held to the same frame:
+
+- **A new app** starts in Instrument from its first screen. It uses the five zones, the shared toolbar, sidebar and inspector, and controls from the library only. Where the library lacks a control, the Design lead adds it there; the app never draws its own. It answers Mobius with the same dashed marks and Keep bar as every other app.
+- **A folded-in feature** lives in its host as a view (beside the host's other views in the view switch), a mode, or an inspector panel. It doesn't add a second toolbar row or crowd the host's toolbar: its controls go in the middle slot only while its view is open, and lower-priority ones fold into the ⋯ menu.
+- **Signs it should stand alone:** it has its own list of things people open (a person, a conversation, a meeting), its own empty state, and work that people do without the host open. **Signs it should fold in:** it only makes sense next to the host's content, or it would have one screen.
+
 ## The Mobius panel, improved
 
 The panel should never be empty, and it should show Mobius's work as things you can act on. Today it opens as three grey
