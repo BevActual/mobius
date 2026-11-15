@@ -86,7 +86,6 @@ Each is Wikimedia Commons' 1600 px rendition, re-encoded to about 300 KB.
 
 ## Still to add
 
-- **Photo:** twelve uneven photos from one shoot (an album "Chassis build"). Needs real, freely licensed photos.
 - **Video:** five short clips for a thirty-second cut. Needs real footage, a few seconds each.
 - **Notes:** a two-minute meeting recording.
 - **Projects, Agents, Abilities and Settings:** a project with different rules for Notes and Mail, a "Morning brief"
