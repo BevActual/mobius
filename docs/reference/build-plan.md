@@ -7,7 +7,9 @@ this one disagree about order or ownership, this page wins and the other page ge
 
 ## Direction
 
-- **Refine before adding.** No new apps for now. The apps that exist get good first.
+- **Add an app when it earns its place.** The apps that exist still come first, but a new app is welcome when it makes
+  sense or is needed, and every idea is first checked against the apps that exist. See
+  [A new app, or part of one that exists](#a-new-app-or-part-of-one-that-exists).
 - **Connect to what people already run.** Each app works with the services and the infrastructure a person or a team
   already has, their own servers included, through open standards first. Mobius never requires a Mobius account or a
   Mobius server. See [Connections](#connections).
@@ -18,8 +20,8 @@ this one disagree about order or ownership, this page wins and the other page ge
 - **One library.** Shared controls live in `apps/desktop/src/ui/`. A gap is fixed in the library, never patched in an
   app. Music is where the library is proven.
 - **Everything in the repo.** Specs, mocks and screenshots live under `docs/` and in pull requests.
-- **Parked:** model-provider connections beyond what works today, the Copilot and Hugging Face sign-in test, a Messages
-  app, the canvas.
+- **Parked:** model-provider connections beyond what works today, the Copilot and Hugging Face sign-in test, the
+  canvas.
 
 ## Who owns what
 
@@ -98,6 +100,50 @@ that round's pull request.
 Music's note editor already exists inside Music. It moves into the library only when a second app needs it or Music's
 next round has to change it; until then it is not a library task.
 
+## A new app, or part of one that exists
+
+Andrew replaced "no new apps for now" on 15 November 2026. A new app is added when it makes sense or is needed, and
+the same question is asked the other way about what exists: does this belong inside another app? Any lead may propose
+either. The proposal is a few lines in a pull request to this page, answering the questions below.
+
+**Fold it into an app that exists when most of these are true:**
+
+- It works on the same things that app already holds: the same messages, events, files or notes.
+- A person would look for it there, and would reach it from that app's toolbar, sidebar or inspector.
+- It fits as a view, a mode or a panel, and the app is still easy to explain in one sentence afterwards.
+- It has no moment of its own: shown alone for ten seconds, it would not make anyone want it.
+
+**Make it a new app when most of these are true:**
+
+- It holds a kind of thing no app holds yet, with its own list, its own open document and its own settings.
+- A person opens it on purpose, as a job in itself, and other apps would link to it more than contain it.
+- Two or more apps need it equally, so putting it inside one would hide it from the other.
+- It has a moment of its own that could stand in the [demo plan](demo-plan.md).
+- Folding it in would make the host app harder to explain or crowd its toolbar.
+
+**Either way:**
+
+- Shared data goes in the core, not in an app, so the answer can change later without moving anyone's data.
+- A new app starts in Abilities, not in the default set, and is labelled "early" until its moment is a Have.
+- A new app arrives whole: Instrument from the first screen, library controls only, a section under `docs/apps/`, a
+  row in the Apps roadmap and a moment in the demo plan.
+- The same test runs on the apps that exist. An app that has no moment of its own and is mostly opened from another
+  app is a candidate to fold in, and is proposed the same way.
+- It does not jump the queue. A new app takes its place under [Priorities](#priorities); it never comes before a
+  demo moment or holds up `main`.
+
+The orchestrator decides the clear cases and places the work. Andrew decides when the answer changes what Mobius is
+to a newcomer: a new app in the default set, an app removed or merged away, or a new kind of data Mobius keeps.
+
+Waiting for this test now:
+
+| Idea | The question | Who proposes |
+| --- | --- | --- |
+| People (contacts over CardDAV) | Its own app, or an address book inside Mail and Calendar with the data in the core | Apps lead, with the Builder for the core |
+| Messages (Slack, Discord, Telegram on official APIs) | Its own app, or more accounts in Mail | Apps lead |
+| Meetings (recording to a summary) | Its own app, or what Notes and Calendar already do together | Apps lead |
+| Search, Research, Review, Terminal, Canvas, Reader, Knowledge, Views | Whether each keeps standing alone, checked when its first round comes up | Apps lead |
+
 ## Rules that keep leads out of each other's way
 
 - **Shared files have one owner.** `apps/desktop/src/ui/` is the Design lead's; the shell and the core are the
@@ -147,7 +193,7 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
-| People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Needs a decision: it is close to a new app |
+| People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Apps lead writes the proposal: a new People app, or part of Mail and Calendar ([the test](#a-new-app-or-part-of-one-that-exists)) |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
 
 ### Drives
