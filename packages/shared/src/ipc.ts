@@ -327,6 +327,8 @@ export interface MobiusBridge {
     /** Everything back as it was right after that turn; the later turns go. `undo` names the rewind for undoRewind. */
     rewind?(conversation: string, start: string): Promise<{ ok: true; undo: string; later: number } | AgentFailure>;
     undoRewind?(conversation: string, undo: string): Promise<{ ok: true } | AgentFailure>;
+    /** The person kept a turn (`start` names it): all of it, or one app's folder such as `tasks/`. Sync sends it then. */
+    kept?(conversation: string, start: string, folder?: string): Promise<{ ok: true } | AgentFailure>;
   };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {

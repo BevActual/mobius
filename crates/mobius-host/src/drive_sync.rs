@@ -51,6 +51,9 @@ pub struct RoundOptions<'a> {
     pub allow_deletes: bool,
     /// Today's date and time for a conflict copy's name, such as `2026-11-15 14.32`.
     pub stamp: &'a str,
+    /// Called once before the round first writes or deletes a file here: the workspace's checkpoint "Before sync",
+    /// so Rewind can put back what sync brought in. When it fails, nothing is written here this round.
+    pub before_here: Option<&'a dyn Fn() -> Res<()>>,
 }
 
 /// Deletes a round held back to ask about.
@@ -90,6 +93,26 @@ impl Report {
     pub fn changed_here(&self) -> bool {
         !self.downloaded.is_empty() || !self.deleted_here.is_empty() || !self.conflicts.is_empty()
     }
+}
+
+/// The agent's changes in a pair's folder that wait for Keep, as paths within the pair: the files each waiting turn
+/// changed (`files` lists them, as workspace paths) that the person has not kept. `folder` is the pair's workspace
+/// folder, such as `notes`. When a turn's files can't be read it fails, and the caller sends nothing that round, so nothing unreviewed slips out.
+pub fn held_paths(waiting: &[crate::turn_history::Turn], folder: &str, files: &dyn Fn(&crate::turn_history::Turn) -> Res<Vec<String>>) -> Res<HashSet<String>> {
+    let prefix = format!("{}/", folder.trim_matches('/'));
+    let mut held = HashSet::new();
+    for turn in waiting {
+        let changed = files(turn)?;
+        for path in changed {
+            let path = path.replace('\\', "/");
+            if let Some(inner) = path.strip_prefix(&prefix)
+                && !turn.kept(&path)
+            {
+                held.insert(inner.to_owned());
+            }
+        }
+    }
+    Ok(held)
 }
 
 /// Names the systems and Mobius make that are never synced, and conflict copies.
@@ -291,6 +314,16 @@ pub fn round(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, opti
     if !options.allow_deletes && (too_many(deletes_there.len()) || too_many(deletes_here.len())) {
         plan.retain(|(_, s)| !matches!(s, Step::DeleteThere | Step::DeleteHere));
         report.ask = Some(DeletePlan { on_drive: deletes_there, here: deletes_here });
+    }
+
+    if let Some(before) = options.before_here
+        && plan.iter().any(|(_, s)| matches!(s, Step::Download | Step::DeleteHere | Step::Both))
+        && let Err(e) = before()
+    {
+        // Without the checkpoint, only the drive is changed this round.
+        let (here_steps, rest): (Vec<_>, Vec<_>) = plan.into_iter().partition(|(_, s)| matches!(s, Step::Download | Step::DeleteHere | Step::Both));
+        report.failed.extend(here_steps.into_iter().map(|(path, _)| (path, e.clone())));
+        plan = rest;
     }
 
     for (path, step) in plan {
@@ -563,6 +596,48 @@ mod tests {
         assert_eq!((r.held.as_slice(), r.downloaded.as_slice()), (["plan.md".to_owned()].as_slice(), ["other.md".to_owned()].as_slice()));
         assert_eq!(p.there("plan.md").as_deref(), Some("one"), "nothing unreviewed reaches the drive");
         assert_eq!(p.round().uploaded, ["plan.md"], "once kept, it goes");
+    }
+
+    #[test]
+    fn what_the_agent_changed_in_the_folder_is_held_until_kept() {
+        use crate::turn_history::Turn;
+        let turn = |kept: &[&str]| Turn { start: "aaaa".into(), end: Some("bbbb".into()), when: 0, ask: String::new(), kept: kept.iter().map(|k| (*k).to_owned()).collect() };
+        let files = |_: &Turn| Ok(vec!["notes/plan.md".to_owned(), "notes/trips/a.md".to_owned(), "tasks/x.json".to_owned(), "notesy.md".to_owned()]);
+        let held = held_paths(&[turn(&[])], "notes", &files).unwrap();
+        assert_eq!(held, ["plan.md".to_owned(), "trips/a.md".to_owned()].into());
+        assert!(held_paths(&[turn(&["notes/"])], "notes", &files).unwrap().is_empty(), "Notes' own Keep");
+        assert!(held_paths(&[turn(&[""])], "notes", &files).unwrap().is_empty(), "the whole turn kept");
+        assert_eq!(held_paths(&[turn(&["tasks/"])], "notes", &files).unwrap().len(), 2, "another app's Keep");
+        assert!(held_paths(&[turn(&[])], "notes", &|_| Err("gone".into())).is_err());
+    }
+
+    #[test]
+    fn a_checkpoint_comes_before_sync_writes_here_and_without_it_nothing_is_written() {
+        let mut p = pair();
+        p.put_here("plan.md", "one");
+        p.round();
+        let taken = std::cell::Cell::new(0);
+        let checkpoint = || {
+            taken.set(taken.get() + 1);
+            Ok(())
+        };
+        // Only sending: no checkpoint.
+        tick();
+        p.put_here("plan.md", "two");
+        p.round_with(&RoundOptions { before_here: Some(&checkpoint), ..RoundOptions::default() });
+        assert_eq!(taken.get(), 0);
+        // Bringing in: one, however many files.
+        p.put_there("plan.md", "three");
+        p.put_there("more.md", "x");
+        let r = p.round_with(&RoundOptions { before_here: Some(&checkpoint), ..RoundOptions::default() });
+        assert_eq!((taken.get(), r.downloaded.len()), (1, 2));
+        // It fails: the drive's change waits, and is not lost.
+        p.put_there("plan.md", "four");
+        let fails = || Err("the disk is full".to_owned());
+        let r = p.round_with(&RoundOptions { before_here: Some(&fails), ..RoundOptions::default() });
+        assert_eq!((r.downloaded.len(), r.failed.len()), (0, 1));
+        assert_eq!(p.here("plan.md").as_deref(), Some("three"));
+        assert_eq!(p.round().downloaded, ["plan.md"]);
     }
 
     #[test]
