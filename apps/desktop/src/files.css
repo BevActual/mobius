@@ -94,3 +94,23 @@
 .drive-lede { margin: 0 0 var(--sp-2); color: var(--ink); font-size: var(--fs-md, 14px); line-height: 1.5; }
 .drive-hint { margin: -2px 0 var(--sp-1); color: var(--muted); font-size: var(--fs-sm); }
 .drive-actions { display: flex; justify-content: flex-end; margin-top: var(--sp-2); }
+
+/* Sync: the two-arc glyph in muted ink (never indigo, which is Mobius's), turning while it syncs; a problem adds a dot. */
+.sync-glyph { position: relative; display: inline-flex; flex: none; width: 14px; height: 14px; color: var(--muted); }
+.sync-glyph svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.sync-glyph svg[data-busy] { animation: sync-turn var(--dur-loop) linear infinite; }
+@media (prefers-reduced-motion: reduce) { .sync-glyph svg[data-busy] { animation: none; } }
+@keyframes sync-turn { to { transform: rotate(360deg); } }
+.sync-dot { position: absolute; right: -1px; bottom: -1px; width: 6px; height: 6px; border-radius: 3px; background: var(--c-amber); box-shadow: 0 0 0 1.5px var(--paper); }
+.sync-glyph[data-tone="error"] .sync-dot { background: var(--danger); }
+.files-name .sync-glyph { margin-left: 2px; }
+.ui-side-row-trail .sync-glyph { align-self: center; margin-right: var(--sp-2); }
+.sync-sub { display: inline-flex; align-items: center; gap: 4px; }
+.sync-sub[data-tone="error"], .sync-sub[data-tone="warn"] { color: var(--ink); }
+.sync-link { padding: 0 2px; text-decoration: underline; text-underline-offset: 2px; }
+
+/* A conflict is the person's to settle, not Mobius's: amber, never dashed. */
+.sync-conflicts { display: flex; flex-direction: column; gap: var(--sp-1); width: var(--files-col); margin-inline: auto; }
+.sync-conflict { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: 4px 6px 4px 12px; border-radius: var(--radius-group); background: var(--warning-wash); color: var(--ink); font-size: var(--fs-sm); }
+.sync-conflict-text { flex: 1; min-width: 12em; }
+.sync-form { display: flex; flex-direction: column; gap: var(--sp-2); }

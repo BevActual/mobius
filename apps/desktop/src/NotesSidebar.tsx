@@ -35,7 +35,7 @@ export function listDate(ms: number, now: number): string {
   return dayLabel(d, { now: new Date(now) });
 }
 
-export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart, tags: withTags = false }: { notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void; tags?: boolean }) {
+export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES_WORDS, starts, onStart, tags: withTags = false, synced }: { synced?: (folder: string) => ReactNode; notes: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; pinned?: ReadonlySet<string>; onPin?: (path: string, title: string) => void; words?: SidebarWords; starts?: readonly Start[]; onStart?: (prompt: string) => void; tags?: boolean }) {
   const [query, setQuery] = useState('');
   const [tag, setTag] = useState<string | null>(null);
   useEffect(() => (withTags ? onShowTag((t) => { setQuery(''); setTag(t); }) : undefined), [withTags]);
@@ -160,6 +160,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           )}
           {notes.notebooks.map((nb) => (
             <SidebarSection key={nb.name} title={nb.name} {...fold(`notebook:${nb.name}`)} action={<>
+              {synced?.(nb.name)}
               {lead(nb.name)}
               <button type="button" className="strip-btn" aria-label={`New ${words.item} in ${nb.name}`} title={`New ${words.item}`} onClick={() => void notes.createPage(nb.name)}>
                 <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
