@@ -147,7 +147,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
       return [
-        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks', reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks', reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS, effort: 'low' },
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
@@ -320,7 +320,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
       ];
     case 'agent':
       return [
-        { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS, effort: 'low' },
         { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];
