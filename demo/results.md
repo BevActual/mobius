@@ -8,7 +8,7 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#386) | 14 Nov 19:07, 5a33562, chip | Sonnet 5.5 | 10.2 / 10.2 / 11.4 s | Time yes; blocks untested (after 18:00) | Needs a daytime run |
-| Mail: Triage (#397) | 14 Nov, b344d24, after Plan my day, no New chat | Sonnet 5.5 | 24.9 / 30.4 / 42.2 s | Content yes, time no | 25 s before the first change |
+| Mail: Triage (#402, #410 low effort) | 15 Nov 20:56, 047509c, Mail from the sidebar | Sonnet 5.5 | 15.5 / 32.8 / 47.9 s | Content mostly, time no | 4 to 11 s thinking per round; two drafts commit; closing line miscounts drafts |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -17,6 +17,16 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Files: Tidy this folder (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.8 / 20.8 / 30.8 s | Content yes, time no | Listing asks; step and bar counts wrong (50, 108 for 60) |
 | Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Round 17 (047509c: #402, #410)
+
+Run on Sunday 15 November, 20:56 local, debug build, Demo profile after Reset. Triage at low effort.
+
+| Moment | Time | Result | Weak |
+| --- | --- | --- | --- |
+| Mail: Triage the unread | 15.5 / 32.8 / 47.9 s (round 15: 24.9 / 30.4 / 42.2) | Starts with the three that need you, each line then its change; counts add to 40 (3, 1, 11, 25); nothing sent or archived; bar lists all 7 changes | Thinking 4.6, 6.5, 7.8 and 11.2 s across four rounds; the last round only writes the summary and takes 14.7 s; Priya's draft promises "by Friday"; Sam's books Wed 13:30 outright; closing line says 3 drafts for 4 |
+
+Turn timings: round 1 7.0 s (2 calls), round 2 11.4 s (4), round 3 14.0 s (5), round 4 14.7 s (none, first word at 13.3 s). App tools 1.3 s in all, start-up about 0.6 s a round. The 0.1.4 installer from this commit (14.9 MB) installed cleanly and the model works on Personal.
 
 ## Round 16 (9c227ea, ee43304 for the first runs)
 
