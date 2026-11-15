@@ -48,6 +48,8 @@
 .photo-page .photo-tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .photo-page .photo-tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .photo-page .photo-tile[aria-current="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+/* A photo Mobius edited in its last turn, waiting for Keep: dashed in Mobius's colour, as every app marks its changes. */
+.photo-page .photo-tile[data-proposed] { outline: 1.5px dashed var(--mobius); outline-offset: 2px; }
 .photo-page .photo-tile-wait { display: block; width: 100%; height: 100%; background: var(--sel); }
 .photo-page .photo-tile-badge { position: absolute; right: var(--sp-1); bottom: var(--sp-1); width: 18px; height: 18px; display: grid; place-items: center; border-radius: var(--radius-pill); background: color-mix(in srgb, var(--ink) 70%, transparent); color: var(--on-ink); }
 .photo-page .photo-tile-badge svg { width: 12px; height: 12px; stroke-width: 2; }

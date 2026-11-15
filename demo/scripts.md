@@ -9,7 +9,7 @@ holds how the earlier moments (Home, Mail, Calendar, Notes, Docs, Slides, Browse
 
 - **Start:** Photo, album **Jasmund cliffs** (ten photos from one walk, uneven in light and colour). No photo open, so the whole album shows.
 - **Ask:** press **Make these match** (shown in an open album of more than one photo, with no photo open).
-- **Good result:** one `photos.edit` call on the album. All ten photos change together and show the dashed mark until kept. Open one and hold Show original (M): the photo as shot comes back while held, so nothing was lost. Keep takes all ten.
+- **Good result:** one `photos.edit` call on the album, its amounts chosen from the numbered picture of all ten that goes with the chip. All ten photos change together and their tiles show the dashed mark until kept; no single photo is attached. Open one and hold Show original (M): the photo as shot comes back while held, so nothing was lost. Keep takes all ten.
 - **On main:** `photos.edit` (an album or a list, up to 200 photos) and the chip, yes. Show original moves to the library's hold (#403) in Photo's next change.
 - **Note:** the album has ten photos, not twelve as the plan says.
 

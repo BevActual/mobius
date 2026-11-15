@@ -53,9 +53,9 @@ describe('what each app suggests', () => {
     expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: null })).toEqual([]);
     expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Solo', photos: 1 } })).toEqual([]);
     const open = suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Jasmund cliffs', photos: 10 } });
-    expect(open).toEqual([{ label: 'Make these match', prompt: matchAlbum('Jasmund cliffs') }]);
+    expect(open).toEqual([{ label: 'Make these match', prompt: matchAlbum('Jasmund cliffs'), attach: 'album' }]);
     expect(isStarter(open[0]!)).toBe(false);
-    for (const words of ['"Jasmund cliffs"', 'one photos.edit on the album', 'Say nothing until it is done']) expect(open[0]!.prompt).toContain(words);
+    for (const words of ['"Jasmund cliffs"', 'one photos.edit on the album', 'Say nothing until it is done', 'the attached picture shows them all']) expect(open[0]!.prompt).toContain(words);
   });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');

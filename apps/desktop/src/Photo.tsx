@@ -198,7 +198,7 @@ function useThumbs(read: PhotosState['read'], paths: readonly { path: string; mo
 const forgetThumb = (path: string) => { for (const k of THUMBS.keys()) if (k.startsWith(`${path}@`)) THUMBS.delete(k); };
 
 /** The album's photos as a grid of square pictures, as Photos shows a library. */
-function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEvent) => void }) {
+function PhotoGrid({ photos, onDrop, changed }: { photos: PhotosState; onDrop: (e: DragEvent) => void; /** Photos Mobius edited, waiting for Keep: dashed. */ changed?: ReadonlySet<string> }) {
   const bin = photos.album === RECENTLY_DELETED;
   const album = photos.albums.find((a) => a.name === photos.album) ?? null;
   const list = bin ? photos.deleted : album?.photos ?? [];
@@ -289,7 +289,7 @@ function PhotoGrid({ photos, onDrop }: { photos: PhotosState; onDrop: (e: DragEv
             return (
               <li key={p.path} data-renaming={renaming === p.path || undefined}>
                 <button
-                  type="button" className="photo-tile" aria-label={`${p.name}${from}`} aria-current={!bin && photos.open?.path === p.path ? 'true' : undefined} title={bin ? `${p.name}${from}. Right-click to put it back.` : p.name}
+                  type="button" className="photo-tile" data-proposed={changed?.has(p.path) || undefined} aria-label={`${p.name}${from}`} aria-current={!bin && photos.open?.path === p.path ? 'true' : undefined} title={bin ? `${p.name}${from}. Right-click to put it back.` : p.name}
                   draggable={!bin}
                   onDragStart={(e) => { e.dataTransfer.setData(DRAG_TYPE, p.path); e.dataTransfer.effectAllowed = 'move'; }}
                   onClick={() => { if (!bin) void photos.openPhoto(p.path); }}
@@ -361,7 +361,7 @@ const TABS: readonly { id: Tab; name: string }[] = [{ id: 'adjust', name: 'Adjus
 
 /** The open photo: the album's grid, or one photo with Adjust, Filters and Crop beside it, and Mobius's change to keep. */
 /** `working`: Mobius's turn is still running, so its change shows as it lands and Keep and Discard wait for the end. */
-export function PhotoEditor({ photos, review, working = false }: { photos: PhotosState; review?: { conversation: string } | null; working?: boolean }) {
+export function PhotoEditor({ photos, review, working = false, changed }: { photos: PhotosState; review?: { conversation: string } | null; working?: boolean; /** Photos Mobius edited, waiting for Keep. */ changed?: ReadonlySet<string> }) {
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     const files = [...e.dataTransfer.files].filter((f) => /^image\//.test(f.type));
@@ -369,7 +369,7 @@ export function PhotoEditor({ photos, review, working = false }: { photos: Photo
     if (files.length && album) void photos.addFiles(album, files);
   };
   if (!photos.available) return <section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section>;
-  if (photos.browsing || !photos.open) return <PhotoGrid photos={photos} onDrop={onDrop} />;
+  if (photos.browsing || !photos.open) return <PhotoGrid photos={photos} onDrop={onDrop} changed={changed} />;
   return <PhotoView photos={photos} review={review} working={working} onDrop={onDrop} />;
 }
 
