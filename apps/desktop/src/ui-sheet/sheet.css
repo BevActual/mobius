@@ -46,3 +46,4 @@ body { overflow: auto; background: var(--frame); }
 .sheet-photo { width: 220px; height: 140px; border-radius: 6px; }
 .sheet-photo[data-look="before"] { background: linear-gradient(160deg, #9aa0a6, #6b7075 60%, #4a4e52); }
 .sheet-photo[data-look="after"] { background: linear-gradient(160deg, #f2c28b, #c8693c 55%, #5a2a1c); }
+.sheet-patch-param { display: inline-flex; align-items: center; gap: 4px; }

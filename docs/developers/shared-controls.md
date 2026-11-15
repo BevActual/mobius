@@ -52,7 +52,7 @@ Each group has its own page, with a picture of every control in its states.
 | [Menus, dialogs and dates](ui/menus-and-dialogs.md) | `Popover`, `ChoiceMenu`, `Dialog`, `Confirm`, `ContentTabs`, `DateField`, `TimeField`, `TimeRange`, `MonthPicker` | <img src="ui/img/menus.png" alt="" width="240"> |
 | [Pro controls](ui/pro-controls.md) | `NumberField`, `Readout`, `LetterToggle`, `Transport`, `LevelMeter`, `GainReductionMeter` | <img src="ui/img/pro.png" alt="" width="240"> |
 | [Instrument controls](ui/instruments.md) | `Knob`, `EnvelopeGraph`, `FilterGraph`, `StepGrid`, `AutomationLane`, `XYPad`, `WaveformView`, `PadGrid` | <img src="ui/img/instruments.png" alt="" width="240"> |
-| [Devices](ui/devices.md) | `DeviceChain`, `DeviceFrame`, `EqGraph` | <img src="ui/img/devices.png" alt="" width="240"> |
+| [Devices](ui/devices.md) | `DeviceChain`, `DeviceFrame`, `EqGraph`, `PatchCanvas`, `Port` | <img src="ui/img/devices.png" alt="" width="240"> |
 | [Charts](ui/charts.md) | `Chart` (columns, lines, areas), `Sparkline` | <img src="ui/img/charts.png" alt="" width="240"> |
 
 **The reference sheet.** Every control, in its states, is on one dev-only page: run `npm run dev -w @mobius/desktop`
