@@ -542,12 +542,16 @@ impl WebDav {
 #[serde(rename_all = "camelCase")]
 pub struct DriveAccount {
     pub id: String,
-    /// `webdav`; later others.
+    /// `webdav` or `s3`.
     pub kind: String,
     pub name: String,
-    /// The drive's top folder.
+    /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`.
     pub url: String,
+    /// The account name; for S3, the access key id.
     pub username: String,
+    /// S3's region (`eu-west-2`, R2's `auto`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub region: Option<String>,
 }
 
 pub struct Drives {
@@ -602,6 +606,41 @@ impl Drives {
         out
     }
 
+    /// An S3-style bucket (or a folder in one) as a drive: checked with the access key, then kept. The secret is kept
+    /// only once it worked. `endpoint` is the service's address (`https://s3.eu-west-2.amazonaws.com`, an R2 account's,
+    /// `http://nas:9000` for MinIO); `region` may be left empty where the address names it.
+    #[allow(clippy::too_many_arguments)]
+    pub fn add_s3(&self, name: &str, endpoint: &str, bucket: &str, folder: &str, region: &str, key_id: &str, secret: &str) -> Res<Value> {
+        let mut base = server_url(endpoint)?;
+        let bucket = bucket.trim();
+        if !crate::s3::bucket_ok(bucket) {
+            return Err("That is not a bucket name S3 accepts: 3 to 63 lowercase letters, digits, dots and hyphens.".into());
+        }
+        if key_id.trim().is_empty() || secret.is_empty() {
+            return Err("A bucket needs its access key id and secret.".into());
+        }
+        if self.lock().len() >= MAX_DRIVES {
+            return Err(format!("There can be at most {MAX_DRIVES} drives."));
+        }
+        let folder = names(folder)?;
+        {
+            let mut segments = base.path_segments_mut().map_err(|()| "That address cannot hold a bucket.".to_owned())?;
+            segments.clear().push(bucket).extend(&folder).push("");
+        }
+        base.set_query(None);
+        let drive = crate::s3::S3::new(&base, region, key_id, secret, self.http.clone())?;
+        drive.check()?;
+        let name = Some(name.trim()).filter(|n| !n.is_empty()).and_then(clean_name).unwrap_or_else(|| bucket.to_owned());
+        let account = DriveAccount { id: new_id(), kind: "s3".into(), name, url: base.to_string(), username: key_id.trim().to_owned(), region: Some(drive.region().to_owned()) };
+        if !self.secrets.put(&secret_name(&account.id), secret) {
+            return Err("The secret could not be kept in this computer's secret store.".into());
+        }
+        let mut all = self.lock();
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!(account))
+    }
+
     /// Checks the account can open the folder, then keeps it. The password is kept only once it worked.
     pub fn add(&self, name: &str, server: &str, username: &str, password: &str) -> Res<Value> {
         let base = server_url(server)?;
@@ -634,7 +673,7 @@ impl Drives {
             });
         };
         let name = Some(name.trim()).filter(|n| !n.is_empty()).and_then(clean_name).or_else(|| base.host_str().map(str::to_owned)).unwrap_or_else(|| "Drive".into());
-        let account = DriveAccount { id: new_id(), kind: "webdav".into(), name, url: drive.base().to_string(), username: username.to_owned() };
+        let account = DriveAccount { id: new_id(), kind: "webdav".into(), name, url: drive.base().to_string(), username: username.to_owned(), region: None };
         if !self.secrets.put(&secret_name(&account.id), password) {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
@@ -651,8 +690,7 @@ impl Drives {
         if password.is_empty() {
             return Err("Enter the password (an app password for Nextcloud and Fastmail).".into());
         }
-        let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
-        WebDav::with_agent(url, &account.username, password, self.http.clone()).check()?;
+        self.connect(&account, password)?.check()?;
         if !self.secrets.put(&secret_name(id), password) {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
@@ -675,9 +713,14 @@ impl Drives {
     pub fn open(&self, id: &str) -> Res<Box<dyn Drive>> {
         let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
         let password = self.secrets.get(&secret_name(id)).ok_or("The drive's password is missing; remove the drive and add it again.")?;
+        self.connect(&account, &password)
+    }
+
+    fn connect(&self, account: &DriveAccount, password: &str) -> Res<Box<dyn Drive>> {
         let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
         match account.kind.as_str() {
-            "webdav" => Ok(Box::new(WebDav::with_agent(url, &account.username, &password, self.http.clone()))),
+            "webdav" => Ok(Box::new(WebDav::with_agent(url, &account.username, password, self.http.clone()))),
+            "s3" => Ok(Box::new(crate::s3::S3::new(&url, account.region.as_deref().unwrap_or(""), &account.username, password, self.http.clone())?)),
             other => Err(format!("This version of Mobius cannot open {other} drives.")),
         }
     }

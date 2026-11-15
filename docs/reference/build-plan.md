@@ -245,7 +245,7 @@ Mobius reads a drive freely and asks before every change on one. In order:
 | --- | --- | --- | --- |
 | 1 | WebDAV: Nextcloud, ownCloud, a NAS, Fastmail Files | A server address and an app password | Have |
 | 2 | Two-way sync of chosen workspace folders with a drive, so Notes, Docs and the rest can live on a server. The local folder stays the working copy; a conflict keeps both. | Nothing | Building: Andrew chose to start it on 15 November 2026 |
-| 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Next |
+| 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Have: browse, copy and sync, with multipart upload for big files |
 | 4 | Dropbox | Andrew registering Mobius with Dropbox | Waiting on the registration |
 | 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs | Waiting on the registration |
 | 6 | Google Drive | Andrew registering Mobius with Google. Full access to a person's Drive is a restricted permission that Google reviews before an app is public; until that passes, sign-in is limited to named test accounts. | Waiting on the registration and Google's review |
