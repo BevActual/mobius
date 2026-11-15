@@ -115,7 +115,7 @@ dark). Single-weight line icons in the frame; colour tiles only in the launcher.
 
 These came from the Mobius Agent design canvas (Mobius 2 boards), which is now history. The one-window decision stands.
 
-- **Mark and icon**: the thin trefoil from the Logo board (V10), one ribbon knotted three times with rounded cuts, filled in the current colour at every size; the glossy coloured ring is the app icon only.
+- **Mark and icon**: the thin trefoil from the Logo board (V10), one ribbon knotted three times with rounded cuts, filled in the current colour at every size. The app icon (window, taskbar, installer) is the same trefoil in white on an indigo rounded square, matching the tray; the glossy ring is retired.
 - **Menus**: File, Edit, View, Go, the app's own menu, Window, Help, from one definition (`menus.ts`). In the toolbar on
   Windows and Linux (one Menu button in a narrow window), in the system menu bar on macOS.
 - **Launcher**: one search for apps, pages and every menu command, with Ask Mobius first once a model is set up.
