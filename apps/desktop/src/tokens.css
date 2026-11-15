@@ -254,6 +254,10 @@
   --strip-body-h: 180px;
   --fader-cap-w: 22px;
   --fader-cap-h: 10px;
+  --patch-h: 360px;
+  --patch-box-w: 152px;
+  --port-size: 10px;
+  --cable-w: 1.5px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -382,6 +386,8 @@ html[data-density='compact'], .app[data-density='compact'] {
   --lane-h: 44px;
   --strip-w: 64px;
   --strip-body-h: 140px;
+  --patch-box-w: 136px;
+  --port-size: 8px;
   --lane-head-h: 18px;
   --pad-cell: 48px;
 }
