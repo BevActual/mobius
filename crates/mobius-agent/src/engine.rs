@@ -217,6 +217,42 @@ pub struct TurnSetup {
     /// a suggestion or mode that knows which apps it works in sends only theirs, so the model reads (and is billed for)
     /// a much shorter request. Empty offers every tool.
     pub tools: Vec<String>,
+    /// The app the person sent it from (`mail`, `photo`). When every tool would fill too much of a small model's
+    /// window, only that app's tools and the everyday ones are offered (`APP_TOOLS`).
+    pub app: Option<String>,
+}
+
+/// On a model with a small window, the kinds of tools each app's turns are offered, beside `EVERYDAY_TOOLS`. An app
+/// not named here (Home, the agent's own page) gets the everyday ones and `HOME_TOOLS`: what people most ask of Home.
+pub const APP_TOOLS: &[(&str, &[&str])] = &[
+    ("mail", &["mail", "calendar", "tasks"]),
+    ("calendar", &["calendar", "tasks", "mail"]),
+    ("tasks", &["tasks", "calendar"]),
+    ("sheets", &["sheets"]),
+    ("database", &["db"]),
+    ("photo", &["photos", "images"]),
+    ("design", &["design", "images"]),
+    ("video", &["video"]),
+    ("code", &["code"]),
+    ("terminal", &["code"]),
+    ("browser", &["browser", "web"]),
+    ("research", &["web", "browser"]),
+    ("search", &["web"]),
+    ("files", &["drives"]),
+    ("skills", &["skills"]),
+    ("docs", &["comments"]),
+    ("notes", &["comments"]),
+];
+const HOME_TOOLS: &[&str] = &["tasks", "calendar", "mail", "web"];
+/// Offered in every app: the workspace's files (notes, docs, slides and boards are files) and what to remember.
+pub const EVERYDAY_TOOLS: &[&str] = &["files", "memory"];
+/// Every tool is offered while they fill at most this part of the window; past it, only the app's.
+const TOOLS_SHARE: usize = 4;
+
+/// The kinds of tools a turn from `app` is offered on a small window.
+pub fn kinds_for_app(app: Option<&str>) -> Vec<&'static str> {
+    let own = app.and_then(|a| APP_TOOLS.iter().find(|(id, _)| *id == a)).map_or(HOME_TOOLS, |(_, kinds)| kinds);
+    EVERYDAY_TOOLS.iter().chain(own).copied().collect()
 }
 
 /// Told to the model when the turn ends once its changes are made (`TurnSetup::finish_on_changes`).
@@ -792,6 +828,12 @@ impl Engine {
         Step::CallModel(request)
     }
 
+    /// Whether these tools would take more than `1 / TOOLS_SHARE` of the model's window.
+    fn tools_crowd(&self, tools: &[mobius_core::core::ToolSpec]) -> bool {
+        let tokens: usize = tools.iter().map(|t| compaction::tokens_of_text(&t.name) + compaction::tokens_of_text(&t.description) + compaction::tokens_of_text(&t.input_schema.to_string())).sum();
+        tokens * TOOLS_SHARE > self.budget.context_tokens
+    }
+
     fn model_of(&self, turn: &Turn) -> String {
         turn.setup.model.clone().unwrap_or_else(|| self.config.model.clone())
     }
@@ -807,7 +849,16 @@ impl Engine {
         } else {
             (system, core.tools())
         };
-        let outside: Vec<_> = if turn.setup.tools.is_empty() { outside } else { outside.into_iter().filter(|t| turn.setup.tools.iter().any(|k| t.name.split_once('.').is_some_and(|(kind, _)| kind == k))).collect() };
+        let kind_of = |name: &str| name.split_once('.').map_or(String::new(), |(kind, _)| kind.to_owned());
+        let outside: Vec<_> = if turn.setup.tools.is_empty() { outside } else { outside.into_iter().filter(|t| turn.setup.tools.contains(&kind_of(&t.name))).collect() };
+        // A small window (a model on this computer): when every tool would fill more than a quarter of it, the turn is
+        // offered the tools of the app it was sent from and the everyday ones, so the conversation keeps its room.
+        let outside: Vec<_> = if turn.setup.tools.is_empty() && self.tools_crowd(&outside) {
+            let kinds = kinds_for_app(turn.setup.app.as_deref());
+            outside.into_iter().filter(|t| kinds.contains(&kind_of(&t.name).as_str())).collect()
+        } else {
+            outside
+        };
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
         let system = if turn.setup.finish_on_changes { format!("{system}\n\n{FINISH_ON_CHANGES}") } else { system };

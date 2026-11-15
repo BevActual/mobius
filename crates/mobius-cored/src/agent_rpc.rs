@@ -112,6 +112,9 @@ struct SendParams {
     /// Only these kinds of tools are offered (`tasks`, `mail`): the part of a tool's name before the dot.
     #[serde(default)]
     tools: Vec<String>,
+    /// The app it was sent from (`mail`): a model with a small window is offered that app's tools first.
+    #[serde(default)]
+    app: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -579,7 +582,7 @@ impl Extension for Agent {
                     return Err(ExtensionError::invalid_params("tools are at most twelve kinds, each a plain name such as tasks"));
                 }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone() };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')) };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.

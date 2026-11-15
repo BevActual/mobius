@@ -572,7 +572,7 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +587,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![] });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -922,6 +922,41 @@ fn a_turn_that_ends_in_changes_tells_the_model_to_say_its_piece_before_the_calls
     assert!(request_of(&step).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
     let (_, plain) = w.engine.start(&w.core, vec![], "go", 2);
     assert!(!request_of(&plain).system.contains(mobius_agent::engine::FINISH_ON_CHANGES));
+}
+
+#[test]
+fn on_a_small_window_full_of_tools_a_turn_is_offered_its_apps_tools_and_the_everyday_ones() {
+    let mut w = world(10);
+    // Many tools with long descriptions, as the application has: together they fill much of a small window.
+    let long = "Does a thing in the app, carefully. ".repeat(40);
+    for name in ["mail.search", "mail.read", "calendar.list", "photos.edit", "files.read", "memory.remember", "db.query", "web.search"] {
+        w.core.register_tool(ToolSpec::new(name, &long, &format!("{}.read", name.split('.').next().unwrap())).unwrap(), Box::new(|_| Ok(json!([])))).unwrap();
+    }
+    let names = |step: &Step| -> Vec<String> { request_of(step).tools.iter().map(|t| t.name.clone()).collect() };
+    let from = |app: &str| TurnSetup { app: Some(app.to_owned()), ..TurnSetup::default() };
+
+    // A large window: every tool, wherever it was sent from.
+    let (_, big) = w.engine.start_with(&w.core, vec![], "go", 1, from("photo"));
+    assert!(names(&big).contains(&"mail.search".to_owned()) && names(&big).contains(&"demo.echo".to_owned()));
+
+    // A model on this computer with an 8K window: Photo's turn gets Photo's tools, files and memory, and the engine's own.
+    w.engine.set_context_window(Some(8_192));
+    let (_, photo) = w.engine.start_with(&w.core, vec![], "go", 2, from("photo"));
+    let got = names(&photo);
+    for name in ["photos.edit", "files.read", "memory.remember", "todo.write", "ask.person"] {
+        assert!(got.contains(&name.to_owned()), "{name} in {got:?}");
+    }
+    for name in ["mail.search", "db.query", "web.search", "demo.echo"] {
+        assert!(!got.contains(&name.to_owned()), "{name} not in {got:?}");
+    }
+    // Mail's turn gets mail and calendar; one from Home gets what Home is asked for.
+    let (_, mail) = w.engine.start_with(&w.core, vec![], "go", 3, from("mail"));
+    assert!(names(&mail).contains(&"calendar.list".to_owned()) && !names(&mail).contains(&"photos.edit".to_owned()));
+    let (_, home) = w.engine.start_with(&w.core, vec![], "go", 4, TurnSetup::default());
+    assert!(names(&home).contains(&"web.search".to_owned()) && !names(&home).contains(&"db.query".to_owned()));
+    // Kinds a suggestion names still win over the app.
+    let (_, named) = w.engine.start_with(&w.core, vec![], "go", 5, TurnSetup { tools: vec!["db".to_owned()], ..from("photo") });
+    assert_eq!(names(&named), ["db.query", "todo.write", "ask.person"]);
 }
 
 #[test]
