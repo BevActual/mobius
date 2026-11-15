@@ -153,7 +153,12 @@ to settle. Nothing is built until it is.
 - For: contacts are a new kind of thing, and Mail and Calendar need them equally.
 - Against: nobody opens an address book as a job in itself, and ten seconds of a contact list impresses no one.
 - The data lives in the core, synced over CardDAV with the person's own server (Nextcloud, Fastmail, iCloud). The
-  Builder confirms the core side.
+  Builder confirmed the core side:
+  - one `.vcf` file per contact under `workspace/contacts/<book>/`, so checkpoints, Keep, Rewind and sync cover it;
+  - a CardDAV account that shares most of its code with CalDAV;
+  - `contacts.*` bridge calls, including a `byEmail` lookup, with saving behind the usual permission;
+  - vCards that keep every field Mobius doesn't show;
+  - about two or three Builder pull requests, roughly a day.
 - It shows up where people already look:
   - names fill in as you address an email or invite someone;
   - a person card opens from a sender or an attendee, with recent mail and meetings together;
