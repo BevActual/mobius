@@ -22,3 +22,20 @@ A step grid and the timeline pieces (ruler, playhead, clip, lane) come next, sha
 
 Popovers that stay in place and toasts other than the undo pill are not shared yet; ask the library thread before
 building one in an app.
+
+## Mixer strip
+
+![Four mixer strips: name on the track's colour, pan, fader beside the meter, volume, M S R; one strip shows a volume and pan Mobius moved](img/mixer.png)
+
+`MixerStrip` is one column of a mixer, top to bottom: the track's name on a bar of its colour (wrapping to two lines, never cut), pan, the fader beside a `LevelMeter`, the volume readout, then Mute, Solo and, when the track records, Arm. Put strips side by side for Music's mixer view, and later Video's audio.
+
+- The fader and the meter share one scale (`floor` to `ceiling`, −60 to +6 dB), so the cap sits at the level it lets through. At the floor the volume reads −∞ and screen readers hear "Off".
+- Fader keys: Up and Down move half a decibel, Shift three, Page Up and Page Down six. Home puts it back to `volumeReset` and End pulls it all the way down. Two quick presses on the fader also put it back. `onVolumeCommit` fires once a drag or a key is done, for undo.
+- Feed the meter through `meter`, as for `LevelMeter`: `meter.current.set(left, right)`.
+- `dimmed` is for a strip silenced by another strip's solo. `selected` and `onSelect` tie the strip to the chosen track.
+- `proposed={{ volume: true, pan: true }}` marks what Mobius moved and nobody has kept yet: a dashed indigo cap and indigo readouts. A volume changed from outside glides to its value, as the knobs do.
+
+```tsx
+<MixerStrip name="Bass" color="amber" volume={t.volume} onVolume={setVolume} onVolumeCommit={commit}
+  pan={t.pan} onPan={setPan} mute={t.mute} onMute={setMute} solo={t.solo} onSolo={setSolo} meter={bassMeter} />
+```

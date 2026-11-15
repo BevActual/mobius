@@ -44,6 +44,7 @@ export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './P
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
 export { NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
+export { MixerStrip, faderLabel, type MixerStripProps } from './Mixer';
 export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
 export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';
 export { Chart, Sparkline, CHART_ORDER, chartTicks, chartNumber, type ChartSeries } from './Chart';

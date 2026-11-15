@@ -250,6 +250,10 @@
   --level-w: 4px;
   --level-h: 120px;
   --level-tab: 8px;
+  --strip-w: 76px;
+  --strip-body-h: 180px;
+  --fader-cap-w: 22px;
+  --fader-cap-h: 10px;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -376,6 +380,8 @@ html[data-density='compact'], .app[data-density='compact'] {
   --device-head-h: 28px;
   --eq-h: 120px;
   --lane-h: 44px;
+  --strip-w: 64px;
+  --strip-body-h: 140px;
   --lane-head-h: 18px;
   --pad-cell: 48px;
 }

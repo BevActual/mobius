@@ -9,6 +9,7 @@ import {
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
+  MixerStrip,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
 } from '../ui';
@@ -133,6 +134,33 @@ function WarmerDemo() {
       <div className="sheet-graph"><FilterGraph value={{ cutoff: v.cutoff, resonance: v.resonance }} min={80} max={12000} proposed={{ cutoff: moved('cutoff'), resonance: moved('resonance') }} onChange={(f) => setV({ ...v, ...f })} /></div>
       <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
       {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
+function MixerDemo() {
+  const tracks: { name: string; color: ContentColor; level: [number, number] }[] = [
+    { name: 'Drums', color: 'coral', level: [-8, -9] },
+    { name: 'Bass', color: 'amber', level: [-14, -14] },
+    { name: 'Keys and pad layer', color: 'teal', level: [-20, -17] },
+    { name: 'Lead', color: 'violet', level: [-30, -26] },
+  ];
+  const [mix, setMix] = useState(() => tracks.map((t, i) => ({ volume: [0, -3, -4.5, -60][i]!, pan: [0, 0, -0.3, 0.25][i]!, mute: i === 3, solo: false, arm: i === 0 })));
+  const meters = useRef<(LevelFeed | null)[]>([]);
+  useEffect(() => { tracks.forEach((t, i) => meters.current[i]?.set(...t.level)); }); // eslint-disable-line react-hooks/exhaustive-deps
+  const put = (i: number, patch: Partial<(typeof mix)[number]>) => setMix((all) => all.map((m, j) => (j === i ? { ...m, ...patch } : m)));
+  return (
+    <div className="sheet-mixer">
+      {tracks.map((t, i) => (
+        <MixerStrip
+          key={t.name} name={t.name} color={t.color} selected={i === 1} onSelect={() => {}}
+          volume={mix[i]!.volume} onVolume={(volume) => put(i, { volume })} pan={mix[i]!.pan} onPan={(pan) => put(i, { pan })}
+          mute={mix[i]!.mute} onMute={(mute) => put(i, { mute })} solo={mix[i]!.solo} onSolo={(solo) => put(i, { solo })}
+          arm={mix[i]!.arm} onArm={(arm) => put(i, { arm })}
+          proposed={i === 2 ? { volume: true, pan: true } : undefined}
+          meter={(m) => { meters.current[i] = m; }}
+        />
+      ))}
     </div>
   );
 }
@@ -527,6 +555,9 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
+          <MixerDemo />
+        </Card>
         <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>
