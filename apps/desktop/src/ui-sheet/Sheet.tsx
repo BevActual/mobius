@@ -9,6 +9,7 @@ import {
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
+  BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
 } from '../ui';
@@ -133,6 +134,21 @@ function WarmerDemo() {
       <div className="sheet-graph"><FilterGraph value={{ cutoff: v.cutoff, resonance: v.resonance }} min={80} max={12000} proposed={{ cutoff: moved('cutoff'), resonance: moved('resonance') }} onChange={(f) => setV({ ...v, ...f })} /></div>
       <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
       {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
+function BeforeAfterDemo() {
+  const hold = useHold('m');
+  // Stand-ins for a photo: flat and grey before, warmer and with more contrast after.
+  const before = <div className="sheet-photo" data-look="before" />;
+  const after = <div className="sheet-photo" data-look="after" />;
+  return (
+    <div className="sheet-row">
+      <div className="sheet-col"><span className="sheet-note">Hold the button, Space on it, or M: the original shows, tagged, until let go</span>
+        <div className="sheet-row" style={{ alignItems: 'flex-start' }}><HoldButton hold={hold} /><BeforeAfter showing={hold.held} before={before}>{after}</BeforeAfter></div></div>
+      <div className="sheet-col"><span className="sheet-note">While held</span>
+        <BeforeAfter showing before={before}>{after}</BeforeAfter></div>
     </div>
   );
 }
@@ -527,6 +543,9 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
+          <BeforeAfterDemo />
+        </Card>
         <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>
