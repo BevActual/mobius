@@ -222,3 +222,18 @@
 .ui-graph-handle[data-proposed][data-mark] { color: var(--mobius); }
 .ui-graph-handle[data-proposed]:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
 .ui-graph-readout [data-proposed] dd, .ui-graph-readout dd[data-proposed] { color: var(--mobius); }
+
+/* A folded device in a sideways chain becomes a narrow strip the chain's height, as in a DAW: grip, switch, the title
+   read upward, then the fold button to open it again. Its lead and actions wait until it opens. */
+.ui-chain:not([data-orientation='vertical']) { align-items: stretch; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device:not([data-collapsed]) { align-self: flex-start; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] { align-self: stretch; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-head {
+  flex-direction: column; height: auto; flex: 1; min-width: var(--hit-min); padding: var(--sp-1); gap: var(--sp-2);
+}
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-title {
+  flex: 1; min-height: 0; writing-mode: vertical-rl; rotate: 180deg; text-align: left;
+}
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] :is(.ui-device-lead, .ui-device-actions) { display: none; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-grip { height: calc(var(--hit-min) / 2); width: var(--hit-min); }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-grip svg { width: auto; height: 60%; rotate: 90deg; }

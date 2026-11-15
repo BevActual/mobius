@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { ASK_DATABASE, COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+import { ASK_DATABASE, COMPARE_TABS, isStarter, MAKE_A_DECK, matchAlbum, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('Plan my day reads before the model is asked', () => {
   it('reads the clock first, so the day is planned from now', () => {
@@ -47,7 +47,15 @@ describe('what each app suggests', () => {
     expect(first.prompt).toContain('say nothing until the end');
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
-    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
+    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft', 'dayStart 13:00']) expect(first.prompt).toContain(words);
+  });
+  it('offers Make these match in an open album of more than one photo, as one photos.edit on the album', () => {
+    expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: null })).toEqual([]);
+    expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Solo', photos: 1 } })).toEqual([]);
+    const open = suggestionsFor({ app: 'photo', hasPage: false, note: null, album: { name: 'Jasmund cliffs', photos: 10 } });
+    expect(open).toEqual([{ label: 'Make these match', prompt: matchAlbum('Jasmund cliffs'), attach: 'album' }]);
+    expect(isStarter(open[0]!)).toBe(false);
+    for (const words of ['"Jasmund cliffs"', 'one photos.edit on the album', 'Say nothing until it is done', 'the attached picture shows them all']) expect(open[0]!.prompt).toContain(words);
   });
   it('asks a database in the person\'s words, with the SQL shown and the rows as a list', () => {
     const note = { path: 'databases/Customers.sqlite', title: 'Customers', text: '', folder: 'databases' as const };
@@ -65,7 +73,7 @@ describe('what each app suggests', () => {
     expect(tidyFolder('Downloads')).toContain('one files.move call');
     expect(tidyFolder('Downloads')).toContain('Delete nothing.');
     // What the second demo run showed: two approvals to list, twelve folders, and three different counts.
-    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number']) expect(tidyFolder('Downloads')).toContain(words);
+    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number', 'Rename nothing']) expect(tidyFolder('Downloads')).toContain(words);
   });
   it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];

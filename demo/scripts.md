@@ -8,9 +8,9 @@ holds how the earlier moments (Home, Mail, Calendar, Notes, Docs, Slides, Browse
 ## Photo: Make these match
 
 - **Start:** Photo, album **Jasmund cliffs** (ten photos from one walk, uneven in light and colour). No photo open, so the whole album shows.
-- **Ask:** type in the composer: `Make these match: give every photo in the Jasmund cliffs album the same look with one photos.edit on the album, one adjustment called Jasmund. Say what you set.`
-- **Good result:** one `photos.edit` call on the album. All ten photos change together and show the dashed mark until kept. Open one and hold Show original (M): the photo as shot comes back while held, so nothing was lost. Keep takes all ten.
-- **On main:** `photos.edit` (an album or a list, up to 200 photos), yes. A "Make these match" chip for an open album is not yet; it comes in Photo's next round, with the library's hold for the original (#403). Until then, type the ask.
+- **Ask:** press **Make these match** (shown in an open album of more than one photo, with no photo open).
+- **Good result:** one `photos.edit` call on the album, its amounts chosen from the numbered picture of all ten that goes with the chip. All ten photos change together and their tiles show the dashed mark until kept; no single photo is attached. Open one and hold Show original (M): the photo as shot comes back while held, so nothing was lost. Keep takes all ten.
+- **On main:** `photos.edit` (an album or a list, up to 200 photos) and the chip, yes. Show original moves to the library's hold (#403) in Photo's next change.
 - **Note:** the album has ten photos, not twelve as the plan says.
 
 ## Design: three takes
@@ -30,8 +30,8 @@ holds how the earlier moments (Home, Mail, Calendar, Notes, Docs, Slides, Browse
 ## Research: one hard question
 
 - **Start:** Research, with no report open. Needs the live web.
-- **Ask:** press **Research…** and finish the line: `should a small electric van fleet choose LFP or NMC batteries in 2026?`
-- **Good result:** pages are searched and read in view, and a report builds in Research with every claim linked to its source and a list of sources. Then **Check the claims** reads the sources again.
+- **Ask:** type in Research's own question box, with **Quick**: `Should a small electric van fleet choose LFP or NMC batteries in 2026?` It makes the report first, so it fills in view.
+- **Good result:** pages are searched and read in view, and a report builds in Research with every claim linked to a page it read (every source in the list was read with `web.read`). Then **Check the claims** reads the sources again.
 - **On main:** `web.search`, `web.read` and the browser tools, yes. Time it: the plan says it needs checking for pace.
 
 ## Rewind (the Builder's moment)

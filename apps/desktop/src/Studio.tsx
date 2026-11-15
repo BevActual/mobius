@@ -375,7 +375,7 @@ type Gesture =
   | { kind: 'paint'; row: number; erase: boolean; done: Set<number>; tag: string };
 
 /** One song: transport, tracks laid out by bar, and the chosen track's notes on a piano roll to draw, move and stretch. */
-export function StudioEditor({ songs, review }: { songs: NotesState; review?: { conversation: string } | null }) {
+export function StudioEditor({ songs, review, working = false }: { songs: NotesState; review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean }) {
   const parsed = useMemo(() => (songs.page ? parseSong(songs.text) : null), [songs.page, songs.text]);
   const song = parsed && 'song' in parsed ? parsed.song : null;
   const [selected, setSelected] = useState<string | null>(null);
@@ -1059,7 +1059,7 @@ export function StudioEditor({ songs, review }: { songs: NotesState; review?: { 
 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
-  const proposal = changed.size > 0 ? (
+  const proposal = changed.size > 0 && !working ? (
     <div className="studio-review">
       <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
     </div>

@@ -108,6 +108,30 @@ test('a dark version from Mobius shows dashed, and is kept or discarded', async 
   await expect(canvas().getByLabel('Frame Home — Dark')).toBeVisible();
 });
 
+test('three takes from Mobius: one is dropped, another kept alone, and only it stays', async () => {
+  const take = (id: string, name: string, x: number) => ({ ...HOME.frames[0]!, id, name, x, children: [{ ...HOME.frames[0]!.children[0]!, id: `${id}-t` }] });
+  const TAKES = { ...HOME, frames: [...HOME.frames, take('t1', 'Take 1', 473), take('t2', 'Take 2', 946), take('t3', 'Take 3', 1419)] };
+  await start([
+    callsTool('files-write', { path: 'designs/Trip app/Home.json', content: JSON.stringify(TAKES) }),
+    says(['Three takes, to the right of Home.']),
+  ]);
+  await resizeWindow(mobius!.app, 1440, 900);
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Give me three takes on this');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(log.locator('.msg.assistant')).toContainText('Three takes');
+  // Each new frame has its own answer; the frame that was there has none.
+  await expect(canvas().getByRole('group', { name: /^Take Take / })).toHaveCount(3);
+  await canvas().getByRole('group', { name: 'Take Take 1' }).getByRole('button', { name: 'Discard' }).click();
+  await expect.poll(() => saved().frames.map((f) => f.name)).toEqual(['Home', 'Take 2', 'Take 3']);
+  await canvas().getByRole('group', { name: 'Take Take 3' }).getByRole('button', { name: 'Keep this one' }).click();
+  await expect.poll(() => saved().frames.map((f) => f.name)).toEqual(['Home', 'Take 3']);
+  await expect(canvas().getByRole('group', { name: "Mobius's change" })).toBeHidden();
+  await expect(canvas().getByLabel('Frame Take 3')).not.toHaveAttribute('data-proposed', 'true');
+});
+
 test('layers are drawn with a tool, picked together, lined up, duplicated and typed on the canvas', async () => {
   await start();
   // A raw drag presses where things are drawn, so the window is big enough and the drag stays in the part of the

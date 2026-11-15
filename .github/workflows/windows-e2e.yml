@@ -14,9 +14,11 @@ on:
         default: ''
 
 # A newer push to the same branch replaces a run still going.
+# A newer push to a pull request replaces its run. On main every merge is tested on its own: each commit gets its own
+# group, so two merges seconds apart never cancel each other and no commit on main goes untested.
 concurrency:
-  group: windows-e2e-${{ github.ref }}
-  cancel-in-progress: true
+  group: windows-e2e-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   # A pull request that changes only docs (Markdown anywhere, or anything under docs/) takes no Windows machine: the
@@ -122,6 +124,9 @@ jobs:
           MOBIUS_E2E_START_MS: '60000'
           MOBIUS_TAURI_LOG: ${{ github.workspace }}\shell.log
         run: npx playwright test --shard=${{ matrix.shard }}/3 ${{ inputs.spec }}
+      - name: Say which tests failed or only passed on their second try
+        if: ${{ !cancelled() }}
+        run: node scripts/e2e-summary.mjs apps/desktop/test-results/report.json ${{ matrix.shard }} >> $env:GITHUB_STEP_SUMMARY
       - if: failure()
         uses: actions/upload-artifact@v5
         with:

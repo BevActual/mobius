@@ -81,6 +81,16 @@ function block(node: Block, i: number): ReactNode {
     }
     case 'quote': return <blockquote key={i}>{inline(node.children)}</blockquote>;
     case 'code': return <pre key={i} data-lang={node.lang || undefined}><code>{node.text}</code></pre>;
+    case 'table':
+      // Wide tables scroll inside their own box, so the reply around them keeps its width.
+      return (
+        <div key={i} className="md-table" role="region" aria-label="Table" tabIndex={0}>
+          <table>
+            <thead><tr>{node.head.map((cell, j) => <th key={j} scope="col" style={node.align[j] ? { textAlign: node.align[j]! } : undefined}>{inline(cell)}</th>)}</tr></thead>
+            <tbody>{node.rows.map((row, r) => <tr key={r}>{row.map((cell, j) => <td key={j} style={node.align[j] ? { textAlign: node.align[j]! } : undefined}>{inline(cell)}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
     case 'rule': return <hr key={i} />;
   }
 }

@@ -66,3 +66,42 @@ export async function pictureOfWindow(): Promise<{ ok: true; picture: string } |
     stream.getTracks().forEach((t) => t.stop());
   }
 }
+
+/**
+ * Several photos as one picture to send, a contact sheet: each in its own cell, in order, numbered 1, 2, 3… in the
+ * corner, so a model that reads pictures can compare them all at once. Null when none of them opens.
+ */
+export async function contactSheet(urls: readonly string[], cell = 320): Promise<string | null> {
+  const loaded = await Promise.all(urls.map((src) => new Promise<HTMLImageElement | null>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  })));
+  if (!loaded.some(Boolean)) return null;
+  const cols = Math.min(5, Math.max(1, Math.ceil(Math.sqrt(urls.length * 1.6))));
+  const rows = Math.ceil(urls.length / cols);
+  const gap = 8;
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * cell + (cols + 1) * gap;
+  canvas.height = rows * cell + (rows + 1) * gap;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.font = '600 22px sans-serif';
+  loaded.forEach((img, i) => {
+    const x = gap + (i % cols) * (cell + gap);
+    const y = gap + Math.floor(i / cols) * (cell + gap);
+    if (img) {
+      const s = Math.min(cell / img.naturalWidth, cell / img.naturalHeight);
+      const w = img.naturalWidth * s;
+      const h = img.naturalHeight * s;
+      ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h);
+    }
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.fillRect(x, y, 34, 30);
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(String(i + 1), x + 8, y + 23);
+  });
+  return shrink(canvas, canvas.width, canvas.height);
+}

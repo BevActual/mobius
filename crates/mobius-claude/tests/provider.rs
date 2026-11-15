@@ -122,6 +122,7 @@ fn a_reply_streams_through_one_upstream_request_with_the_cli_s_own_sign_in() {
     let mut streamed = String::new();
     let c = provider(&up, dir.path()).complete(&request("sonnet", vec![Message::user("hi")]), &mut |t| { streamed.push_str(t); true }).unwrap();
     assert_eq!((c.text.as_str(), streamed.as_str(), c.stop), ("Hello there", "Hello there", StopReason::EndTurn));
+    assert!(c.usage.as_ref().and_then(|u| u.thinking_ms).is_some(), "the time in its thinking block is kept with the round");
     let seen = up.seen.lock().unwrap();
     assert_eq!(seen.len(), 1);
     // The CLI's own authorization passes through the relay untouched; Mobius has no key of its own here.

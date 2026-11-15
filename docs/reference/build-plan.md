@@ -201,8 +201,36 @@ their first round comes up, with the answer added here.
 - **Cross-app rounds go one app per pull request,** so a failure in one app holds up only that app.
 - **Docs move with the work.** A round updates its line in the Apps or Music roadmap, the app's page under `docs/apps/`
   and its README screenshot in the same pull request.
+- **One push per pull request, after local checks.** Before pushing, run the type check, the unit tests and the
+  end-to-end spec you touched. Fixes after review go up as one push, not several. Each push cancels the run before
+  it, and a cancelled run shows red to Andrew.
+- **No stacked pull requests.** A branch is cut from `main`. If it needs another pull request, it waits for that one
+  to land.
+- **Unstable tests come before features.** A test with three sightings in [testing](../developers/testing.md) is a
+  blocker for its owner: nothing else of theirs starts until it is fixed, or has a named cause and a date.
 - **A stall is raised, not waited out.** A lead blocked for more than one round on another lead says so to the
   orchestrator, who reorders the queues above.
+
+## Process health
+
+The orchestrator and the Builder keep runs going smoothly as standing work. The Builder counts a day's Actions runs
+by cause; the orchestrator changes the process when a cause shows up, and tells Andrew only when the picture changes.
+
+| Day (UTC) | Runs | Cancelled | Failed | What the failures were |
+| --- | --- | --- | --- | --- |
+| 14 to 15 November 2026 | About 2,900 | 789: 290 on `main`, 499 on pull requests | 46 | 33 unstable end-to-end tests, 2 unstable Rust tests, 9 real bugs caught before merge, 2 guards in Checks. None from two pull requests that passed apart, from conflicts or from the runners. |
+
+What changed on 15 November 2026 (#415):
+
+- `main` never cancels its own runs, so every merged commit is tested.
+- Checks runs once per pull request, on the merge with `main`.
+- A failed end-to-end test is retried once, and a test that passed only on its retry is listed in the run summary
+  and counted as a sighting.
+- The three rules above this section: one push per pull request, no stacked pull requests, unstable tests first.
+
+Aims for the next count: no cancelled run on `main`, cancelled pull request runs under 100 a day, and no unstable
+test open past three sightings. Landing pull requests as a tested batch was considered and left out, because no
+failure came from pull requests that passed apart; it comes back if one does.
 
 ## Docs that no longer match
 

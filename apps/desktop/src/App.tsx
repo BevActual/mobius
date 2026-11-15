@@ -97,6 +97,8 @@ import type { HubTarget } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
 import { useLiveMarks } from './liveMarks';
+import { contactSheet } from './picture';
+
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { liveTitle, statusText } from './notes-state';
@@ -106,7 +108,7 @@ import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
 import { LESSONS } from './learn'; // Learn (shell/learn-view)
 import { clipToNotes } from './clip';
 import { loadPanes, savePanes, loadByMobius, saveByMobius, leavesSplit, companionFor, followPane, loadShare, saveShare } from './split';
-import { TRY_ANOTHER_ASK, TryAnotherContext } from './ReviewBar';
+import { TRY_ANOTHER_ASK, TryAnotherContext, TurnRunningContext } from './ReviewBar';
 
 const CORE_LABEL = { starting: 'Starting core…', ready: 'Core ready', restarting: 'Restarting core…', failed: 'Core unavailable' } as const;
 
@@ -156,6 +158,12 @@ function useWindowWidth(): number {
 const withKeys = (text: string, binding: string) => (binding ? `${text} (${describeCombo(binding, window.mobius.platform)})` : text);
 
 /** Who is using a tab while a task runs, as the tab says it. */
+
+/** An album's photos as one numbered picture, for Make these match to look at (the first twenty, as shot). */
+async function albumSheet(read: (path: string) => Promise<unknown> | undefined, list: readonly { path: string }[]): Promise<string | null> {
+  const got = await Promise.all(list.slice(0, 20).map((p) => Promise.resolve(read(p.path)).catch(() => null)));
+  return contactSheet(got.flatMap((g) => (g && typeof g === 'object' && 'dataUrl' in g && typeof g.dataUrl === 'string' ? [g.dataUrl] : [])));
+}
 
 export function App() {
   const browser = useBrowser();
@@ -507,7 +515,9 @@ export function App() {
     folder: inFiles && files.place.kind === 'folder' && files.place.path !== '' ? files.place.path : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
-    photo: inPhoto && photos.open ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, picture: photos.open.dataUrl, text: `The photo: ${photos.described}\nThe picture itself is attached when your model reads pictures. Change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
+    album: inPhoto && (photos.browsing || !photos.open) && photos.album && photos.album !== RECENTLY_DELETED ? { name: photos.album, photos: photos.albums.find((x) => x.name === photos.album)?.photos.length ?? 0, sheet: () => albumSheet(photos.read, photos.albums.find((x) => x.name === photos.album)?.photos ?? []) } : null,
+    // Only a photo open in the editor goes along: the grid of an album attaches none, though one was open before.
+    photo: inPhoto && photos.open && !photos.browsing ? { title: `Photo: ${photos.open.path}`, source: `photos/${editsPathFor(photos.open.path)}`, picture: photos.open.dataUrl, text: `The photo: ${photos.described}\nThe picture itself is attached when your model reads pictures. Change only its edits file, photos/${editsPathFor(photos.open.path)}, keeping the format below.\n\n${JSON.stringify(photos.edits, null, 1)}` } : null,
     code: inCode && code.open && code.project && code.open.text !== null ? { title: `${code.project} › ${code.open.path}`, source: `code/${code.project}/${code.open.path}`, text: `${code.draft}${code.tests.last && !code.tests.last.passed ? `\n\n--- Last test run (${code.tests.command ?? ''}) failed:\n${code.tests.last.output.slice(-4000)}` : ''}`, failing: code.tests.last !== null && !code.tests.last.passed } : null,
     sheet: inSheets && sheets.data ? { title: `${sheets.data.workbook} › ${sheets.data.sheet}`, source: `sheets/${sheets.data.workbook}/${sheets.data.sheet}.csv`, text: sheetContext(sheets.data) } : null,
   };
@@ -838,7 +848,7 @@ export function App() {
     const showing: Partial<Record<AppId, boolean>> = {
       notes: !!notes.page && turnMarks.notes.has(notes.page.path),
       docs: !!docs.page && turnMarks.docs.has(docs.page.path),
-      slides: !!slides.page && turnMarks.slides.has(slides.page.path),
+      slides: !!slides.page && liveMarks.slides.has(slides.page.path),
       sheets: !!sheets.data && turnMarks.sheets.has(sheets.data.workbook),
       tasks: tasks.view.kind === 'list' && turnMarks.lists.has(tasks.view.name),
     };
@@ -1010,15 +1020,15 @@ export function App() {
             ) : inNotes ? (
               <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={pinNode} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
             ) : inSkills ? (
-              <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={turnMarks.skills} />
+              <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={liveMarks.skills} />
             ) : inVideo ? (
-              <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
+              <VideoSidebar video={video} pin={pinNode} changed={liveMarks.video} />
             ) : inStudio ? (
-              <StudioSidebar songs={songs} pin={pinNode} changed={turnMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
+              <StudioSidebar songs={songs} pin={pinNode} changed={liveMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
             ) : inPhoto ? (
               <PhotoSidebar photos={photos} pin={pinNode} changed={liveMarks.photos} />
             ) : inDesign ? (
-              <DesignSidebar designs={designs} pin={pinNode} changed={turnMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
+              <DesignSidebar designs={designs} pin={pinNode} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
             ) : inFiles ? (
               <FilesSidebar files={files} pin={pinNode} />
             ) : inReview ? (
@@ -1026,25 +1036,25 @@ export function App() {
             ) : inTerminal ? (
               <TerminalSidebar term={terminal} pin={pinNode} />
             ) : inDatabase ? (
-              <DatabaseSidebar db={databases} pin={pinNode} changed={turnMarks.databases} />
+              <DatabaseSidebar db={databases} pin={pinNode} changed={liveMarks.databases} />
             ) : inProjects ? (
               <ProjectsSidebar projects={projects} pin={pinNode} conversations={conversation.list} />
             ) : inWiki ? (
               <WikiSidebar wiki={wiki} place={wikiPlace} onPlace={setWikiPlace} incoming={wikiIncoming} pin={pinNode} />
             ) : inReader ? (
-              <ReaderSidebar reading={reading} pin={pinNode} changed={turnMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
+              <ReaderSidebar reading={reading} pin={pinNode} changed={liveMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
             ) : inResearch ? (
-              <ResearchSidebar research={research} pin={pinNode} changed={turnMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
+              <ResearchSidebar research={research} pin={pinNode} changed={liveMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
             ) : inViews ? (
               <ViewsSidebar views={views} pin={pinNode} changed={viewMarks} starts={startsFor('views')} onStart={startWithMobius} />
             ) : inCanvas ? (
-              <CanvasSidebar boards={boards} pin={pinNode} changed={turnMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
+              <CanvasSidebar boards={boards} pin={pinNode} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
             ) : inCode ? (
-              <CodeSidebar code={code} pin={pinNode} changed={turnMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
+              <CodeSidebar code={code} pin={pinNode} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
             ) : inMail ? (
               <MailSidebar mail={mail} pin={pinNode} starts={startsFor('mail')} onStart={startWithMobius} />
             ) : inSlides ? (
-              <SlidesSidebar slides={slides} pin={pinNode} changed={turnMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
+              <SlidesSidebar slides={slides} pin={pinNode} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (
@@ -1399,21 +1409,21 @@ export function App() {
       case 'docs':
         return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && liveMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
-        return <SlidesEditor slides={slides} review={slides.page && turnMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
+        return <SlidesEditor slides={slides} review={slides.page && liveMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
         if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
         return <>
           <SkillsToolbar skills={skills} onRun={(name) => { openApp('agent'); void conversation.send(expandSlash(`/${name}`, skills.names), []); }} />
-          {skills.open ? <SkillEditor skills={skills} review={turnMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} /> : <SkillList skills={skills} />}
+          {skills.open ? <SkillEditor skills={skills} review={liveMarks.skills.has(skills.open.name) ? { conversation: conversation.state.conversation } : null} /> : <SkillList skills={skills} />}
         </>;
       case 'video':
-        return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
+        return <VideoEditor video={video} review={video.project && liveMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
-        return <StudioEditor songs={songs} review={songs.page && turnMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <StudioEditor songs={songs} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'photo':
-        return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} changed={liveMarks.photos} />;
       case 'design':
-        return <DesignEditor designs={designs} review={designs.page && turnMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <DesignEditor designs={designs} review={designs.page && liveMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':
         return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
       case 'review':
@@ -1421,7 +1431,7 @@ export function App() {
       case 'terminal':
         return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={(title, text) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); }} />;
       case 'database':
-        return <DatabasePage db={databases} review={databases.open && turnMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
+        return <DatabasePage db={databases} review={databases.open && liveMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
       case 'projects':
         return (
           <ProjectPage
@@ -1440,9 +1450,9 @@ export function App() {
         if (wikiPlace.kind === 'shared') return <SharedQueue incoming={wikiIncoming} />;
         return <WikiPage wiki={wiki} autoFocus={app === 'wiki'} busy={conversation.state.busy} />;
       case 'reader':
-        return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && turnMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && liveMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
-        return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && turnMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ResearchPage research={research} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && liveMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'views':
         return (
           <ViewPage
@@ -1458,9 +1468,9 @@ export function App() {
           />
         );
       case 'canvas':
-        return <CanvasBoard boards={boards} review={boards.page && turnMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <CanvasBoard boards={boards} review={boards.page && liveMarks.boards.has(boards.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'code':
-        return <CodeEditor code={code} review={code.open && code.project && turnMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
+        return <CodeEditor code={code} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'sheets':
@@ -1780,7 +1790,8 @@ export function App() {
               <Pane key={`pane-${at}`} index={index} app={id} split={split} focused={focused === index}
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
-                {paneContent(id)}
+                {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
+                <TurnRunningContext.Provider value={conversation.state.busy}>{paneContent(id)}</TurnRunningContext.Provider>
               </Pane>
             );
             return at === 1

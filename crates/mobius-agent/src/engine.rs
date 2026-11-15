@@ -220,6 +220,9 @@ pub struct TurnSetup {
     /// The app the person sent it from (`mail`, `photo`). When every tool would fill too much of a small model's
     /// window, only that app's tools and the everyday ones are offered (`APP_TOOLS`).
     pub app: Option<String>,
+    /// How hard the model thinks this turn, in place of the engine's setting: an app's mode that sorts and writes
+    /// rather than works things out asks for `low`, so its first change comes sooner.
+    pub effort: Option<String>,
 }
 
 /// On a model with a small window, the kinds of tools each app's turns are offered, beside `EVERYDAY_TOOLS`. An app
@@ -256,7 +259,7 @@ pub fn kinds_for_app(app: Option<&str>) -> Vec<&'static str> {
 }
 
 /// Told to the model when the turn ends once its changes are made (`TurnSetup::finish_on_changes`).
-pub const FINISH_ON_CHANGES: &str = "This turn ends as soon as your changes are made, and the person sees a summary of them: you are not asked again afterwards. So in the answer that makes the changes, write what you would tell the person first (the list or the few lines asked for), then make all the calls in that same answer. If you still need to read something, read it first, in an answer of its own.";
+pub const FINISH_ON_CHANGES: &str = "This turn ends as soon as your changes are made, and the person sees a summary of them: you are not asked again afterwards. So in the answer that makes the changes, also write what you would tell the person (the list or the few lines asked for), with each call straight after the line it belongs to, so each change shows as soon as its line is written. If you still need to read something, read it first, in an answer of its own.";
 
 /// Reads done before the model is first asked, with what they gave, kept with the person's message.
 pub const READS_OPEN: &str = "\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\n";
@@ -304,6 +307,11 @@ pub struct Turn {
     reads: Option<Reads>,
     /// This model round's calls: whether one failed, was declined or asked something, and whether one only read.
     round: Round,
+    /// The model has written something to the person in this turn, in any round.
+    said: bool,
+    /// The person allowed reading the web for this question: web.search and web.read run without asking again
+    /// until the turn ends.
+    web_for_turn: bool,
 }
 
 #[derive(Default, Clone)]
@@ -484,7 +492,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default() };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -574,6 +582,7 @@ impl Engine {
                     turn.events.push(AgentEvent::Message { text: completion.text.clone() });
                 }
                 turn.round.said = !completion.text.trim().is_empty();
+                turn.said |= turn.round.said;
                 // Every call that ran early is in the answer, even if the finished answer somehow lost it.
                 let mut calls: Vec<ToolCall> = turn.early.calls.iter().filter(|(c, _)| !completion.tool_calls.iter().any(|t| t.id == c.id)).map(|(c, _)| c.clone()).collect();
                 calls.extend(completion.tool_calls);
@@ -741,6 +750,9 @@ impl Engine {
             Some(_) => {}
         }
         let Some(parked) = turn.parked.take() else { return Step::Idle };
+        if approved && core.take_for_turn(request_id) {
+            turn.web_for_turn = true;
+        }
         if approved {
             let mut queue = parked.remaining;
             queue.push_front(parked.call);
@@ -870,7 +882,7 @@ impl Engine {
             system,
             messages: compaction::view(&turn.messages, turn.compaction.as_ref()),
             tools: outside.into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
-            effort: self.effort.clone(),
+            effort: turn.setup.effort.clone().or_else(|| self.effort.clone()),
             max_tokens: None,
         }
     }
@@ -980,6 +992,17 @@ impl Engine {
                     return step;
                 }
                 Executed::Park(request_id) => {
+                    // Reading the web was allowed for this question: answer for the person, as they said to.
+                    if turn.web_for_turn
+                        && core.capability_of(&call.name).is_some_and(|c| mobius_core::core::TURN_SCOPED.contains(&c.as_str()))
+                        && !core.is_once_only(request_id)
+                        && !core.is_person_only(request_id)
+                        && core.resolve(request_id, true, Duration::Once).is_ok()
+                    {
+                        core.take_resolution(request_id);
+                        queue.push_front(call);
+                        continue;
+                    }
                     // In Act a reviewer model may answer for the person, but never for a floor (running commands,
                     // deleting files, reading secrets, clicking or typing in a page) or an app set to always ask: those
                     // stop as Needs you, every time.
@@ -996,10 +1019,11 @@ impl Engine {
         // Everything this round asked for is done, it all changed something, and the model already said its piece
         // beside the calls: nothing is left to say that the summary of the changes does not.
         // A call that failed or asked, or one that only read, means the model has more to do or say. A round of calls
-        // with nothing written would end the turn with no reply at all, so the model is asked once more for it.
+        // with nothing written ends the turn when an earlier round of it already wrote to the person (its lines, each
+        // beside its change); in a turn that has written nothing yet, the model is asked once more for its reply.
         let round = &turn.round;
         let read = round.tools.iter().any(|t| t != TODO_TOOL && core.capability_of(t).is_none_or(|c| is_reading(c.as_str())));
-        if turn.setup.finish_on_changes && round.said && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
+        if turn.setup.finish_on_changes && (round.said || turn.said) && round.tools.iter().any(|t| t != TODO_TOOL) && !round.troubled && !read {
             return self.finish(turn);
         }
         self.next_model_call(core, turn)

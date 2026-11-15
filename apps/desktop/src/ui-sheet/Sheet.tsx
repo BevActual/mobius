@@ -9,6 +9,8 @@ import {
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
+  MixerStrip,
+  BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
 } from '../ui';
@@ -137,6 +139,48 @@ function WarmerDemo() {
   );
 }
 
+function MixerDemo() {
+  const tracks: { name: string; color: ContentColor; level: [number, number] }[] = [
+    { name: 'Drums', color: 'coral', level: [-8, -9] },
+    { name: 'Bass', color: 'amber', level: [-14, -14] },
+    { name: 'Keys and pad layer', color: 'teal', level: [-20, -17] },
+    { name: 'Lead', color: 'violet', level: [-30, -26] },
+  ];
+  const [mix, setMix] = useState(() => tracks.map((t, i) => ({ volume: [0, -3, -4.5, -60][i]!, pan: [0, 0, -0.3, 0.25][i]!, mute: i === 3, solo: false, arm: i === 0 })));
+  const meters = useRef<(LevelFeed | null)[]>([]);
+  useEffect(() => { tracks.forEach((t, i) => meters.current[i]?.set(...t.level)); }); // eslint-disable-line react-hooks/exhaustive-deps
+  const put = (i: number, patch: Partial<(typeof mix)[number]>) => setMix((all) => all.map((m, j) => (j === i ? { ...m, ...patch } : m)));
+  return (
+    <div className="sheet-mixer">
+      {tracks.map((t, i) => (
+        <MixerStrip
+          key={t.name} name={t.name} color={t.color} selected={i === 1} onSelect={() => {}}
+          volume={mix[i]!.volume} onVolume={(volume) => put(i, { volume })} pan={mix[i]!.pan} onPan={(pan) => put(i, { pan })}
+          mute={mix[i]!.mute} onMute={(mute) => put(i, { mute })} solo={mix[i]!.solo} onSolo={(solo) => put(i, { solo })}
+          arm={mix[i]!.arm} onArm={(arm) => put(i, { arm })}
+          proposed={i === 2 ? { volume: true, pan: true } : undefined}
+          meter={(m) => { meters.current[i] = m; }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BeforeAfterDemo() {
+  const hold = useHold('m');
+  // Stand-ins for a photo: flat and grey before, warmer and with more contrast after.
+  const before = <div className="sheet-photo" data-look="before" />;
+  const after = <div className="sheet-photo" data-look="after" />;
+  return (
+    <div className="sheet-row">
+      <div className="sheet-col"><span className="sheet-note">Hold the button, Space on it, or M: the original shows, tagged, until let go</span>
+        <div className="sheet-row" style={{ alignItems: 'flex-start' }}><HoldButton hold={hold} /><BeforeAfter showing={hold.held} before={before}>{after}</BeforeAfter></div></div>
+      <div className="sheet-col"><span className="sheet-note">While held</span>
+        <BeforeAfter showing before={before}>{after}</BeforeAfter></div>
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -226,7 +270,7 @@ function Devices() {
   const patch = (id: string, p: Partial<Dev>) => setDevs((d) => d.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const move = (from: number, to: number) => setDevs((d) => { const next = [...d]; const [x] = next.splice(from, 1); next.splice(to, 0, x!); return next; });
   return (
-    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold shows the head alone; Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
+    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold turns a device into a narrow strip, its title read upward (stacked: the head alone); Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
       <DeviceChain label="Bass effects" count={devs.length} onMove={move}>
         {devs.map((d, i) => (
           <DeviceFrame key={d.id} title={d.title} index={i} on={d.on} onToggle={(on) => patch(d.id, { on })} collapsed={d.folded} onCollapse={(folded) => patch(d.id, { folded })} proposed={d.proposed}>
@@ -527,6 +571,12 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
+          <MixerDemo />
+        </Card>
+        <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
+          <BeforeAfterDemo />
+        </Card>
         <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>

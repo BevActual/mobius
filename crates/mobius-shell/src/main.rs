@@ -7,6 +7,7 @@ mod tray;
 mod menu;
 mod profiles;
 mod updater;
+mod toast;
 #[cfg(windows)]
 mod cdp;
 mod engine;
@@ -78,12 +79,17 @@ impl Dialogs for SystemDialogs {
         self.window.is_focused().unwrap_or(false)
     }
     fn show_notice(&self, notice: &mobius_host::notify::Notice) {
-        use tauri_plugin_notification::NotificationExt;
-        let mut builder = self.handle.notification().builder().title(&notice.title).body(&notice.body);
-        if !notice.silent {
-            builder = builder.sound("default");
+        #[cfg(windows)]
+        toast::show(&self.handle.config().identifier, notice);
+        #[cfg(not(windows))]
+        {
+            use tauri_plugin_notification::NotificationExt;
+            let mut builder = self.handle.notification().builder().title(&notice.title).body(&notice.body);
+            if !notice.silent {
+                builder = builder.sound("default");
+            }
+            let _ = builder.show();
         }
-        let _ = builder.show();
     }
     fn awake_blocker(&self) -> Box<dyn mobius_host::awake::Blocker> {
         Box::new(awake::SystemBlocker::new())

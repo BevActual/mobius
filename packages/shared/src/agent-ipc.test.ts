@@ -34,6 +34,7 @@ describe('send requests', () => {
 describe('resolve requests', () => {
   it('needs a whole positive request id, a boolean and a known duration', () => {
     expect(parseResolveRequest({ requestId: 7, approve: true, duration: 'once' })).toEqual({ requestId: 7, approve: true, duration: 'once' });
+    expect(parseResolveRequest({ requestId: 7, approve: true, duration: 'turn' })).toEqual({ requestId: 7, approve: true, duration: 'turn' });
     expect(parseResolveRequest({ requestId: 7, approve: false, duration: 'always' })).not.toBeNull();
     for (const bad of [null, {}, { requestId: 0, approve: true, duration: 'once' }, { requestId: -1, approve: true, duration: 'once' }, { requestId: 1.5, approve: true, duration: 'once' }, { requestId: '7', approve: true, duration: 'once' }, { requestId: 7, approve: 'yes', duration: 'once' }, { requestId: 7, approve: true, duration: 'forever' }, { requestId: 7, approve: true }, { requestId: Number.MAX_SAFE_INTEGER + 1, approve: true, duration: 'once' }]) {
       expect(parseResolveRequest(bad)).toBeNull();

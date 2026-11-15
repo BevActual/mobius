@@ -50,6 +50,7 @@ const APP_OF: Record<string, AppId> = {
   files: 'files', fs: 'files', document: 'docs', docs: 'docs', comments: 'docs', notes: 'notes', tasks: 'tasks', sheets: 'sheets',
   slides: 'slides', memory: 'wiki', wiki: 'wiki', images: 'photo', photo: 'photo', terminal: 'terminal', shell: 'terminal',
   research: 'research', reader: 'reader', design: 'design', canvas: 'canvas', studio: 'studio', video: 'video', skills: 'skills',
+  photos: 'photo',
 };
 
 export function appOfCapability(capability: string | null): AppId | null {
@@ -136,6 +137,15 @@ const DID: Record<string, (on: string) => string> = {
   'clock.now': () => 'Checked the time',
 };
 
+/**
+ * App tools that change files under the files capability (design.edit, photos.edit): said by what they changed, not
+ * as "a file".
+ */
+const DID_TOOL: Record<string, (on: string) => string> = {
+  'design.edit': (on) => (on ? `Changed the design ${on}` : 'Changed a design'),
+  'photos.edit': () => 'Edited photos',
+};
+
 /** What a question or an approval was about, as Mobius would ask it: "send email". */
 const ASKED: Record<string, string> = {
   'browser.navigate': 'open pages', 'browser.open': 'open pages', 'browser.read': 'read pages', 'browser.click': 'click on pages',
@@ -163,7 +173,9 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     // A file Mobius changed belongs to the app that shows it: a sheet to Sheets, a note to Notes.
     const file = /^(files|fs)\./.test(e.capability ?? '') ? appOfFile(e.resource) : null;
     const on = file?.name ?? e.resource ?? '';
-    const app = file?.app ?? appOfCapability(e.capability);
+    // An app's own tool belongs to that app, even when its capability is the files one (design.edit is Design's).
+    const toolApp = e.tool && !/^(files|fs)\./.test(e.tool) ? appOfCapability(e.tool) : null;
+    const app = file?.app ?? toolApp ?? appOfCapability(e.capability);
     // Only what actually happened (or was allowed to) is marked: a refused send changed nothing.
     const final = isFinal(e.capability) && (e.kind === 'tool.completed' || e.kind === 'permission.approved');
     const by = e.who ? (WHO[e.who] ?? 'other') : 'mobius';
@@ -173,7 +185,7 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     const tool = e.tool ?? e.capability ?? 'a tool';
     switch (e.kind) {
       case 'tool.completed': {
-        const did = e.capability ? DID[e.capability] : undefined;
+        const did = (e.tool ? DID_TOOL[e.tool] : undefined) ?? (e.capability ? DID[e.capability] : undefined);
         out.push({ ...base, text: did ? did(on) : `Used ${tool}${on ? ` on ${on}` : ''}`, warn: false });
         break;
       }

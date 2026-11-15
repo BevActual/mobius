@@ -2789,6 +2789,7 @@ dependencies = [
  "mobius-host",
  "mobius-store",
  "mobius-workspace",
+ "notify-rust",
  "serde_json",
  "tauri",
  "tauri-build",
