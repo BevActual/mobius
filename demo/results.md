@@ -8,19 +8,37 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#386) | 14 Nov 19:07, 5a33562, chip | Sonnet 5.5 | 10.2 / 10.2 / 11.4 s | Time yes; blocks untested (after 18:00) | Needs a daytime run |
-| Mail: Triage (#402, #410 low effort) | 15 Nov 20:56, 047509c, Mail from the sidebar | Sonnet 5.5 | 15.5 / 32.8 / 47.9 s | Content mostly, time no | 4 to 11 s thinking per round; two drafts commit; closing line miscounts drafts |
+| Mail: Triage (#430, #432, #433) | 15 Nov 06:40 UTC, 1c6a158, Mail from the sidebar | Sonnet 5.5 | 18.7 / 49.4 / 50.3 s | Content yes, time no | About 32 s of thinking over four rounds; thinking off is 13 s but handles one message |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
 | Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
 | Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
-| Files: Tidy this folder (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.8 / 20.8 / 30.8 s | Content yes, time no | Listing asks; step and bar counts wrong (50, 108 for 60) |
-| Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
+| Files: Tidy this folder (#418, #427) | 15 Nov 06:44 UTC, 1c6a158, chip in Downloads | Sonnet 5.5 | 16.6 / 16.6 / 21.0 s | Content yes, time no | Step title "Move 50" and a tool name in the answer (#438) |
+| Sheets: What stands out? | 15 Nov 06:11 UTC, 2d10a55, chip | Sonnet 5.5 | 7.2 / 10.7 / 10.7 s | Yes | Chart beside the grid (#407 not yet run) |
+| Music: a bassline and a warmer pad (#431) | 15 Nov 06:43 UTC, 1c6a158, typed | Sonnet 5.5 | 10.7 / 13.4 / 18.1 s | Content yes, time nearly | First change 10 s; the chip is in #406 |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Round 19 (1c6a158: #430, #431, #432, #433, #418, #427)
+
+Run on Sunday 15 November, 06:40 to 06:52 UTC, debug build, Demo profile after Reset, with MOBIUS_SLOW_MS=0 and the console recorded.
+
+| Moment | Time | Result | Weak |
+| --- | --- | --- | --- |
+| Mail: Triage the unread (low effort, thinking on) | 18.7 / 49.4 / 50.3 s | Counts add to 40 (3, 2, 9, 26); nothing sent or archived; the three first with why; drafts for Priya, Veltro, Sam, Northfield and Dana; Sam's asks; Priya's points to the 20 Nov review instead of adding one; no notes leaked; no closing line; bar "8 changes" matches | Thinking 2.1, 10.6, 9.5 and 9.7 s; Veltro's says "before the end of the week" (#435); message cards leave out Sam |
+| Mail: Triage, thinking off (#436 branch, 500bbd7) | 3.0 / 12.0 / 12.9 s | No 400; Priya's draft good | Handles Priya only: no groups, counts or other drafts; working notes show as the answer. Not merged |
+| Music: typed "a bassline under this, and make the pad warmer" | 10.7 / 13.4 / 18.1 s | Each mark shows 0.1 to 0.8 s after its edit (#431); chip "Add a bass line" 9.0 / 12.2 / 12.2 s | First change 10 s |
+| Files: Tidy this folder | 16.6 / 16.6 / 21.0 s | 60 moved, no renames (#418); folder dots add to 60; files dashed inside | Step title "Move 50"; answer names `files.move` (#438) |
+
+The 0.1.5 installer from this commit installed cleanly and the model answers on Personal.
+
+## Round 18 (db8306f, 2d10a55)
+
+Run on Sunday 15 November, 05:30 to 06:13 UTC. Triage with thinking off (#425) failed twice in round 1 with HTTP 400: first because Sonnet 5.5 turns thinking off with `between_tools`, not `disabled` (fixed in #428), then because the clear-thinking edit needs thinking on (fixed in #430). With both fixes Triage took 2.8 / 12.7 / 13.7 s but acted on Priya only. Log captures showed no host step over about 650 ms: Notes and Sheets marks land under a second after the edit, and Music marks landed only at the end (fixed in #431).
 
 ## Round 17 (047509c: #402, #410)
 
-Run on Sunday 15 November, 20:56 local, debug build, Demo profile after Reset. Triage at low effort.
+Run on Saturday 14 November, 20:56 local, debug build, Demo profile after Reset. Triage at low effort.
 
 | Moment | Time | Result | Weak |
 | --- | --- | --- | --- |
