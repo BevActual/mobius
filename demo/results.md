@@ -7,8 +7,8 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day | 15 Nov 10:03 local, 5afe166, chip | Sonnet 5.5 | 15.6 / 19.3 / 26.6 s (done) | Time yes; content nearly | Blocks are suggestions the calendar pane does not show; a draft to Priya promises |
-| Mail: Triage (#440, #441, #437) | 15 Nov 07:31 UTC, 2c9afda, Mail from the sidebar | Sonnet 5.5 | 23.4 / 29.9 / 30.8 s (count line at 3.4 s) | Yes, to the last change | 18 s of thinking before the lines; first change after all the lines |
+| Home and Tasks: Plan my day | 15 Nov 11:04 local, 3705e6b (0.1.7 installed), chip | Sonnet 5.5 | 10.7 / 14.4 / 14.9 s (done) | Yes | 30-minute suggestions drawn as slivers beside their task chips |
+| Mail: Triage (#444) | 15 Nov 11:06 local, 3705e6b (0.1.7 installed), fresh chat | Sonnet 5.5 | 21.6 / 29.8 / 40.9 s; count line 19.7 s | Content nearly, time no | Count line late and shown twice; Priya's draft promises; after Plan my day 20.2 / 24.5 / 31.3 s |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -19,13 +19,23 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Music: a bassline and a warmer pad (#431) | 15 Nov 06:43 UTC, 1c6a158, typed | Sonnet 5.5 | 10.7 / 13.4 / 18.1 s | Content yes, time nearly | First change 10 s; the chip is in #406 |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
 
+## Rounds 22 to 24 (#444 branch, then 3705e6b)
+
+Run on Sunday 15 November, 10:20 to 11:07 local, Demo profile after Reset, Sonnet 5.5. Each round ran Plan my day, Triage in the same chat, and Triage in a fresh chat.
+
+| Round | Build | Plan my day | Triage, same chat | Triage, fresh chat | Notes |
+| --- | --- | --- | --- | --- | --- |
+| 22 | #444 at ba7bf53 | 15.4 s; Priya's draft asks | 19.7 s, lines missing | 17.9 s, Priya only | A round that wrote text and made changes ended the turn, so the lines never came |
+| 23 | #444 at b6f51eb | 15.5 s | 16.0 / 18.4 / 30.1 s, counts 40 | 16.4 / 22.0 / 32.7 s, counts 40 | Lines come in a round of their own; one half-written heading leaked. All three calendars were hidden in the window's own storage, which is why no suggestion showed |
+| 24 | main 3705e6b, installed 0.1.7 | 10.7 / 14.4 / 14.9 s; 4 blocks and Focus drawn dashed | 20.2 / 24.5 / 31.3 s, counts 40 | 21.6 / 29.8 / 40.9 s, counts 40 | Reset shows every calendar (#446); Personal keeps its own. Count line now at 19 s; shown twice in the fresh chat; Priya's draft promises "by the end of the week" |
+
 ## Round 21 (5afe166, daytime)
 
 Run on Sunday 15 November at 10:03 local, debug build, Demo profile after Reset, Sonnet 5.5. Plan my day, then Triage in the same chat.
 
 | Moment | Time | Result | Weak |
 | --- | --- | --- | --- |
-| Home and Tasks: Plan my day | 15.6 / 19.3 s, done 26.6 s | Reads the clock first; blocks from 10:30 (asked at 10:03), none in the past; Focus 13:00 to 14:00 with a lunch gap; three tasks timed for today | The five blocks are suggestions, and the split's Calendar shows only the three task chips; it drafts to Priya "Tomorrow at 2 pm works… by the end of the week" and ignores the 20 Nov review |
+| Home and Tasks: Plan my day | 15 Nov 11:04 local, 3705e6b (0.1.7 installed), chip | Sonnet 5.5 | 10.7 / 14.4 / 14.9 s (done) | Yes | 30-minute suggestions drawn as slivers beside their task chips |
 | Mail from the sidebar after it | | Leaves the split; Mail full with Triage offered and the same chat | None found |
 | Mail: Triage, same chat | 18.6 / 22.1 / 22.6 s; count line 2.2 s | Three drafts that ask (Sam, Veltro, Northfield), an event for Sam, nothing sent or archived | The answer is missing after the count line (2,575 tokens written, none shown); Priya's promising draft from Plan my day stays |
 
