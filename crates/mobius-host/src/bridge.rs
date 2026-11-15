@@ -3086,7 +3086,7 @@ impl Bridge {
                 let path = text(1).unwrap_or("");
                 match method {
                     "browse" => drive.list(path).map(|entries| json!(entries)),
-                    "read" => drive.read(path).map(|file| json!({ "base64": base64::engine::general_purpose::STANDARD.encode(&file.bytes), "size": file.bytes.len(), "etag": file.etag, "contentType": file.content_type })),
+                    "read" => drive.read(path).map(|file| json!({ "base64": base64::engine::general_purpose::STANDARD.encode(&file.bytes), "size": file.bytes.len(), "etag": file.version, "contentType": file.content_type })),
                     "write" => {
                         let content = args.get(2).unwrap_or(&Value::Null);
                         let bytes = match (content.get("base64").and_then(Value::as_str), content.get("text").and_then(Value::as_str)) {
