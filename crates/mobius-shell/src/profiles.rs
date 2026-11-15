@@ -163,9 +163,43 @@ fn remove_folder(path: &Path) -> Result<(), String> {
     }
 }
 
+/// The name of the file that says which set of data a folder is: see [`space_id`].
+const SPACE_FILE: &str = "space-id";
+
+/// Which set of data `folder` holds, for the window's own view state (hidden calendars, the last sheet, kept turns). The
+/// web view keeps that per computer, not per profile, so the window files it under this and swaps it when the profile
+/// changes. A folder made afresh, as the demo is on every reset, has no file yet and so gets a new one: the demo opens
+/// as it was seeded, not as the last visit left it.
+pub fn space_id(folder: &Path) -> String {
+    let file = folder.join(SPACE_FILE);
+    if let Ok(id) = std::fs::read_to_string(&file) {
+        let id = id.trim();
+        if !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+            return id.to_owned();
+        }
+    }
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+    let id = format!("{:x}-{:x}", nanos, std::process::id());
+    // Not kept, the window still works: it only cannot tell this folder from another next time.
+    let _ = std::fs::write(&file, &id);
+    id
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_folder_keeps_its_space_and_a_fresh_one_gets_another() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = space_id(dir.path());
+        assert!(!first.is_empty());
+        assert_eq!(space_id(dir.path()), first, "the same folder, the same view state");
+        let fresh = tempfile::tempdir().unwrap();
+        assert_ne!(space_id(fresh.path()), first, "a reset demo is a new folder: it starts from no view state");
+        std::fs::write(dir.path().join(SPACE_FILE), "<script>").unwrap();
+        assert_ne!(space_id(dir.path()), "<script>", "only plain ids are passed to the window");
+    }
 
     #[test]
     fn personal_is_there_from_the_start_and_lives_in_the_data_folder() {
