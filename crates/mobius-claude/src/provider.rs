@@ -265,7 +265,8 @@ impl Provider for ClaudeCodeProvider {
                         Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
                             writing.insert(index, (inner["content_block"].clone(), String::new()));
                         }
-                        Some("content_block_start") if inner["content_block"]["type"] == "thinking" => thinking_since = Some(Instant::now()),
+                        // Lines written as thinking under `between_tools` are writing, not thinking: they are not timed as thought.
+                        Some("content_block_start") if inner["content_block"]["type"] == "thinking" && !prepared.updates_in_thinking => thinking_since = Some(Instant::now()),
                         Some("content_block_stop") => {
                             if let Some(since) = thinking_since.take() {
                                 thought = Some(thought.unwrap_or(0).saturating_add(u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)));
@@ -286,9 +287,15 @@ impl Provider for ClaudeCodeProvider {
                     {
                         json.push_str(piece);
                     }
-                    if delta["type"] == "text_delta"
-                        && let Some(t) = delta["text"].as_str()
-                    {
+                    // With thinking off as `between_tools`, the model's between-call lines arrive as thinking.
+                    let line = if delta["type"] == "text_delta" {
+                        delta["text"].as_str()
+                    } else if delta["type"] == "thinking_delta" && prepared.updates_in_thinking {
+                        delta["thinking"].as_str()
+                    } else {
+                        None
+                    };
+                    if let Some(t) = line {
                         emitted.push_str(t);
                         if !on_text(t) {
                             return Err(ProviderError::Cancelled);
@@ -321,7 +328,7 @@ impl Provider for ClaudeCodeProvider {
             });
         };
         drop(outcome);
-        let mut completion = frames::completion(&message, &prepared.names);
+        let mut completion = frames::completion_with(&message, &prepared.names, prepared.updates_in_thinking);
         // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
         if let Some(ready) = run.ready_ms.get() {
             completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
