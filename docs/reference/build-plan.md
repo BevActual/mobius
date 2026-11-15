@@ -208,6 +208,8 @@ their first round comes up, with the answer added here.
   to land.
 - **Unstable tests come before features.** A test with three sightings in [testing](../developers/testing.md) is a
   blocker for its owner: nothing else of theirs starts until it is fixed, or has a named cause and a date.
+- **The author tells the Builder when a pull request is opened,** and the Builder subscribes to it, so a green run
+  wakes the Builder.
 - **A stall is raised, not waited out.** A lead blocked for more than one round on another lead says so to the
   orchestrator, who reorders the queues above.
 
@@ -219,6 +221,7 @@ by cause; the orchestrator changes the process when a cause shows up, and tells 
 | Day (UTC) | Runs | Cancelled | Failed | What the failures were |
 | --- | --- | --- | --- | --- |
 | 14 to 15 November 2026 | About 2,900 | 789: 290 on `main`, 499 on pull requests | 46 | 33 unstable end-to-end tests, 2 unstable Rust tests, 9 real bugs caught before merge, 2 guards in Checks. None from two pull requests that passed apart, from conflicts or from the runners. |
+| 15 November 2026, 01:27 to 22:05 | 600 (the count stops there) | 58: 27 on `main`, all before the 04:28 change, 31 on pull requests (9 after 04:28) | 4 | 3 unstable tests: `server.rs:200` (fixed), `database.spec.ts:27` (fixed by #397), the device sign-in test (fixed by #449). 1 a pull request's own new test (app/music-demo). Passed only on retry: `shell.spec.ts:96`, `tasks.spec.ts:152` and one type check. No open blocker. |
 
 What changed on 15 November 2026 (#415):
 
@@ -229,7 +232,7 @@ What changed on 15 November 2026 (#415):
 - The three rules above this section: one push per pull request, no stacked pull requests, unstable tests first.
 
 Aims for the next count: no cancelled run on `main`, cancelled pull request runs under 100 a day, and no unstable
-test open past three sightings. Landing pull requests as a tested batch was considered and left out, because no
+test open past three sightings. All three were met on 15 November after 04:28. Landing pull requests as a tested batch was considered and left out, because no
 failure came from pull requests that passed apart; it comes back if one does.
 
 ## Docs that no longer match
