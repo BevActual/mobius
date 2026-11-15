@@ -348,5 +348,7 @@ test('the core still knows the browser tools after it restarts', async () => {
   await expect.poll(async () => (await coreHistory(mobius!.app)).includes('restarting'), { timeout: 15_000 }).toBe(true);
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   const tools = await coreCall<Array<{ name: string; external: boolean }>>(mobius!.app, 'tools.list');
-  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual(['browser.click', 'browser.open', 'browser.read', 'browser.tabs', 'browser.type', 'calendar.add', 'calendar.free', 'calendar.list', 'calendar.suggest', 'calendar.update', 'code.commit', 'code.output', 'code.push', 'code.run', 'code.start', 'code.stop', 'code.test', 'comments.list', 'comments.reply', 'comments.resolve', 'db.execute', 'db.list', 'db.query', 'design.edit', 'drives.delete', 'drives.fetch', 'drives.list', 'drives.move', 'drives.read', 'drives.write', 'files.edit', 'files.list', 'files.move', 'files.read', 'files.search', 'files.write', 'images.generate', 'mail.draft', 'mail.read', 'mail.search', 'memory.forget', 'memory.remember', 'photos.edit', 'schedules.add', 'schedules.list', 'sheets.list', 'sheets.read', 'sheets.write', 'skills.list', 'skills.read', 'tasks.add', 'tasks.list', 'tasks.update', 'video.clips', 'web.read', 'web.search']);
+  // The built-in tools, from the snapshot the bridge tests keep (npm run snapshot:tools).
+  const builtIn = fs.readFileSync(path.resolve(import.meta.dirname, '../../../crates/mobius-host/tests/agent-tools.txt'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  expect(tools.filter((t) => t.external).map((t) => t.name)).toEqual([...builtIn].sort());
 });
