@@ -207,10 +207,14 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
       { data: { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }, pauseMs: 0 },
     ],
   });
-  await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.')]);
+  // Try another is a plain message, not the chip, so its turn asks once more after the edits: that answer ends it.
+  await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.'), says(['An octave lower, on the roots.'])]);
   await resizeWindow(mobius!.app, 1600, 900);
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
-  // Space plays it even with a clip focused, as anywhere else in Music.
+  // The four bars go round, as in the demo (without the loop they end after 8.6 s, mid-test). Space plays them even with
+  // a clip focused, as anywhere else in Music.
+  await shell().getByRole('button', { name: 'Loop' }).click();
+  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
   await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
