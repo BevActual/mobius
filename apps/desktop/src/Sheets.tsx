@@ -229,6 +229,15 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   const history = useRef(new Map<string, { undo: Step[]; redo: Step[] }>());
   const place = data ? `${data.workbook}/${data.sheet}` : '';
   const [widths, setWidths] = useState<Record<string, number>>({});
+  // The grid and its charts share the body: its width decides whether the charts fit beside the grid.
+  const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(() => {
+    if (!bodyEl || typeof ResizeObserver === 'undefined') return undefined;
+    const seen = new ResizeObserver(([e]) => { if (e) setBodyW(Math.round(e.contentRect.width)); });
+    seen.observe(bodyEl);
+    return () => seen.disconnect();
+  }, [bodyEl]);
   const [header, setHeader] = useState<boolean | undefined>(undefined);
   const [formats, setFormats] = useState<Record<number, NumberFormat>>({});
   useEffect(() => {
@@ -341,6 +350,11 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   // A column the person has not sized fits its words, so names and labels are not cut short.
   const fitted = fittedWidths(data.values, headerOn, formats);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
+  // Charts sit beside the grid only when every used column still shows whole beside them (to E, where Stands out
+  // goes); the chart column gives up width first, down to 220px, and below that the charts go under the grid.
+  const gridNeeds = 44 + Array.from({ length: used.cols }, (_, c) => colWidth(c)).reduce((x, y) => x + y, 0) + 16;
+  const chartW = Math.min(320, bodyW - gridNeeds);
+  const chartsBeside = bodyW > 0 && chartW >= 220;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
 
@@ -724,7 +738,7 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
       )}
       {sheets.message && <p className="tasks-message" role="alert">{sheets.message}</p>}
       {/* The grid and its charts: charts under the grid, or beside it when the page is wide. */}
-      <div className="sheet-body">
+      <div className="sheet-body" ref={setBodyEl} data-charts={(data.charts?.length ?? 0) > 0 ? (chartsBeside ? 'beside' : 'below') : undefined} style={chartsBeside ? { ['--chart-w' as string]: `${chartW}px` } : undefined}>
       <div
         className="sheet-scroll"
         ref={grid}
