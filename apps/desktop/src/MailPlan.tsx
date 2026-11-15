@@ -115,14 +115,18 @@ export function MailActions({ open, unread, onTriage, onChanged }: { open: MailC
 /** Triage: three lines sorted into trays. */
 const TRIAGE_ICON = <path d="M4 5.5h12M4 10h8M4 14.5h5M14 12.5l2 2 2-2M16 9.5v5" />;
 
-/** The emails a reply was based on: the ones Mobius read in that turn, newest read first. */
+/**
+ * The emails a reply was based on: the ones Mobius read or drafted a reply to in that turn, in the order it first
+ * touched them. A reply drafted from a search's preview counts, so Triage's cards name every message it answered.
+ */
 export function mailReadIn(history: readonly Message[]): string[] {
   const start = history.map((m) => m.role).lastIndexOf('user');
   const ids: string[] = [];
   for (const m of start < 0 ? [] : history.slice(start)) {
     if (m.role !== 'assistant') continue;
     for (const call of m.tool_calls) {
-      const id = call.name === 'mail.read' && call.arguments && typeof call.arguments === 'object' ? (call.arguments as { id?: unknown }).id : undefined;
+      const args = call.arguments && typeof call.arguments === 'object' ? call.arguments as { id?: unknown; replyTo?: unknown } : null;
+      const id = call.name === 'mail.read' ? args?.id : call.name === 'mail.draft' ? args?.replyTo : undefined;
       if (typeof id === 'string' && !ids.includes(id)) ids.push(id);
     }
   }
