@@ -101,7 +101,7 @@ impl Policy {
 
     /// Capabilities that can never be allowed standing: each use needs its own approval.
     pub fn default_floors() -> Self {
-        Policy::new(["process.exec", "fs.delete", "secrets.read", "browser.interact"])
+        Policy::new(["process.exec", "fs.delete", "secrets.read", "browser.interact", "drives.write"])
     }
 
     #[must_use]
@@ -543,7 +543,7 @@ mod tests {
     fn the_floors_are_the_same_list_in_both_modes() {
         for mode in [ApprovalMode::Manual, ApprovalMode::Smart, ApprovalMode::Off] {
             let p = in_mode(mode);
-            for floor in ["process.exec", "fs.delete", "secrets.read", "browser.interact"] {
+            for floor in ["process.exec", "fs.delete", "secrets.read", "browser.interact", "drives.write"] {
                 assert!(p.is_floor(&cap(floor)), "{floor}");
             }
             assert!(!p.is_floor(&cap("browser.read")));

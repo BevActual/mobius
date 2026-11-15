@@ -54,7 +54,7 @@ describe('the Activity feed', () => {
 
 describe('what cannot be undone', () => {
   it('is sending, paying, deleting and running commands', () => {
-    for (const c of ['mail.send', 'payments.pay', 'files.delete', 'fs.delete', 'code.run', 'code.push', 'terminal.exec']) expect(isFinal(c)).toBe(true);
+    for (const c of ['mail.send', 'payments.pay', 'files.delete', 'fs.delete', 'code.run', 'code.push', 'terminal.exec', 'drives.write']) expect(isFinal(c)).toBe(true);
     for (const c of ['mail.draft', 'files.write', 'browser.navigate', null]) expect(isFinal(c)).toBe(false);
   });
 });

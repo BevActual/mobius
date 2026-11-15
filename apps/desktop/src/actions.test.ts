@@ -21,6 +21,8 @@ describe('actions in plain words', () => {
     expect(describeAction('files.write', { path: 'boards/Offsite/Ideas.json' })).toBe('write the board “Offsite › Ideas”');
     expect(describeAction('files.edit', { path: 'code/site/src/app.ts' })).toBe('change “src/app.ts” in the project “site”');
     expect(describeAction('db.execute', { database: 'Trips', sql: 'DELETE FROM x' })).toBe('change the database “Trips”');
+    expect(describeAction('drives.write', { drive: 'Cloud', path: 'Plans/road map.md', version: '"v2"' })).toBe('replace “Plans/road map.md” on the drive “Cloud”');
+    expect(describeAction('drives.delete', { path: 'Old' })).toBe('delete “Old” on your drive');
     expect(describeAction('web.search', { query: 'lisbon venues' })).toBe('search the web for “lisbon venues”');
     expect(previewArguments('files.write', { path: 'notes/a.md', content: '# Budget\n\n- Hotel\n' })).toEqual({ label: 'What it will write', text: '# Budget\n\n- Hotel', mono: false });
     expect(previewArguments('files.write', { path: 'boards/a.json', content: '{}' })?.mono).toBe(true);

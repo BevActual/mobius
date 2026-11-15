@@ -227,7 +227,7 @@ impl WebDav {
     }
 
     /// Why a request did not work, in the person's words.
-    fn failed(status: u16, etag: Option<&str>) -> String {
+    pub(crate) fn failed(status: u16, etag: Option<&str>) -> String {
         match status {
             401 => "The server did not accept the drive's name and password. Nextcloud and Fastmail need an app password, made in the account's security settings.".into(),
             403 => "The server does not let this account do that.".into(),
@@ -462,6 +462,171 @@ impl Drives {
     }
 }
 
+// ---- the agent's tools ----------------------------------------------------------------------------------------------
+
+/// The longest text the agent reads from a drive file in one go.
+const MAX_READ: usize = 200 * 1024;
+
+/// The agent's drive tools. Reading needs `drives.read`; every change on a server is `drives.write`, a floor: the
+/// person approves each one, whatever the mode, since nothing in Mobius can undo it there.
+pub fn tool_descriptions() -> Vec<Value> {
+    let drive = json!({ "type": "string", "description": "The drive's name, as drives.list gives it." });
+    let path = |what: &str| json!({ "type": "string", "description": what });
+    let version = json!({ "type": "string", "description": "The version drives.list or drives.read gave for the file. Needed to change or delete a file that is there; leave it out only for a new file." });
+    vec![
+        json!({ "name": "drives.list", "description": "The person's drives (folders on their own servers, such as Nextcloud), or what is in a folder of one: names, sizes, dates and versions.", "capability": "drives.read",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "folder": path("A folder on the drive, such as Projects/2026; the drive's top when left out.") } } }),
+        json!({ "name": "drives.read", "description": "Read a text file on one of the person's drives, with its version. Other files are described; copy them into the workspace with drives.fetch to work on them.", "capability": "drives.read", "resource_arg": "path",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "path": path("The file on the drive.") }, "required": ["drive", "path"] } }),
+        json!({ "name": "drives.fetch", "description": "Copy a file from one of the person's drives into the workspace, to read or change it there. It never replaces a workspace file.", "capability": "files.write", "resource_arg": "to",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "path": path("The file on the drive."), "to": path("Where in the workspace; the file's name at the workspace's top when left out.") }, "required": ["drive", "path"] } }),
+        json!({ "name": "drives.write", "description": "Write a file on one of the person's drives: the text given, or a workspace file. A file that is there is replaced only at the version given, so a change made on the server meanwhile is never lost. Missing folders are made. The person approves each change.", "capability": "drives.write", "resource_arg": "path",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "path": path("The file on the drive."), "text": path("What the file holds."), "from": path("A workspace file to send instead of text."), "version": version }, "required": ["drive", "path"] } }),
+        json!({ "name": "drives.move", "description": "Move or rename a file or folder on one of the person's drives. It never replaces anything. The person approves each change.", "capability": "drives.write", "resource_arg": "from",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "from": path("What to move."), "to": path("Its new path on the same drive.") }, "required": ["drive", "from", "to"] } }),
+        json!({ "name": "drives.delete", "description": "Delete a file or folder on one of the person's drives. The server may keep it in its own trash; Mobius cannot bring it back. The person approves each one.", "capability": "drives.write", "resource_arg": "path",
+            "input_schema": { "type": "object", "properties": { "drive": drive, "path": path("What to delete."), "version": version }, "required": ["drive", "path"] } }),
+    ]
+}
+
+pub fn is_drive_tool(name: &str) -> bool {
+    matches!(name, "drives.list" | "drives.read" | "drives.fetch" | "drives.write" | "drives.move" | "drives.delete")
+}
+
+fn kb(size: u64) -> String {
+    match size {
+        s if s < 1024 => format!("{s} bytes"),
+        s if s < 1024 * 1024 => format!("{} KB", s.div_ceil(1024)),
+        s => format!("{:.1} MB", s as f64 / (1024.0 * 1024.0)),
+    }
+}
+
+fn looks_like_text(bytes: &[u8], content_type: Option<&str>) -> bool {
+    let typed = content_type.is_some_and(|t| t.starts_with("text/") || ["json", "xml", "yaml", "csv", "javascript", "markdown"].iter().any(|k| t.contains(k)));
+    std::str::from_utf8(bytes).is_ok() && (typed || !bytes.contains(&0))
+}
+
+impl Drives {
+    /// A drive by its name (as the agent sees it) or its id.
+    fn find(&self, name: &str) -> Res<DriveAccount> {
+        let name = name.trim();
+        let all = self.lock();
+        all.iter()
+            .find(|a| a.id == name)
+            .or_else(|| all.iter().find(|a| a.name.eq_ignore_ascii_case(name)))
+            .cloned()
+            .ok_or_else(|| if all.is_empty() { "The person has no drives yet; they add one in Files.".to_owned() } else { format!("There is no drive named {name}. Drives: {}.", all.iter().map(|a| a.name.as_str()).collect::<Vec<_>>().join(", ")) })
+    }
+
+    /// Runs one of the agent's drive tools. Returns what to tell the agent and, for a change, the drive and paths
+    /// changed (to announce).
+    pub fn run(&self, tool: &str, args: &Value, workspace: &mobius_workspace::files::Workspace) -> Res<(String, Option<(String, Vec<String>)>)> {
+        let arg = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
+        let need = |k: &str| arg(k).ok_or_else(|| format!("{tool} needs {k}"));
+        if tool == "drives.list" && arg("drive").is_none() {
+            let all = self.lock().clone();
+            if all.is_empty() {
+                return Ok(("The person has no drives yet; they add one in Files.".into(), None));
+            }
+            let lines: Vec<String> = all.iter().map(|a| format!("- {} ({}, {})", a.name, a.kind, a.url)).collect();
+            return Ok((format!("Drives:\n{}", lines.join("\n")), None));
+        }
+        let account = self.find(need("drive")?)?;
+        let drive = self.open(&account.id)?;
+        let changed = |paths: Vec<String>| Some((account.id.clone(), paths));
+        match tool {
+            "drives.list" => {
+                let folder = arg("folder").unwrap_or("");
+                let entries = drive.list(folder)?;
+                if entries.is_empty() {
+                    return Ok((format!("{} is empty.", if folder.is_empty() { account.name.clone() } else { folder.to_owned() }), None));
+                }
+                let lines: Vec<String> = entries
+                    .iter()
+                    .take(500)
+                    .map(|e| {
+                        if e.folder {
+                            format!("- {}/", e.path)
+                        } else {
+                            format!("- {} ({}{}{})", e.path, kb(e.size), e.modified.as_deref().map(|m| format!(", changed {m}")).unwrap_or_default(), e.etag.as_deref().map(|v| format!(", version {v}")).unwrap_or_default())
+                        }
+                    })
+                    .collect();
+                let more = if entries.len() > 500 { format!("\n…and {} more.", entries.len() - 500) } else { String::new() };
+                Ok((format!("In {}:\n{}{more}", if folder.is_empty() { account.name.clone() } else { format!("{} / {folder}", account.name) }, lines.join("\n")), None))
+            }
+            "drives.read" => {
+                let path = need("path")?;
+                let file = drive.read(path)?;
+                let version = file.etag.as_deref().map(|v| format!("Version: {v}\n")).unwrap_or_default();
+                if !looks_like_text(&file.bytes, file.content_type.as_deref()) {
+                    let kind = file.content_type.as_deref().unwrap_or("file");
+                    return Ok((format!("{path} is a {kind} of {}. {version}Copy it into the workspace with drives.fetch to work on it.", kb(file.bytes.len() as u64)), None));
+                }
+                let text = String::from_utf8_lossy(&file.bytes);
+                let cut = if text.len() > MAX_READ { format!("{}\n…(cut at {} KB)", &text[..(0..=MAX_READ).rev().find(|i| text.is_char_boundary(*i)).unwrap_or(0)], MAX_READ / 1024) } else { text.into_owned() };
+                Ok((format!("{version}\n{cut}"), None))
+            }
+            "drives.fetch" => {
+                let path = need("path")?;
+                let file = drive.read(path)?;
+                let name = path.trim_matches('/').rsplit('/').next().unwrap_or(path);
+                let to = arg("to").unwrap_or(name).trim_matches('/');
+                let (folder, file_name) = to.rsplit_once('/').unwrap_or(("", to));
+                // Make the folders it goes in; one already there is fine.
+                let mut parent = String::new();
+                for part in folder.split('/').filter(|p| !p.is_empty()) {
+                    let next = if parent.is_empty() { part.to_owned() } else { format!("{parent}/{part}") };
+                    if !workspace.locate(&next).is_ok_and(|p| p.is_dir()) {
+                        workspace.new_folder(&parent, part)?;
+                    }
+                    parent = next;
+                }
+                // Never over a workspace file: a taken name gets " 2", " 3".
+                let landed = workspace.add_file(&parent, file_name, &file.bytes)?;
+                Ok((format!("Copied {path} from {} to {landed} in the workspace ({}).", account.name, kb(file.bytes.len() as u64)), None))
+            }
+            "drives.write" => {
+                let path = need("path")?;
+                let bytes = match (arg("from"), args.get("text").and_then(Value::as_str)) {
+                    (Some(from), _) => workspace.read_file(from, MAX_FILE)?,
+                    (None, Some(text)) => text.as_bytes().to_vec(),
+                    (None, None) => return Err("drives.write needs text or a workspace file (from)".into()),
+                };
+                let version = arg("version");
+                let written = match drive.write(path, &bytes, version) {
+                    // The folder it goes in is missing: make it (and any above it), then write.
+                    Err(e) if e == WebDav::failed(409, None) => {
+                        let names = names(path)?;
+                        for depth in 1..names.len() {
+                            match drive.make_folder(&names[..depth].join("/")) {
+                                Ok(()) => {}
+                                Err(e) if e == EXISTS => {}
+                                Err(e) => return Err(e),
+                            }
+                        }
+                        drive.write(path, &bytes, version)
+                    }
+                    other => other,
+                };
+                let etag = written.map_err(|e| if e == EXISTS { format!("{path} is already on the drive: read it (or list its folder) for its version, then write with that version to replace it.") } else if e == CHANGED { format!("{path} changed on the server since that version: read it again before changing it.") } else { e })?;
+                Ok((format!("Wrote {path} on {} ({}).{}", account.name, kb(bytes.len() as u64), etag.map(|v| format!(" Its version is now {v}.")).unwrap_or_default()), changed(vec![path.to_owned()])))
+            }
+            "drives.move" => {
+                let (from, to) = (need("from")?, need("to")?);
+                drive.rename(from, to)?;
+                Ok((format!("Moved {from} to {to} on {}.", account.name), changed(vec![from.to_owned(), to.to_owned()])))
+            }
+            "drives.delete" => {
+                let path = need("path")?;
+                drive.delete(path, arg("version")).map_err(|e| if e == CHANGED { format!("{path} changed on the server since that version: read it again first.") } else { e })?;
+                Ok((format!("Deleted {path} on {}.", account.name), changed(vec![path.to_owned()])))
+            }
+            _ => Err(format!("unknown tool {tool}")),
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
@@ -678,5 +843,54 @@ pub(crate) mod tests {
         let added = drives.add("", &format!("{base}/files"), "ana", "app-pass").unwrap();
         assert_eq!(added["url"], format!("{base}/files/"));
         assert_eq!(added["name"], "127.0.0.1", "named after the server when no name is given");
+    }
+    #[test]
+    fn the_agent_reads_fetches_and_changes_drive_files_only_at_the_version_it_saw() {
+        let (base, store) = server("/remote.php/dav/files/ana/");
+        let dir = tempfile::tempdir().unwrap();
+        let drives = Drives::new(dir.path(), Arc::new(MemorySecrets::new(true)));
+        let workspace = mobius_workspace::files::Workspace::new(dir.path().join("workspace"), dir.path().join("checkpoints"));
+        std::fs::create_dir_all(dir.path().join("workspace")).unwrap();
+        let run = |tool: &str, args: Value| drives.run(tool, &args, &workspace);
+
+        assert!(run("drives.list", json!({})).unwrap().0.contains("no drives yet"));
+        drives.add("Cloud", &base, "ana", "app-pass").unwrap();
+        assert!(run("drives.list", json!({})).unwrap().0.contains("- Cloud (webdav,"));
+        assert!(run("drives.read", json!({ "drive": "Nope", "path": "a" })).unwrap_err().contains("Drives: Cloud"));
+
+        // A new file in folders that are not there yet: the folders are made.
+        let (said, changed) = run("drives.write", json!({ "drive": "cloud", "path": "Trips/2026/plan.md", "text": "# Lisbon" })).unwrap();
+        assert!(said.contains("Its version is now \"v1\""), "{said}");
+        assert_eq!(changed.unwrap().1, vec!["Trips/2026/plan.md"]);
+        let again = run("drives.write", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "text": "over" })).unwrap_err();
+        assert!(again.contains("already on the drive"), "{again}");
+
+        let listing = run("drives.list", json!({ "drive": "Cloud", "folder": "Trips/2026" })).unwrap().0;
+        assert!(listing.contains("- Trips/2026/plan.md (8 bytes, changed Sat, 14 Nov 2026 10:00:00 GMT, version \"v1\")"), "{listing}");
+        let read = run("drives.read", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap().0;
+        assert!(read.starts_with("Version: \"v1\"\n") && read.ends_with("# Lisbon"), "{read}");
+
+        // Someone changes it on the server; the agent's change at the version it saw is refused.
+        run("drives.write", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "text": "# Lisbon and Porto", "version": "\"v1\"" })).unwrap();
+        let stale = run("drives.write", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "text": "mine", "version": "\"v1\"" })).unwrap_err();
+        assert!(stale.contains("changed on the server"), "{stale}");
+        assert!(run("drives.delete", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "version": "\"v1\"" })).unwrap_err().contains("changed on the server"));
+
+        // Into the workspace and back.
+        run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.path().join("workspace/plan.md")).unwrap(), "# Lisbon and Porto");
+        assert!(run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md" })).unwrap().0.contains("to plan 2.md"), "never over a workspace file");
+        run("drives.fetch", json!({ "drive": "Cloud", "path": "Trips/2026/plan.md", "to": "Trips/Lisbon/plan.md" })).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.path().join("workspace/Trips/Lisbon/plan.md")).unwrap(), "# Lisbon and Porto");
+        std::fs::write(dir.path().join("workspace/plan.md"), [0u8, 159, 146, 150]).unwrap();
+        run("drives.write", json!({ "drive": "Cloud", "path": "Trips/photo.bin", "from": "plan.md" })).unwrap();
+        assert!(run("drives.read", json!({ "drive": "Cloud", "path": "Trips/photo.bin" })).unwrap().0.contains("drives.fetch"), "not text: described");
+        assert!(run("drives.write", json!({ "drive": "Cloud", "path": "x", "from": "../../etc/passwd" })).is_err());
+
+        let (_, moved) = run("drives.move", json!({ "drive": "Cloud", "from": "Trips/2026", "to": "Trips/Portugal" })).unwrap();
+        assert_eq!(moved.unwrap().1, vec!["Trips/2026", "Trips/Portugal"]);
+        run("drives.delete", json!({ "drive": "Cloud", "path": "Trips/photo.bin" })).unwrap();
+        let left: Vec<String> = store.lock().unwrap().keys().cloned().collect();
+        assert_eq!(left, vec!["/remote.php/dav/files/ana/", "/remote.php/dav/files/ana/Trips/", "/remote.php/dav/files/ana/Trips/Portugal/", "/remote.php/dav/files/ana/Trips/Portugal/plan.md"]);
     }
 }

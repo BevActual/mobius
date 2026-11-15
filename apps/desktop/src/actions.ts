@@ -41,6 +41,7 @@ export function describeAction(name: string, args: unknown): string | null {
   const s = (key: string): string => (typeof a[key] === 'string' ? (a[key] as string).trim() : '');
   const quote = (text: string, max = 80) => `“${text.length > max ? `${text.slice(0, max - 1)}…` : text}”`;
   const host = (url: string) => { try { return new URL(url).host || url; } catch { return url; } };
+  const onDrive = () => (s('drive') ? `on the drive ${quote(s('drive'))}` : 'on your drive');
   const place = (path: string) => {
     const clean = path.replace(/\\/g, '/');
     if (clean.startsWith('notes/')) return `the note ${quote(clean.slice('notes/'.length).replace(/\.md$/i, '').replace('/', ' › '))}`;
@@ -114,6 +115,12 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'code.stop': return 'stop a running command';
     case 'code.commit': return s('message') ? `commit in ${quote(s('project') || 'a project')}: ${quote(s('message'), 60)}` : 'commit the changes';
     case 'code.push': return `push ${quote(s('project') || 'a project')} to its remote`;
+    case 'drives.list': return s('drive') ? (s('folder') ? `look in ${quote(s('folder'))} ${onDrive()}` : `look ${onDrive()}`) : 'see your drives';
+    case 'drives.read': return `read ${s('path') ? quote(s('path')) : 'a file'} ${onDrive()}`;
+    case 'drives.fetch': return `copy ${s('path') ? quote(s('path')) : 'a file'} ${onDrive()} into the workspace`;
+    case 'drives.write': return `${s('version') ? 'replace' : 'write'} ${s('path') ? quote(s('path')) : 'a file'} ${onDrive()}${s('from') ? ` with ${quote(s('from'))} from the workspace` : ''}`;
+    case 'drives.move': return `move ${s('from') ? quote(s('from')) : 'something'} to ${s('to') ? quote(s('to')) : 'another place'} ${onDrive()}`;
+    case 'drives.delete': return `delete ${s('path') ? quote(s('path')) : 'something'} ${onDrive()}`;
     case 'video.clips': return s('project') ? `see the clips in the Video project ${quote(s('project'))}` : 'see your Video projects and clips';
     case 'skills.list': return 'see your skills';
     case 'skills.read': return s('name') ? `read the skill ${quote(s('name'))}` : 'read a skill';
