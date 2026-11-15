@@ -33,3 +33,24 @@ A new effect gets an id not on the track (`fx2`...).
 
 ## Writing a part
 Stay in the song's `key`. A bassline sits around MIDI 33-52, on the chord roots of the other tracks on bar lines, with passing notes between; leave room for the kick. Make a new track for a new part (a new id, a free colour), and don't change the others' notes.
+
+## Devices: an effect you design
+When no built-in effect fits ("a tape delay that wobbles", "a filter that breathes with the beat"), add a device: `{"id":"fx3","kind":"device","on":true,"device":{...}}` in the track's `fx`. Its `device` is `{"name","about","parts":[...],"cables":[["from","to"]],"controls":[...]}`.
+- **parts** `{"id","kind",...settings}`, at most 24. One `input` and one `output`. The others:
+  - `gain`: `gain` 0-16 (1 leaves it as it is).
+  - `filter`: `type` lowpass|highpass|bandpass|lowshelf|highshelf|peaking|notch, `cutoff` 20-20000 Hz, `resonance` 0.1-20, `gain` -24 to 24 dB (shelves and peaking).
+  - `delay`: `time` 0.01-4 beats.
+  - `lfo`: `rate` 0.01-40 Hz, `depth` (in the units of the setting it moves), `shape` sine|triangle|square|sawtooth.
+  - `drive`: `amount` 0-1.
+  - `compressor`: `threshold` -60-0 dB, `ratio` 1-20, `attack` 0.001-0.5 s, `release` 0.02-1 s, `knee` 0-40 dB.
+  - `reverb`: `size` 0.3-8 s, `damp` 0-1.
+  - `pan`: `pan` -1 to 1.
+  - `mix`: `amount` 0-1; its inputs are `mix.dry` and `mix.wet`.
+- **cables**, at most 48: from a part to a part (`["tone","out"]`), to a named input (`["room","mix.wet"]`), or to a setting it moves (`["wobble","echo.time"]`). The settings a cable can move: a filter's `cutoff`, `resonance` and `gain`, a gain's `gain`, a delay's `time` (in seconds there), and a pan's `pan`. An `lfo` only goes to a setting. A loop must pass through a `delay`.
+- **controls**, at most 12: `{"label","part","param","min"?,"max"?}`, the knobs shown on the track. Name them for what they do ("Repeats", not "back gain").
+- A device's sound passes a soft limiter on its way out. A device that breaks a rule stops the whole song from opening, so check every cable's ends.
+
+Recipes:
+- **Echo that darkens:** in→mix.dry, in→echo (delay 0.75), echo→tone (lowpass 3000), tone→back (gain 0.45), back→echo, tone→mix.wet, mix (0.35)→out.
+- **Wobble:** add an lfo (rate 0.6, depth 0.004) → echo.time.
+- **Pump** (sidechain-style): in→pump (gain 1)→out, with an lfo (rate = tempo/60 Hz, depth 0.5, sawtooth) → pump.gain.
