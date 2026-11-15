@@ -151,8 +151,9 @@ notes for good, so the file always shows what you hear.
 | Feature | What it does | Status |
 | --- | --- | --- |
 | Ask for a part | Mobius writes notes for a track; Keep, Discard or Try another. | Have |
-| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Building (the review names each setting moved and opens the track's devices) |
+| Ask for a sound | Mobius sets a track's sound, kit and effects from words like "warmer" or "more space". | Have (the review names each setting moved, opens the track's devices and marks the moved knobs until kept) |
 | Explain a song | Mobius says what a song does: key, chords, sections. | Next |
+| Build a device | Devices as files of parts and cables, edited in Music's Workbench view; Mobius drafts new ones from words. See the [Workbench plan](workbench-plan.md). | Planned, after the demo work |
 | Sound library | Saved sounds and effects with tags, found by words or by being like another sound. | Later |
 | Map controls | Moving any setting with a hardware knob. | Later |
 | Screen readers | Every control named and reachable from the keyboard. | Have, kept with each change |
