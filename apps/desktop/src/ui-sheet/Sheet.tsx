@@ -9,6 +9,7 @@ import {
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
+  BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
 } from '../ui';
@@ -137,6 +138,21 @@ function WarmerDemo() {
   );
 }
 
+function BeforeAfterDemo() {
+  const hold = useHold('m');
+  // Stand-ins for a photo: flat and grey before, warmer and with more contrast after.
+  const before = <div className="sheet-photo" data-look="before" />;
+  const after = <div className="sheet-photo" data-look="after" />;
+  return (
+    <div className="sheet-row">
+      <div className="sheet-col"><span className="sheet-note">Hold the button, Space on it, or M: the original shows, tagged, until let go</span>
+        <div className="sheet-row" style={{ alignItems: 'flex-start' }}><HoldButton hold={hold} /><BeforeAfter showing={hold.held} before={before}>{after}</BeforeAfter></div></div>
+      <div className="sheet-col"><span className="sheet-note">While held</span>
+        <BeforeAfter showing before={before}>{after}</BeforeAfter></div>
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -226,7 +242,7 @@ function Devices() {
   const patch = (id: string, p: Partial<Dev>) => setDevs((d) => d.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const move = (from: number, to: number) => setDevs((d) => { const next = [...d]; const [x] = next.splice(from, 1); next.splice(to, 0, x!); return next; });
   return (
-    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold shows the head alone; Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
+    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold turns a device into a narrow strip, its title read upward (stacked: the head alone); Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
       <DeviceChain label="Bass effects" count={devs.length} onMove={move}>
         {devs.map((d, i) => (
           <DeviceFrame key={d.id} title={d.title} index={i} on={d.on} onToggle={(on) => patch(d.id, { on })} collapsed={d.folded} onCollapse={(folded) => patch(d.id, { folded })} proposed={d.proposed}>
@@ -527,6 +543,9 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
+          <BeforeAfterDemo />
+        </Card>
         <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>

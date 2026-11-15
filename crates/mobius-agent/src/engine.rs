@@ -220,6 +220,9 @@ pub struct TurnSetup {
     /// The app the person sent it from (`mail`, `photo`). When every tool would fill too much of a small model's
     /// window, only that app's tools and the everyday ones are offered (`APP_TOOLS`).
     pub app: Option<String>,
+    /// How hard the model thinks this turn, in place of the engine's setting: an app's mode that sorts and writes
+    /// rather than works things out asks for `low`, so its first change comes sooner.
+    pub effort: Option<String>,
 }
 
 /// On a model with a small window, the kinds of tools each app's turns are offered, beside `EVERYDAY_TOOLS`. An app
@@ -256,7 +259,7 @@ pub fn kinds_for_app(app: Option<&str>) -> Vec<&'static str> {
 }
 
 /// Told to the model when the turn ends once its changes are made (`TurnSetup::finish_on_changes`).
-pub const FINISH_ON_CHANGES: &str = "This turn ends as soon as your changes are made, and the person sees a summary of them: you are not asked again afterwards. So in the answer that makes the changes, write what you would tell the person first (the list or the few lines asked for), then make all the calls in that same answer. If you still need to read something, read it first, in an answer of its own.";
+pub const FINISH_ON_CHANGES: &str = "This turn ends as soon as your changes are made, and the person sees a summary of them: you are not asked again afterwards. So in the answer that makes the changes, also write what you would tell the person (the list or the few lines asked for), with each call straight after the line it belongs to, so each change shows as soon as its line is written. If you still need to read something, read it first, in an answer of its own.";
 
 /// Reads done before the model is first asked, with what they gave, kept with the person's message.
 pub const READS_OPEN: &str = "\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\n";
@@ -870,7 +873,7 @@ impl Engine {
             system,
             messages: compaction::view(&turn.messages, turn.compaction.as_ref()),
             tools: outside.into_iter().map(|t| ToolDef { name: t.name, description: t.description, input_schema: t.input_schema }).chain(own_tools()).collect(),
-            effort: self.effort.clone(),
+            effort: turn.setup.effort.clone().or_else(|| self.effort.clone()),
             max_tokens: None,
         }
     }

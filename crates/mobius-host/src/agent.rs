@@ -174,6 +174,9 @@ pub struct AppMode {
     pub finish: bool,
     /// The kinds of tools the mode works with: only theirs are offered. Empty offers all.
     pub tools: &'static [&'static str],
+    /// How hard the model thinks before it writes, for this mode's turns (`low`): a mode whose work is sorting and
+    /// writing, not working something out, starts sooner. None keeps the person's setting.
+    pub effort: Option<&'static str>,
 }
 
 pub const APP_MODES: &[AppMode] = &[
@@ -185,6 +188,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
         finish: true,
         tools: &["mail", "tasks", "calendar"],
+        effort: Some("low"),
     },
     AppMode {
         id: "review",
@@ -194,6 +198,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
     AppMode {
         id: "analyse",
@@ -203,6 +208,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
     AppMode {
         id: "debug",
@@ -212,6 +218,7 @@ pub const APP_MODES: &[AppMode] = &[
         reads: &[],
         finish: false,
         tools: &[],
+        effort: None,
     },
 ];
 
@@ -602,6 +609,9 @@ impl AgentService {
         }
         if let Some(app) = &request.app {
             params.insert("app".into(), json!(app));
+        }
+        if let Some(effort) = request.mode.and_then(|m| m.effort) {
+            params.insert("effort".into(), json!(effort));
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

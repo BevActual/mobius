@@ -570,9 +570,21 @@ fn the_chosen_effort_goes_to_the_model_but_never_to_the_reviewer() {
 }
 
 #[test]
+fn a_turns_own_effort_stands_in_for_the_chosen_one() {
+    let mut w = smart_world();
+    w.engine.set_effort(Some("high".to_owned()));
+    let (_turn, step) = w.engine.start_with(&w.core, vec![], "triage", 1, TurnSetup { effort: Some("low".to_owned()), ..TurnSetup::default() });
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert_eq!(request.effort.as_deref(), Some("low"), "a mode that sorts and writes thinks less");
+    let (_turn, step) = w.engine.start_with(&w.core, vec![], "go", 2, TurnSetup::default());
+    let Step::CallModel(request) = &step else { panic!("{step:?}") };
+    assert_eq!(request.effort.as_deref(), Some("high"));
+}
+
+#[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -587,10 +599,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }

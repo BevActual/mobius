@@ -24,7 +24,7 @@ for (const [start, at] of sent.slice(-wanted)) {
       rounds += 1;
       totals.startup += s.startup_ms ?? 0;
       totals.model += s.ms ?? 0;
-      console.log(`${t(s)}  model round ${rounds}: ${s.ms} ms (start-up ${s.startup_ms ?? '-'} ms, first word ${s.first_text_ms ?? '-'} ms), ${s.input} in (${s.cached} cached), ${s.output} out, ${s.tools_offered} tools offered, ${s.tool_calls} called${s.ok ? '' : ', FAILED'}`);
+      console.log(`${t(s)}  model round ${rounds}: ${s.ms} ms (start-up ${s.startup_ms ?? '-'} ms, first word ${s.first_text_ms ?? '-'} ms, thinking ${s.thinking_ms ?? '-'} ms, calls whole at ${s.calls_at_ms?.length ? s.calls_at_ms.join(', ') : '-'} ms), ${s.input} in (${s.cached} cached), ${s.output} out, ${s.tools_offered} tools offered, ${s.tool_calls} called${s.ok ? '' : ', FAILED'}`);
     } else if (s.step === 'tool') {
       totals.tools += s.ms ?? 0;
       console.log(`${t(s)}    tool ${s.name}: ${s.ms} ms${s.ok ? '' : ', failed'}`);
