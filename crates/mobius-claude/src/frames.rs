@@ -109,6 +109,8 @@ pub struct Prepared {
     pub names: HashMap<String, String>,
     pub model: String,
     pub effort: Option<String>,
+    /// The model is asked to answer with no thinking first.
+    pub thinking_off: bool,
 }
 
 pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared, String> {
@@ -189,7 +191,12 @@ pub fn prepare(request: &ChatRequest, natives: &NativeTurns) -> Result<Prepared,
     if let Some(e) = &effort {
         body["output_config"] = json!({ "effort": e });
     }
-    Ok(Prepared { system: request.system.clone(), frames, manifest, body, names, model: native_model(&request.model), effort })
+    // No reasoning: the model writes at once, with no thinking first (a mode that sorts and writes, such as Triage).
+    let thinking_off = request.effort.as_deref() == Some(mobius_agent::provider::NO_REASONING);
+    if thinking_off {
+        body["thinking"] = json!({ "type": "disabled" });
+    }
+    Ok(Prepared { thinking_off, system: request.system.clone(), frames, manifest, body, names, model: native_model(&request.model), effort })
 }
 
 /// A session id that stays the same for the whole conversation (the CLI names a scratch folder after it near the top
@@ -269,6 +276,18 @@ mod tests {
         assert_eq!(native_model("claude-haiku-4-5"), "claude-haiku-4-5-20251001");
         assert_eq!(native_model("claude-haiku-4-5-20251001"), "claude-haiku-4-5-20251001");
         assert_eq!(native_model("claude-new-9"), "claude-new-9", "never promised a 1M window");
+    }
+
+    #[test]
+    fn no_reasoning_asks_for_no_thinking_and_sends_no_effort() {
+        let mut r = request(vec![Message::user("hi")]);
+        r.effort = Some(mobius_agent::provider::NO_REASONING.into());
+        let p = prepare(&r, &NativeTurns::default()).unwrap();
+        assert!(p.thinking_off);
+        assert_eq!(p.body["thinking"], json!({ "type": "disabled" }));
+        assert!(p.body.get("output_config").is_none() && p.effort.is_none());
+        let p = prepare(&request(vec![Message::user("hi")]), &NativeTurns::default()).unwrap();
+        assert!(!p.thinking_off && p.body.get("thinking").is_none(), "the usual setting leaves thinking to the CLI");
     }
 
     #[test]

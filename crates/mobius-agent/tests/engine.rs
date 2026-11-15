@@ -922,6 +922,24 @@ fn a_turn_that_ends_in_changes_asks_for_a_reply_when_the_changes_came_with_nothi
 }
 
 #[test]
+fn a_turn_that_ends_in_changes_needs_no_closing_round_when_an_earlier_round_wrote_its_lines() {
+    // Triage on round 17: lines and changes over two rounds, then a third round of changes with no words, and a fourth
+    // round (14.7 s) only to sum up what the change bar already lists.
+    let mut w = reading_world();
+    for t in ["demo.echo", "demo.list"] {
+        allow_always(&mut w, t);
+    }
+    let provider = ScriptedProvider::new(vec![
+        calls("Reply: Priya, about the build dates.", vec![call("l1", "demo.list", json!({})), call("c1", "demo.echo", json!({ "text": "draft" }))]),
+        calls("", vec![call("c2", "demo.echo", json!({ "text": "task" }))]),
+        text("never asked"),
+    ]);
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "triage", 1, TurnSetup { finish_on_changes: true, ..TurnSetup::default() });
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 2, "the turn already wrote to the person, so no round only to sum up");
+}
+
+#[test]
 fn a_turn_that_ends_in_changes_still_asks_again_after_a_failure_a_read_or_a_plan() {
     for (round, why) in [
         (vec![call("c1", "demo.echo", json!({})), call("f1", "demo.fail", json!({}))], "a call failed"),
