@@ -1014,7 +1014,7 @@ export function App() {
             ) : inVideo ? (
               <VideoSidebar video={video} pin={pinNode} changed={turnMarks.video} />
             ) : inStudio ? (
-              <StudioSidebar songs={songs} pin={pinNode} changed={turnMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
+              <StudioSidebar songs={songs} pin={pinNode} changed={liveMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
             ) : inPhoto ? (
               <PhotoSidebar photos={photos} pin={pinNode} changed={liveMarks.photos} />
             ) : inDesign ? (
@@ -1409,7 +1409,7 @@ export function App() {
       case 'video':
         return <VideoEditor video={video} review={video.project && turnMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
-        return <StudioEditor songs={songs} review={songs.page && turnMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <StudioEditor songs={songs} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'photo':
         return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'design':
