@@ -436,6 +436,19 @@ mod browser {
         assert!(run("files.read", json!({ "path": "..\\bookmarks.json" })).is_err());
     }
 
+    /// The built-in tools from the snapshot file, in registration order. With `MOBIUS_SNAPSHOT_TOOLS=1` (as
+    /// `npm run snapshot:tools` sets) the registered names given are written to it first.
+    fn expected_tools(registered: &[String]) -> Vec<String> {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/agent-tools.txt");
+        let text = std::fs::read_to_string(&file).unwrap();
+        if std::env::var_os("MOBIUS_SNAPSHOT_TOOLS").is_some() && !registered.is_empty() {
+            let header: String = text.lines().take_while(|l| l.starts_with('#')).map(|l| format!("{l}\n")).collect();
+            std::fs::write(&file, format!("{header}{}\n", registered.join("\n"))).unwrap();
+            return registered.to_vec();
+        }
+        text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_owned).collect()
+    }
+
     fn registered_names(core: &Arc<CoreProcess>) -> Vec<String> {
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect()
@@ -546,7 +559,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 56, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), expected_tools(&[]).len(), "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -591,7 +604,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "files.move", "tasks.list", "tasks.add", "tasks.update", "photos.edit", "design.edit", "calendar.list", "calendar.add", "calendar.suggest", "calendar.free", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate", "video.clips", "drives.list", "drives.read", "drives.fetch", "drives.write", "drives.move", "drives.delete"]);
+        assert_eq!(names, expected_tools(&names), "the tools match crates/mobius-host/tests/agent-tools.txt; after adding one, run `npm run snapshot:tools`");
     }
 
     #[derive(Default)]

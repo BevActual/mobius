@@ -14,6 +14,10 @@ Logic that can be tested apart from the screen is kept in plain modules next to 
 `Tasks.tsx`, `studio-view.ts` beside `Studio.tsx`) and tested there. Prefer adding a unit test to one of these modules
 over an end-to-end test when the behaviour is not about the real window.
 
+**Adding or removing an agent tool.** The agent's built-in tools are listed, in the order the shell registers them,
+in `crates/mobius-host/tests/agent-tools.txt`. The bridge tests and the e2e suite both check against it. After changing
+the tools, run `npm run snapshot:tools` and commit the file with your change.
+
 ## End-to-end tests
 
 The end-to-end suite starts the **real** Mobius build (shell, core and interface) with a fresh data folder in test mode,
