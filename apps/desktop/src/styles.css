@@ -2321,10 +2321,10 @@ input.side-search.side-search {
 }
 html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-floating]) > .chat { background: var(--frame); box-shadow: none; border-radius: 0; }
 .dock.right:not([data-floating]) { border-left: var(--hairline-w) solid var(--line); }
-/* A floating dock is the attached one laid over the page (Instrument): flush to the rail, full height, square, a hairline
+/* A floating dock is the attached one laid over the page (Instrument): flush to the rail, the page's full height (under the
+   toolbar, so its button and the strip stay reachable), square, a hairline
    on its inner edge and only a light shadow to show it sits on top. */
 html .dock[data-floating], html .dock.left[data-floating], html .dock.right[data-floating] { top: 0; bottom: 0; border: 0; border-radius: 0; background: var(--frame); }
-html .app .dock.left[data-floating], html .app .dock.right[data-floating] { top: calc(-1 * var(--context)); z-index: 40; }
 html .dock.left[data-floating] { left: 0; border-right: var(--hairline-w) solid var(--line); box-shadow: 6px 0 18px -10px rgba(0, 0, 0, 0.18); }
 html .dock.right[data-floating] { right: 0; border-left: var(--hairline-w) solid var(--line); box-shadow: -6px 0 18px -10px rgba(0, 0, 0, 0.18); }
 html .dock.left[data-floating] > .app-side { padding-top: 0; }
