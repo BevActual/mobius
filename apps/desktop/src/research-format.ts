@@ -38,6 +38,7 @@ export function researchPrompt(question: string, depth: Depth, file: string): st
     depth === 'thorough'
       ? `Search with web.search from several different angles (at least four searches), then read at least ${d.sources} of the best and most independent pages with web.read. Prefer primary sources and recent ones; note where sources disagree.`
       : `Search with web.search two or three times, then read ${d.sources - 1} or ${d.sources} of the best pages with web.read.`,
+    'Cite only pages you read with web.read: every link in the report and in Sources is a page you read, and a search result you did not read is not a source. When a claim rests on one weak page, say so.',
     `Then replace the whole of ${file} with the report (files.write), in Markdown:`,
     '- `# ` and a short title, then the answer in two or three sentences;',
     '- a few `## ` sections with the detail;',

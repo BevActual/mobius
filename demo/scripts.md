@@ -30,8 +30,8 @@ holds how the earlier moments (Home, Mail, Calendar, Notes, Docs, Slides, Browse
 ## Research: one hard question
 
 - **Start:** Research, with no report open. Needs the live web.
-- **Ask:** press **Research…** and finish the line: `should a small electric van fleet choose LFP or NMC batteries in 2026?`
-- **Good result:** pages are searched and read in view, and a report builds in Research with every claim linked to its source and a list of sources. Then **Check the claims** reads the sources again.
+- **Ask:** type in Research's own question box, with **Quick**: `Should a small electric van fleet choose LFP or NMC batteries in 2026?` It makes the report first, so it fills in view.
+- **Good result:** pages are searched and read in view, and a report builds in Research with every claim linked to a page it read (every source in the list was read with `web.read`). Then **Check the claims** reads the sources again.
 - **On main:** `web.search`, `web.read` and the browser tools, yes. Time it: the plan says it needs checking for pace.
 
 ## Rewind (the Builder's moment)
