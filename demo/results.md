@@ -7,8 +7,8 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day | 15 Nov 11:04 local, 3705e6b (0.1.7 installed), chip | Sonnet 5.5 | 10.7 / 14.4 / 14.9 s (done) | Yes | 30-minute suggestions drawn as slivers beside their task chips |
-| Mail: Triage (#444) | 15 Nov 11:06 local, 3705e6b (0.1.7 installed), fresh chat | Sonnet 5.5 | 21.6 / 29.8 / 40.9 s; count line 19.7 s | Content nearly, time no | Count line late and shown twice; Priya's draft promises; after Plan my day 20.2 / 24.5 / 31.3 s |
+| Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
+| Mail: Triage (#447) | 15 Nov 11:29 local, b3f9798 (0.1.8 installed), fresh chat | Sonnet 5.5 | 15.2 / 21.7 / 35.0 s; count line 1.6 s | Yes, to the last change | The lines round after the changes takes 13 s |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
@@ -18,6 +18,15 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Sheets: What stands out? | 15 Nov 06:11 UTC, 2d10a55, chip | Sonnet 5.5 | 7.2 / 10.7 / 10.7 s | Yes | Chart beside the grid (#407 not yet run) |
 | Music: a bassline and a warmer pad (#431) | 15 Nov 06:43 UTC, 1c6a158, typed | Sonnet 5.5 | 10.7 / 13.4 / 18.1 s | Content yes, time nearly | First change 10 s; the chip is in #406 |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Rounds 25 and 26 (#447 branch, then b3f9798)
+
+Run on Sunday 15 November, 11:12 to 11:30 local, Demo profile after Reset, Sonnet 5.5.
+
+| Round | Build | Plan my day | Triage | Notes |
+| --- | --- | --- | --- | --- |
+| 25 | #447 at 906e12f | 16.0 s; five dashed blocks | Fresh: count 1.4 s, 15.4 / 21.7 / 33.1 s. After Plan my day: count 1.6 s, 18.3 / 23.4 / 36.3 s | Counts add to 40; no deadline in Priya's draft; at most five drafts; Sam's meeting added to Work |
+| 26 | main b3f9798, installed 0.1.8 | 12.4 / 16.4 / 16.9 s; each block takes the full column (#448) | Fresh: count 1.6 s, 15.2 / 21.7 / 35.0 s | Everything passes; flags the board-pack date clash |
 
 ## Rounds 22 to 24 (#444 branch, then 3705e6b)
 
@@ -35,7 +44,7 @@ Run on Sunday 15 November at 10:03 local, debug build, Demo profile after Reset,
 
 | Moment | Time | Result | Weak |
 | --- | --- | --- | --- |
-| Home and Tasks: Plan my day | 15 Nov 11:04 local, 3705e6b (0.1.7 installed), chip | Sonnet 5.5 | 10.7 / 14.4 / 14.9 s (done) | Yes | 30-minute suggestions drawn as slivers beside their task chips |
+| Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
 | Mail from the sidebar after it | | Leaves the split; Mail full with Triage offered and the same chat | None found |
 | Mail: Triage, same chat | 18.6 / 22.1 / 22.6 s; count line 2.2 s | Three drafts that ask (Sam, Veltro, Northfield), an event for Sam, nothing sent or archived | The answer is missing after the count line (2,575 tokens written, none shown); Priya's promising draft from Plan my day stays |
 
