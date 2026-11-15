@@ -1827,4 +1827,8 @@ fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     assert_eq!((missing["ok"].clone(), missing["message"].clone(), missing["conflict"].clone()), (json!(false), json!("That drive is gone."), json!(false)));
     assert_eq!(call(&b, "drives", "browse", json!([]))["message"], "A drive is needed.");
     assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    // Sync: nothing is paired until the person pairs a folder, and only with a drive that is there.
+    assert_eq!(call(&b, "drives", "syncPairs", json!([])), json!([]));
+    assert_eq!(call(&b, "drives", "syncAdd", json!(["notes", "nope", "Notes"]))["message"], "That drive is gone.");
+    assert_eq!(call(&b, "drives", "syncNow", json!(["nope"]))["message"], "That folder is not synced any more.");
 }

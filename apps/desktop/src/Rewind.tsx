@@ -15,10 +15,12 @@ export function appsOf(files: readonly string[]): string[] {
 }
 
 /** "Rewind 3 later turns? Mail, Sheets will change." */
-export function rewindQuestion(later: number, apps: readonly string[]): string {
+export function rewindQuestion(later: number, apps: readonly string[], synced = 0): string {
   const turns = later === 0 ? 'Rewind to here?' : `Rewind ${later === 1 ? '1 later turn' : `${later} later turns`}?`;
   const change = apps.length === 0 ? 'Nothing in your apps will change.' : `${apps.join(', ')} will change.`;
-  return `${turns} ${change}`;
+  // Files in folders that sync with a drive change there too, at the next sync.
+  const drives = synced === 0 ? '' : ` This also changes ${synced === 1 ? '1 file' : `${synced} files`} on your drive.`;
+  return `${turns} ${change}${drives}`;
 }
 
 const when = (ms: number) => timeLabel(ms);
@@ -62,7 +64,7 @@ export function Turns({ conversation, busy, version = 0, rewindTo }: {
     asked.current = rewindTo;
     void (async () => {
       const preview = await api?.rewindPreview?.(conversation, rewindTo).catch(() => null);
-      if (preview && preview.ok) setAsking({ start: rewindTo, question: rewindQuestion(preview.later, appsOf(preview.files)) });
+      if (preview && preview.ok) setAsking({ start: rewindTo, question: rewindQuestion(preview.later, appsOf(preview.files), preview.synced) });
     })();
   }, [api, conversation, rewindTo, hasTurn]);
   if (!api?.rewind || (turns.length === 0 && !rewound)) return null;
@@ -71,7 +73,7 @@ export function Turns({ conversation, busy, version = 0, rewindTo }: {
     setProblem(null);
     const preview = await api.rewindPreview?.(conversation, start).catch(() => null);
     if (!preview || !preview.ok) { setProblem(preview && !preview.ok ? preview.error : 'That turn cannot be rewound to.'); return; }
-    setAsking({ start, question: rewindQuestion(preview.later, appsOf(preview.files)) });
+    setAsking({ start, question: rewindQuestion(preview.later, appsOf(preview.files), preview.synced) });
   };
   const rewind = async (turn: TurnRecord) => {
     setAsking(null);

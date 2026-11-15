@@ -54,6 +54,8 @@ pub struct RoundOptions<'a> {
     /// Called once before the round first writes or deletes a file here: the workspace's checkpoint "Before sync",
     /// so Rewind can put back what sync brought in. When it fails, nothing is written here this round.
     pub before_here: Option<&'a dyn Fn() -> Res<()>>,
+    /// Called before each file the round sends, brings in or deletes, with how many are done and how many in all.
+    pub progress: Option<&'a dyn Fn(usize, usize)>,
 }
 
 /// Deletes a round held back to ask about.
@@ -152,9 +154,10 @@ fn stat(path: &Path) -> Option<(u64, u128)> {
     Some((meta.len(), ms))
 }
 
-/// Every file under `root`, by path within it. A file whose size and time match the base keeps the base's hash.
-fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
-    let mut out = BTreeMap::new();
+/// Every file under `root`, as its path within it and where it is: conflict copies too, but not what is in a folder
+/// that is left out (`.git`).
+fn walk(root: &Path) -> Res<Vec<(String, PathBuf)>> {
+    let mut out = Vec::new();
     let mut folders = vec![(root.to_path_buf(), String::new())];
     while let Some((dir, prefix)) = folders.pop() {
         let entries = match fs::read_dir(&dir) {
@@ -164,29 +167,75 @@ fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
         };
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            if left_out(&name) {
-                continue;
-            }
             let rel = if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") };
             let Ok(kind) = entry.file_type() else { continue };
-            if kind.is_dir() {
+            if kind.is_dir() && !left_out(&name) {
                 folders.push((entry.path(), rel));
             } else if kind.is_file() {
-                let Some((size, modified_ms)) = stat(&entry.path()) else { continue };
-                let known = base.files.get(&rel).filter(|b| b.size == size && b.modified_ms == modified_ms);
-                let hash = match known {
-                    Some(b) => b.hash.clone(),
-                    None if size > MAX_FILE as u64 => format!("big:{size}:{modified_ms}"),
-                    None => match fs::read(entry.path()) {
-                        Ok(bytes) => self::hash(&bytes),
-                        Err(_) => continue,
-                    },
-                };
-                out.insert(rel, Here { hash, size, modified_ms });
+                out.push((rel, entry.path()));
             }
         }
     }
     Ok(out)
+}
+
+fn synced(rel: &str) -> bool {
+    !left_out(rel.rsplit('/').next().unwrap_or(rel))
+}
+
+/// Every file under `root`, by path within it. A file whose size and time match the base keeps the base's hash.
+fn local_files(root: &Path, base: &Base) -> Res<BTreeMap<String, Here>> {
+    let mut out = BTreeMap::new();
+    for (rel, path) in walk(root)? {
+        if !synced(&rel) {
+            continue;
+        }
+        let Some((size, modified_ms)) = stat(&path) else { continue };
+        let known = base.files.get(&rel).filter(|b| b.size == size && b.modified_ms == modified_ms);
+        let hash = match known {
+            Some(b) => b.hash.clone(),
+            None if size > MAX_FILE as u64 => format!("big:{size}:{modified_ms}"),
+            None => match fs::read(&path) {
+                Ok(bytes) => self::hash(&bytes),
+                Err(_) => continue,
+            },
+        };
+        out.insert(rel, Here { hash, size, modified_ms });
+    }
+    Ok(out)
+}
+
+/// Whether anything under `root` looks changed since the base, by size and time only: cheap enough to ask every
+/// minute, so a local change is sent soon without asking the drive.
+pub fn changed_here(root: &Path, base: &Base) -> bool {
+    let Ok(files) = walk(root) else { return true };
+    let mut seen = 0;
+    for (rel, path) in files.iter().filter(|(rel, _)| synced(rel)) {
+        seen += 1;
+        match (base.files.get(rel), stat(path)) {
+            (Some(b), Some((size, ms))) if b.size == size && b.modified_ms == ms => {}
+            _ => return true,
+        }
+    }
+    seen != base.files.len()
+}
+
+/// The conflict copies under `root`, each with the path of the file it was a conflict with.
+pub fn conflicts_in(root: &Path) -> Vec<(String, String)> {
+    let mut out: Vec<(String, String)> = walk(root)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|(copy, _)| {
+            let (folder, name) = copy.rsplit_once('/').map_or(("", copy.as_str()), |(f, n)| (f, n));
+            let at = name.find(CONFLICT_MARK)?;
+            let close = at + name[at..].find(')')?;
+            let original = format!("{}{}", &name[..at], &name[close + 1..]);
+            let path = if folder.is_empty() { original } else { format!("{folder}/{original}") };
+            Some((path, copy))
+        })
+        .collect();
+    out.sort();
+    out
 }
 
 /// Every file under `remote` on the drive, by path within it.
@@ -326,7 +375,11 @@ pub fn round(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, opti
         plan = rest;
     }
 
-    for (path, step) in plan {
+    let total = plan.len();
+    for (done, (path, step)) in plan.into_iter().enumerate() {
+        if let Some(progress) = options.progress {
+            progress(done, total);
+        }
         let result = apply(drive, root, remote, base, &path, &step, here.get(&path), there.get(&path), options, &mut report);
         match result {
             Ok(()) => save(base),
@@ -652,6 +705,8 @@ mod tests {
         assert!(left_out("plan (conflict, Mobius, 2026-11-15 14.32).md"));
         assert_eq!(conflict_name("trips/plan.md", "d"), "trips/plan (conflict, Mobius, d).md");
         assert_eq!(conflict_name("README", "d"), "README (conflict, Mobius, d)");
+        p.put_here("trips/plan (conflict, Mobius, 2026-11-15 14.32).md", "x");
+        assert_eq!(conflicts_in(p.root.path()), [("trips/plan.md".to_owned(), "trips/plan (conflict, Mobius, 2026-11-15 14.32).md".to_owned())]);
     }
 
     #[test]
@@ -668,5 +723,15 @@ mod tests {
         assert!(r.uploaded.is_empty() && r.conflicts.is_empty(), "the other three are found already there with the same bytes: {r:?}");
         assert_eq!(p.base.files.len(), 5);
         assert_eq!(p.round(), Report::default());
+        // The minute's cheap look: nothing, then an edit, then a new file.
+        assert!(!changed_here(p.root.path(), &p.base));
+        tick();
+        p.put_here("n1.md", "y");
+        assert!(changed_here(p.root.path(), &p.base));
+        p.round();
+        p.put_here("n9 (conflict, Mobius, d).md", "copies are not changes");
+        assert!(!changed_here(p.root.path(), &p.base));
+        p.put_here("n9.md", "new");
+        assert!(changed_here(p.root.path(), &p.base));
     }
 }

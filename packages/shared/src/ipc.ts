@@ -243,6 +243,22 @@ export interface DriveEntry { name: string; path: string; folder: boolean; size:
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+/** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
+export interface SyncStatus {
+  state: 'idle' | 'syncing' | 'offline' | 'paused' | 'signIn';
+  done: number;
+  total: number;
+  lastSync: number | null;
+  retryAt: number | null;
+  held: string[];
+  conflicts: { path: string; copy: string }[];
+  ask: { onDrive: string[]; here: string[] } | null;
+  tooBig: string[];
+  error: string | null;
+}
+/** A workspace folder (`notes`) synced with a folder on a drive (`Cloud/Notes`). Paths in the status are within the folder. */
+export interface SyncPair { id: string; folder: string; drive: string; remote: string; paused: boolean; created: number; status: SyncStatus }
+export interface SyncChanged { pair: string; status: SyncStatus }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
@@ -323,7 +339,7 @@ export interface MobiusBridge {
     /** Puts one file back as it was before one turn. Refused with `later` when it changed again after that turn, unless `force`. */
     undoTurnFile(conversation: string, start: string, path: string, force?: boolean): Promise<{ ok: true } | (AgentFailure & { later?: boolean })>;
     /** What rewinding to right after one turn would do: how many later turns go, and the files that would change. */
-    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[] } | AgentFailure>;
+    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[]; synced?: number } | AgentFailure>;
     /** Everything back as it was right after that turn; the later turns go. `undo` names the rewind for undoRewind. */
     rewind?(conversation: string, start: string): Promise<{ ok: true; undo: string; later: number } | AgentFailure>;
     undoRewind?(conversation: string, undo: string): Promise<{ ok: true } | AgentFailure>;
@@ -673,6 +689,21 @@ export interface MobiusBridge {
     /** Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one there. */
     upload?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
     onChanged(listener: (change: DrivesChanged) => void): () => void;
+    /** Two-way sync of workspace folders. Off until the person pairs a folder; a folder syncs with one drive folder. */
+    syncPairs?(): Promise<SyncPair[] | DriveFailure>;
+    /** Pairs a workspace folder with a drive folder (made when missing). The first sync starts at once. */
+    syncAdd?(folder: string, drive: string, remote: string): Promise<SyncPair | DriveFailure>;
+    /** Stops syncing the folder; no file changes on either side. */
+    syncRemove?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    syncPause?(pair: string, paused: boolean): Promise<{ ok: true } | DriveFailure>;
+    syncNow?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** The yes to `status.ask`. */
+    syncAllowDeletes?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** The no to `status.ask`: the deleted files come back from the other side. */
+    syncKeepThem?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
+    syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
+    onSync?(listener: (change: SyncChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {

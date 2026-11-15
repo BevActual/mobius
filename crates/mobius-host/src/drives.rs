@@ -414,6 +414,11 @@ impl Drives {
         json!(self.lock().clone())
     }
 
+    /// The drive's name, as the person sees it.
+    pub fn name(&self, id: &str) -> Option<String> {
+        self.lock().iter().find(|a| a.id == id).map(|a| a.name.clone())
+    }
+
     /// Where to look for the files of an account on a server given only by its address. Nextcloud and ownCloud keep
     /// them at `remote.php/dav/files/<user>/`.
     fn candidates(base: &url::Url, username: &str) -> Vec<url::Url> {

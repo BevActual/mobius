@@ -25,6 +25,7 @@ pub mod schedules;
 pub mod calendar_accounts;
 pub mod drives;
 pub mod drive_sync;
+pub mod sync_pairs;
 pub mod demo;
 pub mod mail;
 pub mod chatgpt;
