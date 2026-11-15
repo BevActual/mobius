@@ -63,6 +63,8 @@ import { SkillEditor } from './Skills';
 // Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
 import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
 import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
+import { SyncGlyph } from './Sync';
+import { pairFor } from './sync-view';
 import { setChatMode } from './chat-mode';
 import { MailActions } from './MailPlan';
 import { memoryPage, ProjectPage, ProjectsSidebar, SideThreads, useProjects } from './Projects';
@@ -542,6 +544,11 @@ export function App() {
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
   // Tasks, Calendar and Sheets draw the running turn's changes as each call lands; the other apps when the turn ends.
+  // Notes and Docs (marked): a folder Files syncs with a drive shows the sync glyph after its name.
+  const syncedIn = (app: string) => (folder: string) => {
+    const pair = pairFor(files.sync.pairs, `${app}/${folder}`);
+    return pair ? <SyncGlyph line={files.sync.line(pair)} drive={files.sync.driveName(pair.drive)} /> : null;
+  };
   const liveMarks = useLiveMarks(conversation.state.conversation, conversation.state.busy, turnMarks);
   /** The views Mobius changed in its last turn and that wait for Keep. */
   const viewMarks = useMemo(() => new Set(turnMarks.files.filter((f) => f.startsWith('views/')).map((f) => f.slice('views/'.length))), [turnMarks.files]);
@@ -995,7 +1002,7 @@ export function App() {
                 pin={pinNode}
               />
             ) : inNotes ? (
-              <NotesSidebar notes={notes} tags pin={pinNode} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
+              <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={pinNode} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
             ) : inSkills ? (
               <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={turnMarks.skills} />
             ) : inVideo ? (
@@ -1035,7 +1042,7 @@ export function App() {
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inDocs ? (
-              <DocsSidebar docs={docs} pin={pinNode} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
+              <DocsSidebar synced={syncedIn('docs')} docs={docs} pin={pinNode} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
             ) : inCalendar ? (
               <CalendarSidebar calendar={calendar} pin={pinNode} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (

@@ -24,7 +24,7 @@ export function editedLabel(modified: number, now: number): string {
  * moves the page there. Then From Mobius, the documents its last turn changed. A row's menu opens or deletes it, and
  * Delete asks once more in a second menu at the same place. New folder is in the app's menu (and its command).
  */
-export function DocsSidebar({ docs, changed, starts, onStart }: {
+export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
   docs: NotesState;
   /** The button that attaches or floats the list; the shell's head has it now, so it is not drawn here. */
   pin?: ReactNode;
@@ -32,6 +32,8 @@ export function DocsSidebar({ docs, changed, starts, onStart }: {
   changed?: ReadonlySet<string>;
   starts?: readonly Start[];
   onStart?: (prompt: string) => void;
+  /** A folder synced with a drive shows the sync glyph after its name (Files pairs it). */
+  synced?: (folder: string) => ReactNode;
 }) {
   const [query, setQuery] = useState('');
   const [hits, setHits] = useState<NoteHit[] | null>(null);
@@ -146,7 +148,7 @@ export function DocsSidebar({ docs, changed, starts, onStart }: {
             </div>
           )}
           {docs.notebooks.map((nb) => (
-            <SidebarSection key={nb.name} title={nb.name}>
+            <SidebarSection key={nb.name} title={nb.name} {...(synced?.(nb.name) ? { action: synced(nb.name) } : {})}>
               {nb.pages.length === 0 && <li className="side-empty">No documents yet.</li>}
               {nb.pages.map((pg) => row(pg))}
             </SidebarSection>

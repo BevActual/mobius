@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { AppSidebar, Confirm, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
+import { AppSidebar, Button, Confirm, IconButton, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { APP_ICONS } from './Rail';
 import { appOf } from './review-view';
 import { TURN_FILES_EVENT, type TurnFiles } from './useTurnChanges';
@@ -12,6 +12,8 @@ import { relativeTime } from './relative-time';
 import { EmptyState } from './EmptyState';
 import { FileIcon, GLYPH, placeIcon, size } from './file-icons';
 import { AddDrivePage, DriveBars, DrivePage, useDrives, type DrivePlace } from './Drives';
+import { PairDialog, SignInDialog, SyncConflicts, SyncDeletes, SyncGlyph, SyncSub, useSync } from './Sync';
+import { conflictStem, pairFor } from './sync-view';
 import './files.css';
 
 /** Where Files is looking: a folder of the workspace, what Mobius made, or the Trash. */
@@ -31,6 +33,9 @@ export function useFiles(conversation: string, busy: boolean) {
   const forward = useCallback(() => setTrail((t) => (t.at < t.places.length - 1 ? { ...t, at: t.at + 1 } : t)), []);
   // The person's own servers (WebDAV), beside the workspace.
   const drives = useDrives(place, setPlace);
+  // Folders synced both ways with a drive folder; off until the person pairs one.
+  const sync = useSync(drives.accounts);
+  const [syncDialog, setSyncDialog] = useState<{ kind: 'pair'; folder: string } | { kind: 'signIn'; drive: string } | null>(null);
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [roots, setRoots] = useState<FileEntry[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
@@ -58,7 +63,15 @@ export function useFiles(conversation: string, busy: boolean) {
     const turn = result && 'files' in result ? turnId(conversation, result.checkpoint) : null;
     setMade(result && 'files' in result && !(turn && keptTurns().includes(turn)) ? { files: result.files, turn } : { files: [], turn: null });
   }, [conversation]);
-  useEffect(() => { setLoading(true); void list(); setQuery(''); }, [list]);
+  // A new folder starts with no search, unless it was opened to compare a conflict's two files side by side.
+  const nextQuery = useRef('');
+  useEffect(() => { setLoading(true); void list(); setQuery(nextQuery.current); nextQuery.current = ''; }, [list]);
+  /** Shows a sync conflict's file and its copy together: their folder, narrowed to their name. */
+  const compare = (path: string) => {
+    const folderOf = parentOf(path);
+    if (place.kind === 'folder' && place.path === folderOf) setQuery(conflictStem(path));
+    else { nextQuery.current = conflictStem(path); setPlace({ kind: 'folder', path: folderOf }); }
+  };
   useEffect(() => { if (!busy) { void loadMade(); void list(); void listRoots(); } }, [busy, loadMade, list, listRoots]);
   // While a turn runs, each call that changes files lists the folder again and marks what Mobius changed, so its
   // moves show dashed as they land rather than when the turn ends.
@@ -201,7 +214,7 @@ export function useFiles(conversation: string, busy: boolean) {
     working: busy,
     place, setPlace, back, forward, canBack: trail.at > 0, canForward: trail.at < trail.places.length - 1,
     entries, roots, problem, made, conversation, keep, discard, sort, setSort, query, setQuery,
-    drives,
+    drives, sync, syncDialog, setSyncDialog, compare,
     newFolder, rename, trash, putBack, show, trashed, moved, moveTo, undoMove, dismissMoved: () => setMoved(null), drag, drop, dragging, cut, setCut, paste, trashItems, putBackItem, emptyTrash, seen, loading, dismissTrashed: () => setTrashed(null), notice, dismissNotice: () => setNotice(null), can,
     available: window.mobius.files !== undefined,
   };
@@ -227,11 +240,15 @@ export function filesTitle(files: FilesState): string {
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
-export function filesSub(files: FilesState): string | undefined {
+export function filesSub(files: FilesState): ReactNode {
   if (!files.available || (files.place.kind === 'folder' && files.problem) || files.place.kind === 'add-drive') return undefined;
   if (files.place.kind === 'drive') { if (files.drives.problem || files.drives.loading) return undefined; const n = files.drives.entries.length; return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`; }
   const n = files.place.kind === 'made' ? files.made.files.length : files.place.kind === 'trash' ? files.trashItems.length : files.entries.length;
-  return n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`;
+  const count = n === 0 ? 'Empty' : n === 1 ? '1 item' : `${n} items`;
+  // A synced folder adds its sync line: the one most urgent state, with its fix one click away.
+  const pair = files.place.kind === 'folder' ? pairFor(files.sync.pairs, files.place.path) : null;
+  if (!pair) return count;
+  return <>{count} · <SyncSub sync={files.sync} pair={pair} onSignIn={() => files.setSyncDialog({ kind: 'signIn', drive: pair.drive })} /></>;
 }
 
 /** Files' sidebar: search, the drive, the workspace's folders, and Made by Mobius with how many things wait. */
@@ -251,7 +268,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
           {files.roots.map((r) => (
             <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} proposed={held.has(r.name)}
               current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })}
-              drop={files.can.move ? files.drop(r.name) : undefined} />
+              drop={files.can.move ? files.drop(r.name) : undefined} trail={syncTrail(files, r.name)} />
           ))}
         </SidebarSection>
       )}
@@ -261,6 +278,12 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
       </SidebarSection>
     </AppSidebar>
   );
+}
+
+/** A synced folder's glyph, after its name. */
+function syncTrail(files: FilesState, folder: string): ReactNode {
+  const pair = files.sync.pairs.find((p) => p.folder === folder);
+  return pair ? <SyncGlyph line={files.sync.line(pair)} drive={files.sync.driveName(pair.drive)} /> : undefined;
 }
 
 /** Drives: the person's own servers, each a row to open; a workspace file dropped on one is copied to its top. */
@@ -303,12 +326,13 @@ const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platfo
 
 
 /** Back, Forward and (in a folder) New folder, in the toolbar: Files has no bar of its own above the list. */
-function FilesTools({ files, onNewFolder }: { files: FilesState; onNewFolder?: (() => void) | undefined }) {
+function FilesTools({ files, onNewFolder, children }: { files: FilesState; onNewFolder?: (() => void) | undefined; children?: ReactNode }) {
   return (
     <ToolbarControls label="Files">
       <button type="button" className="strip-btn files-tool" aria-label="Back" title="Back (Alt+Left)" disabled={!files.canBack} onClick={files.back}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg></button>
       <button type="button" className="strip-btn files-tool" aria-label="Forward" title="Forward (Alt+Right)" disabled={!files.canForward} onClick={files.forward}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.forward}</svg></button>
       {onNewFolder && <button type="button" className="strip-btn files-tool" aria-label="New folder" title="New folder (Ctrl+Shift+N)" onClick={onNewFolder}><svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.newFolder}</svg></button>}
+      {children}
     </ToolbarControls>
   );
 }
@@ -358,8 +382,23 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     { label: 'Copy path', keys: 'Ctrl+Shift+C', run: () => copyPath(path) },
     ...(files.can.show ? [{ label: SHOW_IN, run: () => files.show(path) }] : []),
     ...(onAsk ? [{ label: 'Ask Mobius about this', separated: true, run: () => onAsk(type === 'folder' ? `What is in the folder ${path}/?` : `Tell me about ${path}.`) }] : []),
+    ...(type === 'folder' ? syncItems(path) : []),
     ...(changeable(path) ? [{ label: 'Move to Trash', keys: 'Delete', danger: true, separated: true, run: () => trash(path) }] : []),
   ];
+  // Sync: pair a folder with a drive folder, or pause, sync now and stop a paired one.
+  const [stopping, setStopping] = useState<string | null>(null);
+  const syncItems = (path: string): MenuEntry[] => {
+    if (!files.sync.available) return [];
+    const pair = files.sync.pairs.find((p) => p.folder === path);
+    if (pair) {
+      return [
+        { label: pair.paused ? 'Resume Syncing' : 'Pause Syncing', separated: true, run: () => void files.sync.pause(pair, !pair.paused) },
+        { label: 'Sync Now', run: () => void files.sync.syncNow(pair) },
+        { label: 'Stop Syncing…', run: () => setStopping(pair.id) },
+      ];
+    }
+    return files.drives.accounts.length > 0 && files.sync.canPair(path) ? [{ label: 'Sync with a Drive…', separated: true, run: () => files.setSyncDialog({ kind: 'pair', folder: path }) }] : [];
+  };
   const startNewFolder = async () => {
     const path = await files.newFolder();
     if (path) { setSelected(path); setRenaming(path); }
@@ -377,12 +416,27 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       onKeyDown={(e) => { e.stopPropagation(); if (e.key === 'Enter') void finishRename(path, e.currentTarget.value); if (e.key === 'Escape') setRenaming(null); }}
       onBlur={(e) => void finishRename(path, e.currentTarget.value)} />
   ) : <span className="files-label">{label}</span>);
+  const herePair = files.place.kind === 'folder' ? pairFor(files.sync.pairs, here) : null;
   const bars = (
     <>
       {files.notice && <p className="field-error files-notice" role="alert">{files.notice} <button type="button" className="review-btn" onClick={files.dismissNotice}>OK</button></p>}
       {files.moved && <UndoToast text={`Moved “${files.moved.path.split('/').pop()}” to ${placeName(files.moved.to)}`} onUndo={() => void files.undoMove()} onDismiss={files.dismissMoved} />}
       {files.trashed && <UndoToast text={`Moved “${files.trashed.path.split('/').pop()}” to the Trash`} onUndo={() => void files.putBack()} onDismiss={files.dismissTrashed} />}
       <DriveBars drives={files.drives} />
+      {files.sync.notice && <p className="field-error files-notice" role="alert">{files.sync.notice} <button type="button" className="review-btn" onClick={files.sync.dismissNotice}>OK</button></p>}
+      {herePair && <SyncConflicts sync={files.sync} pair={herePair} onCompare={files.compare} />}
+    </>
+  );
+  // What sync asks of the person, wherever in Files they are: a pairing, a sign-in, deletes to allow, a stop to confirm.
+  const asking = files.sync.pairs.find((p) => p.status.ask);
+  const stopPair = files.sync.pairs.find((p) => p.id === stopping);
+  const syncLayer = (
+    <>
+      {files.syncDialog?.kind === 'pair' && <PairDialog sync={files.sync} accounts={files.drives.accounts} folder={files.syncDialog.folder} folderName={placeName(files.syncDialog.folder)} onClose={() => files.setSyncDialog(null)} />}
+      {files.syncDialog?.kind === 'signIn' && <SignInDialog sync={files.sync} drive={files.syncDialog.drive} onClose={() => files.setSyncDialog(null)} />}
+      {asking && <SyncDeletes sync={files.sync} pair={asking} folderName={placeName(asking.folder)} onClose={() => undefined} />}
+      <Confirm open={stopPair !== undefined} title={`Stop syncing ${stopPair ? placeName(stopPair.folder) : ''}?`} description="No files change on either side. Both stay as they are now." action="Stop syncing"
+        onCancel={() => setStopping(null)} onConfirm={() => { const p = stopPair; setStopping(null); if (p) void files.sync.remove(p); }} />
     </>
   );
   const fileMenu = menu && <PointMenu x={menu.x} y={menu.y} label={menu.path.split('/').pop() ?? menu.path} entries={menuItems(menu.path, menu.type)} onClose={() => setMenu(null)} />;
@@ -458,7 +512,13 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   };
   return (
     <section className="skills-page files-page" aria-label="Files">
-      <FilesTools files={files} onNewFolder={files.can.change ? () => void startNewFolder() : undefined} />
+      <FilesTools files={files} onNewFolder={files.can.change ? () => void startNewFolder() : undefined}>
+        {herePair && <>
+          <IconButton label={herePair.paused ? 'Resume syncing' : 'Pause syncing'} icon={<svg viewBox="0 0 20 20" aria-hidden="true">{herePair.paused ? <path d="M7 5.5v9l7.5-4.5z" /> : <path d="M7.5 5.5v9M12.5 5.5v9" />}</svg>} onClick={() => void files.sync.pause(herePair, !herePair.paused)} />
+          <Button kind="quiet" disabled={herePair.paused} onClick={() => void files.sync.syncNow(herePair)}>Sync now</Button>
+        </>}
+      </FilesTools>
+      {syncLayer}
       {bars}
       {files.problem && <p className="field-error" role="alert">{files.problem}</p>}
       {!files.problem && files.loading && (
@@ -487,7 +547,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
                   onClick={() => setSelected(e.path)} onDoubleClick={() => open(e.path, e.type)}
                   onContextMenu={(ev) => { ev.preventDefault(); setSelected(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
-                  <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
+                  <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
                   <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? '—' : size(e.bytes)}</span>

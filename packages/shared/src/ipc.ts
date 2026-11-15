@@ -704,6 +704,8 @@ export interface MobiusBridge {
     /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
     syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
     onSync?(listener: (change: SyncChanged) => void): () => void;
+    /** A new app password for a drive whose server stopped accepting the old one; checked before it is kept. */
+    signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {
