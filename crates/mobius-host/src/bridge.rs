@@ -3860,7 +3860,7 @@ impl Bridge {
     /// A message from the core that is not an answer. Only well formed conversation progress reaches the window.
     pub fn on_core_notification(&self, method: &str, params: &Value) {
         if method == "agent.timing" {
-            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
+            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "thinking_ms": params["thinking_ms"], "calls_at_ms": params["calls_at_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
             return;
         }
         if method == "agent.event" {

@@ -384,6 +384,8 @@ fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_al
     assert_eq!(sent(json!({ "conversation": "c-2", "text": "plan my day", "tools": ["tasks", "calendar", "mail"] }))["tools"], json!(["tasks", "calendar", "mail"]));
     assert_eq!(sent(json!({ "conversation": "c-3", "text": "sort", "mode": "triage", "tools": ["files", "mail"] }))["tools"], json!(["mail", "tasks", "calendar", "files"]), "both, once each");
     assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
+    assert_eq!(sent(json!({ "conversation": "c-5", "text": "sort my inbox", "mode": "triage" }))["effort"], "low", "Triage sorts and writes, so it thinks less");
+    assert!(sent(json!({ "conversation": "c-6", "text": "hi" })).get("effort").is_none(), "the person's setting stands");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
 }
