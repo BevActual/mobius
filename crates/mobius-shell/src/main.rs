@@ -674,7 +674,7 @@ fn main() {
             // The first tab: an address given for tests, or a blank page.
             let start = std::env::var("MOBIUS_START_URL").ok().filter(|_| test_mode);
             let reopened = if restore_tabs && start.is_none() {
-                mobius_store::file::read_json(&tabs_file).map_or(0, |kept| mobius_browser::session::restore(&browser, &kept))
+                mobius_store::file::read_json(&tabs_file).map_or(0, |kept| mobius_browser::session::restore(&browser, &kept, &|url| bridge.page_now(url)))
             } else {
                 0
             };

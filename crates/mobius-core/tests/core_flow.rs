@@ -366,12 +366,23 @@ fn a_tool_run_by_the_application_is_gated_and_then_handed_back_not_run_by_the_co
     assert_eq!(f.core.invoke(&agent(), "browser.tabs", &json!({ "n": 1 })).unwrap(), InvokeOutcome::Dispatch);
     assert!(matches!(f.core.invoke(&agent(), "browser.tabs", &json!({})).unwrap(), InvokeOutcome::NeedsApproval { .. }), "the approval was used up");
 
-    f.core.record_external_result(&agent(), "browser.tabs", true).unwrap();
-    f.core.record_external_result(&agent(), "browser.tabs", false).unwrap();
+    f.core.record_external_result(&agent(), "browser.tabs", &json!({}), true).unwrap();
+    f.core.record_external_result(&agent(), "browser.tabs", &json!({}), false).unwrap();
     let kinds: Vec<String> = f.core.events(0, 100).unwrap().into_iter().map(|e| e.kind).collect();
     let started = kinds.iter().position(|k| k == "tool.started").unwrap();
     assert_eq!(&kinds[started..][..1], ["tool.started"]);
     assert!(kinds.ends_with(&["tool.completed".to_owned(), "tool.failed".to_owned()]), "{kinds:?}");
+}
+
+#[test]
+fn an_application_tool_s_result_names_what_it_was_on_so_the_log_can_say_what_changed() {
+    let mut f = fixture();
+    f.core.register_external_tool(ToolSpec::new("files.edit", "Edit a file", "files.write").unwrap().with_resource_arg("path")).unwrap();
+    f.core.record_external_result(&agent(), "files.edit", &json!({ "path": "notes/Work/Plan.md", "old": "a" }), true).unwrap();
+    f.core.record_external_result(&agent(), "files.edit", &json!({}), false).unwrap();
+    let events = f.core.events(0, 100).unwrap();
+    let last: Vec<(&str, Option<&str>)> = events.iter().rev().take(2).map(|e| (e.kind.as_str(), e.resource.as_deref())).collect();
+    assert_eq!(last, [("tool.failed", None), ("tool.completed", Some("notes/Work/Plan.md"))]);
 }
 
 #[test]
@@ -384,8 +395,8 @@ fn a_person_can_use_an_application_tool_without_being_asked() {
 #[test]
 fn recording_a_result_for_something_that_is_not_an_application_tool_is_refused() {
     let mut f = fixture();
-    assert!(matches!(f.core.record_external_result(&agent(), "no.such", true), Err(CoreError::UnknownTool(_))));
-    assert!(matches!(f.core.record_external_result(&agent(), "demo.echo", true), Err(CoreError::UnknownTool(_))), "tools the core runs itself are not reported on from outside");
+    assert!(matches!(f.core.record_external_result(&agent(), "no.such", &json!({}), true), Err(CoreError::UnknownTool(_))));
+    assert!(matches!(f.core.record_external_result(&agent(), "demo.echo", &json!({}), true), Err(CoreError::UnknownTool(_))), "tools the core runs itself are not reported on from outside");
 }
 
 #[test]

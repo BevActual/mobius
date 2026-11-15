@@ -10,6 +10,7 @@ import './wave.css';
 import './instrument.css';
 import './chart.css';
 import './pads.css';
+import './patch.css';
 
 export { Menu, PointMenu, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -46,6 +47,10 @@ export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
 export { NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
 export { MixerStrip, faderLabel, type MixerStripProps } from './Mixer';
+export {
+  PatchCanvas, Port, layoutFlow, cablePath, defaultCanConnect,
+  type PatchCanvasProps, type PatchBox, type PatchCable, type PatchSelection, type PatchLevels, type PortSpec, type PortKind, type PortInfo, type PortEnd, type ParamEnd,
+} from './Patch';
 export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
 export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';
 export { Chart, Sparkline, CHART_ORDER, chartTicks, chartNumber, type ChartSeries } from './Chart';

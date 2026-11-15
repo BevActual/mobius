@@ -1,4 +1,5 @@
 import type { EqBand } from './ui';
+import { PART_KINDS, type Device, type PartSetting } from './device-format';
 import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track } from './song-format';
 
 /**
@@ -424,16 +425,52 @@ export function soundChanges(was: Track | undefined, now: Track): SoundChange[] 
   const before = new Map((was.fx ?? []).map((e) => [e.id, e]));
   for (const e of now.fx ?? []) {
     const o = before.get(e.id);
-    const name = EFFECT_NAMES[e.kind];
+    const name = effectName(e);
     if (!o || o.kind !== e.kind) { out.push({ key: `fx:${e.id}`, text: `added ${name}` }); continue; }
     if (o.on !== e.on) out.push({ key: `fx:${e.id}`, text: `${name} ${e.on ? 'on' : 'off'}` });
+    if (e.kind === 'device' || o.kind === 'device') {
+      if (e.kind === 'device' && o.kind === 'device') out.push(...deviceChanges(e.id, o.device, e.device));
+      continue;
+    }
     for (const k of Object.keys(EFFECT_PARAMS[e.kind])) {
       const p = (o as unknown as Record<string, number>)[k]!, q = (e as unknown as Record<string, number>)[k]!;
       if (p !== q) out.push({ key: `fx:${e.id}:${k}`, text: `${e.kind === 'eq' ? 'EQ' : name.toLowerCase()} ${k} ${effectText(e.kind, k, p)} → ${effectText(e.kind, k, q)}` });
     }
   }
   const kept = new Set((now.fx ?? []).map((e) => e.id));
-  for (const e of was.fx ?? []) if (!kept.has(e.id)) out.push({ key: `fx:${e.id}`, text: `took out ${EFFECT_NAMES[e.kind]}` });
+  for (const e of was.fx ?? []) if (!kept.has(e.id)) out.push({ key: `fx:${e.id}`, text: `took out ${effectName(e)}` });
+  return out;
+}
+
+/** An effect's name: a built-in's, or a device's own. */
+export const effectName = (e: Effect): string => (e.kind === 'device' ? e.device.name : EFFECT_NAMES[e.kind]);
+
+/** A device setting as it reads on its knob, from its unit: 2.4 kHz, −6.0 dB, 0.75 beats, 120 ms, or a share. */
+export function deviceSettingText(range: { lo: number; hi: number; unit?: string }, v: number): string {
+  switch (range.unit) {
+    case 'Hz': return v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${v < 10 ? v.toFixed(2) : Math.round(v)} Hz`;
+    case 'dB': return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`;
+    case 's': return v >= 1 ? `${v.toFixed(1)} s` : `${Math.round(v * 1000)} ms`;
+    case 'beats': return `${Number(v.toFixed(2))} ${v === 1 ? 'beat' : 'beats'}`;
+  }
+  if (range.lo === 0 && range.hi === 1) return `${Math.round(v * 100)}%`;
+  return `${Number(v.toFixed(2))}`;
+}
+
+/** What moved inside a device: each part's setting that changed (by its control's name when it has one), or that the patch itself was changed. */
+export function deviceChanges(id: string, was: Device, now: Device): SoundChange[] {
+  const shape = (d: Device) => JSON.stringify([d.parts.map((p) => [p.id, p.kind]), d.cables]);
+  if (shape(was) !== shape(now)) return [{ key: `fx:${id}`, text: `changed ${now.name}’s parts` }];
+  const out: SoundChange[] = [];
+  for (const p of now.parts) {
+    const q = was.parts.find((x) => x.id === p.id)!;
+    for (const [k, s] of Object.entries(PART_KINDS[p.kind].settings) as [string, PartSetting][]) {
+      if (q[k] === p[k]) continue;
+      const label = now.controls.find((c) => c.part === p.id && c.param === k)?.label ?? `${p.id} ${k}`;
+      const text = 'choices' in s ? `${q[k]} → ${p[k]}` : `${deviceSettingText(s, Number(q[k]))} → ${deviceSettingText(s, Number(p[k]))}`;
+      out.push({ key: `fx:${id}:${p.id}.${k}`, text: `${now.name} ${label.toLowerCase()} ${text}` });
+    }
+  }
   return out;
 }
 

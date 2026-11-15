@@ -202,9 +202,10 @@ function QuestionCard({ item, onReply }: { item: Extract<Item, { kind: 'question
 }
 
 /** A tool call as a sentence a person reads, when the tool is one Mobius knows; null otherwise. */
-function plainAction(name: string, args: unknown): string | null {
-  const words = describeAction(name, args);
-  return words ? words.charAt(0).toUpperCase() + words.slice(1) : null;
+/** What a tool does, in words: its own sentence, or the tool named without its code name. Never `photos.edit`. */
+function plainAction(name: string, args: unknown): string {
+  const words = plainUse(name, args);
+  return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
 /** App names ("Tasks · Calendar"), each a link that opens the app, when there is somewhere to open them. */
@@ -360,7 +361,7 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high' }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;

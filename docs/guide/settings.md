@@ -41,6 +41,8 @@ Save button.
 | Section | What it holds | Explained in |
 | --- | --- | --- |
 | **Browser** | Allowed sites, local addresses, bookmarks, history | [Browser](../apps/browse-and-find.md#browser) |
+| **Mail** | Mail accounts: add one with an app password, or remove one | [Mail](../apps/browse-and-find.md#mail) |
+| **Calendar** | Calendar accounts: subscribe to a link, or connect iCloud, Fastmail or Nextcloud | [Calendar](../apps/write-and-plan.md#calendar) |
 | **Conversations** | Saved conversations, and where they are kept | [Agent](../apps/assistant.md#agent) |
 | **Schedules** | Requests to Mobius at a time of day | [Working with Mobius](working-with-mobius.md#schedules) |
 | **Abilities** | Opens the Abilities app | [Abilities](abilities.md) |
@@ -55,8 +57,10 @@ Save button.
 ## Appearance
 
 - **Theme:** follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark. Every theme keeps the frame neutral so your own colours stand out.
-- **Typography:** interface zoom, conversation text size and font (system, serif or mono), text direction.
-- **Layout and Conversation:** list density, and whether finished tool steps are shown or hidden.
+- **Typography:** interface zoom, and the conversation's text size and font (system, serif or mono).
+- **Layout:** which apps the rail lists and in what order, whether the tab and conversation list and the Mobius panel
+  are attached or float over the page, sidebar sizes, list density, and key hints under lists.
+- **Conversation:** text direction, and whether finished tool steps are shown or hidden.
 
 ## Usage
 

@@ -10,6 +10,7 @@ import {
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   MixerStrip,
+  PatchCanvas, Port, layoutFlow, type PatchBox, type PatchCable, type PatchLevels, type PatchSelection,
   BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
@@ -163,6 +164,47 @@ function MixerDemo() {
         />
       ))}
     </div>
+  );
+}
+
+function PatchDemo() {
+  const [cutoff, setCutoff] = useState(1200);
+  const [rate, setRate] = useState(0.8);
+  const [mix, setMix] = useState(40);
+  const parts: Omit<PatchBox, 'x' | 'y'>[] = [
+    { id: 'in', title: 'Input', color: 'teal', outputs: [{ id: 'out', label: 'Out', kind: 'audio' }] },
+    { id: 'lfo', title: 'LFO', outputs: [{ id: 'out', label: 'Out', kind: 'control' }], children: <Knob label="Rate" value={rate} min={0.05} max={10} step={0.05} scale="log" format={(v) => `${v.toFixed(2)} Hz`} onChange={setRate} /> },
+    {
+      id: 'filter', title: 'Filter', inputs: [{ id: 'in', label: 'In', kind: 'audio' }], outputs: [{ id: 'out', label: 'Out', kind: 'audio' }],
+      children: <span className="sheet-patch-param"><Port id="cutoff" label="Cutoff" kind="control" /><Knob label="Cutoff" value={cutoff} min={20} max={20000} scale="log" format={hertzLabel} onChange={setCutoff} /></span>,
+    },
+    { id: 'chorus', title: 'Chorus', proposed: true, inputs: [{ id: 'in', label: 'In', kind: 'audio' }], outputs: [{ id: 'out', label: 'Out', kind: 'audio' }] },
+    {
+      id: 'mix', title: 'Mix', inputs: [{ id: 'dry', label: 'Dry', kind: 'audio' }, { id: 'wet', label: 'Wet', kind: 'audio' }], outputs: [{ id: 'out', label: 'Out', kind: 'audio' }],
+      children: <Knob label="Wet" value={mix} min={0} max={100} format={(v) => `${Math.round(v)}%`} onChange={setMix} />,
+    },
+    { id: 'outp', title: 'Output', inputs: [{ id: 'in', label: 'In', kind: 'audio' }] },
+  ];
+  const [cables, setCables] = useState<PatchCable[]>([
+    { id: 'c1', from: { box: 'in', port: 'out' }, to: { box: 'filter', port: 'in' } },
+    { id: 'c2', from: { box: 'in', port: 'out' }, to: { box: 'mix', port: 'dry' } },
+    { id: 'c3', from: { box: 'filter', port: 'out' }, to: { box: 'chorus', port: 'in' }, proposed: true },
+    { id: 'c4', from: { box: 'chorus', port: 'out' }, to: { box: 'mix', port: 'wet' }, proposed: true },
+    { id: 'c5', from: { box: 'mix', port: 'out' }, to: { box: 'outp', port: 'in' } },
+    { id: 'c6', from: { box: 'lfo', port: 'out' }, to: { box: 'filter', param: 'cutoff' } },
+  ]);
+  const [at, setAt] = useState(() => layoutFlow(parts, cables, { column: 200, height: (b) => (['lfo', 'filter', 'mix'].includes(b.id) ? 136 : 72) }));
+  const [selected, setSelected] = useState<PatchSelection>({ kind: 'box', id: 'filter' });
+  const levels = useRef<PatchLevels>(null);
+  useEffect(() => { [['c1', -10], ['c2', -10], ['c3', -16], ['c4', -18], ['c5', -6], ['c6', -40]].forEach(([id, db]) => levels.current?.set(id as string, db as number)); });
+  return (
+    <PatchCanvas
+      label="Wobble bass device" boxes={parts.map((p) => ({ ...p, ...at[p.id]! }))} cables={cables} levels={levels}
+      selected={selected} onSelect={setSelected}
+      onMove={(id, x, y) => setAt((all) => ({ ...all, [id]: { x, y } }))}
+      onConnect={(from, to) => setCables((all) => [...all, { id: `c${Date.now()}`, from, to }])}
+      onDisconnect={(id) => setCables((all) => all.filter((c) => c.id !== id))}
+    />
   );
 }
 
@@ -573,6 +615,9 @@ export function Sheet() {
 
         <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
           <MixerDemo />
+        </Card>
+        <Card title="Patch canvas (Music's Workbench: a device's parts and cables). Mobius proposed the Chorus and its cables" shot="patch" wide>
+          <PatchDemo />
         </Card>
         <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
           <BeforeAfterDemo />

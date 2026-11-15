@@ -41,6 +41,7 @@ Your mail, mirrored to this computer, sorted for you, with drafts Mobius can wri
 - **Suggested replies** sit under the message as one dashed block, marked Draft from Mobius, until you choose **Keep and edit** (it opens as your draft), **Discard** or **Try another**. **From Mobius › Suggested replies** in the sidebar lists the ones waiting. A reply you kept, here or with Keep all, waits under the message it answers with **Send** and **Edit**.
 - **Take care of this** (in the Mobius panel with an email open) does the whole job in one ask: to-dos go to Tasks with their due dates, a meeting it asks for goes in Calendar (at the time the email names if you are free, otherwise at a free time it picks), and a reply is suggested. Each waits for you.
 - **Get to zero** (in the Mobius panel while no email is open) proposes a plan for the whole inbox, dashed until kept.
+- **Triage** (in the Mobius panel: *Triage the unread*, or *Triage this message* with one open) sends its turn in Mail's [Triage mode](../guide/working-with-mobius.md#app-modes): Mobius sorts into Reply, Later and Archive and drafts the replies, and never sends. Triage is also in the composer's Mode menu while you are in Mail.
 - **Ask about your mail** in the Mobius composer: the answer lists the messages it came from, and each one opens.
 - **Send later:** tomorrow at 8:00, Monday at 9:00, or when the person is usually on mail.
 
@@ -79,8 +80,8 @@ Browser, or give Reader an address.
   to open the original in the Browser).
 - **In the toolbar:** Save a link, **Aa** (text size, sans serif or serif, and the page colour: Match Mobius, Sepia,
   Grey or Night) and **Done reading** (E), which moves it to Archive, opens the next article and offers Undo.
-- **Highlights:** select a passage and press Highlight (or H). They collect in the Highlights tab of the right panel,
-  before Mobius, where each can be asked about and all copied to Notes. **Ask Mobius** on a
+- **Highlights:** select a passage and press Highlight (or H). They collect in the **Highlights** panel of the
+  [inspector](../getting-started/tour.md#the-inspector), where each can be asked about and all copied to Notes. **Ask Mobius** on a
   selected passage starts a message with it quoted, the article attached.
 - **J** and **K** move to the next and previous article in the list.
 

@@ -12,8 +12,11 @@ By contributing you agree that your work is released under the [MIT license](LIC
 ## Principles
 
 - **Refine before adding.** Improving the apps that exist comes before new apps.
-- **One look.** Follow Apple's Human Interface Guidelines and the existing components (sidebar, menus, review bar)
-  instead of inventing new ones. See [Workspace layout](docs/design/workspace-layout.md) and [Design rules](docs/design/rules.md).
+- **One look.** Every screen follows one design style, [Instrument](docs/design/instrument.md), and is built from the
+  shared controls in `apps/desktop/src/ui` (sidebar, menus, panel slots, review bar) instead of new ones. A control an
+  app is missing is added to the shared library, not built inside the app. See
+  [Shared controls](docs/developers/shared-controls.md), [Workspace layout](docs/design/workspace-layout.md) and
+  [Design rules](docs/design/rules.md).
 - **The person decides.** Anything the agent changes must be reviewable and undoable. Sending, paying, deleting and
   running commands always ask.
 - **Rust for everything that isn't interface.** Permissions, tools, storage and model providers live in the core. The

@@ -1,0 +1,108 @@
+/* Patch canvas (Patch.tsx): boxes joined by cables, for Music's Workbench. Only tokens; sizes from tokens.css. */
+
+.ui-patch {
+  position: relative; display: flex; height: var(--patch-h); min-height: 0; overflow: hidden;
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper);
+}
+.ui-patch-view {
+  position: relative; flex: 1; min-width: 0; overflow: hidden; outline: 0; touch-action: none; cursor: default;
+  /* A dot every other grid step, moving with the canvas. */
+  background-image: radial-gradient(circle, var(--line) calc(var(--hairline-w) * 1.2), transparent calc(var(--hairline-w) * 1.4));
+  background-size: var(--grid-step) var(--grid-step); background-position: var(--grid-x) var(--grid-y);
+}
+.ui-patch-view:focus-visible { box-shadow: inset 0 0 0 var(--focus-w) var(--ink); }
+.ui-patch[data-panning] .ui-patch-view { cursor: grab; }
+.ui-patch[data-panning='on'] .ui-patch-view { cursor: grabbing; }
+.ui-patch-world { position: absolute; left: 0; top: 0; width: 0; height: 0; transform-origin: 0 0; }
+
+/* Cables: ink, or the source box's colour; thicker as they get louder; dashed indigo while Mobius proposes them. */
+svg.ui-patch-wires { position: absolute; left: 0; top: 0; width: var(--hairline-w); height: var(--hairline-w); overflow: visible; fill: none; stroke: none; }
+.ui-cable {
+  fill: none; stroke: var(--cable-ink, var(--ink)); stroke-linecap: round; pointer-events: none;
+  stroke-width: calc(var(--cable-w) * (1 + var(--level, 0) * 1.5));
+}
+.ui-cable[data-color='amber'] { --cable-ink: var(--c-amber); }
+.ui-cable[data-color='yellow'] { --cable-ink: var(--c-yellow); }
+.ui-cable[data-color='green'] { --cable-ink: var(--c-green); }
+.ui-cable[data-color='teal'] { --cable-ink: var(--c-teal); }
+.ui-cable[data-color='blue'] { --cable-ink: var(--c-blue); }
+.ui-cable[data-color='violet'] { --cable-ink: var(--c-violet); }
+.ui-cable[data-color='pink'] { --cable-ink: var(--c-pink); }
+.ui-cable[data-color='coral'] { --cable-ink: var(--c-coral); }
+.ui-cable[data-color='stone'] { --cable-ink: var(--c-stone); }
+.ui-cable[data-proposed] { --cable-ink: var(--mobius); stroke-dasharray: 5 3; }
+.ui-cable[data-draft] { opacity: 0.5; }
+.ui-cable-hit { fill: none; stroke: transparent; stroke-width: calc(var(--port-size) * 1.2); pointer-events: stroke; cursor: pointer; }
+.ui-patch-wires g[data-selected] .ui-cable { filter: drop-shadow(0 0 calc(var(--hairline-w) * 2) var(--paper)); stroke-width: calc(var(--cable-w) * 2.2); }
+.ui-patch-wires g[data-selected] .ui-cable-hit { stroke: var(--sel); }
+
+/* Boxes. */
+.ui-patch-box {
+  position: absolute; display: flex; flex-direction: column; min-width: var(--patch-box-w); outline: 0;
+  border: var(--hairline-w) solid var(--line-strong); border-top: calc(var(--hairline-w) * 3) solid var(--box-ink, var(--line-strong));
+  border-radius: var(--radius-control); background: var(--paper); box-shadow: var(--shadow-1);
+}
+.ui-patch-box[data-color='amber'] { --box-ink: var(--c-amber); }
+.ui-patch-box[data-color='yellow'] { --box-ink: var(--c-yellow); }
+.ui-patch-box[data-color='green'] { --box-ink: var(--c-green); }
+.ui-patch-box[data-color='teal'] { --box-ink: var(--c-teal); }
+.ui-patch-box[data-color='blue'] { --box-ink: var(--c-blue); }
+.ui-patch-box[data-color='violet'] { --box-ink: var(--c-violet); }
+.ui-patch-box[data-color='pink'] { --box-ink: var(--c-pink); }
+.ui-patch-box[data-color='coral'] { --box-ink: var(--c-coral); }
+.ui-patch-box[data-color='stone'] { --box-ink: var(--c-stone); }
+.ui-patch-box[data-selected] { box-shadow: 0 0 0 calc(var(--hairline-w) * 2) var(--ink); }
+.ui-patch-box:focus-visible { box-shadow: 0 0 0 var(--focus-w) var(--ink); }
+.ui-patch-box[data-proposed] { border-style: dashed; border-color: var(--mobius); }
+.ui-patch-head {
+  display: flex; align-items: center; height: var(--device-head-h); padding: 0 var(--sp-2);
+  border-bottom: var(--hairline-w) solid var(--line-soft); cursor: grab; user-select: none;
+}
+.ui-patch[data-readonly] .ui-patch-head { cursor: default; }
+.ui-patch-title {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
+}
+.ui-patch-body { display: flex; align-items: stretch; gap: var(--sp-1); min-height: calc(var(--hit-min) + var(--sp-2)); padding: var(--sp-1) 0; }
+.ui-patch-ports { display: flex; flex-direction: column; justify-content: center; gap: var(--sp-1); }
+.ui-patch-ports[data-side='out'] { margin-left: auto; align-items: flex-end; }
+.ui-patch-content { flex: 1; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); padding: 0 var(--sp-1); }
+
+/* Ports: the dot sits on the box's edge. Audio is round, notes square, control a diamond; filled once connected. */
+.ui-port {
+  display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--hit-min); outline: 0; cursor: crosshair;
+  font-size: var(--fs-xs); color: var(--muted); white-space: nowrap;
+}
+.ui-port[data-edge][data-side='in'] { margin-left: calc(var(--port-size) / -2 - var(--hairline-w)); }
+.ui-port[data-edge][data-side='out'] { flex-direction: row-reverse; margin-right: calc(var(--port-size) / -2 - var(--hairline-w)); }
+.ui-port-dot {
+  flex: none; width: var(--port-size); height: var(--port-size); border-radius: var(--radius-pill);
+  background: var(--paper); box-shadow: inset 0 0 0 calc(var(--hairline-w) * 1.5) var(--ink);
+}
+.ui-port[data-kind='note'] .ui-port-dot { border-radius: var(--radius-small); }
+.ui-port[data-kind='control'] .ui-port-dot { border-radius: var(--radius-small); rotate: 45deg; scale: 0.85; }
+.ui-port[data-linked] .ui-port-dot { background: var(--ink); }
+.ui-port:hover .ui-port-dot, .ui-port[data-source] .ui-port-dot { background: var(--ink); scale: 1.2; }
+.ui-port[data-kind='control']:hover .ui-port-dot, .ui-port[data-kind='control'][data-source] .ui-port-dot { scale: 1; }
+.ui-port:focus-visible .ui-port-dot { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-port:focus-visible .ui-port-label { color: var(--ink); }
+.ui-patch[data-readonly] .ui-port { cursor: default; }
+/* While a cable is being made: ports it can end on stand out, the rest fade. */
+.ui-port[data-target='true'] .ui-port-dot { box-shadow: inset 0 0 0 calc(var(--hairline-w) * 2.5) var(--ink); scale: 1.2; }
+.ui-port[data-target='false'] { opacity: 0.35; cursor: not-allowed; }
+
+.ui-patch-zoom {
+  position: absolute; right: var(--sp-2); bottom: var(--sp-2); display: flex; align-items: center; gap: var(--sp-1);
+  padding: var(--sp-1); border-radius: var(--radius-control); background: var(--paper); box-shadow: var(--shadow-2);
+}
+.ui-patch-scale {
+  min-width: calc(var(--fs-sm) * 3.2); height: var(--hit-min); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small);
+  background: none; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-xs); font-variant-numeric: tabular-nums;
+}
+.ui-patch-scale:hover { background: var(--sel); color: var(--ink); }
+.ui-patch-scale:focus-visible { outline: var(--focus-w) solid var(--ink); }
+.ui-patch-status { position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .ui-port-dot { transition: scale var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease); }
+}

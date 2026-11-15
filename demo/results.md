@@ -9,15 +9,76 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
 | Mail: Triage (#447) | 15 Nov 11:29 local, b3f9798 (0.1.8 installed), fresh chat | Sonnet 5.5 | 15.2 / 21.7 / 35.0 s; count line 1.6 s | Yes, to the last change | The lines round after the changes takes 13 s |
-| Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
+| Calendar: Find a time with… (#409) | 15 Nov, 0.1.8 installed, chip then "Sam" | Sonnet 5.5 | 9.2 / 11.2 / 14.8 s | Content nearly, first change no | Offers 3 afternoons, not every free one; a mid-turn line shows as its own answer (#459) |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
-| Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
-| Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
-| Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
+| Docs: Shorter, Try another, One-page brief (#411) | 15 Nov, 0.1.8 installed | Sonnet 5.5 | Shorter 8.7 / 8.7 / 12.1 s; Try another 8.4 s; brief 16.5 s | Nearly | Try another wrongly says it is shorter; the brief is named "Build brief brief.md" (#458) |
+| Slides: Make this a deck (from the full Build brief) | 15 Nov, 0.1.9 installed, chip | Sonnet 5.5 | 17.5 s done, Keep 17.9 s | Nearly | One slide with five bullets (#464) |
+| Browser: Compare these (#296) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 21.6 s to the table, Keep 22.6 s | Content yes, time yes (30 s) | Table arrives at once and wraps in the narrow panel; links dead after a restart (#461) |
 | Files: Tidy this folder (#418, #427) | 15 Nov 06:44 UTC, 1c6a158, chip in Downloads | Sonnet 5.5 | 16.6 / 16.6 / 21.0 s | Content yes, time no | Step title "Move 50" and a tool name in the answer (#438) |
-| Sheets: What stands out? | 15 Nov 06:11 UTC, 2d10a55, chip | Sonnet 5.5 | 7.2 / 10.7 / 10.7 s | Yes | Chart beside the grid (#407 not yet run) |
-| Music: a bassline and a warmer pad (#431) | 15 Nov 06:43 UTC, 1c6a158, typed | Sonnet 5.5 | 10.7 / 13.4 / 18.1 s | Content yes, time nearly | First change 10 s; the chip is in #406 |
+| Sheets: What stands out? (#407) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 8.8 / 12.5 / 12.5 s | Last change yes, first no | None in content; chart under the grid, column E visible |
+| Music: Bass and a warmer pad (#406 chip) | 15 Nov, 0.1.9 installed, chip | Sonnet 5.5 | 9.5 / 11.5 / 12.0 s | Last change yes, first no | None in content; Space plays with a clip focused |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+| Photo: Make these match (#434) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 3.1 / 3.1 / 6.2 s | Yes | One adjustment for all ten, not per photo; step reads "photos.edit" (#457) |
+| Database: Ask about it (#416) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | Answer 6.1 s, done 10.5 s (read only) | Nearly | None in content: question, SQL, four rows |
+| Research: Quick (#419, #422) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | Report 28.3 s, Keep 29.2 s, done 32.2 s | Nearly (30 s) | One approval card; the report lands at once, not filling in view |
+| Design: three takes (#421) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | 17.3 / 17.3 s, done 20.5 s | No | Step reads "design.edit"; it says it didn't look at the frames |
+| Activity: Rewind to here | 15 Nov, 0.1.8 installed | Sonnet 5.5 | 0.8 s to rewind | No | Rewound the wrong turn (#461) |
+| Notes: Meeting notes on a local model | 15 Nov, 0.1.8 installed, chip | Qwen3.5 9B, local | 21.9 / 21.9 / 22.1 s | Content yes, time no | No chat answer at all (#462); "end of week" became a Saturday |
+
+## Round 28 (installed 0.1.9, clip retakes with the pointer)
+
+Run on Sunday 15 November, evening local, installed 0.1.9, Demo profile after a Reset before each take, Sonnet 5.5.
+Clips are 1440 by 900, 30 fps, H.264, window only, with the pointer drawn. The pointer glides onto the chip and the press
+comes 2 to 2.5 s in, and each clip ends 1 s after Keep. Only the start and end are trimmed. No notification shows in any
+last frame.
+
+| Clip | Length | Press to Keep | Within the clip limit |
+| --- | --- | --- | --- |
+| Code: Find the cause | 17.5 s | 13.9 s | Yes (20 s) |
+| Notes: Meeting notes | 15.4 s | 11.8 s | Yes (20 s) |
+| Sheets: What stands out? | 16.7 s | 13.2 s | Yes (20 s) |
+| Plan my day | 26.6 s | 23.1 s | Yes (35 s) |
+| Triage, fresh chat | 36.6 s | 33.6 s | No: 1.6 s over (35 s); a second take ran 33.9 s |
+
+Does recording slow the app? No. Back-to-back runs with and without recording:
+
+| Moment | Without recording | With recording | Where the difference is |
+| --- | --- | --- | --- |
+| Sheets | Keep 12.1 s; model 11.9 s; tools 0.1 s | Keep 13.2 s; model 13.0 s; tools 0.1 s | Round 2 thought longer (6.3 s against 4.5 s, 553 tokens against 511) |
+| Plan my day | done 13.9 s; one round 13.6 s; tools 2.0 s | Keep 23.1 s; one round 22.2 s; tools 2.3 s | Thought for 13.2 s against 6.2 s and wrote 3,099 tokens against 1,940, at the same 140 tokens a second |
+
+The recorder used about 0.8 of a core on average (2 to 3 per cent of the PC). Tools, marks and the window stayed flat;
+what varies is how long the model thinks on a given run. Triage's time is almost all model (three rounds, 32 to 33 s,
+against under 2 s of app tools), so a clip under 35 s needs a faster model run or a shorter Triage turn.
+
+## Round 27 (installed 0.1.8, then 0.1.9 from 827f58b)
+
+Run on Sunday 15 November, afternoon local, on the installed app with the Demo profile after a Reset before each moment,
+Sonnet 5.5 unless named. Times are from the press. Frames are 1440 by 900, light theme.
+
+| Moment | Time (first / last / Keep) | Result | Weak |
+| --- | --- | --- | --- |
+| Sheets: What stands out? | 8.8 / 12.5 / 12.5 s | Total and Average rows, a "Stands out" column (April low, September high), a units chart under the grid (#407 holds) | First change 8.8 s, 13 cells at once |
+| Calendar: Find a time with… "Sam" | 9.2 / 11.2 / 14.8 s | Three afternoons as suggestions (Wed 13:30 best, Fri 13:00, Mon 16:30); one approval for the reply draft | Not every free afternoon; a mid-turn line shows as an answer |
+| Docs: Shorter | 8.7 / 8.7 / 12.1 s | 74 to 37 words, only that paragraph dashed (#411 holds) | First change 8.7 s |
+| Docs: Try another | 8.4 s, done 11.7 s | 39 words, keeps the two-chassis reason | Claims to be shorter than the first take (it is 39 words against 37) |
+| Docs: One-page brief | done 16.5 s, Keep 17.0 s | 347 words in five sections; caught its own 8 against 10 packs | Named "Build brief brief.md" |
+| Photo: Make these match | 3.1 / 3.1 / 6.2 s | All ten tiles dashed at once with one "Even chalk" adjustment | Same adjustment for every photo; raw step name |
+| Database: which customers haven't ordered since June? | answer 6.1 s, done 10.5 s | Question, SQL, four rows, nothing changed (#416 holds) | None found |
+| Research, Quick: LFP or NMC for a small van fleet | report 28.3 s, Keep 29.2 s, done 32.2 s | One card, "Allow for this question" covered the rest (#422 holds); 3 sources, each read (#419 holds) | Report lands at once; 2 s over the 30 s bar to done |
+| Design: three takes on Charging | 17.3 / 17.3 s, done 20.5 s | Three frames; Keep this one keeps one and drops the others (#421 holds) | Raw step name; says it didn't look at the frames |
+| Browser: Compare these | table 21.6 s, Keep 22.6 s | All values right against the three pages | Table arrives at once and wraps a letter per line in the panel; links dead after a restart (#332 fails, fixed in #461); opening several pages from Files opens one |
+| Slides: Make this a deck (from the one-page brief) | done 18.0 s, Keep 18.5 s | 8 slides, at most four bullets after fixing two in the same turn | Built from the brief, not the original |
+| Activity: Rewind to here | 0.8 s | Notes went back | Asked about 1 later turn, not 2, and Sheets kept its change: the wrong turn (fixed in #461) |
+| Notes: Meeting notes on Qwen3.5 9B, local | 21.9 / 21.9 / 22.1 s | Usable summary, three decisions, four tasks with owners | No chat answer (fixed in #462); first round 21 s; "end of week" became a Saturday |
+| Music on 0.1.9: Bass and a warmer pad chip | 9.5 / 11.5 / 12.0 s | Bass track and a warmer pad; each mark within a second of its tool result | First change 9.5 s; Space with a clip focused now plays |
+| Slides on 0.1.9, from the 1,428-word original | done 17.5 s, Keep 17.9 s | 8 slides, all with notes | One slide with five bullets, not fixed (#464) |
+| Notes recording | Skipped | | Mobius could not use the microphone; needs Andrew |
+
+Draft clips for Andrew's review were recorded on the installed 0.1.9, window only, 1440 by 900, 30 fps, no cursor, from
+1.5 s before the press to 1 s after Keep: Code (Keep at 14.5 s), Notes (12.2 s), Sheets (16.4 s), Plan my day (26.1 s)
+and Triage in a fresh chat (36.0 s). No notification shows in any of them. Plan my day and Sheets ran slower on camera
+than in the timing runs.
 
 ## Rounds 25 and 26 (#447 branch, then b3f9798)
 
@@ -44,7 +105,7 @@ Run on Sunday 15 November at 10:03 local, debug build, Demo profile after Reset,
 
 | Moment | Time | Result | Weak |
 | --- | --- | --- | --- |
-| Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
+| Home and Tasks: Plan my day | 15.6 / 19.3 s, done 26.6 s | Reads the clock first; blocks from 10:30 (asked at 10:03), none in the past; Focus 13:00 to 14:00 with a lunch gap; three tasks timed for today | The five blocks are suggestions, and the split's Calendar shows only the three task chips; it drafts to Priya |
 | Mail from the sidebar after it | | Leaves the split; Mail full with Triage offered and the same chat | None found |
 | Mail: Triage, same chat | 18.6 / 22.1 / 22.6 s; count line 2.2 s | Three drafts that ask (Sam, Veltro, Northfield), an event for Sam, nothing sent or archived | The answer is missing after the count line (2,575 tokens written, none shown); Priya's promising draft from Plan my day stays |
 

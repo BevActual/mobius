@@ -1,3 +1,4 @@
+import { parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
 /**
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
@@ -62,8 +63,11 @@ export type Effect =
   | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
   | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number }
   | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
-  | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number };
-export type EffectKind = Effect['kind'];
+  | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number }
+  | { id: string; kind: 'device'; on: boolean; device: Device };
+/** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
+export type EffectKind = Exclude<Effect['kind'], 'device'>;
+export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
 export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'delay', 'reverb'];
 export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', delay: 'Delay', reverb: 'Reverb' };
 /** Each effect's settings: range, and where a new one starts. */
@@ -77,6 +81,30 @@ export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi
   delay: { time: { lo: 0.25, hi: 2, start: 0.75 }, feedback: { lo: 0, hi: 0.9, start: 0.35 }, mix: { lo: 0, hi: 1, start: 0.25 } },
   reverb: { size: { lo: 0.3, hi: 8, start: 2 }, damp: { lo: 0, hi: 1, start: 0.4 }, mix: { lo: 0, hi: 1, start: 0.25 } },
 };
+/**
+ * Each built-in effect as the device it is: the same parts and cables a song's own device would use, so the four
+ * effects and every device are played by one piece of code. Heard exactly as before the effects were devices.
+ */
+export function builtinDevice(e: BuiltinEffect): Device {
+  const p = (id: string, kind: DevicePart['kind'], settings: Record<string, string | number> = {}): DevicePart => ({ ...partStarts(kind), ...settings, id, kind });
+  switch (e.kind) {
+    case 'eq':
+      return { name: 'EQ', parts: [p('in', 'input'), p('low', 'filter', { type: 'lowshelf', cutoff: e.lowFreq, gain: e.low }), p('mid', 'filter', { type: 'peaking', cutoff: e.midFreq, resonance: e.midQ, gain: e.mid }), p('high', 'filter', { type: 'highshelf', cutoff: e.highFreq, gain: e.high }), p('out', 'output')],
+        cables: [['in', 'low'], ['low', 'mid'], ['mid', 'high'], ['high', 'out']], controls: [] };
+    case 'compressor':
+      return { name: 'Compressor', parts: [p('in', 'input'), p('comp', 'compressor', { threshold: e.threshold, ratio: e.ratio, attack: e.attack, release: e.release, knee: 6 }), p('makeup', 'gain', { gain: 10 ** (e.makeup / 20) }), p('out', 'output')],
+        cables: [['in', 'comp'], ['comp', 'makeup'], ['makeup', 'out']], controls: [] };
+    case 'delay':
+      return { name: 'Delay', parts: [p('in', 'input'), p('echo', 'delay', { time: e.time }), p('back', 'gain', { gain: e.feedback }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
+        cables: [['in', 'mix.dry'], ['in', 'echo'], ['echo', 'back'], ['back', 'echo'], ['echo', 'mix.wet'], ['mix', 'out']], controls: [] };
+    case 'reverb':
+      return { name: 'Reverb', parts: [p('in', 'input'), p('room', 'reverb', { size: e.size, damp: e.damp }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
+        cables: [['in', 'mix.dry'], ['in', 'room'], ['room', 'mix.wet'], ['mix', 'out']], controls: [] };
+  }
+}
+/** A part kind's settings where they start. */
+export const partStarts = (kind: DevicePart['kind']): Record<string, string | number> => Object.fromEntries(Object.entries(PART_KINDS[kind].settings as Record<string, PartSetting>).map(([k, s]) => [k, s.start]));
+
 /** A new effect of a kind, with its starting settings. */
 export function newEffect(kind: EffectKind, id: string): Effect {
   return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])) } as Effect;
@@ -191,6 +219,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const o = obj(raw);
   const bars = Math.round(num(o.bars, 8, 1, 512));
   const taken = new Set<string>();
+  // The first rule a device in the song breaks: a song with a device that can't play is refused, saying which.
+  let refused: string | null = null;
   const tracks = (Array.isArray(o.tracks) ? o.tracks : []).slice(0, 32).map((t, i): Track => {
     const to = obj(t);
     let id = typeof to.id === 'string' && to.id ? to.id.slice(0, 40) : `t${i + 1}`;
@@ -208,10 +238,16 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     const fx = (Array.isArray(to.fx) ? to.fx : []).slice(0, 8).flatMap((e, j): Effect[] => {
       const eo = obj(e);
+      const fxId = typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`;
+      if (eo.kind === 'device') {
+        const read = parseDevice(eo.device);
+        if ('error' in read) { refused ??= `Track “${track.name}”, effect ${fxId}: ${read.error}`; return []; }
+        return [{ id: fxId, kind: 'device', on: eo.on !== false, device: read.device }];
+      }
       const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
       if (!kind) return [];
       const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
-      return [{ id: typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`, kind, on: eo.on !== false, ...params } as Effect];
+      return [{ id: fxId, kind, on: eo.on !== false, ...params } as Effect];
     });
     if (fx.length > 0) track.fx = fx;
     const volumeAuto = readAuto(to.volumeAuto, bars * BEATS_PER_BAR);
@@ -235,6 +271,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     return track;
   });
+  if (refused) return { error: refused };
   const song: Song = { version: 1, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
   return { song };

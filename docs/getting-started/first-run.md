@@ -29,7 +29,7 @@ All three are covered in [Models and gateways](../guide/models-and-gateways.md).
 
 ## 3. Say hello
 
-Once a model is connected you land on the **desk**, the home of the Agent app. Type what you want in the message box.
+Once a model is connected you land on the **desk**, Mobius's Home. Type what you want in the message box.
 A few things to try:
 
 - "Make a task list for moving house next month."
@@ -41,7 +41,7 @@ What Mobius changes shows up in the app with a dashed edge until you keep it.
 ## Start with fewer apps
 
 A new install starts with the everyday apps: Notes, Tasks, Calendar, Mail, Docs and Browser, plus Mobius's own apps
-(Agent, Abilities, Projects, Files and Review). Add the rest, such as Sheets, Slides, Music or Code, from
+(Home, Agents, Activity, Abilities, Settings, Projects, Files, Review and Views). Add the rest, such as Sheets, Slides, Music or Code, from
 [Abilities](../guide/abilities.md) when you want them.
 
 Next: [A tour of the workspace](tour.md).

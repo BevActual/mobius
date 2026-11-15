@@ -20,7 +20,7 @@ export interface Conversation {
   id: string;
   list: ConversationInfo[];
   /** `plan` asks for a plan only: the agent proposes steps and nothing runs until they are started. */
-  send(text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }): Promise<void>;
+  send(text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high' }): Promise<void>;
   stop(): void;
   /** Take over the running task, and hand it back. Resolve with what went wrong, or null. */
   takeOver(): Promise<string | null>;
@@ -117,14 +117,14 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
   }, [coreStatus]);
 
   const send = useCallback(
-    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] } = {}) => {
+    async (text: string, context: ContextItem[] = [], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[]; effort?: 'none' | 'low' | 'medium' | 'high' } = {}) => {
       const images = options.images ?? [];
       turnStarted = performance.now();
       turnLog('sent');
       dispatch({ type: 'sent', text, context, images, ...(options.model ? { model: options.model } : {}) });
       const id = active.current;
       sending.current = id;
-      const extra = { ...(options.plan ? { plan: true } : {}), ...(options.ask ? { ask: true } : {}), ...(options.quick ? { quick: true } : {}), ...(options.mode ? { mode: options.mode } : {}), ...(images.length > 0 ? { images } : {}), ...(options.reads && options.reads.length > 0 ? { reads: options.reads } : {}), ...(options.finish ? { finish: true } : {}), ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
+      const extra = { ...(options.plan ? { plan: true } : {}), ...(options.ask ? { ask: true } : {}), ...(options.quick ? { quick: true } : {}), ...(options.mode ? { mode: options.mode } : {}), ...(images.length > 0 ? { images } : {}), ...(options.reads && options.reads.length > 0 ? { reads: options.reads } : {}), ...(options.finish ? { finish: true } : {}), ...(options.tools && options.tools.length > 0 ? { tools: options.tools } : {}), ...(options.effort ? { effort: options.effort } : {}), ...(appRef.current ? { app: appRef.current } : {}) };
       // A choice made just before sending (the effort, say) reaches the core first.
       await preferencesSettled();
       const result = await window.mobius.agent.send(id, text, context, Object.keys(extra).length > 0 ? extra : undefined);

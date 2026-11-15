@@ -681,7 +681,7 @@ impl Engine {
         }
         if turn.reads.as_ref().and_then(|r| r.running.as_ref()).is_some_and(|c| c.id == call_id) {
             let Some(call) = turn.reads.as_mut().and_then(|r| r.running.take()) else { return Step::Idle };
-            core.record_external_result(&self.config.principal, &call.name, result.is_ok()).ok();
+            core.record_external_result(&self.config.principal, &call.name, &call.arguments, result.is_ok()).ok();
             match result {
                 Ok(content) => {
                     let content = untrusted::wrap(&call.name, &call.arguments, &truncate(content));
@@ -694,7 +694,7 @@ impl Engine {
         if turn.early.running.as_deref() == Some(call_id) {
             turn.early.running = None;
             let Some(call) = turn.early.calls.iter().find(|(c, _)| c.id == call_id).map(|(c, _)| c.clone()) else { return Step::Idle };
-            core.record_external_result(&self.config.principal, &call.name, result.is_ok()).ok();
+            core.record_external_result(&self.config.principal, &call.name, &call.arguments, result.is_ok()).ok();
             let (content, is_error) = match result {
                 Ok(content) => (untrusted::wrap(&call.name, &call.arguments, &truncate(content)), false),
                 Err(message) => (untrusted::wrap(&call.name, &call.arguments, &truncate(message)), true),
@@ -713,7 +713,7 @@ impl Engine {
         }
         let Some(dispatched) = turn.dispatched.take() else { return Step::Idle };
         let succeeded = result.is_ok();
-        core.record_external_result(&self.config.principal, &dispatched.call.name, succeeded).ok();
+        core.record_external_result(&self.config.principal, &dispatched.call.name, &dispatched.call.arguments, succeeded).ok();
         // What came back is data from somewhere else: it goes to the model inside an envelope that says so.
         let call = &dispatched.call;
         let (content, is_error) = match result {

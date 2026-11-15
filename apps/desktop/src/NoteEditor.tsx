@@ -317,7 +317,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
       },
       handleClick: (_view, _pos, event) => {
         const a = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
-        const page = a && pathNow.current ? pageOfLink(a.getAttribute('href') ?? '', pathNow.current) : null;
+        const href = a?.getAttribute('href') ?? '';
+        // A web link opens in the Browser (a link to one of your pages from an earlier start goes where it is now).
+        if (/^https?:\/\//i.test(href)) {
+          event.preventDefault();
+          void window.mobius.browser.open(href);
+          return true;
+        }
+        const page = a && pathNow.current ? pageOfLink(href, pathNow.current) : null;
         if (!page) return false;
         event.preventDefault();
         openPage.current(page);
