@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
-import { COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
+import { ASK_DATABASE, COMPARE_TABS, isStarter, MAKE_A_DECK, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('Plan my day reads before the model is asked', () => {
   it('reads the clock first, so the day is planned from now', () => {
@@ -48,6 +48,14 @@ describe('what each app suggests', () => {
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
     for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft']) expect(first.prompt).toContain(words);
+  });
+  it('asks a database in the person\'s words, with the SQL shown and the rows as a list', () => {
+    const note = { path: 'databases/Customers.sqlite', title: 'Customers', text: '', folder: 'databases' as const };
+    const ask = suggestionsFor({ app: 'database', hasPage: false, note }).find((s) => s.label === 'Ask about it…')!;
+    expect(ask.box).toBe('In this database, ');
+    expect(ask.prompt).toBe(ASK_DATABASE);
+    expect(isStarter(ask)).toBe(true);
+    for (const words of ['```sql', 'not a table', 'changing nothing']) expect(ask.prompt).toContain(words);
   });
   it('offers Tidy this folder in an open folder of Files, as one files.move that deletes nothing', () => {
     expect(suggestionsFor({ app: 'files', hasPage: false, note: null, folder: null }).map((s) => s.label)).not.toContain('Tidy this folder');
