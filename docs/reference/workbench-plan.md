@@ -79,12 +79,14 @@ Double-click a device's head (or choose Edit device in its menu) and the bottom 
 
 - **The parts** are boxes in the Instrument style, left to right in the order the sound goes. Each box shows its kind,
   its settings as small knobs, and its ports.
-- **Cables** are drawn in the track's colour. While the song plays, each carries a thin level line, so you can see
-  where the sound goes and where it stops.
+- **Cables** are solid, in the track's colour, and never dashed: dashed indigo is kept for a cable Mobius proposed,
+  until it is kept. While the song plays, a cable's thickness follows its level (its colour never does), so you can
+  see where the sound goes and where it stops.
+- **A cable to a setting** ends on a small port beside that setting's knob inside the box, not on the box's edge.
 - **Left:** the parts to drag in, by kind. **Right:** the device's panel as it will look on the track; drag a setting
   there to make it a control, and name it.
-- **Keyboard:** Tab moves between parts, arrows between ports; Enter on a port starts a cable and Enter on another ends
-  it; Delete takes out a part or cable. Every change is one Undo step, and is heard at once (the live update #285
+- **Keyboard:** Tab moves between parts, arrows between ports; Enter on a port starts a cable, Enter on another ends
+  it, and Esc lets go of a cable half made; Delete takes out a part or cable. Every change is one Undo step, and is heard at once (the live update #285
   added).
 - **Done** puts the device back on the track; **Save to library** keeps a copy in Devices.
 
@@ -104,7 +106,7 @@ One Music PR at a time, as always.
 1. **Device files.** The format, its checks and tests; the four built-in effects moved onto it with no change heard;
    `kind: "device"` played and rendered on export; the agent guide's section. No new view yet.
 2. **Workbench, looking.** The canvas shows any device read-only, with live levels on the cables. The Design lead
-   builds the shared canvas (boxes, ports, cables, keyboard paths) in this round.
+   builds the shared canvas in this round: `PatchCanvas`, with `PatchBox`, `Port` and `Cable` as its parts.
 3. **Workbench, editing.** Add, wire and take out parts; choose the controls; Save to library; the Devices list in the
    sidebar.
 4. **Mobius drafts devices.** Dashed parts with reasons, Try another, and the demo moment.
@@ -117,4 +119,3 @@ through Abilities, and Agents taking up the canvas for its steps.
 - Whether instruments come into Workbench in round 3 or wait. They need the parts to run once per note.
 - Whether the library copy and the song copy should stay linked (change one, offer to change the other), or stay
   separate as planned here.
-- The canvas's name in the shared library, settled with the Design lead in round 2.
