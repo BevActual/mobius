@@ -11,8 +11,8 @@ npm run package -- --version 0.2.0    # the same, as that version
 ```
 
 This builds the interface, the core and the shell, then runs Tauri's bundler. On Windows the result is
-`Mobius_<version>_x64-setup.exe`: a per-user NSIS installer of about 10 MB, with the core (`mobius-cored.exe`)
-installed beside the app. Release-only settings are in `crates/mobius-shell/tauri.release.conf.json`.
+`Mobius_<version>_x64-setup.exe`: a per-user NSIS installer of about 15 MB, with the core (`mobius-cored.exe`) and
+`mobius-inert-mcp.exe` (which the Claude Code and Copilot connections start) installed beside the app. Release-only settings are in `crates/mobius-shell/tauri.release.conf.json`.
 
 The Chromium (CEF) build is not packaged yet (it would add about 330 MB); releases use the system web view (WebView2).
 
