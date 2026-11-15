@@ -21,9 +21,22 @@ type Res<T> = Result<T, String>;
 
 /// At most this many pairs.
 pub const MAX_PAIRS: usize = 20;
-/// How often the worker looks for local changes, and how often it asks the drive.
+/// How often the worker looks for local changes, and how often it asks the drive. The end-to-end tests (MOBIUS_TEST)
+/// take a second and two, so a change shows in moments.
 const LOOK_HERE: Duration = Duration::from_secs(60);
 const ASK_DRIVE_MS: u64 = 5 * 60 * 1000;
+
+fn testing() -> bool {
+    std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1")
+}
+
+fn look_here() -> Duration {
+    if testing() { Duration::from_secs(1) } else { LOOK_HERE }
+}
+
+fn ask_drive_ms() -> u64 {
+    if testing() { 2_000 } else { ASK_DRIVE_MS }
+}
 /// Waits after a round that could not reach the drive: 1, 2, 5, then every 10 minutes.
 const RETRY_MINUTES: [u64; 4] = [1, 2, 5, 10];
 
@@ -421,8 +434,8 @@ impl Syncs {
                             .filter_map(|p| inner.next.get(&p.id))
                             .map(|at| Duration::from_millis(at.saturating_sub(now_ms())))
                             .min()
-                            .unwrap_or(LOOK_HERE)
-                            .clamp(Duration::from_millis(50), LOOK_HERE);
+                            .unwrap_or_else(look_here)
+                            .clamp(Duration::from_millis(50), look_here());
                         drop(self.wake.wait_timeout(inner, wait).unwrap_or_else(PoisonError::into_inner));
                     }
                     // Each minute, or when woken: a pair whose folder changed here is due.
@@ -481,7 +494,7 @@ impl Syncs {
                     self.host.brought_in(&here);
                 }
                 inner.failures.remove(&pair.id);
-                inner.next.insert(pair.id.clone(), now + ASK_DRIVE_MS);
+                inner.next.insert(pair.id.clone(), now + ask_drive_ms());
                 drop(inner);
                 let root = self.host.root().map(|r| r.join(&pair.folder));
                 let conflicts = root.map(|r| drive_sync::conflicts_in(&r)).unwrap_or_default().into_iter().map(|(path, copy)| Conflict { path, copy }).collect();
