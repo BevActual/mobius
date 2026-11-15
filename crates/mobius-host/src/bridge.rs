@@ -151,8 +151,23 @@ fn is_app_folder(v: &str) -> bool {
     v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
 }
 
+/// A turn's moves for the window: each moved file's old path and new one.
 fn moves_json(moves: &[(String, String)]) -> Value {
     moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
+}
+
+/// What a turn changed, for the window: its diff, plus the moves of files checkpoints leave out (archives, videos),
+/// both paths in `files` and paired in `moves` like any other move, so a tidy is counted file by file.
+fn turn_changes(diff: mobius_workspace::checkpoints::Diff, left_out: Vec<(String, String)>) -> (Vec<String>, Value) {
+    let mut files = diff.files;
+    let mut moves = diff.moves;
+    for (from, to) in left_out {
+        files.push(from.clone());
+        files.push(to.clone());
+        moves.push((from, to));
+    }
+    let moves = moves_json(&moves);
+    (files, moves)
 }
 
 /// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
@@ -3353,7 +3368,9 @@ impl Bridge {
                     .into_iter()
                     .filter_map(|t| {
                         let diff = self.workspace.turn_diff(&t.start, t.end.as_deref()).ok()?;
-                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": diff.files, "moves": moves_json(&diff.moves) }))
+                        let left_out = self.workspace.left_out_moves(&t.start, t.end.as_deref(), &diff.files).unwrap_or_default();
+                        let (files, moves) = turn_changes(diff, left_out);
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files, "moves": moves }))
                     })
                     .collect();
                 json!({ "ok": true, "turns": turns })
@@ -3544,7 +3561,11 @@ impl Bridge {
         Ok(match method {
             // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
             "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
-                Ok(diff) => json!({ "checkpoint": mark, "files": diff.files, "moves": moves_json(&diff.moves) }),
+                Ok(diff) => {
+                    let left_out = self.workspace.left_out_moves(&mark, end.as_deref(), &diff.files).unwrap_or_default();
+                    let (files, moves) = turn_changes(diff, left_out);
+                    json!({ "checkpoint": mark, "files": files, "moves": moves })
+                }
                 Err(e) => failed(e),
             },
             "undo" => match (&end, turn_files()) {
@@ -3577,7 +3598,10 @@ impl Bridge {
                     (Some(end), Ok(files)) => {
                         let (kept, back): (Vec<String>, Vec<String>) = files.iter().filter(|f| asked.contains(f)).cloned().partition(|path| changed_later(path));
                         let whole = files.iter().all(|f| asked.contains(f) || changed_later(f) || f.starts_with(".comments/"));
-                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back) };
+                        // A move of a file checkpoints leave out goes back by its own paths when only it was asked for;
+                        // when the whole turn goes back, the noted moves bring it back with the rest.
+                        let left_out: Vec<(String, String)> = if whole { Vec::new() } else { self.workspace.left_out_moves(&mark, Some(end), &files).unwrap_or_default().into_iter().filter(|(from, to)| asked.contains(from) && asked.contains(to)).collect() };
+                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back).and_then(|()| self.workspace.move_back(&left_out)) };
                         match done {
                             Ok(()) => {
                                 self.reload_after_undo(None);

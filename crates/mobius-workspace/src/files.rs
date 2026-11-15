@@ -163,6 +163,20 @@ impl Workspace {
         .map_err(|e| e.to_string())
     }
 
+    /// What a turn moved that its diff cannot show, because checkpoints leave those files out (archives, videos):
+    /// each file's old path and new one, from its moves noted between `from` and `to` (or now). `counted` is the
+    /// turn's diff, whose files are not listed again.
+    pub fn left_out_moves(&self, from: &str, to: Option<&str>, counted: &[String]) -> Res<Vec<(String, String)>> {
+        let root = self.real_root()?;
+        self.checkpoints.left_out_moves(&root, from, to, counted).map_err(|e| e.to_string())
+    }
+
+    /// Puts files `left_out_moves` gave back where they were, unless something is there now.
+    pub fn move_back(&self, pairs: &[(String, String)]) -> Res<()> {
+        let root = self.real_root()?;
+        self.checkpoints.move_back(&root, pairs).map_err(|e| e.to_string())
+    }
+
     /// A file's text as it was at `checkpoint`, or `None` when it was not there.
     pub fn read_at(&self, checkpoint: &str, path: &str) -> Res<Option<String>> {
         let root = self.real_root()?;
@@ -1076,6 +1090,19 @@ mod tests {
             pair("Downloads/notes.md", "Downloads/Documents/notes.md"),
         ]);
         assert_eq!(diff.files.len(), 4, "{:?}", diff.files);
+        // The archives' moves are listed beside the diff from the noted moves, file by file, so a tidy's count is
+        // every file it moved.
+        let mut left_out = ws.left_out_moves(&start, Some(&end), &diff.files).unwrap();
+        left_out.sort();
+        assert_eq!(left_out, vec![
+            pair("Downloads/Old/backup.zip", "Downloads/Archive/2026/Old/backup.zip"),
+            pair("Downloads/setup.zip", "Downloads/Installers/Apps/setup.zip"),
+        ]);
+        // One of them put back on its own, as the review bar's Undo for that one move does.
+        ws.move_back(&left_out[1..]).unwrap();
+        assert_eq!(fs::read(root.join("Downloads/setup.zip")).unwrap(), b"zip one");
+        assert!(!root.join("Downloads/Installers").exists(), "the folder it left empty goes");
+        assert_eq!(ws.left_out_moves(&start, Some(&end), &diff.files).unwrap().len(), 1, "a file put back is no longer listed");
         // A later turn's move is its own: undoing this turn leaves it.
         fs::write(root.join("Downloads/later.zip"), b"later").unwrap();
         call(&ws, "files.move", json!({ "folder": "Downloads", "moves": [{ "from": "later.zip", "to": "Later/later.zip" }] })).unwrap();
