@@ -31,8 +31,12 @@ export interface SuggestedRead { tool: string; arguments: Record<string, unknown
 
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-/** Plan my day's three reads: open tasks, today's events, unread mail. */
+/**
+ * Plan my day's reads: the time where the person is (without it the model planned an afternoon from 9:00, every block
+ * already past), open tasks, today's events, unread mail.
+ */
 export const planMyDayReads = (now: Date): SuggestedRead[] => [
+  { tool: 'clock.now', arguments: {} },
   { tool: 'tasks.list', arguments: {} },
   { tool: 'calendar.list', arguments: { from: isoDay(now), to: isoDay(now) } },
   { tool: 'mail.search', arguments: { mailbox: 'inbox', unread: true, limit: 20 } },

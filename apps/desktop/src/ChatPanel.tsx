@@ -19,7 +19,7 @@ import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
-import { isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { endedWithReply, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
@@ -619,7 +619,9 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   // reply once the turn is done. One host element each, placed where the panel is now (null when there is no place).
   const [glanceSlot, setGlanceSlot] = useState<HTMLDivElement | null>(null);
   const [resultSlot, setResultSlot] = useState<HTMLDivElement | null>(null);
-  const done = variant === 'panel' && !desk && settled && lastAssistant >= 0 && lastAssistant === state.items.length - 1 && (state.items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming !== true;
+  // A turn that finished on its changes (Plan my day) has its calls after its reply: it is done too, so Mail's Triage
+  // still follows it.
+  const done = variant === 'panel' && !desk && settled && endedWithReply(state.items);
   // Once a turn is done the app's own actions follow its reply too, so another app's work waiting for Keep never hides
   // them (Plan my day, then Mail's Triage).
   const actionsHere = resting || done ? appSlot : null;
