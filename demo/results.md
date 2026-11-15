@@ -25,6 +25,32 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Activity: Rewind to here | 15 Nov, 0.1.8 installed | Sonnet 5.5 | 0.8 s to rewind | No | Rewound the wrong turn (#461) |
 | Notes: Meeting notes on a local model | 15 Nov, 0.1.8 installed, chip | Qwen3.5 9B, local | 21.9 / 21.9 / 22.1 s | Content yes, time no | No chat answer at all (#462); "end of week" became a Saturday |
 
+## Round 28 (installed 0.1.9, clip retakes with the pointer)
+
+Run on Sunday 15 November, evening local, installed 0.1.9, Demo profile after a Reset before each take, Sonnet 5.5.
+Clips are 1440 by 900, 30 fps, H.264, window only, with the pointer drawn. The pointer glides onto the chip and the press
+comes 2 to 2.5 s in, and each clip ends 1 s after Keep. Only the start and end are trimmed. No notification shows in any
+last frame.
+
+| Clip | Length | Press to Keep | Within the clip limit |
+| --- | --- | --- | --- |
+| Code: Find the cause | 17.5 s | 13.9 s | Yes (20 s) |
+| Notes: Meeting notes | 15.4 s | 11.8 s | Yes (20 s) |
+| Sheets: What stands out? | 16.7 s | 13.2 s | Yes (20 s) |
+| Plan my day | 26.6 s | 23.1 s | Yes (35 s) |
+| Triage, fresh chat | 36.6 s | 33.6 s | No: 1.6 s over (35 s); a second take ran 33.9 s |
+
+Does recording slow the app? No. Back-to-back runs with and without recording:
+
+| Moment | Without recording | With recording | Where the difference is |
+| --- | --- | --- | --- |
+| Sheets | Keep 12.1 s; model 11.9 s; tools 0.1 s | Keep 13.2 s; model 13.0 s; tools 0.1 s | Round 2 thought longer (6.3 s against 4.5 s, 553 tokens against 511) |
+| Plan my day | done 13.9 s; one round 13.6 s; tools 2.0 s | Keep 23.1 s; one round 22.2 s; tools 2.3 s | Thought for 13.2 s against 6.2 s and wrote 3,099 tokens against 1,940, at the same 140 tokens a second |
+
+The recorder used about 0.8 of a core on average (2 to 3 per cent of the PC). Tools, marks and the window stayed flat;
+what varies is how long the model thinks on a given run. Triage's time is almost all model (three rounds, 32 to 33 s,
+against under 2 s of app tools), so a clip under 35 s needs a faster model run or a shorter Triage turn.
+
 ## Round 27 (installed 0.1.8, then 0.1.9 from 827f58b)
 
 Run on Sunday 15 November, afternoon local, on the installed app with the Demo profile after a Reset before each moment,
