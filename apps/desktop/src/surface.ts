@@ -70,7 +70,7 @@ export interface SurfaceState {
 }
 
 /** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
-export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them, and make a clearly unhelpful name clearer only where it helps. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them. Rename nothing: every file keeps its name exactly, a copy such as "Invoice (1).pdf" too. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
