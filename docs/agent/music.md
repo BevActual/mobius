@@ -1,6 +1,12 @@
 # Music: a song's sound, kits and effects
 
-A song is `studio/<folder>/<song>.json`. Change only what was asked, keep every id, and leave out a setting rather than guess it. The person sees your change as a proposal (Keep, Discard, Try another), so write the whole file with your change in it. A 4/4 bar is 4 beats.
+A song is `studio/<folder>/<song>.json`. Change only what was asked, keep every id, and leave out a setting rather than guess it. The person sees your change as a proposal (Keep, Discard, Try another), and hears it while the song plays. A 4/4 bar is 4 beats.
+
+## Making the change quickly
+Change the song with `files.edit`, not by writing the whole file: it is much faster, and the person is listening. Make every edit of one ask in the same step.
+- A sound: old is the track's whole `"sound":{...}` (or one effect's `{...}`) exactly as it is; new is the same with your values.
+- A new track: old is the last note of the last track and everything after it to the end of the file; new is the same with `,` and the new track after the last track's `]}`.
+- Write the whole file with `files.write` only for a new song, or when most of it changes.
 
 ## A track
 `{"id","name","instrument":"piano|bass|pad|lead|drums","color","volume" 0-1,"pan" -1 (left) to 1,"notes":[...],"sound"?,"kit"?,"pads"?,"fx"?,"volumeAuto"?}`

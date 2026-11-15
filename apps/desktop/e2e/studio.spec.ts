@@ -189,6 +189,57 @@ test('a sound from Mobius opens the track’s devices and says what moved, kept 
   await expect.poll(() => (saved().tracks[0] as { sound?: unknown }).sound).toBeUndefined();
 });
 
+test('the demo ask: a bass line and a warmer pad come in while the song plays, as two edits, and Try another keeps it playing', async () => {
+  // The demo song in small: keys and a bright pad, and no bass, written out as the seed is (a track to a line).
+  const PAD_SOUND = '{"shape":1,"detune":14,"sub":0,"drive":0,"cutoff":4200,"resonance":0.2,"envAmount":0,"attack":0.25,"decay":0.3,"sustain":1,"release":0.5,"vibrato":0,"rate":5}';
+  const WARM = PAD_SOUND.replace('"shape":1', '"shape":0.6').replace('"drive":0', '"drive":0.1').replace('"cutoff":4200', '"cutoff":1900').replace('"resonance":0.2', '"resonance":0.12');
+  const last = '{"pitch":69,"start":0,"length":16,"velocity":0.6}\n    ]}\n  ]\n}\n';
+  fs.writeFileSync(file(), `{\n  "version": 1, "tempo": 112, "key": "A minor", "bars": 4,\n  "tracks": [\n    {"id":"t1","name":"Keys","instrument":"piano","volume":0.8,"notes":[{"pitch":57,"start":0,"length":4,"velocity":0.7}]},\n    {"id":"t2","name":"Pad","instrument":"pad","volume":0.55,"sound":${PAD_SOUND},"notes":[\n      ${last}`);
+  const bass = (pitch: number) => `,\n    ${JSON.stringify({ ...BASS, id: 't3', notes: BASS.notes.map((n) => ({ ...n, pitch })) })}`;
+  // One answer: a line first, then both edits, so the turn ends as soon as they are made (the chip finishes on changes).
+  const edits = (pitch: number, line: string): ModelReply => ({
+    chunks: [
+      { data: { choices: [{ index: 0, delta: { content: line } }] }, pauseMs: 0 },
+      { data: { choices: [{ index: 0, delta: { tool_calls: [
+        { index: 0, id: 'call_1', function: { name: 'files-edit', arguments: JSON.stringify({ path: 'studio/Songs/Night Drive.json', old: `"sound":${PAD_SOUND}`, new: `"sound":${WARM}` }) } },
+        { index: 1, id: 'call_2', function: { name: 'files-edit', arguments: JSON.stringify({ path: 'studio/Songs/Night Drive.json', old: last, new: last.replace(/\]\}\n {2}\]/, `]}${bass(pitch)}\n  ]`) }) } },
+      ] } }] }, pauseMs: 0 },
+      { data: { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }, pauseMs: 0 },
+    ],
+  });
+  await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.')]);
+  await resizeWindow(mobius!.app, 1600, 900);
+  // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
+  await shell().getByRole('button', { name: 'Play' }).click();
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
+  await shell().getByRole('button', { name: 'Bass and a warmer pad' }).click();
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  const allow = log.getByRole('group', { name: 'Approval needed: files.edit' }).getByRole('button', { name: 'Allow once' });
+  const change = shell().getByRole('group', { name: 'A change Mobius made' });
+  // Both edits are allowed (one at a time, as they come), then the bar says what each did.
+  const allowBoth = (bass: RegExp) => expect(async () => {
+    if (await allow.count()) await allow.first().click();
+    await expect(change).toContainText(bass, { timeout: 500 });
+    await expect(change).toContainText('Pad: drive 0% → 10%', { timeout: 500 });
+  }).toPass({ timeout: 15_000 });
+  await allowBoth(/Bass, bars 1 to 4/);
+  await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4, proposed by Mobius' })).toHaveAttribute('data-proposed', 'true');
+  // The pad's devices open with the moved knobs marked, and the song never stopped.
+  const devices = shell().getByRole('region', { name: 'Devices' });
+  await expect(devices.getByRole('slider', { name: 'Cutoff and resonance' })).toHaveAttribute('aria-valuetext', /Cutoff 1\.9 kHz/);
+  await expect(devices.locator('.ui-knob[data-proposed]').filter({ has: shell().getByRole('slider', { name: 'Drive' }) })).toHaveCount(1);
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
+  expect(saved().tracks.map((t) => t.id)).toEqual(['t1', 't2', 't3']);
+  // Try another puts it back and asks again; the new line comes in, still playing.
+  await change.getByRole('button', { name: 'Try another' }).click();
+  await expect(log.locator('.msg.assistant').last()).toContainText('Another bass');
+  await allowBoth(/Bass, bars 1 to 4/);
+  await expect.poll(() => saved().tracks[2]?.notes[0]?.pitch).toBe(33);
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
+  await change.getByRole('button', { name: 'Keep' }).click();
+  await expect(tracks().getByRole('listitem', { name: 'Bass' }).getByRole('button', { name: 'Bass, bars 1 to 4' })).not.toHaveAttribute('data-proposed', 'true');
+});
+
 test('a track is panned and a drum kit is tuned in its devices, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, { id: 't3', name: 'Drums', instrument: 'drums', volume: 0.8, notes: [] }] }));
   await start();

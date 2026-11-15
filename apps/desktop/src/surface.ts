@@ -99,6 +99,22 @@ export const DEBUG_TEST = 'A test in this project fails; the attached file ends 
 /** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
 export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, never more, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
 
+/** Music's chips change the song file and nothing else, so only the file tools are offered. */
+export const STUDIO_TOOLS = ['files'] as const;
+
+/** Music's demo ask, as two small edits made together, so the bass and the pad arrive within a few seconds. */
+export const BASS_AND_PAD = 'Add a bassline under this song and make the pad warmer, with two files.edit calls on the song file in one step, and no other call. First, the pad: old is its whole "sound":{...} object exactly as it is, new is the same 13 keys with a warmer sound (cutoff about half, a little less resonance, shape lower, a touch of drive). Second, the bass: old is the last note of the last track and everything after it to the end of the file, new is the same with a new bass track added after the last track: {"id" a new one,"name":"Bass","instrument":"bass","color" a free one,"volume":0.8,"notes":[...]}, in the song\'s key, MIDI 33 to 52, on the chord roots on each bar line with a passing note or two, every bar of the song. Leave the other tracks\' notes as they are. In the same answer, first say in one short line what you are adding and changing.';
+
+/** Whether a song (its file's text) has a pad and no bass: Music's demo ask fits it. */
+export function wantsBassAndPad(text: string): boolean {
+  try {
+    const tracks = (JSON.parse(text) as { tracks?: { instrument?: string }[] }).tracks ?? [];
+    return tracks.some((t) => t.instrument === 'pad') && !tracks.some((t) => t.instrument === 'bass');
+  } catch {
+    return false;
+  }
+}
+
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
   if (state.settings) return [];
   switch (state.app) {
@@ -180,6 +196,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'studio':
       return state.note
         ? [
+            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays.
+            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS }] : []),
             { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },

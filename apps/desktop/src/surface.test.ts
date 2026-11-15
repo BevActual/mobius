@@ -17,6 +17,15 @@ describe('what each app suggests', () => {
     expect(page.length).toBeGreaterThan(0);
     expect(page.every((s) => s.attach === 'page')).toBe(true);
   });
+  it('leads Music with the bass and warmer pad ask on a song with a pad and no bass, as one press that only edits files', () => {
+    const song = (instruments: string[]) => ({ path: 'studio/Songs/Demo.json', title: 'Demo', folder: 'studio' as const, text: JSON.stringify({ version: 1, tracks: instruments.map((instrument, i) => ({ id: `t${i}`, instrument, notes: [] })) }) });
+    const first = suggestionsFor({ app: 'studio', hasPage: false, note: song(['drums', 'piano', 'pad']) })[0]!;
+    expect(first).toMatchObject({ label: 'Bass and a warmer pad', attach: 'note', finishes: true, tools: ['files'] });
+    expect(first.prompt).toContain('two files.edit calls');
+    expect(suggestionsFor({ app: 'studio', hasPage: false, note: song(['pad', 'bass']) })[0]!.label).toBe('Add a bass line');
+    expect(suggestionsFor({ app: 'studio', hasPage: false, note: song(['piano']) })[0]!.label).toBe('Add a bass line');
+    expect(suggestionsFor({ app: 'studio', hasPage: false, note: { ...song([]), text: 'not json' } })[0]!.label).toBe('Add a bass line');
+  });
   it('leads with Compare these once two or more tabs show web pages, and it reads them itself', () => {
     expect(suggestionsFor({ app: 'browser', hasPage: true, pages: 1, note: null }).map((s) => s.label)).not.toContain('Compare these');
     const two = suggestionsFor({ app: 'browser', hasPage: true, pages: 2, note: null });
