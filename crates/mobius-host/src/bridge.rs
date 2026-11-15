@@ -3685,6 +3685,10 @@ impl Bridge {
                 if let Some(finish) = arg(3).get("finish") {
                     request["finish"] = finish.clone();
                 }
+                // { effort: "none" }: how hard the model thinks for this suggestion's turn.
+                if let Some(effort) = arg(3).get("effort") {
+                    request["effort"] = effort.clone();
+                }
                 // { tools: ["tasks", "calendar"] }: only the tools of the apps the suggestion works in are offered.
                 if let Some(tools) = arg(3).get("tools") {
                     request["tools"] = tools.clone();
