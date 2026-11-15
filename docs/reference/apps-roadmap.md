@@ -53,6 +53,9 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 | Views | Instrument (#191) | Sheets and Database tiles with charts; ask Mobius to make a view | |
 | Abilities | Instrument (#160) | Connector on and off with its tool list; skills on and off | Builder: start and stop a connector live |
 | Search, Research, Review, Terminal, Canvas | No round of their own yet | A first Instrument pass each | |
+| Meetings (in Calendar and Notes) | Decided 15 November: no app of its own | Record on an event or in Notes; the transcript and a summary in a note linked to the event; actions to Tasks, waiting for Keep. Notes' demo moment | After the demo moments and live marks |
+| People (in Mail and Calendar) | Decided 15 November: an address book in the core, no app for now | Names filled in as you address or invite; a person card from a sender or attendee; Mobius knows who "Priya" is | Builder: the contacts store and CardDAV account |
+| Messages (new, early) | Decided 15 November: its own app, in Abilities, labelled early | Accounts on official APIs; "catch me up" across channels; only the person sends. Arrives whole: Instrument, docs page, demo moment | After the demo, then People |
 | Music | See the [Music roadmap](music-roadmap.md) | | |
 
 ## Rounds that cross apps

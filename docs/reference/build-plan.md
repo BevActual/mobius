@@ -139,17 +139,15 @@ Waiting for this test now:
 
 | Idea | The question | Who proposes |
 | --- | --- | --- |
-| People (contacts over CardDAV) | Its own app, or an address book inside Mail and Calendar with the data in the core | Apps lead, with the Builder for the core |
-| Messages (Slack, Discord, Telegram on official APIs) | Its own app, or more accounts in Mail | Apps lead |
-| Meetings (recording to a summary) | Its own app, or what Notes and Calendar already do together | Apps lead |
 | Search, Research, Review, Terminal, Canvas, Reader, Knowledge, Views | Whether each keeps standing alone, checked when its first round comes up | Apps lead |
 
-### Proposals
+### Decided
 
-The Apps lead's answers, 15 November 2026. Each one changes what Mobius keeps or shows a newcomer, so each is Andrew's
-to settle. Nothing is built until it is.
+The Apps lead proposed these and Andrew decided them on 15 November 2026, as proposed. The work is placed in the
+[Apps roadmap](apps-roadmap.md) and under [Connections](#connections). The order is the demo moments and live marks
+first, then Meetings (Notes' demo moment), then People once the core store is built, then Messages.
 
-**People: an address book in the core, shown inside Mail and Calendar. No app for now.**
+**People: an address book in the core, shown inside Mail and Calendar. No app for now.** Decided by Andrew, 15 November 2026.
 - For: contacts are a new kind of thing, and Mail and Calendar need them equally.
 - Against: nobody opens an address book as a job in itself, and ten seconds of a contact list impresses no one.
 - The data lives in the core, synced over CardDAV with the person's own server (Nextcloud, Fastmail, iCloud). The
@@ -165,7 +163,7 @@ to settle. Nothing is built until it is.
   - Mobius can use it ("email Priya the deck").
 - A People app can follow if a moment of its own turns up, and nothing has to move when it does.
 
-**Messages: its own app, early, in Abilities, after the demo.**
+**Messages: its own app, early, in Abilities, after the demo.** Decided by Andrew, 15 November 2026.
 - Chat is a new kind of thing: channels and threads that move in real time, with reactions and mentions. Putting it in
   Mail would crowd Mail's toolbar and make Mail harder to explain.
 - People open chat on purpose, and it has a moment of its own: "catch me up" turns 300 messages across Slack, Discord
@@ -173,7 +171,7 @@ to settle. Nothing is built until it is.
 - Accounts use each service's official API, and only the person sends.
 - Mail's Triage can read Messages later through the core, so one Triage could cover both.
 
-**Meetings: fold it into Calendar and Notes. No app.**
+**Meetings: fold it into Calendar and Notes. No app.** Decided by Andrew, 15 November 2026.
 - A meeting is an event plus its notes, and both already exist. Recording is one more button.
 - An event gets Record. The transcript and a summary land in a note linked to that event. Actions go to Tasks, waiting
   for Keep.
@@ -234,7 +232,8 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
-| People | Nothing: there is no address book | Contacts over CardDAV, shared by Mail and Calendar | Apps lead writes the proposal: a new People app, or part of Mail and Calendar ([the test](#a-new-app-or-part-of-one-that-exists)) |
+| People | Nothing: there is no address book | An address book in the core over CardDAV (one `.vcf` per contact in `workspace/contacts/`), shown inside Mail and Calendar; no People app for now ([decided](#decided)) | Builder for the core, Apps lead for Mail and Calendar |
+| Messages | Nothing yet | Slack, Discord and Telegram on their official APIs, in a Messages app (early, in Abilities, after the demo; [decided](#decided)) | Builder for the accounts, Apps lead for the app |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
 
 ### Drives
