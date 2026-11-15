@@ -125,6 +125,33 @@ fn an_allowed_tool_call_runs_and_its_result_goes_back_to_the_model() {
 }
 
 #[test]
+fn a_turn_of_changes_that_ends_without_a_word_asks_the_model_once_more_for_one() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    // A small local model: one call, then an empty answer (all of it spent thinking), then the line it was asked for.
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", "demo.echo", json!({ "text": "ping" }))]), text(""), text("I echoed ping.")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo ping", 1);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    let requests = provider.requests();
+    assert_eq!(requests.len(), 3);
+    assert!(!requests[1].system.contains("without writing anything"), "the first answer after the call is asked for as usual");
+    assert!(requests[2].system.contains("without writing anything"));
+    let said: Vec<AgentEvent> = turn.drain_events().into_iter().filter(|e| matches!(e, AgentEvent::Message { .. })).collect();
+    assert_eq!(said, [AgentEvent::Message { text: "I echoed ping.".into() }]);
+
+    // Asked once only: a second empty answer ends the turn.
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("c2", "demo.echo", json!({}))]), text(""), text("")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo", 2);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 3);
+    // A turn that said something already, or made no call, is not asked again.
+    let provider = ScriptedProvider::new(vec![calls("Echoing.", vec![call("c3", "demo.echo", json!({}))]), text("")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo", 3);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 2);
+}
+
+#[test]
 fn a_tool_that_needs_approval_parks_the_turn_and_resumes_when_approved() {
     let mut w = world(10);
     let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", "demo.echo", json!({ "text": "hi" }))]), text("Done.")]);
