@@ -122,6 +122,13 @@ impl Workspace {
         }
     }
 
+    /// A checkpoint of its own even when nothing changed since the last one: what happens next is counted from it,
+    /// apart from whatever the last checkpoint started.
+    pub fn mark_new(&self, reason: &str) -> Res<String> {
+        let root = self.real_root()?;
+        self.checkpoints.snapshot_always(&root, reason).map(|c| c.id).map_err(|e| e.to_string())
+    }
+
     /// Readies checkpoints for this folder ahead of the first turn (see [`Checkpoints::warm`]).
     pub fn warm(&self) -> Res<()> {
         let root = self.real_root()?;
