@@ -7,16 +7,36 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
-| Home and Tasks: Plan my day (#341, #344) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.2 / 31.8 / 44.7 s | Content nearly, time no | No Focus hour |
-| Mail: Triage (#341, #344) | 14 Nov, f469b56, after Plan my day | Sonnet 5.5 | 27.8 / 36.6 / 50.8 s | Content nearly, time no | Archive hides a sign-in alert, a rival quote and the jigs; unasked event and tasks |
+| Home and Tasks: Plan my day (#348, #349) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 9.3 / 13.8 / 14.7 s | Time yes; content no | Plans 09:00–12:00 at 17:14: the prefetch has no clock |
+| Mail: Triage (#348, #349) | 15 Nov, 3a8bf78, after Plan my day and a New chat | Sonnet 5.5 | 32.6 / 37.2 / 38.0 s | Content nearly, time no | Chip missing after Plan my day; unasked Sam meeting and Finance task |
 | Calendar: Find a time with… (#304) | 14 Nov, f469b56, chip then typed name | Sonnet 5.5 | 15.7 / 22.5 / 30.3 s | Content nearly, time no | Chip pastes the raw prompt; misses free afternoons |
-| Notes: Meeting notes (#340) | 14 Nov, f469b56, chips | Sonnet 5.5 | 17.1 / 17.1 / 17.3 s; to-dos 8.2 / 9.4 / 18.4 s | Content yes on #282's seed, time no | Change written at 6.8 s, drawn at 17 s |
+| Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter in place, then One-page brief (#295) | 14 Nov, 75dc9eb | Sonnet 5.5 | Shorter 15.9 s; brief 15.0 s | Nearly | Try another longer than the first; brief 655 words |
 | Slides: Make this a deck (local, from Docs) | 14 Nov, 75dc9eb, chip on the brief | Sonnet 5.5 | 17.6 s to the deck | Nearly | Two slides with five bullets |
 | Browser: Compare these (#296) | 14 Nov, 75dc9eb, Files › Open then chip | Sonnet 5.5 | 28.7 s to the note, 41 s to end | Nearly: correct, no cards, too slow | Links tied to the session's port |
 | Files: Tidy this folder (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.8 / 20.8 / 30.8 s | Content yes, time no | Listing asks; step and bar counts wrong (50, 108 for 60) |
 | Sheets: What stands out? (#343) | 14 Nov, f469b56, chip | Sonnet 5.5 | 20.3 / 20.3 / 20.3 s (written at 10.0 s) | Content yes, time no | Chart beside the grid hides column E |
-| Code: a failing test in Glance (#327) | 14 Nov, f469b56 | Sonnet 5.5 | Not run | Blocked | Main still has the Python seed; Node seed is in #282 |
+| Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
+
+## Round 13 (3a8bf78: #342, #344, #348, #349, #350, #353, #355)
+
+Run on Sunday 15 November at 17:14 local with the #350 seed. Plan my day now takes one model round (13.2 s, start-up
+1.3 s) instead of three; tools offered fell from 51 to 13 in Home and Mail and 60 in Notes and Code.
+
+- **Plan my day:** 9.3 / 13.8 / 14.7 s (44 s before). Focus hour held, the deposit not retimed, one reply, one-line Can
+  wait; 2 tasks.update and 1 calendar.suggest calls (12 before). Weak: at 17:14 it planned 09:00 to 12:00, every block
+  in the past. The prefetch reads tasks, calendar and mail but not the clock, and the model didn't ask for it.
+- **Triage:** 32.6 / 37.2 / 38.0 s, two rounds. Counts add up (4 + 7 + 29 = 40); Archive in one line and no longer hides
+  the sign-in alert, the Ardent quote or the CVs; no draft commits; "end of week" is Friday. Weak: "Triage the unread"
+  didn't show after Plan my day's reply (it did in rounds 11 and 12), so this ran after a New chat; round 2 writes for
+  about 24 s before its first tool; unasked "Re-plan test order with Sam" and Finance task; it moved Priya's review to
+  14:30 Monday but the Priya draft from Plan my day still says "tomorrow".
+- **Notes:** 7.2 s to the drawn change, Keep 12.6 s. "Stay with Veltro for all eight packs, with no spares for now."
+  Four actions with dates.
+- **Code:** Code suggested `npm test`; Glance named "pack temperature fails". After Find the cause: the one-line fix at
+  3.6 s (`raw / 10 + 40` to `raw / 10 - 40`), tests passing at 4.4 s, Keep 8.0 s; test file untouched.
+
+Printouts: `mobius-moments-shots\round13\` on Andrew's PC.
 
 ## Round 12 (f469b56: #340, #341, #343, #304, #327, #344, #345)
 
