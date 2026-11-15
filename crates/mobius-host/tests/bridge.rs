@@ -1679,7 +1679,7 @@ fn a_turn_after_one_that_changed_no_files_starts_from_a_checkpoint_of_its_own() 
 }
 
 /// A tidy is discarded in one go: every file back where it was, archives included, and no folder it made left behind.
-/// The window lists each move once.
+/// The window lists each move once, an archive's too, and can put an archive's move back on its own.
 #[test]
 fn discarding_a_tidy_puts_the_folder_back_exactly() {
     let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
@@ -1706,7 +1706,13 @@ fn discarding_a_tidy_puts_the_folder_back_exactly() {
     b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
     wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
     let last = call(&b, "changes", "lastTurn", json!(["c-1"]));
-    assert_eq!(last["moves"].as_array().map(Vec::len), Some(2), "{last}");
+    // The archive's move is listed too, though checkpoints leave archives out: three files moved, three moves.
+    assert_eq!(last["moves"].as_array().map(Vec::len), Some(3), "{last}");
+    assert!(last["moves"].as_array().unwrap().contains(&json!({ "from": "Downloads/setup.zip", "to": "Downloads/Installers/setup.zip" })), "{last}");
+    // Undoing that one move on its own puts the archive back, and takes away the folder it made.
+    let one = call(&b, "changes", "undoFiles", json!(["c-1", ["Downloads/Installers/setup.zip", "Downloads/setup.zip"]]));
+    assert_eq!(one["ok"], true, "{one}");
+    assert!(ws.join("Downloads/setup.zip").is_file() && !ws.join("Downloads/Installers").exists());
     let files: Vec<String> = last["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap().to_owned()).collect();
     let undone = call(&b, "changes", "undoFiles", json!(["c-1", files]));
     assert_eq!(undone["ok"], true, "{undone}");

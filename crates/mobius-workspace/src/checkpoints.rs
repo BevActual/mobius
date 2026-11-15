@@ -330,20 +330,82 @@ impl Checkpoints {
         std::io::Write::write_all(&mut file, format!("{line}\n").as_bytes()).map_err(|e| Error::Git(e.to_string()))
     }
 
-    /// Moves back, newest first, what moves noted since `target` (and up to `until`, when given) left where they went:
-    /// the files the checkpoint did not keep. Those moves are then forgotten. Returns the folders they were moved out of.
-    fn undo_moves(&self, folder: &Path, id: &str, target: &str, until: Option<&str>) -> Vec<PathBuf> {
+    /// The moves noted since `target` (and up to `until`, when given), and the log's other lines.
+    fn noted_since(&self, folder: &Path, id: &str, target: &str, until: Option<&str>) -> (Vec<serde_json::Value>, Vec<String>) {
         let file = self.store.join("moves").join(format!("{id}.jsonl"));
-        let Ok(text) = std::fs::read_to_string(&file) else { return Vec::new() };
+        let Ok(text) = std::fs::read_to_string(&file) else { return (Vec::new(), Vec::new()) };
         let mut keep = Vec::new();
-        let mut undo = Vec::new();
+        let mut since = Vec::new();
         for line in text.lines().filter(|l| !l.trim().is_empty()) {
             let Ok(entry) = serde_json::from_str::<serde_json::Value>(line) else { continue };
             let after = entry["after"].as_str().unwrap_or_default();
             // Made at or after the checkpoint being restored: `target` is that move's checkpoint or older.
-            let since = self.git(folder, id, &["merge-base", "--is-ancestor", target, after]).is_ok()
+            let made = self.git(folder, id, &["merge-base", "--is-ancestor", target, after]).is_ok()
                 && until.is_none_or(|until| self.git(folder, id, &["merge-base", "--is-ancestor", after, until]).is_ok());
-            if since { undo.push(entry) } else { keep.push(line.to_owned()) }
+            if made { since.push(entry) } else { keep.push(line.to_owned()) }
+        }
+        (since, keep)
+    }
+
+    /// The files that moves noted since `checkpoint` (and up to `until`, when given) moved and that are not among
+    /// `counted` (what the checkpoints saw change): the archives and videos checkpoints leave out. Each is its old path
+    /// and new one, relative to `folder`, file by file (a folder moved is each such file now inside it), for files
+    /// still where the move put them. A turn's review lists these beside its diff, so a tidy's count is every file.
+    pub fn left_out_moves(&self, folder: &Path, checkpoint: &str, until: Option<&str>, counted: &[String]) -> Result<Vec<(String, String)>, Error> {
+        let _one = one_at_a_time();
+        let (folder, id) = self.prepare(folder)?;
+        let target = self.known(&folder, &id, checkpoint)?;
+        let until = until.map(|u| self.known(&folder, &id, u)).transpose()?;
+        let counted: std::collections::HashSet<&str> = counted.iter().map(String::as_str).collect();
+        let mut out = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+        for entry in self.noted_since(&folder, &id, &target, until.as_deref()).0 {
+            for pair in entry["moves"].as_array().into_iter().flatten() {
+                let (Some(from), Some(to)) = (pair[0].as_str(), pair[1].as_str()) else { continue };
+                if !is_inner_path(from) || !is_inner_path(to) {
+                    continue;
+                }
+                for (rest, _) in files_under(&folder.join(to)) {
+                    let rest: Vec<String> = rest.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
+                    let join = |base: &str| if rest.is_empty() { base.to_owned() } else { format!("{base}/{}", rest.join("/")) };
+                    let (old, new) = (join(from), join(to));
+                    if !counted.contains(new.as_str()) && !counted.contains(old.as_str()) && seen.insert(new.clone()) {
+                        out.push((old, new));
+                    }
+                }
+            }
+        }
+        Ok(out)
+    }
+
+    /// Puts files that moves left out of the checkpoints back where they were, each `(old, new)` pair as
+    /// `left_out_moves` gives it, unless something is at the old path now. Folders left empty are taken away.
+    pub fn move_back(&self, folder: &Path, pairs: &[(String, String)]) -> Result<(), Error> {
+        let _one = one_at_a_time();
+        let (folder, _) = self.prepare(folder)?;
+        let mut emptied = Vec::new();
+        for (old, new) in pairs {
+            if !is_inner_path(old) || !is_inner_path(new) {
+                continue;
+            }
+            let (back, at) = (folder.join(old), folder.join(new));
+            if back.exists() || !at.is_file() {
+                continue;
+            }
+            back.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|()| std::fs::rename(&at, &back)).map_err(|e| Error::Git(format!("{new}: {e}")))?;
+            emptied.extend(at.parent().map(Path::to_path_buf));
+        }
+        prune_empty(&folder, emptied);
+        Ok(())
+    }
+
+    /// Moves back, newest first, what moves noted since `target` (and up to `until`, when given) left where they went:
+    /// the files the checkpoint did not keep. Those moves are then forgotten. Returns the folders they were moved out of.
+    fn undo_moves(&self, folder: &Path, id: &str, target: &str, until: Option<&str>) -> Vec<PathBuf> {
+        let file = self.store.join("moves").join(format!("{id}.jsonl"));
+        let (undo, keep) = self.noted_since(folder, id, target, until);
+        if undo.is_empty() && keep.is_empty() {
+            return Vec::new();
         }
         let mut left = Vec::new();
         for entry in undo.iter().rev() {
