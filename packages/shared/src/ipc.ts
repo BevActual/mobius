@@ -237,7 +237,9 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
-export interface DriveAccount { id: string; kind: 'webdav'; name: string; url: string; username: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3'; name: string; url: string; /** For S3, the access key id. */ username: string; /** S3's region. */ region?: string }
+/** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
+export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
 export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
@@ -674,7 +676,7 @@ export interface MobiusBridge {
   drives?: {
     list(): Promise<DriveAccount[] | DriveFailure>;
     /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
-    add(drive: { name: string; server: string; username: string; password: string }): Promise<DriveAccount | DriveFailure>;
+    add(drive: NewDrive): Promise<DriveAccount | DriveFailure>;
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
     /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
     signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
