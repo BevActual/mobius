@@ -67,6 +67,23 @@ The *Launch* thread writes the content; each lead adds what their app's moment n
 | Reader | `reading/Saved/Why battery packs ship by sea.md` | A saved article to ask about. |
 | Views | `views/Views/Today.json` | A starting dashboard. |
 
+## Photos
+
+Album **Jasmund cliffs** (`workspace/photos/Jasmund cliffs/`): ten photos from one walk along the chalk cliffs of
+Jasmund National Park on Rügen, near Kolliner Bach, 2021-09-14, all by the same photographer, so one edit fits them all.
+Each is Wikimedia Commons' 1600 px rendition, re-encoded to about 300 KB.
+
+- `01-misty-cliff-edge.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 01. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_01.jpg, CC0 1.0
+- `02-shingle-beach-below.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 02. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_02.jpg, CC0 1.0
+- `03-beeches-on-the-edge.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 03. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_03.jpg, CC0 1.0
+- `04-clifftop-forest.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 04. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_04.jpg, CC0 1.0
+- `05-wooded-headland.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 05. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_05.jpg, CC0 1.0
+- `06-white-cliffs-calm-sea.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 07. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_07.jpg, CC0 1.0
+- `07-chalk-face.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 08. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_08.jpg, CC0 1.0
+- `08-eroded-slope.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 09. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_09.jpg, CC0 1.0
+- `09-curving-shoreline.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 10. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_10.jpg, CC0 1.0
+- `10-coast-to-the-north.jpg`: View form cliffs in UNSECO site Jasmund near Kolliner Bach 2021-09-14 11. Leonhard Lenz, https://commons.wikimedia.org/wiki/File:View_form_cliffs_in_UNSECO_site_Jasmund_near_Kolliner_Bach_2021-09-14_11.jpg, CC0 1.0
+
 ## Still to add
 
 - **Photo:** twelve uneven photos from one shoot (an album "Chassis build"). Needs real, freely licensed photos.
