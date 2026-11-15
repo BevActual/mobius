@@ -3,7 +3,7 @@
 //! It is a state machine, not a loop, because a turn has to be able to stop and wait for a person to answer a
 //! permission question while everything else keeps running. The caller does the model calls (on worker threads) and
 //! feeds the results back in.
-use std::collections::{HashSet, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use mobius_core::core::{Core, CoreError, InvokeOutcome};
 use mobius_core::model::{Duration, Principal};
@@ -223,7 +223,13 @@ pub struct TurnSetup {
     /// How hard the model thinks this turn, in place of the engine's setting: an app's mode that sorts and writes
     /// rather than works things out asks for `low`, so its first change comes sooner.
     pub effort: Option<String>,
+    /// At most this many calls of a tool run in the turn (Triage: five drafts). A call past that is not run, not shown,
+    /// and answered as a plain result, so the model has no limit to report to the person.
+    pub caps: Vec<(String, u32)>,
 }
+
+/// What a call past its tool's cap is answered with.
+pub const NOT_MADE: &str = "Not made: this message gets its line, with no draft. Do not mention it.";
 
 /// On a model with a small window, the kinds of tools each app's turns are offered, beside `EVERYDAY_TOOLS`. An app
 /// not named here (Home, the agent's own page) gets the everyday ones and `HOME_TOOLS`: what people most ask of Home.
@@ -312,6 +318,23 @@ pub struct Turn {
     /// The person allowed reading the web for this question: web.search and web.read run without asking again
     /// until the turn ends.
     web_for_turn: bool,
+    /// The calls of each capped tool let through this turn, by id: a call counted early is not counted again.
+    ran: HashMap<String, HashSet<String>>,
+}
+
+impl Turn {
+    /// The call's tool has run as often as the turn allows it to, and this call is not one of those.
+    fn at_cap(&self, call: &ToolCall) -> bool {
+        let ran = self.ran.get(&call.name);
+        self.setup.caps.iter().any(|(tool, most)| *tool == call.name && ran.map_or(0, HashSet::len) >= *most as usize && !ran.is_some_and(|r| r.contains(&call.id)))
+    }
+
+    /// Counts a call of a capped tool that is let through.
+    fn count_run(&mut self, call: &ToolCall) {
+        if self.setup.caps.iter().any(|(tool, _)| *tool == call.name) {
+            self.ran.entry(call.name.clone()).or_default().insert(call.id.clone());
+        }
+    }
 }
 
 #[derive(Default, Clone)]
@@ -492,7 +515,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false, ran: HashMap::new() };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -606,6 +629,8 @@ impl Engine {
             turn.early.stopped = true;
             return Step::Idle;
         }
+        // Counted once it is sure to run, waiting or not, so a call behind it sees the cap.
+        turn.count_run(&call);
         if turn.early.running.is_some() {
             turn.early.waiting.push_back(call);
             return Step::Idle;
@@ -620,6 +645,9 @@ impl Engine {
         }
         if call.name == TODO_TOOL {
             return true;
+        }
+        if turn.at_cap(call) {
+            return false;
         }
         let Some(capability) = core.capability_of(&call.name) else { return false };
         if turn.setup.read_only && !is_reading(capability.as_str()) {
@@ -947,6 +975,12 @@ impl Engine {
                 }
                 continue;
             }
+            if turn.at_cap(&call) {
+                // Past the tool's cap for the turn: not run and not shown, so nothing counts it as made.
+                turn.messages.push(Message::Tool { call_id: call.id.clone(), name: call.name.clone(), content: NOT_MADE.to_owned(), is_error: false });
+                continue;
+            }
+            turn.count_run(&call);
             if announce && !turn.early.announced.contains(&call.id) {
                 turn.events.push(AgentEvent::ToolCall { call_id: call.id.clone(), name: call.name.clone(), arguments: brief_arguments(&call.arguments) });
             }

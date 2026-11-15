@@ -119,6 +119,9 @@ struct SendParams {
     /// mode sets it.
     #[serde(default)]
     effort: Option<String>,
+    /// At most this many calls of each named tool run in the turn (Triage: five `mail.draft`): an app's mode sets it.
+    #[serde(default)]
+    caps: std::collections::BTreeMap<String, u32>,
 }
 
 #[derive(Deserialize)]
@@ -592,7 +595,7 @@ impl Extension for Agent {
                     return Err(ExtensionError::invalid_params("effort must be none, low, medium or high"));
                 }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')), effort: p.effort.clone() };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')), effort: p.effort.clone(), caps: p.caps.iter().take(8).filter(|(tool, _)| tool.len() <= 64).map(|(tool, most)| (tool.clone(), *most)).collect() };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.
