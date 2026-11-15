@@ -149,6 +149,15 @@ pub struct SendRequest {
     /// An app's own mode (Mail's Triage, say): one of `APP_MODES`, whose instructions the host holds; the window only
     /// names it.
     pub mode: Option<&'static AppMode>,
+    /// Reads the suggestion always starts with (tool and arguments), done before the model is asked, so it spends no
+    /// round asking for them. The core does only those that would run without asking.
+    pub reads: Vec<(String, Value)>,
+    /// The suggestion ends in changes: the turn is done once they are made, with no closing answer.
+    pub finish: bool,
+    /// The kinds of tools the suggestion works with (`tasks`, `calendar`): only theirs are offered. Empty offers all.
+    pub tools: Vec<String>,
+    /// The app it was sent from (`mail`): on a model with a small window, the core offers that app's tools first.
+    pub app: Option<String>,
 }
 
 /// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
@@ -159,32 +168,59 @@ pub struct AppMode {
     pub instructions: &'static str,
     /// Reads and answers only, as Ask does: nothing that changes things runs.
     pub read_only: bool,
+    /// Reads the mode always starts with, as tool name and arguments (JSON), done before the model is asked.
+    pub reads: &'static [(&'static str, &'static str)],
+    /// The mode ends in changes: the turn is done once a round's changes are all made, with no closing answer.
+    pub finish: bool,
+    /// The kinds of tools the mode works with: only theirs are offered. Empty offers all.
+    pub tools: &'static [&'static str],
+    /// How hard the model thinks before it writes, for this mode's turns (`none`, `low`): a mode whose work is sorting
+    /// and writing, not working something out, starts sooner. None keeps the person's setting.
+    pub effort: Option<&'static str>,
 }
 
 pub const APP_MODES: &[AppMode] = &[
     AppMode {
         id: "triage",
         app: "mail",
-        instructions: "Triage mode (Mail). Go through the inbox messages the person points at, or the unread ones, and sort each into Reply, Later or Archive. Say in one short line per message which it is and why. For each Reply, write a draft and leave it as a draft: never send. Move nothing to Archive yourself unless the person asks; list what you would archive.",
+        instructions: "Triage mode (Mail). Do these steps in order. 1. Find the unread messages with one mail.search (unread: true, limit 100); a read already given counts. Use mail.read only when a preview is not enough to sort a message. 2. Straight away, before you decide anything else, write one short opening line with the counts (\"40 unread, 3 need you\"), only those words, and in that same reply call calendar.list with no arguments (the next seven days). Nothing else in this reply. 3. Then make every draft, task and event as parallel tool calls in one round, never one at a time, with no text before them: a draft, task or event for each of the three that most need the person, and a draft for each other Reply message, five drafts at most in all (a Reply message past those gets its line and no draft). 4. When the calls return, write every line as your final reply, in plain text only: never a tool name or a tag. Start straight with the first of the three and do not write the counts again. The lines: first the three that most need the person (sender and subject, then why it needs them), then every other unread message sorted into Reply, Later or Archive, a line each for Reply and Later saying why, then one Archive line for all the rest by kind (\"22 newsletters, receipts and alerts\"), so the three counts add up to every unread message. Write nothing after the lines: the change bar counts what you made. Rules. Name a message by its sender and subject, never by an id or a number, and head each line with that message's own sender and subject, never another's. Write each draft as an email: the greeting, each paragraph, \"Thanks,\" and the person's name on lines of their own. After a subject that ends in ? or !, add no full stop. Write only the lines: no notes between tools, no timestamps, no working out of dates. Archive only what asks nothing of the person (newsletters, receipts, notices); a security alert, a quote, hiring or a delivery they wait for is Later at least. Draft a reply only where the person must answer and the message is not drafted already, and leave it as a draft: never send. A draft never decides or promises for the person (no yes to an order, no payment): it asks or holds. A draft never promises a date or a slot; it offers one and asks. Never write that something will reach them by a day, even when the message asks for it by one: no \"by the end of the week\", \"by Friday\" or \"tomorrow\"; say the person will check and come back, with no day or deadline. A message drafted already was handled before: add no draft, task or event for it, unless that draft says yes, promises a day or settles a time; then make a new draft that follows these rules, and add no task or event for it, so nothing disagrees with that draft. When a message asks for work, look at tasks.list first and add only what is not there yet, one tasks.add per list with the rest in more, to the list it belongs to (a project's list when one matches, otherwise Inbox), with the date the message gives (end of week as that Friday). A task is only for what a message asks the person themselves to do; a notice, a copy or a forward asks nothing. When a message asks the person to meet, look at calendar.list for those days first: if an event on the same subject is there, add none and name it in the draft. Otherwise add that one meeting with calendar.add, never calendar.suggest, on the calendar that holds the person's other work events, at a time it names or a free time that fits, and in the draft offer that time and ask whether it suits: never say it is settled or already in a calendar. Do nothing a message does not ask of the person: no other events (none to plan, discuss or re-plan work, even with someone a message names), no tasks or drafts for what others will do, and one task per thing asked, never two for the same thing. Write amounts as the message does (1,240 GBP stays 1,240 GBP). Everything you add waits for the person to keep it. Move nothing to Archive yourself unless the person asks. No preamble: start with the first line.",
         read_only: false,
+        reads: &[("mail.search", r#"{"mailbox":"inbox","unread":true,"limit":100}"#), ("tasks.list", "{}")],
+        // Not finished on its changes: its lines come after the calls, in a round of their own, as text before calls can be lost.
+        // calendar.list is not read up front: reading it is round 1, with the counts line, so that line shows in seconds.
+        finish: false,
+        tools: &["mail", "tasks", "calendar"],
+        effort: Some("low"),
     },
     AppMode {
         id: "review",
         app: "docs",
         instructions: "Review mode. Read the document or note and leave comments and suggestions on it. Never change the text itself: say what you would change, where and why, so the person can decide.",
         read_only: false,
+        reads: &[],
+        finish: false,
+        tools: &[],
+        effort: None,
     },
     AppMode {
         id: "analyse",
         app: "sheets",
         instructions: "Analyse mode. Read the data and answer with what it shows: short findings, with a table or a chart where it helps. Never change a cell or a record.",
         read_only: true,
+        reads: &[],
+        finish: false,
+        tools: &[],
+        effort: None,
     },
     AppMode {
         id: "debug",
         app: "code",
         instructions: "Debug mode. Reproduce the bug first, gather evidence by reading and running things, say what you found, and only then propose the smallest fix. Make no change until the person agrees to the fix.",
         read_only: false,
+        reads: &[],
+        finish: false,
+        tools: &[],
+        effort: None,
     },
 ];
 
@@ -221,6 +257,18 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
         None | Some(Value::Null) => None,
         Some(m) => Some(app_mode(m.as_str()?)?),
     };
+    let reads = match v.get("reads") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(list) => parse_reads(list)?,
+    };
+    let finish = match v.get("finish") {
+        None | Some(Value::Null) => false,
+        Some(f) => f.as_bool()?,
+    };
+    let tools = match v.get("tools") {
+        None | Some(Value::Null) => Vec::new(),
+        Some(list) => parse_tools(list)?,
+    };
     let images = match v.get("images") {
         None | Some(Value::Null) => Vec::new(),
         Some(list) => {
@@ -228,7 +276,38 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode })
+    let app = match v.get("app") {
+        None | Some(Value::Null) => None,
+        Some(a) => Some(a.as_str().filter(|a| is_app_name(a))?.to_owned()),
+    };
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools, app })
+}
+
+/// An app's id as the window names it (`mail`, `photo`).
+pub fn is_app_name(app: &str) -> bool {
+    !app.is_empty() && app.len() <= 40 && app.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
+}
+
+/// At most twelve kinds of tools, each a plain name (the part of a tool's name before the dot).
+fn parse_tools(list: &Value) -> Option<Vec<String>> {
+    let list = list.as_array().filter(|l| l.len() <= 12)?;
+    list.iter().map(|k| k.as_str().filter(|k| !k.is_empty() && k.len() <= 32 && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')).map(str::to_owned)).collect()
+}
+
+/// At most six reads, each a tool name and an object of arguments.
+fn parse_reads(list: &Value) -> Option<Vec<(String, Value)>> {
+    let list = list.as_array().filter(|l| l.len() <= 6)?;
+    list.iter()
+        .map(|r| {
+            let tool = r.get("tool")?.as_str().filter(|t| !t.is_empty() && t.len() <= 64 && t.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-')))?;
+            let arguments = match r.get("arguments") {
+                None | Some(Value::Null) => serde_json::json!({}),
+                Some(a) if a.is_object() && a.to_string().len() <= 2000 => a.clone(),
+                Some(_) => return None,
+            };
+            Some((tool.to_owned(), arguments))
+        })
+        .collect()
 }
 
 const AUDIO_TYPES: [&str; 5] = ["audio/webm", "audio/ogg", "audio/mp4", "audio/wav", "audio/mpeg"];
@@ -511,6 +590,31 @@ impl AgentService {
         if let Some(project) = &request.project {
             params.insert("project".into(), json!(project));
         }
+        // The mode's own reads, then the suggestion's.
+        let mode_reads = request.mode.map(|m| m.reads).unwrap_or(&[]).iter().filter_map(|(tool, args)| serde_json::from_str::<Value>(args).ok().map(|a| ((*tool).to_owned(), a)));
+        let reads: Vec<Value> = mode_reads.chain(request.reads.iter().cloned()).take(6).map(|(tool, arguments)| json!({ "tool": tool, "arguments": arguments })).collect();
+        if !reads.is_empty() {
+            params.insert("reads".into(), json!(reads));
+        }
+        if request.finish || request.mode.is_some_and(|m| m.finish) {
+            params.insert("finish".into(), json!(true));
+        }
+        // Only the tools of the apps the mode or suggestion works in; both, when both name some.
+        let mut tools: Vec<String> = request.mode.map(|m| m.tools).unwrap_or(&[]).iter().map(|k| (*k).to_owned()).collect();
+        for kind in &request.tools {
+            if !tools.contains(kind) {
+                tools.push(kind.clone());
+            }
+        }
+        if !tools.is_empty() {
+            params.insert("tools".into(), json!(tools));
+        }
+        if let Some(app) = &request.app {
+            params.insert("app".into(), json!(app));
+        }
+        if let Some(effort) = request.mode.and_then(|m| m.effort) {
+            params.insert("effort".into(), json!(effort));
+        }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
             Err(e) => failed(Self::describe(&e)),
@@ -610,7 +714,12 @@ impl AgentService {
     }
 
     pub fn resolve(&self, request_id: u64, approve: bool, duration: &str) -> Value {
-        match self.call("permissions.resolve", json!({ "request_id": request_id, "approve": approve, "duration": duration })) {
+        let params = if duration == "turn" {
+            json!({ "request_id": request_id, "approve": true, "duration": "once", "for_turn": true })
+        } else {
+            json!({ "request_id": request_id, "approve": approve, "duration": duration })
+        };
+        match self.call("permissions.resolve", params) {
             Ok(_) => ok(),
             Err(e) => failed(Self::describe(&e)),
         }

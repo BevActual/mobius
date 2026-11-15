@@ -133,3 +133,16 @@
   .sheet-page .sheet-formula-row, .sheet-page .sheet-find, .sheet-page .sheet-foot, .sheet-page .sheet-fill { display: none; }
   .sheet-page .sheet-scroll { overflow: visible; }
 }
+
+/* Charts on the sheet (sheets.write's charts), below the grid: dashed in Mobius's colour while its change is not kept. */
+/* Beside the grid when every used column still shows whole next to them (Sheets measures it and sets
+   data-charts and --chart-w, 220 to 320px); otherwise under the grid, so the charts never cut a column off. */
+.sheet-page .sheet-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.sheet-page .sheet-body > .sheet-scroll { min-width: 0; }
+.sheet-page .sheet-body[data-charts="beside"] { flex-direction: row; }
+.sheet-page .sheet-body[data-charts="beside"] > .sheet-charts { flex-direction: column; flex-wrap: nowrap; width: var(--chart-w, 320px); max-height: none; border-top: 0; border-left: var(--hairline-w) solid var(--line); }
+.sheet-page .sheet-body[data-charts="beside"] > .sheet-charts .sheet-chart { flex: none; max-width: none; }
+.sheet-page .sheet-charts { flex-shrink: 0; display: flex; flex-wrap: wrap; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border-top: var(--hairline-w) solid var(--line); background: var(--bg); max-height: 45%; overflow: auto; }
+.sheet-page .sheet-chart { margin: 0; flex: 1 1 320px; max-width: 560px; padding: var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper); }
+.sheet-page .sheet-chart[data-proposed] { outline: 1px dashed color-mix(in srgb, var(--mobius) 70%, var(--line)); outline-offset: -1px; }
+.sheet-page .sheet-chart figcaption { margin-bottom: var(--sp-2); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }

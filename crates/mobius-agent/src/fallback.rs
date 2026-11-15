@@ -2,6 +2,7 @@
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::message::ToolCall;
 use crate::provider::{ChatRequest, Completion, Provider, ProviderError};
 
 /// Whether a failure is the kind a second model could get past: the service is busy or down, cannot be reached, or
@@ -48,13 +49,25 @@ impl FallbackProvider {
 
 impl Provider for FallbackProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        self.complete_with_calls(request, on_text, &mut |_| {})
+    }
+
+    /// Never switches once a call was given early either: it may have run, and the second model would do it again.
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&ToolCall)) -> Result<Completion, ProviderError> {
         let spoke = AtomicBool::new(false);
-        let first = self.first.complete(request, &mut |text| {
-            if !text.is_empty() {
+        let first = self.first.complete_with_calls(
+            request,
+            &mut |text| {
+                if !text.is_empty() {
+                    spoke.store(true, Ordering::SeqCst);
+                }
+                on_text(text)
+            },
+            &mut |call| {
                 spoke.store(true, Ordering::SeqCst);
-            }
-            on_text(text)
-        });
+                on_call(call);
+            },
+        );
         let error = match first {
             Ok(done) => return Ok(done),
             Err(error) => error,
@@ -65,6 +78,6 @@ impl Provider for FallbackProvider {
         (self.on_switch)(&self.second_model, &summary(&error));
         let mut again = request.clone();
         again.model.clone_from(&self.second_model);
-        self.second.complete(&again, on_text)
+        self.second.complete_with_calls(&again, on_text, on_call)
     }
 }

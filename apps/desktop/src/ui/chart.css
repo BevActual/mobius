@@ -1,0 +1,53 @@
+/* Chart (Chart.tsx): the data is the only loud thing. Hairline grid one step off the paper, axis figures faint and
+   tabular, columns and lines in the series' chart step, a 10% wash under an area, a legend of small keys in ink text,
+   and a raised tooltip that never covers the column it reads. */
+.ui-chart { margin: 0; min-width: 0; }
+.ui-chart[data-proposed] { padding: var(--sp-2); outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: 0; border-radius: var(--radius-panel); }
+.ui-chart-legend { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); margin: 0 0 var(--sp-2); padding: 0; list-style: none; font-size: var(--fs-sm); color: var(--body); }
+.ui-chart-legend li { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.ui-chart-plot { position: relative; min-width: 0; outline: 0; border-radius: var(--radius-control); }
+.ui-chart-plot:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--sp-1); }
+.ui-chart-plot svg { display: block; width: auto; height: auto; overflow: visible; fill: none; stroke: none; }
+.ui-chart-grid { stroke: var(--line-soft); stroke-width: var(--hairline-w); shape-rendering: crispEdges; }
+.ui-chart-grid[data-zero] { stroke: var(--line); }
+.ui-chart-tick, .ui-chart-cat { fill: var(--faint); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.ui-chart-cat { fill: var(--muted); }
+.ui-chart-hover { fill: color-mix(in srgb, var(--ink) 4%, transparent); }
+.ui-chart-cross { stroke: var(--line); stroke-width: var(--hairline-w); }
+
+/* Series colour: the chart step of the content colour. */
+:is(.ui-chart, .ui-spark) [data-color="blue"], .ui-spark[data-color="blue"] { --series: var(--chart-blue); }
+:is(.ui-chart, .ui-spark) [data-color="coral"], .ui-spark[data-color="coral"] { --series: var(--chart-coral); }
+:is(.ui-chart, .ui-spark) [data-color="teal"], .ui-spark[data-color="teal"] { --series: var(--chart-teal); }
+:is(.ui-chart, .ui-spark) [data-color="amber"], .ui-spark[data-color="amber"] { --series: var(--chart-amber); }
+:is(.ui-chart, .ui-spark) [data-color="pink"], .ui-spark[data-color="pink"] { --series: var(--chart-pink); }
+:is(.ui-chart, .ui-spark) [data-color="green"], .ui-spark[data-color="green"] { --series: var(--chart-green); }
+:is(.ui-chart, .ui-spark) [data-color="violet"], .ui-spark[data-color="violet"] { --series: var(--chart-violet); }
+:is(.ui-chart, .ui-spark) [data-color="yellow"], .ui-spark[data-color="yellow"] { --series: var(--chart-yellow); }
+:is(.ui-chart, .ui-spark) [data-color="stone"], .ui-spark[data-color="stone"] { --series: var(--chart-stone); }
+.ui-chart-bar { fill: var(--series); transition: opacity var(--dur-fast) var(--ease); }
+.ui-chart-bar[data-dim] { opacity: 0.55; }
+.ui-chart-line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ui-chart-area { fill: color-mix(in srgb, var(--series) 10%, transparent); stroke: none; }
+.ui-chart-dot { fill: var(--series); stroke: var(--paper); stroke-width: 2; }
+
+/* The legend and tooltip key: a small square for columns, a short line for lines and areas. */
+.ui-chart-key { flex: none; width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-control); background: var(--series); }
+.ui-chart-key:is([data-kind="line"], [data-kind="area"]) { width: calc(var(--dot-size) * 2); height: calc(var(--hairline-w) * 2); border-radius: var(--radius-pill); }
+
+.ui-chart-tip {
+  position: absolute; z-index: 2; min-width: calc(var(--card-w) / 2.4); padding: var(--sp-2) var(--sp-3); pointer-events: none;
+  border-radius: var(--radius-control); background: var(--raised);
+  box-shadow: var(--shadow-menu); font-size: var(--fs-sm); color: var(--body);
+  transform: translateX(var(--sp-4));
+}
+.ui-chart-tip[data-side="left"] { transform: translateX(calc(-100% - var(--sp-4))); }
+.ui-chart-tip-head { margin-bottom: var(--sp-1); font-weight: var(--fw-semibold); color: var(--ink); }
+.ui-chart-tip-row { display: flex; align-items: center; gap: var(--sp-2); }
+.ui-chart-tip-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ui-chart-tip-value { font-family: var(--font-mono); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+/* Sparkline: as wide as its box, a line with the last value marked. */
+.ui-spark { position: relative; display: inline-block; width: 100%; height: var(--spark-h); vertical-align: middle; }
+.ui-spark svg { display: block; width: 100%; height: 100%; overflow: visible; fill: none; stroke: none; }
+.ui-spark-end { position: absolute; right: 0; width: var(--dot-size); height: var(--dot-size); border-radius: var(--radius-pill); background: var(--series); box-shadow: 0 0 0 calc(var(--hairline-w) * 2) var(--paper); transform: translate(50%, -50%); }

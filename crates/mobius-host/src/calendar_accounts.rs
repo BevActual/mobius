@@ -69,7 +69,7 @@ fn now_ms() -> u64 {
     std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
-fn new_id() -> String {
+pub(crate) fn new_id() -> String {
     let mut bytes = [0u8; 4];
     let _ = getrandom::fill(&mut bytes);
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -79,7 +79,7 @@ fn secret_name(id: &str) -> String {
     format!("calendar-account:{id}")
 }
 
-fn clean_name(name: &str) -> Option<String> {
+pub(crate) fn clean_name(name: &str) -> Option<String> {
     let name = mobius_workspace::notes::file_name_for(name.trim());
     (!name.starts_with("Untitled") || name == "Untitled").then_some(name).filter(|n| n.chars().count() <= 60)
 }
@@ -95,7 +95,7 @@ fn subscription_url(text: &str) -> Res<url::Url> {
     Ok(url)
 }
 
-fn server_url(text: &str) -> Res<url::Url> {
+pub(crate) fn server_url(text: &str) -> Res<url::Url> {
     let text = text.trim();
     let text = if text.contains("://") { text.to_owned() } else { format!("https://{text}") };
     let url = url::Url::parse(&text).map_err(|_| "That is not a server address.".to_owned())?;
@@ -107,7 +107,7 @@ fn server_url(text: &str) -> Res<url::Url> {
 
 /// Credentials go only to the server they were given for, or another of the same site (iCloud sends people from
 /// caldav.icloud.com to p01-caldav.icloud.com).
-fn same_site(a: &url::Url, b: &url::Url) -> bool {
+pub(crate) fn same_site(a: &url::Url, b: &url::Url) -> bool {
     let site = |u: &url::Url| {
         let host = u.host_str().unwrap_or("").to_ascii_lowercase();
         let parts: Vec<&str> = host.rsplitn(3, '.').collect();

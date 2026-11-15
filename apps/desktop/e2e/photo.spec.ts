@@ -36,6 +36,8 @@ const panel = (): Locator => shell().getByRole('tabpanel', { name: 'Adjustments'
 async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  // Room for the whole toolbar, as on a laptop; a narrow window moves controls into the ⋯ menu.
+  await resizeWindow(mobius.app, 1440, 900);
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   // Wide enough for the photo, Adjust in the inspector and Mobius side by side (narrower, they take turns over the page).
   await resizeWindow(mobius.app, 1440, 900);
@@ -51,7 +53,8 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
   await panel().getByRole('button', { name: 'Add adjustment' }).click();
   await panel().getByRole('slider', { name: 'Warmth' }).fill('30');
-  await panel().getByRole('combobox', { name: 'Applies to' }).selectOption('below');
+  await panel().getByRole('combobox', { name: 'Applies to' }).click();
+  await shell().getByRole('option', { name: 'Below a line' }).click();
   await expect.poll(() => fs.existsSync(editsFile()) && JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0]).toMatchObject({ warmth: 30, area: { kind: 'below' } });
   expect(fs.readFileSync(path.join(album(), 'coastline.png'))).toEqual(PNG);
   await panel().getByRole('button', { name: 'Hide Adjustment 1' }).click();
@@ -153,4 +156,26 @@ test('Mobius adds an adjustment to the edits, shown dashed, and it is kept or di
   await change.getByRole('button', { name: 'Discard' }).click();
   await expect.poll(() => fs.existsSync(editsFile())).toBe(false);
   await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveCount(0);
+});
+
+test('Mobius\'s change to the open photo shows as it lands, and its Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the edits have changed.
+  await start([
+    callsTool('files-write', { path: 'photos/Lisbon/coastline.png.edits.json', content: JSON.stringify(WARM) }),
+    says(['Added Warm ', 'the hills.'], 3000),
+  ]);
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('tab', { name: 'Adjust', exact: true }).first().click();
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('warm the hills');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  const change = shell().getByRole('group', { name: "Mobius's change" });
+  await expect(change).toContainText('Mobius changed Warm the hills');
+  await expect(panel().getByRole('option', { name: /Warm the hills/ })).toHaveAttribute('data-proposed', 'true');
+  await expect(log.locator('.msg.assistant').last()).not.toHaveText('Added Warm the hills.');
+  await expect(change.getByRole('button', { name: 'Keep' })).toHaveCount(0);
+  await expect(log.locator('.msg.assistant').last()).toHaveText('Added Warm the hills.', { timeout: 15_000 });
+  await change.getByRole('button', { name: 'Keep' }).click();
+  await expect(change).toHaveCount(0);
+  expect(JSON.parse(fs.readFileSync(editsFile(), 'utf8')).adjustments[0].name).toBe('Warm the hills');
 });

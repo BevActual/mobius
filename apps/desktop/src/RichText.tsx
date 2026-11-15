@@ -16,11 +16,15 @@ const TIERS = {
   unsure: { name: 'Not sure', note: 'Guessed, conflicting or stale. Check it before it leaves Mobius.' },
 } as const;
 
+/** A source that is only a tool's id ("id 1", "#3", "work/inbox/7") means nothing to the person: it is not shown. */
+export const readableSource = (source: string): string => (/^(id\s*)?#?\d+$/i.test(source.trim()) || /^[^\s/]+\/(inbox|sent)\/\d+$/i.test(source.trim()) ? '' : source);
+
 /** A fact with where it came from: underlined by how sure it is, the source a click away. */
-function Claim({ tier, source, words, children }: { tier: 'yours' | 'web' | 'unsure'; source: string; words: string; children: ReactNode }) {
+function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web' | 'unsure'; source: string; words: string; children: ReactNode }) {
+  const source = readableSource(given);
   const [open, setOpen] = useState(false);
   const checks = useContext(ClaimChecks);
-  const key = claimKey(words, source);
+  const key = claimKey(words, given);
   const checked = tier === 'unsure' && (checks?.checked.has(key) ?? false);
   const shown = checked ? 'Checked by you' : TIERS[tier].name;
   return (
@@ -77,6 +81,16 @@ function block(node: Block, i: number): ReactNode {
     }
     case 'quote': return <blockquote key={i}>{inline(node.children)}</blockquote>;
     case 'code': return <pre key={i} data-lang={node.lang || undefined}><code>{node.text}</code></pre>;
+    case 'table':
+      // Wide tables scroll inside their own box, so the reply around them keeps its width.
+      return (
+        <div key={i} className="md-table" role="region" aria-label="Table" tabIndex={0}>
+          <table>
+            <thead><tr>{node.head.map((cell, j) => <th key={j} scope="col" style={node.align[j] ? { textAlign: node.align[j]! } : undefined}>{inline(cell)}</th>)}</tr></thead>
+            <tbody>{node.rows.map((row, r) => <tr key={r}>{row.map((cell, j) => <td key={j} style={node.align[j] ? { textAlign: node.align[j]! } : undefined}>{inline(cell)}</td>)}</tr>)}</tbody>
+          </table>
+        </div>
+      );
     case 'rule': return <hr key={i} />;
   }
 }

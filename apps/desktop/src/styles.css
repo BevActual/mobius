@@ -958,6 +958,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant pre { padding: 10px 12px; border-radius: var(--radius-group); background: var(--field); overflow-x: auto; white-space: pre; font-family: var(--font-mono); font-size: 0.9em; line-height: 1.45; }
 .msg.assistant blockquote { padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--muted); }
 .msg.assistant hr { border: 0; border-top: 1px solid var(--line); }
+.msg.assistant .md-table { overflow-x: auto; max-width: 100%; }
+.msg.assistant .md-table table { border-collapse: collapse; font-size: 0.95em; font-variant-numeric: tabular-nums; }
+.msg.assistant .md-table th, .msg.assistant .md-table td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.msg.assistant .md-table th { font-weight: 600; border-bottom-color: var(--line-strong); white-space: nowrap; }
 .msg.assistant[data-streaming="true"]:not(:empty)::after { content: none; }
 .msg.assistant[data-streaming="true"] > :last-child::after { content: ""; display: inline-block; width: 6px; height: 6px; margin-left: 4px; border-radius: 50%; background: var(--muted); vertical-align: middle; animation: pulse var(--dur-loop) var(--ease) infinite; }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"] > :last-child::after { animation: none; } }
@@ -1980,7 +1984,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .comment-on { margin: 0 0 6px; font-size: var(--fs-xs); font-weight: 600; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .comment-text { margin: 0 0 6px; white-space: pre-wrap; }
 .comment-meta { margin: 0 0 6px; font-size: var(--fs-sm); color: var(--muted); }
-.comment-reply { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); white-space: pre-wrap; }
+.comment-reply { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--wash); }
+.comment-reply > :first-child { margin-top: 0; }
+.comment-reply > :last-child { margin-bottom: 0; }
 .comment-actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 8px; }
 .comment-row-pin { flex: none; width: 10px; height: 10px; border-radius: 5px 5px 5px 1.5px; background: #5856D6; }
 .comment-row-pin[data-state="note"] { background: #FFCC00; }
@@ -2609,6 +2615,7 @@ body { font-variant-numeric: tabular-nums; }
 .chat .approval { margin-top: var(--sp-2); padding: 0; border: 0; }
 .chat .approval-text { font-weight: var(--fw-semibold); color: var(--ink); }
 .approval-final { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.approval-scope { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .chat .approval-actions { align-items: center; gap: var(--sp-1); margin-top: var(--sp-3); }
 .chat .approval-actions .approval-quiet { border: 0; background: none; box-shadow: none; color: var(--muted); padding: 0 var(--sp-2); }
 .chat .approval-actions .approval-quiet:hover:not(:disabled), .chat .approval-actions .approval-quiet:focus-visible { background: var(--sel); color: var(--ink); }
@@ -2655,3 +2662,5 @@ body { font-variant-numeric: tabular-nums; }
 .result-body { min-width: 0; }
 .result-buttons { display: flex; align-items: center; gap: var(--sp-1); margin: 0 -6px -6px; }
 .result-keep { margin-left: auto; }
+/* The app's actions after a finished turn: only when the app has some. */
+.actions-after:not(:has(.action-row)) { display: none; }

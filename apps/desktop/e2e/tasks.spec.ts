@@ -122,6 +122,23 @@ test('the agent adds a task from the panel beside the list, and it appears witho
   expect(await page().evaluate((el) => el.contains(document.activeElement))).toBe(false);
 });
 
+test('a task Mobius adds is marked as it lands, and Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the task is in the list.
+  await start([callsTool('tasks-add', { list: 'Inbox', text: 'Call the venue' }), says(['Added ', 'it to your Inbox.'], 3000)]);
+  await lists().getByRole('button', { name: /^Inbox/ }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('Remind me to call the venue');
+  await composer.press('Enter');
+  await shell().getByRole('button', { name: 'Allow once' }).click();
+  const row = todo().locator('.task', { hasText: 'Call the venue' });
+  await expect(row).toHaveAttribute('data-proposed', 'true');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).not.toHaveText('Added it to your Inbox.');
+  await expect(page().getByRole('button', { name: 'Keep' })).toHaveCount(0);
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to your Inbox.', { timeout: 15_000 });
+  await expect(page().getByRole('button', { name: 'Keep' })).toBeVisible();
+  await expect(row).toHaveAttribute('data-proposed', 'true');
+});
+
 test('a suggestion in Tasks attaches the open list, so the agent sees what is on it', async () => {
   fs.mkdirSync(path.dirname(file('Inbox')), { recursive: true });
   fs.writeFileSync(file('Inbox'), '# Inbox\n\n- [ ] Write the report\n');

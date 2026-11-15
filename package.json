@@ -22,6 +22,7 @@
     "test:core": "cargo test --workspace",
     "gen:types": "node scripts/gen-types.mjs",
     "check:types": "node scripts/check-generated.mjs",
+    "snapshot:tools": "node scripts/snapshot-tools.mjs",
     "app": "npm run app -w @mobius/desktop --",
     "package": "node scripts/package.mjs"
   },

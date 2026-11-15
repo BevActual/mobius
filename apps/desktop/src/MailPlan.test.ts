@@ -14,6 +14,14 @@ describe('ask your mail', () => {
       { role: 'assistant', text: 'In six weeks.', tool_calls: [] },
     ])).toEqual(['a1/inbox/2', 'a1/inbox/5']);
   });
+  it('counts a reply drafted from a preview, so Triage names every message it answered (Sam, round 19)', () => {
+    const call = (name: string, args: object) => ({ id: name + JSON.stringify(args), name, arguments: args });
+    expect(mailReadIn([
+      { role: 'user', text: 'Triage my 40 unread messages.' },
+      { role: 'assistant', text: '', tool_calls: [call('mail.read', { id: 'priya' }), call('mail.draft', { replyTo: 'priya', body: 'Hi' })] },
+      { role: 'assistant', text: '', tool_calls: [call('mail.draft', { replyTo: 'sam', body: 'Hi Sam' }), call('mail.draft', { to: 'x@example.com', subject: 'New', body: 'Hello' })] },
+    ])).toEqual(['priya', 'sam']);
+  });
 });
 
 describe('send later', () => {

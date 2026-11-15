@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import type { SuggestedRead } from './surface';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
 import { Welcome } from './Welcome';
 import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
@@ -7,9 +8,9 @@ import { APPS } from './apps';
 import { stepTag } from './step-access';
 import { usePreferences } from './usePreferences';
 import { ClaimChecks, RichText } from './RichText';
-import { unsureClaims, withoutMarks } from './markdown';
+import { unsureClaims, withoutMarks, withoutToolTags } from './markdown';
 import { ReviewStrip, TurnHistory } from './ReviewStrip';
-import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type Duration, type EffortChoice, type TodoItem } from '@mobius/shared';
+import { splitContext, splitSteps, type AgentConfigureRequest, type AgentResult, type AgentSettings, type ContextItem, type ConversationInfo, type AnswerFor, type EffortChoice, FOR_THIS_QUESTION, type TodoItem } from '@mobius/shared';
 import { Composer } from './composer/Composer';
 import { MailSources } from './MailPlan';
 import { ActionsList, ActionsSlotContext, actionKey } from './ActionsSlot';
@@ -18,7 +19,7 @@ import { stampLabel, startsGroup } from './time-stamps';
 import { useSpeech } from './useSpeech';
 import { isSpeaking, readAloudNow } from './speech';
 import { EMPTY_QUEUE, afterTurn, clearQueue, editQueued, enqueue, removeQueued, resumeQueue, type MessageQueue, type Queued } from './message-queue';
-import { isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
+import { endedWithReply, isReadTool, proposedPlan, readsSummary, replySources, type ConversationState, type Item, type ToolStatus, type findToolResult } from './conversation';
 import { relativeTime } from './relative-time';
 import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
@@ -113,7 +114,7 @@ function PlanCard({ item, proposal, busy, onStart, onDrive, onStop }: {
             <li key={i} className="plan-step" data-status={step.status} aria-label={`${step.text}: ${STEP_STATUS[step.status]}`}>
               {proposal ? <span className="plan-num" aria-hidden="true">{i + 1}</span> : <span className="plan-mark" aria-hidden="true" />}
               <span className="plan-text">{step.text}</span>
-              {proposal && (() => { const t = stepTag(step.text, preferences.value.appAccess, preferences.value.approvalMode); return t ? <span className="plan-tag" data-tag={t.tag.startsWith('Asks') ? 'ask' : t.tag === 'Off' ? 'off' : 'act'} title={`${t.app}: ${t.tag.toLowerCase()}, from Settings › Safety. Clicking, typing and deleting always ask.`}>{t.tag}</span> : null; })()}
+              {proposal && (() => { const t = stepTag(step.text, preferences.value.appAccess, preferences.value.approvalMode); return t ? <span className="plan-tag" data-tag={t.tag.startsWith('Asks') ? 'ask' : t.tag === 'Off' ? 'off' : 'act'} title={`${t.app}: ${t.tag.toLowerCase()}, from Settings › Approvals and safety. Clicking, typing and deleting always ask.`}>{t.tag}</span> : null; })()}
             </li>
           ))}
         </ol>
@@ -225,7 +226,7 @@ function AppLinks({ names, onOpenItem }: { names: readonly string[]; onOpenItem?
 
 /** Three or more of the same finished call in a row, or two or more finished reads, as one line ("Added 6 tasks to P2
  * build", "Read your mail and calendar") that opens to show each. */
-function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+function ToolGroup({ items, onAnswer, onDetails, onOpenItem }: { items: Extract<Item, { kind: 'tool' }>[]; onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [open, setOpen] = useState(false);
   const first = items[0]!;
   // Reads only say what was read; what was changed keeps its own rows, each a link to what it made.
@@ -264,7 +265,7 @@ function toolRuns(items: readonly Item[]): Map<number, number> {
   return runs;
 }
 
-function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
+function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item, { kind: 'tool' }>; onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>; onDetails: (callId: string) => Promise<Details>; onOpenItem?: ((target: HubTarget) => void) | undefined }) {
   const [problem, setProblem] = useState<string | null>(null);
   const [details, setDetails] = useState<Details | null>(null);
   const [open, setOpen] = useState(false);
@@ -276,7 +277,7 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   };
   const [sending, setSending] = useState(false);
   const shownArgs = describeArguments(item.args);
-  const respond = async (approve: boolean, duration: Duration) => {
+  const respond = async (approve: boolean, duration: AnswerFor) => {
     if (item.requestId === undefined) return;
     setSending(true);
     setProblem(await onAnswer(item.requestId, approve, duration));
@@ -333,10 +334,14 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
             );
           })()}
           {finalNote(item.name) && <p className="approval-final">{finalNote(item.name)}</p>}
+          {!item.onceOnly && FOR_THIS_QUESTION.includes(item.name) && <p className="approval-scope">Allow for this question lets Mobius search and read web pages until it has answered this message. Clicking, typing or signing in on a site still asks.</p>}
           {/* Quiet choices on the left, the one that goes ahead in ink on the right (Instrument, the Asking state). */}
           <div className="approval-actions">
             <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(false, 'once')}>Decline</button>
             {item.onceOnly || finalVerb(item.name) ? null : <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'always')}>Always allow</button>}
+            {/* Reading the web: one yes covers the rest of this question, so Research asks once, not at every search. */}
+            {!item.onceOnly && FOR_THIS_QUESTION.includes(item.name) && <button type="button" className="btn approval-quiet" disabled={sending} onClick={() => void respond(true, 'turn')}
+              title="Mobius may search and read web pages without asking until it has answered this message. Clicking, typing or signing in on a site still asks.">Allow for this question</button>}
             {/* Named by what it does when that can't be undone ("Send"); its full name still says it allows it once. */}
             <button type="button" className="btn primary approval-go" disabled={sending} onClick={() => void respond(true, 'once')}>{finalVerb(item.name) ? <><span className="sr-only">Allow once: </span>{finalVerb(item.name)}</> : 'Allow once'}</button>
           </div>
@@ -355,14 +360,14 @@ export interface ChatPanelProps {
   state: ConversationState;
   settings: AgentSettings | null;
   coreReady: boolean;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
   /** Show a browser tab to the person (to sign in themselves). */
   onShowTab?: (tab: string) => void;
   onStop: () => void;
   /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
   onTakeOver?: () => Promise<string | null>;
   onHandBack?: () => Promise<string | null>;
-  onAnswer: (requestId: number, approve: boolean, duration: Duration) => Promise<string | null>;
+  onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
@@ -614,13 +619,26 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   // The resting panel's Actions list: an app's own actions go in first (Mail's Get to zero), then the ideas.
   const [appSlot, setAppSlot] = useState<HTMLDivElement | null>(null);
   const resting = state.items.length === 0 && configured && !desk && variant === 'panel';
-  const actionsHere = resting ? appSlot : null;
   // The Glance and Result slots: Glance at the top of the resting panel and after a result; Result under the last
   // reply once the turn is done. One host element each, placed where the panel is now (null when there is no place).
   const [glanceSlot, setGlanceSlot] = useState<HTMLDivElement | null>(null);
   const [resultSlot, setResultSlot] = useState<HTMLDivElement | null>(null);
-  const done = variant === 'panel' && !desk && settled && lastAssistant >= 0 && lastAssistant === state.items.length - 1 && (state.items[lastAssistant] as Extract<Item, { kind: 'assistant' }>).streaming !== true;
+  // A turn that finished on its changes (Plan my day) has its calls after its reply: it is done too, so Mail's Triage
+  // still follows it.
+  const done = variant === 'panel' && !desk && settled && endedWithReply(state.items);
+  // Once a turn is done the app's own actions follow its reply too, so another app's work waiting for Keep never hides
+  // them (Plan my day, then Mail's Triage).
+  const actionsHere = resting || done ? appSlot : null;
   const glanceHere = resting || done ? glanceSlot : null;
+  // Once the last turn's changes are all kept or discarded, the ideas come back as chips, so the next one is a press
+  // away without a new chat. A new message (or another conversation) waits for its own review again.
+  const [reviewed, setReviewed] = useState(false);
+  const hadChanges = useRef(false);
+  const onReviewShown = useCallback((shown: boolean) => {
+    if (shown) { hadChanges.current = true; setReviewed(false); } else if (hadChanges.current) { hadChanges.current = false; setReviewed(true); }
+  }, []);
+  const asked = state.items.filter((item) => item.kind === 'user').length;
+  useEffect(() => { hadChanges.current = false; setReviewed(false); }, [asked, state.conversation]);
   const resultHere = done ? resultSlot : null;
   // Number keys pick an action while the panel has the focus and nothing is being typed.
   useEffect(() => {
@@ -776,7 +794,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               ) : item.kind === 'assistant' ? (
                 <Fragment key={item.id}>
                   <ClaimChecks.Provider value={{ checked: checkedClaims[item.id] ?? new Set(), check: (key) => setCheckedClaims((cur) => ({ ...cur, [item.id]: new Set([...(cur[item.id] ?? []), key]) })) }}>
-                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={item.text} /></div>
+                    <div className="msg assistant" data-streaming={item.streaming}><RichText text={withoutToolTags(item.text)} /></div>
                   </ClaimChecks.Provider>
                   {!item.streaming && item.text !== '' && (() => { const from = replySources(state.items, index); return from.length > 0 ? <p className="msg-sources" title="The apps Mobius used for this reply">Based on <AppLinks names={from} onOpenItem={onOpenItem} /></p> : null; })()}
                   {!item.streaming && item.text !== '' && onOpenMail && !state.busy && index === state.items.findLastIndex((i) => i.kind === 'assistant') && replySources(state.items, index).includes('Mail') && <MailSources conversation={state.conversation} version={state.items.length} onOpen={onOpenMail} />}
@@ -800,6 +818,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                     <>
                       <div ref={setResultSlot} className="result-slot" />
                       <div ref={setGlanceSlot} className="glance-slot" />
+                      <div className="actions actions-after" role="group" aria-label="Actions"><div className="actions-list"><div ref={setAppSlot} className="actions-app" /></div></div>
                     </>
                   )}
                   {speech.state === 'failed' && speech.id === item.id && (
@@ -830,7 +849,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
                 <ToolRow key={item.id} item={item} onAnswer={onAnswer} onDetails={onDetails} onOpenItem={onOpenItem} />
               ),
             )}
-            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
+            {state.items.length > 0 && <ReviewStrip conversation={state.conversation} busy={state.busy} onOpenItem={onOpenItem} onShown={onReviewShown} since={(() => { const last = state.items.findLast((item) => item.kind === 'user'); return last?.kind === 'user' ? last.at : undefined; })()} />}
             {actionProblem && <div className="msg error" role="alert">{actionProblem}</div>}
             {state.busy && !state.items.some((item) => (item.kind === 'tool' && item.status === 'waiting') || (item.kind === 'question' && item.status === 'open')) && state.items.at(-1)?.kind !== 'assistant' && (
               <WorkingIndicator state={state} onStop={onStop} />
@@ -855,7 +874,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             {...(hint ? { hint } : {})}
             startersIn={state.items.length === 0 ? starterSlot : null}
             startersAs={resting ? 'rows' : 'chips'}
-            started={state.items.length > 0}
+            started={state.items.length > 0 && !(done && reviewed)}
             draft={draft}
             onDraft={setDraft}
             context={context}

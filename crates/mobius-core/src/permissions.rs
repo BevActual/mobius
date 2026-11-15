@@ -101,7 +101,7 @@ impl Policy {
 
     /// Capabilities that can never be allowed standing: each use needs its own approval.
     pub fn default_floors() -> Self {
-        Policy::new(["process.exec", "fs.delete", "secrets.read", "browser.interact"])
+        Policy::new(["process.exec", "fs.delete", "secrets.read", "browser.interact", "drives.write"])
     }
 
     #[must_use]
@@ -207,11 +207,11 @@ impl Policy {
 /// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
 /// back, read the person's mail and suggest a reply (reading changes nothing, and a suggested draft waits for the
 /// person to keep, change and send it; what always asks is paying, sending, deleting and running commands), and read
-/// what only says something about this computer (the time, the schedules). Deleting files is a
-/// floor, and sending, browsing and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 16] = [
-    "clock.read", "schedules.read", "files.read", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
-    "calendar.read", "calendar.write", "skills.read", "document.write", "mail.read", "mail.draft",
+/// what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
+/// is a floor, and sending, browsing and running commands are not here, so they still ask.
+const REVERSIBLE: [&str; 18] = [
+    "clock.read", "schedules.read", "files.read", "files.list", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
+    "calendar.read", "calendar.write", "skills.read", "document.write", "mail.read", "mail.draft", "browser.list",
 ];
 
 #[must_use]
@@ -447,12 +447,17 @@ mod tests {
         let a = agent("mobius");
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.write"), Some("notes/Plan.md")), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("tasks.write"), None), Verdict::Allow { consume: None });
+        // Listing a folder only reads, so a tidy asks nothing before its moves (it once asked twice just to look).
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("files.list"), Some("Downloads")), Verdict::Allow { consume: None });
         // Reading the time asks nothing in Propose.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("clock.read"), None), Verdict::Allow { consume: None });
         // Reading mail changes nothing, so Propose does not stop for it; sending still asks.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.draft"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.send"), None), Verdict::Ask);
+        // Which tabs are open is said without asking; reading a page still asks (the person's own pages are files).
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.list"), None), Verdict::Allow { consume: None });
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.read"), None), Verdict::Ask);
         // Not reversible, or a floor: asked as in manual.
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.navigate"), None), Verdict::Ask);
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("fs.delete"), Some("notes/Plan.md")), Verdict::Ask);
@@ -538,7 +543,7 @@ mod tests {
     fn the_floors_are_the_same_list_in_both_modes() {
         for mode in [ApprovalMode::Manual, ApprovalMode::Smart, ApprovalMode::Off] {
             let p = in_mode(mode);
-            for floor in ["process.exec", "fs.delete", "secrets.read", "browser.interact"] {
+            for floor in ["process.exec", "fs.delete", "secrets.read", "browser.interact", "drives.write"] {
                 assert!(p.is_floor(&cap(floor)), "{floor}");
             }
             assert!(!p.is_floor(&cap("browser.read")));

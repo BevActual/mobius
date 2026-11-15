@@ -339,8 +339,55 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
     let system = sends[0]["system"].as_str().unwrap();
     assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
     assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
+    // What the third demo run showed: one search for the unread, messages named by sender and subject, no duplicate tasks.
+    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides or promises for the person", "add up to every unread message", "a security alert, a quote", "one task per thing asked", "drafted already was handled before", "asks the person themselves to do", "even with someone a message names", "the three that most need the person", "as parallel tool calls in one round", "only those words", "write every line as your final reply", "never a tool name or a tag", "before you decide anything else", "five drafts at most", "do not write the counts again", "even when the message asks for it by one", "never calendar.suggest", "one short opening line with the counts", "that message's own sender and subject", "\"Thanks,\" and the person's name", "add no full stop", "unless that draft says yes", "Do these steps in order", "no timestamps", "with no day or deadline", "look at calendar.list for those days first", "a draft for each other Reply message", "never promises a date or a slot; it offers one and asks", "ask whether it suits", "Write nothing after the lines"] {
+        assert!(system.contains(words), "{words}");
+    }
     assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
     assert_eq!(sends[1]["ask"], json!(true), "Analyse never changes a cell");
+}
+
+#[test]
+fn a_modes_and_a_suggestions_first_reads_go_to_the_core_and_bad_ones_are_refused() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let triage = parse_send(&json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" })).unwrap();
+    s.service.send(&triage, None);
+    let plan = parse_send(&json!({ "conversation": "c-2", "text": "plan my day", "reads": [{ "tool": "tasks.list", "arguments": {} }, { "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }] })).unwrap();
+    s.service.send(&plan, None);
+    let sends: Vec<Value> = calls(&s.core).into_iter().filter(|c| c["method"] == "agent.send").map(|c| c["params"].clone()).collect();
+    assert_eq!(sends[0]["reads"], json!([{ "tool": "mail.search", "arguments": { "mailbox": "inbox", "unread": true, "limit": 100 } }, { "tool": "tasks.list", "arguments": {} }]));
+    assert_eq!(sends[1]["reads"][1], json!({ "tool": "calendar.list", "arguments": { "from": "2026-11-14", "to": "2026-11-14" } }));
+    let plain = parse_send(&json!({ "conversation": "c-3", "text": "hi" })).unwrap();
+    s.service.send(&plain, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert!(last["params"].get("reads").is_none() && last["params"].get("finish").is_none());
+    assert!(sends[0].get("finish").is_none(), "Triage writes its lines after its changes, so it is asked again");
+    let finishing = parse_send(&json!({ "conversation": "c-4", "text": "plan my day", "finish": true })).unwrap();
+    s.service.send(&finishing, None);
+    let last = calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap();
+    assert_eq!(last["params"]["finish"], json!(true));
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks list" }] })).is_none(), "not a tool name");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": [{ "tool": "tasks.list", "arguments": [1] }] })).is_none(), "arguments are an object");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "reads": vec![json!({ "tool": "tasks.list" }); 7] })).is_none(), "at most six");
+}
+
+#[test]
+fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_all() {
+    let s = service(true);
+    s.service.configure(&cfg("http://a/v1", "am"));
+    let sent = |request: Value| {
+        s.service.send(&parse_send(&request).unwrap(), None);
+        calls(&s.core).into_iter().rfind(|c| c["method"] == "agent.send").unwrap()["params"].clone()
+    };
+    assert_eq!(sent(json!({ "conversation": "c-1", "text": "sort my inbox", "mode": "triage" }))["tools"], json!(["mail", "tasks", "calendar"]));
+    assert_eq!(sent(json!({ "conversation": "c-2", "text": "plan my day", "tools": ["tasks", "calendar", "mail"] }))["tools"], json!(["tasks", "calendar", "mail"]));
+    assert_eq!(sent(json!({ "conversation": "c-3", "text": "sort", "mode": "triage", "tools": ["files", "mail"] }))["tools"], json!(["mail", "tasks", "calendar", "files"]), "both, once each");
+    assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
+    assert_eq!(sent(json!({ "conversation": "c-5", "text": "sort my inbox", "mode": "triage" }))["effort"], "low", "Triage thinks briefly: with no thinking it stopped after one message (round 18)");
+    assert!(sent(json!({ "conversation": "c-6", "text": "hi" })).get("effort").is_none(), "the person's setting stands");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
+    assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
 }
 
 #[test]
@@ -396,6 +443,9 @@ fn answering_a_question_and_cancelling_reach_the_core() {
     let log = calls(&s.core);
     assert!(log.iter().any(|c| c["method"] == "permissions.resolve" && c["params"] == json!({ "request_id": 5, "approve": true, "duration": "once" })));
     assert!(log.iter().any(|c| c["method"] == "agent.cancel"));
+    // Allow for this question is a yes for now, and the rest of the turn may read the web.
+    assert_eq!(s.service.resolve(6, true, "turn"), json!({ "ok": true }));
+    assert!(calls(&s.core).iter().any(|c| c["method"] == "permissions.resolve" && c["params"] == json!({ "request_id": 6, "approve": true, "duration": "once", "for_turn": true })));
 }
 
 #[test]

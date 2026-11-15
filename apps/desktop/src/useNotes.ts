@@ -36,6 +36,9 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
   const [status, setStatus] = useState<SaveStatus>('saved');
   const [message, setMessage] = useState('');
   // The latest values, for the save timer and the change listener (which outlive a render).
+  // How many times the open page was read again because Mobius (or an undo) changed it, so a review can be worked out
+  // again from what is on screen now.
+  const [reloads, setReloads] = useState(0);
   const live = useRef({ page, text, status });
   live.current = { page, text, status };
   const timer = useRef<number | undefined>(undefined);
@@ -51,7 +54,10 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     return list && !isNotesFailure(list) ? list : null;
   }, [api]);
 
-  const save = useCallback(async (force = false): Promise<boolean> => {
+  // Saves go one after another, each with the base the one before it left: a second save sent while the first is still
+  // on its way would carry the old base and be refused as a conflict, losing the edit (design.spec:223 saw that).
+  const saving = useRef<Promise<boolean>>(Promise.resolve(true));
+  const saveNow = useCallback(async (force = false): Promise<boolean> => {
     window.clearTimeout(timer.current);
     const { page: p, text: sent } = live.current;
     if (!api || !p) return true;
@@ -63,10 +69,17 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
       return false;
     }
     setPage((cur) => (cur && cur.path === p.path ? { ...cur, base: result.modified } : cur));
+    // The next save, if one waits, goes with this base before the page has drawn again.
+    if (live.current.page?.path === p.path) live.current = { ...live.current, page: { ...live.current.page, base: result.modified } };
     // Typing went on while saving: keep it marked as edited, the next timer saves it.
     setStatus(live.current.text === sent ? 'saved' : 'unsaved');
     return true;
   }, [api]);
+  const save = useCallback((force = false): Promise<boolean> => {
+    const next = saving.current.then(() => saveNow(force), () => saveNow(force));
+    saving.current = next.catch(() => false);
+    return next;
+  }, [saveNow]);
 
   // Whether a page is being read, so an item offered while one is on its way does not take its place.
   const loading = useRef(0);
@@ -175,7 +188,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
       }
       const { page: p, status: s } = live.current;
       const action = onPageChanged(s, p !== null && change.path === p.path, change.by);
-      if (action === 'reload' && p) void load(p.path, p.title);
+      if (action === 'reload' && p) void load(p.path, p.title).then(() => setReloads((n) => n + 1));
       if (action === 'ask') setStatus('conflict');
     });
   }, [active, api, refresh, load, remembered, kind]);
@@ -189,7 +202,7 @@ export function useNotes(kind: NotesKind = 'notes', active = true) {
     void load(path, title);
   }, [load]);
 
-  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, open, edit, resolve, createNotebook, createPage, remove, search };
+  return { kind, openIfIdle, available: api !== undefined, loaded, notebooks, page, text, status, message, reloads, open, edit, resolve, createNotebook, createPage, remove, search };
 }
 
 export type NotesState = ReturnType<typeof useNotes>;

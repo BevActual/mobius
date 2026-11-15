@@ -195,9 +195,13 @@ fn a_leftover_server_from_a_previous_run_is_stopped_but_nothing_else_is() {
     // The right name is.
     remember_pid(&file, pid);
     assert!(reap_stale(&file, "mobius-fake-llama"));
-    orphan.wait().ok();
-    std::thread::sleep(Duration::from_millis(200));
-    assert!(!reachable(port));
+    // Stopped means the process has ended. (Not "the port is closed": the other tests here start servers on free
+    // ports at the same time, and one may be given this port as soon as it is let go.)
+    let ended = Instant::now();
+    while orphan.try_wait().unwrap().is_none() {
+        assert!(ended.elapsed() < Duration::from_secs(5), "the leftover server was not stopped");
+        std::thread::sleep(Duration::from_millis(50));
+    }
     assert!(!file.exists(), "the note is removed");
     assert!(!reap_stale(&file, "mobius-fake-llama"), "nothing to do without a note");
     std::fs::write(&file, "not a number").unwrap();

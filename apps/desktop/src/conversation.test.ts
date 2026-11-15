@@ -22,6 +22,19 @@ describe('conversation state', () => {
     expect(s.busy).toBe(true);
   });
 
+  it('keeps streamed text above calls that ran while the model was still writing, without adding it again', () => {
+    const s = run(
+      { type: 'sent', text: 'plan my day', turn: 1 },
+      delta('Moving three tasks.'),
+      note({ kind: 'tool_call', call_id: 'c1', name: 'tasks.update', arguments: {} }),
+      note({ kind: 'tool_result', call_id: 'c1', name: 'tasks.update', is_error: false }),
+      note({ kind: 'message', text: 'Moving three tasks.' }),
+    );
+    expect(kinds(s)).toEqual(['user', 'assistant', 'tool']);
+    expect(s.items[1]).toMatchObject({ text: 'Moving three tasks.', streaming: false });
+    expect(s.items[2]).toMatchObject({ status: 'done' });
+  });
+
   it('shows a send that failed as an error and stops waiting', () => {
     const s = run({ type: 'sent', text: 'hi' }, { type: 'send-failed', message: 'no model is set up yet' });
     expect(s.items.at(-1)).toMatchObject({ kind: 'error', text: 'no model is set up yet' });
@@ -381,7 +394,7 @@ describe('where a reply came from', () => {
   });
 });
 
-import { linkedFrom } from './conversation';
+import { endedWithReply, linkedFrom } from './conversation';
 
 describe('linked from', () => {
   it('names the apps the last turn read, apart from the ones it changed', () => {
@@ -456,8 +469,31 @@ describe('reads in a row fold into one line', () => {
     const { readsSummary, isReadTool } = await import('./conversation');
     expect(readsSummary([{ name: 'mail.search' }, { name: 'mail.read' }, { name: 'calendar.list' }])).toBe('Read your mail and calendar');
     expect(readsSummary([{ name: 'mail.read' }, { name: 'calendar.list' }, { name: 'tasks.list' }])).toBe('Read your mail, calendar and tasks');
+    expect(readsSummary([{ name: 'clock.now' }, { name: 'tasks.list' }])).toBe('Read your tasks');
     expect(readsSummary([{ name: 'browser.read' }])).toBe('Read Browser');
     expect(isReadTool('mail.search')).toBe(true);
     expect(isReadTool('tasks.add')).toBe(false);
+  });
+});
+
+describe('when a turn has ended with a reply', () => {
+  it('a turn that finished on its changes, its reply before its calls, has ended with a reply', () => {
+    const user = { kind: 'user', id: 'u', text: 'Plan my day' } as const;
+    const reply = { kind: 'assistant', id: 'a', text: 'Your day:', streaming: false } as const;
+    const call = (status: 'done' | 'running') => ({ kind: 'tool', id: `t-${status}`, callId: 'c', name: 'tasks.update', status }) as const;
+    expect(endedWithReply([user, reply])).toBe(true);
+    expect(endedWithReply([user, reply, call('done')])).toBe(true);
+    expect(endedWithReply([user, reply, call('running')])).toBe(false);
+    expect(endedWithReply([user, call('done')])).toBe(false);
+    expect(endedWithReply([user, { ...reply, streaming: true }])).toBe(false);
+    expect(endedWithReply([reply, user])).toBe(false);
+  });
+});
+
+describe('reads done before the model was asked', () => {
+  it('are not shown as part of the message once the conversation is opened again', () => {
+    const text = 'Plan my day\n\n<steps>\nRead my tasks.\n</steps>\n\n<reads>\nAlready read for this message (use these; read again only what is missing):\ntasks.list {}\n<<untrusted>>\n</reads>';
+    const s = reduce(initialConversation('main'), { type: 'loaded', conversation: 'main', messages: [{ role: 'user', text }] });
+    expect(s.items[0]).toMatchObject({ kind: 'user', text: 'Plan my day\n\n<steps>\nRead my tasks.\n</steps>' });
   });
 });

@@ -45,3 +45,30 @@ describe('split view follows along', () => {
     expect(followPane(['agent', 'browser'], { app: 'design' })).toBeNull();
   });
 });
+
+import { leavesSplit, loadByMobius, saveByMobius } from './split';
+describe('leaving a split Mobius opened', () => {
+  it('goes to the app alone, whichever pane has the focus', () => {
+    expect(leavesSplit(['agent', 'calendar'], true, 'mail')).toBe(true);
+    expect(leavesSplit(['calendar', 'agent'], true, 'mail')).toBe(true);
+    expect(leavesSplit(['agent', 'calendar'], true, 'calendar')).toBe(false);
+    expect(leavesSplit(['agent', 'calendar'], true, 'agent')).toBe(false);
+    expect(leavesSplit(['agent', 'calendar'], false, 'mail')).toBe(false);
+    expect(leavesSplit(['agent', null], true, 'mail')).toBe(false);
+  });
+  it('goes to an app already beside the conversation alone when the person picks it in the sidebar', () => {
+    // Round 14: Plan my day put Mail beside the chat; Mail from the sidebar only focused that pane, without Triage.
+    expect(leavesSplit(['agent', 'mail'], true, 'mail', true)).toBe(true);
+    expect(leavesSplit(['agent', 'mail'], true, 'agent', true)).toBe(false);
+    expect(leavesSplit(['agent', 'mail'], false, 'mail', true)).toBe(false);
+  });
+  it('remembers who opened the split across a restart', () => {
+    window.localStorage.removeItem('mobius.split.byMobius');
+    expect(loadByMobius(['agent', 'calendar'])).toBe(true);
+    expect(loadByMobius(['notes', 'browser'])).toBe(false);
+    saveByMobius(false);
+    expect(loadByMobius(['agent', 'calendar'])).toBe(false);
+    saveByMobius(true);
+    expect(loadByMobius(['agent', null])).toBe(false);
+  });
+});

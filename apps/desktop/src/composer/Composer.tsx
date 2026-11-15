@@ -11,7 +11,7 @@ import { PopMenu } from './PopMenu';
 import type { Activity } from '../activity';
 import { CameraDialog } from './CameraDialog';
 import { MAX_PICTURES, pictureFromFile, pictureFromUrl, pictureOfWindow } from '../picture';
-import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, withSelection, type Here, type Suggestion, type SurfaceState } from '../surface';
+import { isStarter, mailItem, noteContext, sheetItem, suggestionsFor, tasksItem, withSelection, type Here, type Suggestion, type SuggestedRead, type SurfaceState } from '../surface';
 import { useStageSelection } from '../useStageSelection';
 import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
@@ -37,7 +37,7 @@ export interface ComposerProps {
   /** How the ideas show where they are placed: centred chips (an empty chat), or rows of the panel's Actions list. */
   startersAs?: 'chips' | 'rows';
   /** While Mobius works, Enter puts the message in the queue above the box, sent when the turn ends. */
-  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
+  onQueue?: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
   /** Settings, Voice, for when nothing is set up to listen. */
   onOpenVoice?: () => void;
   /** Suggestions are for starting: once the conversation has begun there are none. */
@@ -57,7 +57,7 @@ export interface ComposerProps {
   settings: AgentSettings | null;
   effort: EffortChoice;
   onEffort: (effort: EffortChoice) => void;
-  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] }) => void;
+  onSend: (text: string, context: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] }) => void;
   onStop: () => void;
   /** While it works: take over, so Mobius pauses at the next safe point and the apps are yours. */
   onTakeOver?: () => Promise<string | null>;
@@ -201,7 +201,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (items.some((i) => i.source === item.source)) return items;
     return [withSelection(item, selected()), ...items].slice(0, MAX_CONTEXT_ITEMS);
   };
-  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[] } | undefined, queue: boolean) => {
+  const go = (text: string, items: ContextItem[], options: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; model?: string; images?: string[]; reads?: readonly SuggestedRead[]; finish?: boolean; tools?: readonly string[] } | undefined, queue: boolean) => {
     if (going.current) return;
     going.current = true;
     void withHere(items).then((all) => {
@@ -212,6 +212,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
 
   // Enter while a page or file is still being read sends once it is attached, so the message never goes without it.
   const sendWhenAdded = useRef(false);
+  const starter = useRef<{ box: string; steps: string } | null>(null);
   const submit = (event?: FormEvent) => {
     event?.preventDefault();
     if (adding && canType && !listening && draft.trim().length > 0) {
@@ -227,7 +228,11 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, modeInfo.id);
     const answering = quick ? quickName : modelName;
     const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
-    go(draft, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
+    // A starter's box words, finished by the person, are the message; its steps, with what they typed, go behind Details.
+    const begun = starter.current;
+    starter.current = null;
+    const text = begun && draft.startsWith(begun.box) ? withSteps(draft.trim(), begun.steps + draft.slice(begun.box.length).trim()) : draft;
+    go(text, context, Object.keys(options).length > 0 ? options : undefined, !canSend);
     setPictures([]);
   };
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -291,7 +296,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const suggest = async (s: Suggestion) => {
     setProblem(null);
     if (isStarter(s)) {
-      onDraft(s.prompt);
+      starter.current = s.box ? { box: s.box, steps: s.prompt } : null;
+      onDraft(s.box ?? s.prompt);
       queueMicrotask(() => fieldRef.current?.focus());
       return;
     }
@@ -310,10 +316,13 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     }
     const items = item ? [...context, item].slice(0, MAX_CONTEXT_ITEMS) : context;
     // A photo goes as the picture itself too, for models that read pictures.
-    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture) : null;
+    const photo = s.attach === 'photo' && surface?.photo?.picture ? await pictureFromUrl(surface.photo.picture)
+      : s.attach === 'album' && surface?.album?.sheet ? await surface.album.sheet().catch(() => null) : null;
     const images = [...pictures, ...(photo ? [photo] : [])].slice(0, MAX_PICTURES);
     // The chip's words are the message; the steps behind it go along for the model and stay behind Details.
-    go(withSteps(s.label, s.prompt), items, images.length > 0 ? { images } : undefined, false);
+    const reads = s.reads?.(new Date()) ?? [];
+    const options = { ...(images.length > 0 ? { images } : {}), ...(reads.length > 0 ? { reads } : {}), ...(s.finishes ? { finish: true } : {}), ...(s.tools ? { tools: s.tools } : {}) };
+    go(withSteps(s.label, s.prompt), items, Object.keys(options).length > 0 ? options : undefined, false);
     setPictures([]);
   };
 

@@ -7,6 +7,7 @@ mod tray;
 mod menu;
 mod profiles;
 mod updater;
+mod toast;
 #[cfg(windows)]
 mod cdp;
 mod engine;
@@ -78,12 +79,17 @@ impl Dialogs for SystemDialogs {
         self.window.is_focused().unwrap_or(false)
     }
     fn show_notice(&self, notice: &mobius_host::notify::Notice) {
-        use tauri_plugin_notification::NotificationExt;
-        let mut builder = self.handle.notification().builder().title(&notice.title).body(&notice.body);
-        if !notice.silent {
-            builder = builder.sound("default");
+        #[cfg(windows)]
+        toast::show(&self.handle.config().identifier, notice);
+        #[cfg(not(windows))]
+        {
+            use tauri_plugin_notification::NotificationExt;
+            let mut builder = self.handle.notification().builder().title(&notice.title).body(&notice.body);
+            if !notice.silent {
+                builder = builder.sound("default");
+            }
+            let _ = builder.show();
         }
-        let _ = builder.show();
     }
     fn awake_blocker(&self) -> Box<dyn mobius_host::awake::Blocker> {
         Box::new(awake::SystemBlocker::new())
@@ -364,11 +370,12 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
             "rename" => profiles.rename(id, name),
             "remove" => profiles.remove(id),
             "switch" => profiles.switch(id),
+            "openDemo" => demo_seed(&app).ok_or_else(|| "The demo workspace is not part of this build.".to_owned()).and_then(|seed| profiles.open_demo(base, &seed)),
             _ => return Err(serde_json::json!({ "kind": "not_available", "message": "Not a profiles call." })),
         };
         return Ok(match changed.and_then(|()| profiles.write(base)) {
             Ok(()) => {
-                if method == "switch" {
+                if method == "switch" || method == "openDemo" {
                     // A different profile is a different set of data: Mobius starts again with it.
                     app.request_restart();
                 }
@@ -436,6 +443,17 @@ fn keep_tabs(notify: mobius_browser::tabs::Notify, file: Option<PathBuf>) -> mob
 }
 
 /// Chromium when it was built in (feature `cef`), unless `MOBIUS_ENGINE=webview` asks for the system web view.
+/// The demo workspace's seed: shipped with Mobius as a resource; the repository's own when run from source.
+///
+/// A debug build reads the repository's first. Its resource copy (`target/debug/demo`) only ever gains files, so a file
+/// removed from `demo/` would otherwise come back with every reset.
+fn demo_seed(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let shipped = app.path().resource_dir().ok().map(|dir| dir.join("demo"));
+    let source = Some(PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo")));
+    let order = if cfg!(debug_assertions) { [source, shipped] } else { [shipped, source] };
+    order.into_iter().flatten().find(|dir| dir.join("workspace").is_dir())
+}
+
 fn choose_engine(window: &tauri::Window, data_dir: &std::path::Path) -> Arc<dyn engine::PageEngine> {
     #[cfg(all(feature = "cef", windows))]
     if !std::env::var("MOBIUS_ENGINE").is_ok_and(|v| v == "webview") {
@@ -480,6 +498,9 @@ fn main() {
                 _ => app.path().app_data_dir()?,
             };
             std::fs::create_dir_all(&base_dir)?;
+            if let Err(e) = profiles::settle_demo(&base_dir) {
+                eprintln!("[mobius] the fresh demo workspace could not take the old one's place: {e}");
+            }
             // The open profile's own folder. Models and the local engine are shared by every profile: they are large,
             // and the same on one computer.
             let data_dir = profiles::Profiles::read(&base_dir).folder(&base_dir);
@@ -619,9 +640,11 @@ fn main() {
                 // are off (Windows Settings, Personalization, Colors), as prefers-reduced-transparency may not say. And the
                 // regional format, which dates and times follow (the web view knows only the display language).
                 .initialization_script(format!(
-                    "window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {}, locale: {} }};",
+                    "window.__MOBIUS_SYSTEM__ = {{ reducedTransparency: {}, locale: {}, space: {} }};",
                     transparency_off(),
-                    serde_json::to_string(&mobius_host::bridge::system_locale()).unwrap_or_else(|_| "null".to_owned())
+                    serde_json::to_string(&mobius_host::bridge::system_locale()).unwrap_or_else(|_| "null".to_owned()),
+                    // Which set of data is open, so the window keeps its view state apart for each profile.
+                    serde_json::to_string(&profiles::space_id(&data_dir)).unwrap_or_else(|_| "null".to_owned())
                 ));
             #[cfg(windows)]
             let interface_view = match webview2_args() { Some(args) => interface_view.additional_browser_args(&args), None => interface_view };

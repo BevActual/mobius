@@ -100,7 +100,7 @@ test('Try another puts the change back and asks Mobius to do it another way', as
   await strip.getByRole('button', { name: 'Try another' }).click();
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(false);
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here is another way.');
-  expect(sent()).toContain('Try another way.');
+  expect(sent()).toContain('I discarded that change. Try another way: a clearly different approach');
 });
 
 test('a suggestion that starts a sentence puts it in the box for you to finish', async () => {
@@ -110,6 +110,22 @@ test('a suggestion that starts a sentence puts it in the box for you to finish',
   await expect(composer()).toHaveValue('Help me draft ');
   await expect(composer()).toBeFocused();
   expect(model!.requests).toHaveLength(0);
+});
+
+test('Find a time with… puts only those words in the box: who you name finishes them, and the steps go behind Details', async () => {
+  await start([says(['Here are the times.'])]);
+  await openApp('Calendar');
+  await suggestions().getByRole('button', { name: 'Find a time with…' }).click();
+  await expect(composer()).toHaveValue('Find a time with ');
+  await composer().pressSequentially('Sam');
+  await composer().press('Enter');
+  await expect(log().locator('.msg.assistant').last()).toHaveText('Here are the times.');
+  await expect(log().locator('.msg.user').last()).toContainText('Find a time with Sam');
+  // The steps are there, folded behind Details.
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toBeHidden();
+  await expect(log().locator('.msg.user').last().locator('.msg-steps p')).toContainText('calendar.free');
+  expect(sent()).toContain('check with calendar.free');
+  expect(sent()).toContain('I want to meet with Sam');
 });
 
 test('in the browser, a page suggestion attaches the page you see, as a chip', async () => {

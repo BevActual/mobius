@@ -6,14 +6,16 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { readBefore } from './readBefore';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
+import { Chart, Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
+import { afterPaint } from './ui/frame';
 
 /** The open sheet's selection, for the Glance in the Mobius panel: the grid publishes it, the panel's Glance reads it. */
 type GlanceSelection = { range: string; facts: { label: string; value: string }[] } | null;
@@ -197,7 +199,7 @@ const ICONS = {
 };
 
 /** The open sheet: a grid of cells, the formula bar above it, and its sheets as tabs below. */
-export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { conversation: string } | null }) {
+export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsState; review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean }) {
   const data = sheets.data;
   const [anchor, setAnchor] = useState<Pos>({ r: 0, c: 0 });
   const [focus, setFocus] = useState<Pos>({ r: 0, c: 0 });
@@ -227,6 +229,15 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const history = useRef(new Map<string, { undo: Step[]; redo: Step[] }>());
   const place = data ? `${data.workbook}/${data.sheet}` : '';
   const [widths, setWidths] = useState<Record<string, number>>({});
+  // The grid and its charts share the body: its width decides whether the charts fit beside the grid.
+  const [bodyEl, setBodyEl] = useState<HTMLDivElement | null>(null);
+  const [bodyW, setBodyW] = useState(0);
+  useEffect(() => {
+    if (!bodyEl || typeof ResizeObserver === 'undefined') return undefined;
+    const seen = new ResizeObserver(([e]) => { if (e) setBodyW(Math.round(e.contentRect.width)); });
+    seen.observe(bodyEl);
+    return () => seen.disconnect();
+  }, [bodyEl]);
   const [header, setHeader] = useState<boolean | undefined>(undefined);
   const [formats, setFormats] = useState<Record<number, NumberFormat>>({});
   useEffect(() => {
@@ -279,14 +290,23 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
     // Checked again when the sheet changes: a new turn's change is not kept yet.
   }, [review?.conversation, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    let live = true;
     if (!review || kept || !file || !data) { setChanged(new Set()); return; }
-    void window.mobius.changes.before(review.conversation, file).then((was) => {
-      if (!live) return;
-      setChanged(was && was.ok && was.text !== null ? changedCells(parseCsv(was.text), data.cells) : new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
-    }).catch(() => {});
-    return () => { live = false; };
+    const every = () => setChanged(new Set(data.cells.flatMap((row, r) => row.map((t, c) => (t ? `${r}:${c}` : '')).filter(Boolean))));
+    return readBefore(review.conversation, file, (text) => { if (text === null) every(); else setChanged(changedCells(parseCsv(text), data.cells)); }, every);
   }, [review?.conversation, kept, file, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Charts Mobius added or changed in that turn are dashed until kept, like its cells.
+  const [newCharts, setNewCharts] = useState<Set<string>>(new Set());
+  const chartKey = (c: { kind: string; range: string; at: string; title?: string | undefined }) => `${c.kind}|${c.range}|${c.at}|${c.title ?? ''}`;
+  useEffect(() => {
+    const charts = data?.charts ?? [];
+    if (!review || kept || !data || charts.length === 0) { setNewCharts(new Set()); return; }
+    return readBefore(review.conversation, `sheets/${data.workbook}/.charts.json`, (text) => {
+      let before: { kind: string; range: string; at: string; title?: string; sheet?: string }[] = [];
+      try { before = text ? JSON.parse(text) : []; } catch { before = []; }
+      const old = new Set(before.filter((c) => c.sheet === undefined || c.sheet === data.sheet).map(chartKey));
+      setNewCharts(new Set(charts.map(chartKey).filter((k) => !old.has(k))));
+    });
+  }, [review?.conversation, kept, data?.workbook, data?.sheet, data?.version]); // eslint-disable-line react-hooks/exhaustive-deps
   const keepAll = async () => {
     if (!review) return;
     const last = await window.mobius.changes?.lastTurn(review.conversation).catch(() => null);
@@ -330,6 +350,11 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   // A column the person has not sized fits its words, so names and labels are not cut short.
   const fitted = fittedWidths(data.values, headerOn, formats);
   const colWidth = (c: number) => widths[c] ?? fitted[c] ?? COL_W;
+  // Charts sit beside the grid only when every used column still shows whole beside them (to E, where Stands out
+  // goes); the chart column gives up width first, down to 220px, and below that the charts go under the grid.
+  const gridNeeds = 44 + Array.from({ length: used.cols }, (_, c) => colWidth(c)).reduce((x, y) => x + y, 0) + 16;
+  const chartW = Math.min(320, bodyW - gridNeeds);
+  const chartsBeside = bodyW > 0 && chartW >= 220;
   const steps = history.current.get(place) ?? { undo: [], redo: [] };
   history.current.set(place, steps);
 
@@ -554,7 +579,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
   const matchKeys = new Set(matches.map((m) => `${m.r}:${m.c}`));
   const openFind = () => {
     setFinding((f) => f ?? { query: '', at: 0 });
-    requestAnimationFrame(() => { findInput.current?.focus(); findInput.current?.select(); });
+    afterPaint(() => { findInput.current?.focus(); findInput.current?.select(); });
   };
   const goMatch = (at: number) => {
     if (!finding || matches.length === 0) return;
@@ -704,7 +729,7 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
           <button type="button" className="btn sheet-find-done" onClick={closeFind}>Done</button>
         </div>
       )}
-      {showReview && (
+      {showReview && !working && (
         <div className="note-review sheet-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{`Mobius changed ${changed.size === 1 ? 'one cell' : `${changed.size} cells`} here in its last turn, marked below.`}{review && <WhyThis conversation={review.conversation} />}</span>
@@ -712,6 +737,8 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
         </div>
       )}
       {sheets.message && <p className="tasks-message" role="alert">{sheets.message}</p>}
+      {/* The grid and its charts: charts under the grid, or beside it when the page is wide. */}
+      <div className="sheet-body" ref={setBodyEl} data-charts={(data.charts?.length ?? 0) > 0 ? (chartsBeside ? 'beside' : 'below') : undefined} style={chartsBeside ? { ['--chart-w' as string]: `${chartW}px` } : undefined}>
       <div
         className="sheet-scroll"
         ref={grid}
@@ -836,6 +863,21 @@ export function SheetGrid({ sheets, review }: { sheets: SheetsState; review?: { 
             ))}
           </tbody>
         </table>
+      </div>
+      {(data.charts?.length ?? 0) > 0 && (
+        <div className="sheet-charts" role="group" aria-label="Charts">
+          {data.charts!.map((c) => {
+            const drawn = chartData(c.range, data.values);
+            const name = c.title || `${c.range} chart`;
+            return (
+              <figure key={chartKey(c)} className="sheet-chart" data-proposed={newCharts.has(chartKey(c)) || undefined}>
+                <figcaption>{name}</figcaption>
+                {drawn ? <Chart label={name} kind={c.kind} categories={drawn.categories} series={drawn.series} height={200} proposed={newCharts.has(chartKey(c))} /> : <p className="note-empty">No numbers in {c.range} to draw.</p>}
+              </figure>
+            );
+          })}
+        </div>
+      )}
       </div>
       {edit && popupAt && (fnMatches.length > 0 || fnHint) && createPortal(
         <div className="sheet-suggest" style={{ top: popupAt.bottom + 4, left: Math.min(popupAt.left, window.innerWidth - 300) }} onMouseDown={keep}>

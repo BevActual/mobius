@@ -112,6 +112,25 @@ test('the agent adds a column of formulas, its cells are marked, and Discard put
   expect(fs.readFileSync(file('Budget'), 'utf8')).not.toContain('Per person');
 });
 
+test('cells Mobius writes are marked as the call lands, and Keep comes when the turn ends', async () => {
+  // The answer comes slowly, so the turn is still running when the cells are on the sheet.
+  await start([
+    callsTool('sheets-write', { workbook: 'Offsite budget', sheet: 'Budget', cells: { E1: 'Per person', E5: '=ROUND(D5/People!B1,2)' } }),
+    says(['Each person ', 'costs $677.50 (E5).'], 3000),
+  ]);
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await composer.fill('What does each person cost?');
+  await composer.press('Enter');
+  const log = shell().getByRole('log', { name: 'Conversation' });
+  await log.getByRole('group', { name: 'Approval needed: sheets.write' }).getByRole('button', { name: 'Allow once' }).click();
+  await expect(grid().locator('td[data-changed]')).toHaveCount(2);
+  await expect(log.locator('.msg.assistant')).not.toHaveText('Each person costs $677.50 (E5).');
+  await expect(shell().getByRole('status').filter({ hasText: 'Mobius changed 2 cells here' })).toHaveCount(0);
+  await expect(log.locator('.msg.assistant')).toHaveText('Each person costs $677.50 (E5).', { timeout: 15_000 });
+  await expect(shell().getByRole('status').filter({ hasText: 'Mobius changed 2 cells here' })).toBeVisible();
+  await expect(grid().locator('td[data-changed]')).toHaveCount(2);
+});
+
 test('pick a block, fill it down, undo, sort from the menu, and build a formula by clicking cells', async () => {
   await start();
   // A dragged block shows its sum in the status line.
@@ -189,4 +208,23 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(cell('D5')).toHaveText(/5[,. \u00a0\u202f]?420[.,]00/);
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Total,,,=SUM(D2:D4)\n');
   await expect(cell('A1')).toHaveText('Item');
+});
+
+test('a chart beside the grid never cuts off a column: it narrows, or goes under the grid when there is no room', async () => {
+  const book = path.join(userData, 'workspace', 'sheets', 'Offsite budget');
+  fs.writeFileSync(path.join(book, 'Budget.csv'), 'Item,Qty,Unit,Total,Stands out\nHotel,14,320,=B2*C2,The biggest cost by far: two thirds of the total\nTerrace venue,1,620,=B3*C3,One booking\nLunch,=People!B1,40,=B4*C4,Grows with the head count\nTotal,,,=SUM(D2:D4),\n');
+  fs.writeFileSync(path.join(book, '.charts.json'), JSON.stringify([{ sheet: 'Budget', kind: 'column', range: 'A1:B4', at: 'G1', title: 'Quantities' }]));
+  await start();
+  const charts = shell().getByRole('group', { name: 'Charts' });
+  await expect(charts).toBeVisible();
+  // Column E, the long notes, shows whole: the charts start right of it, or under the grid.
+  const whole = async () => {
+    const e = (await cell('E2').boundingBox())!;
+    const c = (await charts.boundingBox())!;
+    return c.x >= e.x + e.width - 1 || c.y >= e.y + e.height;
+  };
+  expect(await whole()).toBe(true);
+  // Narrower: still never covered.
+  await resizeWindow(mobius!.app, 1100, 900);
+  await expect.poll(whole).toBe(true);
 });

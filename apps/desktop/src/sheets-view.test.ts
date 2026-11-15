@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cellName, changedCells, columnName, isNumeric, parseCsv, pasted, sheetContext } from './sheets-view';
+import { cellName, changedCells, chartData, columnName, isNumeric, parseCsv, pasted, sheetContext } from './sheets-view';
 
 describe('sheets', () => {
   it('names columns and cells as spreadsheets do', () => {
@@ -18,5 +18,19 @@ describe('sheets', () => {
   });
   it('writes a sheet out for the agent with its formulas', () => {
     expect(sheetContext({ workbook: 'Trip', sheet: 'Budget', cells: [['Hotel', '320'], ['', '=B1*2']], values: [['Hotel', '320'], ['', '640']] })).toBe('# Trip › Budget\nA1: Hotel\nB1: 320\nB2: 640 (=B1*2)');
+  });
+});
+
+describe('a chart on a sheet', () => {
+  const values = [['Month', 'Units', 'Revenue'], ['Jan', '120', '$1,200'], ['Feb', '41', '$410'], ['Total', '161', '']];
+  it('reads categories down the first column and a series for each other column', () => {
+    expect(chartData('A1:C3', values)).toEqual({ categories: ['Jan', 'Feb'], series: [{ name: 'Units', values: [120, 41] }, { name: 'Revenue', values: [1200, 410] }] });
+  });
+  it('leaves a gap for a cell that is not a number, and draws nothing from words alone or a bad range', () => {
+    expect(chartData('a1:c4', values)?.series[1]?.values).toEqual([1200, 410, null]);
+    expect(chartData('A1:A3', values)).toBeNull();
+    expect(chartData('A1:B1', values)).toBeNull();
+    expect(chartData('nonsense', values)).toBeNull();
+    expect(chartData('A1:B3', [['Month', 'Note'], ['Jan', 'quiet'], ['Feb', 'busy']])).toBeNull();
   });
 });

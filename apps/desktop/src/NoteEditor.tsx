@@ -1,6 +1,7 @@
 import { EmptyState } from './EmptyState';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Menu, ToolbarControls, UndoToast } from './ui';
@@ -34,6 +35,7 @@ import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { fileMarkdown, noteImage, readFile } from './note-files';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
+import { afterPaint } from './ui/frame';
 
 /** How long a recording in a note may run: ten minutes. */
 const NOTE_RECORDING_SECONDS = 600;
@@ -248,7 +250,7 @@ export function untitledHeading(editor: Editor): { from: number; to: number } | 
  * `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was.
  * `review`: the agent's last turn changed this page; the editor offers to show what changed and to put it back.
  */
-export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; review?: { conversation: string } | null }) {
+export function NoteEditor({ notes, autoFocus = true, onSelection, review, working = false }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const section = useRef<HTMLElement>(null);
   const path = notes.page?.path;
@@ -357,7 +359,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
   useEffect(() => {
     if (!path || !focusOnOpen.current) return;
     if (sourceNow.current) area.current?.focus();
-    else window.requestAnimationFrame(() => {
+    else afterPaint(() => {
       if (!editor || editor.isDestroyed) return;
       // A new page: its title is chosen, so what is typed first names it.
       const at = untitledHeading(editor);
@@ -394,7 +396,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     if (!page) return;
     if (how === 'markdown') { setShared((await copyText(notes.text)) ? 'Copied as Markdown.' : 'The page could not be copied.'); return; }
     if (how === 'formatted') { setShared((await copyFormatted(editor?.getHTML() ?? notes.text, notes.text)) ? 'Copied as formatted text.' : 'The page could not be copied.'); return; }
-    if (how === 'print') { window.requestAnimationFrame(() => window.print()); return; }
+    if (how === 'print') { afterPaint(() => window.print()); return; }
     const exportIt = window.mobius.notes?.export;
     if (!exportIt) return;
     if (notes.status !== 'saved') await new Promise((r) => window.setTimeout(r, 900));
@@ -410,7 +412,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     setSource(next);
     keepSource(next);
     if (!next) known.current = null; // the editor reads the Markdown again, with what was typed in it
-    window.requestAnimationFrame(() => { if (next) area.current?.focus(); else editor?.commands.focus(); });
+    afterPaint(() => { if (next) area.current?.focus(); else editor?.commands.focus(); });
   };
 
   // Where the cursor was last in the Markdown, so Insert puts things there even after its button took the focus.
@@ -431,7 +433,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const done = insertBlock(notes.text, at, text);
     notes.edit(done.page);
     caret.current = done.cursor;
-    window.requestAnimationFrame(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
+    afterPaint(() => { const f = area.current; if (f) { f.focus(); f.setSelectionRange(done.cursor, done.cursor); } });
   };
   // Files added to the page: kept beside it, then put in where the cursor is.
   const picker = useRef<HTMLInputElement>(null);
@@ -555,18 +557,17 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     const rest = compare(before, next);
     setDiff(rest.some((line) => line.kind !== 'same') ? rest : null);
   };
+  // While the turn runs they are worked out again each time Mobius's change reloads the page.
   useEffect(() => {
-    if (!review || kept || !path || changes) return undefined;
-    let live = true;
-    void window.mobius.changes.before(review.conversation, `notes/${path}`).then((got) => {
+    if (!review || kept || !path || (changes && !working)) return undefined;
+    return readBefore(review.conversation, `notes/${path}`, (text) => {
       // A page the turn made has nothing to compare with: it keeps the bar above it.
-      if (!live || !got || !got.ok || got.text === null) return;
-      setWas(got.text);
-      const d = diffLines(got.text, notes.text);
+      if (text === null) return;
+      setWas(text);
+      const d = diffLines(text, notes.text);
       if (d.some((l) => l.kind !== 'same')) setChanges(d);
-    }).catch(() => {});
-    return () => { live = false; };
-  }, [review?.conversation, kept, path]); // eslint-disable-line react-hooks/exhaustive-deps
+    });
+  }, [review?.conversation, kept, path, working ? notes.page?.base : null]); // eslint-disable-line react-hooks/exhaustive-deps
   // One change kept takes it into "before", so it stops showing; one discarded is put back. The last one settles the turn.
   const lastChange = (lines: DiffLine[]) => new Set(changeGroups(lines).filter((g) => g !== null)).size <= 1;
   const keepOne = (group: number) => {
@@ -584,14 +585,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
     if (lastChange(changes) || !rest.some((l) => l.kind !== 'same')) void keepChanges(); else setChanges(rest);
   };
   const showingChanges = Boolean(review && !kept && changes && was !== null && !source && diff === null);
-  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}` : '';
+  const changesKey = showingChanges && changes && was !== null ? `${path}:${was.length}:${changes.length}:${changes.map((l) => l.kind[0]).join('')}:${working ? 'w' : ''}` : '';
   const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
   // Markdown as this editor would draw it, for the words a change took out.
   const renderMarkdown = (markdown: string): string | null => {
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, tall: tallGroups.current } : null;
+  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, waiting: working, tall: tallGroups.current } : null;
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
@@ -734,7 +735,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review }: { n
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}
       {restored && !history && <UndoToast text={`Restored the version from ${restored.label}.`} onUndo={() => { notes.edit(restored.was); setRestored(null); }} onDismiss={() => setRestored(null)} />}
-      {review && !kept && !history && !showingChanges && (
+      {review && !kept && !history && !showingChanges && !working && (
         <div ref={reviewBar} className="note-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{diff ? (() => { const c = diffCounts(diff); return `${c.added} ${c.added === 1 ? 'line' : 'lines'} added, ${c.removed} removed in Mobius's last turn`; })() : "Mobius changed this page in its last turn."}<WhyThis conversation={review.conversation} /></span>

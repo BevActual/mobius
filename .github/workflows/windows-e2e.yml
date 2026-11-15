@@ -14,14 +14,44 @@ on:
         default: ''
 
 # A newer push to the same branch replaces a run still going.
+# A newer push to a pull request replaces its run. On main every merge is tested on its own: each commit gets its own
+# group, so two merges seconds apart never cancel each other and no commit on main goes untested.
 concurrency:
-  group: windows-e2e-${{ github.ref }}
-  cancel-in-progress: true
+  group: windows-e2e-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
+  # A pull request that changes only docs (Markdown anywhere, or anything under docs/) takes no Windows machine: the
+  # suite is skipped and the e2e check still reports success. Pushes to main and runs by hand always test.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        if: github.event_name == 'pull_request'
+        with:
+          fetch-depth: 0
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "${{ github.event_name }}" != "pull_request" ]; then echo "code=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          files=$(git diff --name-only "$(git merge-base "$BASE" "$HEAD")" "$HEAD")
+          echo "$files"
+          if [ -n "$files" ] && ! echo "$files" | grep -qvE '(^docs/|\.md$)'; then
+            echo "Only docs changed: the suite is skipped."
+            echo "code=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          fi
+
   # The suite is split by file across three machines that run at once, so a full run takes about a third as long.
   shard:
     name: e2e shard ${{ matrix.shard }}/3
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: windows-latest
     timeout-minutes: 90
     strategy:
@@ -29,6 +59,26 @@ jobs:
       matrix:
         shard: [1, 2, 3]
     steps:
+      # CI only, on GitHub's throwaway runners (Andrew's yes, 2026-11-14). With the next step it keeps every checkpoint
+      # under a second; with the next step alone, some took 1.4 s (#371). Nothing in the app, the installer or any
+      # script that runs on a person's computer does this.
+      - name: Keep Defender out of the test folders (CI runner only)
+        shell: pwsh
+        run: |
+          foreach ($dir in @($env:RUNNER_TEMP, $env:TEMP)) {
+            Add-MpPreference -ExclusionPath $dir -ErrorAction Continue
+            Write-Host "Defender exclusion: $dir"
+          }
+      # The tests make their data folders in the system temp folder, which is on C:, the runner's slow OS disk. D: is
+      # its fast local disk, so temp goes there for the rest of the job.
+      - name: Put temp files on the runner's fast disk (CI runner only)
+        shell: pwsh
+        run: |
+          $temp = Join-Path $env:RUNNER_TEMP 'tmp'
+          New-Item -ItemType Directory -Force $temp | Out-Null
+          "TEMP=$temp" >> $env:GITHUB_ENV
+          "TMP=$temp" >> $env:GITHUB_ENV
+          Write-Host "temp: $temp"
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
@@ -74,6 +124,9 @@ jobs:
           MOBIUS_E2E_START_MS: '60000'
           MOBIUS_TAURI_LOG: ${{ github.workspace }}\shell.log
         run: npx playwright test --shard=${{ matrix.shard }}/3 ${{ inputs.spec }}
+      - name: Say which tests failed or only passed on their second try
+        if: ${{ !cancelled() }}
+        run: node scripts/e2e-summary.mjs apps/desktop/test-results/report.json ${{ matrix.shard }} >> $env:GITHUB_STEP_SUMMARY
       - if: failure()
         uses: actions/upload-artifact@v5
         with:
@@ -95,19 +148,21 @@ jobs:
   # nothing, rather than a failure for code that was never tested.
   e2e:
     if: ${{ !cancelled() }}
-    needs: shard
+    needs: [changes, shard]
     runs-on: ubuntu-latest
     steps:
       - name: Every shard passed
         run: |
-          echo "shards: ${{ needs.shard.result }}"
+          echo "changes: ${{ needs.changes.result }} (code: ${{ needs.changes.outputs.code }}); shards: ${{ needs.shard.result }}"
+          test "${{ needs.changes.result }}" = "success"
+          if [ "${{ needs.changes.outputs.code }}" = "false" ]; then echo "Only docs changed; nothing to test."; exit 0; fi
           test "${{ needs.shard.result }}" = "success"
 
   # The screenshots, published as one commit on the branch ci-screens/<branch> (replaced on every run), so reviewers
   # whose network cannot fetch Actions artifacts can read them at raw.githubusercontent.com/<repo>/ci-screens/<branch>/.
   # Pushes made with the workflow's own token start no workflows.
   screens:
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.shard.result != 'skipped' }}
     needs: shard
     runs-on: ubuntu-latest
     permissions:

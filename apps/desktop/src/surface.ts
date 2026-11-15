@@ -14,13 +14,40 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut' | 'album';
+  /** For a starter: the words put in the box for the person to finish, instead of the prompt itself. What they type
+   * after them goes on the end of the prompt, which is sent behind Details. */
+  box?: string;
+  /** The reads it always starts with, done before the model is asked so it spends no round asking for them. */
+  reads?: (now: Date) => SuggestedRead[];
+  /** It ends in changes: the turn is done once they are all made, and the summary of what changed is its answer. */
+  finishes?: true;
+  /** The apps whose tools it works with (tasks, calendar): only theirs are offered, so the request is much shorter. */
+  tools?: readonly string[];
 }
+
+/** A read done before the model is asked: a tool that only reads, and its arguments. */
+export interface SuggestedRead { tool: string; arguments: Record<string, unknown> }
+
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/**
+ * Plan my day's reads: the time where the person is (without it the model planned an afternoon from 9:00, every block
+ * already past), open tasks, today's events, unread mail.
+ */
+export const planMyDayReads = (now: Date): SuggestedRead[] => [
+  { tool: 'clock.now', arguments: {} },
+  { tool: 'tasks.list', arguments: {} },
+  { tool: 'calendar.list', arguments: { from: isoDay(now), to: isoDay(now) } },
+  { tool: 'mail.search', arguments: { mailbox: 'inbox', unread: true, limit: 20 } },
+];
 
 export interface SurfaceState {
   app: AppId;
   /** A web page is showing in the browser. */
   hasPage: boolean;
+  /** How many tabs show a web page: two or more can be compared. */
+  pages?: number;
   /** The note open in Notes (or the document open in Docs, with `folder` 'docs'), if any. */
   /** `extra` is what is said about it, such as its open comments, sent after its text. */
   note: { path: string; title: string; text: string; extra?: string; folder?: 'notes' | 'docs' | 'slides' | 'designs' | 'studio' | 'boards' | 'views' | 'research' | 'reading' | 'databases' | 'terminal' } | null;
@@ -32,12 +59,67 @@ export interface SurfaceState {
   cut?: { title: string; source: string; text: string } | null;
   /** The photo open in Photo: described in words, with its edits file. */
   photo?: { title: string; source: string; text: string; /** The picture as shown, to send to models that read pictures. */ picture?: string } | null;
+  /** The album open in Photo when no photo is: its name and how many photos it has. */
+  album?: { name: string; photos: number; /** Its photos, as one picture of them all numbered in order, for models that read pictures. */ sheet?: () => Promise<string | null> } | null;
   /** The file open in Code, with the last test output if it failed. */
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** The folder open in Files, relative to the workspace ('' is the workspace itself), if a folder is open there. */
+  folder?: string | null;
   /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
   settings?: boolean;
+}
+
+/** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them. Rename nothing: every file keeps its name exactly, a copy such as "Invoice (1).pdf" too. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself. Name no tool in what you write.`;
+
+/**
+ * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell
+ * linked to the words on the page it came from.
+ */
+export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List them with browser.tabs. Read a tab that has a file (one of my own pages) with files.read on that file, and any other with browser.read (its tabId). Write the comparison as a new note in my Notes, in the Research notebook (notes/Research/), called "<what they are> compared" (no colon or slash in the name): one table with a column for each page, headed by its title linked to its address, and a row for each thing the pages give that is worth comparing, taken from what they say (a row no page answers is left out). Link each cell to where it came from on its page, with a #:~:text= link to those words. Where only some pages say, write "not stated" for the others. Under the table, say in three short lines which suits whom. Keep the pages\' facts exactly. Change nothing else.';
+
+/**
+ * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
+ * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
+ */
+/** The apps Plan my day works in: it reads and changes tasks and the calendar, and reads and drafts mail. */
+export const PLAN_MY_DAY_TOOLS = ['tasks', 'calendar', 'mail'] as const;
+
+export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each of those tasks a time with one tasks.update per list (due today, the time as HH:MM; never one due later; the others in more) and suggest a block for each with one calendar.suggest (the others in more), both in one step, with the task as the title and why in a few words; most important first, each 30 or 60 minutes, back to back where they fit so the longest free stretch stays whole. Then hold one hour of that stretch for focused work with calendar.suggest (title Focus time): if an hour is free anywhere, there is one. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. The draft asks or holds and never commits me: no yes to a time or an order, and no day or deadline for anything I will do or send. If the message asks to meet, it says I will check my calendar and come back. It is laid out as an email, with the greeting, each paragraph, \"Thanks,\" and my name on lines of their own. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+
+/**
+ * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them
+ * as a chart and says why, every figure a formula in the sheet.
+ */
+export const WHAT_STANDS_OUT = 'What stands out in this sheet? Read it with sheets.read. Then, with sheets.write, add a Total row under the numbers and an Average row under that, as SUM and AVERAGE formulas over each column of numbers (each average inside ROUND(…, 1)), and in the first empty column a heading "Stands out" with a few plain words and its number beside each row that is far from the average, such as "high: 412 units" or "low: 41 units". In the same sheets.write, add one column chart (charts) of the rows above the Total, from the column of labels to the main column of numbers, titled for what it shows, placed two columns to the right of the last used column, on row 1. Leave every other cell as it is. Then tell me in three short lines what stands out and why, naming the cells that hold those numbers.';
+
+/** Code's moment: the failing test's cause found and fixed, checked by running the tests again, kept or discarded. */
+export const DEBUG_TEST = 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, and run code.test to check, saying nothing until then. Then tell me once, in a sentence or two, what was wrong. I keep or discard the change.';
+
+/** The demo's Database moment: a question in plain words, the SQL shown where it can be read, then the rows. */
+export const ASK_DATABASE = 'Answer my question about the attached database with db.query, changing nothing. Start with the SQL you ran, in a ```sql block, so I can read it; then the answer in a sentence; then the rows it found as a short list, one row a line (not a table). The question: ';
+/** The demo's Photo moment: one look for every photo in an album, in one photos.edit, waiting for Keep. */
+export const matchAlbum = (album: string) => `Make the photos in the album "${album}" match: look at how they differ in light and colour (the attached picture shows them all, numbered in the album's order, when your model reads pictures), then give them all the same look with one photos.edit on the album, one adjustment with a short name, amounts kept gentle (most within 30). Say nothing until it is done, then say in one short line what you set.`;
+
+/** The demo's Slides moment: a document becomes a deck in Slides, with the layouts and notes chosen, ready to Play. */
+export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, never more, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
+
+/** Music's chips change the song file and nothing else, so only the file tools are offered. */
+export const STUDIO_TOOLS = ['files'] as const;
+
+/** Music's demo ask, as two small edits made together, so the bass and the pad arrive within a few seconds. */
+export const BASS_AND_PAD = 'Add a bassline under this song and make the pad warmer, with two files.edit calls on the song file in one step, and no other call. First, the pad: old is its whole "sound":{...} object exactly as it is, new is the same 13 keys with a warmer sound (cutoff about half, a little less resonance, shape lower, a touch of drive). Second, the bass: old is the last note of the last track and everything after it to the end of the file, new is the same with a new bass track added after the last track: {"id" a new one,"name":"Bass","instrument":"bass","color" a free one,"volume":0.8,"notes":[...]}, in the song\'s key, MIDI 33 to 52, on the chord roots on each bar line with a passing note or two, every bar of the song. Leave the other tracks\' notes as they are. In the same answer, first say in one short line what you are adding and changing; I hear each edit as it lands, so don\'t say you can\'t play it.';
+
+/** Whether a song (its file's text) has a pad and no bass: Music's demo ask fits it. */
+export function wantsBassAndPad(text: string): boolean {
+  try {
+    const tracks = (JSON.parse(text) as { tracks?: { instrument?: string }[] }).tracks ?? [];
+    return tracks.some((t) => t.instrument === 'pad') && !tracks.some((t) => t.instrument === 'bass');
+  } catch {
+    return false;
+  }
 }
 
 export function suggestionsFor(state: SurfaceState): Suggestion[] {
@@ -46,29 +128,34 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'browser':
       return state.hasPage
         ? [
-            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' },
-            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' },
-            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' },
+            ...((state.pages ?? 0) >= 2 ? [{ label: 'Compare these', prompt: COMPARE_TABS }] : []),
+            { label: 'Summarise this page', prompt: 'Summarise this page in a few short points.', attach: 'page' as const },
+            { label: 'What matters here?', prompt: 'What on this page matters most, and is anything on it questionable?', attach: 'page' as const },
+            { label: 'Keep as a note', prompt: 'Write the useful parts of this page as a note in my Notes, with a link back to it.', attach: 'page' as const },
           ]
         : [];
     case 'notes':
       return state.note
         ? [
+            // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
+            { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up in the note itself with files.edit, under its first heading and above the rest: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items: only things someone agreed to do (an arrival or a piece of news is not one), each day as its date. Keep the heading and the words below exactly as they are. Make the change without asking first: I keep or discard it.', attach: 'note' },
+            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks with tasks.add, each with its date (a day like "end of week" or "Friday" as YYYY-MM-DD); an arrival or a piece of news is not an action. Look at tasks.list first: put them in the list for the note\'s project if there is one, otherwise in my Inbox, and leave out any action a task there already covers. Word each as something to do with no name in front; for an action someone else owns, end it with their name in brackets. List them back as a short to-do list, and say which you left out because they were already there. Change nothing in the note.', attach: 'note' },
             { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
-            { label: 'Continue writing', prompt: 'Continue this note where it ends, in the same style. Show me what you would add before saving.', attach: 'note' },
-            { label: 'Make a to-do list', prompt: 'Turn the actions in this note into a short to-do list.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
       return [
-        { label: 'Plan my day', prompt: 'Look at my tasks and help me plan today: what to do first, and what can wait. Keep it short.', attach: 'tasks' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, attach: 'tasks', reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
         { label: 'Break down a task', prompt: 'Take the biggest task here and break it into a few small steps. Add the steps as tasks in the same list and tell me what you added.', attach: 'tasks' },
         { label: 'Find tasks in my notes', prompt: 'Read my notes and add the actions you find as tasks in my Inbox. Tell me what you added.' },
       ];
     case 'docs':
       return state.note
         ? [
-            { label: 'Proofread', prompt: 'Proofread this document: fix spelling, grammar and punctuation only, in the document itself, and tell me what you changed.', attach: 'note' },
+            // The demo's second Docs beat: a long draft becomes a one-page brief, a new document beside it.
+            { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end: a title, two or three sentences on what it is and why it matters, then at most four short sections that follow its outline, each two or three lines, and what is decided and what is next in two lines. At most 450 words in all, so leave out detail a reader of one page can do without, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
+            // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
+            { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
             { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             { label: 'What is missing?', prompt: 'Read this document and tell me what a reader would still want to know.', attach: 'note' },
           ]
@@ -76,6 +163,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'sheets':
       return state.sheet
         ? [
+            // The demo's Sheets moment: what stands out, with the working left in the sheet as formulas.
+            { label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' },
             { label: 'Explain these numbers', prompt: 'Explain what this sheet works out, in plain words, and point at the cells each part comes from.', attach: 'sheet' },
             { label: 'Check the formulas', prompt: 'Check the formulas in this sheet for mistakes, such as a range that misses a row or a total that counts something twice. Say which cells, and ask before changing anything.', attach: 'sheet' },
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
@@ -114,6 +203,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'studio':
       return state.note
         ? [
+            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays.
+            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS }] : []),
             { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
@@ -126,7 +217,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Brighten the shadows', prompt: 'The bottom of this photo looks darker than the top. Add one adjustment to its edits file that brightens only the lower part, softly, and leaves the sky alone. Say what you changed.', attach: 'photo' },
             { label: 'Adjust…', prompt: 'In this photo, ', attach: 'photo' },
           ]
-        : [];
+        : state.album && state.album.photos > 1
+          ? [{ label: 'Make these match', prompt: matchAlbum(state.album.name), attach: 'album' as const }]
+          : [];
     case 'design':
       return state.note
         ? [
@@ -147,7 +240,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             { label: 'Describe the data', prompt: 'Look at the attached database with db.query (a few rows of each table, counts, ranges) and describe what it holds in a short paragraph per table. Change nothing.', attach: 'note' },
             { label: 'Find problems', prompt: 'Check the attached database for problems with db.query: empty values, duplicates, values that look wrong or out of range. List what you find with the query that shows it. Change nothing.', attach: 'note' },
-            { label: 'Ask about it…', prompt: 'Using db.query on the attached database, ', attach: 'note' },
+            { label: 'Ask about it…', box: 'In this database, ', prompt: ASK_DATABASE, attach: 'note' },
           ]
         : [{ label: 'Make a database', prompt: 'Make a small SQLite database in my Database app (db.execute: CREATE TABLE and INSERT) for ' }];
     case 'reader':
@@ -163,9 +256,11 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
           ];
     case 'files':
       return [
+        // The demo's Files moment: a messy folder sorted in one undoable step, each move shown before it is kept.
+        ...(state.folder ? [{ label: 'Tidy this folder', prompt: tidyFolder(state.folder) }] : []),
         { label: 'What changed lately?', prompt: 'Look through my workspace with files.list and tell me which files changed most recently, and where they are. Change nothing.' },
         { label: 'Find a file…', prompt: 'Find the file in my workspace that ' },
-        { label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' },
+        ...(state.folder ? [] : [{ label: 'Tidy a folder…', prompt: 'Suggest a tidier layout for this folder in my workspace, as a short list of moves, and change nothing until I agree: ' }]),
       ];
     case 'wiki':
       return [
@@ -185,7 +280,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Go deeper', prompt: 'Find three or four more sources for this report, from angles it does not cover yet, and add what they say to the report and its sources. Keep what is already there.', attach: 'note' },
             { label: 'Turn into a doc', prompt: 'Write this report up as a short document for other people in my Docs (docs/Documents/<a short title>.md): the answer, the reasons, and the sources as links. Leave the report as it is.', attach: 'note' },
           ]
-        : [{ label: 'Research…', prompt: 'Research on the web, and write a report with sources in my Research app: ' }];
+        : [{ label: 'Research…', box: 'Research ', prompt: 'Research on the web: search two or three times with web.search, read three or four of the best pages with web.read, and write a report in my Research app (research/Research/<a short title>.md) with the answer first and every fact linked to the page it came from. Cite only pages you read with web.read; a search result you did not read is not a source. The question: ' }];
     case 'canvas':
       return state.note
         ? [
@@ -208,7 +303,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'code':
       return state.code
         ? [
-            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: 'A test in this project fails; the attached file ends with the output. Find the cause, fix it with files.edit, run code.test to check, and tell me in a sentence or two what was wrong. I keep or discard the change.', attach: 'code' as const }] : []),
+            ...(state.code.failing ? [{ label: 'Why is a test failing?', prompt: DEBUG_TEST, attach: 'code' as const }] : []),
             { label: 'Explain this file', prompt: 'Explain what the attached file does, in plain words: its parts and how they fit together.', attach: 'code' },
             { label: 'Write tests for this', prompt: 'Write tests for the attached file, in the style the project already uses, run code.test, and tell me what they cover.', attach: 'code' },
             { label: 'Change…', prompt: 'In the attached file, ', attach: 'code' },
@@ -216,13 +311,14 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         : [{ label: 'Start a project', prompt: 'Make a small project in my Code, in a new folder code/<name>/, that ' }];
     case 'calendar':
       return [
+        // The demo's Calendar moment: the box reads "Find a time with " and the person names who, such as Sam.
+        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them and follow it: for afternoons, call calendar.free with dayStart 13:00 so every free afternoon is there. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
-        { label: 'Find time for…', prompt: 'Find a free hour in my calendar this week for ' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];
     case 'agent':
       return [
-        { label: 'Plan my week', prompt: 'Help me plan my week. Ask me what matters most first.' },
+        { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
         { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];

@@ -193,7 +193,9 @@ export interface MailDraft {
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
-export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string }
+/** A chart on a sheet, kept in the workbook's .charts.json: drawn from `range` (first row the series names, first column the categories), its corner at the cell `at`. */
+export interface SheetChart { sheet: string; kind: 'column' | 'line' | 'area'; range: string; at: string; title?: string }
+export interface SheetData { workbook: string; sheet: string; sheets: string[]; cells: string[][]; values: string[][]; version: string; /** The sheet's charts (older cores send none). */ charts?: SheetChart[] }
 export interface WorkbookInfo { name: string; sheets: string[] }
 export interface SheetsChanged { workbook: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Code project's file or folder, as a path inside the project, folders first. */
@@ -203,10 +205,10 @@ export interface PhotoAlbum { name: string; photos: PhotoInfo[] }
 export interface PhotoContent { path: string; dataUrl: string; edits: string | null; modified: number; editsModified: number | null }
 export interface PhotosChanged { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** A Video project: its clips (footage, never changed) and whether it has a cut yet. */
-export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio' }[]; hasCut: boolean }
+export interface VideoProject { name: string; clips: { name: string; bytes: number; kind: 'video' | 'audio'; /** How long it plays, read from its header; null when unknown (WebM and MP3 for now). */ durationMs?: number | null }[]; hasCut: boolean }
 export interface VideoChanged { project: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 /** One agent turn: the checkpoint before it, whether its end was marked, when, what was asked, and what it changed. */
-export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[] }
+export interface TurnRecord { start: string; ended: boolean; when: number; ask: string; files: string[]; moves?: { from: string; to: string }[] }
 /** A skill: a procedure Mobius follows, `skills/<name>/SKILL.md`, with its earlier versions kept. */
 export interface SkillInfo { name: string; description: string; modified: number; version: number }
 export interface SkillContent { name: string; text: string; modified: number; version: number; versions: { version: number; modified: number; description: string }[] }
@@ -234,6 +236,31 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
+/** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
+export interface DriveAccount { id: string; kind: 'webdav' | 's3'; name: string; url: string; /** For S3, the access key id. */ username: string; /** S3's region. */ region?: string }
+/** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
+export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
+/** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
+export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
+/** `conflict` is true when the file changed on the server since it was read: nothing was written. */
+export interface DriveFailure { ok: false; message: string; conflict: boolean }
+export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+/** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
+export interface SyncStatus {
+  state: 'idle' | 'syncing' | 'offline' | 'paused' | 'signIn';
+  done: number;
+  total: number;
+  lastSync: number | null;
+  retryAt: number | null;
+  held: string[];
+  conflicts: { path: string; copy: string }[];
+  ask: { onDrive: string[]; here: string[] } | null;
+  tooBig: string[];
+  error: string | null;
+}
+/** A workspace folder (`notes`) synced with a folder on a drive (`Cloud/Notes`). Paths in the status are within the folder. */
+export interface SyncPair { id: string; folder: string; drive: string; remote: string; paused: boolean; created: number; status: SyncStatus }
+export interface SyncChanged { pair: string; status: SyncStatus }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
@@ -303,6 +330,8 @@ export interface MobiusBridge {
     lastTurn(conversation: string): Promise<TurnChanges | AgentFailure>;
     undo(conversation: string): Promise<{ ok: true } | AgentFailure>;
     undoFile(conversation: string, path: string): Promise<{ ok: true } | AgentFailure>;
+    /** Several of the last turn's files back at once; all of them also moves back what its moves left behind. */
+    undoFiles?(conversation: string, paths: readonly string[]): Promise<{ ok: true; kept?: string[] } | AgentFailure>;
     /** A file as it was before the last turn: `text` is null when the turn made it. */
     before(conversation: string, path: string): Promise<{ ok: true; text: string | null } | AgentFailure>;
     /** Every turn of the conversation, newest first, with what each changed between its start and its end. */
@@ -312,10 +341,12 @@ export interface MobiusBridge {
     /** Puts one file back as it was before one turn. Refused with `later` when it changed again after that turn, unless `force`. */
     undoTurnFile(conversation: string, start: string, path: string, force?: boolean): Promise<{ ok: true } | (AgentFailure & { later?: boolean })>;
     /** What rewinding to right after one turn would do: how many later turns go, and the files that would change. */
-    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[] } | AgentFailure>;
+    rewindPreview?(conversation: string, start: string): Promise<{ ok: true; later: number; files: string[]; synced?: number } | AgentFailure>;
     /** Everything back as it was right after that turn; the later turns go. `undo` names the rewind for undoRewind. */
     rewind?(conversation: string, start: string): Promise<{ ok: true; undo: string; later: number } | AgentFailure>;
     undoRewind?(conversation: string, undo: string): Promise<{ ok: true } | AgentFailure>;
+    /** The person kept a turn (`start` names it): all of it, or one app's folder such as `tasks/`. Sync sends it then. */
+    kept?(conversation: string, start: string, folder?: string): Promise<{ ok: true } | AgentFailure>;
   };
   /** Little Mobius: a small window, kept above other apps, with the conversation and nothing else. */
   mini: {
@@ -335,6 +366,9 @@ export interface MobiusBridge {
     rename(id: string, name: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
     remove(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
     switch(id: string): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
+    /** Open the demo workspace (profile `demo`) fresh from the seed shipped with Mobius, or start it over when it is
+     *  open. Mobius starts again on it. */
+    openDemo?(): Promise<{ ok: true; profiles: ProfilesState } | { ok: false; error: string }>;
   };
   /** Requests to make at a time of day, on chosen days. Each run is a new conversation. */
   /** Sign in once per task: the sites a conversation's task is signed in to. Only the Tauri shell has it. */
@@ -396,7 +430,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean; /** Only the tools of these apps are offered (tasks, calendar): the part of a tool's name before the dot. */ tools?: readonly string[] }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -430,7 +464,7 @@ export interface MobiusBridge {
     grants(): Promise<AgentGrant[]>;
     revokeGrant(id: number): Promise<AgentResult>;
     activity(limit?: number): Promise<ActivityEntry[]>;
-    resolve(requestId: number, approve: boolean, duration: Duration): Promise<AgentResult>;
+    resolve(requestId: number, approve: boolean, duration: AnswerFor): Promise<AgentResult>;
     getSettings(): Promise<AgentSettings>;
     configure(settings: AgentConfigureRequest): Promise<AgentResult>;
     onNotification(listener: (notification: AgentNotification) => void): () => void;
@@ -637,6 +671,43 @@ export interface MobiusBridge {
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
+  };
+  /** Drives: folders on the person's own servers, opened from Files. Each call goes to the server. Only the Tauri shell has it. */
+  drives?: {
+    list(): Promise<DriveAccount[] | DriveFailure>;
+    /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
+    add(drive: NewDrive): Promise<DriveAccount | DriveFailure>;
+    remove(id: string): Promise<{ ok: true } | DriveFailure>;
+    /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
+    signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
+    browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
+    read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
+    /** With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces one. */
+    write(id: string, path: string, content: { base64: string } | { text: string }, etag: string | null): Promise<{ ok: true; etag: string | null } | DriveFailure>;
+    mkdir(id: string, path: string): Promise<{ ok: true } | DriveFailure>;
+    /** Moves or renames; never replaces what is at `to`. */
+    move(id: string, from: string, to: string): Promise<{ ok: true } | DriveFailure>;
+    delete(id: string, path: string, etag: string | null): Promise<{ ok: true } | DriveFailure>;
+    /** Files: a copy of the drive's file in the workspace's `folder`, under a free name. Answers its workspace path. */
+    download?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    /** Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one there. */
+    upload?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    onChanged(listener: (change: DrivesChanged) => void): () => void;
+    /** Two-way sync of workspace folders. Off until the person pairs a folder; a folder syncs with one drive folder. */
+    syncPairs?(): Promise<SyncPair[] | DriveFailure>;
+    /** Pairs a workspace folder with a drive folder (made when missing). The first sync starts at once. */
+    syncAdd?(folder: string, drive: string, remote: string): Promise<SyncPair | DriveFailure>;
+    /** Stops syncing the folder; no file changes on either side. */
+    syncRemove?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    syncPause?(pair: string, paused: boolean): Promise<{ ok: true } | DriveFailure>;
+    syncNow?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** The yes to `status.ask`. */
+    syncAllowDeletes?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** The no to `status.ask`: the deleted files come back from the other side. */
+    syncKeepThem?(pair: string): Promise<{ ok: true } | DriveFailure>;
+    /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
+    syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
+    onSync?(listener: (change: SyncChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {
@@ -908,6 +979,8 @@ export interface MobiusBridge {
     /** Only the Tauri shell provides these four; the interface offers them when they are there. */
     reopenClosed?(): Promise<string | null>;
     duplicate?(tabId: string): Promise<string | null>;
+    /** Open a workspace web page (a path under pages/) in a new tab, at the address the shell serves it on. Its tab id, or null. */
+    openPage?(path: string): Promise<string | null>;
     pin?(tabId: string, pinned: boolean): void;
     moveTab?(tabId: string, index: number): void;
   };
@@ -1065,7 +1138,8 @@ export interface AboutInfo {
 
 /** What the settings panel may know. The key itself is never sent back to the renderer. */
 /** The files an agent turn changed, relative to the workspace, and the checkpoint taken before it began. */
-export interface TurnChanges { checkpoint: string | null; files: string[] }
+/** A moved (or renamed) file is in `files` by both its paths, and in `moves` once. */
+export interface TurnChanges { checkpoint: string | null; files: string[]; moves?: { from: string; to: string }[] }
 export interface AgentFailure { ok: false; error: string }
 
 export interface AgentSettings {
@@ -1153,15 +1227,22 @@ export function parseRecording(audio: unknown, mime: unknown): { bytes: Uint8Arr
   return { bytes, mime: type };
 }
 
-const DURATIONS: readonly Duration[] = ['once', 'session', 'always'];
+/**
+ * How long a yes lasts: once, for the rest of this question (`turn`: reading the web only, for the turn that asked),
+ * while Mobius runs, or always.
+ */
+export type AnswerFor = Duration | 'turn';
+const DURATIONS: readonly AnswerFor[] = ['once', 'turn', 'session', 'always'];
+/** The tools a yes can cover for the rest of a question: reading the web, and nothing else. */
+export const FOR_THIS_QUESTION: readonly string[] = ['web.search', 'web.read'];
 
-export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: Duration } | null {
+export function parseResolveRequest(value: unknown): { requestId: number; approve: boolean; duration: AnswerFor } | null {
   if (!isObject(value)) return null;
   const { requestId, approve, duration } = value;
   if (typeof requestId !== 'number' || !Number.isSafeInteger(requestId) || requestId < 1) return null;
   if (typeof approve !== 'boolean') return null;
-  if (!isString(duration) || !DURATIONS.includes(duration as Duration)) return null;
-  return { requestId, approve, duration: duration as Duration };
+  if (!isString(duration) || !DURATIONS.includes(duration as AnswerFor)) return null;
+  return { requestId, approve, duration: duration as AnswerFor };
 }
 
 function parseFallback(value: unknown): FallbackRequest | null {

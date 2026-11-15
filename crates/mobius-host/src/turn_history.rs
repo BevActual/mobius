@@ -21,6 +21,22 @@ pub struct Turn {
     pub when: u64,
     /// The start of what was asked.
     pub ask: String,
+    /// What of the turn's changes the person kept: workspace folders such as `tasks/` (an app's own Keep), or `""`
+    /// for the whole turn. Sync holds back what is not kept yet.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kept: Vec<String>,
+}
+
+impl Turn {
+    /// Whether the person kept this turn's change to `path` (a workspace path).
+    pub fn kept(&self, path: &str) -> bool {
+        self.kept.iter().any(|folder| folder.is_empty() || path.starts_with(folder.as_str()))
+    }
+
+    /// Whether the person kept all of the turn.
+    pub fn all_kept(&self) -> bool {
+        self.kept.iter().any(String::is_empty)
+    }
 }
 
 pub struct TurnHistory {
@@ -76,6 +92,7 @@ impl TurnHistory {
                 .chars()
                 .take(MAX_ASK)
                 .collect(),
+            kept: Vec::new(),
         });
         let extra = turns.len().saturating_sub(PER_CONVERSATION);
         turns.drain(..extra);
@@ -176,6 +193,30 @@ impl TurnHistory {
         Some(turns.len() - at - 1)
     }
 
+    /// The person kept the turn that started at `start`: all of it (`folder` empty), or one app's folder of it.
+    /// False when that turn is not known.
+    pub fn keep(&self, conversation: &str, start: &str, folder: &str) -> bool {
+        let Ok(mut all) = self.all.lock() else { return false };
+        let Some(turn) = all.get_mut(conversation).and_then(|t| t.iter_mut().rev().find(|t| t.start == start)) else {
+            return false;
+        };
+        if !turn.kept.iter().any(|k| k == folder) {
+            turn.kept.push(folder.to_owned());
+            self.save(&all);
+        }
+        true
+    }
+
+    /// The turns whose changes may still wait for Keep, with their conversation: each conversation's newest turn, when
+    /// it started at or after `since` (milliseconds since 1970) and is not kept as a whole. A turn before the newest
+    /// was left behind when the next one started, as Review leaves it, so it is not waited for.
+    pub fn waiting(&self, since: u64) -> Vec<(String, Turn)> {
+        let Ok(all) = self.all.lock() else { return Vec::new() };
+        all.iter()
+            .filter_map(|(c, turns)| turns.last().filter(|t| t.when >= since && !t.all_kept()).map(|t| (c.clone(), t.clone())))
+            .collect()
+    }
+
     /// One turn, by the checkpoint before it.
     pub fn find(&self, conversation: &str, start: &str) -> Option<Turn> {
         self.all
@@ -215,7 +256,8 @@ mod tests {
                 start: "aaaa".into(),
                 end: Some("bbbb".into()),
                 when: turns[1].when,
-                ask: "Add a task for Friday".into()
+                ask: "Add a task for Friday".into(),
+                kept: Vec::new(),
             }
         );
         assert_eq!(
@@ -247,5 +289,31 @@ mod tests {
         assert_eq!(h.turns("c1").len(), 1);
         h.put_back("c1", later);
         assert_eq!(h.turns("c1").iter().map(|t| t.start.as_str()).collect::<Vec<_>>(), ["cccc", "bbbb", "aaaa"]);
+    }
+
+    #[test]
+    fn only_each_conversations_newest_turn_waits_until_it_is_kept() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("turn-history.json");
+        let h = TurnHistory::open(&file);
+        h.started("c1", "aaaa", "first");
+        h.ended("c1", "bbbb");
+        h.started("c1", "bbbb", "second");
+        h.started("c2", "cccc", "other");
+        let mut waiting: Vec<(String, String)> = h.waiting(0).into_iter().map(|(c, t)| (c, t.start)).collect();
+        waiting.sort();
+        assert_eq!(waiting, [("c1".to_owned(), "bbbb".to_owned()), ("c2".to_owned(), "cccc".to_owned())]);
+        // Kept for one app: the rest of the turn still waits.
+        assert!(h.keep("c1", "bbbb", "tasks/"));
+        let turn = h.find("c1", "bbbb").unwrap();
+        assert!(turn.kept("tasks/plan.md") && !turn.kept("notes/a.md"));
+        assert_eq!(h.waiting(0).len(), 2);
+        // Kept as a whole, and still so after Mobius opens again.
+        assert!(h.keep("c1", "bbbb", ""));
+        assert!(!h.keep("c1", "nope", ""));
+        let again = TurnHistory::open(&file);
+        assert_eq!(again.waiting(0).into_iter().map(|(c, _)| c).collect::<Vec<_>>(), ["c2"]);
+        // Turns from before a time are not waited for.
+        assert!(again.waiting(u64::MAX).is_empty());
     }
 }

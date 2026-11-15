@@ -14,6 +14,10 @@ Logic that can be tested apart from the screen is kept in plain modules next to 
 `Tasks.tsx`, `studio-view.ts` beside `Studio.tsx`) and tested there. Prefer adding a unit test to one of these modules
 over an end-to-end test when the behaviour is not about the real window.
 
+**Adding or removing an agent tool.** The agent's built-in tools are listed, in the order the shell registers them,
+in `crates/mobius-host/tests/agent-tools.txt`. The bridge tests and the e2e suite both check against it. After changing
+the tools, run `npm run snapshot:tools` and commit the file with your change.
+
 ## End-to-end tests
 
 The end-to-end suite starts the **real** Mobius build (shell, core and interface) with a fresh data folder in test mode,
@@ -45,11 +49,15 @@ Pass `--trace off` unless you need traces; turn them on to debug a failure (`--t
 
 | Workflow | When | What |
 | --- | --- | --- |
-| **Checks** ([`ci.yml`](../../.github/workflows/ci.yml)) | Every push and pull request | Type checking, TypeScript tests, every Rust test, and a check that the generated types match the Rust ones, on Linux |
+| **Checks** ([`ci.yml`](../../.github/workflows/ci.yml)) | Each pull request (on its merge with `main`) and each commit on `main` | Type checking, TypeScript tests, every Rust test, and a check that the generated types match the Rust ones, on Linux |
 | **Windows end-to-end** ([`windows-e2e.yml`](../../.github/workflows/windows-e2e.yml)) | Pull requests, pushes to `main`, and by hand | The Playwright suite against the real app on Windows, in three shards, with one summary check named `e2e` |
 | **macOS build** ([`macos-build.yml`](../../.github/workflows/macos-build.yml)) | Pull requests and pushes to `main` | Compiles the shell on macOS so macOS-only code is checked. Nothing runs the app there yet |
 | **Release** ([`release.yml`](../../.github/workflows/release.yml)) | A `v*` tag | Builds, signs and drafts a release; see [Releases and updates](releasing.md) |
 | **Branch cleanup** ([`branch-cleanup.yml`](../../.github/workflows/branch-cleanup.yml)) | A pull request closes | Deletes the merged branch and its screenshots branch, keeping `main` |
+
+A newer push to a pull request cancels that pull request's older runs. On `main` nothing is cancelled: each commit
+runs on its own, so two merges a few seconds apart are both tested. A branch with no pull request isn't checked, so
+open one, even as a draft.
 
 To run the Windows suite by hand for one branch or a few files: **Actions › Windows end-to-end › Run workflow**, and
 give the spec paths (for example `e2e/mobius2.spec.ts`).
@@ -68,3 +76,26 @@ restored from its pull request page.
 
 Re-run only what failed while you fix it, then run the whole suite once. Don't skip or disable a test to get green;
 fix the cause or the test.
+
+### Unstable tests
+
+In CI a failed e2e test gets one more try by itself (`retries: 1`). Each shard's run summary lists the tests that
+failed on both tries and the ones that only passed on the second, from `scripts/e2e-summary.mjs`. A test that needed
+its second try still counts as a sighting, and it goes in the table below, so the table is filled from what CI saw.
+Beyond that automatic try, a test gets **one** re-run of the job per pull request. A test that reaches **three sightings** is a blocker: fix its cause
+before the next batch of merges. Remove a row once its fix has landed and it has stayed green for a day.
+
+| Test | Symptom | Seen | Owner | Status |
+| --- | --- | --- | --- | --- |
+| `mail.spec.ts:124` | After Mark as Unread, the message stays open, or no row reads unread | 5 (2026-11-14) | Apps lead | Fixed by #300 (menu items no longer wait for a frame). It has passed on every run since |
+| `code.spec.ts:189`, `mobius2.spec.ts:205`, `approval-modes.spec.ts:184` | The assistant's reply after a tool turn doesn't appear within 5 s | 4 (2026-11-14) | Builder | **Blocker**. Turn timings (#303) and host `[slow]` lines (#309) now log each step. The timings show `tool_result` taking up to 2.7 s, which is the host's checkpoint snapshot. On #349 (approval-modes.spec:184) the first checkpoint of the session took 4.7 s (`write-tree` 3 s), so the first tool waited for it. The host now readies checkpoints (index and objects) while the window loads, so the first turn's checkpoint only has to save. #371 puts CI temp on the runner's fast disk: no checkpoint over 1 s since. No sighting in the 55 Windows runs from #371 to 2026-11-15 03:45 UTC. Watching until 2026-11-15 23:00 UTC, a day after #371 |
+| `tasks.spec.ts:109` | Started fine, but the Lists sidebar never showed Inbox within 60 s ("Target page closed") | 2 (2026-11-14) | Apps lead | Fixed by #308 (the Inbox was made twice at once through one temp file) |
+| `skills.spec.ts:88`, `studio.spec.ts:159`, `video.spec.ts:80`, `slides.spec.ts:111`, `canvas.spec.ts`, `research.spec.ts:85`, `mobius2.spec.ts:167`, `studio.spec.ts:145` | Mobius's change never showed as proposed (dashed) | 9 (2026-11-14, #362) | Builder | **Blocker**. An app read the file as it was before the turn once, and gave up silently if the turn's record wasn't there yet. #309 retries in `useFileReview`, and #316 makes every app retry the same way. On #320, studio's marks still arrived 3.7 s after the turn ended, with no host step over a second. #330 logs whether the page was busy, the read's round trip, and the wait for the turn's start. #330's logs showed the first read raced the end-of-turn checkpoint, so #336 makes reads wait for it and sends host `[slow]` lines to CI. On #342 (research.spec:85) that checkpoint itself took 3.7 s on the Windows runner. #345 cuts it from six git runs to four, turns on Git's file-status caches, and logs each git run or lock wait over 300 ms. On #368 (mobius2.spec:167, the review strip's Keep) the end-of-turn `git add` alone took 4.5 s and a PowerShell call on the same runner timed out after 20 s: the Windows runner itself was starved. On #362 (studio.spec:145) the checkpoint before the turn took 3.2 s (`write-tree` 2.1 s) and the tool waited 2.8 s for it. #371 (CI only) found the cause: the tests' data folders were on the runner's slow OS disk (C:). With temp on its local disk (D:), no checkpoint took over 1 s (worst 0.93 s, was 6.0 s) and each shard ran in 7 to 10 minutes instead of 12. The Defender exclusion alone barely helped; beside temp on D: it keeps the rest under a second (without it 7 took over 1 s, worst 1.4 s). No sighting in the 55 Windows runs from #371 to 2026-11-15 03:45 UTC. Watching until 2026-11-15 23:00 UTC, a day after #371 |
+| `models.spec.ts:158` | Usage showed 3 requests where the test expects 2 after switching to a model on this computer | 2 (2026-11-14, #358) | Builder | Fixed by #366. On the local model's small window the tools and instructions alone came to nearly the share kept for a request, so a new tool (`photos.edit`) tipped the second turn into asking for a summary: a third model call. The conversation now always gets room beyond the tools |
+| `views.spec.ts:112` | After Discard, reading `Today.json` failed with "Unexpected end of JSON input" | 1 (2026-11-14, #364) | Builder | Fixed by #369. Git empties a file and then writes it, so a read during a restore found it empty; restores now rename a whole new file into place |
+| `database.spec.ts:27` | After `db.execute` the database showed no "Mobius changed this database" bar | 4 (2026-11-15, #362, #374, shell/drive-tools, main at 777c608) | Builder | **Blocker**, likely fixed by #397: its `db.execute` turn followed a turn that changed nothing, so both had one start checkpoint and one turn id, and the first turn being kept hid the second's bar. 0 sightings in 14 runs since #397 (03:38); mark fixed after 23:00 if it stays clean. #374 turned off `core.untrackedCache` and `core.fscache`, but main still failed after it (2026-11-15 01:48 UTC). The host itself lists no changed file: the window's `marks:` line says "0 file(s) changed" after the `db.execute` turn. That turn comes right after a turn that changed nothing (`db.query`), so until #397 both turns shared one start checkpoint. The UPDATE leaves the file the same size, so Git sees the change only through its modified time. Next: watch whether #397 (a turn of its own) changes it, and log the database file's size and time beside each checkpoint |
+| `learn.spec.ts:52` | Escape didn't close Learn | 1 (2026-11-14, #324) | Builder | Watching |
+| `shell.spec.ts:96` | After New tab, the tab strip still showed 1 tab, not 2 | 1 (2026-11-15, #387) | Builder | Watching. #387 doesn't touch the browser, and it passed on its one re-run |
+| A `mobius-host` lib test (unknown) | Checks: the type check's second `cargo test --lib` run failed after the full Rust test step had passed, with no test name shown | 1 (2026-11-15, #391) | Builder | Watching. #391 is docs only and passed on its one re-run. 25 local runs of the host lib tests found nothing. The type check now runs only the type-export tests, and prints the test output if they fail |
+| `mobius-runtime` `server.rs:200` (a leftover server from a previous run is stopped) | Checks: the port was still reachable after the leftover server was stopped | 1 (2026-11-15, main) | Builder | Fixed by this change. The other tests in the file start servers on free ports at the same time, so the freed port can be taken at once; the test now checks the process ended |
+| `mobius-host` `bridge.rs:942` (removing all data empties the data folder) | Checks: "1 items could not be removed" | 1 (2026-11-14, fix/warm-checkpoints) | Builder | Fixed by this change. Something still writing into the folder as it was emptied made one removal fail; Remove all data now takes up to five passes, which also covers a file held a moment on Windows |

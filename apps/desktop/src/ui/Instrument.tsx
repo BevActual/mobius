@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type WheelEvent } from 'react';
-import { fromPosition, logNudge, toPosition, type SliderProps } from './Slider';
+import { fromPosition, logNudge, toPosition, useGlide, useGlideMany, type SliderProps } from './Slider';
 import { NumberField } from './Pro';
 
 /**
@@ -60,16 +60,21 @@ function arc(from: number, to: number) {
  * filled in ink from the origin (zero, or the lowest value) to the value. Drag up or down to turn it (Shift for fine),
  * arrows nudge, Home and End go to the ends, double-click resets.
  */
-export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, unit, disabled, className }: KnobProps) {
+export function Knob({ label, value, onChange: change, onCommit, min = 0, max = 100, step = 1, bigStep, origin, reset, scale = 'linear', format, unit, proposed, disabled, className }: KnobProps) {
   const id = useId();
   const zero = origin ?? (min < 0 && max > 0 ? 0 : min);
   const back = reset ?? zero;
+  const own = useRef<number | null>(null);
+  const onChange = (v: number) => { own.current = v; change(v); };
+  const display = useGlide(value, own);
+  const seen = display === value ? value : snap(display, step, min);
   const at = toPosition(value, min, max, scale), from = toPosition(zero, min, max, scale);
+  const drawn = toPosition(display, min, max, scale);
   const drag = useRef<{ y: number; at: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const set = (next: number) => { const v = snap(clamp(next, min, max), step, min); if (v !== value) onChange(v); return v; };
-  const shown = format ? format(value) : String(value);
-  const text = `${shown}${unit ? ` ${unit}` : ''}`;
+  const shown = format ? format(seen) : String(seen);
+  const text = `${format ? format(value) : String(value)}${unit ? ` ${unit}` : ''}`;
 
   const down = (e: PointerEvent<HTMLDivElement>) => {
     if (disabled || e.button !== 0) return;
@@ -98,10 +103,10 @@ export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, ste
     e.preventDefault();
     set(next);
   };
-  const a0 = -SWEEP / 2, lo = a0 + SWEEP * Math.min(at, from), hi = a0 + SWEEP * Math.max(at, from), now = a0 + SWEEP * at;
+  const a0 = -SWEEP / 2, lo = a0 + SWEEP * Math.min(drawn, from), hi = a0 + SWEEP * Math.max(drawn, from), now = a0 + SWEEP * drawn;
   const r = ((now - 90) * Math.PI) / 180;
   return (
-    <div className={className ? `ui-knob ${className}` : 'ui-knob'} data-changed={value !== zero || undefined} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-knob ${className}` : 'ui-knob'} data-changed={value !== zero || undefined} data-proposed={proposed || undefined} data-disabled={disabled || undefined}>
       <span className="ui-knob-name" id={`${id}-name`}>{label}</span>
       <div
         className="ui-knob-dial"
@@ -136,7 +141,7 @@ export function Knob({ label, value, onChange, onCommit, min = 0, max = 100, ste
 
 /* ------------------------------------------------------------------------------------------------------- Graph bits */
 
-export type Handle<K extends string> = { key: K; x: number; y: number; label: string; text: string; now: number; min: number; max: number; /** A short mark inside the handle (a band's number). */ mark?: string };
+export type Handle<K extends string> = { key: K; x: number; y: number; label: string; text: string; now: number; min: number; max: number; /** A short mark inside the handle (a band's number). */ mark?: string; /** Mobius moved it and nobody has kept it yet. */ proposed?: boolean };
 
 /** Shared drag for a graph: which handle is held, and the pointer as 0 to 1 across and up the surface. */
 export function useGraphDrag<K extends string>(onMove: (key: K, x: number, y: number, event: PointerEvent) => void, onDone: () => void, onReset: (key: K) => void) {
@@ -198,6 +203,7 @@ export function HandleDot<K extends string>({ h, held, grab, onKey, onWheel, sel
       data-held={held === h.key || undefined}
       data-selected={selected || undefined}
       data-mark={h.mark ? true : undefined}
+      data-proposed={h.proposed || undefined}
       style={{ left: `${h.x * 100}%`, top: `${(1 - h.y) * 100}%` } as CSSProperties}
       onPointerDown={disabled ? undefined : grab(h.key)}
       onKeyDown={(e) => { if (!disabled) onKey(h.key, e); }}
@@ -235,7 +241,7 @@ type EnvKey = 'attack' | 'decay' | 'release';
  * release. Three handles: the peak (attack across), the decay corner (decay across, sustain up), and the end (release
  * across). The four values read underneath. On a handle, arrows move it; on the decay corner, Up and Down move sustain.
  */
-export function EnvelopeGraph({ label = 'Envelope', value, onChange, onCommit, reset, ranges = ENVELOPE_RANGES, disabled, className }: {
+export function EnvelopeGraph({ label = 'Envelope', value, onChange: change, onCommit, reset, ranges = ENVELOPE_RANGES, proposed, disabled, className }: {
   label?: string;
   value: Envelope;
   onChange: (next: Envelope) => void;
@@ -243,10 +249,17 @@ export function EnvelopeGraph({ label = 'Envelope', value, onChange, onCommit, r
   /** What double-clicking a handle puts back (the instrument's own sound). */
   reset?: Envelope;
   ranges?: EnvelopeRanges;
+  /** The settings Mobius moved that nobody has kept yet: they read in indigo, their handles dashed, the shape dashed. */
+  proposed?: Partial<Record<keyof Envelope, boolean>>;
   disabled?: boolean;
   className?: string;
 }) {
-  const p = envelopePoints(value, ranges);
+  const own = useRef<readonly number[] | null>(null);
+  const flat = (e: Envelope) => [e.attack, e.decay, e.sustain, e.release];
+  const onChange = (next: Envelope) => { own.current = flat(next); change(next); };
+  const g = useGlideMany(flat(value), own);
+  const drawn: Envelope = { attack: g[0]!, decay: g[1]!, sustain: g[2]!, release: g[3]! };
+  const p = envelopePoints(drawn, ranges);
   const set = (patch: Partial<Envelope>) => {
     const next = { ...value, ...patch };
     next.attack = roundTime(clamp(next.attack, ...ranges.attack));
@@ -277,15 +290,16 @@ export function EnvelopeGraph({ label = 'Envelope', value, onChange, onCommit, r
     onCommit?.(next);
   };
   const handles: Handle<EnvKey>[] = [
-    { key: 'attack', x: p.a, y: 1, label: 'Attack', text: secondsLabel(value.attack), now: value.attack, min: ranges.attack[0], max: ranges.attack[1] },
-    { key: 'decay', x: p.d, y: p.level, label: 'Decay and sustain', text: `Decay ${secondsLabel(value.decay)}, sustain ${pct(value.sustain)}`, now: value.decay, min: ranges.decay[0], max: ranges.decay[1] },
-    { key: 'release', x: p.r, y: 0, label: 'Release', text: secondsLabel(value.release), now: value.release, min: ranges.release[0], max: ranges.release[1] },
+    { key: 'attack', x: p.a, y: 1, label: 'Attack', text: secondsLabel(value.attack), now: value.attack, min: ranges.attack[0], max: ranges.attack[1], proposed: proposed?.attack },
+    { key: 'decay', x: p.d, y: p.level, label: 'Decay and sustain', text: `Decay ${secondsLabel(value.decay)}, sustain ${pct(value.sustain)}`, now: value.decay, min: ranges.decay[0], max: ranges.decay[1], proposed: proposed?.decay || proposed?.sustain },
+    { key: 'release', x: p.r, y: 0, label: 'Release', text: secondsLabel(value.release), now: value.release, min: ranges.release[0], max: ranges.release[1], proposed: proposed?.release },
   ];
+  const anyProposed = !!proposed && Object.values(proposed).some(Boolean);
   const y = (v: number) => 100 - v * 100;
   const shape = `M 0 100 L ${p.a * 100} 0 L ${p.d * 100} ${y(p.level)} L ${p.s * 100} ${y(p.level)} L ${p.r * 100} 100`;
   const changed = reset ? (['attack', 'decay', 'sustain', 'release'] as const).filter((k) => value[k] !== reset[k]) : [];
   return (
-    <div className={className ? `ui-graph ${className}` : 'ui-graph'} role="group" aria-label={label} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-graph ${className}` : 'ui-graph'} role="group" aria-label={label} data-proposed={anyProposed || undefined} data-disabled={disabled || undefined}>
       <div className="ui-graph-surface" data-held={held || undefined}>
         <div className="ui-graph-plot" {...surfaceProps}>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
@@ -298,9 +312,9 @@ export function EnvelopeGraph({ label = 'Envelope', value, onChange, onCommit, r
       </div>
       <dl className="ui-graph-readout">
         {(['attack', 'decay', 'sustain', 'release'] as const).map((k) => (
-          <div key={k} data-changed={changed.includes(k) || undefined}>
+          <div key={k} data-changed={changed.includes(k) || undefined} data-proposed={proposed?.[k] || undefined}>
             <dt>{k[0]!.toUpperCase() + k.slice(1)}</dt>
-            <dd>{k === 'sustain' ? pct(value.sustain) : secondsLabel(value[k])}</dd>
+            <dd>{k === 'sustain' ? pct(drawn.sustain) : secondsLabel(roundTime(drawn[k]))}</dd>
           </div>
         ))}
       </dl>
@@ -332,7 +346,7 @@ const dbY = (db: number) => clamp((db - DB_LO) / (DB_HI - DB_LO), 0, 1);
  * Resonance and Opens to, so the row reads Cutoff, Resonance, Sweep, Opens to and no separate knob is needed.
  * Arrows: Left and Right move cutoff a twelfth of an octave, Up and Down move resonance; Shift moves more.
  */
-export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset, type = 'lowpass', min = 20, max = 20000, q = musicQ, envAmount, envOctaves = 4, onEnvAmount, onEnvAmountCommit, envAmountReset, disabled, className }: {
+export function FilterGraph({ label = 'Filter', value, onChange: change, onCommit, reset, type = 'lowpass', min = 20, max = 20000, q = musicQ, envAmount, envOctaves = 4, onEnvAmount, onEnvAmountCommit, envAmountReset, proposed, disabled, className }: {
   label?: string;
   value: FilterValue;
   onChange: (next: FilterValue) => void;
@@ -351,9 +365,18 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
   onEnvAmountCommit?: (next: number) => void;
   /** Sweep's default, 0 to 1; double-click puts it back. */
   envAmountReset?: number;
+  /** The settings Mobius moved that nobody has kept yet: they read in indigo, the point and curve dashed. */
+  proposed?: Partial<Record<keyof FilterValue, boolean>>;
   disabled?: boolean;
   className?: string;
 }) {
+  // Cutoff glides in octaves, so it moves across the log axis evenly.
+  const own = useRef<readonly number[] | null>(null);
+  const flat = (f: FilterValue) => [Math.log(f.cutoff), f.resonance];
+  const onChange = (next: FilterValue) => { own.current = flat(next); change(next); };
+  const g = useGlideMany(flat(value), own);
+  const drawn: FilterValue = { cutoff: Math.exp(g[0]!), resonance: g[1]! };
+  const anyProposed = !!proposed && Object.values(proposed).some(Boolean);
   const set = (next: FilterValue) => onChange({ cutoff: Math.round(clamp(next.cutoff, min, max)), resonance: Math.round(clamp(next.resonance, 0, 1) * 100) / 100 });
   const peak = (res: number) => (type === 'bandpass' ? res : dbY(filterLevel(type, value.cutoff, value.cutoff, q(res))));
   // The point sits on the peak; find the resonance for a height by halving (the peak rises with resonance).
@@ -376,7 +399,7 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
   };
   const back = () => { if (reset) { onChange(reset); onCommit?.(reset); } };
   const curve = (cutoff: number) => {
-    const qv = q(value.resonance);
+    const qv = q(drawn.resonance);
     const pts: string[] = [];
     for (let i = 0; i <= 96; i++) {
       const x = i / 96;
@@ -384,31 +407,31 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
     }
     return `M ${pts.join(' L ')}`;
   };
-  const line = curve(value.cutoff);
-  const opened = envAmount ? Math.min(max, value.cutoff * Math.pow(2, envAmount * envOctaves)) : 0;
+  const line = curve(drawn.cutoff);
+  const opened = envAmount ? Math.min(max, drawn.cutoff * Math.pow(2, envAmount * envOctaves)) : 0;
   const zero = 100 - dbY(0) * 100;
   const decades = [100, 1000, 10000].filter((f) => f > min && f < max);
   const handle: Handle<'point'> = {
-    key: 'point', x: toPosition(value.cutoff, min, max, 'log'), y: peak(value.resonance), label: 'Cutoff and resonance',
-    text: `Cutoff ${hertzLabel(value.cutoff)}, resonance ${pct(value.resonance)}`, now: value.cutoff, min, max,
+    key: 'point', x: toPosition(drawn.cutoff, min, max, 'log'), y: peak(drawn.resonance), label: 'Cutoff and resonance',
+    text: `Cutoff ${hertzLabel(value.cutoff)}, resonance ${pct(value.resonance)}`, now: value.cutoff, min, max, proposed: anyProposed,
   };
   return (
-    <div className={className ? `ui-graph ${className}` : 'ui-graph'} role="group" aria-label={label} data-disabled={disabled || undefined}>
+    <div className={className ? `ui-graph ${className}` : 'ui-graph'} role="group" aria-label={label} data-proposed={anyProposed || undefined} data-disabled={disabled || undefined}>
       <div className="ui-graph-surface" data-held={held || undefined}>
         <div className="ui-graph-plot" {...surfaceProps}>
           <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
             {decades.map((f) => { const x = toPosition(f, min, max, 'log') * 100; return <line key={f} className="ui-graph-guide" x1={x} y1={0} x2={x} y2={100} />; })}
             <line className="ui-graph-guide" x1={0} y1={zero} x2={100} y2={zero} />
             <path className="ui-graph-area" d={`${line} L 100 100 L 0 100 Z`} />
-            {opened > value.cutoff && <path className="ui-graph-line" data-ghost d={curve(opened)} />}
+            {opened > drawn.cutoff && <path className="ui-graph-line" data-ghost d={curve(opened)} />}
             <path className="ui-graph-line" d={line} />
           </svg>
           <HandleDot h={handle} held={held} grab={grab} onKey={key} disabled={disabled} />
         </div>
       </div>
       <dl className="ui-graph-readout">
-        <div data-changed={(reset && value.cutoff !== reset.cutoff) || undefined}><dt>Cutoff</dt><dd>{hertzLabel(value.cutoff)}</dd></div>
-        <div data-changed={(reset && value.resonance !== reset.resonance) || undefined}><dt>Resonance</dt><dd>{pct(value.resonance)}</dd></div>
+        <div data-changed={(reset && value.cutoff !== reset.cutoff) || undefined} data-proposed={proposed?.cutoff || undefined}><dt>Cutoff</dt><dd>{hertzLabel(Math.round(drawn.cutoff))}</dd></div>
+        <div data-changed={(reset && value.resonance !== reset.resonance) || undefined} data-proposed={proposed?.resonance || undefined}><dt>Resonance</dt><dd>{pct(drawn.resonance)}</dd></div>
         {onEnvAmount && (
           <div data-changed={(envAmountReset !== undefined && (envAmount ?? 0) !== envAmountReset) || undefined}>
             <dt>Sweep</dt>
@@ -423,7 +446,7 @@ export function FilterGraph({ label = 'Filter', value, onChange, onCommit, reset
             </dd>
           </div>
         )}
-        {(envAmount !== undefined || onEnvAmount) && <div><dt>Opens to</dt><dd>{hertzLabel(opened || value.cutoff)}</dd></div>}
+        {(envAmount !== undefined || onEnvAmount) && <div><dt>Opens to</dt><dd>{hertzLabel(Math.round(opened || drawn.cutoff))}</dd></div>}
       </dl>
     </div>
   );

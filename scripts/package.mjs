@@ -1,4 +1,5 @@
-// Builds the Mobius installer: the interface, the core, and the shell with the core beside it, then Tauri's bundler.
+// Builds the Mobius installer: the interface, the core and mobius-inert-mcp, and the shell with both beside it, then
+// Tauri's bundler.
 //
 //   npm run package                  the installer for this computer (on Windows: NSIS, per-user)
 //   npm run package -- --version 0.2.0   the same, as that version (the release workflow passes the tag's)
@@ -27,10 +28,13 @@ const exe = process.platform === 'win32' ? '.exe' : '';
 
 console.log('› the interface');
 run('npm', ['run', 'build', '-w', '@mobius/desktop']);
-console.log('› the core');
-run('cargo', ['build', '--release', '-p', 'mobius-cored']);
+console.log('› the core, and the inert tool server the Claude Code and Copilot connections start beside it');
+run('cargo', ['build', '--release', '-p', 'mobius-cored', '--bin', 'mobius-cored', '-p', 'mobius-claude', '--bin', 'mobius-inert-mcp']);
 fs.mkdirSync(path.join(shell, 'binaries'), { recursive: true });
-fs.copyFileSync(path.join(root, 'target', 'release', `mobius-cored${exe}`), path.join(shell, 'binaries', `mobius-cored-${host}${exe}`));
+// Each goes in under the name the bundler looks for; it installs them beside the shell without the target.
+for (const bin of ['mobius-cored', 'mobius-inert-mcp']) {
+  fs.copyFileSync(path.join(root, 'target', 'release', `${bin}${exe}`), path.join(shell, 'binaries', `${bin}-${host}${exe}`));
+}
 
 console.log('› the shell and the installer');
 // What changes for this build (its version; no updater files without a key), as a file: a command line on Windows

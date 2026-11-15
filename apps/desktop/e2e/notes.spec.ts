@@ -120,6 +120,24 @@ test('the agent panel sits beside a note, and a change the agent makes shows up 
   await expect(text().locator('li')).toHaveText(['one', 'two']);
 });
 
+test('a change Mobius makes to the open page is marked as it lands, and its Keep comes when the turn ends', async () => {
+  fs.mkdirSync(file('Work'), { recursive: true });
+  fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n\nOne thing.\n');
+  // The answer comes slowly, so the turn is still running when the page has changed.
+  await start([callsTool('files-edit', { path: 'notes/Work/Plan.md', old: 'One thing.', new: 'One thing.\n\nAnother thing.' }), says(['Added ', 'it.'], 3000)]);
+  await side().getByRole('button', { name: 'Plan', exact: true }).click();
+  await expect(text()).toContainText('One thing.');
+  await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('add another');
+  await shell().getByRole('textbox', { name: 'Message Mobius' }).press('Enter');
+  const added = shell().getByRole('group', { name: 'Words Mobius added' });
+  await expect(added).toBeVisible();
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant').last()).not.toHaveText('Added it.');
+  await expect(added.getByRole('button', { name: 'Keep this change' })).toHaveCount(0);
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant').last()).toHaveText('Added it.', { timeout: 15_000 });
+  await expect(shell().getByRole('group', { name: 'Words Mobius added' }).getByRole('button', { name: 'Keep this change' })).toBeVisible();
+});
+
 test('if the agent changes the page while the person is typing, nothing is lost and the person chooses', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n');

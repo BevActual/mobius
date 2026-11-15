@@ -50,6 +50,7 @@ const APP_OF: Record<string, AppId> = {
   files: 'files', fs: 'files', document: 'docs', docs: 'docs', comments: 'docs', notes: 'notes', tasks: 'tasks', sheets: 'sheets',
   slides: 'slides', memory: 'wiki', wiki: 'wiki', images: 'photo', photo: 'photo', terminal: 'terminal', shell: 'terminal',
   research: 'research', reader: 'reader', design: 'design', canvas: 'canvas', studio: 'studio', video: 'video', skills: 'skills',
+  photos: 'photo',
 };
 
 export function appOfCapability(capability: string | null): AppId | null {
@@ -77,11 +78,11 @@ export function appOfFile(resource: string | null): { app: AppId; name: string }
   return { app, name };
 }
 
-/** Paying, sending, deleting and running commands always ask first, because none of them can be undone. */
+/** Paying, sending, deleting, running commands and changing a drive always ask first, because none of them can be undone. */
 export function isFinal(capability: string | null): boolean {
   if (!capability) return false;
   const [area = '', verb = ''] = capability.split('.');
-  return verb === 'send' || verb === 'pay' || verb === 'push' || verb === 'delete' || verb === 'run' || area === 'payments' || area === 'terminal' || area === 'shell';
+  return verb === 'send' || verb === 'pay' || verb === 'push' || verb === 'delete' || verb === 'run' || area === 'payments' || area === 'terminal' || area === 'shell' || capability === 'drives.write';
 }
 
 /** What a finished capability did, in a few words, with the thing it did it to when there is one. */
@@ -104,12 +105,14 @@ const DID: Record<string, (on: string) => string> = {
   'calendar.write': (on) => (on ? `Changed “${on}” in your calendar` : 'Changed your calendar'),
   'calendar.update': (on) => (on ? `Changed “${on}” in your calendar` : 'Changed your calendar'),
   'calendar.suggest': () => 'Suggested a time',
+  'calendar.free': () => 'Looked for a free time',
   'files.read': (on) => `Read ${on || 'a file'}`,
   'files.read_all': () => 'Read your files',
   'files.list': () => 'Looked through your files',
   'files.search': () => 'Searched your files',
   'files.write': (on) => `Changed ${on || 'a file'}`,
   'files.edit': (on) => `Changed ${on || 'a file'}`,
+  'files.move': (on) => `Moved files in ${on || 'your workspace'}`,
   'files.delete': (on) => `Deleted ${on || 'a file'}`,
   'fs.delete': (on) => `Deleted ${on || 'a file'}`,
   'document.write': (on) => `Wrote ${on || 'a document'}`,
@@ -127,9 +130,20 @@ const DID: Record<string, (on: string) => string> = {
   'memory.write': () => 'Remembered something about you',
   'memory.forget': () => 'Forgot something it had remembered',
   'images.generate': () => 'Made a picture',
+  'drives.read': (on) => (on ? `Read ${on} on a drive` : 'Looked on a drive'),
+  'drives.write': (on) => (on ? `Changed ${on} on a drive` : 'Changed a drive'),
   'payments.pay': (on) => (on ? `Paid ${on}` : 'Made a payment'),
   'clock.read': () => 'Checked the time',
   'clock.now': () => 'Checked the time',
+};
+
+/**
+ * App tools that change files under the files capability (design.edit, photos.edit): said by what they changed, not
+ * as "a file".
+ */
+const DID_TOOL: Record<string, (on: string) => string> = {
+  'design.edit': (on) => (on ? `Changed the design ${on}` : 'Changed a design'),
+  'photos.edit': () => 'Edited photos',
 };
 
 /** What a question or an approval was about, as Mobius would ask it: "send email". */
@@ -137,10 +151,11 @@ const ASKED: Record<string, string> = {
   'browser.navigate': 'open pages', 'browser.open': 'open pages', 'browser.read': 'read pages', 'browser.click': 'click on pages',
   'browser.type': 'type on pages', 'browser.interact': 'use pages', 'net.http_get': 'fetch pages', 'mail.read': 'read your mail',
   'mail.draft': 'draft email', 'mail.send': 'send email', 'calendar.add': 'add events', 'calendar.write': 'change your calendar',
-  'calendar.update': 'change your calendar', 'files.read': 'read files', 'files.write': 'change files', 'files.edit': 'change files',
+  'calendar.update': 'change your calendar', 'files.read': 'read files', 'files.write': 'change files', 'files.edit': 'change files', 'files.move': 'move files',
   'files.delete': 'delete files', 'fs.delete': 'delete files', 'code.run': 'run commands', 'code.push': 'push code',
   'code.commit': 'commit code', 'db.write': 'change a database', 'db.execute': 'change a database', 'payments.pay': 'pay',
   'memory.remember': 'remember things', 'memory.write': 'remember things', 'images.generate': 'make pictures',
+  'drives.read': 'look on your drives', 'drives.write': 'change files on your drive',
 };
 function about(capability: string | null, tool: string | null): string {
   return (capability && ASKED[capability]) || `use ${tool ?? capability ?? 'a tool'}`;
@@ -158,7 +173,9 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     // A file Mobius changed belongs to the app that shows it: a sheet to Sheets, a note to Notes.
     const file = /^(files|fs)\./.test(e.capability ?? '') ? appOfFile(e.resource) : null;
     const on = file?.name ?? e.resource ?? '';
-    const app = file?.app ?? appOfCapability(e.capability);
+    // An app's own tool belongs to that app, even when its capability is the files one (design.edit is Design's).
+    const toolApp = e.tool && !/^(files|fs)\./.test(e.tool) ? appOfCapability(e.tool) : null;
+    const app = file?.app ?? toolApp ?? appOfCapability(e.capability);
     // Only what actually happened (or was allowed to) is marked: a refused send changed nothing.
     const final = isFinal(e.capability) && (e.kind === 'tool.completed' || e.kind === 'permission.approved');
     const by = e.who ? (WHO[e.who] ?? 'other') : 'mobius';
@@ -168,7 +185,7 @@ export function feedOf(entries: readonly ActivityEntry[]): FeedItem[] {
     const tool = e.tool ?? e.capability ?? 'a tool';
     switch (e.kind) {
       case 'tool.completed': {
-        const did = e.capability ? DID[e.capability] : undefined;
+        const did = (e.tool ? DID_TOOL[e.tool] : undefined) ?? (e.capability ? DID[e.capability] : undefined);
         out.push({ ...base, text: did ? did(on) : `Used ${tool}${on ? ` on ${on}` : ''}`, warn: false });
         break;
       }

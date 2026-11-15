@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { readFileSync } from 'node:fs';
+import { SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -90,6 +91,40 @@ describe('a track\'s mix and instrument settings', () => {
   });
 });
 
+describe('the Session view\'s clips', () => {
+  it('keeps clips in their slots, kept to a clip\'s lengths and to their notes inside it, and scene names', () => {
+    const read = parseSong(JSON.stringify({ version: 1, scenes: ['Verse', '', 'Chorus'], tracks: [{ id: 't1', instrument: 'bass', name: 'Bass', notes: [], slots: [null, { bars: 3, notes: [{ pitch: 40, start: 1, length: 1 }, { pitch: 41, start: 9, length: 1 }] }, null, 'nonsense'] }] }));
+    if (!('song' in read)) throw new Error('not read');
+    const t = read.song.tracks[0]!;
+    expect(t.slots).toEqual([null, { name: 'Bass', bars: 2, notes: [{ pitch: 40, start: 1, length: 1, velocity: 0.8 }] }]);
+    expect(sceneCount(read.song)).toBe(4);
+    expect([0, 1, 2, 3].map((i) => sceneName(read.song, i))).toEqual(['Verse', '2', 'Chorus', '4']);
+    const again = parseSong(writeSong(read.song));
+    if (!('song' in again)) throw new Error('not read');
+    expect(again.song).toEqual(read.song);
+  });
+  it('leaves slots out of a song with no clips', () => {
+    const read = parseSong(JSON.stringify({ version: 1, tracks: [{ id: 't1', instrument: 'bass', notes: [], slots: [null, null] }] }));
+    if (!('song' in read)) throw new Error('not read');
+    expect(read.song.tracks[0]!.slots).toBeUndefined();
+    expect(writeSong(read.song)).not.toContain('slots');
+  });
+});
+
+describe('a track\'s instrument switch', () => {
+  it('is kept only when the instrument is switched off', () => {
+    const read = (t: object) => parseSong(JSON.stringify({ version: 1, tracks: [{ id: 't1', instrument: 'piano', notes: [], ...t }] }));
+    const off = read({ instrumentOn: false });
+    if (!('song' in off)) throw new Error('not read');
+    expect(off.song.tracks[0]!.instrumentOn).toBe(false);
+    expect(writeSong(off.song)).toContain('"instrumentOn":false');
+    const on = read({ instrumentOn: true });
+    if (!('song' in on)) throw new Error('not read');
+    expect(on.song.tracks[0]!.instrumentOn).toBeUndefined();
+    expect(writeSong(on.song)).not.toContain('instrumentOn');
+  });
+});
+
 describe('a track\'s effects', () => {
   it('keeps known effects in order, kept to their ranges, and writes them back', () => {
     const s = song(JSON.stringify({ tracks: [
@@ -126,5 +161,41 @@ describe('a drum kit\'s pads', () => {
     const text = writeSong(s);
     expect(song(text).tracks[0]!.pads).toEqual({ 38: { tune: 3, decay: 1, level: 1, pan: -1 } });
     expect(drumKit({ tune: 2, decay: 1.5, tone: 0.5 }, { tune: 3, decay: 2, level: 1, pan: 0 })).toEqual({ tune: 5, decay: 3, tone: 0.5 });
+  });
+});
+
+describe('volume automation', () => {
+  it('reads points in order, inside the song and 0 to 1, and leaves out the rest', () => {
+    expect(readAuto([{ beat: 8, value: 0.2 }, { beat: -1, value: 2 }, { beat: 'x', value: 1 }, { beat: 99, value: 0.5 }], 16)).toEqual([{ beat: 0, value: 1 }, { beat: 8, value: 0.2 }, { beat: 16, value: 0.5 }]);
+  });
+  it('is flat before the first point and after the last, and a straight line between', () => {
+    const line = [{ beat: 4, value: 0 }, { beat: 8, value: 1 }];
+    expect(autoValueAt(line, 0, 0.8)).toBe(0);
+    expect(autoValueAt(line, 6, 0.8)).toBe(0.5);
+    expect(autoValueAt(line, 12, 0.8)).toBe(1);
+    expect(autoValueAt([], 3, 0.8)).toBe(0.8);
+  });
+  it('is kept in the song file, and left out when there is none', () => {
+    const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [], volumeAuto: [{ beat: 0, value: 0 }, { beat: 16, value: 1 }] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    expect(r.song.tracks[0]!.volumeAuto).toHaveLength(2);
+    expect(writeSongForAuto(r.song)).toContain('"volumeAuto":[{"beat":0,"value":0},{"beat":16,"value":1}]');
+    r.song.tracks[0]!.volumeAuto = [];
+    expect(writeSongForAuto(r.song)).not.toContain('volumeAuto');
+  });
+});
+
+describe('the agent guide (docs/agent/music.md)', () => {
+  // Mobius writes sounds and effects from this page, so every setting it names is the one the app reads, in its range.
+  const guide = readFileSync(new URL('../../../docs/agent/music.md', import.meta.url), 'utf8');
+  const n = (v: number) => String(v);
+  it('names every sound setting with its range', () => {
+    for (const [k, r] of Object.entries(SOUND_RANGE)) expect(guide, k).toMatch(new RegExp(`\`${k}\` ${n(r.lo)}-${n(r.hi)}`));
+  });
+  it('names every effect kind and setting', () => {
+    for (const [kind, params] of Object.entries(EFFECT_PARAMS)) {
+      expect(guide).toContain(`\`${kind}\``);
+      for (const k of Object.keys(params)) expect(guide, `${kind}.${k}`).toContain(`\`${k}\``);
+    }
   });
 });

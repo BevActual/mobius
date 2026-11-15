@@ -436,6 +436,19 @@ mod browser {
         assert!(run("files.read", json!({ "path": "..\\bookmarks.json" })).is_err());
     }
 
+    /// The built-in tools from the snapshot file, in registration order. With `MOBIUS_SNAPSHOT_TOOLS=1` (as
+    /// `npm run snapshot:tools` sets) the registered names given are written to it first.
+    fn expected_tools(registered: &[String]) -> Vec<String> {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/agent-tools.txt");
+        let text = std::fs::read_to_string(&file).unwrap();
+        if std::env::var_os("MOBIUS_SNAPSHOT_TOOLS").is_some() && !registered.is_empty() {
+            let header: String = text.lines().take_while(|l| l.starts_with('#')).map(|l| format!("{l}\n")).collect();
+            std::fs::write(&file, format!("{header}{}\n", registered.join("\n"))).unwrap();
+            return registered.to_vec();
+        }
+        text.lines().map(str::trim).filter(|l| !l.is_empty() && !l.starts_with('#')).map(str::to_owned).collect()
+    }
+
     fn registered_names(core: &Arc<CoreProcess>) -> Vec<String> {
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect()
@@ -546,7 +559,7 @@ mod browser {
         std::fs::write(dir.path().join("mcp.json"), "{ nope").unwrap();
         let (b, core, _e, _d) = bridge_in(dir);
         b.on_core_status(Status::Ready);
-        assert_eq!(registered_names(&core).len(), 45, "the built-in tools are still registered");
+        assert_eq!(registered_names(&core).len(), expected_tools(&[]).len(), "the built-in tools are still registered");
         let start = Instant::now();
         while b.mcp_status()["problem"].is_null() {
             assert!(start.elapsed() < Duration::from_secs(10));
@@ -591,7 +604,7 @@ mod browser {
         b.on_core_status(Status::Ready);
         let log = core.call("test.log", json!({}), Duration::from_secs(5)).unwrap();
         let names: Vec<_> = log.as_array().unwrap().iter().filter(|c| c["method"] == "tools.register_external").map(|c| c["params"]["name"].as_str().unwrap().to_owned()).collect();
-        assert_eq!(names, vec!["browser.tabs", "browser.open", "browser.read", "browser.click", "browser.type", "files.list", "files.read", "files.search", "files.write", "files.edit", "tasks.list", "tasks.add", "tasks.update", "calendar.list", "calendar.add", "calendar.suggest", "calendar.update", "sheets.list", "sheets.read", "sheets.write", "mail.search", "mail.read", "mail.draft", "memory.remember", "memory.forget", "schedules.list", "schedules.add", "code.test", "code.run", "code.commit", "code.push", "skills.list", "skills.read", "web.search", "web.read", "code.start", "code.output", "code.stop", "db.list", "db.query", "db.execute", "comments.list", "comments.reply", "comments.resolve", "images.generate"]);
+        assert_eq!(names, expected_tools(&names), "the tools match crates/mobius-host/tests/agent-tools.txt; after adding one, run `npm run snapshot:tools`");
     }
 
     #[derive(Default)]
@@ -1633,6 +1646,97 @@ fn changes_after_a_turn_ends_do_not_join_it() {
     assert_eq!(std::fs::read_to_string(ws.join("docs/Mine.md")).unwrap(), "# Mine\n", "the person's doc stays");
 }
 
+/// A turn that changed no files, then another: the second has a start of its own, so keeping the first (by its start)
+/// never hides what the second changes. Round 14: Plan my day changed only Mail, was kept, and Triage's tasks vanished.
+#[test]
+fn a_turn_after_one_that_changed_no_files_starts_from_a_checkpoint_of_its_own() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("tasks")).unwrap();
+    std::fs::write(ws.join("tasks/Inbox.md"), "# Inbox\n").unwrap();
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    let turns = |b: &Bridge| call(b, "changes", "turns", json!(["c-1"]))["turns"].as_array().cloned().unwrap_or_default();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan my day"]))["ok"], true);
+    wait(&|| turns(&b).len() == 1);
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| turns(&b)[0]["ended"] == true);
+    let first = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    assert_eq!(first["files"], json!([]), "{first}");
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "triage"]))["ok"], true);
+    wait(&|| turns(&b).len() == 2);
+    std::fs::write(ws.join("tasks/Inbox.md"), "# Inbox\n\n- [ ] Reply to Sam\n").unwrap();
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 2, "event": { "kind": "done" } }));
+    wait(&|| turns(&b).iter().all(|t| t["ended"] == true));
+    let second = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    assert_ne!(second["checkpoint"], first["checkpoint"], "each turn is kept apart");
+    assert_eq!(second["files"], json!(["tasks/Inbox.md"]), "{second}");
+}
+
+/// A tidy is discarded in one go: every file back where it was, archives included, and no folder it made left behind.
+/// The window lists each move once, an archive's too, and can put an archive's move back on its own.
+#[test]
+fn discarding_a_tidy_puts_the_folder_back_exactly() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("Downloads")).unwrap();
+    std::fs::write(ws.join("Downloads/quote.md"), "# Quote\n").unwrap();
+    std::fs::write(ws.join("Downloads/setup.zip"), b"zip").unwrap();
+    std::fs::write(ws.join("Downloads/plan.md"), "# Plan\n").unwrap();
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "tidy this folder"]))["ok"], true);
+    let wait = |what: &dyn Fn() -> bool| {
+        let start = Instant::now();
+        while !what() {
+            assert!(start.elapsed() < Duration::from_secs(20), "timed out");
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    };
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"].as_array().is_some_and(|t| !t.is_empty()));
+    let moved = b.host_request("host.tool", &json!({ "tool": "files.move", "arguments": { "folder": "Downloads", "moves": [
+        { "from": "quote.md", "to": "Finance/Quotes/quote.md" },
+        { "from": "setup.zip", "to": "Installers/setup.zip" },
+        { "from": "plan.md", "to": "Documents/plan.md" },
+    ] } }));
+    assert!(moved.is_ok(), "{moved:?}");
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "done" } }));
+    wait(&|| call(&b, "changes", "turns", json!(["c-1"]))["turns"][0]["ended"] == true);
+    let last = call(&b, "changes", "lastTurn", json!(["c-1"]));
+    // The archive's move is listed too, though checkpoints leave archives out: three files moved, three moves.
+    assert_eq!(last["moves"].as_array().map(Vec::len), Some(3), "{last}");
+    assert!(last["moves"].as_array().unwrap().contains(&json!({ "from": "Downloads/setup.zip", "to": "Downloads/Installers/setup.zip" })), "{last}");
+    // Undoing that one move on its own puts the archive back, and takes away the folder it made.
+    let one = call(&b, "changes", "undoFiles", json!(["c-1", ["Downloads/Installers/setup.zip", "Downloads/setup.zip"]]));
+    assert_eq!(one["ok"], true, "{one}");
+    assert!(ws.join("Downloads/setup.zip").is_file() && !ws.join("Downloads/Installers").exists());
+    let files: Vec<String> = last["files"].as_array().unwrap().iter().map(|f| f.as_str().unwrap().to_owned()).collect();
+    let undone = call(&b, "changes", "undoFiles", json!(["c-1", files]));
+    assert_eq!(undone["ok"], true, "{undone}");
+    let mut left: Vec<String> = std::fs::read_dir(ws.join("Downloads")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+    left.sort();
+    assert_eq!(left, ["plan.md", "quote.md", "setup.zip"], "every file back, the archive too, and no folder left");
+}
+
+/// Each step of a turn is kept with when it happened, so a slow turn can be taken apart afterwards.
+#[test]
+fn a_turns_steps_are_kept_with_their_times() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "agent", "send", json!(["c-1", "plan my day"]))["ok"], true);
+    b.on_core_notification("agent.timing", &json!({ "conversation": "c-1", "turn": 1, "step": "model", "model": "m", "startup_ms": 2400, "first_text_ms": 3100, "ms": 5200, "input": 9000, "cached": 0, "output": 80, "tools_offered": 47, "tool_calls": 3, "ok": true }));
+    b.on_core_notification("agent.event", &json!({ "conversation": "c-1", "turn": 1, "event": { "kind": "tool_call", "call_id": "a", "name": "tasks.list", "arguments": {} } }));
+    let kept = std::fs::read_to_string(dir.path().join("turn-timings.jsonl")).unwrap();
+    let steps: Vec<serde_json::Value> = kept.lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(steps[0]["step"], "sent");
+    let model = steps.iter().find(|s| s["step"] == "model").unwrap();
+    assert_eq!((model["startup_ms"].as_u64(), model["tools_offered"].as_u64()), (Some(2400), Some(47)));
+    assert!(steps.iter().any(|s| s["step"] == "event" && s["name"] == "tasks.list"));
+    assert!(steps.iter().all(|s| s["at"].is_u64()));
+}
+
 /// Mobius reads the comments on a document, answers one under it and resolves it; Docs is told so it shows them.
 #[test]
 fn mobius_reads_answers_and_resolves_comments() {
@@ -1745,4 +1849,25 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "yesterday", "to": "today" }]))["ok"], false);
     call(&b, "usage", "clear", json!([]));
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
+}
+
+#[test]
+fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = format!("http://{}", listener.local_addr().unwrap());
+    drop(listener);
+    let added = call(&b, "drives", "add", json!([{ "name": "Cloud", "server": address, "username": "ana", "password": "p" }]));
+    assert_eq!(added["ok"], false);
+    assert!(added["message"].as_str().unwrap().starts_with("Could not reach"), "{added}");
+    let missing = call(&b, "drives", "browse", json!(["nope", ""]));
+    assert_eq!((missing["ok"].clone(), missing["message"].clone(), missing["conflict"].clone()), (json!(false), json!("That drive is gone."), json!(false)));
+    assert_eq!(call(&b, "drives", "browse", json!([]))["message"], "A drive is needed.");
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+    // Sync: nothing is paired until the person pairs a folder, and only with a drive that is there.
+    assert_eq!(call(&b, "drives", "syncPairs", json!([])), json!([]));
+    assert_eq!(call(&b, "drives", "syncAdd", json!(["notes", "nope", "Notes"]))["message"], "That drive is gone.");
+    assert_eq!(call(&b, "drives", "syncNow", json!(["nope"]))["message"], "That folder is not synced any more.");
+    assert_eq!(call(&b, "drives", "signIn", json!(["nope", "p"]))["message"], "That drive is gone.");
 }

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { CalendarSuggestion, MailDraft, TurnChanges, TurnRecord } from '@mobius/shared';
+import type { CalendarSuggestion, MailDraft, MobiusBridge, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { loadApply } from './chat-mode';
 import { APP_ICONS } from './Rail';
@@ -24,6 +24,8 @@ export function describeChange(path: string): ReturnType<typeof describeFile> {
   const comments = /^(notes|docs|slides|research|reading)\/\.comments\/(.+)\.json$/i.exec(p);
   if (comments) { const page = describeChange(`${comments[1]}/${comments[2]}.md`); return { kind: page.kind, name: `Comments on ${page.name}` }; }
   if (p === 'calendar/.suggestions.json') return { kind: 'Calendar', name: 'Suggested events' };
+  const charts = /^sheets\/([^/]+)\/\.charts\.json$/i.exec(p);
+  if (charts) return { kind: 'Sheet', name: `Charts in ${charts[1]}` };
   const title = knownTitles.get(p);
   const described = describeFile(p);
   const folder = p.split('/')[1];
@@ -51,6 +53,11 @@ function describeFile(path: string): { kind: 'Note' | 'Doc' | 'Deck' | 'Sheet' |
   return { kind: 'File', name: path };
 }
 
+/**
+ * Whether a file the turn changed is a change to review. The comment threads kept at the workspace's root
+ * (`.comments/<app>/<document>.json`) are not: Mobius's reply there is its answer, shown on the comment itself.
+ */
+export const reviewable = (path: string): boolean => !/^\.comments\//.test(path.replace(/\\/g, '/'));
 const isChanges = (value: unknown): value is TurnChanges => typeof value === 'object' && value !== null && 'files' in value;
 
 /**
@@ -89,6 +96,10 @@ export const fileKept = (id: string, path: string): boolean => keptEntries().som
 export const keepTurn = (id: string, scope: KeepScope = 'all') => {
   const entry = scope === 'all' ? id : `${id}|${scope}`;
   try { window.localStorage.setItem(KEPT_KEY, JSON.stringify([...keptEntries().filter((x) => x !== entry), entry].slice(-MAX_KEPT))); } catch { /* Not kept. */ }
+  // The host too, so sync sends what was kept (an agent's change waits for Keep before it reaches a drive).
+  const at = id.indexOf(':');
+  const changes = (window as { mobius?: Partial<MobiusBridge> }).mobius?.changes;
+  if (at > 0) void changes?.kept?.(id.slice(0, at), id.slice(at + 1), scope === 'all' ? '' : SCOPE_FOLDERS[scope]).catch(() => undefined);
   window.dispatchEvent(new CustomEvent(KEPT_EVENT, { detail: id }));
 };
 /** The apps a list of changed files belongs to, by name, in the order they first appear: "Tasks, Calendar, Sheets". */
@@ -189,6 +200,8 @@ async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion
 
 export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
+  // Files the turn moved or renamed, new path to old: each is one change, though both paths changed.
+  const [moved, setMoved] = useState<ReadonlyMap<string, string>>(new Map());
   const [drafts, setDrafts] = useState<MailDraft[]>([]);
   const [suggested, setSuggested] = useState<CalendarSuggestion[]>([]);
   // A calendar file is listed by the events the turn added or changed in it, not by the file's name.
@@ -210,7 +223,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     const id = turnId(conversation, changes?.checkpoint ?? null);
     setTurn(id);
     // What is left of the turn: an app's own Keep takes its part away, the rest stays here.
-    const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => !(id && fileKept(id, f))) : [];
+    const waiting = changes && !(id && keptTurns().includes(id)) ? changes.files.filter((f) => reviewable(f) && !(id && fileKept(id, f))) : [];
     // Suggested events are listed by their titles, not as the file Calendar keeps them in.
     const events = waiting.some((f) => f.replace(/\\/g, '/') === SUGGESTIONS_FILE) ? await suggestedInTurn(conversation) : [];
     const calendars = waiting.filter((f) => /^calendar\/[^/]+\.ics$/i.test(f.replace(/\\/g, '/')));
@@ -218,6 +231,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     if (n !== reads.current) return;
     setSuggested(events);
     setEvents(named);
+    setMoved(movesIn(waiting, changes?.moves));
     setFiles(waiting);
   }, [conversation, since]);
   useEffect(() => { setOpen(true); setUndone(false); setProblem(null); }, [conversation]);
@@ -243,10 +257,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     // A suggested reply is discarded as Mail's own Discard does it: deleted, never sent.
     for (const d of drafts) await window.mobius.mail?.deleteDraft(d.id).catch(() => undefined);
     setDrafts([]);
-    for (const path of files) {
-      const result = await window.mobius.changes.undoFile(conversation, path).catch(() => ({ ok: false as const, error: 'That could not be undone.' }));
-      if (!result.ok) { setProblem(result.error); void load(); return result.error; }
-    }
+    const result = await undoAt(conversation, files);
+    if (!result.ok) { setProblem(result.error); void load(); return result.error; }
     // Say so at once: reading the turn again is slow on some computers. The core still lists a turn after it is put
     // back, so it is settled as a kept one is, and the strip does not return for it.
     setFiles([]);
@@ -271,7 +283,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     if (turn) keepTurn(turn, 'all');
   }, [turn, drafts, suggested]);
   // What the strip lists: the files the turn changed, then the replies it suggested in Mail.
-  const listed = suggested.length > 0 ? files.filter((f) => f.replace(/\\/g, '/') !== SUGGESTIONS_FILE) : files;
+  const sources = new Set(moved.values());
+  const listed = (suggested.length > 0 ? files.filter((f) => f.replace(/\\/g, '/') !== SUGGESTIONS_FILE) : files).filter((f) => !sources.has(f));
   const apps = [...appsOf(files), ...(drafts.length > 0 && !appsOf(files).includes('Mail') ? ['Mail'] : [])];
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
@@ -309,7 +322,10 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
       const inCalendar = events[path];
       const names = inCalendar && inCalendar.names.length > 0 ? inCalendar.names : null;
       const target = inCalendar?.date ? { app: 'calendar' as const, date: inCalendar.date } : changeTarget(path);
-      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
+      const from = moved.get(path);
+      // A move is one change: both its paths go back together.
+      if (from !== undefined) return { key: path, app: appsOf([path])[0] ?? 'Files', name: described.name, count: 1, unit: 'moved file', title: `${from} to ${path}`, target, undo: () => void run(() => undoAt(conversation, [path, from])) };
+      return { key: path, app: appsOf([path])[0] ?? 'Files', name: names ? (names.length > 2 ? `${names.slice(0, 2).join(', ')} and ${names.length - 2} more` : names.join(', ')) : described.name, count: names ? names.length : 1, unit: names ? 'event' : /\/\.charts\.json$/i.test(path.replace(/\\/g, '/')) ? 'chart' : unitOf(described.kind), title: path, target, undo: () => void run(() => window.mobius.changes.undoFile(conversation, path)) };
     }),
     ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
     ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
@@ -370,6 +386,30 @@ export function countOf(entries: readonly { count: number; unit: string }[]): st
   const by = new Map<string, number>();
   for (const e of entries) by.set(e.unit, (by.get(e.unit) ?? 0) + e.count);
   return [...by].map(([unit, n]) => `${n} ${n === 1 ? unit : unit === 'draft reply' ? 'draft replies' : `${unit}s`}`).join(', ');
+}
+
+/**
+ * Puts these files of the conversation's last turn back, all at once (one checkpoint, not one per file: a tidy of a
+ * hundred files took most of a minute). All of the turn's files also moves back the archives and folders its moves
+ * left behind. One by one where the bridge cannot do it at once.
+ */
+export async function undoAt(conversation: string, paths: readonly string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  const failed = { ok: false as const, error: 'That could not be undone.' };
+  if (window.mobius.changes.undoFiles) {
+    const result = await window.mobius.changes.undoFiles(conversation, paths).catch(() => failed);
+    return result.ok ? { ok: true } : { ok: false, error: result.error };
+  }
+  for (const path of paths) {
+    const result = await window.mobius.changes.undoFile(conversation, path).catch(() => failed);
+    if (!result.ok) return { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
+
+/** The turn's moves whose two paths are both still waiting, as new path to old, so each is listed and counted once. */
+export function movesIn(waiting: readonly string[], moves: readonly { from: string; to: string }[] | undefined): Map<string, string> {
+  const left = new Set(waiting);
+  return new Map((moves ?? []).filter((m) => left.has(m.from) && left.has(m.to)).map((m) => [m.to, m.from]));
 }
 
 /** The turn's changes by app, in the order the apps first appear. */

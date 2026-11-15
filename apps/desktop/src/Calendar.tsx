@@ -175,8 +175,11 @@ function asShown(s: CalendarSuggestion): Shown {
   return { id: `suggested:${s.id}`, calendar: s.calendar, title: s.title, start: s.start, end, allDay: s.allDay, location: s.location, notes: s.notes, repeats: false, suggestion: s };
 }
 
-/** Everything to draw: the events, then Mobius's suggestions. */
-const onScreen = (calendar: CalendarState): Shown[] => [...calendar.events, ...calendar.suggestions.filter((s) => !calendar.hidden.has(s.calendar)).map(asShown)];
+/**
+ * Everything to draw: the events, then Mobius's suggestions. A suggestion shows even when its calendar is hidden: it
+ * waits for an answer, and the sidebar counts it, so a hidden one would be counted but nowhere to be found.
+ */
+const onScreen = (calendar: CalendarState): Shown[] => [...calendar.events, ...calendar.suggestions.map(asShown)];
 /** One time of an event: a repeating event's times share its id. */
 const keyOf = (e: CalendarEvent) => `${e.id}:${e.start}`;
 /** Whether an event can be dragged: not a suggestion, and not from a calendar that can only be read. */
@@ -411,7 +414,9 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   // Tasks with a time sit at their hour; the rest wait in the all-day row.
   const dueAll = days.map((d) => tasksOn(calendar.due, d));
   const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null));
-  const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null));
+  // A timed task with a block of its own (an event or suggestion of the same name that day) is drawn by that block,
+  // which says it is also a task: drawn twice, the two split the column and the block shrinks to a sliver.
+  const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null && !all.some((e) => taskFor([t], e) !== undefined)));
   // Each timed task as a half-hour slot, so it is laid out beside the events it meets instead of over them.
   const slotTask = new Map<string, DueTask>();
   const asSlot = (t: DueTask): Shown => {
@@ -936,7 +941,7 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
     : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
 }
 
-export function CalendarPage({ calendar, newToken = 0, review = null }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null }) {
+export function CalendarPage({ calendar, newToken = 0, review = null, working = false }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -1101,7 +1106,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null }: { calend
           </div>
         </div>
       </ToolbarControls>
-      {review && firstChange && (
+      {review && firstChange && !working && (
         <div className="note-review cal-review" role="status">
           <span className="review-dot" aria-hidden="true" />
           <span className="note-review-text">{changeSaid(proposal.changed, firstChange)}<WhyThis conversation={review.conversation} /></span>

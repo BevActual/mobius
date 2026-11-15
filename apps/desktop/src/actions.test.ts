@@ -7,6 +7,9 @@ describe('actions in plain words', () => {
     expect(describeAction('tasks.add', { list: 'Inbox', text: 'Water the plants' })).toBe('add “Water the plants” to Inbox in Tasks');
     expect(describeAction('files.write', { path: 'notes/Work/Plan.md' })).toBe('write the note “Work › Plan”');
     expect(describeAction('files.edit', { path: 'tasks/Groceries.md' })).toBe('change the task list “Groceries”');
+    expect(describeAction('calendar.free', { with: ['Sam'], minutes: 60 })).toBe('look for a time when you and Sam are free');
+    expect(describeAction('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }, { from: 'b.jpg', to: 'Pictures/b.jpg' }] })).toBe('move files and folders in “Downloads”');
+    expect(previewArguments('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }] })).toEqual({ label: 'The moves', text: 'a.pdf → Documents/a.pdf', mono: true });
     expect(describeAction('calendar.add', { title: 'Dentist', start: 'nonsense' })).toBe('add “Dentist” to your calendar on nonsense');
     expect(describeAction('calendar.add', {})).toBe('add an event to your calendar');
     expect(describeAction('calendar.list', {})).toBe('read your calendar');
@@ -18,6 +21,8 @@ describe('actions in plain words', () => {
     expect(describeAction('files.write', { path: 'boards/Offsite/Ideas.json' })).toBe('write the board “Offsite › Ideas”');
     expect(describeAction('files.edit', { path: 'code/site/src/app.ts' })).toBe('change “src/app.ts” in the project “site”');
     expect(describeAction('db.execute', { database: 'Trips', sql: 'DELETE FROM x' })).toBe('change the database “Trips”');
+    expect(describeAction('drives.write', { drive: 'Cloud', path: 'Plans/road map.md', version: '"v2"' })).toBe('replace “Plans/road map.md” on the drive “Cloud”');
+    expect(describeAction('drives.delete', { path: 'Old' })).toBe('delete “Old” on your drive');
     expect(describeAction('web.search', { query: 'lisbon venues' })).toBe('search the web for “lisbon venues”');
     expect(previewArguments('files.write', { path: 'notes/a.md', content: '# Budget\n\n- Hotel\n' })).toEqual({ label: 'What it will write', text: '# Budget\n\n- Hotel', mono: false });
     expect(previewArguments('files.write', { path: 'boards/a.json', content: '{}' })?.mono).toBe(true);
@@ -30,5 +35,9 @@ describe('actions in plain words', () => {
     expect(describeAction('mcp.github.create_issue', {})).toBeNull();
     expect(describeAction('browser.open', null)).toBe('open a page in the browser');
     expect(describeAction('tasks.add', { text: 'x'.repeat(200) })).toMatch(/^add “x+…” to Inbox in Tasks$/);
+  });
+  it('counts the tasks and events one call adds with more', () => {
+    expect(describeAction('tasks.update', { list: 'Work', task: 'A', time: '09:00', more: [{ task: 'B' }, { task: 'C' }] })).toBe('change 3 tasks in Work');
+    expect(describeAction('calendar.suggest', { title: 'A', start: '2026-11-16T09:00', more: [{ title: 'B' }] })).toMatch(/^suggest 2 events for /);
   });
 });

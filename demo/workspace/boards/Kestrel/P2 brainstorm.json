@@ -1,0 +1,305 @@
+{
+ "version": 1,
+ "items": [
+  {
+   "id": "s1",
+   "type": "sticky",
+   "x": 29,
+   "y": 57,
+   "w": 180,
+   "h": 180,
+   "color": "blue",
+   "text": "Spare packs at the dock"
+  },
+  {
+   "id": "s2",
+   "type": "sticky",
+   "x": 229,
+   "y": 59,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Ask Ardent for samples"
+  },
+  {
+   "id": "s3",
+   "type": "sticky",
+   "x": 450,
+   "y": 42,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Earlier pack order"
+  },
+  {
+   "id": "s4",
+   "type": "sticky",
+   "x": 655,
+   "y": 55,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Book Northfield sooner"
+  },
+  {
+   "id": "s5",
+   "type": "sticky",
+   "x": 821,
+   "y": 20,
+   "w": 180,
+   "h": 180,
+   "color": "purple",
+   "text": "Second sled day"
+  },
+  {
+   "id": "s6",
+   "type": "sticky",
+   "x": 1026,
+   "y": 53,
+   "w": 180,
+   "h": 180,
+   "color": "purple",
+   "text": "Weather backup plan"
+  },
+  {
+   "id": "s7",
+   "type": "sticky",
+   "x": 28,
+   "y": 247,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Bench run checklist"
+  },
+  {
+   "id": "s8",
+   "type": "sticky",
+   "x": 233,
+   "y": 221,
+   "w": 180,
+   "h": 180,
+   "color": "green",
+   "text": "Firmware freeze date"
+  },
+  {
+   "id": "s9",
+   "type": "sticky",
+   "x": 433,
+   "y": 238,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Torque curve review"
+  },
+  {
+   "id": "s10",
+   "type": "sticky",
+   "x": 635,
+   "y": 257,
+   "w": 180,
+   "h": 180,
+   "color": "green",
+   "text": "Loom supplier backup"
+  },
+  {
+   "id": "s11",
+   "type": "sticky",
+   "x": 836,
+   "y": 254,
+   "w": 180,
+   "h": 180,
+   "color": "blue",
+   "text": "Label every harness"
+  },
+  {
+   "id": "s12",
+   "type": "sticky",
+   "x": 1028,
+   "y": 223,
+   "w": 180,
+   "h": 180,
+   "color": "purple",
+   "text": "Photo log of the build"
+  },
+  {
+   "id": "s13",
+   "type": "sticky",
+   "x": 42,
+   "y": 449,
+   "w": 180,
+   "h": 180,
+   "color": "purple",
+   "text": "Daily 15-min stand-up"
+  },
+  {
+   "id": "s14",
+   "type": "sticky",
+   "x": 257,
+   "y": 453,
+   "w": 180,
+   "h": 180,
+   "color": "blue",
+   "text": "One owner per risk"
+  },
+  {
+   "id": "s15",
+   "type": "sticky",
+   "x": 452,
+   "y": 428,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Shared parts list"
+  },
+  {
+   "id": "s16",
+   "type": "sticky",
+   "x": 629,
+   "y": 453,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Van booking for Northfield"
+  },
+  {
+   "id": "s17",
+   "type": "sticky",
+   "x": 821,
+   "y": 448,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Fire blanket at the dock"
+  },
+  {
+   "id": "s18",
+   "type": "sticky",
+   "x": 1058,
+   "y": 420,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Thermal camera on the pack"
+  },
+  {
+   "id": "s19",
+   "type": "sticky",
+   "x": 31,
+   "y": 629,
+   "w": 180,
+   "h": 180,
+   "color": "blue",
+   "text": "Data logger on the motor"
+  },
+  {
+   "id": "s20",
+   "type": "sticky",
+   "x": 259,
+   "y": 627,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Live dashboard for the board"
+  },
+  {
+   "id": "s21",
+   "type": "sticky",
+   "x": 423,
+   "y": 640,
+   "w": 180,
+   "h": 180,
+   "color": "purple",
+   "text": "Board slide by the 20th"
+  },
+  {
+   "id": "s22",
+   "type": "sticky",
+   "x": 653,
+   "y": 653,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Hire build engineer"
+  },
+  {
+   "id": "s23",
+   "type": "sticky",
+   "x": 850,
+   "y": 626,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Train Dana on HV safety"
+  },
+  {
+   "id": "s24",
+   "type": "sticky",
+   "x": 1023,
+   "y": 635,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "HV lockout kit"
+  },
+  {
+   "id": "s25",
+   "type": "sticky",
+   "x": 37,
+   "y": 822,
+   "w": 180,
+   "h": 180,
+   "color": "yellow",
+   "text": "Spare caliper brackets"
+  },
+  {
+   "id": "s26",
+   "type": "sticky",
+   "x": 252,
+   "y": 848,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Check the jigs Tuesday"
+  },
+  {
+   "id": "s27",
+   "type": "sticky",
+   "x": 421,
+   "y": 824,
+   "w": 180,
+   "h": 180,
+   "color": "blue",
+   "text": "Coffee for sled day"
+  },
+  {
+   "id": "s28",
+   "type": "sticky",
+   "x": 640,
+   "y": 859,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Thank-you note to Veltro"
+  },
+  {
+   "id": "s29",
+   "type": "sticky",
+   "x": 858,
+   "y": 852,
+   "w": 180,
+   "h": 180,
+   "color": "pink",
+   "text": "Write up P2 lessons"
+  },
+  {
+   "id": "s30",
+   "type": "sticky",
+   "x": 1037,
+   "y": 848,
+   "w": 180,
+   "h": 180,
+   "color": "orange",
+   "text": "Plan P3 dates"
+  }
+ ]
+}

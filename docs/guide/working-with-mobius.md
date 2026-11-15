@@ -55,6 +55,13 @@ In every mode, these are asked about each time and can never be allowed for good
 
 Mobius never sends mail itself: it writes a draft and you press Send. Whatever you blocked stays blocked.
 
+### Reading the web for one question
+
+When Mobius asks to search the web or read a page, the card also offers **Allow for this question**. It covers
+searching and reading web pages until Mobius has answered that message, so a piece of research asks once instead of
+at every search. Clicking, typing or signing in on a site still asks each time, and the next message asks again.
+No other kind of step can be allowed this way.
+
 ### Per-app access
 
 **Settings › Approvals and safety › What Mobius may do in each app** sets each app to

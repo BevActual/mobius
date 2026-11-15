@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mobius_agent::message::ToolCall;
 use mobius_agent::provider::{ChatRequest, Completion, Provider, ProviderError};
 use serde_json::{Value, json};
 
@@ -114,11 +115,18 @@ struct Run {
     events: Receiver<Option<Result<Value, String>>>,
     stderr: Arc<Mutex<VecDeque<String>>>,
     timeout: Duration,
+    spawned: Instant,
+    /// When Claude Code first said anything, in ms after it was started: how long it took to be ready.
+    ready_ms: std::cell::Cell<Option<u64>>,
 }
 
 impl Run {
     fn next(&self) -> Result<Option<Value>, ProviderError> {
-        match self.events.recv_timeout(self.timeout) {
+        let got = self.events.recv_timeout(self.timeout);
+        if self.ready_ms.get().is_none() && matches!(got, Ok(Some(_))) {
+            self.ready_ms.set(Some(u64::try_from(self.spawned.elapsed().as_millis()).unwrap_or(u64::MAX)));
+        }
+        match got {
             Ok(Some(Ok(v))) => Ok(Some(v)),
             Ok(Some(Err(line))) => Err(protocol(format!("Claude Code wrote something that is not stream-json: {}{}", line.chars().take(200).collect::<String>(), self.tail()))),
             Ok(None) | Err(RecvTimeoutError::Disconnected) => Ok(None),
@@ -142,6 +150,10 @@ impl Drop for Run {
 
 impl Provider for ClaudeCodeProvider {
     fn complete(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+        self.complete_with_calls(request, on_text, &mut |_| {})
+    }
+
+    fn complete_with_calls(&self, request: &ChatRequest, on_text: &mut dyn FnMut(&str) -> bool, on_call: &mut dyn FnMut(&ToolCall)) -> Result<Completion, ProviderError> {
         let prepared = frames::prepare(request, &self.natives).map_err(protocol)?;
         let tmp = TempDir::new().map_err(|e| protocol(e.to_string()))?;
         let file = |name: &str, body: &str| -> Result<PathBuf, ProviderError> {
@@ -152,7 +164,13 @@ impl Provider for ClaudeCodeProvider {
         let tools = file("tools.json", &Value::Array(prepared.manifest.clone()).to_string())?;
         let system = file("system.md", &prepared.system)?;
         // The body travels as a setting, not an argument or variable, so a large tool list never hits OS limits.
-        let settings = file("settings.json", &json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } }).to_string())?;
+        let mut settings = json!({ "env": { "CLAUDE_CODE_EXTRA_BODY": prepared.body.to_string() } });
+        if prepared.thinking_off {
+            // The CLI turns thinking on by itself; this turn asks for none.
+            settings["alwaysThinkingEnabled"] = json!(false);
+            settings["env"]["MAX_THINKING_TOKENS"] = json!("0");
+        }
+        let settings = file("settings.json", &settings.to_string())?;
         let mcp = file("mcp.json", &json!({ "mcpServers": { "mobius": { "command": self.inert_mcp, "args": [tools] } } }).to_string())?;
         let relay = Relay::start(&self.upstream, self.timeout).map_err(protocol)?;
         let env = cli::child_env(&BTreeMap::from([("ANTHROPIC_BASE_URL".to_owned(), relay.url.clone())]));
@@ -173,6 +191,7 @@ impl Provider for ClaudeCodeProvider {
         }
         args.extend(["--session-id".to_owned(), frames::session_id(&prepared.system, &prepared.frames)]);
 
+        let spawned = Instant::now();
         let mut command = Command::new(&self.program);
         command.args(&args).current_dir(&self.workdir).env_clear().envs(&env).stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(Stdio::piped());
         #[cfg(windows)]
@@ -204,7 +223,7 @@ impl Provider for ClaudeCodeProvider {
             }
             let _ = tx.send(None);
         });
-        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout };
+        let run = Run { child, events: rx, stderr: err_lines, timeout: self.timeout, spawned, ready_ms: std::cell::Cell::new(None) };
 
         // History first: every earlier user turn is replayed without asking the model, and acknowledged with no turn.
         let last = prepared.frames.len() - 1;
@@ -232,13 +251,51 @@ impl Provider for ClaudeCodeProvider {
         let started = Instant::now();
         let mut emitted = String::new();
         let mut native_error: Option<(String, String)> = None;
+        // Tool calls being written, by block index: the block (id and name) and its arguments so far.
+        let mut writing: BTreeMap<u64, (Value, String)> = BTreeMap::new();
+        // Time in thinking blocks: when the open one started, and the total of those that closed.
+        let (mut thinking_since, mut thought): (Option<Instant>, Option<u64>) = (None, None);
         while let Some(event) = run.next()? {
             match event["type"].as_str() {
                 Some("stream_event") => {
-                    let delta = &event["event"]["delta"];
-                    if delta["type"] == "text_delta"
-                        && let Some(t) = delta["text"].as_str()
+                    let inner = &event["event"];
+                    let index = inner["index"].as_u64().unwrap_or(0);
+                    match inner["type"].as_str() {
+                        Some("message_start") => writing.clear(),
+                        Some("content_block_start") if inner["content_block"]["type"] == "tool_use" => {
+                            writing.insert(index, (inner["content_block"].clone(), String::new()));
+                        }
+                        // Lines written as thinking under `between_tools` are writing, not thinking: they are not timed as thought.
+                        Some("content_block_start") if inner["content_block"]["type"] == "thinking" && !prepared.updates_in_thinking => thinking_since = Some(Instant::now()),
+                        Some("content_block_stop") => {
+                            if let Some(since) = thinking_since.take() {
+                                thought = Some(thought.unwrap_or(0).saturating_add(u64::try_from(since.elapsed().as_millis()).unwrap_or(u64::MAX)));
+                            }
+                            // A call is whole when its block closes: give it now, while the model writes the rest.
+                            if let Some((mut block, json)) = writing.remove(&index)
+                                && let Ok(input) = serde_json::from_str::<Value>(if json.is_empty() { "{}" } else { &json })
+                            {
+                                block["input"] = input;
+                                on_call(&frames::tool_call(&block, &prepared.names));
+                            }
+                        }
+                        _ => {}
+                    }
+                    let delta = &inner["delta"];
+                    if delta["type"] == "input_json_delta"
+                        && let (Some((_, json)), Some(piece)) = (writing.get_mut(&index), delta["partial_json"].as_str())
                     {
+                        json.push_str(piece);
+                    }
+                    // With thinking off as `between_tools`, the model's between-call lines arrive as thinking.
+                    let line = if delta["type"] == "text_delta" {
+                        delta["text"].as_str()
+                    } else if delta["type"] == "thinking_delta" && prepared.updates_in_thinking {
+                        delta["thinking"].as_str()
+                    } else {
+                        None
+                    };
+                    if let Some(t) = line {
                         emitted.push_str(t);
                         if !on_text(t) {
                             return Err(ProviderError::Cancelled);
@@ -271,7 +328,14 @@ impl Provider for ClaudeCodeProvider {
             });
         };
         drop(outcome);
-        let completion = frames::completion(&message, &prepared.names);
+        let mut completion = frames::completion_with(&message, &prepared.names, prepared.updates_in_thinking);
+        // How long Claude Code took to start before its first word (its init, or the history's first acknowledgement).
+        if let Some(ready) = run.ready_ms.get() {
+            completion.usage.get_or_insert_with(Default::default).startup_ms = Some(ready);
+        }
+        if thought.is_some() {
+            completion.usage.get_or_insert_with(Default::default).thinking_ms = thought;
+        }
         // The relay's copy is the truth; say whatever the stream did not.
         if let Some(rest) = completion.text.strip_prefix(emitted.as_str())
             && !rest.is_empty()

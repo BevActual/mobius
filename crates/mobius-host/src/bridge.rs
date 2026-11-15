@@ -97,6 +97,79 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
     }
 }
 
+/// A turn's moves for the window: each moved file's old path and new one.
+/// What sync needs from the rest of Mobius.
+struct SyncHost {
+    data_dir: PathBuf,
+    drives: Arc<crate::drives::Drives>,
+    turn_history: Arc<crate::turn_history::TurnHistory>,
+    emit: Emit,
+    changed_outside: crate::mcp_server::Changed,
+}
+
+impl SyncHost {
+    fn workspace(&self) -> mobius_workspace::files::Workspace {
+        mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"))
+    }
+}
+
+impl crate::sync_pairs::SyncHost for SyncHost {
+    fn drive(&self, id: &str) -> Result<Box<dyn crate::drives::Drive>, String> {
+        self.drives.open(id)
+    }
+    fn drive_name(&self, id: &str) -> Option<String> {
+        self.drives.name(id)
+    }
+    fn root(&self) -> Result<PathBuf, String> {
+        let root = self.data_dir.join("workspace");
+        std::fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+        Ok(root)
+    }
+    fn held(&self, folder: &str, since: u64) -> Result<std::collections::HashSet<String>, String> {
+        let workspace = self.workspace();
+        let waiting: Vec<crate::turn_history::Turn> = self.turn_history.waiting(since).into_iter().map(|(_, t)| t).collect();
+        crate::drive_sync::held_paths(&waiting, folder, &|t| match &t.end {
+            Some(end) => workspace.changed_between(&t.start, end),
+            None => workspace.changed_since(&t.start),
+        })
+    }
+    fn checkpoint(&self, reason: &str) -> Result<(), String> {
+        self.workspace().mark(reason).map(|_| ())
+    }
+    fn changed(&self, pair: &crate::sync_pairs::SyncPair, status: &crate::sync_pairs::Status) {
+        (self.emit)("mobius:drive-sync", json!({ "pair": pair.id, "status": status }));
+    }
+    fn brought_in(&self, paths: &[String]) {
+        for path in paths {
+            (self.changed_outside)(path);
+        }
+    }
+}
+
+/// An app's top workspace folder as a Keep names it, such as `tasks/`.
+fn is_app_folder(v: &str) -> bool {
+    v.len() <= 64 && v.ends_with('/') && v[..v.len() - 1].bytes().all(|b| b.is_ascii_lowercase() || b == b'-') && v.len() > 1
+}
+
+/// A turn's moves for the window: each moved file's old path and new one.
+fn moves_json(moves: &[(String, String)]) -> Value {
+    moves.iter().map(|(from, to)| json!({ "from": from, "to": to })).collect()
+}
+
+/// What a turn changed, for the window: its diff, plus the moves of files checkpoints leave out (archives, videos),
+/// both paths in `files` and paired in `moves` like any other move, so a tidy is counted file by file.
+fn turn_changes(diff: mobius_workspace::checkpoints::Diff, left_out: Vec<(String, String)>) -> (Vec<String>, Value) {
+    let mut files = diff.files;
+    let mut moves = diff.moves;
+    for (from, to) in left_out {
+        files.push(from.clone());
+        files.push(to.clone());
+        moves.push((from, to));
+    }
+    let moves = moves_json(&moves);
+    (files, moves)
+}
+
 /// Says in the log when something the turn or the window waits on took long (a second or more), so a slow step on a
 /// slow computer can be told from one that hangs.
 fn slow(what: &str, step: &str, started: std::time::Instant) {
@@ -177,10 +250,15 @@ pub struct Bridge {
     data_dir: PathBuf,
     /// The folder of real files the assistant's file tools work in.
     workspace: mobius_workspace::files::Workspace,
+    /// The workspace's web pages, served to the Browser on this computer.
+    pages: Arc<crate::pages::Pages>,
     /// For each conversation, the checkpoint taken when its last turn began: what that turn changed, and the way back.
     turn_marks: Arc<Mutex<std::collections::HashMap<String, String>>>,
     /// Checkpoints being taken before a turn: the turn's tools wait for them, so the model is asked at once.
     marking: Arc<(Mutex<u32>, std::sync::Condvar)>,
+    /// Turns whose end checkpoint is still being taken. What a turn changed is read once it is saved: from the two
+    /// saved states, a quick comparison, rather than a second look at the whole folder racing the first for git.
+    ending: Arc<(Mutex<u32>, std::sync::Condvar)>,
     /// Every turn's checkpoints, not only the last, so older turns can be looked at and put back too.
     turn_history: Arc<crate::turn_history::TurnHistory>,
     /// The last rewind, so it can be undone: its conversation, the checkpoint before it, and the turns it took out.
@@ -216,6 +294,10 @@ pub struct Bridge {
     tasks: mobius_workspace::tasks::Tasks,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
+    /// Folders on the person's own servers (WebDAV), opened from Files.
+    drives: Arc<crate::drives::Drives>,
+    /// Workspace folders synced with a folder on a drive.
+    syncs: Arc<crate::sync_pairs::Syncs>,
     mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
@@ -267,12 +349,9 @@ impl Bridge {
         let account = copilot.clone();
         agent.add_token_source(crate::providers::COPILOT_ADDRESS, Arc::new(move || Ok(account.token())));
         let notes_emit = emit.clone();
-        let mcp_server = crate::mcp_server::McpServer::open(
-            data_dir.join("mcp-server.json"),
-            data_dir.join("workspace"),
-            data_dir.join("checkpoints"),
-            secrets.clone(),
-            Arc::new(move |path: &str| {
+        // A workspace file changed outside the apps (through Mobius's MCP server, or brought in by sync): the app
+        // showing it reads it again.
+        let changed_outside: crate::mcp_server::Changed = Arc::new(move |path: &str| {
                 if let Some(page) = path.replace('\\', "/").strip_prefix("notes/") {
                     notes_emit("mobius:notes-changed", json!({ "path": page, "by": "another app" }));
                 }
@@ -324,7 +403,19 @@ impl Bridge {
                 if let Some(name) = path.replace('\\', "/").strip_prefix("calendar/").and_then(|f| f.strip_suffix(".ics")) {
                     notes_emit("mobius:calendar-changed", json!({ "calendar": name, "by": "another app" }));
                 }
-            }),
+            });
+        let mcp_server = crate::mcp_server::McpServer::open(
+            data_dir.join("mcp-server.json"),
+            data_dir.join("workspace"),
+            data_dir.join("checkpoints"),
+            secrets.clone(),
+            changed_outside.clone(),
+        );
+        let turn_history = Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")));
+        let drives = Arc::new(crate::drives::Drives::new(&data_dir, secrets.clone()));
+        let syncs = crate::sync_pairs::Syncs::open(
+            &data_dir,
+            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
         );
         let bridge = Bridge {
             mcp_server,
@@ -354,12 +445,14 @@ impl Bridge {
             bookmarks: Mutex::new(Bookmarks::open(data_dir.join("bookmarks.json"), Box::new(now_ms))),
             core,
             workspace: mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            pages: Arc::new(crate::pages::Pages::kept_in(data_dir.join("workspace").join(crate::pages::FOLDER), data_dir.join("pages-address.json"))),
             // Kept on disk, so a turn's changes can still be reviewed, kept or put back after a restart.
-            turn_history: Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json"))),
+            turn_history,
             rewound: Mutex::new(None),
             tab_drivers: Mutex::new(std::collections::HashMap::new()),
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
+            ending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             mcp: Arc::default(),
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
             usage: Arc::new(crate::usage::UsageBook::open(data_dir.join("usage.json"))),
@@ -400,6 +493,8 @@ impl Bridge {
                 calendar
             },
             calendar_accounts,
+            drives,
+            syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
             schedules: crate::schedules::Schedules::open(data_dir.join("schedules.json")),
@@ -411,6 +506,23 @@ impl Bridge {
             lock(&bridge.preferences).set(&json!({ "installedApps": preferences::DEFAULT_APPS }));
         }
         let _ = bridge.restore_quick();
+        // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
+        // first turn's checkpoint only has to save. Counted as a mark, so what waits for marks (Remove all data among
+        // them) waits for it too.
+        let workspace = mobius_workspace::files::Workspace::new(bridge.data_dir.join("workspace"), bridge.data_dir.join("checkpoints"));
+        let marking = Arc::clone(&bridge.marking);
+        *lock(&marking.0) += 1;
+        std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            if let Err(error) = workspace.warm() {
+                eprintln!("[changes] checkpoints not readied: {error}");
+            }
+            slow("checkpoints", "readied at start", started);
+            let (count, done) = &*marking;
+            let mut n = lock(count);
+            *n = n.saturating_sub(1);
+            done.notify_all();
+        });
         bridge
     }
 
@@ -571,6 +683,7 @@ impl Bridge {
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
+            ("drives", _) => Ok(self.drives_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -760,16 +873,29 @@ impl Bridge {
         lock(&self.chatgpt).clone().sign_out();
         self.mcp_server.forget();
         self.core.stop_shared();
+        // A checkpoint still being taken would write into the folder while it is emptied.
+        wait_for_marks(&self.marking);
+        // A few passes: a folder emptied while something still finishes writing into it (a store saving as it stops,
+        // or on Windows a file held a moment by a scanner) fails once and goes on the next pass.
         let mut failures = 0;
         let mut removed = 0;
-        if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
-                match result {
-                    Ok(()) => removed += 1,
-                    Err(_) => failures += 1,
+        for pass in 0..5 {
+            if pass > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(200));
+            }
+            failures = 0;
+            if let Ok(entries) = std::fs::read_dir(&self.data_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    let result = if path.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
+                    match result {
+                        Ok(()) => removed += 1,
+                        Err(_) => failures += 1,
+                    }
                 }
+            }
+            if failures == 0 {
+                break;
             }
         }
         if let Some(quit) = self.quit.get() {
@@ -1118,7 +1244,11 @@ impl Bridge {
         let tab = || arg(0).as_str().filter(|t| is_tab_id(t));
         Ok(match method {
             "getState" => b.state(),
-            "open" => b.open(arg(0).as_str()).map_or(Value::Null, |id| json!(id)),
+            // A link to one of the person's pages from an earlier start goes to where it is served now.
+            "open" => {
+                let moved = arg(0).as_str().and_then(|input| self.pages.current(input));
+                b.open(moved.as_deref().or(arg(0).as_str())).map_or(Value::Null, |id| json!(id))
+            }
             "activate" => {
                 if let Some(t) = tab() {
                     b.activate(t);
@@ -1132,7 +1262,7 @@ impl Bridge {
                 Value::Null
             }
             "navigate" => match (tab(), arg(1).as_str()) {
-                (Some(t), Some(input)) => json!(b.navigate(t, input)),
+                (Some(t), Some(input)) => json!(b.navigate(t, self.pages.current(input).as_deref().unwrap_or(input))),
                 _ => json!("blocked"),
             },
             "back" | "forward" | "reload" | "stopFind" => {
@@ -1171,6 +1301,11 @@ impl Bridge {
                 Value::Null
             }
             "snapshot" => b.picture().map_or(Value::Null, |p| json!(p)),
+            // A workspace page (pages/…) opens in a tab at the address the shell serves it on.
+            "openPage" => {
+                let url = self.pages.url(arg(0).as_str().unwrap_or("")).map_err(BridgeError::Invalid)?;
+                b.open(Some(&url)).map_or(Value::Null, |id| json!(id))
+            }
             _ => return Err(BridgeError::NotAvailable(format!("browser.{method} is not available in this build yet."))),
         })
     }
@@ -1233,11 +1368,38 @@ impl Bridge {
         if method != "host.tool" {
             return Err("method not found".into());
         }
+        // How long each tool took, when it was a second or more: a turn whose reply never came can be traced to it.
+        // One that is still running after a few seconds is said too, with the step it is on, as it may never end.
+        let started = std::time::Instant::now();
+        let name = params.get("tool").and_then(Value::as_str).unwrap_or("?").to_owned();
+        let stage = Arc::new(std::sync::atomic::AtomicU8::new(0));
+        let watched = (stage.clone(), name.clone());
+        let _ = std::thread::Builder::new().name("mobius-tool-watch".into()).spawn(move || {
+            // Said at 3, 10 and 30 seconds.
+            for (seconds, wait) in [(3u64, 3u64), (10, 7), (30, 20)] {
+                std::thread::sleep(std::time::Duration::from_secs(wait));
+                let step = match watched.0.load(std::sync::atomic::Ordering::Relaxed) {
+                    0 => "waiting for the checkpoint before the turn",
+                    1 => "running",
+                    _ => return,
+                };
+                eprintln!("[slow] tool {} still {step} after {seconds} s", watched.1);
+            }
+        });
+        let out = self.run_host_tool(params, &stage);
+        stage.store(2, std::sync::atomic::Ordering::Relaxed);
+        slow("tool", &name, started);
+        self.note_timing(json!({ "step": "tool", "conversation": params["conversation"], "name": name, "ms": started.elapsed().as_millis(), "ok": out.is_ok() }));
+        out
+    }
+
+    fn run_host_tool(&self, params: &Value, stage: &std::sync::atomic::AtomicU8) -> Result<Value, String> {
         // Nothing runs before the checkpoint at the start of the turn is taken.
         let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        stage.store(1, std::sync::atomic::Ordering::Relaxed);
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1261,6 +1423,12 @@ impl Bridge {
             return crate::web::run(tool, &args, allow_private).map(Value::String);
         }
         if mobius_workspace::skills::is_skill_tool(tool) {
+            // `app:<name>` is one of Mobius's own guides to an app's files, not one of the person's skills.
+            if tool == "skills.read"
+                && let Some(guide) = args.get("name").and_then(Value::as_str).and_then(crate::workspace_guide::app_guide)
+            {
+                return Ok(Value::String(guide.to_owned()));
+            }
             return self.skills.run(tool, &args).map(Value::String);
         }
         if crate::code_git::is_git_tool(tool) {
@@ -1331,6 +1499,34 @@ impl Bridge {
         }
         if crate::images::is_image_tool(tool) {
             return self.image_tool(&args).map(Value::String);
+        }
+        if mobius_workspace::photos::is_photo_tool(tool) {
+            let result = self.photos.run(tool, &args).map(Value::String);
+            if result.is_ok() {
+                // Photo reads the album again; the turn's marks say which photos changed.
+                (self.emit)("mobius:photos-changed", json!({ "path": null, "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::design::is_design_tool(tool) {
+            let result = mobius_workspace::design::Designs::new(self.data_dir.join("workspace")).run(tool, &args).map(Value::String);
+            if result.is_ok() {
+                let path = args.get("design").and_then(Value::as_str).map(|d| format!("{}.json", d.trim().trim_start_matches("designs/").trim_end_matches(".json")));
+                (self.emit)("mobius:designs-changed", json!({ "path": path, "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::video::is_video_tool(tool) {
+            return self.video.run(tool, &args).map(Value::String);
+        }
+        if crate::drives::is_drive_tool(tool) {
+            let (said, changed) = self.drives.run(tool, &args, &self.workspace)?;
+            if let Some((drive, paths)) = changed {
+                for path in paths {
+                    (self.emit)("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "assistant" }));
+                }
+            }
+            return Ok(Value::String(said));
         }
         if mobius_workspace::tasks::is_task_tool(tool) {
             let result = self.tasks.run(tool, &args).map(Value::String);
@@ -1414,7 +1610,8 @@ impl Bridge {
         }
         let browser = self.browser.get().ok_or("no window is open")?.clone();
         let prefs = self.preference("agentPrivateUrls");
-        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)) };
+        let pages = self.pages.clone();
+        let deps = BrowserTools { browser: browser.clone(), allow_private: Box::new(move || prefs == Value::Bool(true)), own_file: Box::new(move |url| pages.file_of(url)) };
         let result = run_browser_tool(tool, &args, &deps)?;
         let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("");
         self.mark_driver(&browser, tool, &args, &result, conversation);
@@ -1658,7 +1855,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -2959,6 +3156,97 @@ impl Bridge {
         }
     }
 
+    /// Drives: folders on the person's own servers, opened from Files. Every answer is what was asked for or
+    /// `{ ok: false, message }`, with `conflict: true` when the file changed on the server since it was read. These
+    /// are the person's own requests from the window; the agent's way in asks every time.
+    fn drives_call(&self, method: &str, args: &[Value]) -> Value {
+        use base64::Engine;
+        // The workspace says "that file is not there"; drives speak in sentences.
+        let sentence = |e: &str| { let mut c = e.chars(); c.next().map(|f| format!("{}{}.", f.to_uppercase(), c.as_str())).unwrap_or_default() };
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let drives = &self.drives;
+        let changed = |drive: &str, path: &str| (self.emit)("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "person" }));
+        let result = match (method, text(0)) {
+            ("list", _) => Ok(drives.list()),
+            ("add", _) => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
+                match field("kind") {
+                    "s3" => drives.add_s3(field("name"), field("server"), field("bucket"), field("folder"), field("region"), field("username"), field("password")),
+                    _ => drives.add(field("name"), field("server"), field("username"), field("password")),
+                }
+            }
+            ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
+            ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
+            // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").
+            ("syncPairs", _) => Ok(self.syncs.pairs()),
+            ("syncAdd", Some(folder)) => match (text(1), text(2)) {
+                (Some(drive), Some(remote)) => self.syncs.add(folder, drive, remote),
+                _ => Err("Choose a drive and a folder on it.".to_owned()),
+            },
+            ("syncRemove", Some(pair)) => self.syncs.remove(pair),
+            ("syncPause", Some(pair)) => self.syncs.pause(pair, args.get(1).and_then(Value::as_bool).unwrap_or(true)),
+            ("syncNow", Some(pair)) => self.syncs.sync_now(pair),
+            ("syncAllowDeletes", Some(pair)) => self.syncs.allow_deletes(pair),
+            ("syncKeepThem", Some(pair)) => self.syncs.keep_them(pair),
+            ("syncResolve", Some(pair)) => match (text(1), text(2)) {
+                (Some(path), Some(keep)) => self.syncs.resolve(pair, path, keep),
+                _ => Err("Which conflict?".to_owned()),
+            },
+            (_, Some(id)) => drives.open(id).and_then(|drive| {
+                let path = text(1).unwrap_or("");
+                match method {
+                    "browse" => drive.list(path).map(|entries| json!(entries)),
+                    "read" => drive.read(path).map(|file| json!({ "base64": base64::engine::general_purpose::STANDARD.encode(&file.bytes), "size": file.bytes.len(), "etag": file.version, "contentType": file.content_type })),
+                    "write" => {
+                        let content = args.get(2).unwrap_or(&Value::Null);
+                        let bytes = match (content.get("base64").and_then(Value::as_str), content.get("text").and_then(Value::as_str)) {
+                            (Some(b), _) => base64::engine::general_purpose::STANDARD.decode(b).map_err(|_| "The file did not arrive whole.".to_owned()),
+                            (None, Some(t)) => Ok(t.as_bytes().to_vec()),
+                            (None, None) => Err("Nothing to write.".to_owned()),
+                        };
+                        bytes.and_then(|b| drive.write(path, &b, text(3))).map(|etag| {
+                            changed(id, path);
+                            json!({ "ok": true, "etag": etag })
+                        })
+                    }
+                    "mkdir" => drive.make_folder(path).map(|()| {
+                        changed(id, path);
+                        json!({ "ok": true })
+                    }),
+                    "move" => match text(2) {
+                        Some(to) => drive.rename(path, to).map(|()| {
+                            changed(id, path);
+                            changed(id, to);
+                            json!({ "ok": true })
+                        }),
+                        None => Err("Where to move it is needed.".to_owned()),
+                    },
+                    "delete" => drive.delete(path, text(2)).map(|()| {
+                        changed(id, path);
+                        json!({ "ok": true })
+                    }),
+                    // Files (Drives): copying between a drive and the workspace, never over anything on either side.
+                    "download" => drive.read(path).and_then(|file| {
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        self.workspace.add_file(text(2).unwrap_or(""), name, &file.bytes).map_err(|e| sentence(&e))
+                    }).map(|copied| json!({ "ok": true, "path": copied })),
+                    "upload" => {
+                        let folder = text(2).unwrap_or("");
+                        let name = path.rsplit('/').next().unwrap_or(path);
+                        let to = if folder.is_empty() { name.to_owned() } else { format!("{folder}/{name}") };
+                        self.workspace.read_file(path, crate::drives::MAX_FILE).map_err(|e| sentence(&e)).and_then(|bytes| drive.write(&to, &bytes, None)).map(|_| {
+                            changed(id, &to);
+                            json!({ "ok": true, "path": to })
+                        })
+                    }
+                    _ => Err(format!("Drives cannot {method}.")),
+                }
+            }),
+            _ => Err("A drive is needed.".to_owned()),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "conflict": message == crate::drives::CHANGED, "message": message }))
+    }
+
     /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
     fn calendar_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::calendar::Draft;
@@ -3079,12 +3367,10 @@ impl Bridge {
                     .turns(conversation)
                     .into_iter()
                     .filter_map(|t| {
-                        let files = match &t.end {
-                            Some(end) => self.workspace.changed_between(&t.start, end),
-                            None => self.workspace.changed_since(&t.start),
-                        }
-                        .ok()?;
-                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files }))
+                        let diff = self.workspace.turn_diff(&t.start, t.end.as_deref()).ok()?;
+                        let left_out = self.workspace.left_out_moves(&t.start, t.end.as_deref(), &diff.files).unwrap_or_default();
+                        let (files, moves) = turn_changes(diff, left_out);
+                        Some(json!({ "start": t.start, "ended": t.end.is_some(), "when": t.when, "ask": t.ask, "files": files, "moves": moves }))
                     })
                     .collect();
                 json!({ "ok": true, "turns": turns })
@@ -3099,7 +3385,11 @@ impl Bridge {
             // Rewind to here: what it would change, then everything back as it was right after that turn.
             "rewindPreview" => match turn() {
                 Some(crate::turn_history::Turn { end: Some(end), start, .. }) => match self.workspace.changed_since(&end) {
-                    Ok(files) => json!({ "ok": true, "later": self.turn_history.later_than(conversation, &start).unwrap_or(0), "files": files }),
+                    Ok(files) => {
+                        // Files in synced folders change on their drives too, at the next round: the confirmation says so.
+                        let synced = files.iter().filter(|f| self.syncs.synced_folder(f).is_some()).count();
+                        json!({ "ok": true, "later": self.turn_history.later_than(conversation, &start).unwrap_or(0), "files": files, "synced": synced })
+                    }
                     Err(e) => failed(e),
                 },
                 Some(_) => failed("That turn has not ended."),
@@ -3222,7 +3512,12 @@ impl Bridge {
             return Ok(failed("That conversation is not known."));
         };
         // What a turn changed is counted from its start, once that is saved.
+        let waited = std::time::Instant::now();
         wait_for_marks(&self.marking);
+        slow("changes", "waiting for the turn's start to be saved", waited);
+        let waited = std::time::Instant::now();
+        wait_for_marks(&self.ending);
+        slow("changes", "waiting for the turn's end to be saved", waited);
         let started = std::time::Instant::now();
         let out = self.changes_answer(method, conversation, args);
         slow("changes", method, started);
@@ -3231,6 +3526,20 @@ impl Bridge {
 
     fn changes_answer(&self, method: &str, conversation: &str, args: &[Value]) -> Out {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
+        // The person kept a turn's changes (all of them, or one app's folder): sync may send them now.
+        if method == "kept" {
+            let (Some(start), folder) = (arg(1).as_str().filter(|c| mobius_workspace::checkpoints::is_checkpoint_id(c)), arg(2).as_str().unwrap_or("")) else {
+                return Ok(failed("Which turn?"));
+            };
+            if !folder.is_empty() && !is_app_folder(folder) {
+                return Ok(failed("That is not a workspace folder."));
+            }
+            if !self.turn_history.keep(conversation, start, folder) {
+                return Ok(failed("That turn is not known."));
+            }
+            self.syncs.kept();
+            return Ok(json!({ "ok": true }));
+        }
         if let Some(out) = self.older_turns_call(method, conversation, args) {
             return Ok(out);
         }
@@ -3250,8 +3559,13 @@ impl Bridge {
         };
         let changed_later = |path: &str| end.as_deref().and_then(|e| self.workspace.changed_since(e).ok()).is_some_and(|f| f.iter().any(|p| p == path));
         Ok(match method {
-            "lastTurn" => match turn_files() {
-                Ok(files) => json!({ "checkpoint": mark, "files": files }),
+            // A move is listed as both its paths in `files`, and paired in `moves`, so the window counts it once.
+            "lastTurn" => match self.workspace.turn_diff(&mark, end.as_deref()) {
+                Ok(diff) => {
+                    let left_out = self.workspace.left_out_moves(&mark, end.as_deref(), &diff.files).unwrap_or_default();
+                    let (files, moves) = turn_changes(diff, left_out);
+                    json!({ "checkpoint": mark, "files": files, "moves": moves })
+                }
                 Err(e) => failed(e),
             },
             "undo" => match (&end, turn_files()) {
@@ -3263,21 +3577,43 @@ impl Bridge {
                     }
                     Err(e) => failed(e),
                 },
-                (Some(_), Ok(files)) => {
+                (Some(end), Ok(files)) => {
                     // The turn's files only; one changed again since is left as it is, and said.
-                    let mut kept = Vec::new();
-                    for path in &files {
-                        if changed_later(path) {
-                            kept.push(path.clone());
-                        } else if let Err(e) = self.workspace.restore_file(&mark, path) {
-                            return Ok(failed(e));
-                        }
+                    let (kept, back): (Vec<String>, Vec<String>) = files.into_iter().partition(|path| changed_later(path));
+                    // All at once: one by one, each took a checkpoint of its own, and a tidy of a hundred files took
+                    // most of a minute to undo.
+                    if let Err(e) = self.workspace.restore_turn(&mark, end, &back) {
+                        return Ok(failed(e));
                     }
                     self.reload_after_undo(None);
                     json!({ "ok": true, "kept": kept })
                 }
                 (Some(_), Err(e)) => failed(e),
             },
+            // Several of the turn's files back at once (a Discard), with one checkpoint rather than one each. When they are
+            // all its files, what its moves left behind (archives, the folders it made) goes back too, as Undo does.
+            "undoFiles" => {
+                let asked: Vec<String> = arg(1).as_array().map(|l| l.iter().filter_map(Value::as_str).map(str::to_owned).collect()).unwrap_or_default();
+                match (&end, turn_files()) {
+                    (Some(end), Ok(files)) => {
+                        let (kept, back): (Vec<String>, Vec<String>) = files.iter().filter(|f| asked.contains(f)).cloned().partition(|path| changed_later(path));
+                        let whole = files.iter().all(|f| asked.contains(f) || changed_later(f) || f.starts_with(".comments/"));
+                        // A move of a file checkpoints leave out goes back by its own paths when only it was asked for;
+                        // when the whole turn goes back, the noted moves bring it back with the rest.
+                        let left_out: Vec<(String, String)> = if whole { Vec::new() } else { self.workspace.left_out_moves(&mark, Some(end), &files).unwrap_or_default().into_iter().filter(|(from, to)| asked.contains(from) && asked.contains(to)).collect() };
+                        let done = if whole { self.workspace.restore_turn(&mark, end, &back) } else { self.workspace.restore_paths(&mark, &back).and_then(|()| self.workspace.move_back(&left_out)) };
+                        match done {
+                            Ok(()) => {
+                                self.reload_after_undo(None);
+                                json!({ "ok": true, "kept": kept })
+                            }
+                            Err(e) => failed(e),
+                        }
+                    }
+                    (None, _) => failed("Mobius is still working on that turn."),
+                    (Some(_), Err(e)) => failed(e),
+                }
+            }
             // The file as it was before the turn, to show what changed. `null` when the turn made it.
             "before" => match arg(1).as_str() {
                 Some(path) => match self.workspace.read_at(&mark, path) {
@@ -3317,6 +3653,7 @@ impl Bridge {
                 None => failed("Those settings are not valid."),
             },
             "send" => {
+                self.note_timing(json!({ "step": "sent", "conversation": arg(0), "chars": arg(1).as_str().map_or(0, str::len) }));
                 let mut request = json!({ "conversation": arg(0), "text": arg(1) });
                 if !arg(2).is_null() {
                     request["context"] = arg(2).clone();
@@ -3333,13 +3670,27 @@ impl Bridge {
                 if let Some(mode) = arg(3).get("mode") {
                     request["mode"] = mode.clone();
                 }
+                // { reads: [{ tool, arguments }] } are the reads a suggestion always starts with, done before the model is asked.
+                if let Some(reads) = arg(3).get("reads") {
+                    request["reads"] = reads.clone();
+                }
+                // { finish: true }: the suggestion ends in changes, and the turn is done once they are made.
+                if let Some(finish) = arg(3).get("finish") {
+                    request["finish"] = finish.clone();
+                }
+                // { tools: ["tasks", "calendar"] }: only the tools of the apps the suggestion works in are offered.
+                if let Some(tools) = arg(3).get("tools") {
+                    request["tools"] = tools.clone();
+                }
                 // { quick: true } is Best fit choosing the quick model for a short question.
                 if let Some(quick) = arg(3).get("quick") {
                     request["quick"] = quick.clone();
                 }
-                // and { app: "mail" } says where it was sent from, for Settings, Usage.
-                if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-'))) {
+                // and { app: "mail" } says where it was sent from: for Settings, Usage, and so a small model is offered
+                // that app's tools first.
+                if let (Some(c), Some(app)) = (arg(0).as_str(), arg(3).get("app").and_then(Value::as_str).filter(|a| agent::is_app_name(a))) {
                     lock(&self.sent_from).insert(c.to_owned(), app.to_owned());
+                    request["app"] = json!(app);
                 }
                 // and { images: [data URLs] } attaches pictures, for models that read them.
                 if let Some(images) = arg(3).get("images") {
@@ -3358,7 +3709,13 @@ impl Bridge {
                         let (conversation, text) = (r.conversation.clone(), r.text.clone());
                         std::thread::spawn(move || {
                             let started = std::time::Instant::now();
-                            let marked = workspace.mark("before the agent's turn");
+                            let mut marked = workspace.mark("before the agent's turn");
+                            // Nothing changed since this conversation's last turn began (it changed no files): this turn
+                            // gets a checkpoint of its own, or it would share that turn's id, and keeping that turn
+                            // would hide everything this one changes.
+                            if matches!(&marked, Ok(Some(m)) if lock(&marks).get(&conversation) == Some(m)) {
+                                marked = workspace.mark_new("before the agent's turn").map(Some);
+                            }
                             slow("turn", "checkpoint before the turn", started);
                             match marked {
                                 Ok(Some(mark)) => {
@@ -3469,7 +3826,8 @@ impl Bridge {
             "revokeGrant" => arg(0).as_i64().filter(|n| *n >= 1).map_or_else(refused, |n| self.agent.revoke_grant(n)),
             "activity" => self.agent.activity(arg(0).as_u64().unwrap_or(50).clamp(1, 200)),
             "resolve" => {
-                let duration = arg(2).as_str().filter(|d| ["once", "session", "always"].contains(d));
+                // "turn" is Allow for this question: reading the web, for the rest of the turn that asked.
+                let duration = arg(2).as_str().filter(|d| ["once", "turn", "session", "always"].contains(d));
                 match (arg(0).as_u64().filter(|n| *n >= 1), arg(1).as_bool(), duration) {
                     (Some(id), Some(approve), Some(duration)) => self.agent.resolve(id, approve, duration),
                     _ => refused(),
@@ -3505,6 +3863,20 @@ impl Bridge {
 
     /// A model call's tokens, counted under the day, the gateway that answered, the model, and the app the conversation
     /// was last written to from.
+    /// One step of a turn, with when it happened, kept in `turn-timings.jsonl` (the last few thousand lines): the
+    /// message sent, each model round (from the core: start-up, first word, end, tokens), each event the window saw,
+    /// and each tool the application ran. Read to see where a slow turn's time went.
+    fn note_timing(&self, mut step: Value) {
+        step["at"] = json!(now_ms());
+        let file = self.data_dir.join("turn-timings.jsonl");
+        if std::fs::metadata(&file).is_ok_and(|m| m.len() > 4 * 1024 * 1024) {
+            let _ = std::fs::rename(&file, self.data_dir.join("turn-timings.old.jsonl"));
+        }
+        if let Ok(mut out) = std::fs::OpenOptions::new().create(true).append(true).open(&file) {
+            let _ = std::io::Write::write_all(&mut out, format!("{step}\n").as_bytes());
+        }
+    }
+
     fn record_usage(&self, p: &Value) {
         let n = |k: &str| p.get(k).and_then(Value::as_u64).unwrap_or(0);
         let text = |k: &str| p.get(k).and_then(Value::as_str).unwrap_or("");
@@ -3526,6 +3898,14 @@ impl Bridge {
 
     /// A message from the core that is not an answer. Only well formed conversation progress reaches the window.
     pub fn on_core_notification(&self, method: &str, params: &Value) {
+        if method == "agent.timing" {
+            self.note_timing(json!({ "step": "model", "conversation": params["conversation"], "turn": params["turn"], "model": params["model"], "startup_ms": params["startup_ms"], "first_text_ms": params["first_text_ms"], "thinking_ms": params["thinking_ms"], "calls_at_ms": params["calls_at_ms"], "ms": params["ms"], "input": params["input"], "cached": params["cached"], "output": params["output"], "tools_offered": params["tools_offered"], "tool_calls": params["tool_calls"], "ok": params["ok"] }));
+            return;
+        }
+        if method == "agent.event" {
+            let event = &params["event"];
+            self.note_timing(json!({ "step": "event", "conversation": params["conversation"], "turn": params["turn"], "kind": event["kind"], "name": event.get("name").or_else(|| event.get("tool")) }));
+        }
         if method == "agent.usage" {
             self.record_usage(params);
             return;
@@ -3541,14 +3921,23 @@ impl Bridge {
             if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed")) {
                 // The task ended: the tabs it used are plain tabs again.
                 self.hand_tabs(conversation, TabChange::End);
-                let (history, conversation, marking) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking));
+                let (history, conversation, marking, ending) = (self.turn_history.clone(), conversation.to_owned(), Arc::clone(&self.marking), Arc::clone(&self.ending));
                 let workspace = mobius_workspace::files::Workspace::new(self.data_dir.join("workspace"), self.data_dir.join("checkpoints"));
+                // Counted before the turn's end is told to the window, so a read it makes then waits for this.
+                *lock(&ending.0) += 1;
                 std::thread::spawn(move || {
                     wait_for_marks(&marking);
-                    let Some(start) = history.running_start(&conversation) else { return };
-                    if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
-                        history.ended_turn(&conversation, &start, &end);
+                    if let Some(start) = history.running_start(&conversation) {
+                        let started = std::time::Instant::now();
+                        if let Ok(Some(end)) = workspace.mark("after the agent's turn") {
+                            history.ended_turn(&conversation, &start, &end);
+                        }
+                        slow("turn", "checkpoint after the turn", started);
                     }
+                    let (count, done) = &*ending;
+                    let mut n = lock(count);
+                    *n = n.saturating_sub(1);
+                    done.notify_all();
                 });
             }
             (self.emit)("mobius:agent-notification", n.clone());

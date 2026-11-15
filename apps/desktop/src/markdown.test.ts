@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { claimKey, parseInline, parseMarkdown, plainText, safeHref, unsureClaims, withoutMarks } from './markdown';
+import { claimKey, parseInline, parseMarkdown, plainText, safeHref, tableCells, unsureClaims, withoutMarks, withoutToolTags, type Block } from './markdown';
 
 describe('agent reply markdown', () => {
   it('reads bold, italic, code and links', () => {
@@ -56,5 +56,33 @@ describe('agent reply markdown', () => {
     expect(inl[5]).toMatchObject({ kind: 'claim', tier: 'web', source: '' });
     expect(withoutMarks(md)).toBe('Confirming 8 people arriving around 12:30 on Thursday.');
     expect(unsureClaims(md)).toEqual([claimKey('around 12:30', 'two flights unknown')]);
+  });
+});
+
+describe('tables', () => {
+  it('a pipe table becomes a table with its header, alignment and rows', () => {
+    const blocks = parseMarkdown('Schedule:\n\n| Item | Cost | When |\n| :--- | ---: | :-: |\n| Venue | 42,000 | **May** |\n| Food | 18,500 |\n\nAfter.');
+    expect(blocks.map((b) => b.kind)).toEqual(['paragraph', 'table', 'paragraph']);
+    const table = blocks[1] as Extract<Block, { kind: 'table' }>;
+    expect(table.align).toEqual(['left', 'right', 'center']);
+    expect(table.head.map(plainText)).toEqual(['Item', 'Cost', 'When']);
+    expect(table.rows.map((r) => r.map(plainText))).toEqual([['Venue', '42,000', 'May'], ['Food', '18,500', '']]);
+    expect(table.rows[0]![2]![0]!.kind).toBe('strong');
+  });
+  it('pipes inside code or escaped stay in the cell, and a lone rule is still a rule', () => {
+    expect(tableCells('| `a|b` | c \\| d |')).toEqual(['`a|b`', 'c | d']);
+    expect(parseMarkdown('a | b\n---').map((b) => b.kind)).not.toContain('table');
+    expect(parseMarkdown('Text\n\n---').map((b) => b.kind)).toEqual(['paragraph', 'rule']);
+  });
+});
+
+describe('withoutToolTags', () => {
+  it('drops a tool call the model began as text, and keeps the rest of the reply (round 20)', () => {
+    expect(withoutToolTags('Reply: Priya, about the board pack.\n<mcpmobiusmail-draft>\nLater: Veltro.')).toBe('Reply: Priya, about the board pack.\nLater: Veltro.');
+    expect(withoutToolTags('Done.\n<invoke name="mail.draft">\n<parameter name="body">Hi</parameter>\n</invoke>\nThree drafts wait for you.')).toBe('Done.\nThree drafts wait for you.');
+    expect(withoutMarks('Sorted.\n</mcp:mobius>\n')).toBe('Sorted.\n');
+  });
+  it('leaves tags that are part of what the person reads', () => {
+    for (const text of ['Use <b>bold</b> here.', 'Wrap it in `<invoke>` when you call it.', 'a < b and c > d', 'No tags at all.']) expect(withoutToolTags(text)).toBe(text);
   });
 });

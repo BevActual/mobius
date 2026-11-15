@@ -2,14 +2,17 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { dayLabel, timeLabel, weekdayLabel } from '../dates';
 import {
   Menu, Avatar, Button, Checkbox, Chip, Count, Dot, IconButton, ListRow, Meter, ParamCell, ParamGrid, Progress, Segmented, Select, Swatches, type ContentColor,
-  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, type Envelope, type FilterValue,
+  Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
   WaveformView, peaksOf, type WaveRange,
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
+  MixerStrip,
+  BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
+  Chart, Sparkline,
 } from '../ui';
 
 /**
@@ -115,6 +118,69 @@ function Wave() {
   );
 }
 
+function WarmerDemo() {
+  // Starts as Mobius left it, so the picture shows the mark; Discard and "Make it warmer" show the glide.
+  const cool = { cutoff: 6400, resonance: 0.2, drive: 0.1, width: 0.3 };
+  const warm = { cutoff: 1400, resonance: 0.35, drive: 0.45, width: 0.3 };
+  const [v, setV] = useState(warm);
+  const [proposed, setProposed] = useState(true);
+  const pctText = (x: number) => `${Math.round(x * 100)}%`;
+  const moved = (k: keyof typeof cool) => proposed && v[k] !== cool[k];
+  return (
+    <div className="sheet-row">
+      <Knob label="Cutoff" value={v.cutoff} min={80} max={12000} step={1} scale="log" format={hertzLabel} proposed={moved('cutoff')} onChange={(cutoff) => setV({ ...v, cutoff })} />
+      <Knob label="Drive" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={moved('drive')} onChange={(drive) => setV({ ...v, drive })} />
+      <Knob label="Width" value={v.width} min={0} max={1} step={0.01} format={pctText} onChange={(width) => setV({ ...v, width })} />
+      <ParamGrid columns={1}><ParamCell label="Drive" size="compact" value={v.drive} min={0} max={1} step={0.01} format={pctText} proposed={moved('drive')} onChange={(drive) => setV({ ...v, drive })} /></ParamGrid>
+      <div className="sheet-graph"><FilterGraph value={{ cutoff: v.cutoff, resonance: v.resonance }} min={80} max={12000} proposed={{ cutoff: moved('cutoff'), resonance: moved('resonance') }} onChange={(f) => setV({ ...v, ...f })} /></div>
+      <Button onClick={() => { setV(proposed ? cool : warm); setProposed(!proposed); }}>{proposed ? 'Discard' : 'Make it warmer'}</Button>
+      {proposed && <Button kind="primary" onClick={() => setProposed(false)}>Keep</Button>}
+    </div>
+  );
+}
+
+function MixerDemo() {
+  const tracks: { name: string; color: ContentColor; level: [number, number] }[] = [
+    { name: 'Drums', color: 'coral', level: [-8, -9] },
+    { name: 'Bass', color: 'amber', level: [-14, -14] },
+    { name: 'Keys and pad layer', color: 'teal', level: [-20, -17] },
+    { name: 'Lead', color: 'violet', level: [-30, -26] },
+  ];
+  const [mix, setMix] = useState(() => tracks.map((t, i) => ({ volume: [0, -3, -4.5, -60][i]!, pan: [0, 0, -0.3, 0.25][i]!, mute: i === 3, solo: false, arm: i === 0 })));
+  const meters = useRef<(LevelFeed | null)[]>([]);
+  useEffect(() => { tracks.forEach((t, i) => meters.current[i]?.set(...t.level)); }); // eslint-disable-line react-hooks/exhaustive-deps
+  const put = (i: number, patch: Partial<(typeof mix)[number]>) => setMix((all) => all.map((m, j) => (j === i ? { ...m, ...patch } : m)));
+  return (
+    <div className="sheet-mixer">
+      {tracks.map((t, i) => (
+        <MixerStrip
+          key={t.name} name={t.name} color={t.color} selected={i === 1} onSelect={() => {}}
+          volume={mix[i]!.volume} onVolume={(volume) => put(i, { volume })} pan={mix[i]!.pan} onPan={(pan) => put(i, { pan })}
+          mute={mix[i]!.mute} onMute={(mute) => put(i, { mute })} solo={mix[i]!.solo} onSolo={(solo) => put(i, { solo })}
+          arm={mix[i]!.arm} onArm={(arm) => put(i, { arm })}
+          proposed={i === 2 ? { volume: true, pan: true } : undefined}
+          meter={(m) => { meters.current[i] = m; }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function BeforeAfterDemo() {
+  const hold = useHold('m');
+  // Stand-ins for a photo: flat and grey before, warmer and with more contrast after.
+  const before = <div className="sheet-photo" data-look="before" />;
+  const after = <div className="sheet-photo" data-look="after" />;
+  return (
+    <div className="sheet-row">
+      <div className="sheet-col"><span className="sheet-note">Hold the button, Space on it, or M: the original shows, tagged, until let go</span>
+        <div className="sheet-row" style={{ alignItems: 'flex-start' }}><HoldButton hold={hold} /><BeforeAfter showing={hold.held} before={before}>{after}</BeforeAfter></div></div>
+      <div className="sheet-col"><span className="sheet-note">While held</span>
+        <BeforeAfter showing before={before}>{after}</BeforeAfter></div>
+    </div>
+  );
+}
+
 function Instruments() {
   // Music's values: a pad's envelope and filter, its pan and drive, and the drum kit's first bar.
   const base: Envelope = { attack: 0.25, decay: 0.6, sustain: 0.7, release: 0.5 };
@@ -146,6 +212,8 @@ function Instruments() {
           <Knob label="Decay" value={kitDecay} min={0.5} max={2} step={0.01} scale="log" origin={1} format={(v) => `${v.toFixed(2)}×`} onChange={setKitDecay} />
           <Knob label="Tone" value={0.5} min={0} max={1} step={0.01} format={(v) => `${Math.round(v * 100)}%`} onChange={() => {}} disabled />
         </div></div>
+      <div className="sheet-col sheet-wide"><span className="sheet-note">Mobius proposed "warmer": the settings it moved (on knobs, cells and graphs) read in indigo and dashed until kept; Discard glides them back</span>
+        <WarmerDemo /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps: an on-step is ink to its velocity, an accent full height; click, Shift+click accents, drag paints; arrows, Space, Shift+Enter, + and −. Step 5 playing.</span>
         <StepGrid label="Drums" rows={drums} cells={cells} now={4} onChange={(r, s, v) => setCells((c) => c.map((row, i) => (i === r ? row.map((x, j) => (j === s ? v : x)) : row)))} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">Steps with fill: the same grid stretched across the width, each step up to a wide cell</span>
@@ -155,6 +223,29 @@ function Instruments() {
         <AutomationLane label="Filter cutoff" points={cutLane} beats={16} pxPerBeat={32} grid={0.25} empty={0.6} onChange={setCutLane} /></div>
       <div className="sheet-col sheet-wide"><span className="sheet-note">In a track's colour, with no head (the app names it in its track head): a dragged or focused point shows its place and value beside it.</span>
         <AutomationLane label="Lead volume" points={lane} beats={16} pxPerBeat={32} grid={0.25} color="violet" head={false} onChange={setLane} /></div>
+    </div>
+  );
+}
+
+function Charts() {
+  const months = ['Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov'];
+  const money = (v: number) => `$${v.toLocaleString('en-US')}`;
+  return (
+    <div className="sheet-grid">
+      <div className="sheet-col"><span className="sheet-note">Columns, two series: legend above, value tooltip on hover or arrow keys</span>
+        <Chart label="P2 build spend by month" categories={months} format={money}
+          series={[{ name: 'Parts', values: [4200, 5100, 4800, 6900, 7400, 6100] }, { name: 'Labour', values: [2600, 2900, 3100, 3600, 3900, 3300] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Line, three series in the people's own colours; a gap where a value is missing</span>
+        <Chart label="Cells tested per week" kind="line" categories={['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8']}
+          series={[{ name: 'Veltro', color: 'teal', values: [12, 18, 22, 21, 30, 34, 33, 41] }, { name: 'Axion', color: 'violet', values: [8, 9, 14, null, 19, 23, 27, 26] }, { name: 'Northway', color: 'amber', values: [3, 6, 6, 10, 12, 12, 15, 20] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Area, one series (no legend: the label names it); Mobius made it, so dashed until kept</span>
+        <Chart label="Range at 20 °C, km" kind="area" proposed height={200} categories={['0%', '20%', '40%', '60%', '80%', '100%']}
+          series={[{ name: 'Range', color: 'blue', values: [0, 64, 131, 199, 262, 318] }]} /></div>
+      <div className="sheet-col"><span className="sheet-note">Sparklines for a Views tile: no axes, the last value marked</span>
+        <div className="sheet-sparks">
+          <span>Inbox</span><Sparkline label="Unread mail, last 14 days" values={[14, 12, 15, 9, 11, 8, 7, 9, 6, 5, 7, 4, 3, 2]} />
+          <span>Tasks done</span><Sparkline label="Tasks done, last 14 days" color="green" area values={[1, 3, 2, 4, 3, 5, 4, 6, 5, 7, 6, 8, 7, 9]} />
+        </div></div>
     </div>
   );
 }
@@ -179,7 +270,7 @@ function Devices() {
   const patch = (id: string, p: Partial<Dev>) => setDevs((d) => d.map((x) => (x.id === id ? { ...x, ...p } : x)));
   const move = (from: number, to: number) => setDevs((d) => { const next = [...d]; const [x] = next.splice(from, 1); next.splice(to, 0, x!); return next; });
   return (
-    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold shows the head alone; Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
+    <div className="sheet-col"><span className="sheet-note">A chain in signal order: drag a grip or use its arrow keys; the switch bypasses (dims, still editable); fold turns a device into a narrow strip, its title read upward (stacked: the head alone); Echo was added by Mobius (dashed). EQ: drag a dot, wheel or Alt+drag for Q, Alt+Up/Down on a focused dot.</span>
       <DeviceChain label="Bass effects" count={devs.length} onMove={move}>
         {devs.map((d, i) => (
           <DeviceFrame key={d.id} title={d.title} index={i} on={d.on} onToggle={(on) => patch(d.id, { on })} collapsed={d.folded} onCollapse={(folded) => patch(d.id, { folded })} proposed={d.proposed}>
@@ -480,6 +571,12 @@ export function Sheet() {
           <Floating />
         </Card>
 
+        <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
+          <MixerDemo />
+        </Card>
+        <Card title="Before and after (Photo: hold Show original)" shot="before-after" wide>
+          <BeforeAfterDemo />
+        </Card>
         <Card title="Pro controls (Music: tempo, position, transport, track letters, levels)" shot="pro" wide>
           <ProControls />
         </Card>
@@ -503,6 +600,9 @@ export function Sheet() {
         </Card>
         <Card title="Pad grid (Music's drum kit)" shot="pads">
           <DrumPads />
+        </Card>
+        <Card title="Charts (Sheets, Views tiles)" shot="charts" wide>
+          <Charts />
         </Card>
         <Card title="List rows" shot="list-rows" wide>
           <div className="sheet-grid">

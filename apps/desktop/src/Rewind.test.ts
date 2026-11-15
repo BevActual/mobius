@@ -10,6 +10,7 @@ describe('rewind to here', () => {
   it('asks once, saying how many later turns go and what will change', () => {
     expect(rewindQuestion(3, ['Mail', 'Sheets'])).toBe('Rewind 3 later turns? Mail, Sheets will change.');
     expect(rewindQuestion(1, ['Notes'])).toBe('Rewind 1 later turn? Notes will change.');
+    expect(rewindQuestion(1, ['Notes'], 4)).toBe('Rewind 1 later turn? Notes will change. This also changes 4 files on your drive.');
     expect(rewindQuestion(0, [])).toBe('Rewind to here? Nothing in your apps will change.');
   });
 });

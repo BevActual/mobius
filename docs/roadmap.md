@@ -5,8 +5,9 @@ promises or dates. Changes to it land in pull requests like any other doc.
 
 ## How we choose what's next
 
-- **Refine before adding.** The apps that exist get genuinely good before new apps are added. Using them for real work
-  shows what is missing.
+- **Good first, and new when it earns its place.** The apps that exist come first, and using them for real work shows
+  what is missing. A new app is added when it makes sense or is needed; an idea that fits inside an app that exists
+  goes there instead.
 - **One look.** One design style, [Instrument](design/instrument.md), for every screen, in light and dark.
 - **The person decides.** Every change the agent makes is reviewable and undoable.
 - **Built by using it.** Agents developing Mobius use Mobius itself, through the
@@ -52,8 +53,8 @@ promises or dates. Changes to it land in pull requests like any other doc.
 - **macOS release.** The shell already compiles on macOS in CI; it needs an end-to-end suite and packaging.
 - **Subagents** that split a task and work in parallel.
 - **Image generation and speech out** for more gateways.
-- **A Messages app** built only on official APIs (Slack, Discord, Telegram, email). Parked while existing apps come
-  first.
+- **A Messages app** built only on official APIs (Slack, Discord, Telegram, email), or the same accounts
+  inside Mail. Which one is still to be decided.
 
 ## Ideas and feedback
 

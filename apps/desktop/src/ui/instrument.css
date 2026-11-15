@@ -112,6 +112,8 @@
   flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink);
 }
+.ui-device-head:has(.ui-device-lead) .ui-device-title { flex: 0 1 auto; }
+.ui-device-lead { display: inline-flex; flex: 1; align-items: center; min-width: 0; }
 .ui-device-actions { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .ui-device-head .ui-device-grip, .ui-device-head .ui-device-fold {
   display: grid; place-items: center; width: var(--hit-min); height: var(--hit-min); padding: 0; border: 0; border-radius: var(--radius-small);
@@ -202,3 +204,36 @@
 /* StepGrid fill: the steps share the width up to --step-max each, a little taller than square-small so they stay easy to hit. */
 .ui-steps[data-fill] .ui-steps-row { grid-template-columns: var(--step-name-w) repeat(var(--steps), minmax(var(--step-size), var(--step-max))); }
 .ui-steps[data-fill] .ui-step { width: 100%; height: var(--step-fill-h); }
+
+/* A value Mobius set that nobody has kept yet (Knob, ParamCell, Slider `proposed`): the Mobius mark, a dashed indigo
+   edge, with the value in indigo. The knob's arc itself turns indigo and dashed. Keep or Discard clears it. */
+.ui-knob[data-proposed] .ui-knob-fill { stroke: var(--mobius); stroke-dasharray: 2.4 1.6; stroke-linecap: butt; }
+.ui-knob[data-proposed] .ui-knob-tick { stroke: var(--mobius); }
+:is(.ui-knob, .ui-param, .ui-slider)[data-proposed] :is(.ui-knob-value, .ui-param-value, .ui-slider-value) { color: var(--mobius); }
+:is(.ui-param, .ui-slider)[data-proposed] {
+  outline: calc(var(--hairline-w) * 1.5) dashed var(--mobius); outline-offset: var(--sp-1); border-radius: var(--radius-control);
+}
+
+/* Graphs (EnvelopeGraph, FilterGraph, EqGraph `proposed`): the settings Mobius moved read in indigo, their handles
+   wear a dashed indigo ring, and the shape is drawn in dashed indigo until it is kept. */
+.ui-graph[data-proposed] .ui-graph-line:not([data-ghost]) { stroke: var(--mobius); stroke-dasharray: 5 3; }
+.ui-graph[data-proposed] .ui-graph-area { fill: color-mix(in srgb, var(--mobius) 10%, transparent); }
+.ui-graph-handle[data-proposed] { box-shadow: none; outline: calc(var(--hairline-w) * 2) dashed var(--mobius); outline-offset: calc(var(--hairline-w) * -2); }
+.ui-graph-handle[data-proposed][data-mark] { color: var(--mobius); }
+.ui-graph-handle[data-proposed]:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-graph-readout [data-proposed] dd, .ui-graph-readout dd[data-proposed] { color: var(--mobius); }
+
+/* A folded device in a sideways chain becomes a narrow strip the chain's height, as in a DAW: grip, switch, the title
+   read upward, then the fold button to open it again. Its lead and actions wait until it opens. */
+.ui-chain:not([data-orientation='vertical']) { align-items: stretch; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device:not([data-collapsed]) { align-self: flex-start; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] { align-self: stretch; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-head {
+  flex-direction: column; height: auto; flex: 1; min-width: var(--hit-min); padding: var(--sp-1); gap: var(--sp-2);
+}
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-title {
+  flex: 1; min-height: 0; writing-mode: vertical-rl; rotate: 180deg; text-align: left;
+}
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] :is(.ui-device-lead, .ui-device-actions) { display: none; }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-grip { height: calc(var(--hit-min) / 2); width: var(--hit-min); }
+.ui-chain:not([data-orientation='vertical']) > .ui-device[data-collapsed] .ui-device-grip svg { width: auto; height: 60%; rotate: 90deg; }

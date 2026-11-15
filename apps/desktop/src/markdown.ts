@@ -22,7 +22,10 @@ export type Block =
   | { kind: 'list'; ordered: boolean; start: number; items: Inline[][]; checks?: (boolean | null)[] }
   | { kind: 'quote'; children: Inline[] }
   | { kind: 'code'; lang: string; text: string; open: boolean }
+  | { kind: 'table'; align: Align[]; head: Inline[][]; rows: Inline[][][] }
   | { kind: 'rule' };
+
+export type Align = 'left' | 'center' | 'right' | null;
 
 /** Only web and mail addresses become links; anything else (javascript:, file:) stays text. */
 export const safeHref = (href: string): string | null => (/^(https?:\/\/|mailto:)/i.test(href.trim()) ? href.trim() : null);
@@ -63,6 +66,25 @@ export function parseInline(source: string): Inline[] {
 }
 
 const BULLET = /^\s{0,3}[-*+]\s+(.*)$/;
+/** A table's line under its header: cells of dashes, with colons for alignment (`| --- | :-: | --: |`). */
+const TABLE_RULE = /^\s{0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/** A table row's cells: split on `|`, except an escaped `\|` or one inside `code`. */
+export function tableCells(line: string): string[] {
+  const row = line.trim().replace(/^\|/, '').replace(/(?<!\\)\|$/, '');
+  const cells: string[] = [];
+  let cell = '';
+  let code = false;
+  for (let i = 0; i < row.length; i++) {
+    const c = row[i]!;
+    if (c === '\\' && row[i + 1] === '|') { cell += '|'; i++; continue; }
+    if (c === '`') code = !code;
+    if (c === '|' && !code) { cells.push(cell.trim()); cell = ''; continue; }
+    cell += c;
+  }
+  cells.push(cell.trim());
+  return cells;
+}
 const NUMBER = /^\s{0,3}(\d{1,9})[.)]\s+(.*)$/;
 
 export function parseMarkdown(source: string): Block[] {
@@ -94,6 +116,24 @@ export function parseMarkdown(source: string): Block[] {
       i -= 1;
       blocks.push({ kind: 'quote', children: parseInline(quoted.join('\n')) });
       continue;
+    }
+    // A table: a header row with a pipe, then its rule, then rows until a line without a pipe.
+    if (line.includes('|') && i + 1 < lines.length && TABLE_RULE.test(lines[i + 1]!) && lines[i + 1]!.includes('-')) {
+      const head = tableCells(line);
+      const align: Align[] = tableCells(lines[i + 1]!).map((c) => (c.startsWith(':') && c.endsWith(':') ? 'center' : c.endsWith(':') ? 'right' : c.startsWith(':') ? 'left' : null));
+      if (align.length === head.length) {
+        endPara();
+        const rows: Inline[][][] = [];
+        let j = i + 2;
+        while (j < lines.length && lines[j]!.includes('|') && lines[j]!.trim()) {
+          const cells = tableCells(lines[j]!);
+          rows.push(head.map((_, k) => parseInline(cells[k] ?? '')));
+          j++;
+        }
+        blocks.push({ kind: 'table', align, head: head.map(parseInline), rows });
+        i = j - 1;
+        continue;
+      }
     }
     const bullet = BULLET.exec(line);
     const number = NUMBER.exec(line);
@@ -132,7 +172,17 @@ export function plainText(nodes: Inline[]): string {
 
 const CLAIM = /\[([^\]\n]+)\]\(trust:(yours|web|unsure)(?:\s+"([^"\n]*)")?\)/g;
 /** A reply's Markdown with its trust marks taken out, for copying: claims keep their words and lose their marks. */
-export const withoutMarks = (markdown: string) => markdown.replace(CLAIM, '$1');
+export const withoutMarks = (markdown: string) => withoutToolTags(markdown).replace(CLAIM, '$1');
+
+// A tool call the model began writing as text instead of making it (round 20 showed "<mcpmobiusmail-draft>" on its own
+// line): the call never ran, so its tags, and what sits between a pair of them, are not part of the reply.
+const TOOL_TAG = String.raw`(?:mcp[\w:-]*|function_calls|invoke|parameter|tool_use|tool_call|antml:[\w-]+)`;
+const TOOL_BLOCK = new RegExp(String.raw`^[ \t]*<(${TOOL_TAG})(?:\s[^<>]*)?>[\s\S]*?</\1>[ \t]*(?:\r?\n|$)`, 'gim');
+const TOOL_LINE = new RegExp(String.raw`^[ \t]*</?${TOOL_TAG}(?:\s[^<>]*)?/?>[ \t]*(?:\r?\n|$)`, 'gim');
+
+/** The reply without tool-call tags the model wrote as text; the rest of it is left as written. */
+export const withoutToolTags = (text: string): string => (text.includes('<') ? text.replace(TOOL_BLOCK, '').replace(TOOL_LINE, '').replace(/\n{3,}/g, '\n\n') : text);
+
 /** The facts a reply marks as not sure, each by its words and why: these are checked before the reply leaves Mobius. */
 export const unsureClaims = (markdown: string): string[] => [...markdown.matchAll(CLAIM)].filter((m) => m[2] === 'unsure').map((m) => claimKey(m[1]!, m[3] ?? ''));
 export const claimKey = (words: string, source: string) => `${words}\u0000${source}`;
