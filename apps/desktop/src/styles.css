@@ -2611,6 +2611,7 @@ body { font-variant-numeric: tabular-nums; }
 .chat .approval { margin-top: var(--sp-2); padding: 0; border: 0; }
 .chat .approval-text { font-weight: var(--fw-semibold); color: var(--ink); }
 .approval-final { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.approval-scope { margin: var(--sp-2) 0 0; color: var(--muted); font-size: var(--fs-sm); }
 .chat .approval-actions { align-items: center; gap: var(--sp-1); margin-top: var(--sp-3); }
 .chat .approval-actions .approval-quiet { border: 0; background: none; box-shadow: none; color: var(--muted); padding: 0 var(--sp-2); }
 .chat .approval-actions .approval-quiet:hover:not(:disabled), .chat .approval-actions .approval-quiet:focus-visible { background: var(--sel); color: var(--ink); }

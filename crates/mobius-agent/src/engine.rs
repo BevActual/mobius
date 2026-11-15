@@ -309,6 +309,9 @@ pub struct Turn {
     round: Round,
     /// The model has written something to the person in this turn, in any round.
     said: bool,
+    /// The person allowed reading the web for this question: web.search and web.read run without asking again
+    /// until the turn ends.
+    web_for_turn: bool,
 }
 
 #[derive(Default, Clone)]
@@ -489,7 +492,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -747,6 +750,9 @@ impl Engine {
             Some(_) => {}
         }
         let Some(parked) = turn.parked.take() else { return Step::Idle };
+        if approved && core.take_for_turn(request_id) {
+            turn.web_for_turn = true;
+        }
         if approved {
             let mut queue = parked.remaining;
             queue.push_front(parked.call);
@@ -986,6 +992,17 @@ impl Engine {
                     return step;
                 }
                 Executed::Park(request_id) => {
+                    // Reading the web was allowed for this question: answer for the person, as they said to.
+                    if turn.web_for_turn
+                        && core.capability_of(&call.name).is_some_and(|c| mobius_core::core::TURN_SCOPED.contains(&c.as_str()))
+                        && !core.is_once_only(request_id)
+                        && !core.is_person_only(request_id)
+                        && core.resolve(request_id, true, Duration::Once).is_ok()
+                    {
+                        core.take_resolution(request_id);
+                        queue.push_front(call);
+                        continue;
+                    }
                     // In Act a reviewer model may answer for the person, but never for a floor (running commands,
                     // deleting files, reading secrets, clicking or typing in a page) or an app set to always ask: those
                     // stop as Needs you, every time.

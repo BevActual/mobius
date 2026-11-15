@@ -712,7 +712,12 @@ impl AgentService {
     }
 
     pub fn resolve(&self, request_id: u64, approve: bool, duration: &str) -> Value {
-        match self.call("permissions.resolve", json!({ "request_id": request_id, "approve": approve, "duration": duration })) {
+        let params = if duration == "turn" {
+            json!({ "request_id": request_id, "approve": true, "duration": "once", "for_turn": true })
+        } else {
+            json!({ "request_id": request_id, "approve": approve, "duration": duration })
+        };
+        match self.call("permissions.resolve", params) {
             Ok(_) => ok(),
             Err(e) => failed(Self::describe(&e)),
         }
