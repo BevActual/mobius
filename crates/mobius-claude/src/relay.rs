@@ -247,9 +247,36 @@ fn handle(mut stream: TcpStream, state: &Mutex<Outcome>, upstream: &str, route: 
         lock(state).failure = Some("the request body was cut short".into());
         return;
     }
+    let body = fit_request(body);
     if let Err(e) = forward(&mut stream, state, upstream, query, &headers, &body, timeout) {
         lock(state).failure = Some(e);
     }
+}
+
+/// Makes the CLI's request one the API takes, where Mobius's own settings change what it may carry. With thinking off
+/// (`disabled`, or `between_tools` on Sonnet 5.5) the API refuses the CLI's `clear_thinking` context edit ("requires
+/// `thinking` to be enabled or adaptive"), so that edit is dropped, and `context_management` with it when nothing else
+/// is left. Any other body, or one that is not JSON, goes through byte for byte.
+pub fn fit_request(body: Vec<u8>) -> Vec<u8> {
+    let Ok(mut request) = serde_json::from_slice::<Value>(&body) else { return body };
+    let thinking = request["thinking"]["type"].as_str().unwrap_or("");
+    if request.get("thinking").is_none() || matches!(thinking, "enabled" | "adaptive") {
+        return body;
+    }
+    let Some(edits) = request["context_management"]["edits"].as_array().cloned() else { return body };
+    let kept: Vec<Value> = edits.iter().filter(|e| !e["type"].as_str().is_some_and(|t| t.starts_with("clear_thinking"))).cloned().collect();
+    if kept.len() == edits.len() {
+        return body;
+    }
+    let others = request["context_management"].as_object().is_some_and(|m| m.keys().any(|k| k != "edits"));
+    if kept.is_empty() && !others {
+        if let Some(m) = request.as_object_mut() {
+            m.remove("context_management");
+        }
+    } else {
+        request["context_management"]["edits"] = Value::Array(kept);
+    }
+    serde_json::to_vec(&request).unwrap_or(body)
 }
 
 fn forward(stream: &mut TcpStream, state: &Mutex<Outcome>, upstream: &str, query: Option<&str>, headers: &[(String, String)], body: &[u8], timeout: Duration) -> Result<(), String> {
@@ -334,6 +361,23 @@ mod tests {
         assert_eq!(m["content"][2]["input"], json!({ "path": "a.md" }));
         assert_eq!(m["stop_reason"], "tool_use");
         assert_eq!(m["usage"], json!({ "input_tokens": 5, "output_tokens": 9 }));
+    }
+
+    #[test]
+    fn thinking_off_drops_the_clear_thinking_edit_the_api_refuses_with_it() {
+        let fit = |v: Value| serde_json::from_slice::<Value>(&fit_request(serde_json::to_vec(&v).unwrap())).unwrap();
+        for off in ["between_tools", "disabled"] {
+            let only = json!({ "model": "m", "thinking": { "type": off }, "context_management": { "edits": [{ "type": "clear_thinking_20251015", "keep": "all" }] } });
+            assert_eq!(fit(only), json!({ "model": "m", "thinking": { "type": off } }), "{off}");
+            let mixed = json!({ "thinking": { "type": off }, "context_management": { "edits": [{ "type": "clear_thinking_20251015" }, { "type": "clear_tool_uses_20250919" }] } });
+            assert_eq!(fit(mixed)["context_management"], json!({ "edits": [{ "type": "clear_tool_uses_20250919" }] }));
+        }
+        // Thinking on, or not said: the CLI's request goes as it is.
+        let on = json!({ "thinking": { "type": "adaptive" }, "context_management": { "edits": [{ "type": "clear_thinking_20251015" }] } });
+        assert_eq!(fit(on.clone()), on);
+        let unsaid = json!({ "context_management": { "edits": [{ "type": "clear_thinking_20251015" }] } });
+        assert_eq!(fit(unsaid.clone()), unsaid);
+        assert_eq!(fit_request(b"not json".to_vec()), b"not json");
     }
 
     #[test]
