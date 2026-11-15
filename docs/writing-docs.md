@@ -81,7 +81,8 @@ Headings are sentence case. Keep to `##` and `###`; deeper headings mean the pag
 - **Folder index:** `README.md`, so GitHub shows it when the folder opens.
 - **ADRs:** `adr/NNNN-short-title.md`, numbered after the last one.
 - **Things in the app:** the names people see, in bold the first time on a page: **Music** (not Studio), **Knowledge**
-  (not Wiki), **Abilities** (not Extensions), **Agents** (not Bots), **Gateways** (not Providers). Code names appear only
+  (not Wiki), **Abilities** (not Extensions), **Agents** (not Bots), **Gateways** (not Providers), **Home** (the rail's name for the Agent
+  app; its section heading stays `## Agent` so Learn can find it). Code names appear only
   in `developers/` and `adr/`, in `code` style.
 - **Menu paths:** with `›`, in bold: **Settings › Models › Defaults**.
 - **Keys:** as written on a Windows keyboard: Ctrl+K, Shift+Tab, Esc.
@@ -101,8 +102,14 @@ Headings are sentence case. Keep to `##` and `###`; deeper headings mean the pag
 - **One picture per app**, shared by the README and the docs: `docs/readme/apps/<app>.png`, named by the app's visible
   name in lowercase (`music.png`, `knowledge.png`). Other docs images go in `docs/readme/` with a name for what they
   show.
-- Take them from the real app, not a mock-up: `npm run dev` (the preview with sample data) or the app itself, at 1440×900
-  and 2× scale, in light mode. Add a `-dark` copy only where dark mode is the point.
+- Every app picture has a light and a `-dark` copy; the README shows the one that matches the reader's setting. They
+  show the app's own window, without the Mobius panel, at 1440×900 and 2× scale.
+- **Retake them with one command:** `npm run readme-shots` in `apps/desktop` opens the preview with its sample data and
+  takes every app in light and dark (`npm run readme-shots -- music tasks` takes only those). Look at each picture before
+  committing it. An app that should open on something (Mail on a message, Views on a view) is set up in the script's
+  `THEN` list.
+- Other pictures come from the real app too, not a mock-up: `npm run dev` (the preview with sample data) or the app
+  itself.
 - Show real-looking work (the sample data's Kestrel build at Northway Motors), never personal data.
 - Every image has alt text that says what it shows.
 - Retake a screenshot in the same pull request that changes what it shows. The Windows end-to-end run also captures

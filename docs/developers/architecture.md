@@ -88,5 +88,6 @@ Secrets (API keys, sign-in tokens) are kept in the operating system's credential
 
 ## Design
 
-The interface follows Apple's Human Interface Guidelines: one look, one sidebar and one review bar in every app. The
+The interface follows one design style, [Instrument](../design/instrument.md): one look, one frame and one review bar
+in every app, built from the shared controls in `apps/desktop/src/ui` ([Shared controls](shared-controls.md)). The
 layout rules are in [Workspace layout](../design/workspace-layout.md).

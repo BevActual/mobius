@@ -43,6 +43,10 @@ calm design. Built into all of them is **Mobius, the agent**. It sees the app yo
 to the next, and carries your work between them: a date from an email becomes an event, a note becomes a document, a
 quote becomes a row in a sheet.
 
+Beside every app sits the **Mobius panel**: a glance at what you have open (what's due today, the free time left, the
+sum of the cells you picked), a short list of what Mobius can do with it, and the conversation. Some apps add a mode of
+their own, such as **Triage** in Mail or **Analyse** in Sheets.
+
 It suggests and you decide. Nothing is sent, paid for, deleted or run without your OK.
 
 New here? [Install it](docs/getting-started/install.md), then take the [two-minute tour](docs/getting-started/tour.md).
@@ -70,8 +74,8 @@ own models, and are happy to try something unfinished and tell us what breaks.
 - **Designed with care.** One design style, [Instrument](docs/design/instrument.md), for every screen:
   calm, precise and labelled, with one window layout and one way of reviewing changes in every app.
 - **You stay in charge.** Mobius proposes and you approve. Keep, Discard and Rewind make its work undoable.
-- **Your AI, your choice.** Use your ChatGPT or Claude plan, an API key, OpenRouter, or a model on your own computer, and
-  pick a different model for each job.
+- **Your AI, your choice.** Use your ChatGPT, Claude or GitHub Copilot plan, an API key, OpenRouter, or a model on your
+  own computer, and pick a different model for each job.
 - **Local and open.** Your notes, documents and settings live in files on your computer, keys sit in the system's
   secret store, and the code is MIT licensed.
 - **Built by using it.** Mobius is developed with AI agents that also use Mobius to do real work, so problems surface
@@ -81,8 +85,8 @@ own models, and are happy to try something unfinished and tell us what breaks.
 
 ## Every app
 
-A new install starts with **Notes, Tasks, Calendar, Mail, Docs and Browser**. Add the rest from **Abilities** whenever
-you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
+A new install starts with **Notes, Tasks, Calendar, Mail, Docs and Browser**, beside Mobius's own Home, Agents, Activity,
+Abilities, Settings, Projects, Files, Review and Views. Add the rest from **Abilities** whenever you want them; apps load the first time you open them, so the ones you don't use cost nothing. Every app shares one
 window layout, one look and one way of reviewing what Mobius changed. Pictures follow your light or dark setting. More in the [app guide](docs/apps/README.md).
 
 ### Assistant
@@ -91,12 +95,12 @@ Mobius's own apps, always there.
 
 <table>
 <tr>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/agent-dark.png"><img src="docs/readme/apps/agent.png" alt="The Agent app in Mobius"></picture><br><b>Agent</b> · Home: the desk and your conversations with Mobius, plus named agents for jobs you repeat.<br><sub>Talk to Mobius about anything in your workspace and see what it's working on.</sub></td>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/abilities-dark.png"><img src="docs/readme/apps/abilities.png" alt="The Abilities app in Mobius"></picture><br><b>Abilities</b> · The app library, plus connectors, skills and plugins.<br><sub>Start small and add apps and tools when you need them. Removing an app keeps its files.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/agent-dark.png"><img src="docs/readme/apps/agent.png" alt="The Agent app in Mobius"></picture><br><b>Home</b> · The desk and your conversations with Mobius.<br><sub>Talk to Mobius about anything in your workspace and see what it's working on.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/agents-dark.png"><img src="docs/readme/apps/agents.png" alt="The Agents page in Mobius"></picture><br><b>Agents</b> · Named helpers with their own instructions, model and schedule.<br><sub>Hand off jobs you repeat, like a weekly summary, and see each run: finished, waiting for you, or failed.</sub></td>
 </tr>
 <tr>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/abilities-dark.png"><img src="docs/readme/apps/abilities.png" alt="The Abilities app in Mobius"></picture><br><b>Abilities</b> · The app library, plus connectors, skills and plugins.<br><sub>Start small and add apps and tools when you need them. Removing an app keeps its files.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/settings-dark.png"><img src="docs/readme/apps/settings.png" alt="The Settings app in Mobius"></picture><br><b>Settings</b> · Gateways, models, voice, approvals, privacy and more.<br><sub>Choose which AI does which job and how far Mobius may go on its own.</sub></td>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/activity-dark.png"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"></picture><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
 </tr>
 </table>
 
@@ -147,7 +151,7 @@ Mobius's own apps, always there.
 </tr>
 <tr>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/photo-dark.png"><img src="docs/readme/apps/photo.png" alt="The Photo app in Mobius"></picture><br><b>Photo</b> · Your pictures, with crops, adjustments and filters you can undo.<br><sub>Edit without losing the original. Mobius can make pictures with your image model.</sub></td>
-<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/music-dark.png"><img src="docs/readme/apps/music.png" alt="The Music app in Mobius"></picture><br><b>Music</b> · A small studio for writing songs as notes: tracks, piano roll, mixer.<br><sub>Write a tune or a sting. Mobius reads and writes notes, so it can add a bassline.</sub></td>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/music-dark.png"><img src="docs/readme/apps/music.png" alt="The Music app in Mobius"></picture><br><b>Music</b> · A small studio for writing songs as notes: tracks, piano roll, step drums, and a sound and effects for each track.<br><sub>Write a tune or a sting. Mobius reads and writes notes, so it can add a bassline.</sub></td>
 </tr>
 <tr>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/video-dark.png"><img src="docs/readme/apps/video.png" alt="The Video app in Mobius"></picture><br><b>Video</b> · Cut footage into a short film on a timeline.<br><sub>Trim, split and order shots in a filmstrip timeline, export the film, and ask Mobius about the cut.</sub></td>
@@ -161,10 +165,16 @@ Mobius's own apps, always there.
 
 ### Review
 
+What Mobius did, at a glance, and what is waiting for you.
+
 <table>
 <tr>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/review-dark.png"><img src="docs/readme/apps/review.png" alt="The Review app in Mobius"></picture><br><b>Review</b> · Everything Mobius changed, from every conversation, in one place.<br><sub>Check what happened while you were away, then keep or roll back.</sub></td>
 <td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/views-dark.png"><img src="docs/readme/apps/views.png" alt="The Views app in Mobius"></picture><br><b>Views</b> · Dashboards of live tiles from your other apps.<br><sub>Tasks due, today's events, unread mail, recent notes and what Mobius is doing, at a glance. Ask Mobius to make one.</sub></td>
+</tr>
+<tr>
+<td width="50%" valign="top"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/readme/apps/activity-dark.png"><img src="docs/readme/apps/activity.png" alt="The Activity app in Mobius"></picture><br><b>Activity</b> · What Mobius did across your apps, a day at a time, and what needs you.<br><sub>Filter by who did it, by app, or to what can't be undone. Rewind a conversation from here.</sub></td>
+<td width="50%" valign="top"></td>
 </tr>
 </table>
 
@@ -178,8 +188,9 @@ Mobius's own apps, always there.
 |---|---|
 | **ChatGPT plan** | Sign in with ChatGPT, OpenAI's official sign-in for open-source apps |
 | **Claude plan** | Through Claude Code on your computer; use counts against your plan's limits |
+| **GitHub Copilot plan** | Through GitHub's Copilot CLI; use counts against your premium requests |
 | **OpenRouter** | Sign in on OpenRouter's own page, no key to paste |
-| **API keys** | OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, Mistral, xAI, Together AI, Fireworks, Hugging Face |
+| **API keys** | OpenAI, Anthropic, Google Gemini, DeepSeek, Groq, Mistral, xAI, Together AI, Fireworks, Hugging Face, Cerebras, Perplexity and more, plus Azure OpenAI and Amazon Bedrock |
 | **On your computer** | A built-in llama.cpp engine that picks a model to fit your graphics card, or Ollama and LM Studio |
 
 Setting each one up is in [Models and gateways](docs/guide/models-and-gateways.md).
