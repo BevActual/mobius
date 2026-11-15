@@ -2321,7 +2321,13 @@ input.side-search.side-search {
 }
 html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-floating]) > .chat { background: var(--frame); box-shadow: none; border-radius: 0; }
 .dock.right:not([data-floating]) { border-left: var(--hairline-w) solid var(--line); }
-.dock[data-floating] { border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-3); }
+/* A floating dock is the attached one laid over the page (Instrument): flush to the rail, full height, square, a hairline
+   on its inner edge and only a light shadow to show it sits on top. */
+html .dock[data-floating], html .dock.left[data-floating], html .dock.right[data-floating] { top: 0; bottom: 0; border: 0; border-radius: 0; background: var(--frame); }
+html .app .dock.left[data-floating], html .app .dock.right[data-floating] { top: calc(-1 * var(--context)); z-index: 40; }
+html .dock.left[data-floating] { left: 0; border-right: var(--hairline-w) solid var(--line); box-shadow: 6px 0 18px -10px rgba(0, 0, 0, 0.18); }
+html .dock.right[data-floating] { right: 0; border-left: var(--hairline-w) solid var(--line); box-shadow: -6px 0 18px -10px rgba(0, 0, 0, 0.18); }
+html .dock.left[data-floating] > .app-side { padding-top: 0; }
 html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { background: var(--raised); box-shadow: var(--shadow-2); }
 /* The window's own controls stay on top and opaque when a narrow window squeezes the app's toolbar (Browser's address field) under them. */
 .strip-right { position: relative; z-index: 1; background-color: inherit; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--radius-control); }
