@@ -340,7 +340,7 @@ fn an_apps_own_mode_adds_its_instructions_held_by_the_host_and_a_read_only_one_a
     assert!(system.starts_with("Triage mode (Mail).") && system.ends_with("Remembered: likes tea."), "{system}");
     assert!(sends[0].get("ask").is_none(), "Triage drafts replies, so it may change things");
     // What the third demo run showed: one search for the unread, messages named by sender and subject, no duplicate tasks.
-    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides for the person", "add up to every unread message", "a security alert, a quote", "one task per thing asked", "drafted already was handled before", "asks the person themselves to do", "even with someone a message names"] {
+    for words in ["unread: true", "never by an id", "look at tasks.list first", "not drafted already", "1,240 GBP stays 1,240 GBP", "never decides for the person", "add up to every unread message", "a security alert, a quote", "one task per thing asked", "drafted already was handled before", "asks the person themselves to do", "even with someone a message names", "the three that most need the person", "before you look at the rest", "and nothing after it"] {
         assert!(system.contains(words), "{words}");
     }
     assert!(sends[1]["system"].as_str().unwrap().starts_with("Analyse mode."));
@@ -384,6 +384,8 @@ fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_al
     assert_eq!(sent(json!({ "conversation": "c-2", "text": "plan my day", "tools": ["tasks", "calendar", "mail"] }))["tools"], json!(["tasks", "calendar", "mail"]));
     assert_eq!(sent(json!({ "conversation": "c-3", "text": "sort", "mode": "triage", "tools": ["files", "mail"] }))["tools"], json!(["mail", "tasks", "calendar", "files"]), "both, once each");
     assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
+    assert_eq!(sent(json!({ "conversation": "c-5", "text": "sort my inbox", "mode": "triage" }))["effort"], "low", "Triage sorts and writes, so it thinks less");
+    assert!(sent(json!({ "conversation": "c-6", "text": "hi" })).get("effort").is_none(), "the person's setting stands");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
 }

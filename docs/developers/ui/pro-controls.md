@@ -39,3 +39,21 @@ building one in an app.
 <MixerStrip name="Bass" color="amber" volume={t.volume} onVolume={setVolume} onVolumeCommit={commit}
   pan={t.pan} onPan={setPan} mute={t.mute} onMute={setMute} solo={t.solo} onSolo={setSolo} meter={bassMeter} />
 ```
+
+## Before and after
+
+![Hold Show original: the button, the edited stand-in, and the same while held with the Original tag](img/before-after.png)
+
+For Photo's Show original, and anything else that edits content in place (Video's grade, a sound's before and after).
+
+| Piece | Use it for |
+| --- | --- |
+| `useHold(key)` | The held state. It owns the key (M in Photo), so holding the key still works when the button has folded into the toolbar's ⋯ menu. It lets go on key up, pointer up, blur and when the window loses focus, so the original never sticks. Keys are ignored while typing or with Ctrl, Cmd or Alt |
+| `HoldButton` | The toolbar's icon button: `<HoldButton hold={hold} />`. Pressed while held, by pointer or by Space or Enter on it, and its key is on the tooltip |
+| `BeforeAfter` | `<BeforeAfter showing={hold.held} before={original}>{edited}</BeforeAfter>` shows the original while held, with a short fade and an "Original" tag in the corner. Leave out `before` when the app redraws one surface itself, such as Photo's canvas, and it only adds the tag |
+
+```tsx
+const hold = useHold('m');
+<ToolbarItem priority="low"><HoldButton hold={hold} /></ToolbarItem>
+<BeforeAfter showing={hold.held}><canvas ref={shown} /></BeforeAfter>
+```

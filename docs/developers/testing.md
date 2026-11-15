@@ -49,11 +49,15 @@ Pass `--trace off` unless you need traces; turn them on to debug a failure (`--t
 
 | Workflow | When | What |
 | --- | --- | --- |
-| **Checks** ([`ci.yml`](../../.github/workflows/ci.yml)) | Every push and pull request | Type checking, TypeScript tests, every Rust test, and a check that the generated types match the Rust ones, on Linux |
+| **Checks** ([`ci.yml`](../../.github/workflows/ci.yml)) | Each pull request (on its merge with `main`) and each commit on `main` | Type checking, TypeScript tests, every Rust test, and a check that the generated types match the Rust ones, on Linux |
 | **Windows end-to-end** ([`windows-e2e.yml`](../../.github/workflows/windows-e2e.yml)) | Pull requests, pushes to `main`, and by hand | The Playwright suite against the real app on Windows, in three shards, with one summary check named `e2e` |
 | **macOS build** ([`macos-build.yml`](../../.github/workflows/macos-build.yml)) | Pull requests and pushes to `main` | Compiles the shell on macOS so macOS-only code is checked. Nothing runs the app there yet |
 | **Release** ([`release.yml`](../../.github/workflows/release.yml)) | A `v*` tag | Builds, signs and drafts a release; see [Releases and updates](releasing.md) |
 | **Branch cleanup** ([`branch-cleanup.yml`](../../.github/workflows/branch-cleanup.yml)) | A pull request closes | Deletes the merged branch and its screenshots branch, keeping `main` |
+
+A newer push to a pull request cancels that pull request's older runs. On `main` nothing is cancelled: each commit
+runs on its own, so two merges a few seconds apart are both tested. A branch with no pull request isn't checked, so
+open one, even as a draft.
 
 To run the Windows suite by hand for one branch or a few files: **Actions › Windows end-to-end › Run workflow**, and
 give the spec paths (for example `e2e/mobius2.spec.ts`).
@@ -75,8 +79,10 @@ fix the cause or the test.
 
 ### Unstable tests
 
-Every re-run of a failed e2e job is written down here, so re-runs stay honest and it is clear where CI time goes.
-A test gets **one** re-run per pull request. A test that reaches **three sightings** is a blocker: fix its cause
+In CI a failed e2e test gets one more try by itself (`retries: 1`). Each shard's run summary lists the tests that
+failed on both tries and the ones that only passed on the second, from `scripts/e2e-summary.mjs`. A test that needed
+its second try still counts as a sighting, and it goes in the table below, so the table is filled from what CI saw.
+Beyond that automatic try, a test gets **one** re-run of the job per pull request. A test that reaches **three sightings** is a blocker: fix its cause
 before the next batch of merges. Remove a row once its fix has landed and it has stayed green for a day.
 
 | Test | Symptom | Seen | Owner | Status |
@@ -91,3 +97,5 @@ before the next batch of merges. Remove a row once its fix has landed and it has
 | `learn.spec.ts:52` | Escape didn't close Learn | 1 (2026-11-14, #324) | Builder | Watching |
 | `shell.spec.ts:96` | After New tab, the tab strip still showed 1 tab, not 2 | 1 (2026-11-15, #387) | Builder | Watching. #387 doesn't touch the browser, and it passed on its one re-run |
 | A `mobius-host` lib test (unknown) | Checks: the type check's second `cargo test --lib` run failed after the full Rust test step had passed, with no test name shown | 1 (2026-11-15, #391) | Builder | Watching. #391 is docs only and passed on its one re-run. 25 local runs of the host lib tests found nothing. The type check now runs only the type-export tests, and prints the test output if they fail |
+| `mobius-runtime` `server.rs:200` (a leftover server from a previous run is stopped) | Checks: failed on `main` at 01:40 | 1 (2026-11-15, main) | Builder | Watching |
+| `mobius-host` `bridge.rs:942` (removing all data empties the data folder) | Checks: failed on a PR whose diff doesn't touch it | 1 (2026-11-14, fix/warm-checkpoints) | Builder | Watching |

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { DriveAccount, DriveEntry, DriveFailure, FileEntry } from '@mobius/shared';
-import { Button, Confirm, PointMenu, TextField, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
+import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewDrive } from '@mobius/shared';
+import { Button, Confirm, PointMenu, Segmented, TextField, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { EmptyState } from './EmptyState';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
@@ -61,7 +61,7 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     setNotice(null);
     return true;
   };
-  const add = async (d: { name: string; server: string; username: string; password: string }): Promise<string | null> => {
+  const add = async (d: NewDrive): Promise<string | null> => {
     const r = await api?.add(d).catch(() => null);
     if (!r) return 'Drives are not available here.';
     if (failed(r)) return r.message;
@@ -135,18 +135,27 @@ export function DriveBars({ drives }: { drives: DrivesState }) {
   );
 }
 
-/** Add a drive: a name, the server's address, a user and an app password. A Nextcloud address alone is enough. */
+/** Add a drive: a name, the server's address, a user and an app password. A Nextcloud address alone is enough. Or an
+ * S3-style bucket (Amazon S3, Cloudflare R2, Backblaze B2, MinIO): its address, bucket and an access key. */
 export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: ReactNode }) {
+  const [kind, setKind] = useState<'webdav' | 's3'>('webdav');
   const [name, setName] = useState('');
   const [server, setServer] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [bucket, setBucket] = useState('');
+  const [folder, setFolder] = useState('');
+  const [region, setRegion] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
+  const s3 = kind === 's3';
   const submit = async () => {
-    if (!server.trim()) { setError('Give the server’s address, such as https://cloud.example.com.'); return; }
+    if (!server.trim()) { setError(s3 ? 'Give the service’s address, such as https://s3.eu-west-2.amazonaws.com.' : 'Give the server’s address, such as https://cloud.example.com.'); return; }
+    if (s3 && !bucket.trim()) { setError('Give the bucket’s name.'); return; }
     setChecking(true); setError(null);
-    const problem = await drives.add({ name: name.trim(), server: server.trim(), username: username.trim(), password });
+    const problem = await drives.add(s3
+      ? { kind, name: name.trim(), server: server.trim(), bucket: bucket.trim(), folder: folder.trim(), region: region.trim(), username: username.trim(), password }
+      : { name: name.trim(), server: server.trim(), username: username.trim(), password });
     setChecking(false);
     if (problem) setError(problem);
   };
@@ -154,13 +163,29 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
     <section className="skills-page files-page" aria-label="Add a drive">
       {tools}
       <form className="drive-form" aria-label="New drive" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <p className="drive-lede">A drive is a folder on a server you already use: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any WebDAV server. Files opens it beside the workspace; nothing is copied until you copy it.</p>
-        <TextField label="Server address" placeholder="https://cloud.example.com" value={server} onChange={setServer} autoFocus inputMode="url" autoComplete="url" spellCheck={false} />
-        <p className="drive-hint">For Nextcloud and ownCloud the server’s address alone is enough.</p>
-        <TextField label="User name" value={username} onChange={setUsername} autoComplete="username" spellCheck={false} />
-        <TextField label="App password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
-        <p className="drive-hint">Make one in the server’s security settings. It is kept in this computer’s secret store, and sent only to this server.</p>
-        <TextField label="Name" placeholder="The server’s name" value={name} onChange={setName} />
+        <Segmented label="Kind of drive" value={kind} onChange={(k) => { setKind(k); setError(null); }} choices={[{ value: 'webdav', label: 'Server (WebDAV)' }, { value: 's3', label: 'Bucket (S3)' }]} />
+        {s3 ? (
+          <>
+            <p className="drive-lede">A bucket in S3-style storage: Amazon S3, Cloudflare R2, Backblaze B2, Wasabi or your own MinIO. Files opens it beside the workspace; nothing is copied until you copy it.</p>
+            <TextField label="Service address" placeholder="https://s3.eu-west-2.amazonaws.com" value={server} onChange={setServer} autoFocus inputMode="url" autoComplete="url" spellCheck={false} />
+            <TextField label="Bucket" placeholder="my-files" value={bucket} onChange={setBucket} spellCheck={false} />
+            <TextField label="Folder in the bucket" placeholder="Leave empty for the whole bucket" value={folder} onChange={setFolder} spellCheck={false} />
+            <TextField label="Region" placeholder="Found from the address where it is in it" value={region} onChange={setRegion} spellCheck={false} />
+            <TextField label="Access key ID" value={username} onChange={setUsername} autoComplete="username" spellCheck={false} />
+            <TextField label="Secret access key" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+            <p className="drive-hint">Make a key that can reach only this bucket. The secret is kept in this computer’s secret store, and sent only to this service.</p>
+          </>
+        ) : (
+          <>
+            <p className="drive-lede">A drive is a folder on a server you already use: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any WebDAV server. Files opens it beside the workspace; nothing is copied until you copy it.</p>
+            <TextField label="Server address" placeholder="https://cloud.example.com" value={server} onChange={setServer} autoFocus inputMode="url" autoComplete="url" spellCheck={false} />
+            <p className="drive-hint">For Nextcloud and ownCloud the server’s address alone is enough.</p>
+            <TextField label="User name" value={username} onChange={setUsername} autoComplete="username" spellCheck={false} />
+            <TextField label="App password" type="password" value={password} onChange={setPassword} autoComplete="current-password" />
+            <p className="drive-hint">Make one in the server’s security settings. It is kept in this computer’s secret store, and sent only to this server.</p>
+          </>
+        )}
+        <TextField label="Name" placeholder={s3 ? 'The bucket’s name' : 'The server’s name'} value={name} onChange={setName} />
         {error && <p className="field-error" role="alert">{error}</p>}
         <div className="drive-actions"><Button kind="primary" type="submit" disabled={checking}>{checking ? 'Checking…' : 'Add drive'}</Button></div>
       </form>
