@@ -34,13 +34,11 @@ export interface SuggestedRead { tool: string; arguments: Record<string, unknown
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 /**
- * Plan my day's reads: the time where the person is (without it the model planned an afternoon from 9:00, every block
- * already past), open tasks, today's events, unread mail.
+ * Plan my day's reads: the day itself, worked out in code before the model is asked (which tasks, when, the Focus time
+ * hour and lunch; the model placing them was right four runs in five), and unread mail for the one reply.
  */
-export const planMyDayReads = (now: Date): SuggestedRead[] => [
-  { tool: 'clock.now', arguments: {} },
-  { tool: 'tasks.list', arguments: {} },
-  { tool: 'calendar.list', arguments: { from: isoDay(now), to: isoDay(now) } },
+export const planMyDayReads = (_now: Date): SuggestedRead[] => [
+  { tool: 'tasks.plan_day', arguments: {} },
   { tool: 'mail.search', arguments: { mailbox: 'inbox', unread: true, limit: 20 } },
 ];
 
@@ -86,10 +84,10 @@ export const COMPARE_TABS = 'Compare the web pages open in my browser tabs. List
  * The demo's Home and Tasks moment: one ask, and the day is planned. Tasks get times, each shows as a dashed block in
  * Calendar, mail that needs an answer today gets a draft, and a free hour is held. Nothing is sent and no event moves.
  */
-/** The apps Plan my day works in: it reads and changes tasks and the calendar, and reads and drafts mail. */
-export const PLAN_MY_DAY_TOOLS = ['tasks', 'calendar', 'mail'] as const;
+/** The apps Plan my day works in: tasks (the plan, worked out and made in code) and mail (the one reply). */
+export const PLAN_MY_DAY_TOOLS = ['tasks', 'mail'] as const;
 
-export const PLAN_MY_DAY = 'Plan my day, in my local time. Read my open tasks with tasks.list and keep only the ones due today or overdue, and any flagged; a task due tomorrow or later is not for today, so leave it and its date as they are. Read today\'s events with calendar.list (from and to today) and unread mail from the last two days with mail.search, calling those three tools together in one step. Then, between now and 6 pm and around my events: give each of those tasks a time with one tasks.update per list (due today, the time as HH:MM; never one due later; the others in more) and suggest a block for each with one calendar.suggest (the others in more), both in one step, with the task as the title and why in a few words; most important first, each 30 or 60 minutes, back to back where they fit so the longest free stretch stays whole. Then hold one hour of that stretch for focused work with calendar.suggest (title Focus time): if an hour is free anywhere, there is one. If one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. The draft asks or holds and never commits me: no yes to a time or an order, and no day or deadline for anything I will do or send. If the message asks to meet, it says I will check my calendar and come back. It is laid out as an email, with the greeting, each paragraph, \"Thanks,\" and my name on lines of their own. Do not send anything and do not move my events. End with the day as a short list in time order, then one line of a few words on what can wait.';
+export const PLAN_MY_DAY = 'Plan my day. tasks.plan_day has already worked it out: which tasks, when, lunch and the Focus time hour. In one step, write its lines, word for word, as your whole reply: nothing before or after them and no word of your own. In the same step, call tasks.schedule_day with the start it gave, and if one unread message needs an answer from me today, suggest a short reply to that one in my voice with mail.draft; draft no others. The draft asks or holds and never commits me: no yes to a time or an order, and no day or deadline for anything I will do or send. If the message asks to meet, it says I will check my calendar and come back. It is laid out as an email, with the greeting, each paragraph, "Thanks," and my name on lines of their own. Do not send anything and do not move my events. Name no tool in what you write.';
 
 /**
  * The demo's Sheets moment: a year of numbers, and Mobius adds a total, marks what stands out beside it, draws them

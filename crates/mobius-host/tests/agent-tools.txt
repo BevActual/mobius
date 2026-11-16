@@ -60,3 +60,5 @@ drives.fetch
 drives.write
 drives.move
 drives.delete
+tasks.plan_day
+tasks.schedule_day

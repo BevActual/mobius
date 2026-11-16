@@ -1451,7 +1451,7 @@ impl Bridge {
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
         stage.store(1, std::sync::atomic::Ordering::Relaxed);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || crate::day::is_day_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1579,6 +1579,9 @@ impl Bridge {
                 }
             }
             return Ok(Value::String(said));
+        }
+        if crate::day::is_day_tool(tool) {
+            return self.plan_day(tool, &args).map(|v| Value::String(v.to_string()));
         }
         if mobius_workspace::tasks::is_task_tool(tool) {
             let result = self.tasks.run(tool, &args).map(Value::String);
@@ -1761,6 +1764,42 @@ impl Bridge {
             }
             None => result,
         }))
+    }
+
+    /// Plan my day, worked out in code (`crate::day`): tasks.plan_day only works it out; tasks.schedule_day, given
+    /// the start it gave, works out the same plan and makes it.
+    fn plan_day(&self, tool: &str, args: &Value) -> Result<Value, String> {
+        let local = chrono::Local::now().naive_local();
+        let today = local.date();
+        let now = match args.get("start").and_then(Value::as_str).and_then(|t| chrono::NaiveTime::parse_from_str(t.trim(), "%H:%M").ok()) {
+            Some(start) if tool == crate::day::MAKE => today.and_time(start),
+            _ => local,
+        };
+        let day = today.format("%Y-%m-%d").to_string();
+        let parse = |s: String| serde_json::from_str::<Value>(&s).unwrap_or(Value::Null);
+        let lists = parse(self.tasks.run("tasks.list", &json!({}))?);
+        let events = parse(self.calendar.run("calendar.list", &json!({ "from": day, "to": day }))?);
+        let plan = crate::day::plan(now, &lists, &events, &self.calendar.suggestions());
+        let start = plan.start.map(|s| s.format("%H:%M").to_string()).unwrap_or_default();
+        if tool == crate::day::PLAN {
+            return Ok(json!({ "lines": plan.lines(), "start": start, "tasks": plan.placed.len() }));
+        }
+        let mut lists_changed: Vec<String> = Vec::new();
+        for update in plan.updates() {
+            self.tasks.run("tasks.update", &update)?;
+            let list = update["list"].as_str().unwrap_or_default().to_owned();
+            if !lists_changed.contains(&list) {
+                lists_changed.push(list);
+            }
+        }
+        for list in lists_changed {
+            (self.emit)("mobius:tasks-changed", json!({ "list": list, "by": "assistant" }));
+        }
+        if let Some(suggestion) = plan.suggestion() {
+            self.calendar.run("calendar.suggest", &suggestion)?;
+            (self.emit)("mobius:calendar-changed", json!({ "calendar": mobius_workspace::calendar::DEFAULT_CALENDAR, "by": "assistant" }));
+        }
+        Ok(json!({ "made": plan.placed.len(), "focus": plan.focus.is_some(), "lines": plan.lines() }))
     }
 
     /// The tab a browser tool used is the task's while it runs: read by Mobius, or driven by it (opening, clicking,
@@ -1987,7 +2026,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()).chain(crate::day::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
