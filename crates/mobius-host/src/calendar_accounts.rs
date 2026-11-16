@@ -252,26 +252,63 @@ pub fn xml(text: &str) -> Res<Node> {
 
 // ---- talking to servers -------------------------------------------------------------------------------------------
 
-struct Answer {
-    status: u16,
-    etag: Option<String>,
-    location: Option<String>,
-    body: String,
+pub(crate) struct Answer {
+    pub status: u16,
+    pub etag: Option<String>,
+    pub location: Option<String>,
+    pub body: String,
+}
+
+/// The HTTP client for CalDAV and CardDAV: no redirects of its own (they are followed by hand, credentials only to the
+/// same site), and WebDAV's methods allowed.
+pub(crate) fn dav_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .allow_non_standard_methods(true)
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_global(Some(Duration::from_secs(60)))
+        .user_agent("Mobius")
+        .build()
+        .into()
+}
+
+/// One request, following up to five redirects. Credentials go only to the same site.
+pub(crate) fn dav_request(http: &ureq::Agent, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
+    let mut at = url.clone();
+    for _ in 0..6 {
+        let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
+        if let Some((user, password)) = auth.filter(|_| same_site(url, &at)) {
+            use base64::Engine;
+            builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
+        }
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        let request = builder.body(body.unwrap_or("").to_owned()).map_err(|e| e.to_string())?;
+        let mut response = http.run(request).map_err(|e| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server")))?;
+        let status = response.status().as_u16();
+        let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
+        let (etag, location) = (header("etag"), header("location"));
+        if matches!(status, 301 | 302 | 303 | 307 | 308) {
+            let next = location.as_deref().and_then(|l| at.join(l).ok()).ok_or("The server sent Mobius somewhere it could not follow.")?;
+            if !matches!(next.scheme(), "https" | "http") {
+                return Err("The server sent Mobius somewhere it could not follow.".into());
+            }
+            at = next;
+            continue;
+        }
+        let body = response.body_mut().with_config().limit(MAX_BODY).read_to_string().map_err(|e| e.to_string())?;
+        return Ok(Answer { status, etag, location, body });
+    }
+    Err("The server sent Mobius round in circles.".into())
 }
 
 impl Accounts {
     pub fn new(data_dir: &Path, secrets: Arc<dyn Secrets>) -> Accounts {
         let file = data_dir.join("calendar-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
-        let http = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .allow_non_standard_methods(true)
-            .timeout_connect(Some(Duration::from_secs(10)))
-            .timeout_global(Some(Duration::from_secs(60)))
-            .user_agent("Mobius")
-            .build()
-            .into();
+        let http = dav_agent();
         Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http }
     }
 
@@ -290,35 +327,8 @@ impl Accounts {
         self.dir.join(account).join(format!("{index}.ics"))
     }
 
-    /// One request, following up to five redirects. Credentials go only to the same site.
     fn request(&self, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
-        let mut at = url.clone();
-        for _ in 0..6 {
-            let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
-            if let Some((user, password)) = auth.filter(|_| same_site(url, &at)) {
-                use base64::Engine;
-                builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
-            }
-            for (k, v) in headers {
-                builder = builder.header(*k, *v);
-            }
-            let request = builder.body(body.unwrap_or("").to_owned()).map_err(|e| e.to_string())?;
-            let mut response = self.http.run(request).map_err(|e| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server")))?;
-            let status = response.status().as_u16();
-            let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
-            let (etag, location) = (header("etag"), header("location"));
-            if matches!(status, 301 | 302 | 303 | 307 | 308) {
-                let next = location.as_deref().and_then(|l| at.join(l).ok()).ok_or("The server sent Mobius somewhere it could not follow.")?;
-                if !matches!(next.scheme(), "https" | "http") {
-                    return Err("The server sent Mobius somewhere it could not follow.".into());
-                }
-                at = next;
-                continue;
-            }
-            let body = response.body_mut().with_config().limit(MAX_BODY).read_to_string().map_err(|e| e.to_string())?;
-            return Ok(Answer { status, etag, location, body });
-        }
-        Err("The server sent Mobius round in circles.".into())
+        dav_request(&self.http, method, url, auth, headers, body)
     }
 
     fn dav(&self, method: &str, url: &url::Url, auth: (&str, &str), depth: &str, body: &str) -> Res<Node> {
