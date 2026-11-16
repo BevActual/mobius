@@ -69,6 +69,21 @@ describe('patch helpers', () => {
     expect(Math.max(...Object.values(loop).map((p) => p.x))).toBeLessThan(224 * 3);
   });
 
+  it('leaves a feedback cable out of the columns, so the boxes after a loop stay in signal order', () => {
+    const parts = ['in', 'echo', 'tone', 'back', 'mix', 'out'].map((id) => ({ id }));
+    const wire = (from: string, to: string) => ({ from: { box: from }, to: { box: to } });
+    const at = layoutFlow(parts, [wire('in', 'echo'), wire('echo', 'tone'), wire('tone', 'back'), wire('back', 'echo'), wire('echo', 'mix'), wire('in', 'mix'), wire('mix', 'out')]);
+    expect([at.in!.x, at.echo!.x, at.tone!.x, at.back!.x, at.mix!.x, at.out!.x]).toEqual([0, 224, 448, 672, 448, 672]);
+    // A loop that nothing feeds starts at its first box.
+    const ring = layoutFlow([{ id: 'a' }, { id: 'b' }], [wire('a', 'b'), wire('b', 'a')]);
+    expect([ring.a!.x, ring.b!.x]).toEqual([0, 224]);
+  });
+
+  it('loops a cable that runs back under the boxes', () => {
+    expect(cablePath(300, 50, 100, 60, 200)).toBe('M300 50C324 50 324 200 300 200L100 200C76 200 76 60 100 60');
+    expect(cablePath(100, 50, 300, 60, 200)).toBe('M100 50C200 50 200 60 300 60');
+  });
+
   it('stacks boxes that share a column and centres the shorter column', () => {
     const at = layoutFlow(
       [{ id: 'a' }, { id: 'b' }, { id: 'c' }],

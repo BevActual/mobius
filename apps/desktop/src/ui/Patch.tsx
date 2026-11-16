@@ -78,12 +78,21 @@ const MAX_ZOOM = 2;
 const FIT_PAD = 24;
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const keyOf = (box: string, port: string) => `${box}\u001f${port}`;
+const bottomKey = (box: string) => `\u001e${box}`;
 const endPort = (end: PortEnd | ParamEnd) => ('port' in end ? end.port : end.param);
 const snap = (v: number, grid: number) => Math.round(v / grid) * grid;
 const useIsoLayout = typeof window === 'undefined' ? useEffect : useLayoutEffect;
 
-/** The cable's curve from an output at (x1, y1) to an input at (x2, y2): it leaves rightward and arrives from the left. */
-export function cablePath(x1: number, y1: number, x2: number, y2: number): string {
+/**
+ * The cable's curve from an output at (x1, y1) to an input at (x2, y2): it leaves rightward and arrives from the left.
+ * A cable that runs back (its input is left of its output) loops under the boxes instead, along `below` when given.
+ */
+export function cablePath(x1: number, y1: number, x2: number, y2: number, below?: number): string {
+  if (below !== undefined && x2 < x1 + 24) {
+    const r = 24;
+    const y = Math.max(below, y1 + r, y2 + r);
+    return `M${x1} ${y1}C${x1 + r} ${y1} ${x1 + r} ${y} ${x1} ${y}L${x2} ${y}C${x2 - r} ${y} ${x2 - r} ${y2} ${x2} ${y2}`;
+  }
   const bend = Math.max(40, Math.abs(x2 - x1) / 2);
   return `M${x1} ${y1}C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
 }
@@ -103,15 +112,40 @@ export function layoutFlow(
   { column = 224, gap = 24, grid = 8, height }: { column?: number; gap?: number; grid?: number; height?: (box: Pick<PatchBox, 'id' | 'inputs' | 'outputs'>) => number } = {},
 ): Record<string, { x: number; y: number }> {
   const depth = new Map(boxes.map((b) => [b.id, 0]));
-  // Longest path, relaxed at most once per box, so a feedback loop can't run away.
+  // A feedback cable (an echo's repeats going back) would push everything after it to the right, so drop the cables
+  // that close a loop first: a depth-first walk from the boxes nothing feeds, in the given order, marks them.
+  const ids = new Set(boxes.map((b) => b.id));
+  const out = new Map<string, number[]>();
+  const fed = new Set<string>();
+  cables.forEach((c, i) => {
+    if (c.from.box === c.to.box || !ids.has(c.from.box) || !ids.has(c.to.box)) return;
+    (out.get(c.from.box) ?? out.set(c.from.box, []).get(c.from.box)!).push(i);
+    fed.add(c.to.box);
+  });
+  const back = new Set<number>();
+  const state = new Map<string, 1 | 2>(); // 1 on the walk, 2 done
+  const walk = (id: string) => {
+    state.set(id, 1);
+    for (const i of out.get(id) ?? []) {
+      const to = cables[i]!.to.box;
+      const seen = state.get(to);
+      if (seen === 1) back.add(i);
+      else if (!seen) walk(to);
+    }
+    state.set(id, 2);
+  };
+  for (const b of boxes) if (!fed.has(b.id) && !state.has(b.id)) walk(b.id);
+  for (const b of boxes) if (!state.has(b.id)) walk(b.id); // A loop nothing feeds starts at its first box.
+  // Longest path over what is left, which has no loops.
   for (let round = 0; round < boxes.length; round++) {
     let changed = false;
-    for (const c of cables) {
+    cables.forEach((c, i) => {
+      if (back.has(i)) return;
       const from = depth.get(c.from.box);
       const to = depth.get(c.to.box);
-      if (from === undefined || to === undefined || c.from.box === c.to.box) continue;
-      if (from + 1 > to && from + 1 < boxes.length) { depth.set(c.to.box, from + 1); changed = true; }
-    }
+      if (from === undefined || to === undefined || c.from.box === c.to.box) return;
+      if (from + 1 > to) { depth.set(c.to.box, from + 1); changed = true; }
+    });
     if (!changed) break;
   }
   const tall = height ?? ((b) => 40 + Math.max(b.inputs?.length ?? 0, b.outputs?.length ?? 0, 1) * 24);
@@ -119,15 +153,15 @@ export function layoutFlow(
   for (const b of boxes) (columns[depth.get(b.id)!] ??= []).push(b);
   const heights = columns.map((col) => (col ?? []).reduce((sum, b, i) => sum + tall(b) + (i ? gap : 0), 0));
   const tallest = Math.max(0, ...heights);
-  const out: Record<string, { x: number; y: number }> = {};
+  const placed: Record<string, { x: number; y: number }> = {};
   columns.forEach((col, i) => {
     let y = (tallest - heights[i]!) / 2;
     for (const b of col ?? []) {
-      out[b.id] = { x: snap(i * column, grid), y: snap(y, grid) };
+      placed[b.id] = { x: snap(i * column, grid), y: snap(y, grid) };
       y += tall(b) + gap;
     }
   });
-  return out;
+  return placed;
 }
 
 interface Draft { from: string; at?: { x: number; y: number }; pointer: boolean }
@@ -275,6 +309,8 @@ export const PatchCanvas = forwardRef<HTMLDivElement, PatchCanvasProps>(function
       const r = dot.getBoundingClientRect();
       next[key] = { x: Math.round(((r.left + r.width / 2 - origin.left) / k) * 2) / 2, y: Math.round(((r.top + r.height / 2 - origin.top) / k) * 2) / 2 };
     });
+    // Each box's bottom, for the cables that loop back under it.
+    w.querySelectorAll<HTMLElement>('.ui-patch-box[data-box]').forEach((el) => { next[bottomKey(el.dataset.box!)] = { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight }; });
     setAnchors((was) => {
       const keys = Object.keys(next);
       if (keys.length === Object.keys(was).length && keys.every((key) => was[key]?.x === next[key]!.x && was[key]?.y === next[key]!.y)) return was;
@@ -539,7 +575,11 @@ export const PatchCanvas = forwardRef<HTMLDivElement, PatchCanvasProps>(function
     const a = anchors[keyOf(c.from.box, c.from.port)];
     const b = anchors[keyOf(c.to.box, endPort(c.to))];
     if (!a || !b) return null;
-    const d = cablePath(a.x, a.y, b.x, b.y);
+    // A cable running back loops under its own boxes and every box between its ends.
+    const under = b.x < a.x + 24
+      ? Math.max(a.y, b.y, ...boxes.map((x) => anchors[bottomKey(x.id)]).filter((m, i) => m && (boxes[i]!.id === c.from.box || boxes[i]!.id === c.to.box || (m.x > b.x && m.x < a.x))).map((m) => m!.y)) + 16
+      : undefined;
+    const d = cablePath(a.x, a.y, b.x, b.y, under);
     const chosen = selected?.kind === 'cable' && selected.id === c.id;
     return (
       <g key={c.id} data-selected={chosen || undefined}>
@@ -590,6 +630,7 @@ export const PatchCanvas = forwardRef<HTMLDivElement, PatchCanvasProps>(function
                 <BoxContext.Provider key={b.id} value={b.id}>
                   <div
                     className="ui-patch-box"
+                    data-box={b.id}
                     role="group"
                     tabIndex={0}
                     aria-label={b.title}
