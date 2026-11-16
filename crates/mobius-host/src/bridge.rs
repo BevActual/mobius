@@ -1590,7 +1590,8 @@ impl Bridge {
                 system,
                 asks: asks.into_iter().map(|(id, prompt)| crate::ask_each::Ask { id, prompt }).collect(),
                 max_tokens: Some(120),
-                at_once: Some(10),
+                // Two rounds for forty messages (each call can be its own process, so many at once pays).
+                at_once: Some(20),
             };
             let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
             return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
