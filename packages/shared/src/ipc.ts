@@ -235,7 +235,7 @@ export interface CalendarSource { name: string; account: string | null; readOnly
 /** How a calendar sign-in in the browser ended. */
 export type CalendarSignIn = { ok: true; account: { id: string; name: string } } | { ok: false; message: string };
 
-export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google' | 'microsoft'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
@@ -737,6 +737,10 @@ export interface MobiusBridge {
     /** Starts signing in to Google (`again`: that account's sign-in ended) and answers the page to open; how it ends comes to `onSignIn`. */
     googleSignIn?(account: { name?: string; again?: string }): Promise<{ url: string } | NotesFailure>;
     googleCancel?(): Promise<{ ok: true } | NotesFailure>;
+    /** Outlook.com and Microsoft 365, the same way as Google. */
+    microsoftStatus?(): Promise<{ setUp: boolean; pending: string | null; hint?: string | null } | NotesFailure>;
+    microsoftSignIn?(account: { name?: string; again?: string }): Promise<{ url: string } | NotesFailure>;
+    microsoftCancel?(): Promise<{ ok: true } | NotesFailure>;
     onSignIn?(listener: (done: CalendarSignIn) => void): () => void;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
   };

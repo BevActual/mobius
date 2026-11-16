@@ -30,7 +30,7 @@ use crate::secrets::Secrets;
 type Res<T> = Result<T, String>;
 
 pub const NOT_SET_UP: &str = "OneDrive and SharePoint aren't set up in this build of Mobius yet.";
-const EXPIRED: &str = "The Microsoft sign-in has ended. Sign in again from the drive's menu in Files.";
+pub(crate) const EXPIRED: &str = "The Microsoft sign-in has ended. Sign in again from the drive's menu in Files.";
 const GONE: &str = "That is not on the drive any more.";
 pub const SCOPES: &str = "offline_access User.Read Files.ReadWrite.All";
 const SKEW_SECONDS: u64 = 5 * 60;
@@ -72,6 +72,7 @@ pub fn built_in_client_id() -> Option<String> {
 /// token with each refresh; the newest is kept.
 pub struct Account {
     client_id: String,
+    scopes: &'static str,
     token_url: String,
     secrets: Arc<dyn Secrets>,
     secret: String,
@@ -85,7 +86,7 @@ impl Account {
     }
 
     /// A token good for a few minutes more; `stale` refreshes it whatever its time says (Graph said 401).
-    fn token(&self, stale: bool) -> Res<String> {
+    pub(crate) fn token(&self, stale: bool) -> Res<String> {
         let _one_at_a_time = lock(&self.refreshing);
         let tokens = self.tokens()?;
         if !stale && tokens.expires > now() + SKEW_SECONDS {
@@ -94,7 +95,7 @@ impl Account {
         if tokens.refresh.is_empty() {
             return Err(EXPIRED.into());
         }
-        let body = form(&[("client_id", &self.client_id), ("grant_type", "refresh_token"), ("refresh_token", &tokens.refresh), ("scope", SCOPES)]);
+        let body = form(&[("client_id", &self.client_id), ("grant_type", "refresh_token"), ("refresh_token", &tokens.refresh), ("scope", self.scopes)]);
         let response = self.http.post(&self.token_url).header("Content-Type", "application/x-www-form-urlencoded").send(body.as_bytes()).map_err(|e| format!("Could not reach Microsoft: {e}"))?;
         let (status, _, body) = read_body(response, MAX_JSON)?;
         let fresh: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);
@@ -431,13 +432,22 @@ pub struct Place {
 pub struct Service {
     pub client_id: Option<String>,
     pub at: Endpoints,
+    /// What the sign-in asks for: OneDrive's files, or (Calendar's own sign-in) the calendars.
+    scopes: &'static str,
     http: ureq::Agent,
     pending: Mutex<Option<(Pending, Arc<AtomicBool>)>>,
 }
 
 impl Service {
     pub fn new(client_id: Option<String>, at: Endpoints, http: ureq::Agent) -> Service {
-        Service { client_id, at, http, pending: Mutex::new(None) }
+        Service { client_id, at, scopes: SCOPES, http, pending: Mutex::new(None) }
+    }
+
+    /// The same sign-in, asking for `scopes` instead of OneDrive's.
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: &'static str) -> Service {
+        self.scopes = scopes;
+        self
     }
 
     pub fn status(&self) -> Value {
@@ -450,9 +460,9 @@ impl Service {
         }
     }
 
-    fn account(&self, secrets: Arc<dyn Secrets>, secret: &str) -> Res<Arc<Account>> {
+    pub(crate) fn account(&self, secrets: Arc<dyn Secrets>, secret: &str) -> Res<Arc<Account>> {
         let client_id = self.client_id.clone().ok_or_else(|| NOT_SET_UP.to_owned())?;
-        Ok(Arc::new(Account { client_id, token_url: self.at.token.clone(), secrets, secret: secret.to_owned(), http: self.http.clone(), refreshing: Mutex::new(()) }))
+        Ok(Arc::new(Account { client_id, scopes: self.scopes, token_url: self.at.token.clone(), secrets, secret: secret.to_owned(), http: self.http.clone(), refreshing: Mutex::new(()) }))
     }
 
     /// The drive `drive` (an id from Graph), at `folder` in it, for the tokens kept under `secret`.
@@ -508,7 +518,7 @@ impl Service {
             .append_pair("response_type", "code")
             .append_pair("redirect_uri", &redirect)
             .append_pair("response_mode", "query")
-            .append_pair("scope", SCOPES)
+            .append_pair("scope", self.scopes)
             .append_pair("state", &state)
             .append_pair("prompt", "select_account")
             .append_pair("code_challenge", &challenge(&verifier))
@@ -527,7 +537,7 @@ impl Service {
 
     fn exchange(&self, client_id: &str, query: &HashMap<String, String>, verifier: &str, redirect: &str) -> Res<SignedIn> {
         let code = query.get("code").filter(|c| !c.is_empty() && c.len() <= 8192).ok_or("Microsoft sent no sign-in code.")?;
-        let body = form(&[("client_id", client_id), ("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier), ("scope", SCOPES)]);
+        let body = form(&[("client_id", client_id), ("grant_type", "authorization_code"), ("code", code), ("redirect_uri", redirect), ("code_verifier", verifier), ("scope", self.scopes)]);
         let response = self.http.post(&self.at.token).header("Content-Type", "application/x-www-form-urlencoded").send(body.as_bytes()).map_err(|e| format!("Could not reach Microsoft: {e}"))?;
         let (status, _, body) = read_body(response, MAX_JSON)?;
         let tokens: Value = serde_json::from_slice(&body).unwrap_or(Value::Null);

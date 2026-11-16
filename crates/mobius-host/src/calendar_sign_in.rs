@@ -337,7 +337,8 @@ pub(crate) mod tests {
         let query: HashMap<String, String> = page.query_pairs().into_owned().collect();
         let back = format!("{}?code=c1&state={}", query["redirect_uri"], query["state"]);
         let back = url::Url::parse(&back).unwrap();
-        let mut stream = std::net::TcpStream::connect((back.host_str().unwrap(), back.port().unwrap())).unwrap();
+        // Microsoft's goes back to `localhost`, which is 127.0.0.1 here.
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", back.port().unwrap())).unwrap();
         write!(stream, "GET {}?{} HTTP/1.1\r\nHost: x\r\n\r\n", back.path(), back.query().unwrap()).unwrap();
         let mut answer = String::new();
         let _ = stream.read_to_string(&mut answer);

@@ -72,8 +72,14 @@ New registration:
   Google ends a sign-in (every 7 days while in Testing), the account stays and offers **Sign in again**. The client ID
   and secret are the ones Google Drive uses (`MOBIUS_GOOGLE_CLIENT_ID`, `MOBIUS_GOOGLE_CLIENT_SECRET`); Calendar keeps
   its own sign-in per account, apart from Drive's.
-- **Microsoft**: read and write through Microsoft Graph (`/me/calendars`, `/me/calendarView`, `/me/events`). Events
-  are converted to and from the same mirror files.
+- **Microsoft** (built, waiting on the registration): Settings › Calendar › Add a calendar › Outlook or Microsoft 365
+  opens Microsoft's page, with the same sign-in OneDrive uses, asking for `Calendars.ReadWrite` instead of the files.
+  Mobius lists the calendars (`/me/calendars`, the default one first), reads each one's **calendar view** for the
+  mirrored span (`/me/calendars/<id>/calendarView`, in UTC, notes as plain text), and keeps each occurrence under its
+  Graph id, so changing one occurrence of a repeating event changes only that one, as in Outlook. A new event is POSTed
+  (a repeating one with its pattern: daily, weekly on given days, monthly or yearly on the date), a change is PATCHed
+  and a removal DELETEd, each with `If-Match` on the version read. Calendars Outlook won't let the person edit (such
+  as Birthdays) show but can't be changed. The client ID is OneDrive's (`MOBIUS_MICROSOFT_CLIENT_ID`).
 - The same rules as today: changes go to the server first and are refused if the event changed elsewhere meanwhile. The
   agent asks before adding to a calendar unless the person allowed it in Settings › Approvals and safety. Mobius never invites anyone.
 
