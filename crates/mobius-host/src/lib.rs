@@ -28,6 +28,7 @@ pub mod calendar_sign_in;
 pub mod contact_accounts;
 pub mod drives;
 pub mod google_drive;
+pub mod graph_calendar;
 pub mod s3;
 pub mod dropbox;
 pub mod onedrive;

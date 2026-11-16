@@ -259,7 +259,7 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 | The name: Mobius Workspace at mobiusworkspace.com ([below](#the-name)) | Launch | Andrew: registering the domain; a trademark attorney's clearance before any filing or branding spend |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
-| Google and Microsoft calendar sign-in | Builder | Google built, tested against a pretend Google; Microsoft next. Both wait on Andrew registering Mobius ([what it needs](calendar-sign-in.md)) |
+| Google and Microsoft calendar sign-in | Builder | Both built, tested against a pretend Google and a pretend Microsoft Graph. Both wait on Andrew registering Mobius ([what it needs](calendar-sign-in.md)) |
 
 ### The name
 

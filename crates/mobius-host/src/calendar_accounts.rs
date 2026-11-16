@@ -10,7 +10,9 @@
 //! the system's secret store.
 //! - a **Google account**: signed in on Google's own page (`calendar_sign_in`), its calendars found with Google's
 //!   calendar list, then mirrored and changed through Google's CalDAV endpoint with the sign-in's token, by the same
-//!   code as a CalDAV account. Microsoft accounts need their own sign-in and come later.
+//!   code as a CalDAV account.
+//! - a **Microsoft account** (Outlook.com, Microsoft 365): signed in on Microsoft's page (OneDrive's sign-in, asking
+//!   for the calendars), and mirrored and changed through Microsoft Graph (`graph_calendar`), which has no CalDAV.
 //!
 //! A CalDAV account's **task lists** (collections of `VTODO`s, such as Reminders lists on iCloud or Nextcloud Tasks)
 //! show in the Tasks app the same way: each is mirrored to `tasks-<n>.md` beside the calendars, as a Markdown list
@@ -27,6 +29,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use crate::calendar_sign_in::{EXPIRED, Endpoints, Found, Google, SignIn, Tokens};
+use crate::graph_calendar::Graph;
 use crate::secrets::Secrets;
 
 type Res<T> = Result<T, String>;
@@ -56,11 +59,11 @@ pub struct RemoteCalendar {
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: String,
-    /// `subscription`, `caldav` or `google`.
+    /// `subscription`, `caldav`, `google` or `microsoft`.
     pub kind: String,
     pub name: String,
     pub url: String,
-    /// For a Google account, its email.
+    /// For a Google or Microsoft account, its email.
     #[serde(default)]
     pub username: String,
     #[serde(default)]
@@ -84,6 +87,7 @@ pub struct Accounts {
     state: Mutex<Vec<Account>>,
     http: ureq::Agent,
     google: Mutex<Arc<SignIn>>,
+    microsoft: Mutex<Arc<crate::onedrive::Service>>,
 }
 
 /// How a request says who it is for.
@@ -369,7 +373,8 @@ impl Accounts {
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let http = dav_agent();
         let google = Arc::new(SignIn::new(Google::built_in(), Endpoints::default()));
-        Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http, google: Mutex::new(google) }
+        let microsoft = Arc::new(crate::onedrive::Service::new(crate::onedrive::built_in_client_id(), crate::onedrive::Endpoints::default(), crate::graph_calendar::agent()).with_scopes(crate::graph_calendar::SCOPES));
+        Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http, google: Mutex::new(google), microsoft: Mutex::new(microsoft) }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<Account>> {
@@ -468,7 +473,7 @@ impl Accounts {
                     n += 1;
                 }
                 taken.push(name.to_lowercase());
-                out.push(Mirror { name, file: self.mirror_file(&a.id, i), account: a.name.clone(), writable: matches!(a.kind.as_str(), "caldav" | "google") && !c.read_only });
+                out.push(Mirror { name, file: self.mirror_file(&a.id, i), account: a.name.clone(), writable: matches!(a.kind.as_str(), "caldav" | "google" | "microsoft") && !c.read_only });
             }
         }
         out
@@ -623,8 +628,120 @@ impl Accounts {
         }
     }
 
+    // ---- Microsoft ----
+
+    fn microsoft(&self) -> Arc<crate::onedrive::Service> {
+        Arc::clone(&*self.microsoft.lock().unwrap_or_else(std::sync::PoisonError::into_inner))
+    }
+
+    /// A pretend Microsoft, in tests.
+    pub fn use_microsoft(&self, client_id: Option<String>, at: crate::onedrive::Endpoints) {
+        let service = crate::onedrive::Service::new(client_id, at, crate::graph_calendar::agent()).with_scopes(crate::graph_calendar::SCOPES);
+        *self.microsoft.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(service);
+    }
+
+    pub fn microsoft_status(&self) -> Value {
+        let mut status = self.microsoft().status();
+        if status["setUp"] == false {
+            status["hint"] = json!(crate::graph_calendar::NOT_SET_UP);
+        }
+        status
+    }
+
+    pub fn microsoft_cancel(&self) {
+        self.microsoft().cancel();
+    }
+
+    fn graph<'a>(&'a self, token: &'a str) -> Graph<'a> {
+        Graph { http: &self.http, graph: self.microsoft().at.graph.clone(), token }
+    }
+
+    /// Start signing in to Microsoft and return the page to open, as `google_sign_in` does for Google.
+    pub fn microsoft_sign_in(self: &Arc<Self>, name: &str, again: Option<&str>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        if self.microsoft().client_id.is_none() {
+            return Err(crate::graph_calendar::NOT_SET_UP.into());
+        }
+        let again = match again {
+            Some(id) => Some(self.lock().iter().find(|a| a.id == id && a.kind == "microsoft").map(|a| a.id.clone()).ok_or("That account is gone.")?),
+            None if self.lock().len() >= MAX_ACCOUNTS => return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts.")),
+            None => None,
+        };
+        let (me, name) = (Arc::clone(self), name.to_owned());
+        let pending = self.microsoft().start(Arc::new(move |signed: Res<crate::onedrive::SignedIn>| done(signed.and_then(|signed| me.keep_microsoft(&name, again.as_deref(), &signed)))))?;
+        Ok(json!({ "url": pending.url }))
+    }
+
+    fn keep_microsoft(&self, name: &str, again: Option<&str>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
+        let text = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
+        if let Some(id) = again {
+            let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That account is gone.")?;
+            if !account.username.is_empty() && !signed.email.is_empty() && !account.username.eq_ignore_ascii_case(&signed.email) {
+                return Err(format!("That account is {}; sign in with it.", account.username));
+            }
+            if !self.secrets.put(&secret_name(id), &text) {
+                return Err("The sign-in could not be kept in this computer's secret store.".into());
+            }
+            self.sync(Some(id));
+            return Ok(json!({ "id": id, "name": account.name }));
+        }
+        let calendars: Vec<RemoteCalendar> = self.graph(&signed.tokens.access).calendars()?.into_iter().map(remote).collect();
+        if calendars.is_empty() {
+            return Err("That Microsoft account has no calendars Mobius can show.".into());
+        }
+        let fallback = if signed.email.is_empty() { "Outlook".to_owned() } else { clean_name(&format!("Outlook ({})", signed.email)).unwrap_or_else(|| "Outlook".into()) };
+        let name = clean_name(name).unwrap_or(fallback);
+        let mut account = Account { id: new_id(), kind: "microsoft".into(), name, url: self.microsoft().at.graph.clone(), username: signed.email.clone(), calendars, task_lists: Vec::new(), tasks_looked: true, last_sync_ms: now_ms(), problem: None };
+        if !self.secrets.put(&secret_name(&account.id), &text) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        if let Err(e) = self.sync_graph(&mut account, &Key::Token(signed.tokens.access.clone())) {
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(e);
+        }
+        let mut all = self.lock();
+        if all.len() >= MAX_ACCOUNTS {
+            drop(all);
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
+        }
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!({ "id": account.id, "name": account.name, "calendars": account.calendars.iter().map(|c| c.name.clone()).collect::<Vec<_>>() }))
+    }
+
+    /// Mirrors each calendar's events from a year back to two years ahead, through Graph. Calendars added in Outlook
+    /// since are added after the ones Mobius has.
+    fn sync_graph(&self, account: &mut Account, key: &Key) -> Res<()> {
+        let Key::Token(token) = key else { return Err(crate::graph_calendar::EXPIRED.into()) };
+        let graph = self.graph(token);
+        if let Ok(found) = graph.calendars() {
+            for f in found {
+                if let Some(c) = account.calendars.iter_mut().find(|c| c.href == f.href) {
+                    c.read_only = f.read_only;
+                } else if account.calendars.len() < crate::calendar_sign_in::MAX_CALENDARS {
+                    account.calendars.push(remote(f));
+                }
+            }
+        }
+        let today = chrono::Utc::now().date_naive();
+        let (from, to) = (today - chrono::Duration::days(365), today + chrono::Duration::days(730));
+        let id = account.id.clone();
+        for (i, cal) in account.calendars.iter_mut().enumerate() {
+            let (events, items) = graph.read(&cal.href, from, to)?;
+            let file = self.mirror_file(&id, i);
+            std::fs::create_dir_all(file.parent().unwrap_or(Path::new("."))).map_err(|e| e.to_string())?;
+            std::fs::write(&file, write(&cal.name, &events, &[])).map_err(|e| e.to_string())?;
+            cal.items = items;
+        }
+        Ok(())
+    }
+
     /// What the account signs in with: its app password, or a Google token good for a few minutes more.
     fn key(&self, account: &Account) -> Res<Key> {
+        if account.kind == "microsoft" {
+            let signed = self.microsoft().account(Arc::clone(&self.secrets), &secret_name(&account.id)).map_err(|_| crate::graph_calendar::NOT_SET_UP.to_owned())?;
+            return signed.token(false).map(Key::Token).map_err(|e| if e == crate::onedrive::EXPIRED { crate::graph_calendar::EXPIRED.to_owned() } else { e });
+        }
         let secret = self.secrets.get(&secret_name(&account.id));
         if account.kind != "google" {
             return secret.map(Key::Password).ok_or_else(|| "The password for this account is missing. Remove it and connect it again.".into());
@@ -652,6 +769,8 @@ impl Accounts {
                     }
                     self.sync_caldav(&mut account, &key)
                 })
+            } else if account.kind == "microsoft" {
+                self.key(&account).and_then(|key| self.sync_graph(&mut account, &key))
             } else if account.kind == "caldav" {
                 self.key(&account).and_then(|key| self.sync_caldav(&mut account, &key))
             } else {
@@ -881,6 +1000,14 @@ impl Remote for Accounts {
         let (account, index) = self.owner(mirror).ok_or("that calendar's account is gone")?;
         let key = self.key(&account)?;
         let cal = &account.calendars[index];
+        if account.kind == "microsoft" {
+            // The event itself; Outlook keeps changed occurrences as events of their own.
+            let event = parts.iter().find(|e| e.uid == uid).or_else(|| parts.first()).ok_or("There is nothing to send.")?;
+            let Key::Token(token) = &key else { return Err(crate::graph_calendar::EXPIRED.into()) };
+            let kept = self.graph(token).put(&cal.href, cal.items.get(uid), event)?;
+            self.remember(&account.id, index, uid, Some(kept));
+            return Ok(());
+        }
         let base = url::Url::parse(&cal.href).map_err(|e| e.to_string())?;
         let known = cal.items.get(uid).cloned();
         let href = match &known {
@@ -920,6 +1047,12 @@ impl Remote for Accounts {
         let key = self.key(&account)?;
         let cal = &account.calendars[index];
         let Some((href, etag)) = cal.items.get(uid).cloned() else { return Err("Refresh the calendar first: Mobius does not know where that event is on the server.".into()) };
+        if account.kind == "microsoft" {
+            let Key::Token(token) = &key else { return Err(crate::graph_calendar::EXPIRED.into()) };
+            self.graph(token).delete(&href, &etag)?;
+            self.remember(&account.id, index, uid, None);
+            return Ok(());
+        }
         let url = url::Url::parse(&cal.href).and_then(|b| b.join(&href)).map_err(|e| e.to_string())?;
         let headers: Vec<(&str, &str)> = if etag.is_empty() { vec![] } else { vec![("If-Match", etag.as_str())] };
         let answer = self.request("DELETE", &url, Some(key.auth(&account.username)), &headers, None)?;
@@ -1152,6 +1285,57 @@ mod tests {
 
         accounts.remove(&id).unwrap();
         assert!(secrets.get(&secret_name(&id)).is_none(), "the sign-in goes with it");
+    }
+
+    #[test]
+    fn a_microsoft_account_is_signed_in_mirrored_and_changed_through_graph() {
+        use crate::calendar_sign_in::tests::agree;
+        let (base, store, _log) = crate::graph_calendar::tests::graph();
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = Arc::new(MemorySecrets::new(true));
+        let accounts = Arc::new(Accounts::new(dir.path(), secrets.clone()));
+        let at = crate::onedrive::Endpoints { auth: format!("{base}/authorize"), token: format!("{base}/token"), graph: format!("{base}/v1.0") };
+        accounts.use_microsoft(None, at.clone());
+        assert_eq!(accounts.microsoft_status()["hint"], crate::graph_calendar::NOT_SET_UP);
+        accounts.use_microsoft(Some("client-id".into()), at);
+        let sign_in = |again: Option<&str>| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let page = accounts.microsoft_sign_in("", again, Arc::new(move |r| tx.send(r).unwrap())).unwrap();
+            assert!(page["url"].as_str().unwrap().contains("Calendars.ReadWrite"), "asks for the calendars, not the files");
+            agree(page["url"].as_str().unwrap());
+            rx.recv_timeout(Duration::from_secs(10)).unwrap()
+        };
+        let kept = sign_in(None).unwrap();
+        assert_eq!(kept["calendars"], json!(["Calendar", "Birthdays"]));
+        let id = kept["id"].as_str().unwrap().to_owned();
+        assert_eq!(accounts.list()[0]["username"], "ana@example.com");
+        let mirrors = accounts.mirrors(&["Calendar".into()]);
+        assert_eq!(mirrors.iter().map(|m| m.writable).collect::<Vec<_>>(), [true, false]);
+
+        let cal = mobius_workspace::calendar::Calendar::new(dir.path().join("ws"), dir.path().join("cp"));
+        cal.set_mirrors(mirrors.clone());
+        cal.set_remote(accounts.clone());
+        let name = mirrors[0].name.clone();
+        let found = cal.events("2026-11-01", "2026-11-30").unwrap();
+        assert!(found.as_array().unwrap().iter().any(|e| e["title"] == "Kickoff"), "{found:?}");
+        cal.update(&name, "ev1", &mobius_workspace::calendar::Draft { title: Some("Project kickoff".into()), ..Default::default() }).unwrap();
+        assert_eq!(store.lock().unwrap()["ev1"].0["subject"], "Project kickoff");
+        cal.add(&name, &mobius_workspace::calendar::Draft { title: Some("Retro".into()), start: Some("2026-11-12T16:00".into()), ..Default::default() }).unwrap();
+        assert!(store.lock().unwrap().values().any(|(e, _)| e["subject"] == "Retro"));
+        // Changed in Outlook meanwhile: refused, then read again.
+        store.lock().unwrap().get_mut("ev1").unwrap().1 += 1;
+        assert_eq!(cal.update(&name, "ev1", &mobius_workspace::calendar::Draft { title: Some("Mine".into()), ..Default::default() }).unwrap_err(), crate::graph_calendar::CHANGED);
+        accounts.sync(Some(&id));
+        cal.remove(&name, "ev1").unwrap();
+        assert!(!store.lock().unwrap().contains_key("ev1"));
+
+        // The sign-in ends: the account says so and signing in again mends it.
+        secrets.put(&secret_name(&id), r#"{"access":"old","refresh":"","expires":0}"#);
+        accounts.sync(Some(&id));
+        assert_eq!(accounts.list()[0]["problem"], crate::graph_calendar::EXPIRED);
+        sign_in(Some(&id)).unwrap();
+        assert_eq!(accounts.list()[0]["problem"], Value::Null);
+        assert_eq!(accounts.list().as_array().unwrap().len(), 1);
     }
 
     #[test]

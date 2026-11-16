@@ -3538,13 +3538,21 @@ impl Bridge {
                 accounts.google_cancel();
                 Ok(json!({ "ok": true }))
             }
-            "googleSignIn" => {
+            "googleSignIn" | "microsoftSignIn" => {
                 let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str);
                 let emit = self.emit.clone();
-                accounts.google_sign_in(field("name").unwrap_or(""), field("again"), Arc::new(move |kept: Result<Value, String>| match kept {
+                let done: Arc<dyn Fn(Result<Value, String>) + Send + Sync> = Arc::new(move |kept: Result<Value, String>| match kept {
                     Ok(account) => emit("mobius:calendar-sign-in", json!({ "ok": true, "account": account })),
+                    Err(message) if message == "cancelled" => {}
                     Err(message) => emit("mobius:calendar-sign-in", json!({ "ok": false, "message": message })),
-                }))
+                });
+                if method == "googleSignIn" { accounts.google_sign_in(field("name").unwrap_or(""), field("again"), done) } else { accounts.microsoft_sign_in(field("name").unwrap_or(""), field("again"), done) }
+            }
+            // Outlook.com and Microsoft 365, the same way, through Microsoft Graph.
+            "microsoftStatus" => Ok(accounts.microsoft_status()),
+            "microsoftCancel" => {
+                accounts.microsoft_cancel();
+                Ok(json!({ "ok": true }))
             }
             "sync" => {
                 accounts.sync(text(0));
@@ -3569,7 +3577,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync" | "googleStatus" | "googleCancel" | "googleSignIn") {
+                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync" | "googleStatus" | "googleCancel" | "googleSignIn" | "microsoftStatus" | "microsoftCancel" | "microsoftSignIn") {
                     let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
                 }
