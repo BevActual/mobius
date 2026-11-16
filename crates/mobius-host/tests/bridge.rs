@@ -1904,6 +1904,15 @@ fn google_drive_says_it_is_not_set_up_until_mobius_is_registered() {
 }
 
 #[test]
+fn onedrive_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "onedriveStatus", json!([]))["setUp"], false);
+    let add = call(&b, "drives", "addOnedrive", json!([{ "link": "https://contoso.sharepoint.com/sites/Team" }]));
+    assert_eq!((add["ok"].clone(), add["message"].clone()), (json!(false), json!(mobius_host::onedrive::NOT_SET_UP)));
+    assert_eq!(call(&b, "drives", "onedriveCancel", json!([]))["ok"], true);
+}
+
+#[test]
 fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     let (b, _c) = bridge();
     assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
@@ -1922,4 +1931,38 @@ fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     assert_eq!(call(&b, "drives", "syncAdd", json!(["notes", "nope", "Notes"]))["message"], "That drive is gone.");
     assert_eq!(call(&b, "drives", "syncNow", json!(["nope"]))["message"], "That folder is not synced any more.");
     assert_eq!(call(&b, "drives", "signIn", json!(["nope", "p"]))["message"], "That drive is gone.");
+}
+
+#[test]
+fn a_connector_at_an_address_that_asks_for_a_sign_in_says_so_and_offers_one() {
+    // A connector that refuses everyone until they sign in, pointing at where its sign-in is described.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let pointed = format!("{base}/.well-known/oauth-protected-resource/mcp");
+    let challenge = pointed.clone();
+    std::thread::spawn(move || {
+        for stream in listener.incoming() {
+            let Ok(mut s) = stream else { break };
+            let mut buf = [0u8; 16384];
+            let _ = std::io::Read::read(&mut s, &mut buf);
+            let _ = std::io::Write::write_all(&mut s, format!("HTTP/1.1 401 X\r\nwww-authenticate: Bearer resource_metadata=\"{challenge}\"\r\ncontent-length: 0\r\nconnection: close\r\n\r\n").as_bytes());
+        }
+    });
+    let dir = tempfile::tempdir().unwrap();
+    let file = dir.path().join("mcp.json");
+    let (b, _core, _e, _d) = bridge_in(dir);
+    let added = call(&b, "extensions", "addConnector", json!([{ "name": "tracker", "command": format!("{base}/mcp") }]));
+    assert_eq!(added["ok"], true, "{added}");
+    let saved: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(&file).unwrap()).unwrap();
+    assert_eq!(saved["servers"]["tracker"], json!({ "url": format!("{base}/mcp") }), "an address is kept as one, with no program to run");
+    let failed = &added["status"]["failed"][0];
+    assert_eq!((failed["server"].clone(), failed["signIn"].clone(), failed["error"].clone()), (json!("tracker"), json!(true), json!("It needs you to sign in.")));
+    // Its sign-in server describes nothing here, so the sign-in says why instead of opening a page.
+    let tried = call(&b, "extensions", "connectorSignIn", json!(["tracker"]));
+    assert_eq!(tried["ok"], false, "{tried}");
+    // Only a connector at an address has a sign-in; an address that isn't safe is refused.
+    call(&b, "extensions", "addConnector", json!([{ "name": "local", "command": "notes-server" }]));
+    assert_eq!(call(&b, "extensions", "connectorSignIn", json!(["local"]))["ok"], false);
+    assert_eq!(call(&b, "extensions", "addConnector", json!([{ "name": "plain", "command": "http://example.com/mcp" }]))["ok"], false);
+    assert_eq!(call(&b, "extensions", "connectorSignInCancel", json!(["tracker"]))["ok"], true);
 }

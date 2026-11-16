@@ -10,7 +10,7 @@ import { ContextMenu } from './ContextMenu';
 import { FromMobius } from './FromMobius';
 import { RowMark } from './RowMark';
 import { AppSidebar, Menu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
-import { connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
+import { addressName, connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
 import { dateTimeLabel } from './dates';
 import { EmptyState } from './EmptyState';
 import './abilities.css';
@@ -302,10 +302,22 @@ function Connectors() {
     else reload();
     if (!done) setProblem('That connector could not be started.');
   };
+  // A connector at an address that asked for a sign-in: the page opens in the browser, and the row says it waits.
+  const signIn = async (name: string) => {
+    setProblem(null);
+    const done = await api?.connectorSignIn?.(name).catch(() => null);
+    if (!done || !done.ok) { setProblem(done && !done.ok ? done.error : 'The sign-in could not start.'); return; }
+    connectors.set(done.status);
+    void window.mobius.browser.open(done.url);
+  };
+  useEffect(() => api?.onSignIn?.((done) => {
+    reload();
+    if (!done.ok) setProblem(`${connectorDisplayName(done.server)}: ${done.message}`);
+  }), [api, reload]);
   const leaving = new Set(status?.leaving ?? []);
-  const rows: { name: string; state: 'on' | 'failed' | 'waiting'; error?: string }[] = [
+  const rows: { name: string; state: 'on' | 'failed' | 'waiting' | 'signin'; error?: string; signingIn?: boolean }[] = [
     ...(status?.running ?? []).map((name) => ({ name, state: 'on' as const })),
-    ...(status?.failed ?? []).map((f) => ({ name: f.server, state: 'failed' as const, error: f.error })),
+    ...(status?.failed ?? []).map((f) => (f.signIn ? { name: f.server, state: 'signin' as const, signingIn: f.signingIn ?? false } : { name: f.server, state: 'failed' as const, error: f.error })),
     ...(status?.waiting ?? []).map((name) => ({ name, state: 'waiting' as const })),
   ].filter((r) => !leaving.has(r.name));
   const shown = rows.filter((r) => matches(q, r.name));
@@ -320,16 +332,17 @@ function Connectors() {
       undo: () => {
         setUndoable(null);
         if (!was) return;
-        void api?.addConnector?.({ name, command: was.command, args: was.args ?? [], env: was.env ?? {} }).then((back) => { if (back && !back.ok) setProblem(back.error); reload(); });
+        void api?.addConnector?.({ name, command: was.url ?? was.command ?? '', args: was.args ?? [], env: was.env ?? {} }).then((back) => { if (back && !back.ok) setProblem(back.error); reload(); });
       },
     });
   };
-  const sub = (r: (typeof rows)[number]) => (starting === r.name ? 'Starting…' : r.state === 'waiting' ? 'Not started' : r.state === 'failed' ? `Couldn’t start: ${connectorProblem(r.error)}` : 'Connected');
+  const sub = (r: (typeof rows)[number]) => (starting === r.name ? 'Starting…' : r.state === 'signin' ? (r.signingIn ? 'Waiting for you to sign in, in the browser…' : 'Sign in to use it') : r.state === 'waiting' ? 'Not started' : r.state === 'failed' ? `Couldn’t start: ${connectorProblem(r.error)}` : 'Connected');
   // Start it now (one added by hand in mcp.json), again after it failed, or restart one that runs. Remove stops it.
-  const startLabel = (state: (typeof rows)[number]['state']) => (state === 'on' ? 'Restart' : state === 'failed' ? 'Start again' : 'Start now');
+  const startLabel = (state: (typeof rows)[number]['state']) => (state === 'on' ? 'Restart' : state === 'failed' || state === 'signin' ? 'Start again' : 'Start now');
   const entries = (name: string) => {
     const state = rows.find((r) => r.name === name)?.state ?? 'waiting';
     return [
+      ...(state === 'signin' && api?.connectorSignIn ? [{ label: 'Sign in…', run: () => void signIn(name) }] : []),
       ...(api?.startConnector ? [{ label: startLabel(state), disabled: starting !== null, run: () => void start(name) }] : []),
       { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void remove(name) },
     ];
@@ -352,9 +365,10 @@ function Connectors() {
           {shown.map((r) => (
             <li key={r.name} className="abl-item" aria-label={r.name} tabIndex={api?.removeConnector ? 0 : undefined} onKeyDown={(e) => { if (e.key === 'Delete' && e.target === e.currentTarget && api?.removeConnector) { e.preventDefault(); void remove(r.name); } }} onContextMenu={(e) => { if (!api?.removeConnector) return; e.preventDefault(); setMenu({ name: r.name, x: e.clientX, y: e.clientY }); }}>
               <span className="abl-main">
-                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{(r.state !== 'on' || starting === r.name) && <span className="abl-dot" data-state={starting === r.name ? 'waiting' : r.state} aria-hidden="true" />}</span>
+                <span className="abl-icon-wrap"><svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon"><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></svg>{(r.state !== 'on' || starting === r.name) && <span className="abl-dot" data-state={starting === r.name || r.state === 'signin' ? 'waiting' : r.state} aria-hidden="true" />}</span>
                 <span className="abl-text"><span className="abl-name" title={connectorDisplayName(r.name) === r.name ? undefined : r.name}>{connectorDisplayName(r.name)}</span><span className={r.state === 'failed' && starting !== r.name ? 'abl-sub abl-error' : 'abl-sub'}>{sub(r)}</span></span>
               </span>
+              {r.state === 'signin' && api?.connectorSignIn && <button type="button" className="btn" onClick={() => void signIn(r.name)}>{r.signingIn ? 'Open sign-in again' : 'Sign in…'}</button>}
               {api?.removeConnector && <Menu label={`${r.name} actions`} align="end" entries={entries(r.name)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${r.name}`} title="More actions"><MoreGlyph /></button>} />}
             </li>
           ))}
@@ -380,8 +394,10 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
   const [keys, setKeys] = useState<{ key: string; value: string }[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const args = splitArgs(argLine);
-  const shownName = named ? name : suggestName(command, args);
+  // An address is a connector over HTTP: no arguments or keys; it signs in instead, if it asks.
+  const remote = /^https?:\/\//i.test(command.trim());
+  const args = remote ? [] : splitArgs(argLine);
+  const shownName = named ? name : remote ? addressName(command) : suggestName(command, args);
   const nameOk = isConnectorName(shownName);
   const keysOk = keys.every((k) => k.key.trim() === '' || /^[A-Za-z_][A-Za-z0-9_]*$/.test(k.key.trim()));
   const ready = command.trim() !== '' && nameOk && keysOk && !saving;
@@ -395,7 +411,7 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
     if (!ready || !api?.addConnector) return;
     setSaving(true);
     setProblem(null);
-    const env = Object.fromEntries(keys.filter((k) => k.key.trim() !== '').map((k) => [k.key.trim(), k.value]));
+    const env = remote ? {} : Object.fromEntries(keys.filter((k) => k.key.trim() !== '').map((k) => [k.key.trim(), k.value]));
     const done = await api.addConnector({ name: shownName, command: command.trim(), args, env }).catch(() => null);
     setSaving(false);
     if (!done || !done.ok) { setProblem(done && !done.ok ? done.error : 'The connector could not be added.'); return; }
@@ -406,17 +422,17 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
     <div className="cal-modal-layer" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <form className="camera-dialog abl-sheet" role="dialog" aria-modal="true" aria-label="Add a connector" onSubmit={(e) => void submit(e)}>
         <h2>Add a connector</h2>
-        <p className="camera-note">A connector is an MCP server: a small program that gives Mobius tools from another app, such as GitHub or Linear. Its maker’s page gives the command that runs it.</p>
+        <p className="camera-note">A connector is an MCP server: it gives Mobius tools from another app, such as GitHub or Linear. Its maker’s page gives the command that runs it, or its address on the web.</p>
         <div className="abl-fields settings-card">
-          <label className="abl-field"><span>Command</span><input autoFocus aria-label="Command" placeholder="npx" value={command} onChange={(e) => setCommand(e.target.value)} spellCheck={false} /></label>
-          <label className="abl-field"><span>Arguments</span><input aria-label="Arguments" placeholder="-y @modelcontextprotocol/server-github" value={argLine} onChange={(e) => setArgLine(e.target.value)} spellCheck={false} /></label>
+          <label className="abl-field"><span>Command or address</span><input autoFocus aria-label="Command or address" placeholder="npx, or https://…" value={command} onChange={(e) => setCommand(e.target.value)} spellCheck={false} /></label>
+          {!remote && <label className="abl-field"><span>Arguments</span><input aria-label="Arguments" placeholder="-y @modelcontextprotocol/server-github" value={argLine} onChange={(e) => setArgLine(e.target.value)} spellCheck={false} /></label>}
           <label className="abl-field">
             <span>Name</span>
             <input aria-label="Name" placeholder="github" value={shownName} maxLength={24} aria-invalid={shownName !== '' && !nameOk} onChange={(e) => { setNamed(true); setName(e.target.value); }} spellCheck={false} />
           </label>
         </div>
         {shownName !== '' && !nameOk && <p className="field-error">Use lowercase letters, digits and _, starting with a letter.</p>}
-        <div className="abl-keys" role="group" aria-label="Keys">
+        {remote ? <p className="camera-note">If it asks you to sign in, its row offers Sign in, and the sign-in is kept in this computer’s secret store.</p> : <div className="abl-keys" role="group" aria-label="Keys">
           <div className="abl-group-head"><span className="abl-group-title">Keys</span><button type="button" className="btn" onClick={() => setKeys((k) => [...k, { key: '', value: '' }])}>Add a key</button></div>
           {keys.length === 0 ? <p className="abl-note abl-keys-empty">Some servers need a key or token, such as GITHUB_TOKEN, named as the server’s page says. They are kept in mcp.json on this computer.</p> : (
             <ul className="abl-list settings-card" role="list">
@@ -430,7 +446,7 @@ function AddConnectorSheet({ onClose, onAdded }: { onClose: () => void; onAdded:
             </ul>
           )}
           {!keysOk && <p className="field-error">A key’s name uses letters, digits and _, such as API_KEY.</p>}
-        </div>
+        </div>}
         <p className="camera-note">It starts as soon as it is added, and each of its tools asks before it is used.</p>
         {problem && <p className="field-error" role="alert">{problem}</p>}
         <div className="camera-actions">

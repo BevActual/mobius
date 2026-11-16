@@ -237,7 +237,7 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
-export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox'; name: string; /** For Dropbox, `dropbox:` and the folder in it. */ url: string; /** For S3, the access key id; for Dropbox, the email it signed in with. */ username: string; /** S3's region. */ region?: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox' | 'onedrive'; name: string; /** For Dropbox, `dropbox:` and the folder in it; for OneDrive and SharePoint, `onedrive:`, the drive's id and the folder. */ url: string; /** For S3, the access key id; for Dropbox, OneDrive and SharePoint, the account that signed in. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
 export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
@@ -245,9 +245,9 @@ export interface DriveEntry { name: string; path: string; folder: boolean; size:
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
 /** How a browser sign-in for a drive ended: the drive it added (or signed in again), or why not. */
-export type DriveSignIn = { kind: 'dropbox'; ok: true; drive: DriveAccount } | { kind: 'dropbox'; ok: false; message: string };
-/** A Dropbox to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). `again` renews that drive's sign-in. */
-export interface NewDropbox { name?: string; folder?: string; again?: string }
+export type DriveSignIn = { kind: 'dropbox' | 'onedrive'; ok: true; drive: DriveAccount } | { kind: 'dropbox' | 'onedrive'; ok: false; message: string };
+/** A Dropbox, OneDrive or SharePoint drive to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). For OneDrive, `link` is a SharePoint (or OneDrive) folder's or library's link; without it, the person's own OneDrive. `again` renews that drive's sign-in. */
+export interface NewCloudDrive { name?: string; folder?: string; link?: string; again?: string }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
 export interface GoogleDriveStatus { setUp: boolean; signedIn: boolean; account: string | null; pending: GoogleDrivePending | null; hint: string | null }
 export interface GoogleDrivePending { url: string; kind: 'signIn' | 'pick' }
@@ -655,7 +655,11 @@ export interface MobiusBridge {
     /** Start a connector from mcp.json now, or start a running one again. A failure still answers with the status. */
     startConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }> & { status?: ConnectorStatus }>;
     /** Take a connector out of mcp.json; a running one stops at once. */
-    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command: string; args?: string[]; env?: Record<string, string> } }>>;
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command?: string; url?: string; args?: string[]; env?: Record<string, string> } }>>;
+    /** Sign in to a connector at an address that asked for it: open `url` in the browser. How it ends arrives on `onSignIn`. */
+    connectorSignIn?(name: string): Promise<AgentResult<{ url: string; status: ConnectorStatus }>>;
+    connectorSignInCancel?(name: string): Promise<AgentResult>;
+    onSignIn?(listener: (done: ConnectorSignIn) => void): () => void;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -738,8 +742,12 @@ export interface MobiusBridge {
     /** Whether this build can sign in to Dropbox (it needs Mobius's app key), and the sign-in page while one waits. */
     dropboxStatus?(): Promise<{ setUp: boolean; pending: string | null } | DriveFailure>;
     /** Starts the Dropbox sign-in: open `url` in the browser. How it ends arrives on `onSignIn`. */
-    addDropbox?(drive: NewDropbox): Promise<{ url: string } | DriveFailure>;
+    addDropbox?(drive: NewCloudDrive): Promise<{ url: string } | DriveFailure>;
     dropboxCancel?(): Promise<{ ok: true } | DriveFailure>;
+    /** The same for OneDrive and SharePoint, with Microsoft's sign-in. */
+    onedriveStatus?(): Promise<{ setUp: boolean; pending: string | null } | DriveFailure>;
+    addOnedrive?(drive: NewCloudDrive): Promise<{ url: string } | DriveFailure>;
+    onedriveCancel?(): Promise<{ ok: true } | DriveFailure>;
     onSignIn?(listener: (done: DriveSignIn) => void): () => void;
     browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
     read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
@@ -1391,7 +1399,9 @@ export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: numb
 export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 /** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
 export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }
-export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
+/** How a connector's sign-in in the browser ended; once signed in, it has been started. */
+export type ConnectorSignIn = { server: string; ok: true } | { server: string; ok: false; message: string };
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string; /** It is at an address and needs the person to sign in. */ signIn?: boolean; /** That sign-in is open in the browser now. */ signingIn?: boolean }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
 /** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
 export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }

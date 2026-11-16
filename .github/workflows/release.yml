@@ -44,7 +44,14 @@ jobs:
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
       # The installer alone: no updater key here, so package.mjs makes no updater files from the unsigned build.
+      # The services' app ids (docs/reference/drive-sign-in.md). Empty until set: the build then says that service isn't set up.
       - name: Build the installer
+        env:
+          MOBIUS_DROPBOX_APP_KEY: ${{ vars.MOBIUS_DROPBOX_APP_KEY }}
+          MOBIUS_MICROSOFT_CLIENT_ID: ${{ vars.MOBIUS_MICROSOFT_CLIENT_ID }}
+          MOBIUS_GOOGLE_CLIENT_ID: ${{ vars.MOBIUS_GOOGLE_CLIENT_ID }}
+          MOBIUS_GOOGLE_CLIENT_SECRET: ${{ secrets.MOBIUS_GOOGLE_CLIENT_SECRET }}
+          MOBIUS_GOOGLE_PICKER_KEY: ${{ vars.MOBIUS_GOOGLE_PICKER_KEY }}
         run: npm run package -- --version ${{ steps.version.outputs.value }}
 
       - name: Find the installer

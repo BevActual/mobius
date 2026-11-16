@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewDrive, NewDropbox } from '@mobius/shared';
+import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewCloudDrive, NewDrive } from '@mobius/shared';
+
+/** Drives that sign in on the service's own page. */
+type CloudKind = 'dropbox' | 'onedrive';
 import { Button, Confirm, PointMenu, Segmented, TextField, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { EmptyState } from './EmptyState';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
@@ -69,26 +72,33 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     setPlace({ kind: 'drive', drive: r.id, path: '' });
     return null;
   };
-  // Dropbox signs in in the browser; the drive arrives once the person allows it there.
-  const [dropbox, setDropbox] = useState<{ setUp: boolean; waiting: boolean; problem: string | null } | null>(null);
+  // Dropbox, OneDrive and SharePoint sign in in the browser; the drive arrives once the person allows it there.
+  type Cloud = { setUp: boolean; waiting: boolean; problem: string | null };
+  const [clouds, setClouds] = useState<Partial<Record<CloudKind, Cloud>>>({});
+  const setCloud = (kind: CloudKind, change: (c: Cloud) => Cloud) => setClouds((all) => { const c = all[kind]; return c ? { ...all, [kind]: change(c) } : all; });
   useEffect(() => {
-    void api?.dropboxStatus?.().then((r) => setDropbox(failed(r) ? null : { setUp: r.setUp, waiting: r.pending !== null, problem: null })).catch(() => setDropbox(null));
+    const status = (kind: CloudKind, ask: (() => Promise<{ setUp: boolean; pending: string | null } | DriveFailure>) | undefined) => {
+      void ask?.().then((r) => { if (!failed(r)) setClouds((all) => ({ ...all, [kind]: { setUp: r.setUp, waiting: r.pending !== null, problem: null } })); }).catch(() => {});
+    };
+    status('dropbox', api?.dropboxStatus);
+    status('onedrive', api?.onedriveStatus);
   }, [api]);
   const placeRef = useRef(setPlace);
   placeRef.current = setPlace;
   useEffect(() => api?.onSignIn?.((done) => {
-    setDropbox((d) => d && { ...d, waiting: false, problem: done.ok ? null : done.message });
+    setCloud(done.kind, (c) => ({ ...c, waiting: false, problem: done.ok ? null : done.message }));
     if (done.ok) { void loadAccounts(); placeRef.current({ kind: 'drive', drive: done.drive.id, path: '' }); }
   }), [api, loadAccounts]);
-  const addDropbox = async (d: NewDropbox): Promise<string | null> => {
-    const r = await api?.addDropbox?.(d).catch(() => null);
-    if (!r) return 'Dropbox is not available here.';
+  /** Starts the sign-in and opens its page; answers why not, or null. */
+  const addCloud = async (kind: CloudKind, d: NewCloudDrive): Promise<string | null> => {
+    const r = await (kind === 'dropbox' ? api?.addDropbox?.(d) : api?.addOnedrive?.(d))?.catch(() => null);
+    if (!r) return 'That is not available here.';
     if (failed(r)) return r.message;
-    setDropbox((x) => x && { ...x, waiting: true, problem: null });
+    setCloud(kind, (c) => ({ ...c, waiting: true, problem: null }));
     void window.mobius.browser.open(r.url);
     return null;
   };
-  const cancelDropbox = () => { void api?.dropboxCancel?.(); setDropbox((x) => x && { ...x, waiting: false }); };
+  const cancelCloud = (kind: CloudKind) => { void (kind === 'dropbox' ? api?.dropboxCancel?.() : api?.onedriveCancel?.()); setCloud(kind, (c) => ({ ...c, waiting: false })); };
   const remove = async (id: string) => {
     await act(api?.remove(id));
     await loadAccounts();
@@ -139,7 +149,7 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     canCopy: typeof api?.download === 'function' && typeof api?.upload === 'function',
     accounts, drive, folder, entries, problem, loading, notice, copied, dragging, setDragging,
     account: accounts.find((a) => a.id === drive) ?? null,
-    dropbox, addDropbox, cancelDropbox,
+    clouds, addCloud, cancelCloud,
     list, add, remove, newFolder, rename, moveInto, del, download, upload, nameOfDrive,
     dismissNotice: () => setNotice(null), dismissCopied: () => setCopied(null),
   };
@@ -159,7 +169,8 @@ export function DriveBars({ drives }: { drives: DrivesState }) {
 /** Add a drive: a name, the server's address, a user and an app password. A Nextcloud address alone is enough. Or an
  * S3-style bucket (Amazon S3, Cloudflare R2, Backblaze B2, MinIO): its address, bucket and an access key. */
 export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: ReactNode }) {
-  const [kind, setKind] = useState<'webdav' | 's3' | 'dropbox'>('webdav');
+  const [kind, setKind] = useState<'webdav' | 's3' | CloudKind>('webdav');
+  const [link, setLink] = useState('');
   const [name, setName] = useState('');
   const [server, setServer] = useState('');
   const [username, setUsername] = useState('');
@@ -170,11 +181,13 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const s3 = kind === 's3';
-  const dropbox = drives.dropbox;
+  const cloudKind = kind === 'dropbox' || kind === 'onedrive' ? kind : null;
+  const cloud = cloudKind ? drives.clouds[cloudKind] : undefined;
+  const service = kind === 'dropbox' ? 'Dropbox' : 'Microsoft';
   const submit = async () => {
-    if (kind === 'dropbox') {
+    if (cloudKind) {
       setError(null);
-      const problem = await drives.addDropbox({ name: name.trim(), folder: folder.trim() });
+      const problem = await drives.addCloud(cloudKind, { name: name.trim(), folder: folder.trim(), ...(cloudKind === 'onedrive' && link.trim() ? { link: link.trim() } : {}) });
       if (problem) setError(problem);
       return;
     }
@@ -191,13 +204,22 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
     <section className="skills-page files-page" aria-label="Add a drive">
       {tools}
       <form className="drive-form" aria-label="New drive" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Segmented label="Kind of drive" value={kind} onChange={(k) => { setKind(k); setError(null); }} choices={[{ value: 'webdav', label: 'Server (WebDAV)' }, { value: 's3', label: 'Bucket (S3)' }, ...(dropbox ? [{ value: 'dropbox' as const, label: 'Dropbox' }] : [])]} />
+        <Segmented label="Kind of drive" value={kind} onChange={(k) => { setKind(k); setError(null); }} choices={[{ value: 'webdav', label: 'Server (WebDAV)' }, { value: 's3', label: 'Bucket (S3)' }, ...(drives.clouds.dropbox ? [{ value: 'dropbox' as const, label: 'Dropbox' }] : []), ...(drives.clouds.onedrive ? [{ value: 'onedrive' as const, label: 'OneDrive or SharePoint' }] : [])]} />
         {kind === 'dropbox' ? (
           <>
             <p className="drive-lede">A folder in your Dropbox. You sign in on Dropbox’s own page, in the browser; Mobius never sees your password. Files opens it beside the workspace; nothing is copied until you copy it.</p>
-            {dropbox && !dropbox.setUp && <p className="drive-hint" role="note">Dropbox isn’t set up in this build of Mobius yet.</p>}
+            {cloud && !cloud.setUp && <p className="drive-hint" role="note">Dropbox isn’t set up in this build of Mobius yet.</p>}
             <TextField label="Folder in your Dropbox" placeholder="Leave empty for the whole Dropbox" value={folder} onChange={setFolder} autoFocus spellCheck={false} />
             <p className="drive-hint">A folder that isn’t there yet is made. The sign-in is kept in this computer’s secret store, and sent only to Dropbox.</p>
+          </>
+        ) : kind === 'onedrive' ? (
+          <>
+            <p className="drive-lede">A folder in your OneDrive, or a SharePoint library your work shares. You sign in on Microsoft’s own page, in the browser; Mobius never sees your password. Files opens it beside the workspace; nothing is copied until you copy it.</p>
+            {cloud && !cloud.setUp && <p className="drive-hint" role="note">OneDrive and SharePoint aren’t set up in this build of Mobius yet.</p>}
+            <TextField label="SharePoint link" placeholder="Leave empty for your own OneDrive" value={link} onChange={setLink} autoFocus inputMode="url" spellCheck={false} />
+            <p className="drive-hint">For SharePoint, open the library or folder in the browser and copy its address, or use Share, Copy link.</p>
+            <TextField label="Folder in it" placeholder="Leave empty for all of it" value={folder} onChange={setFolder} spellCheck={false} />
+            <p className="drive-hint">A folder that isn’t there yet is made. The sign-in is kept in this computer’s secret store, and sent only to Microsoft.</p>
           </>
         ) : s3 ? (
           <>
@@ -220,12 +242,12 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
             <p className="drive-hint">Make one in the server’s security settings. It is kept in this computer’s secret store, and sent only to this server.</p>
           </>
         )}
-        <TextField label="Name" placeholder={kind === 'dropbox' ? 'The folder’s name, or Dropbox' : s3 ? 'The bucket’s name' : 'The server’s name'} value={name} onChange={setName} />
-        {(error ?? (kind === 'dropbox' ? dropbox?.problem : null)) && <p className="field-error" role="alert">{error ?? dropbox?.problem}</p>}
+        <TextField label="Name" placeholder={cloudKind ? 'The folder’s name' : s3 ? 'The bucket’s name' : 'The server’s name'} value={name} onChange={setName} />
+        {(error ?? cloud?.problem) && <p className="field-error" role="alert">{error ?? cloud?.problem}</p>}
         <div className="drive-actions">
-          {kind === 'dropbox' && dropbox?.waiting
-            ? <><span className="drive-hint" role="status">Waiting for Dropbox in the browser…</span><Button onClick={drives.cancelDropbox}>Cancel</Button></>
-            : <Button kind="primary" type="submit" disabled={checking || (kind === 'dropbox' && !dropbox?.setUp)}>{kind === 'dropbox' ? 'Sign in to Dropbox…' : checking ? 'Checking…' : 'Add drive'}</Button>}
+          {cloudKind && cloud?.waiting
+            ? <><span className="drive-hint" role="status">Waiting for {service} in the browser…</span><Button onClick={() => drives.cancelCloud(cloudKind)}>Cancel</Button></>
+            : <Button kind="primary" type="submit" disabled={checking || (cloudKind !== null && !cloud?.setUp)}>{cloudKind ? `Sign in to ${service}…` : checking ? 'Checking…' : 'Add drive'}</Button>}
         </div>
       </form>
     </section>

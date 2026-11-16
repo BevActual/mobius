@@ -151,7 +151,10 @@ security assessment, which takes 2 to 6 weeks a year.
 
 ## What the Builder does with them
 
-The IDs aren't secrets. They go in the build as Mobius's own (`crates/mobius-host`, one constant per service). A
+The IDs aren't secrets. They go in the build as Mobius's own, from build-time settings: `MOBIUS_DROPBOX_APP_KEY`,
+`MOBIUS_MICROSOFT_CLIENT_ID`, and `MOBIUS_GOOGLE_CLIENT_ID` with its secret and picker key. The release build reads them from the
+repository's Actions variables of the same names (the Google client secret from a secret). A build without one says
+that service isn't set up. A
 person can still put in their own ID in Settings, for a company that registers its own copy. The Builder then:
 
 - adds the one OAuth piece every service shares (PKCE, the `127.0.0.1` redirect, tokens in the secret store);

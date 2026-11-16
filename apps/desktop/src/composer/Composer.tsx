@@ -226,7 +226,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (!canSend && !canQueue) return;
     setProblem(null);
     const quick = bestFit && pictures.length === 0 && bestFitQuick(draft, context.length, modeInfo.id);
-    const answering = quick ? quickName : modelName;
+    // Named under the reply as the model menu names it ("Claude Sonnet"), not by its id ("sonnet").
+    const answering = quick ? quickName : currentLabel || modelName;
     const options = { ...sendOptionsOf(mode, surface?.app), ...(quick ? { quick: true } : {}), ...(answering ? { model: answering } : {}), ...(pictures.length > 0 ? { images: pictures } : {}) };
     // A starter's box words, finished by the person, are the message; its steps, with what they typed, go behind Details.
     const begun = starter.current;
