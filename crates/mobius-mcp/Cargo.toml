@@ -10,8 +10,6 @@ description = "Use tools from other programs over MCP (Model Context Protocol), 
 
 [dependencies]
 serde_json.workspace = true
-
-[dev-dependencies]
 ureq.workspace = true
 
 [[bin]]

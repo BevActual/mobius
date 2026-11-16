@@ -272,7 +272,7 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | Files | The workspace folder on this computer; WebDAV and S3-style drives you browse, open from and copy to; two-way sync of chosen folders with either | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar (next after contacts) | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
-| The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
+| The agent | Connectors (MCP), started and stopped live: programs on this computer, and servers at an address (Streamable HTTP) with a key in `mcp.json` | Sign-in for connectors at an address (OAuth, as MCP describes it), and adding one by its address in Abilities | Builder |
 | People | Nothing: there is no address book | An address book in the core over CardDAV (one `.vcf` per contact in `workspace/contacts/`), shown inside Mail and Calendar; no People app for now ([decided](#decided)). Building | Builder for the core, Apps lead for Mail and Calendar |
 | Messages | Nothing yet | Slack, Discord and Telegram on their official APIs, in a Messages app (early, in Abilities, after the demo; [decided](#decided)) | Builder for the accounts, Apps lead for the app |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
