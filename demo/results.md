@@ -8,7 +8,7 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
-| Mail: Triage (#469, #475) | 16 Nov, #469 at 1df50f0 with main, fresh chat | Sonnet 5.5 | 13.8 to 16.8 / 18.8 to 28.1 / 29.0 to 37.6 s (3 of 5 right) | Content not five in a row; time no | Personal asks left unsorted land in Archive; round 2 about 20 s |
+| Mail: Triage (#469, #475, #494, #501) | 16 Nov, #469 at 8bd8645 (15 runs) and 6fb1849 (5 runs), fresh chat | Sonnet 5.5 | 22.6 to 26.3 / 24.8 to 28.5 / 30.0 to 33.5 s (20 of 20 right) | Yes: Have on 8bd8645, three rounds of five in a row | On 6fb1849 a why still repeats the subject in 3 of 5 |
 | Calendar: Find a time with… (#459) | 16 Nov, 0.1.10 installed, chip then "Sam" | Sonnet 5.5 | Keep 12.8 s | Content yes | None found: three afternoons, a draft, no mid-turn line |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter, Try another, One-page brief (#411) | 15 Nov, 0.1.8 installed | Sonnet 5.5 | Shorter 8.7 / 8.7 / 12.1 s; Try another 8.4 s; brief 16.5 s | Nearly | Try another wrongly says it is shorter; the brief is named "Build brief brief.md" (#458) |
@@ -24,6 +24,63 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Design: three takes (#421) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | 17.3 / 17.3 s, done 20.5 s | No | Step reads "design.edit"; it says it didn't look at the frames |
 | Activity: Rewind to here (#461) | 16 Nov, 0.1.10 installed | Sonnet 5.5 | 0.8 s to rewind | Yes | None found |
 | Notes: Meeting notes on a local model (#462) | 16 Nov, 0.1.10 installed, chip | Qwen3.5 9B, local | Keep 22.8 s | Content yes, time no | None in content; an answer now shows |
+
+## Rounds 30e to 30g and retests on 0.1.11 and 0.1.12
+
+Run on Monday 16 November, early hours UTC, debug builds from the mobius-moments worktree, Demo profile after a Reset,
+Sonnet 5.5. Same rules as rounds 29 to 31: times from the press in seconds, right-of-five, and runs only after three idle
+minutes. From round 30e Triage sorts each message with a quick per-message question (#494), and from 30f the reply's
+lines are written in code from `mail.sort` and the model only copies them.
+
+### Right-of-five
+
+| Moment | Build | Right | Keep (range) | Why runs failed |
+| --- | --- | --- | --- | --- |
+| Triage | #469 at b843059, per-message sort (round 30e) | 3 of 5 | 35.3 to 39.1 | One reply mentioned drafts not made; one listed 2 of 5 to answer |
+| Triage | #469 at 8bd8645 with #501, round 1 (30f) | 5 of 5 | 30.2 to 33.5 | None |
+| Triage | #469 at 8bd8645, round 2 | 5 of 5 | 31.2 to 33.4 | None |
+| Triage | #469 at 8bd8645, round 3 | 5 of 5 | 30.0 to 32.0 | None |
+| Triage | #469 at 6fb1849, wording fixes (30g) | 5 of 5 | 30.9 to 32.4 | None in content; a why repeats the subject in 3 of 5 |
+
+Triage is Have on 8bd8645: fifteen right in a row, Keep median about 31.6 s, inside the 35 s clip length.
+
+### Triage timings
+
+| Round | First change | Last change | Keep | `mail.sort` | Drafting round (thinking) |
+| --- | --- | --- | --- | --- | --- |
+| 30e (b843059) | 27.1 to 30.9 | 30.8 to 34.6 | 35.3 to 39.1 | 11.3 to 11.5 | 13.6 to 17.4 (4.1 to 7.9) |
+| 30f round 1 (8bd8645) | 22.8 to 26.3 | 25.1 to 28.5 | 30.2 to 33.5 | 6.5 to 7.1 | 14.2 to 17.7 (3.7 to 7.5) |
+| 30f rounds 2 and 3 | 22.6 to 26.0 | 24.8 to 28.2 | 30.0 to 33.4 | 6.9 to 7.9 | 13.1 to 17.0 (3.2 to 7.0) |
+| 30g (6fb1849) | 23.4 to 24.7 | 25.6 to 27.0 | 30.9 to 32.4 | 7.1 to 7.2 | 14.0 to 15.3 (4.3 to 5.6) |
+
+- `mail.sort` asks 40 quick questions. Run 20 at a time (#501) it fell from 11.4 s to about 7 s.
+- One `mail.sort` call per run in all 25 runs, never retried. No throttling, rate limits, 429s or 529s in any log.
+- Memory in use on the PC rises about 3 GB during the sort (about 11 to 14 GB of 32) and falls back after.
+
+### Triage content from 30f on
+
+- The reply matches `mail.sort`'s `lines` exactly in all 20 runs (14 lines, no differences).
+- Need you is always Priya's brake kit review, Veltro's quote and Sam's bench run. To answer is always the same eight,
+  including the security sign-in ("confirm sign-in was you") and Ana's shortlist ("CVs shared for review").
+- Archive holds bulk mail only, 7 to 10 items. Counts add to 40 every run.
+- Five drafts each run and nothing sent. No reply mentions a limit or drafts not made.
+- 30g's wording: Archive names each kind once, Later gives a count, and each "Also" name carries its reason, in all
+  five. "Finance: Q4 budget lines due. Q4 budget lines due 20th." still repeats the subject in three of five.
+
+### Retests on installed 0.1.11 (5353066) and 0.1.12 (37202cc)
+
+| Item | 0.1.11 | 0.1.12 |
+| --- | --- | --- |
+| Panels and the More menu over a loaded page (#490) | Pass | Pass |
+| All chats menu inside a 1440 px window (#495) | Fail, x 1340 to 1660 | Pass, x 1112 to 1432 |
+| Note links reuse the Browser tab; Ctrl+click stays in Notes (#490) | Pass | Pass |
+| Slides from the full brief: no rule in the reply (#488) | Pass, Keep 16.1 | Pass, Keep 16.8 |
+| Design dark version: no ids or colour codes (#488) | Pass, Keep 9.3 | Pass, Keep 9.6 |
+| "Try another way" label (#495) | | Pass, Keep 12.9 |
+| Details labels name the step (#495) | | Pass |
+| Model label reads "Sonnet 5.5" (#495) | | Pass |
+| Rewind Undo lasts 20 s and stays while hovered (#495) | | Pass, 20.6 s; files restored |
+| Changes waiting counts a move once (#495) | | Pass, "Changed 60 items" |
 
 ## Rounds 29 to 31 (0.1.9, branches, then installed 0.1.10 from 8269123)
 
