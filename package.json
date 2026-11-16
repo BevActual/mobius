@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "license": "MIT",
-  "description": "Mobius, the AI workspace. Every app. One agent.",
+  "description": "Mobius Workspace: every app, one agent. An open-source AI workspace.",
   "type": "module",
   "workspaces": [
     "packages/*",

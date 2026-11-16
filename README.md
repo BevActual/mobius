@@ -2,10 +2,10 @@
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/readme/banner-dark.png">
-  <img src="docs/readme/banner-light.png" alt="Mobius. Every app. One agent. The AI workspace.">
+  <img src="docs/readme/banner-light.png" alt="Mobius Workspace. Every app. One agent.">
 </picture>
 
-<h3>Mobius is an AI workspace: your everyday apps in one app, with an agent that works across all of them.</h3>
+<h3>An open-source AI workspace: your everyday apps in one app, with an agent that works across all of them.</h3>
 
 <p>
   <a href="https://github.com/BevActual/mobius/releases"><b>Download</b></a> &nbsp;·&nbsp;

@@ -1,6 +1,6 @@
-# Mobius documentation
+# Mobius Workspace documentation
 
-Mobius is an AI workspace: your everyday apps in one app, with an agent that works across all of them.
+Mobius Workspace is an AI workspace: your everyday apps in one app, with an agent that works across all of them.
 
 These pages are for two kinds of reader. If you use Mobius, start with **Getting started** and the **User guide**. If
 you want to build or change Mobius, go to **Developers**.
