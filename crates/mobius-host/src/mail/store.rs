@@ -193,7 +193,16 @@ fn kept_from_archive(m: &Message) -> bool {
         return false;
     }
     let hay = format!(" {} {} ", subject, m.preview.to_lowercase());
-    subject.starts_with("re:") || hay.contains('?') || ASKS.iter().any(|a| hay.contains(a))
+    from_a_person(&m.from) || subject.starts_with("re:") || hay.contains('?') || hay.contains("please") || ASKS.iter().any(|a| hay.contains(a))
+}
+
+/// Written by a person, not a team or a service: the address starts with their own name ("Dana Reyes" at dana@,
+/// "Sam Okafor" at sam.okafor@), where "IT Service Desk" at it@ and "Veltro Cells" at sales@ do not.
+fn from_a_person(from: &Person) -> bool {
+    let local = from.email.split('@').next().unwrap_or("").to_lowercase();
+    let first = local.split(['.', '_', '-', '+']).next().unwrap_or("");
+    let names: Vec<String> = from.name.split_whitespace().map(|w| w.to_lowercase()).collect();
+    names.len() >= 2 && first.len() >= 2 && names.iter().any(|n| n == first)
 }
 
 /// What Get to zero proposes for one message: archive what is not from a person, a to-do for what asks for
@@ -1133,12 +1142,22 @@ impl Mail {
                 let unread: Vec<Value> = self.list("inbox", "all", "", usize::MAX).as_array().into_iter().flatten().filter(|m| !m["seen"].as_bool().unwrap_or(true)).cloned().collect();
                 let known: std::collections::HashSet<&str> = unread.iter().filter_map(|m| m["id"].as_str()).collect();
                 let mut seen = std::collections::HashSet::new();
+                // A message named by its sender and subject instead of its id is found by its subject, so a slip costs
+                // no round: the longest unread subject the words hold.
+                let find = |given: &str| -> Option<String> {
+                    if known.contains(given) {
+                        return Some(given.to_owned());
+                    }
+                    let words = given.to_lowercase();
+                    unread.iter().filter(|m| m["subject"].as_str().is_some_and(|t| !t.is_empty() && words.contains(&t.to_lowercase())))
+                        .max_by_key(|m| m["subject"].as_str().map_or(0, str::len)).and_then(|m| m["id"].as_str().map(str::to_owned))
+                };
                 let mut group = |key: &str| -> Res<Vec<String>> {
-                    let ids: Vec<String> = args.get(key).and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).map(str::to_owned).collect();
+                    let mut ids = Vec::new();
+                    for given in args.get(key).and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str) {
+                        ids.push(find(given).ok_or_else(|| format!("{given} is not an unread message in the inbox; use the ids mail.search gave"))?);
+                    }
                     for id in &ids {
-                        if !known.contains(id.as_str()) {
-                            return Err(format!("{id} is not an unread message in the inbox; use the ids mail.search gave"));
-                        }
                         if !seen.insert(id.clone()) {
                             return Err(format!("{id} is in two groups; put each message in one"));
                         }
@@ -1272,6 +1291,9 @@ mod tests {
         assert_eq!(sorted["need"][0]["subject"], "Build week");
         assert!(sorted["archiveSenders"].as_array().unwrap().iter().any(|m| m["subject"] == "Issue 212"));
         assert_eq!(unnamed["later"].as_array().unwrap().len(), 2);
+        // Named by sender and subject instead of an id, a message is still found.
+        let by_name: Value = serde_json::from_str(&mail.run("mail.sort", &json!({ "need": ["Priya Nair: Build week"], "reply": [], "later": [] })).unwrap()).unwrap();
+        assert_eq!(by_name["need"][0]["subject"], "Build week");
         // A message read already is not unread; one named twice is refused; so is an id it never gave.
         let read = mail.lock().messages.iter().find(|m| m.seen).unwrap().id.clone();
         assert!(mail.run("mail.sort", &json!({ "need": [read], "reply": [], "later": [] })).unwrap_err().contains("not an unread message"));
