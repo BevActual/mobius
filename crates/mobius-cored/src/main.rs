@@ -8,6 +8,7 @@
 //! threads and report back through a channel, so a slow model never makes the core unresponsive. Besides replies,
 //! the daemon sends notifications (`agent.event`, `agent.delta`) that have no id.
 mod agent_rpc;
+mod ask_each;
 mod inbox;
 mod models_rpc;
 

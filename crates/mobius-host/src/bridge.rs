@@ -324,6 +324,8 @@ pub struct Bridge {
     fetch_prices: bool,
     /// For each conversation, the app its last message was sent from ("mail"), so its use is counted there.
     sent_from: Mutex<std::collections::HashMap<String, String>>,
+    /// Small questions a tool is asking the model all at once (`ask_each`), waiting for their answers.
+    asks: crate::ask_each::Asks,
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
     key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
     hf_sign_in: Mutex<Arc<crate::device_sign_in::DeviceSignIn>>,
@@ -473,6 +475,7 @@ impl Bridge {
             prices: Arc::new(crate::usage::PriceList::new(data_dir.join("usage-prices.json"))),
             fetch_prices: std::env::var_os("MOBIUS_TEST").is_none(),
             sent_from: Mutex::new(std::collections::HashMap::new()),
+            asks: crate::ask_each::Asks::default(),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
             copilot,
@@ -4037,6 +4040,31 @@ impl Bridge {
     /// One step of a turn, with when it happened, kept in `turn-timings.jsonl` (the last few thousand lines): the
     /// message sent, each model round (from the core: start-up, first word, end, tokens), each event the window saw,
     /// and each tool the application ran. Read to see where a slow turn's time went.
+    /// For a tool: ask the model many small questions at once (the quick model, a few at a time, no tools), giving
+    /// `each` every answer as it lands and returning them all in the order asked. Cancelling the conversation's turn
+    /// stops it. Each answer is also told to the window (`mobius:asked`), so the tool's progress can show.
+    pub fn ask_each(&self, job: &crate::ask_each::Job, each: &mut dyn FnMut(&str, &Result<String, String>)) -> Result<crate::ask_each::Answers, String> {
+        let started = std::time::Instant::now();
+        let call = |method: &str, params: Value| {
+            self.core.call(method, params, std::time::Duration::from_secs(10)).map_err(|e| match e {
+                crate::process::CallError::Rpc(e) => e.message,
+                other => format!("{other:?}"),
+            })
+        };
+        let conversation = job.conversation.clone();
+        let out = self.asks.run(
+            job,
+            &call,
+            &mut |id, answer| {
+                (self.emit)("mobius:asked", json!({ "conversation": conversation, "id": id, "ok": answer.is_ok() }));
+                each(id, answer);
+            },
+            crate::ask_each::MOST_WAIT,
+        );
+        self.note_timing(json!({ "step": "ask_each", "conversation": job.conversation, "count": job.asks.len(), "ms": started.elapsed().as_millis(), "ok": out.is_ok() }));
+        out
+    }
+
     fn note_timing(&self, mut step: Value) {
         step["at"] = json!(now_ms());
         let file = self.data_dir.join("turn-timings.jsonl");
@@ -4079,6 +4107,9 @@ impl Bridge {
         }
         if method == "agent.usage" {
             self.record_usage(params);
+            return;
+        }
+        if self.asks.on_notification(method, params) {
             return;
         }
         if self.models.get().is_some_and(|m| m.handle_notification(method, params)) {
