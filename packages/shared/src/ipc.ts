@@ -149,7 +149,7 @@ export interface TaskItem { line: number; text: string; done: boolean; due: stri
 /** How a task comes back once ticked off: its due date moves to the next one and it stays open. */
 export type TaskRepeat = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
-export interface TaskListInfo { name: string; open: number; done: number }
+export interface TaskListInfo { name: string; open: number; done: number; /** The CalDAV account a list is kept on (its changes go there first); absent for the person's own lists. */ account?: string }
 export interface TaskChange { text?: string; done?: boolean; due?: string | null; time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string }
 /** Where a task points: its line and its words, which must still match. */
 export interface TaskAt { line: number; expect: string }
@@ -232,7 +232,7 @@ export interface CalendarSuggestion { id: string; calendar: string; title: strin
 /** A calendar and where it is kept: the person's own (`account` null), or an account's. */
 export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
-export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
@@ -249,6 +249,12 @@ export type DriveSignIn = { kind: 'dropbox'; ok: true; drive: DriveAccount } | {
 /** A Dropbox to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). `again` renews that drive's sign-in. */
 export interface NewDropbox { name?: string; folder?: string; again?: string }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+export interface GoogleDriveStatus { setUp: boolean; signedIn: boolean; account: string | null; pending: GoogleDrivePending | null; hint: string | null }
+export interface GoogleDrivePending { url: string; kind: 'signIn' | 'pick' }
+/** A file picked on Google Drive and copied into the workspace at `path`. `exported`: a Google Docs, Sheets or Slides copy, not saved back. */
+export interface GoogleDriveLink { id: string; name: string; mimeType: string; path: string; version: string; exported: boolean; link: string | null }
+/** `null` after a sign-in or sign-out; `opened` and `failed` after a pick; `saved` after a save back. */
+export type GoogleDriveChanged = null | { opened: GoogleDriveLink[]; failed: { id?: string; message: string }[] } | { saved: GoogleDriveLink };
 /** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
 export interface SyncStatus {
   state: 'idle' | 'syncing' | 'offline' | 'paused' | 'signIn';
@@ -715,7 +721,7 @@ export interface MobiusBridge {
     decline(id: string): Promise<{ declined: string } | NotesFailure>;
     accounts(): Promise<CalendarAccount[] | NotesFailure>;
     subscribe(name: string, link: string): Promise<{ id: string; name: string } | NotesFailure>;
-    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[] } | NotesFailure>;
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[]; taskLists: string[] } | NotesFailure>;
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
@@ -763,6 +769,26 @@ export interface MobiusBridge {
     /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
     syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
     onSync?(listener: (change: SyncChanged) => void): () => void;
+  };
+  /**
+   * Files picked on Google Drive (Mobius asks only for the files people pick). `open` shows Google's picker in the
+   * browser; the files picked are copied into the workspace and come back as `mobius:google-drive-changed` with
+   * `opened` and `failed`. A copy saves back over its file unless the file changed on Drive since (`conflict`).
+   */
+  googleDrive?: {
+    status(): Promise<GoogleDriveStatus>;
+    /** The page to open in the browser to sign in. */
+    signIn(): Promise<GoogleDrivePending | DriveFailure>;
+    cancel(): Promise<{ ok: true }>;
+    signOut(): Promise<{ ok: true }>;
+    /** Shows the picker; picked files land in `folder` (default "Google Drive"). */
+    open(folder?: string): Promise<GoogleDrivePending | DriveFailure>;
+    links(): Promise<GoogleDriveLink[]>;
+    /** Where a workspace file came from on Drive, or `null`. */
+    linkOf(path: string): Promise<GoogleDriveLink | null>;
+    saveBack(path: string): Promise<{ ok: true; link: GoogleDriveLink } | DriveFailure>;
+    forget(path: string): Promise<{ ok: true } | DriveFailure>;
+    onChanged(listener: (change: GoogleDriveChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {

@@ -87,7 +87,7 @@ The Builder's order. Earlier rows (app modes, row sizes, the slots, failed runs,
 | 2 | Tools for Photo and Design | Their demo moments | Building |
 | 3 | Drives: two-way sync, then S3-style storage ([Drives](#drives)) | Files, and every app that keeps plain files | Have: WebDAV, sync and S3 on `main`. Sync soaks against Nextcloud and wsgidav nightly (#478) |
 | 3a | The contacts store: one `.vcf` per contact, an index, CardDAV on the sync code, and bridge calls for Mail and Calendar | Contacts in Mail and Calendar | Building |
-| 3b | Task lists over CalDAV | Tasks on the same servers as Calendar | Next |
+| 3b | Task lists over CalDAV | Tasks on the same servers as Calendar | Building: a CalDAV account's task lists show in Tasks and every change goes to the server first |
 | 3c | Cloud drives (Dropbox, OneDrive, Google Drive) and Google and Microsoft sign-in for Mail and Calendar | Those services | Waiting on Andrew registering Mobius: the steps are in [Drive and calendar sign-in](drive-sign-in.md) |
 | 4 | Video: clip lengths and a clip list, then a first cut | Video's demo moment | Building; the cut waits on footage |
 | 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |

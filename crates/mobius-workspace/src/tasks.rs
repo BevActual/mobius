@@ -5,6 +5,7 @@
 //! saw, so a change made elsewhere is never overwritten, and a checkpoint is taken before the agent changes a list.
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Arc, RwLock};
 
 use serde_json::{Value, json};
 
@@ -33,6 +34,9 @@ pub struct Task {
     /// How it comes back once ticked off: one of [`REPEATS`].
     pub repeat: Option<String>,
     pub flagged: bool,
+    /// Its id on a CalDAV server, in a list mirrored from one (` (id …)` at the end of the line). Never in the
+    /// person's own lists, and never shown.
+    pub id: Option<String>,
 }
 
 /// How a task can repeat: ticking it off moves its due date to the next one and leaves it open.
@@ -133,6 +137,12 @@ pub fn parse_line(line: &str) -> Option<Task> {
         _ => return None,
     };
     let mut body = rest.strip_prefix("] ")?.trim();
+    // A mirrored list's id comes last of all.
+    let mut id = None;
+    if let Some((b, i)) = body.strip_suffix(')').and_then(|b| b.rsplit_once(" (id ")).filter(|(_, i)| !i.is_empty() && !i.contains([' ', '(', ')'])) {
+        body = b.trim_end();
+        id = Some(percent_decode(i));
+    }
     // What follows the words, in any order: a due date (with a time or not), a repeat and a flag.
     let (mut due, mut time, mut repeat, mut flagged) = (None, None, None, false);
     loop {
@@ -162,7 +172,7 @@ pub fn parse_line(line: &str) -> Option<Task> {
         }
         break;
     }
-    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, time, repeat, flagged })
+    (!body.is_empty()).then(|| Task { text: body.to_owned(), done, due, time, repeat, flagged, id })
 }
 
 pub fn format_line(task: &Task) -> String {
@@ -173,7 +183,125 @@ pub fn format_line(task: &Task) -> String {
     };
     let repeat = task.repeat.as_ref().map(|r| format!(" (every {r})")).unwrap_or_default();
     let flag = if task.flagged { " (flagged)" } else { "" };
-    format!("- [{}] {}{due}{repeat}{flag}", if task.done { "x" } else { " " }, task.text)
+    let id = task.id.as_ref().map(|i| format!(" (id {})", percent_encode(i))).unwrap_or_default();
+    format!("- [{}] {}{due}{repeat}{flag}{id}", if task.done { "x" } else { " " }, task.text)
+}
+
+/// An id as written in a line: anything but letters, digits and `@._-:` as `%XX`.
+fn percent_encode(id: &str) -> String {
+    id.bytes().map(|b| if b.is_ascii_alphanumeric() || b"@._-:".contains(&b) { char::from(b).to_string() } else { format!("%{b:02X}") }).collect()
+}
+
+fn percent_decode(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%'
+            && let Some(b) = text.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok())
+        {
+            out.push(b);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+/// A task list kept on a CalDAV server and mirrored in a file here, outside the workspace. Mobius shows it beside the
+/// person's own lists; every change goes to the server first.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TaskMirror {
+    pub name: String,
+    pub file: PathBuf,
+    /// The account it comes from, for the window.
+    pub account: String,
+}
+
+/// One task as a server keeps it: the task, its notes, and the id of the task it is under.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoteTask {
+    pub task: Task,
+    pub notes: String,
+    pub parent: Option<String>,
+}
+
+/// Sends a change to a list kept elsewhere. The mirror changes only once the server has taken it.
+pub trait TaskRemote: Send + Sync {
+    fn put(&self, mirror: &TaskMirror, uid: &str, task: &RemoteTask, new: bool) -> Res<()>;
+    fn delete(&self, mirror: &TaskMirror, uid: &str) -> Res<()>;
+}
+
+/// Each task in a list's text with its id, as a server would keep it. A task without an id gets one from `new_id`,
+/// and the lines are given it. Returns the tasks in order.
+fn remote_tasks(lines: &mut [String], new_id: &mut dyn FnMut() -> String) -> Vec<(String, RemoteTask)> {
+    let entries = tasks_of(&(lines.join("\n") + "\n"));
+    let mut ids: std::collections::HashMap<u64, String> = std::collections::HashMap::new();
+    let mut out = Vec::new();
+    for e in entries {
+        let Some(at) = e["line"].as_u64() else { continue };
+        let Some(line) = usize::try_from(at).ok().and_then(|i| lines.get_mut(i)) else { continue };
+        let Some(mut task) = parse_line(line) else { continue };
+        let uid = match task.id.clone() {
+            Some(id) => id,
+            None => {
+                let id = new_id();
+                task.id = Some(id.clone());
+                let own: String = line.chars().take_while(|c| c.is_whitespace()).collect();
+                *line = format!("{own}{}", format_line(&task));
+                id
+            }
+        };
+        ids.insert(at, uid.clone());
+        let parent = e["parent"].as_u64().and_then(|p| ids.get(&p).cloned());
+        task.id = None;
+        out.push((uid, RemoteTask { task, notes: e["notes"].as_str().unwrap_or("").to_owned(), parent }));
+    }
+    out
+}
+
+/// A list's text with the mirrored ids taken out, for the person's own lists.
+fn without_ids(content: &str) -> String {
+    content
+        .lines()
+        .map(|l| match parse_line(l).filter(|t| t.id.is_some()) {
+            Some(mut t) => {
+                t.id = None;
+                let own: String = l.chars().take_while(|c| c.is_whitespace()).collect();
+                format!("{own}{}", format_line(&t))
+            }
+            None => l.to_owned(),
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
+}
+
+/// A mirrored list's text from the tasks a server keeps, in order; subtasks go under their task, notes under each.
+pub fn mirror_text(name: &str, tasks: &[(String, RemoteTask)]) -> String {
+    let mut out = format!("# {name}\n\n");
+    let known: std::collections::HashSet<&str> = tasks.iter().map(|(u, _)| u.as_str()).collect();
+    let write = |out: &mut String, uid: &str, t: &RemoteTask, pad: &str| {
+        let mut task = t.task.clone();
+        task.id = Some(uid.to_owned());
+        task.text = task.text.replace(['\n', '\r'], " ").trim().to_owned();
+        if task.text.is_empty() {
+            task.text = "Untitled".into();
+        }
+        out.push_str(&format!("{pad}{}\n", format_line(&task)));
+        for note in t.notes.lines().map(note_out).filter(|l| !l.is_empty()) {
+            out.push_str(&format!("{pad}  {note}\n"));
+        }
+    };
+    for (uid, t) in tasks.iter().filter(|(_, t)| t.parent.as_deref().is_none_or(|p| !known.contains(p))) {
+        write(&mut out, uid, t, "");
+        for (sub, s) in tasks.iter().filter(|(_, s)| s.parent.as_deref() == Some(uid.as_str())) {
+            write(&mut out, sub, s, "  ");
+        }
+    }
+    out
 }
 
 /// How far a line is indented (a tab counts as four spaces).
@@ -243,6 +371,8 @@ pub struct Tasks {
     root: PathBuf,
     checkpoints: Checkpoints,
     workspace: PathBuf,
+    mirrors: RwLock<Vec<TaskMirror>>,
+    remote: RwLock<Option<Arc<dyn TaskRemote>>>,
 }
 
 pub fn tool_descriptions() -> Vec<Value> {
@@ -268,10 +398,62 @@ pub fn is_task_tool(name: &str) -> bool {
 impl Tasks {
     pub fn new(workspace: impl Into<PathBuf>, checkpoint_store: impl Into<PathBuf>) -> Tasks {
         let workspace = workspace.into();
-        Tasks { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace }
+        Tasks { root: workspace.join(FOLDER), checkpoints: Checkpoints::new(checkpoint_store), workspace, mirrors: RwLock::new(Vec::new()), remote: RwLock::new(None) }
+    }
+
+    pub fn set_mirrors(&self, mirrors: Vec<TaskMirror>) {
+        *self.mirrors.write().unwrap_or_else(std::sync::PoisonError::into_inner) = mirrors;
+    }
+
+    pub fn set_remote(&self, remote: Arc<dyn TaskRemote>) {
+        *self.remote.write().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(remote);
+    }
+
+    fn mirror(&self, list: &str) -> Option<TaskMirror> {
+        self.mirrors.read().unwrap_or_else(std::sync::PoisonError::into_inner).iter().find(|m| m.name == list).cloned()
+    }
+
+    /// The person's own lists, by name (for keeping a mirrored list's name from hiding one).
+    pub fn local_lists(&self) -> Vec<String> {
+        fs::read_dir(&self.root)
+            .map(|d| d.filter_map(Result::ok).filter_map(|e| e.file_name().to_string_lossy().strip_suffix(".md").map(str::to_owned)).filter(|n| list_ok(n)).collect())
+            .unwrap_or_default()
+    }
+
+    fn kept_elsewhere(&self, list: &str) -> Res<()> {
+        match self.mirror(list) {
+            Some(m) => Err(format!("{list} is kept on {}: change the list itself there", m.account)),
+            None => Ok(()),
+        }
+    }
+
+    /// Write a list's new text. A mirrored list's changes go to its server first (new tasks get their ids there, and
+    /// tasks gone are deleted); the person's own lists never keep a server's ids.
+    fn save(&self, list: &str, file: &PathBuf, old: &str, new: String) -> Res<()> {
+        let Some(mirror) = self.mirror(list) else { return Self::store(file, &without_ids(&new)) };
+        let remote = self.remote.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone().ok_or("that list's account is not connected")?;
+        let mut old_lines: Vec<String> = old.lines().map(str::to_owned).collect();
+        let was: Vec<(String, RemoteTask)> = remote_tasks(&mut old_lines, &mut String::new).into_iter().filter(|(u, _)| !u.is_empty()).collect();
+        let before: std::collections::HashMap<&String, &RemoteTask> = was.iter().map(|(u, t)| (u, t)).collect();
+        let mut lines: Vec<String> = new.lines().map(str::to_owned).collect();
+        let mut new_id = crate::calendar::new_uid;
+        let after = remote_tasks(&mut lines, &mut new_id);
+        for (uid, task) in &after {
+            if before.get(uid) != Some(&task) {
+                remote.put(&mirror, uid, task, !before.contains_key(uid))?;
+            }
+        }
+        let kept: std::collections::HashSet<&String> = after.iter().map(|(u, _)| u).collect();
+        for (uid, _) in was.iter().filter(|(u, _)| !kept.contains(u)) {
+            remote.delete(&mirror, uid)?;
+        }
+        Self::store(file, &(lines.join("\n") + "\n"))
     }
 
     fn file(&self, list: &str) -> Res<PathBuf> {
+        if let Some(mirror) = self.mirror(list) {
+            return Ok(mirror.file);
+        }
         if !list_ok(list) {
             return Err("that is not a list".into());
         }
@@ -331,6 +513,12 @@ impl Tasks {
             let done = all.iter().filter(|t| t["done"] == true).count();
             out.push(json!({ "name": name, "open": all.len() - done, "done": done }));
         }
+        let mirrors = self.mirrors.read().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        for m in mirrors {
+            let all = fs::read_to_string(&m.file).map(|c| tasks_of(&c)).unwrap_or_default();
+            let done = all.iter().filter(|t| t["done"] == true).count();
+            out.push(json!({ "name": m.name, "open": all.len() - done, "done": done, "account": m.account }));
+        }
         Ok(Value::Array(out))
     }
 
@@ -346,7 +534,7 @@ impl Tasks {
         let base = file_name_for(name);
         let mut chosen = base.clone();
         let mut n = 2;
-        while self.root.join(format!("{chosen}.md")).exists() {
+        while self.root.join(format!("{chosen}.md")).exists() || self.mirror(&chosen).is_some() {
             chosen = format!("{base} {n}");
             n += 1;
         }
@@ -358,6 +546,10 @@ impl Tasks {
     pub fn rename_list(&self, list: &str, to: &str) -> Res<Value> {
         if list == DEFAULT_LIST {
             return Err(format!("{DEFAULT_LIST} keeps its name"));
+        }
+        self.kept_elsewhere(list)?;
+        if self.mirror(to.trim()).is_some() {
+            return Err(format!("there is already a list called {}", to.trim()));
         }
         let (file, content) = self.load(list)?;
         let name = file_name_for(to.trim());
@@ -391,6 +583,7 @@ impl Tasks {
         if list == DEFAULT_LIST {
             return Err(format!("{DEFAULT_LIST} cannot be deleted"));
         }
+        self.kept_elsewhere(list)?;
         let (file, content) = self.load(list)?;
         fs::remove_file(&file).map_err(|e| e.to_string())?;
         Ok(json!({ "name": list, "text": content }))
@@ -398,7 +591,7 @@ impl Tasks {
 
     /// Put back a deleted list with the text it had. A list of that name that is there again is never replaced.
     pub fn restore_list(&self, list: &str, text: &str) -> Res<Value> {
-        if !list_ok(list) || text.len() > MAX_LIST {
+        if !list_ok(list) || text.len() > MAX_LIST || self.mirror(list).is_some() {
             return Err("that list cannot be put back".into());
         }
         let file = self.file(list)?;
@@ -437,7 +630,7 @@ impl Tasks {
             return Err("that list is full".into());
         }
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
-        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), time: time.map(str::to_owned), repeat: repeat.map(str::to_owned), flagged });
+        let task = format_line(&Task { text, done: false, due: due.map(str::to_owned), time: time.map(str::to_owned), repeat: repeat.map(str::to_owned), flagged, id: None });
         match under {
             Some((at, expect)) => {
                 found(&lines, at, expect)?;
@@ -446,7 +639,7 @@ impl Tasks {
             }
             None => lines.push(task),
         }
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         self.read(list)
     }
 
@@ -501,7 +694,7 @@ impl Tasks {
                 lines.insert(line + 1 + n, format!("{pad}{note}"));
             }
         }
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         self.read(list)
     }
 
@@ -512,7 +705,7 @@ impl Tasks {
         let mut lines: Vec<String> = content.lines().map(str::to_owned).collect();
         found(&lines, line, expect)?;
         let taken: Vec<String> = lines.drain(line..block_end(&lines, line)).collect();
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         let mut out = self.read(list)?;
         out["removed"] = json!({ "line": line, "text": taken.join("\n") });
         Ok(out)
@@ -534,7 +727,7 @@ impl Tasks {
         for (n, l) in block.iter().enumerate() {
             lines.insert(at + n, (*l).to_owned());
         }
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         self.read(list)
     }
 
@@ -569,7 +762,7 @@ impl Tasks {
                 None => lines.len(),
             };
             lines.splice(at..at, block);
-            Self::store(&file, &(lines.join("\n") + "\n"))?;
+            self.save(list, &file, &content, lines.join("\n") + "\n")?;
             return self.read(list);
         }
         let (other, theirs) = self.load(to)?;
@@ -583,8 +776,8 @@ impl Tasks {
         };
         there.splice(at..at, block);
         // The other list is written first on purpose: if the second write fails, the task is in both lists, never lost.
-        Self::store(&other, &(there.join("\n") + "\n"))?;
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(to, &other, &theirs, there.join("\n") + "\n")?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         self.read(to)
     }
 
@@ -601,7 +794,7 @@ impl Tasks {
                 at += 1;
             }
         }
-        Self::store(&file, &(lines.join("\n") + "\n"))?;
+        self.save(list, &file, &content, lines.join("\n") + "\n")?;
         self.read(list)
     }
 
@@ -786,6 +979,79 @@ mod tests {
         let tasks = Tasks::new(dir.path().join("work"), dir.path().join("store"));
         (dir, tasks)
     }
+    /// A server that records what it was sent, and refuses everything while `down`.
+    #[derive(Default)]
+    struct Server {
+        sent: std::sync::Mutex<Vec<String>>,
+        down: std::sync::atomic::AtomicBool,
+    }
+
+    impl TaskRemote for Server {
+        fn put(&self, _: &TaskMirror, uid: &str, task: &RemoteTask, new: bool) -> Res<()> {
+            if self.down.load(std::sync::atomic::Ordering::SeqCst) {
+                return Err("The server answered 503.".into());
+            }
+            let parent = task.parent.as_deref().map(|p| format!(" under {p}")).unwrap_or_default();
+            self.sent.lock().unwrap().push(format!("{} {uid} {}{parent}", if new { "new" } else { "put" }, format_line(&task.task)));
+            Ok(())
+        }
+        fn delete(&self, _: &TaskMirror, uid: &str) -> Res<()> {
+            self.sent.lock().unwrap().push(format!("delete {uid}"));
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn a_list_kept_on_a_server_sends_each_change_there_first() {
+        let (dir, tasks) = setup();
+        let file = dir.path().join("mirror/0.md");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        let theirs = vec![
+            ("a@x".to_owned(), RemoteTask { task: parse_line("- [ ] Paint the door (due 2026-11-20)").unwrap(), notes: "Blue".into(), parent: None }),
+            ("b@x".to_owned(), RemoteTask { task: parse_line("- [ ] Buy paint").unwrap(), notes: String::new(), parent: Some("a@x".into()) }),
+            ("c (odd)".to_owned(), RemoteTask { task: parse_line("- [x] Sand it").unwrap(), notes: String::new(), parent: None }),
+        ];
+        fs::write(&file, mirror_text("Home", &theirs)).unwrap();
+        assert!(fs::read_to_string(&file).unwrap().contains("- [x] Sand it (id c%20%28odd%29)"));
+        tasks.set_mirrors(vec![TaskMirror { name: "Home".into(), file: file.clone(), account: "Fastmail".into() }]);
+        let server = Arc::new(Server::default());
+        tasks.set_remote(server.clone());
+
+        let lists = tasks.lists().unwrap();
+        assert_eq!(lists[1], json!({ "name": "Home", "open": 2, "done": 1, "account": "Fastmail" }));
+        let read = tasks.read("Home").unwrap();
+        assert_eq!(texts(&read), ["Paint the door", "Buy paint", "Sand it"], "ids are never shown");
+        assert_eq!(read["tasks"][1]["parent"], 2);
+        assert_eq!(read["tasks"][0]["notes"], "Blue");
+
+        tasks.update("Home", 2, "Paint the door", Change { done: Some(true), ..Change::default() }).unwrap();
+        tasks.add_with("Home", "Brushes", None, false, Some((2, "Paint the door"))).unwrap();
+        tasks.clear_done("Home").unwrap();
+        let sent = server.sent.lock().unwrap().clone();
+        assert_eq!(sent[0], "put a@x - [x] Paint the door (due 2026-11-20)");
+        assert!(sent[1].starts_with("new ") && sent[1].ends_with("@mobius - [ ] Brushes under a@x"), "{sent:?}");
+        assert_eq!(sent[2..4], ["delete a@x", "delete b@x"]);
+        assert!(sent[4].starts_with("delete ") && sent[4].ends_with("@mobius"), "a subtask goes with its task: {sent:?}");
+        assert_eq!(sent[5], "delete c (odd)");
+
+        // The server is down: nothing changes here either.
+        tasks.add("Home", "Varnish", None).unwrap();
+        let before = fs::read_to_string(&file).unwrap();
+        server.down.store(true, std::sync::atomic::Ordering::SeqCst);
+        assert!(tasks.add("Home", "Clean up", None).unwrap_err().contains("503"));
+        assert_eq!(fs::read_to_string(&file).unwrap(), before);
+        server.down.store(false, std::sync::atomic::Ordering::SeqCst);
+
+        // Moved to the person's own list: deleted there, and no id comes along.
+        tasks.create_list("Mine").unwrap();
+        tasks.move_task("Home", 2, "Varnish", "Mine", None).unwrap();
+        assert_eq!(fs::read_to_string(dir.path().join("work/tasks/Mine.md")).unwrap(), "# Mine\n\n- [ ] Varnish\n");
+        assert!(server.sent.lock().unwrap().last().unwrap().starts_with("delete "));
+        assert!(tasks.delete_list("Home").unwrap_err().contains("kept on Fastmail"));
+        assert!(tasks.rename_list("Home", "Other").unwrap_err().contains("kept on Fastmail"));
+        assert_eq!(tasks.create_list("Home").unwrap()["name"], "Home 2", "a new list never takes a mirrored list's name");
+    }
+
     #[test]
     fn lists_read_at_the_same_moment_all_answer_on_a_new_workspace() {
         // The app reads the lists twice as it starts; both used to write the new Inbox through one temp file,
@@ -816,7 +1082,7 @@ mod tests {
     #[test]
     fn task_lines_read_and_write_the_same_way() {
         let t = parse_line("- [ ] Call the plumber (due 2026-11-12)").unwrap();
-        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), time: None, repeat: None, flagged: false });
+        assert_eq!(t, Task { text: "Call the plumber".into(), done: false, due: Some("2026-11-12".into()), time: None, repeat: None, flagged: false, id: None });
         assert_eq!(format_line(&t), "- [ ] Call the plumber (due 2026-11-12)");
         assert!(parse_line("  - [X] Done thing").unwrap().done);
         // Not dates, so they stay part of the words.

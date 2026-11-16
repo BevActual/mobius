@@ -1892,6 +1892,18 @@ fn dropbox_says_it_is_not_set_up_until_mobius_is_registered() {
 }
 
 #[test]
+fn google_drive_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    let status = call(&b, "googleDrive", "status", json!([]));
+    assert_eq!((status["setUp"].clone(), status["signedIn"].clone()), (json!(false), json!(false)));
+    let open = call(&b, "googleDrive", "open", json!([]));
+    assert_eq!((open["ok"].clone(), open["message"].clone()), (json!(false), json!(mobius_host::google_drive::NOT_SET_UP)));
+    assert_eq!(call(&b, "googleDrive", "links", json!([])), json!([]));
+    assert_eq!(call(&b, "googleDrive", "saveBack", json!(["a.md"]))["ok"], false);
+    assert_eq!(call(&b, "googleDrive", "linkOf", json!(["a.md"])), serde_json::Value::Null);
+}
+
+#[test]
 fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     let (b, _c) = bridge();
     assert_eq!(call(&b, "drives", "list", json!([])), json!([]));

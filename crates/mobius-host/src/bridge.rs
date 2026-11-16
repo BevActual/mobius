@@ -305,6 +305,8 @@ pub struct Bridge {
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
     drives: Arc<crate::drives::Drives>,
+    /// Files picked on Google Drive, opened from Files (`drive.file` only).
+    google_drive: Mutex<Arc<crate::google_drive::GoogleDrive>>,
     /// Workspace folders synced with a folder on a drive.
     syncs: Arc<crate::sync_pairs::Syncs>,
     /// Address books on CardDAV servers, each synced with its folder under `contacts/`.
@@ -497,7 +499,13 @@ impl Bridge {
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
-            tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            tasks: {
+                // A CalDAV account's task lists show in Tasks beside the person's own.
+                let tasks = mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                tasks.set_remote(calendar_accounts.clone());
+                tasks.set_mirrors(calendar_accounts.task_mirrors(&tasks.local_lists()));
+                tasks
+            },
             contacts: mobius_workspace::contacts::Contacts::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -507,6 +515,7 @@ impl Bridge {
             },
             calendar_accounts,
             drives,
+            google_drive: Mutex::new(Arc::new(crate::google_drive::GoogleDrive::new(crate::google_drive::App::built_in(), crate::google_drive::Endpoints::default(), secrets.clone(), &data_dir.join("google-drive.json")))),
             contact_accounts,
             syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
@@ -699,6 +708,7 @@ impl Bridge {
             ("contacts", _) => Ok(self.contacts_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("drives", _) => Ok(self.drives_call(method, args)),
+            ("googleDrive", _) => Ok(self.google_drive_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -812,6 +822,10 @@ impl Bridge {
                     "trash" => self.workspace.trash(&text(0)),
                     _ => self.workspace.put_back(&text(0), &text(1)),
                 };
+                // A file opened from Google Drive keeps its way back there when it moves.
+                if let (Ok(path), "rename" | "move") = (&done, method) {
+                    let _ = lock(&self.google_drive).moved(&text(0), path);
+                }
                 Ok(match done {
                     Ok(path) => json!({ "ok": true, "path": path }),
                     Err(error) => json!({ "ok": false, "error": error }),
@@ -1939,6 +1953,61 @@ impl Bridge {
             self.copilot.use_site_for_tests(site, client_id);
             *lock(&self.copilot_command) = Some(command.to_path_buf());
         }
+    }
+
+    /// Use Google Drive at this pretend Google, as this app. Does nothing unless the test hooks are on.
+    pub fn use_google_drive_for_tests(&self, app: crate::google_drive::App, at: crate::google_drive::Endpoints) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.google_drive) = Arc::new(crate::google_drive::GoogleDrive::new(Some(app), at, self.secrets.clone(), &self.data_dir.join("google-drive.json")));
+        }
+    }
+
+    /// Files' "Open from Google Drive". Every answer is what was asked for or `{ ok: false, message }`; a pick's
+    /// result comes later as `mobius:google-drive-changed` with the files `opened` and those that `failed`.
+    fn google_drive_call(&self, method: &str, args: &[Value]) -> Value {
+        use crate::google_drive::CHANGED;
+        let google = lock(&self.google_drive).clone();
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let emit = self.emit.clone();
+        let result: Result<Value, String> = match method {
+            "status" => Ok(google.status()),
+            "signIn" => google.start_sign_in(Arc::new(move |_| emit("mobius:google-drive-changed", Value::Null))).map(|p| json!(p)),
+            "cancel" => {
+                google.cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "signOut" => {
+                google.sign_out();
+                emit("mobius:google-drive-changed", Value::Null);
+                Ok(json!({ "ok": true }))
+            }
+            "links" => Ok(json!(google.links())),
+            "linkOf" => Ok(text(0).and_then(|p| google.link_of(p)).map_or(Value::Null, |l| json!(l))),
+            "forget" => text(0).ok_or_else(|| "Which file?".to_owned()).and_then(|p| google.forget(p)).map(|()| json!({ "ok": true })),
+            "saveBack" => text(0).ok_or_else(|| "Which file?".to_owned()).and_then(|path| {
+                let bytes = self.workspace.read_file(path, crate::drives::MAX_FILE)?;
+                let link = google.save_back(path, &bytes)?;
+                emit("mobius:google-drive-changed", json!({ "saved": link }));
+                Ok(json!({ "ok": true, "link": link }))
+            }),
+            // Pick on Google Drive, then copy each file into `folder` (default "Google Drive"), never over anything.
+            "open" => {
+                let folder = text(0).map(|f| f.trim_matches('/').to_owned()).filter(|f| !f.is_empty()).unwrap_or_else(|| "Google Drive".to_owned());
+                let (me, data_dir) = (google.clone(), self.data_dir.clone());
+                google
+                    .start_pick(Arc::new(move |picked: Result<Vec<String>, String>| {
+                        let workspace = mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                        let (opened, failed) = match picked {
+                            Ok(ids) => me.open_into(&workspace, &folder, &ids),
+                            Err(e) => (Vec::new(), vec![json!({ "message": e })]),
+                        };
+                        emit("mobius:google-drive-changed", json!({ "opened": opened, "failed": failed }));
+                    }))
+                    .map(|p| json!(p))
+            }
+            _ => Err(format!("Google Drive cannot {method}.")),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "conflict": message == CHANGED, "message": message }))
     }
 
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
@@ -3121,6 +3190,8 @@ impl Bridge {
     fn refresh_mirrors(&self) {
         self.calendar.set_mirrors(self.calendar_accounts.mirrors(&self.calendar.local_calendars()));
         (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
+        self.tasks.set_mirrors(self.calendar_accounts.task_mirrors(&self.tasks.local_lists()));
+        (self.emit)("mobius:tasks-changed", json!({ "list": null, "by": "another app" }));
     }
 
     /// The Mail app. Every answer is what was asked for or `{ ok: false, message }`. Sending is here, for the person's
