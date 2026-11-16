@@ -35,6 +35,9 @@ pub struct Job {
     pub max_tokens: Option<u32>,
     /// How many run at once (the core's default is 6, at most 24).
     pub at_once: Option<usize>,
+    /// Ask the chat model instead of the quick one: for writing that must meet the chat model's bar (drafts), where
+    /// the quick model is for sorting and short answers.
+    pub chat: bool,
 }
 
 /// The answers the core is still sending, by job.
@@ -90,6 +93,9 @@ impl Asks {
         }
         if let Some(n) = job.at_once {
             params["at_once"] = json!(n);
+        }
+        if job.chat {
+            params["quick"] = json!(false);
         }
         call("agent.ask_each", params)?;
         let mut got: HashMap<String, Result<String, String>> = HashMap::new();
@@ -173,6 +179,7 @@ mod tests {
         let call = move |method: &str, params: Value| {
             assert_eq!(method, "agent.ask_each");
             assert_eq!(params["items"].as_array().unwrap().len(), 3);
+            assert!(params.get("quick").is_none(), "the quick model unless the job asks for the chat model");
             let (core, job) = (core.clone(), params["job"].clone());
             std::thread::spawn(move || {
                 for (id, answer) in [
@@ -211,6 +218,18 @@ mod tests {
             asks.waiting.lock().unwrap().is_empty(),
             "the job is forgotten"
         );
+    }
+
+    #[test]
+    fn a_job_can_ask_the_chat_model() {
+        let asks = Asks::default();
+        let sent = Mutex::new(Value::Null);
+        let call = |_: &str, params: Value| {
+            *sent.lock().unwrap() = params;
+            Err("stop here".to_owned())
+        };
+        let _ = asks.run(&Job { chat: true, ..job(1) }, &call, &mut |_, _| {}, MOST_WAIT);
+        assert_eq!(sent.lock().unwrap()["quick"], false);
     }
 
     #[test]
