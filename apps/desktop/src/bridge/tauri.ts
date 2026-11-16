@@ -23,6 +23,7 @@ import {
   type DbChange,
   type TasksChanged,
   type CalendarChanged,
+  type CalendarSignIn,
   type ContactsChanged,
   type GoogleDriveChanged,
   type DrivesChanged,
@@ -453,6 +454,10 @@ export function createTauriBridge(): MobiusBridge {
       connect: (account) => call('calendar', 'connect', [account], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       removeAccount: (id) => call('calendar', 'removeAccount', [id], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       sync: (id) => call('calendar', 'sync', [id], () => []),
+      googleStatus: () => call('calendar', 'googleStatus', [], () => ({ setUp: false, pending: null, hint: null })),
+      googleSignIn: (account) => call('calendar', 'googleSignIn', [account], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      googleCancel: () => call('calendar', 'googleCancel', [], () => ({ ok: true as const })),
+      onSignIn: (listener) => on<CalendarSignIn>('mobius:calendar-sign-in', listener),
       onChanged: (listener) => on<CalendarChanged>('mobius:calendar-changed', listener),
     },
     googleDrive: {

@@ -3519,6 +3519,21 @@ impl Bridge {
                 changed_accounts(accounts.connect(field("name"), field("server"), field("username"), field("password")))
             }
             "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| changed_accounts(accounts.remove(id))),
+            // Google: a sign-in on Google's page, then the account is kept; the window hears how it ended
+            // (`mobius:calendar-sign-in`) and asks for the account's calendars again.
+            "googleStatus" => Ok(accounts.google_status()),
+            "googleCancel" => {
+                accounts.google_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "googleSignIn" => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str);
+                let emit = self.emit.clone();
+                accounts.google_sign_in(field("name").unwrap_or(""), field("again"), Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(account) => emit("mobius:calendar-sign-in", json!({ "ok": true, "account": account })),
+                    Err(message) => emit("mobius:calendar-sign-in", json!({ "ok": false, "message": message })),
+                }))
+            }
             "sync" => {
                 accounts.sync(text(0));
                 self.refresh_mirrors();
@@ -3542,7 +3557,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync") {
+                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync" | "googleStatus" | "googleCancel" | "googleSignIn") {
                     let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
                 }
