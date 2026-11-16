@@ -289,7 +289,7 @@ Mobius reads a drive freely and asks before every change on one. In order:
 | 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Have: browse, copy and sync, with multipart upload for big files |
 | 4 | Dropbox | Andrew registering Mobius with Dropbox ([steps](drive-sign-in.md#dropbox)) | Waiting on the registration |
 | 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs ([steps](drive-sign-in.md#microsoft)) | Waiting on the registration |
-| 6 | Google Drive | Andrew registering Mobius with Google. Full access to a person's Drive is a restricted permission that Google reviews before an app is public; until that passes, sign-in is limited to named test accounts ([steps](drive-sign-in.md#google)). | Waiting on the registration and Google's review |
+| 6 | Google Drive: the files people pick (`drive.file`, Andrew's choice on 16 November 2026), opened through Google's picker; no folder browsing or sync. Whole-Drive access is a later decision, because Google requires a paid security assessment every year for it | Andrew registering Mobius with Google ([steps](drive-sign-in.md#google)). Testing works now; publishing needs a domain | Waiting on the registration; the picker flow is built after the contacts store |
 | 7 | Network shares (SMB) | Nothing | Later |
 
 Cloud drives sign in on the service's own page and Mobius keeps only the token, in the system's secret store. Sync is

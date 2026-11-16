@@ -17,15 +17,24 @@ ones to look for.
 | --- | --- | --- | --- | --- |
 | [Dropbox](#dropbox) | Free | Minutes. Production review only starts once 50 people have linked | Dropbox in Files and sync | The app key |
 | [Microsoft](#microsoft) | Free | Minutes. Publisher verification is optional and also free | OneDrive and SharePoint, Outlook calendar, Outlook mail | The application (client) ID |
-| [Google](#google) | Free with `drive.file`. Full Drive access, or Gmail sign-in, adds a yearly paid security assessment (about $540 to $5,400 a year) | Minutes for testing. Google's review for the public takes days to weeks | Google Drive and Google Calendar (Gmail keeps app passwords) | The client ID and client secret |
+| [Google](#google) | Free: Andrew chose `drive.file`, the files people pick. Full Drive access, or Gmail sign-in, would add a yearly paid assessment (about $540 to $5,400 a year) | Minutes for testing, with no domain. Publishing needs a domain, then Google's review (days to weeks) | Files people pick from Google Drive, and Google Calendar (Gmail keeps app passwords) | The client ID and secret, and a Picker API key |
 
-**One decision first, for Google:** whether Mobius asks for all of a person's Drive, or only the files and folders
-Mobius made or that the person picks. See [Google: which Drive access](#which-drive-access). The Builder recommends
-the narrow one (`drive.file`) to start: it is free and needs only Google's basic review.
+**Decided for Google** (Andrew, 16 November 2026): Mobius asks only for the files people pick (`drive.file`), opened
+through Google's own picker. There's no folder browsing or sync on Google Drive for now. Whole-Drive access is a later
+decision. See [Google: which Drive access](#which-drive-access).
 
-**Also needed for Google, and useful for the others:** a homepage and a privacy policy for Mobius, on a domain
-Andrew owns, at two different addresses. Google checks both. Dropbox asks for a privacy policy before production.
-The Docs lead can write the privacy policy. It is short, because Mobius keeps everything on the person's computer.
+**Which need a domain and a privacy policy:**
+
+| Service | Domain | Privacy policy |
+| --- | --- | --- |
+| Google | Needed to publish. Testing works without one. The homepage must be on a domain Andrew owns and has verified in Search Console. Developers report `github.io` being refused | Needed to publish, on the same domain as the homepage |
+| Dropbox | Not needed | Not needed to register. Dropbox's guide asks apps to have one, and it helps the production request |
+| Microsoft | Not needed to register. Publisher verification (optional) needs one | Not needed. Entra has an optional field for it |
+
+So the path is: one domain, pointed at a small GitHub Pages site with a homepage and a privacy policy, then verified in
+Search Console. Until then, Google stays in testing with named test accounts, and Dropbox and Microsoft go ahead as
+written. The Docs lead can write the privacy policy. It is short, because Mobius keeps everything on the person's
+computer.
 
 ## Dropbox
 
@@ -90,13 +99,11 @@ Google sorts Drive access into tiers, and the tier decides the cost:
 | `drive.file` | Files and folders Mobius made, and the ones the person opens or shares with it | Basic verification | Free |
 | `drive` | The person's whole Drive | Restricted-scope review, plus a security assessment by an approved lab, **every year** | About $540 to $5,400 a year, paid to the lab (AL1 or AL2, Google decides which) |
 
-With `drive.file`, sync works for a folder Mobius creates on the person's Drive ("Mobius/Notes"), and for files the
-person opens in Mobius. It doesn't reach folders made elsewhere unless the person picks them. One solo developer with
-a full-Drive app reported that saying "no server" didn't exempt them from the assessment: Google decides by the scope,
-not by the architecture.
-
-**Recommendation:** start with `drive.file`. Move to `drive` only if people ask for their existing folders, and then
-budget for the yearly assessment.
+**Andrew chose `drive.file`.** In Files, "Open from Google Drive" shows Google's picker. The files the person picks can
+be opened, copied into the workspace, and saved back. Files Mobius makes on the Drive stay reachable too. Folder
+browsing and sync aren't offered on Google Drive with this scope. They would need `drive`, and its yearly assessment.
+One solo developer with a full-Drive app reported that saying "no server" didn't exempt them from the assessment:
+Google decides by the scope, not by the architecture.
 
 Calendar scopes need Google's review too, but they aren't restricted, so there's no paid assessment. **Gmail is
 different.** Mobius's Mail speaks IMAP, and IMAP with a Google sign-in needs `https://mail.google.com/`, which is
@@ -104,34 +111,43 @@ restricted: the same yearly assessment as full Drive. Gmail already works today 
 Verification is on), so the Builder suggests leaving Gmail sign-in out of this registration and doing Drive and
 Calendar only.
 
-### Steps
+### Steps now, with no domain
 
 1. At [console.cloud.google.com](https://console.cloud.google.com), create a project called **Mobius**.
-2. **APIs & Services → Library:** enable the **Google Drive API** and the **Google Calendar API**.
-3. **Google Auth Platform → Branding:**
-   - App name **Mobius**, a support email, and the logo (square, 120 × 120 px, under 1 MB).
-   - **Authorized domains:** Andrew's domain. Verify it in [Google Search Console](https://search.google.com/search-console)
-     with the same Google account.
-   - **Homepage** and **privacy policy** links, on that domain, at different addresses. The homepage must say what Mobius
-     does (not only a sign-in page) and link the privacy policy.
-   - Publish the branding. This check usually takes minutes.
+2. **APIs & Services → Library:** enable the **Google Drive API**, the **Google Picker API** and the
+   **Google Calendar API**.
+3. **Google Auth Platform → Branding:** app name **Mobius** and a support email. Leave the domain, homepage and privacy
+   policy empty for now: testing doesn't need them.
 4. **Audience:** choose **External**. Leave it in **Testing**, and add Andrew's and any testers' Google accounts as
    **test users** (up to 100).
-5. **Data access:** add `openid`, `email`, `https://www.googleapis.com/auth/drive.file` (or `drive`, if that was the
-   decision), and `https://www.googleapis.com/auth/calendar`.
+5. **Data access:** add `openid`, `email`, `https://www.googleapis.com/auth/drive.file` and
+   `https://www.googleapis.com/auth/calendar`.
 6. **Clients → Create client → Desktop app**, named Mobius. Desktop clients use any `127.0.0.1` port, so no redirect URI
    needs adding.
-7. **Hand back** the **client ID** and **client secret**. Google says a desktop app's secret can't be kept secret, so
-   it ships inside Mobius like the ID. It still goes to the Builder in the thread, not into the repository by hand.
+7. **APIs & Services → Credentials → Create credentials → API key.** Restrict it to the **Google Picker API**. The picker
+   needs this key beside the sign-in.
+8. **Hand back** the **client ID**, the **client secret** and the **API key**. Google says a desktop app's secret can't
+   be kept secret, so it ships inside Mobius like the ID, and the key is limited to the picker. They still go to the
+   Builder in the thread, not into the repository by hand.
+
+### Later, to publish (needs the domain)
+
+1. Buy a domain, point it at a GitHub Pages site with a homepage and a privacy policy at two different addresses, and
+   verify it in [Google Search Console](https://search.google.com/search-console) with the same Google account. The
+   homepage must say what Mobius does (not only a sign-in page) and link the privacy policy.
+2. **Branding:** add the domain under **Authorized domains**, the homepage and privacy policy links, and the logo (square,
+   120 × 120 px, under 1 MB). Publish the branding. This check usually takes minutes.
+3. **Audience → Publish app**, then submit for verification (below).
 
 **While it is in testing**, only the listed test users can sign in, and each sign-in expires after seven days, so testers
-sign in again weekly. That's enough to build and test everything.
+sign in again weekly. That's enough to build and test everything. The Builder will check early that Google's picker
+opens from Mobius's own page on `127.0.0.1`, and will say so here if the picker needs anything more.
 
-**For everyone:** choose **Publish app** and submit for verification. Google asks for the scope justifications and a
+**For everyone (once the domain is in):** choose **Publish app** and submit for verification. Google asks for the scope justifications and a
 short demonstration video (unlisted on YouTube, in English) of the whole sign-in, with the consent screen showing the
 scopes. The Builder will write the justifications and record the video. Google doesn't publish a time for this review.
-Expect days to a few weeks, with a round of questions or two. Full `drive` then adds the security assessment, which
-takes 2 to 6 weeks a year.
+Expect days to a few weeks, with a round of questions or two. Whole-Drive access, if it's chosen later, would add the
+security assessment, which takes 2 to 6 weeks a year.
 
 ## What the Builder does with them
 
@@ -139,7 +155,8 @@ The IDs aren't secrets. They go in the build as Mobius's own (`crates/mobius-hos
 person can still put in their own ID in Settings, for a company that registers its own copy. The Builder then:
 
 - adds the one OAuth piece every service shares (PKCE, the `127.0.0.1` redirect, tokens in the secret store);
-- adds Dropbox, OneDrive and Google Drive behind the `Drive` interface, so Files and sync work on them;
+- adds Dropbox and OneDrive behind the `Drive` interface, so Files and sync work on them;
+- adds "Open from Google Drive" in Files: Google's picker, then open, copy in and save back the files picked;
 - adds Google and Microsoft sign-in to Calendar, then Mail.
 
 Until an ID arrives, each of those waits, and the [build plan](build-plan.md#drives) says so.
