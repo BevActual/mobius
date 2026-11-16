@@ -1594,6 +1594,22 @@ impl Bridge {
             }
             return result;
         }
+        if tool == "mail.sort" {
+            // Triage: each unread message asked about on its own, all at once, on the quick model; the groups and
+            // counts are then made in code.
+            let (system, asks) = self.mail.sort_asks();
+            let job = crate::ask_each::Job {
+                conversation: params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned(),
+                system,
+                asks: asks.into_iter().map(|(id, prompt)| crate::ask_each::Ask { id, prompt }).collect(),
+                max_tokens: Some(120),
+                // Two rounds for forty messages (each call can be its own process, so many at once pays).
+                at_once: Some(20),
+                ..Default::default()
+            };
+            let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
+        }
         if crate::mail::store::is_mail_tool(tool) {
             let result = self.mail.run(tool, &args).map(Value::String);
             if result.is_ok() && tool == "mail.draft" {

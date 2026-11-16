@@ -28,6 +28,7 @@ sheets.read
 sheets.write
 mail.search
 mail.read
+mail.sort
 mail.draft
 memory.remember
 memory.forget

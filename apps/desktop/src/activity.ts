@@ -63,6 +63,7 @@ const LABELS: Record<string, string> = {
   'sheets.write': 'Changing a sheet',
   'mail.search': 'Looking through your mail',
   'mail.read': 'Reading an email',
+  'mail.sort': 'Sorting your unread mail',
   'mail.draft': 'Drafting an email',
   'todo.write': 'Making a plan',
 };
