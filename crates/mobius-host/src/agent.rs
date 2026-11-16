@@ -540,7 +540,9 @@ impl AgentService {
         let mut p = core_params(s);
         if let Some((base_url, model, key)) = lock(&self.quick).clone() {
             p["quick"] = json!({ "base_url": base_url, "model": model });
-            if let Some(k) = key {
+            // A plan signed in to in the browser (ChatGPT, Copilot) gives its token the way it does for chat.
+            let signed_in = || lock(&self.token_sources).iter().find(|(a, _)| a.eq_ignore_ascii_case(base_url.trim())).map(|(_, f)| f.clone()).and_then(|f| f().ok().flatten());
+            if let Some(k) = key.or_else(signed_in) {
                 p["quick"]["api_key"] = json!(k);
             }
         }

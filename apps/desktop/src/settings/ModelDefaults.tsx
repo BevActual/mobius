@@ -115,13 +115,13 @@ export function quickKey(catalog: ModelCatalog, quick: string): string {
   const [id, ...rest] = quick.split('|');
   const model = rest.join('|');
   if (!id || !model) return 'none';
-  const group = catalog.groups.find((g) => g.kind === 'provider' && g.id === id);
+  const group = catalog.groups.find((g) => (g.kind === 'provider' || g.kind === 'subscription') && g.id === id);
   return group ? keyOf(group, model) : 'none';
 }
 
 /**
- * The model for quick jobs, such as checking a step in Auto before it runs: a pop-up of the models the connected
- * gateways offer, or Same as chat. A small, fast model fits. Its address and key come from the gateway, in the core.
+ * The model for quick jobs, such as checking a step in Auto before it runs: a pop-up of the models the plans signed in
+ * to and the connected gateways offer, or Same as chat. A small, fast model fits. Its address and key come from the gateway, in the core.
  */
 export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: () => void }) {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null);
@@ -132,7 +132,8 @@ export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: ()
   }, []);
   useEffect(() => { void load(); return window.mobius.providers?.onChanged(() => void load()); }, [load]);
   if (catalog === null) return <span className="srow-text" role="status">Loading models…</span>;
-  const groups = catalog.groups.filter((g) => g.kind === 'provider' && g.models.length > 0);
+  // Plans signed in to come first: Haiku on the Claude subscription costs nothing more than the plan.
+  const groups = catalog.groups.filter((g) => (g.kind === 'subscription' || g.kind === 'provider') && g.models.length > 0);
   const value = quickKey(catalog, quick);
   const choose = async (key: string) => {
     setProblem(null);
