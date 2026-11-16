@@ -144,6 +144,18 @@ fn entity_tag(tag: &str) -> String {
     if tag.starts_with('"') || tag.starts_with("W/") { tag.to_owned() } else { format!("\"{tag}\"") }
 }
 
+/// What a file is, for a PUT. CardDAV and CalDAV servers (iCloud among them) want a card or an event sent as one.
+fn content_type_for(path: &str) -> &'static str {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".vcf") {
+        "text/vcard; charset=utf-8"
+    } else if lower.ends_with(".ics") {
+        "text/calendar; charset=utf-8"
+    } else {
+        "application/octet-stream"
+    }
+}
+
 fn http_agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
@@ -416,7 +428,7 @@ impl Drive for WebDav {
         }
         let url = self.url_of(path, false)?;
         let condition = etag.map_or(("If-None-Match", "*".to_owned()), |e| ("If-Match", e.to_owned()));
-        let reply = self.send("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], bytes, 64 * 1024)?;
+        let reply = self.send("PUT", &url, &[condition, ("Content-Type", content_type_for(path).to_owned())], bytes, 64 * 1024)?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
             s => Err(WebDav::put_failed(s, etag)),
@@ -486,7 +498,7 @@ impl Drive for WebDav {
         }
         let url = self.url_of(path, false)?;
         let condition = etag.map_or(("If-None-Match", "*".to_owned()), |e| ("If-Match", e.to_owned()));
-        let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
+        let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", content_type_for(path).to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
             s => Err(WebDav::put_failed(s, etag)),

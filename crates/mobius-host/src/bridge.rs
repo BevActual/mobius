@@ -102,6 +102,7 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
 struct SyncHost {
     data_dir: PathBuf,
     drives: Arc<crate::drives::Drives>,
+    contact_accounts: Arc<crate::contact_accounts::ContactAccounts>,
     turn_history: Arc<crate::turn_history::TurnHistory>,
     emit: Emit,
     changed_outside: crate::mcp_server::Changed,
@@ -115,9 +116,16 @@ impl SyncHost {
 
 impl crate::sync_pairs::SyncHost for SyncHost {
     fn drive(&self, id: &str) -> Result<Box<dyn crate::drives::Drive>, String> {
+        // A CardDAV address book syncs like a drive folder.
+        if id.starts_with(crate::contact_accounts::PREFIX) {
+            return self.contact_accounts.drive(id);
+        }
         self.drives.open(id)
     }
     fn drive_name(&self, id: &str) -> Option<String> {
+        if id.starts_with(crate::contact_accounts::PREFIX) {
+            return self.contact_accounts.name(id);
+        }
         self.drives.name(id)
     }
     fn root(&self) -> Result<PathBuf, String> {
@@ -299,6 +307,8 @@ pub struct Bridge {
     drives: Arc<crate::drives::Drives>,
     /// Workspace folders synced with a folder on a drive.
     syncs: Arc<crate::sync_pairs::Syncs>,
+    /// Address books on CardDAV servers, each synced with its folder under `contacts/`.
+    contact_accounts: Arc<crate::contact_accounts::ContactAccounts>,
     mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
@@ -414,9 +424,10 @@ impl Bridge {
         );
         let turn_history = Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")));
         let drives = Arc::new(crate::drives::Drives::new(&data_dir, secrets.clone()));
+        let contact_accounts = Arc::new(crate::contact_accounts::ContactAccounts::new(&data_dir, secrets.clone()));
         let syncs = crate::sync_pairs::Syncs::open(
             &data_dir,
-            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
+            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), contact_accounts: contact_accounts.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
         );
         let bridge = Bridge {
             mcp_server,
@@ -496,6 +507,7 @@ impl Bridge {
             },
             calendar_accounts,
             drives,
+            contact_accounts,
             syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
@@ -2970,6 +2982,32 @@ impl Bridge {
                 (Some(book), Some(id), Some(card)) => one(contacts.restore(book, id, card)),
                 _ => Err("a book, an id and the card are needed".into()),
             },
+            "accounts" => Ok(self.contact_accounts.list()),
+            // Signs in, finds the account's address books, and syncs each with its own folder under contacts/.
+            "connect" => {
+                let a = args.first().cloned().unwrap_or(Value::Null);
+                let field = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("");
+                let taken: Vec<String> = contacts.books().into_iter().filter(|b| b != mobius_workspace::contacts::DEFAULT_BOOK || !contacts.all(Some(b)).is_empty()).collect();
+                self.contact_accounts.connect(field("name"), field("server"), field("username"), field("password"), &taken).and_then(|account| {
+                    for (i, book) in account.books.iter().enumerate() {
+                        let drive = crate::contact_accounts::drive_id(&account.id, i);
+                        if let Err(e) = self.syncs.add(&format!("{}/{}", mobius_workspace::contacts::FOLDER, book.folder), &drive, "") {
+                            for d in self.contact_accounts.remove(&account.id).unwrap_or_default() {
+                                self.syncs.remove_drive(&d);
+                            }
+                            return Err(e);
+                        }
+                    }
+                    Ok(json!({ "id": account.id, "name": account.name, "books": account.books.iter().map(|b| b.folder.clone()).collect::<Vec<_>>() }))
+                })
+            }
+            // Stops syncing the account's books and forgets it. The cards here stay.
+            "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| self.contact_accounts.remove(id)).map(|drives| {
+                for d in drives {
+                    self.syncs.remove_drive(&d);
+                }
+                json!({ "ok": true })
+            }),
             _ => Err(format!("unknown contacts call {method}")),
         };
         if result.is_ok() && matches!(method, "save" | "remove" | "restore") {
