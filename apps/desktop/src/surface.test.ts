@@ -58,7 +58,7 @@ describe('what each app suggests', () => {
     expect(first.prompt).toContain('say nothing until the end');
     for (const tool of ['calendar.free', 'calendar.suggest', 'mail.draft']) expect(first.prompt).toContain(tool);
     // What the second demo run showed: eight slots and no draft, a morning when Sam had said afternoons.
-    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft', 'dayStart 13:00']) expect(first.prompt).toContain(words);
+    for (const words of ['two or three', 'mail.search', 'weekdays', 'mail.draft', 'dayStart 13:00', 'First look with mail.search', 'calendar.free once']) expect(first.prompt).toContain(words);
   });
   it('offers Make these match in an open album of more than one photo, as one photos.edit on the album', () => {
     expect(suggestionsFor({ app: 'photo', hasPage: false, note: null, album: null })).toEqual([]);
