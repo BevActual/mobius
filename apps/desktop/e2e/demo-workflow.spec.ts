@@ -220,7 +220,7 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
   });
 
   await step('event-in-calendar', async (note) => {
-    const link = log().getByRole('button', { name: /P2 brake kit review with Priya/ });
+    const link = log().getByRole('button', { name: /^Added “P2 brake kit review with Priya”/ });
     note(`the calendar change in the conversation is a link: ${await link.count() > 0}`);
     if (await link.count()) await link.click();
     else {

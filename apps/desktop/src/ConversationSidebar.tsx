@@ -6,7 +6,7 @@ import { EMPTY_DRAFT, type AgentView } from './AgentPage';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
-import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
+import { KEPT_EVENT, keepTurn, keptTurns, movesIn, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
 import { botFromConversation } from './bot-view';
@@ -209,7 +209,8 @@ export function ChangesWaiting({ conversations, onSelect, onRows, glyph }: {
   /** Activity (marked, Activity only): which conversations are listed, so it doesn't list them twice. */
   onRows?: (ids: string[]) => void;
 }) {
-  const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[] }[]>([]);
+  // `count`: what changed, a moved file once though both its paths changed (as the chat's strip counts it).
+  const [rows, setRows] = useState<{ conversation: ConversationInfo; turn: string | null; files: string[]; count: number }[]>([]);
   const listed = rows.map((r) => r.conversation.id).join(',');
   useEffect(() => { onRows?.(listed ? listed.split(',') : []); }, [listed]); // eslint-disable-line react-hooks/exhaustive-deps
   const [tick, setTick] = useState(0);
@@ -220,7 +221,9 @@ export function ChangesWaiting({ conversations, onSelect, onRows, glyph }: {
       const r = await window.mobius.changes?.lastTurn(conversation.id).catch(() => null);
       const changes = r && 'files' in r ? r : null;
       const turn = turnId(conversation.id, changes?.checkpoint ?? null);
-      return { conversation, turn, files: changes && !(turn && keptTurns().includes(turn)) ? changes.files : [] };
+      const files = changes && !(turn && keptTurns().includes(turn)) ? changes.files : [];
+      const sources = new Set(movesIn(files, changes?.moves).values());
+      return { conversation, turn, files, count: files.filter((f) => !sources.has(f)).length };
     })).then((all) => live && setRows(all.filter((r) => r.files.length > 0)));
     const again = () => setTick((n) => n + 1);
     window.addEventListener(KEPT_EVENT, again);
@@ -239,12 +242,12 @@ export function ChangesWaiting({ conversations, onSelect, onRows, glyph }: {
     <section aria-label="Changes to review">
       <h3 className="clist-group"><span className="group-toggle"><span>Changes to review</span><span className="group-count">{rows.length}</span></span></h3>
       <ul className="clist" role="list" aria-label="Changes to review">
-        {rows.map(({ conversation, turn, files }) => (
+        {rows.map(({ conversation, turn, files, count }) => (
           <li key={conversation.id} className="clist-item change-row">
             {glyph?.(files)}
             <button type="button" className="clist-main" onClick={() => onSelect(conversation.id)}>
               <span className="clist-title">{conversation.title}</span>
-              <span className="clist-sub">Changed {files.length === 1 ? '1 item' : `${files.length} items`}</span>
+              <span className="clist-sub">Changed {count === 1 ? '1 item' : `${count} items`}</span>
             </button>
             <span className="change-actions">
               <ReviewActions onDiscard={() => discard(conversation.id, files, turn)} onKeep={() => { if (turn) keepTurn(turn); }} discardLabel={`Discard the changes from ${conversation.title}`} keepLabel={`Keep the changes from ${conversation.title}`} />
