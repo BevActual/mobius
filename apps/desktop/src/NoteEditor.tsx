@@ -1,4 +1,5 @@
 import { EmptyState } from './EmptyState';
+import { openWebLink } from './web-link';
 import { newItemIn } from './NotesSidebar';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
@@ -318,10 +319,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
       handleClick: (_view, _pos, event) => {
         const a = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
         const href = a?.getAttribute('href') ?? '';
-        // A web link opens in the Browser (a link to one of your pages from an earlier start goes where it is now).
+        // A web link shows in the Browser, in its tab if it has one; with Ctrl it opens there and you stay here. (A link
+        // to one of your pages from an earlier start goes where it is now.)
         if (/^https?:\/\//i.test(href)) {
           event.preventDefault();
-          void window.mobius.browser.open(href);
+          openWebLink(href, event.ctrlKey || event.metaKey);
           return true;
         }
         const page = a && pathNow.current ? pageOfLink(href, pathNow.current) : null;
