@@ -1618,24 +1618,40 @@ impl Bridge {
                 .collect();
             // The week ahead: events as a line each, and the free hours, earliest first, dealt out among the replies.
             let listed: Value = self.calendar.run("calendar.list", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
-            let events: Vec<String> = listed.as_array().or_else(|| listed["events"].as_array()).into_iter().flatten().take(40)
-                .map(|e| format!("- {} to {}: {}", e["start"].as_str().unwrap_or(""), e["end"].as_str().unwrap_or(""), e["title"].as_str().unwrap_or("")))
+            let events: Vec<(String, String)> = listed.as_array().into_iter().flatten().take(40)
+                .map(|e| (e["start"].as_str().unwrap_or("").to_owned(), e["title"].as_str().unwrap_or("").to_owned()))
                 .collect();
             let open: Value = self.calendar.run("calendar.free", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
             let free: Vec<String> = open["free"].as_array().into_iter().flatten()
                 .filter_map(|f| Some(format!("{} to {}", f["start"].as_str()?, f["end"].as_str()?.split('T').nth(1)?)))
                 .collect();
-            let (system, asks) = self.mail.draft_asks(&replies, &events.join("\n"), &free);
+            let asked = self.mail.draft_asks(&replies, &events, &free);
+            let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned();
             let job = crate::ask_each::Job {
-                conversation: params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned(),
-                system,
-                asks: asks.into_iter().map(|(id, prompt)| crate::ask_each::Ask { id, prompt }).collect(),
+                conversation: conversation.clone(),
+                system: asked.system.clone(),
+                asks: asked.asks.iter().map(|(id, prompt)| crate::ask_each::Ask { id: id.clone(), prompt: prompt.clone() }).collect(),
                 max_tokens: Some(500),
                 at_once: Some(crate::mail::store::MAX_TRIAGE_DRAFTS),
                 chat: std::env::var("MOBIUS_TRIAGE_DRAFTS").is_ok_and(|v| v == "chat"),
                 ..Default::default()
             };
-            let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            let mut answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            // A reply that leaves out the meeting already booked on its subject is asked once more, saying so.
+            let missed: Vec<crate::ask_each::Ask> = asked.booked.iter()
+                .filter(|(id, _, start)| answers.iter().any(|(a, body)| a == id && body.as_ref().is_ok_and(|b| !crate::mail::store::names_booked(b, start))))
+                .filter_map(|(id, line, _)| asked.asks.iter().find(|(a, _)| a == id).map(|(_, prompt)| crate::ask_each::Ask { id: id.clone(), prompt: format!("{prompt}\n\nYour last reply left this out. Say it, with its day and date: {line}.") }))
+                .collect();
+            if !missed.is_empty() {
+                let again = crate::ask_each::Job { asks: missed, ..job.clone() };
+                for (id, body) in self.ask_each(&again, &mut |_, _| {}).unwrap_or_default() {
+                    if body.is_ok() {
+                        if let Some(slot) = answers.iter_mut().find(|(a, _)| *a == id) {
+                            slot.1 = body;
+                        }
+                    }
+                }
+            }
             let why_of = |id: &str| replies.iter().find(|(r, _)| r == id).map(|(_, w)| w.clone()).unwrap_or_default();
             let (mut made, mut not_made) = (Vec::new(), Vec::new());
             for (id, answer) in answers {

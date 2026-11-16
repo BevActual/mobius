@@ -305,6 +305,36 @@ fn why_beyond(subject: &str, why: &str) -> Option<String> {
     Some(chars.next().map(|c| c.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default())
 }
 
+/// What Triage's replies are asked with.
+pub struct DraftAsks {
+    pub system: String,
+    /// By message id, what that reply is asked.
+    pub asks: Vec<(String, String)>,
+    /// By message id, a meeting already booked on its subject: the line the reply must carry, and when it starts.
+    pub booked: Vec<(String, String, String)>,
+}
+
+/// A time as a person says it: "2026-11-20T10:00" is "Friday 20 November at 10:00".
+fn when_said(start: &str) -> String {
+    chrono::NaiveDateTime::parse_from_str(start, "%Y-%m-%dT%H:%M").map_or_else(
+        |_| chrono::NaiveDate::parse_from_str(start, "%Y-%m-%d").map_or_else(|_| start.to_owned(), |d| d.format("%A %-d %B").to_string()),
+        |t| t.format("%A %-d %B at %H:%M").to_string(),
+    )
+}
+
+/// Whether a reply names the meeting starting then: its day of the month and its hour ("20" and "10:00" or "10am").
+pub fn names_booked(body: &str, start: &str) -> bool {
+    let Ok(t) = chrono::NaiveDateTime::parse_from_str(start, "%Y-%m-%dT%H:%M") else { return true };
+    let text = body.to_lowercase();
+    let day = t.format("%-d").to_string();
+    let has_day = text.split(|c: char| !c.is_ascii_digit()).any(|w| w == day);
+    let (h24, m) = (t.format("%H:%M").to_string(), t.format("%M").to_string());
+    let h12 = t.format("%-I").to_string();
+    let has_time = text.contains(&h24) || text.contains(&t.format("%-H:%M").to_string())
+        || (m == "00" && [format!("{h12}am"), format!("{h12} am"), format!("{h12}pm"), format!("{h12} pm")].iter().any(|x| text.contains(x.as_str())));
+    has_day && has_time
+}
+
 /// The most replies Triage drafts in a turn.
 pub const MAX_TRIAGE_DRAFTS: usize = 5;
 
@@ -855,11 +885,13 @@ impl Mail {
     /// `events` is the person's calendar for the days ahead; `free` their free hours, earliest first. Each reply gets
     /// free hours of its own (the first, the next and so on, dealt out in turn), so two replies written at once never
     /// offer the same hour.
-    pub fn draft_asks(&self, replies: &[(String, String)], events: &str, free: &[String]) -> (String, Vec<(String, String)>) {
+    /// A meeting already booked on an email's subject is given as a line the reply must carry (`DraftAsks::booked`),
+    /// and checked by [`names_booked`] after.
+    pub fn draft_asks(&self, replies: &[(String, String)], events: &[(String, String)], free: &[String]) -> DraftAsks {
         let drafted: std::collections::HashSet<String> = self.lock().drafts.iter().filter_map(|d| d.reply_to.clone()).collect();
         let me = self.lock().accounts.first().map(|a| if a.name.is_empty() { a.email.clone() } else { a.name.clone() }).unwrap_or_default();
         let chosen: Vec<&(String, String)> = replies.iter().filter(|(id, _)| !drafted.contains(id)).take(MAX_TRIAGE_DRAFTS).collect();
-        let mut asks = Vec::new();
+        let (mut asks, mut booked) = (Vec::new(), Vec::new());
         for (k, (id, why)) in chosen.iter().enumerate() {
             let Ok(full) = self.read(id, false) else { continue };
             let from = &full["from"];
@@ -872,17 +904,29 @@ impl Mail {
                 .collect();
             let thread = if earlier.is_empty() { String::new() } else { format!("\n\nEarlier mail with them, for context only:\n{}", earlier.join("\n")) };
             let mine: Vec<&str> = free.iter().skip(k).step_by(chosen.len().max(1)).take(2).map(String::as_str).collect();
+            let listed: Vec<String> = events.iter().map(|(start, title)| format!("- {}: {title}", when_said(start))).collect();
+            // A meeting on this email's subject: two words of four letters or more in common ("Brake review" for
+            // "Kestrel P2: brake kit review").
+            let subject = full["subject"].as_str().unwrap_or("");
+            let words = |t: &str| -> Vec<String> { t.to_lowercase().split(|c: char| !c.is_alphanumeric()).filter(|w| w.len() >= 4).map(str::to_owned).collect() };
+            let said = words(subject);
+            let met = events.iter().find(|(_, title)| words(title).iter().filter(|w| said.contains(w)).count() >= 2);
+            let must = met.map(|(start, title)| format!("{title} is already booked for {}", when_said(start)));
+            if let (Some(line), Some((start, _))) = (&must, met) {
+                booked.push((id.clone(), line.clone(), start.clone()));
+            }
             let week = format!(
-                "\n\nYour calendar for the days ahead, for context only:\n{}\nFree times this reply may offer: {}",
-                if events.is_empty() { "nothing booked" } else { events },
-                if mine.is_empty() { "none".to_owned() } else { mine.join(", ") }
+                "\n\nYour calendar for the days ahead, for context only:\n{}\nFree times this reply may offer: {}{}",
+                if listed.is_empty() { "nothing booked".to_owned() } else { listed.join("\n") },
+                if mine.is_empty() { "none".to_owned() } else { mine.join(", ") },
+                must.map(|l| format!("\nThe reply must say, with its day and date: {l}.")).unwrap_or_default()
             );
             asks.push((id.clone(), format!(
                 "You write as {me}.\nWhy it needs an answer: {why}\n\nFrom: {} <{email}>\nSubject: {}\n\n{}{thread}{week}",
                 from["name"].as_str().unwrap_or(""), full["subject"].as_str().unwrap_or(""), full["text"].as_str().unwrap_or("").chars().take(4000).collect::<String>()
             )));
         }
-        (DRAFT_SYSTEM.to_owned(), asks)
+        DraftAsks { system: DRAFT_SYSTEM.to_owned(), asks, booked }
     }
 
     /// Messages, newest first: a mailbox (`inbox` or `sent`), a category (or `all`), and words to look for.
@@ -1672,19 +1716,26 @@ mod tests {
         let (_, asks) = mail.sort_asks();
         let id = |subject: &str| asks.iter().find(|(_, p)| p.contains(&format!("Subject: {subject}\n"))).unwrap().0.clone();
         let free: Vec<String> = ["Mon 14:30", "Mon 16:00", "Tue 10:00", "Tue 14:00"].map(str::to_owned).to_vec();
-        let (system, drafts) = mail.draft_asks(&[(id("Build week"), "confirm the build week".into()), (id("Dinner"), "dinner on Friday".into())], "Fri 10:00 Brake review", &free);
+        let events = vec![("2026-11-20T10:00".to_owned(), "Build week planning".to_owned())];
+        let asked = mail.draft_asks(&[(id("Build week"), "confirm the build week".into()), (id("Dinner"), "dinner on Friday".into())], &events, &free);
+        let (system, drafts) = (asked.system, asked.asks);
         assert!(system.contains("never decides or promises") && system.contains("\"Thanks,\""));
         assert_eq!(drafts.len(), 2);
         let build = &drafts[0].1;
         assert!(build.contains("Why it needs an answer: confirm the build week") && build.contains("send the plan to the team"), "{build}");
         // The sender's other mail comes with it, so a reply keeps what was said before.
-        assert!(build.contains("Earlier mail with them, for context only:\n- Dinner (they wrote)") && build.ends_with("for context only:\nFri 10:00 Brake review\nFree times this reply may offer: Mon 14:30, Tue 10:00"), "{build}");
+        assert!(build.contains("Earlier mail with them, for context only:\n- Dinner (they wrote)") && build.contains("for context only:\n- Friday 20 November at 10:00: Build week planning\nFree times this reply may offer: Mon 14:30, Tue 10:00\nThe reply must say, with its day and date: Build week planning is already booked for Friday 20 November at 10:00."), "{build}");
         assert!(system.contains("its scope") && system.contains("never bring up their other subjects") && system.contains("name its day and time"));
         // The other reply gets the other free times: two replies never offer the same hour.
         assert!(drafts[1].1.ends_with("Free times this reply may offer: Mon 16:00, Tue 14:00"), "{}", drafts[1].1);
+        // Only the email whose subject the meeting shares must name it, and a reply is checked for its day and hour.
+        assert_eq!(asked.booked.len(), 1);
+        assert!(names_booked("Hi Priya,\n\nThe review is on Friday the 20th at 10am.", "2026-11-20T10:00"));
+        assert!(names_booked("See you Fri 20 Nov, 10:00.", "2026-11-20T10:00"));
+        assert!(!names_booked("2pm tomorrow is taken; would Wed 13:30 suit?", "2026-11-20T10:00"));
         // A message a draft already answers gets no second one.
         mail.save_draft(&json!({ "replyTo": id("Dinner"), "body": "Yes" }), "mobius").unwrap();
-        assert_eq!(mail.draft_asks(&[(id("Dinner"), String::new())], "", &[]).1.len(), 0);
+        assert_eq!(mail.draft_asks(&[(id("Dinner"), String::new())], &[], &[]).asks.len(), 0);
     }
 
     #[test]
