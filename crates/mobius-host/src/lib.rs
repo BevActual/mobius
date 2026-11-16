@@ -28,6 +28,7 @@ pub mod drives;
 pub mod google_drive;
 pub mod s3;
 pub mod dropbox;
+pub mod onedrive;
 pub mod drive_sync;
 pub mod sync_pairs;
 pub mod demo;

@@ -1904,6 +1904,15 @@ fn google_drive_says_it_is_not_set_up_until_mobius_is_registered() {
 }
 
 #[test]
+fn onedrive_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "drives", "onedriveStatus", json!([]))["setUp"], false);
+    let add = call(&b, "drives", "addOnedrive", json!([{ "link": "https://contoso.sharepoint.com/sites/Team" }]));
+    assert_eq!((add["ok"].clone(), add["message"].clone()), (json!(false), json!(mobius_host::onedrive::NOT_SET_UP)));
+    assert_eq!(call(&b, "drives", "onedriveCancel", json!([]))["ok"], true);
+}
+
+#[test]
 fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     let (b, _c) = bridge();
     assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
