@@ -80,6 +80,8 @@ Headings are sentence case. Keep to `##` and `###`; deeper headings mean the pag
 - **Files and folders:** lowercase with hyphens (`models-and-gateways.md`). Name a page for its subject, not a verb.
 - **Folder index:** `README.md`, so GitHub shows it when the folder opens.
 - **ADRs:** `adr/NNNN-short-title.md`, numbered after the last one.
+- **The product's name:** **Mobius Workspace** where the full name helps a newcomer (the README title, the docs home,
+  the installer and store listings). Everywhere else, and always for the agent, it is **Mobius**.
 - **Things in the app:** the names people see, in bold the first time on a page: **Music** (not Studio), **Knowledge**
   (not Wiki), **Abilities** (not Extensions), **Agents** (not Bots), **Gateways** (not Providers), **Home** (the rail's name for the Agent
   app; its section heading stays `## Agent` so Learn can find it). Code names appear only
@@ -108,6 +110,8 @@ Headings are sentence case. Keep to `##` and `###`; deeper headings mean the pag
   takes every app in light and dark (`npm run readme-shots -- music tasks` takes only those). Look at each picture before
   committing it. An app that should open on something (Mail on a message, Views on a view) is set up in the script's
   `THEN` list.
+- **The banner** at the top of the README is drawn from `docs/readme/source/banner.html`; change the words there and
+  run `node docs/readme/source/render.mjs` for the light and dark pictures.
 - Other pictures come from the real app too, not a mock-up: `npm run dev` (the preview with sample data) or the app
   itself.
 - Show real-looking work (the sample data's Kestrel build at Northway Motors), never personal data.
