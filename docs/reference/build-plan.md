@@ -306,3 +306,16 @@ Not scheduled. Each needs a decision before it starts.
 - Subagents.
 - Sync between devices and a self-hosted Mobius server, the step from working with a Nextcloud to standing in for one.
 - A first Instrument round for Search, Research, Review, Terminal and Canvas.
+
+### Paying for Mobius, later
+
+Andrew's direction on 16 November 2026. Not scheduled, and nothing is built for it yet.
+
+- **Mobius stays MIT open source.** Anyone can use, change and share every app and the agent, with no account. Nothing
+  that works today moves behind a payment.
+- **Money comes from services around it**, sold on the Mobius website: sound packs and third-party plugins for Music,
+  add-ons for other apps, and later a Mobius AI service as one more choice beside the model services people bring.
+- **What this asks of today's work:** the website Launch drafts leaves room for a store, accounts and sign-in later;
+  the domain is chosen for the product, not one page; Plugins in Abilities (above) are designed so that free and paid
+  plugins install the same way; a paid service is always optional and never the default.
+- **Each piece needs a decision before it starts**, and comes after launch.
