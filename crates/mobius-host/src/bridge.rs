@@ -1616,14 +1616,16 @@ impl Bridge {
             let replies: Vec<(String, String)> = args.get("replies").and_then(Value::as_array).into_iter().flatten()
                 .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("why").and_then(Value::as_str).unwrap_or("").to_owned())))
                 .collect();
-            // The week ahead (events, then free hours), so a reply about meeting offers a free time or names the one booked.
-            let compact = |v: Result<String, String>| v.ok().map(|t| t.chars().take(3000).collect::<String>()).unwrap_or_default();
-            let week = format!(
-                "Events: {}\nFree: {}",
-                compact(self.calendar.run("calendar.list", &json!({}))),
-                compact(self.calendar.run("calendar.free", &json!({})))
-            );
-            let (system, asks) = self.mail.draft_asks(&replies, &week);
+            // The week ahead: events as a line each, and the free hours, earliest first, dealt out among the replies.
+            let listed: Value = self.calendar.run("calendar.list", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            let events: Vec<String> = listed.as_array().or_else(|| listed["events"].as_array()).into_iter().flatten().take(40)
+                .map(|e| format!("- {} to {}: {}", e["start"].as_str().unwrap_or(""), e["end"].as_str().unwrap_or(""), e["title"].as_str().unwrap_or("")))
+                .collect();
+            let open: Value = self.calendar.run("calendar.free", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            let free: Vec<String> = open["free"].as_array().into_iter().flatten()
+                .filter_map(|f| Some(format!("{} to {}", f["start"].as_str()?, f["end"].as_str()?.split('T').nth(1)?)))
+                .collect();
+            let (system, asks) = self.mail.draft_asks(&replies, &events.join("\n"), &free);
             let job = crate::ask_each::Job {
                 conversation: params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned(),
                 system,
