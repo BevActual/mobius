@@ -16,4 +16,5 @@ pub mod photos;
 pub mod sheets;
 pub mod skills;
 pub mod tasks;
+pub mod tasks_ical;
 pub mod video;

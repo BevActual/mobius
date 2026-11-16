@@ -188,7 +188,7 @@ pub(crate) fn split_line(line: &str) -> Option<(String, Params, String)> {
     Some((name, params, value.to_owned()))
 }
 
-fn parse_when(params: &[(String, String)], value: &str) -> Option<When> {
+pub(crate) fn parse_when(params: &[(String, String)], value: &str) -> Option<When> {
     let value = value.trim();
     let date_only = params.iter().any(|(k, v)| k == "VALUE" && v.eq_ignore_ascii_case("DATE")) || value.len() == 8;
     if date_only {
@@ -446,7 +446,7 @@ fn occurrences(event: &Event, to: NaiveDateTime) -> Vec<When> {
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-fn new_uid() -> String {
+pub(crate) fn new_uid() -> String {
     let ms = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis());
     format!("{ms:x}-{:x}-{:x}@mobius", std::process::id(), NEXT.fetch_add(1, Ordering::Relaxed))
 }

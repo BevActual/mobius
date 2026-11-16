@@ -486,7 +486,13 @@ impl Bridge {
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
-            tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            tasks: {
+                // A CalDAV account's task lists show in Tasks beside the person's own.
+                let tasks = mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                tasks.set_remote(calendar_accounts.clone());
+                tasks.set_mirrors(calendar_accounts.task_mirrors(&tasks.local_lists()));
+                tasks
+            },
             contacts: mobius_workspace::contacts::Contacts::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
@@ -3083,6 +3089,8 @@ impl Bridge {
     fn refresh_mirrors(&self) {
         self.calendar.set_mirrors(self.calendar_accounts.mirrors(&self.calendar.local_calendars()));
         (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
+        self.tasks.set_mirrors(self.calendar_accounts.task_mirrors(&self.tasks.local_lists()));
+        (self.emit)("mobius:tasks-changed", json!({ "list": null, "by": "another app" }));
     }
 
     /// The Mail app. Every answer is what was asked for or `{ ok: false, message }`. Sending is here, for the person's

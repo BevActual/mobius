@@ -149,7 +149,7 @@ export interface TaskItem { line: number; text: string; done: boolean; due: stri
 /** How a task comes back once ticked off: its due date moves to the next one and it stays open. */
 export type TaskRepeat = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
-export interface TaskListInfo { name: string; open: number; done: number }
+export interface TaskListInfo { name: string; open: number; done: number; /** The CalDAV account a list is kept on (its changes go there first); absent for the person's own lists. */ account?: string }
 export interface TaskChange { text?: string; done?: boolean; due?: string | null; time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string }
 /** Where a task points: its line and its words, which must still match. */
 export interface TaskAt { line: number; expect: string }
@@ -232,7 +232,7 @@ export interface CalendarSuggestion { id: string; calendar: string; title: strin
 /** A calendar and where it is kept: the person's own (`account` null), or an account's. */
 export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
-export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
@@ -704,7 +704,7 @@ export interface MobiusBridge {
     decline(id: string): Promise<{ declined: string } | NotesFailure>;
     accounts(): Promise<CalendarAccount[] | NotesFailure>;
     subscribe(name: string, link: string): Promise<{ id: string; name: string } | NotesFailure>;
-    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[] } | NotesFailure>;
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[]; taskLists: string[] } | NotesFailure>;
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;

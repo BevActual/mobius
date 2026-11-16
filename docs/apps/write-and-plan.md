@@ -80,8 +80,14 @@ right edge its subtask count, its list (in views across lists), a flag and when 
 - Tasks Mobius added are dashed until kept. **Discard** puts the list back as it was before that turn.
 - **Your day** at the top of the Mobius panel counts what is overdue, due today and flagged, across every list.
 
+- **Task lists on a server**: connecting a CalDAV account in Calendar (iCloud Reminders, Fastmail, Nextcloud Tasks)
+  also brings its task lists into Tasks, under the account's name. Every change goes to the server first, so a list
+  never says something the server doesn't. What Tasks doesn't show, such as a task's categories or alarms, is kept.
+  The lists are read again with the account's calendars. Lists kept on a server are renamed and deleted there.
+
 **Kept in:** `workspace/tasks/`, each list a Markdown file of checkbox lines, such as
-`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`.
+`- [ ] Stand-up (due 2026-11-16 09:30) (every weekday) (flagged)`. A list kept on a CalDAV server is mirrored in
+`calendar-accounts/<account>/tasks-<n>.md` in Mobius's data folder, outside the workspace.
 
 ## Calendar
 
