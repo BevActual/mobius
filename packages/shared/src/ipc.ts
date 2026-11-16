@@ -237,13 +237,17 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; 
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
-export interface DriveAccount { id: string; kind: 'webdav' | 's3'; name: string; url: string; /** For S3, the access key id. */ username: string; /** S3's region. */ region?: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox'; name: string; /** For Dropbox, `dropbox:` and the folder in it. */ url: string; /** For S3, the access key id; for Dropbox, the email it signed in with. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
 export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
 export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
+/** How a browser sign-in for a drive ended: the drive it added (or signed in again), or why not. */
+export type DriveSignIn = { kind: 'dropbox'; ok: true; drive: DriveAccount } | { kind: 'dropbox'; ok: false; message: string };
+/** A Dropbox to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). `again` renews that drive's sign-in. */
+export interface NewDropbox { name?: string; folder?: string; again?: string }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
 /** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
 export interface SyncStatus {
@@ -725,6 +729,12 @@ export interface MobiusBridge {
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
     /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
     signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
+    /** Whether this build can sign in to Dropbox (it needs Mobius's app key), and the sign-in page while one waits. */
+    dropboxStatus?(): Promise<{ setUp: boolean; pending: string | null } | DriveFailure>;
+    /** Starts the Dropbox sign-in: open `url` in the browser. How it ends arrives on `onSignIn`. */
+    addDropbox?(drive: NewDropbox): Promise<{ url: string } | DriveFailure>;
+    dropboxCancel?(): Promise<{ ok: true } | DriveFailure>;
+    onSignIn?(listener: (done: DriveSignIn) => void): () => void;
     browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
     read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
     /** With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces one. */

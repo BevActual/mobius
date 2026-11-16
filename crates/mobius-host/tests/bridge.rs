@@ -1881,6 +1881,17 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
 }
 
 #[test]
+fn dropbox_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    let status = call(&b, "drives", "dropboxStatus", json!([]));
+    assert_eq!((status["setUp"].clone(), status["pending"].clone()), (json!(false), serde_json::Value::Null));
+    let add = call(&b, "drives", "addDropbox", json!([{ "folder": "Notes" }]));
+    assert_eq!((add["ok"].clone(), add["message"].clone()), (json!(false), json!(mobius_host::dropbox::NOT_SET_UP)));
+    assert_eq!(call(&b, "drives", "dropboxCancel", json!([]))["ok"], true);
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+}
+
+#[test]
 fn drives_are_listed_and_a_server_that_is_not_there_is_said_plainly() {
     let (b, _c) = bridge();
     assert_eq!(call(&b, "drives", "list", json!([])), json!([]));

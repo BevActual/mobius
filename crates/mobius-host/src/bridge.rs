@@ -3271,6 +3271,28 @@ impl Bridge {
                     _ => drives.add(field("name"), field("server"), field("username"), field("password")),
                 }
             }
+            // Dropbox: a browser sign-in, then the drive is kept (docs/developers/drives.md, "Dropbox").
+            ("dropboxStatus", _) => Ok(drives.dropbox_status()),
+            ("dropboxCancel", _) => {
+                drives.cancel_dropbox();
+                Ok(json!({ "ok": true }))
+            }
+            ("addDropbox", _) => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str);
+                let (emit, syncs) = (self.emit.clone(), Arc::clone(&self.syncs));
+                let again = field("again").map(str::to_owned);
+                drives.add_dropbox(field("name").unwrap_or(""), field("folder").unwrap_or(""), field("again"), Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(drive) => {
+                        if let Some(id) = &again {
+                            syncs.signed_in(id);
+                        }
+                        let id = drive.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+                        emit("mobius:drive-sign-in", json!({ "kind": "dropbox", "ok": true, "drive": drive }));
+                        emit("mobius:drives-changed", json!({ "drive": id, "path": "", "by": "person" }));
+                    }
+                    Err(message) => emit("mobius:drive-sign-in", json!({ "kind": "dropbox", "ok": false, "message": message })),
+                }))
+            }
             ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
             ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
             // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").

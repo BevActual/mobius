@@ -55,7 +55,14 @@ pub struct Callback {
 impl Callback {
     /// Listen on a free port of 127.0.0.1 for `path`.
     pub fn listen(path: &'static str) -> Result<Callback, String> {
-        let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not listen for the sign-in: {e}"))?;
+        Callback::listen_on(path, 0)
+    }
+
+    /// Listen on `port` of 127.0.0.1 (0: any free one), for a service that only takes the address it was given.
+    pub fn listen_on(path: &'static str, port: u16) -> Result<Callback, String> {
+        let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AddrInUse { format!("Port {port} on this computer is in use, and the sign-in needs it. Close what's using it, or try again in a minute.") } else { format!("Could not listen for the sign-in: {e}") }
+        })?;
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
         Ok(Callback { listener, path, port })
