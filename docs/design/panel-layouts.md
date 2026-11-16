@@ -5,43 +5,20 @@ app's panels sit when it is first opened. The values the frame is painted with a
 [Theme tokens](theme-tokens.md). [Workspace layout](workspace-layout.md) and [Design rules](rules.md) give the frame
 and the rules; this page adds the detail the Builder needs.
 
-## The five zones
+## Shared frame
 
-```
-+----+-----------+--------------------------------------+-----------+
-|    |           | 3 Toolbar: title · app controls · ⋯ M |           |
-| 1  | 2         +--------------------------------------+ 5a    | 5b      |
-| R  | App       | 4 Content (the current view)         | Insp- | Mobius  |
-| a  | sidebar   |                                      | ector | (just   |
-| i  |           +--------------------------------------+ (app's| Mobius, |
-| l  |           | 4b Bottom dock (if the app has one)  | panels| no tabs)|
-+----+-----------+--------------------------------------+-------+---------+
-|      Info bar (compact apps only)                                 |
-+-------------------------------------------------------------------+
-```
+> This describes the target layout for Instrument. The installed app may still show the rail and the shared sidebar during the transition.
 
-| Zone | What is in it | Moves? |
-|---|---|---|
-| 1 Rail | Home, Search, the pinned apps, the launcher grid; Mobius, Activity and Settings at the foot. Icons only, name on hover. | Never |
-| 2 App sidebar | Always in this order: New, Search, the app's places in named sections, From Mobius, More. | A panel: hide, resize |
-| 3 Toolbar | One row. Leading: the title of what is open with a grey subline. Middle: the app's controls, the view switch and Panels. Trailing, always in this order: Comments, Share (where it applies), ⋯, the Mobius button. | Never |
-| 4 Content | The current view. May have a bottom dock under it (4b). | The view changes; the zone does not |
-| 5a Inspector | The app's own panels (Format, Inspector, Adjust, Outline, Details), as tabs among themselves. Absent in apps without one. | A dock: hide, resize |
-| 5b Mobius | The Mobius panel and nothing else: the chat, its cards and the composer. No tabs. Always the far right edge. | Hide, resize, pop out; never takes another panel |
+The **app switcher** is the leading control in the toolbar. It shows the current app and opens the shared launcher on apps, with pinned and recent apps and a search field. It stays reachable by keyboard and at narrow widths. The switcher shows its shortcut, and a separate shortcut returns to the previous app. Home, Activity and Settings are reachable from the switcher.
 
-Rules that hold in every app:
+Each app defines its own named panels, their allowed docks, and which start open. The existing **Panels** button lists them by name and toggles them. Left, right and bottom are dock positions. An empty dock takes no space. The shell provides the same panel headers, resizing and layout behavior everywhere. Mobius has its own button and its own dock at the far right.
 
-- The toolbar title is what is open ("Q3 plan"), never the app's name. The rail already shows the app.
-- No second action row inside content. If controls do not fit the toolbar, they go in ⋯ or in a panel.
-- The Mobius button is always the last thing in the toolbar and always opens the Mobius panel at the right edge.
-  Mobius no longer takes over the sidebar.
-- **The Mobius panel is just Mobius** (Andrew, 14 November 2026). No app panel tabs with it or docks inside it. An
-  app's panels go in the inspector (5a) or, when they are wide or long, the bottom dock (4b).
-- Browser controls (back, forward, address) are in the toolbar's middle slot, not the sidebar.
-- Comments stays a toolbar button, because it shows live state: how many threads are open and whether comment mode
-  is on. It is also in View › Comments.
-- Split view and Little Mobius leave the fixed icons at the top right and are in the Window menu. Little Mobius is
-  also "Pop out" on the Mobius panel once stage 3 lands.
+| Area | What it holds |
+| --- | --- |
+| Toolbar | App switcher and document or view title on the left, app actions and **Panels** in the middle, Comments, Share, ⋯ and Mobius on the right where applicable. |
+| Content | The current view. |
+| App docks | Named app panels on the left, below the content, or on the right before Mobius. |
+| Mobius | The agent panel at the far right. |
 
 ## Views
 
@@ -51,13 +28,13 @@ Ctrl+9. Switching views never moves a panel.
 
 ## Panels
 
-A panel is a named, self-contained piece of an app. The app sidebar and Mobius are panels too.
+A panel is a named, self-contained piece of an app. The Mobius panel is owned by the shell.
 
 | A panel can be | How |
 |---|---|
 | Shown or hidden | Panels menu, its key, or the close button in its header |
 | Resized | Drag the edge beside it; double-click the edge to return to the default size |
-| Moved to another dock | Drag its header, or the dock button in its header (left, bottom, inspector) |
+| Moved to another dock | Drag its header, or the dock button in its header (left, bottom, right) |
 | Tabbed with others | Dropped onto a dock that already holds a panel; the dock shows one tab per panel |
 | Popped out | The pop-out button in its header: its own window, always above the main one, closes with it |
 
@@ -66,10 +43,9 @@ close at the trailing end. The Mobius panel's header is its plain title, then ne
 
 Docks:
 
-- **Left**: the app sidebar. Other panels may tab here.
-- **Bottom**: under the content, across the content's width only (it does not run under the sidebar or right dock).
-- **Inspector**: the app's own panels, between the content and Mobius. It holds any panel the person moves there,
-  except Mobius.
+- **Left**: app panels that allow left docking.
+- **Bottom**: under the content, across the content's width only (it does not run under the left or right dock).
+- **Right**: app panels that allow right docking, between the content and Mobius.
 - **Mobius**: the right edge, for the Mobius panel only. Nothing can be dropped into it or tabbed with it.
 - A dock with no shown panel takes no space. A dock is never narrower or shorter than the minimum in
   [Theme tokens](theme-tokens.md).
@@ -86,8 +62,8 @@ Narrow windows: adjacent in space on wide windows, stacked in time on narrow one
 |---|---|
 | 1440px and up | Everything as placed |
 | 980 to 1439px | With both the inspector and Mobius open, they share one column: whichever was brought forward last shows and the other steps aside (an app's own control, the Panels menu or opening the inspector brings it forward; asking Mobius or the toolbar's Mobius button brings Mobius back). Nothing lies over the content. The Mobius button shows pressed only while Mobius is in front |
-| 720 to 979px | The sidebar becomes an overlay, opened from a button at the start of the toolbar; the bottom dock stays |
-| Under 720px | One thing at a time: content, or one panel full width. The rail stays |
+| 720 to 979px | Side panels can open over the content from Panels; the bottom dock stays |
+| Under 720px | One thing at a time: content or one panel full width. The app switcher stays reachable |
 
 Folding for width never changes the saved layout.
 
@@ -119,25 +95,22 @@ interface AppLayout {
 }
 ```
 
-`dock: 'right'` puts a panel in the inspector. The sidebar (`left`, shown) and Mobius (always the right edge) are
-added by the frame and do not need declaring; no app can declare a panel into Mobius. Shared keys:
-Ctrl+\ sidebar, Ctrl+J bottom dock, Ctrl+. Mobius.
+The app declares each of its panels. The shell adds the dedicated Mobius dock. Shared keys are Ctrl+J for the bottom dock and Ctrl+. for Mobius.
 
 ## Default layout per app
 
-Every app except Home has the Mobius panel at the right edge, closed until asked for. The Inspector column lists the
-app's own panels there; "none" means the app has no inspector. A panel in brackets starts hidden.
+Every app except Home has the Mobius panel at the right edge, closed until asked for. The dock columns list the app's own panels; "none" means the dock starts empty. A panel in brackets starts hidden.
 
 ### Everyday apps (comfortable)
 
-| App | Views | Sidebar places | Bottom dock | Inspector | Toolbar middle |
+| App | Views | Left dock | Bottom dock | Right dock | Toolbar middle |
 |---|---|---|---|---|---|
 | Home | Home | Conversations by day, Projects | none | none: the conversation is the content | Model, mode (Ask first, Propose, Act) |
-| Mail | Inbox, Conversation | Inbox, Drafts, Sent, labels | none | none | Reply, Archive, Delete, Label |
-| Calendar | Day, Week, Month, Agenda | Mini month, calendars with their colours | none | (Event) | Today, back, forward, view switch |
+| Mail | Inbox, Conversation | Mailboxes (Inbox, Drafts, Sent, labels) | none | none | Reply, Archive, Delete, Label |
+| Calendar | Day, Week, Month, Agenda | Calendars (mini month and calendar list) | none | (Event) | Today, back, forward, view switch |
 | Tasks | List, Board | Today, Upcoming, lists | none | (Details) | Sort, Filter, view switch |
 | Notes | Note | Notebooks, Pinned, Tags | none | (Outline) | Save state, Share |
-| Docs | Page | Recent, folders | none | (Outline), (Comments) | Style, bold, italic, list, link, Insert |
+| Docs | Page | (Documents) | none | (Outline), (Comments) | Style, bold, italic, list, link, Insert |
 | Files | List, Grid | Recent, Made by Mobius, folders | none | (Preview) | Path, Sort, view switch |
 | Browser | Page | Tabs, Pinned, Bookmarks | none | none | Back, forward, reload, address |
 | Reader | Article | Later, Saved, Feeds | none | (Highlights) | Text size, Listen |
@@ -165,7 +138,7 @@ app's own panels there; "none" means the app has no inspector. A panel in bracke
 | Database | Table, Board, Gallery, Form | Tables, Saved views | none | (Record), (Fields) | Filter, Sort, Group, view switch |
 | Code | Editor, Diff | Explorer, Search, Source control | Terminal (shown), (Problems), (Output) as tabs | (Outline) | Branch, Run, view switch |
 | Terminal | Terminal | Sessions | none | none | Shell, Split, Clear |
-| Design | Canvas, Prototype | Pages, Layers, Assets | none | Inspector (shown) | Tools, zoom, view switch |
+| Design | Canvas, Prototype | Layers, Pages, Assets | none | Properties (shown) | Tools, zoom, view switch |
 | Canvas | Board | Boards | none | (Inspector) | Tools, zoom |
 | Photo | Edit, Compare | Library, Albums | Filmstrip (shown) | Adjust (shown); (Layers), (History) | Tools, zoom, view switch |
 | Video | Edit, Viewer | Media, Titles, Sound | Timeline (shown) | Inspector (shown); (Scopes) | Transport, timecode, view switch |
@@ -178,7 +151,7 @@ Notes on the table:
   none.
 - Music has no inspector: its devices run left to right in the bottom dock, the instrument first and then the effects,
   beside the clip's notes (Andrew chose this on 14 November). Shift+Tab switches between notes and devices.
-- Home has no Mobius panel: the conversation is its content. The Mobius button in the rail goes to Home.
+- Home has no Mobius panel: the conversation is its content. Open Home from the app switcher.
 - When Mobius proposes something, the proposal shows in the content first (dashed), and the panel carries the
   explanation and Keep, Discard, Try another. The panel opens by itself only when the person asked Mobius something.
 - These are starting places. Once a person moves a panel, their layout wins until they choose Reset layout.
@@ -189,7 +162,7 @@ Candidates for `apps/desktop/src/ui/`, seen in more than one mock:
 
 | Piece | Used by |
 |---|---|
-| `AppFrame`, `AppSidebar`, `Toolbar`, `Dock`, `PanelHeader`, `PanelsMenu` | Every app |
+| `AppFrame`, `Toolbar`, `Dock`, `PanelHeader`, `PanelsMenu`, app switcher | Every app |
 | View switch (segmented, ink-inverted) | Every app with two or more views |
 | Info bar (one line: what is under the pointer, selection, state) | Compact apps |
 | Tool group with an ink-inverted active tool | Design, Canvas, Photo, Video |
