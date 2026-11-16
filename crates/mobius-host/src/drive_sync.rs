@@ -873,7 +873,8 @@ mod tests {
         for i in 0..files {
             put_here(&name(i), &format!("start {i}"));
         }
-        assert_eq!(run(&mut base, &plain).uploaded.len(), files);
+        let first = run(&mut base, &plain);
+        assert_eq!(first.uploaded.len(), files, "first round: {:?}", Report { uploaded: Vec::new(), ..first.clone() });
 
         let mut edit = 0;
         for cycle in 0..8 {

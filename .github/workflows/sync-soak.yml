@@ -47,6 +47,11 @@ jobs:
         env:
           MOBIUS_SOAK_WEBDAV: http://localhost:8080/remote.php/dav/files/soak/ soak soak-only-password-in-ci
         run: cargo test -p mobius-host --lib soak_against_a_real_webdav_server -- --ignored --nocapture
+      - name: Nextcloud's log, when the soak failed
+        if: failure()
+        run: |
+          docker logs --tail 200 "${{ job.services.nextcloud.id }}" 2>&1 | tail -200
+          docker exec "${{ job.services.nextcloud.id }}" tail -n 50 /var/www/html/data/nextcloud.log || true
       - name: Start wsgidav
         run: |
           python3 -m venv "$RUNNER_TEMP/dav"
