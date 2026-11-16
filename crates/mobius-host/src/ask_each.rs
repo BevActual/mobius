@@ -33,7 +33,7 @@ pub struct Job {
     pub asks: Vec<Ask>,
     /// The most each answer may be, in tokens (the core's default is 400).
     pub max_tokens: Option<u32>,
-    /// How many run at once (the core's default is 6, at most 10).
+    /// How many run at once (the core's default is 6, at most 24).
     pub at_once: Option<usize>,
 }
 

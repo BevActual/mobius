@@ -6,14 +6,17 @@ use std::collections::{HashMap, VecDeque};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use mobius_agent::message::Message;
 use mobius_agent::provider::{ChatRequest, NO_REASONING, Provider, ProviderError, Usage};
 use serde::Deserialize;
 
-/// How many calls run at once when the caller does not say. Tunable: ten is the most a caller may ask for.
+/// How many calls run at once when the caller does not say. Tunable; `MOST_AT_ONCE` is the most a caller may ask for.
 pub const AT_ONCE: usize = 6;
-pub const MOST_AT_ONCE: usize = 10;
+/// With the Claude subscription each call starts its own Claude Code process (two to three seconds of it start-up), so
+/// a whole inbox needs many at once to stay quick: 40 mails take 4 rounds at 10 (about 11 s), 2 at 20 (about 6 s).
+pub const MOST_AT_ONCE: usize = 24;
 pub const MOST_ITEMS: usize = 200;
 const MOST_PROMPT_CHARS: usize = 8_000;
 const MOST_SYSTEM_CHARS: usize = 8_000;
@@ -89,7 +92,7 @@ impl AskEachParams {
             return Err("max_tokens must be from 1 to 4096");
         }
         if self.at_once.is_some_and(|n| n == 0 || n > MOST_AT_ONCE) {
-            return Err("at_once must be from 1 to 10");
+            return Err("at_once must be from 1 to 24");
         }
         Ok(())
     }
@@ -129,6 +132,36 @@ pub fn stop_job(running: &Running, job: &str) -> bool {
         .is_some()
 }
 
+/// How long to wait before asking again when the service says it is too busy (rate limited or overloaded): a call is
+/// tried at most once more per wait, so a busy moment slows the job down instead of failing its items.
+pub const BUSY_WAITS: &[Duration] = &[Duration::from_secs(2), Duration::from_secs(5), Duration::from_secs(10)];
+
+fn too_busy(e: &ProviderError) -> bool {
+    matches!(e, ProviderError::Http { status: 429 | 503 | 529, .. })
+}
+
+/// Ask once, and again after each wait while the service says it is too busy. Stopping ends the waiting.
+fn ask_one(provider: &dyn Provider, request: &ChatRequest, stop: &AtomicBool, waits: &[Duration]) -> Result<mobius_agent::provider::Completion, ProviderError> {
+    let mut waits = waits.iter();
+    loop {
+        let result = catch_unwind(AssertUnwindSafe(|| provider.complete(request, &mut |_| !stop.load(Ordering::SeqCst))))
+            .unwrap_or_else(|_| Err(ProviderError::Protocol("the model connection failed unexpectedly".to_owned())));
+        let wait = match &result {
+            Err(e) if too_busy(e) => waits.next(),
+            _ => None,
+        };
+        let Some(wait) = wait else { return result };
+        // Waited in small steps, so a stop is not held up.
+        let until = std::time::Instant::now() + *wait;
+        while std::time::Instant::now() < until {
+            if stop.load(Ordering::SeqCst) {
+                return Err(ProviderError::Cancelled);
+            }
+            std::thread::sleep(Duration::from_millis(50).min(until.saturating_duration_since(std::time::Instant::now())));
+        }
+    }
+}
+
 /// One item's answer.
 pub enum Answer {
     Text(String, Option<Usage>),
@@ -162,14 +195,7 @@ pub fn ask_all(
                         return;
                     };
                     asked.fetch_add(1, Ordering::SeqCst);
-                    let result = catch_unwind(AssertUnwindSafe(|| {
-                        provider.complete(&request, &mut |_| !stop.load(Ordering::SeqCst))
-                    }))
-                    .unwrap_or_else(|_| {
-                        Err(ProviderError::Protocol(
-                            "the model connection failed unexpectedly".to_owned(),
-                        ))
-                    });
+                    let result = ask_one(provider.as_ref(), &request, stop, BUSY_WAITS);
                     match result {
                         Ok(done) => each(&id, Answer::Text(done.text, done.usage)),
                         Err(e) => each(
@@ -190,7 +216,6 @@ mod tests {
     use super::*;
     use mobius_agent::provider::{Completion, StopReason};
     use std::sync::atomic::AtomicUsize;
-    use std::time::Duration;
 
     /// Answers each question with its own text, after a pause, counting how many run at once.
     struct Echo {
@@ -297,6 +322,41 @@ mod tests {
         assert!(most > 1 && most <= 4, "ran {most} at once");
     }
 
+    /// Too busy for its first `busy` calls, then answers.
+    struct Busy {
+        calls: AtomicUsize,
+        busy: usize,
+        status: u16,
+    }
+    impl Provider for Busy {
+        fn complete(&self, _: &ChatRequest, _: &mut dyn FnMut(&str) -> bool) -> Result<Completion, ProviderError> {
+            if self.calls.fetch_add(1, Ordering::SeqCst) < self.busy {
+                return Err(ProviderError::Http { status: self.status, message: "slow down".into() });
+            }
+            Ok(Completion { text: "ok".into(), tool_calls: Vec::new(), stop: StopReason::EndTurn, usage: None })
+        }
+    }
+
+    #[test]
+    fn a_busy_service_is_asked_again_after_a_wait_and_other_failures_are_not() {
+        let p = params(1);
+        let request = p.request_for("quick", &p.items[0]);
+        let waits = [Duration::from_millis(5); 3];
+        let no_stop = AtomicBool::new(false);
+        let busy = Busy { calls: AtomicUsize::new(0), busy: 2, status: 429 };
+        assert_eq!(ask_one(&busy, &request, &no_stop, &waits).unwrap().text, "ok");
+        assert_eq!(busy.calls.load(Ordering::SeqCst), 3);
+        let overloaded = Busy { calls: AtomicUsize::new(0), busy: 9, status: 529 };
+        assert!(matches!(ask_one(&overloaded, &request, &no_stop, &waits), Err(ProviderError::Http { status: 529, .. })), "it gives up after the last wait");
+        assert_eq!(overloaded.calls.load(Ordering::SeqCst), 4);
+        let broken = Busy { calls: AtomicUsize::new(0), busy: 9, status: 400 };
+        assert!(ask_one(&broken, &request, &no_stop, &waits).is_err());
+        assert_eq!(broken.calls.load(Ordering::SeqCst), 1, "a request that is wrong is not sent again");
+        let stopped = AtomicBool::new(true);
+        let busy = Busy { calls: AtomicUsize::new(0), busy: 9, status: 429 };
+        assert!(matches!(ask_one(&busy, &request, &stopped, &[Duration::from_secs(60)]), Err(ProviderError::Cancelled)), "a stop ends the wait");
+    }
+
     #[test]
     fn stopping_asks_no_more() {
         let echo = Arc::new(Echo {
@@ -334,7 +394,7 @@ mod tests {
         assert!(params(0).check().is_err());
         assert!(params(201).check().is_err());
         let mut many = params(2);
-        many.at_once = Some(11);
+        many.at_once = Some(25);
         assert!(many.check().is_err());
     }
 
