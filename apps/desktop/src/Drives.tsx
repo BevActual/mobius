@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewDrive } from '@mobius/shared';
+import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewDrive, NewDropbox } from '@mobius/shared';
 import { Button, Confirm, PointMenu, Segmented, TextField, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { EmptyState } from './EmptyState';
 import { fileKind, sortEntries, type FilesSort } from './files-view';
@@ -69,6 +69,26 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     setPlace({ kind: 'drive', drive: r.id, path: '' });
     return null;
   };
+  // Dropbox signs in in the browser; the drive arrives once the person allows it there.
+  const [dropbox, setDropbox] = useState<{ setUp: boolean; waiting: boolean; problem: string | null } | null>(null);
+  useEffect(() => {
+    void api?.dropboxStatus?.().then((r) => setDropbox(failed(r) ? null : { setUp: r.setUp, waiting: r.pending !== null, problem: null })).catch(() => setDropbox(null));
+  }, [api]);
+  const placeRef = useRef(setPlace);
+  placeRef.current = setPlace;
+  useEffect(() => api?.onSignIn?.((done) => {
+    setDropbox((d) => d && { ...d, waiting: false, problem: done.ok ? null : done.message });
+    if (done.ok) { void loadAccounts(); placeRef.current({ kind: 'drive', drive: done.drive.id, path: '' }); }
+  }), [api, loadAccounts]);
+  const addDropbox = async (d: NewDropbox): Promise<string | null> => {
+    const r = await api?.addDropbox?.(d).catch(() => null);
+    if (!r) return 'Dropbox is not available here.';
+    if (failed(r)) return r.message;
+    setDropbox((x) => x && { ...x, waiting: true, problem: null });
+    void window.mobius.browser.open(r.url);
+    return null;
+  };
+  const cancelDropbox = () => { void api?.dropboxCancel?.(); setDropbox((x) => x && { ...x, waiting: false }); };
   const remove = async (id: string) => {
     await act(api?.remove(id));
     await loadAccounts();
@@ -119,6 +139,7 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     canCopy: typeof api?.download === 'function' && typeof api?.upload === 'function',
     accounts, drive, folder, entries, problem, loading, notice, copied, dragging, setDragging,
     account: accounts.find((a) => a.id === drive) ?? null,
+    dropbox, addDropbox, cancelDropbox,
     list, add, remove, newFolder, rename, moveInto, del, download, upload, nameOfDrive,
     dismissNotice: () => setNotice(null), dismissCopied: () => setCopied(null),
   };
@@ -138,7 +159,7 @@ export function DriveBars({ drives }: { drives: DrivesState }) {
 /** Add a drive: a name, the server's address, a user and an app password. A Nextcloud address alone is enough. Or an
  * S3-style bucket (Amazon S3, Cloudflare R2, Backblaze B2, MinIO): its address, bucket and an access key. */
 export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: ReactNode }) {
-  const [kind, setKind] = useState<'webdav' | 's3'>('webdav');
+  const [kind, setKind] = useState<'webdav' | 's3' | 'dropbox'>('webdav');
   const [name, setName] = useState('');
   const [server, setServer] = useState('');
   const [username, setUsername] = useState('');
@@ -149,7 +170,14 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
   const [error, setError] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
   const s3 = kind === 's3';
+  const dropbox = drives.dropbox;
   const submit = async () => {
+    if (kind === 'dropbox') {
+      setError(null);
+      const problem = await drives.addDropbox({ name: name.trim(), folder: folder.trim() });
+      if (problem) setError(problem);
+      return;
+    }
     if (!server.trim()) { setError(s3 ? 'Give the service’s address, such as https://s3.eu-west-2.amazonaws.com.' : 'Give the server’s address, such as https://cloud.example.com.'); return; }
     if (s3 && !bucket.trim()) { setError('Give the bucket’s name.'); return; }
     setChecking(true); setError(null);
@@ -163,8 +191,15 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
     <section className="skills-page files-page" aria-label="Add a drive">
       {tools}
       <form className="drive-form" aria-label="New drive" onSubmit={(e) => { e.preventDefault(); void submit(); }}>
-        <Segmented label="Kind of drive" value={kind} onChange={(k) => { setKind(k); setError(null); }} choices={[{ value: 'webdav', label: 'Server (WebDAV)' }, { value: 's3', label: 'Bucket (S3)' }]} />
-        {s3 ? (
+        <Segmented label="Kind of drive" value={kind} onChange={(k) => { setKind(k); setError(null); }} choices={[{ value: 'webdav', label: 'Server (WebDAV)' }, { value: 's3', label: 'Bucket (S3)' }, ...(dropbox ? [{ value: 'dropbox' as const, label: 'Dropbox' }] : [])]} />
+        {kind === 'dropbox' ? (
+          <>
+            <p className="drive-lede">A folder in your Dropbox. You sign in on Dropbox’s own page, in the browser; Mobius never sees your password. Files opens it beside the workspace; nothing is copied until you copy it.</p>
+            {dropbox && !dropbox.setUp && <p className="drive-hint" role="note">Dropbox isn’t set up in this build of Mobius yet.</p>}
+            <TextField label="Folder in your Dropbox" placeholder="Leave empty for the whole Dropbox" value={folder} onChange={setFolder} autoFocus spellCheck={false} />
+            <p className="drive-hint">A folder that isn’t there yet is made. The sign-in is kept in this computer’s secret store, and sent only to Dropbox.</p>
+          </>
+        ) : s3 ? (
           <>
             <p className="drive-lede">A bucket in S3-style storage: Amazon S3, Cloudflare R2, Backblaze B2, Wasabi or your own MinIO. Files opens it beside the workspace; nothing is copied until you copy it.</p>
             <TextField label="Service address" placeholder="https://s3.eu-west-2.amazonaws.com" value={server} onChange={setServer} autoFocus inputMode="url" autoComplete="url" spellCheck={false} />
@@ -185,9 +220,13 @@ export function AddDrivePage({ drives, tools }: { drives: DrivesState; tools: Re
             <p className="drive-hint">Make one in the server’s security settings. It is kept in this computer’s secret store, and sent only to this server.</p>
           </>
         )}
-        <TextField label="Name" placeholder={s3 ? 'The bucket’s name' : 'The server’s name'} value={name} onChange={setName} />
-        {error && <p className="field-error" role="alert">{error}</p>}
-        <div className="drive-actions"><Button kind="primary" type="submit" disabled={checking}>{checking ? 'Checking…' : 'Add drive'}</Button></div>
+        <TextField label="Name" placeholder={kind === 'dropbox' ? 'The folder’s name, or Dropbox' : s3 ? 'The bucket’s name' : 'The server’s name'} value={name} onChange={setName} />
+        {(error ?? (kind === 'dropbox' ? dropbox?.problem : null)) && <p className="field-error" role="alert">{error ?? dropbox?.problem}</p>}
+        <div className="drive-actions">
+          {kind === 'dropbox' && dropbox?.waiting
+            ? <><span className="drive-hint" role="status">Waiting for Dropbox in the browser…</span><Button onClick={drives.cancelDropbox}>Cancel</Button></>
+            : <Button kind="primary" type="submit" disabled={checking || (kind === 'dropbox' && !dropbox?.setUp)}>{kind === 'dropbox' ? 'Sign in to Dropbox…' : checking ? 'Checking…' : 'Add drive'}</Button>}
+        </div>
       </form>
     </section>
   );

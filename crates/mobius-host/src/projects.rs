@@ -225,7 +225,7 @@ impl Projects {
 /// running commands, and the core asks about those (its floors) whatever a rule says.
 #[must_use]
 pub fn core_rules(project: &Project) -> Value {
-    const REVERSIBLE: [&str; 6] = ["files.write", "tasks.write", "sheets.write", "db.write", "calendar.write", "document.write"];
+    const REVERSIBLE: [&str; 7] = ["files.write", "tasks.write", "sheets.write", "db.write", "calendar.write", "contacts.write", "document.write"];
     const NEVER: [&str; 5] = ["process.exec", "fs.delete", "browser.interact", "mail.send", "payments.pay"];
     let mut out = Vec::new();
     for (app, level) in &project.rules {

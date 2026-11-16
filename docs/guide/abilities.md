@@ -52,6 +52,21 @@ the servers listed in `mcp.json` in the [data folder](../getting-started/install
 }
 ```
 
+A server on the network is listed by its address instead, with any headers it needs, such as an API key. The address
+is `https`, or `http` only for a server on this computer:
+
+```json
+{
+  "servers": {
+    "tracker": { "url": "https://mcp.example.com/mcp", "headers": { "Authorization": "Bearer your-key" } }
+  }
+}
+```
+
+Mobius speaks MCP's Streamable HTTP to it: it keeps the session the server starts, reads answers sent as JSON or as a
+stream, answers the server's pings, and ends the session when it stops. Redirects aren't followed, so a key never goes
+to another address. A server that asks for a sign-in instead of a key shows that it needs one.
+
 Each server's tools appear to Mobius as `mcp.<server>.<tool>`. Each server has its own approval, so the first use asks
 as your mode says. Servers start with a minimal environment: only the variables you list under `env` are passed.
 Everything a server returns is treated as untrusted text.

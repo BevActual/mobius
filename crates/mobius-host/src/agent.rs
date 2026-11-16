@@ -158,6 +158,9 @@ pub struct SendRequest {
     pub tools: Vec<String>,
     /// The app it was sent from (`mail`): on a model with a small window, the core offers that app's tools first.
     pub app: Option<String>,
+    /// How hard the model thinks for this suggestion's turn (`none`, `low`, `medium` or `high`): a suggestion whose work
+    /// is fully laid out starts sooner without thinking. A mode's own effort comes first; none keeps the person's setting.
+    pub effort: Option<&'static str>,
 }
 
 /// An app's own mode (Instrument, "Modes, permissions"): a preset, not new machinery. A name the window shows, the app
@@ -177,7 +180,13 @@ pub struct AppMode {
     /// How hard the model thinks before it writes, for this mode's turns (`none`, `low`): a mode whose work is sorting
     /// and writing, not working something out, starts sooner. None keeps the person's setting.
     pub effort: Option<&'static str>,
+    /// At most this many calls of a tool run in one of the mode's turns: a call past it is not made, and the model is
+    /// told so plainly, so a limit is kept in code rather than reported to the person.
+    pub caps: &'static [(&'static str, u32)],
 }
+
+/// The efforts a suggestion may ask for.
+const EFFORTS: [&str; 4] = ["none", "low", "medium", "high"];
 
 pub const APP_MODES: &[AppMode] = &[
     AppMode {
@@ -191,6 +200,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &["mail", "tasks", "calendar"],
         effort: Some("low"),
+        caps: &[("mail.draft", 5)],
     },
     AppMode {
         id: "review",
@@ -201,6 +211,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
     AppMode {
         id: "analyse",
@@ -211,6 +222,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
     AppMode {
         id: "debug",
@@ -221,6 +233,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
 ];
 
@@ -276,11 +289,15 @@ pub fn parse_send(v: &Value) -> Option<SendRequest> {
             list.iter().map(|u| u.as_str().filter(|u| image_ok(u)).map(str::to_owned)).collect::<Option<Vec<_>>>()?
         }
     };
+    let effort = match v.get("effort") {
+        None | Some(Value::Null) => None,
+        Some(e) => Some(*EFFORTS.iter().find(|k| Some(**k) == e.as_str())?),
+    };
     let app = match v.get("app") {
         None | Some(Value::Null) => None,
         Some(a) => Some(a.as_str().filter(|a| is_app_name(a))?.to_owned()),
     };
-    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools, app })
+    Some(SendRequest { conversation: conversation.to_owned(), text: text.to_owned(), context, plan, ask, images, quick, project: None, mode, reads, finish, tools, app, effort })
 }
 
 /// An app's id as the window names it (`mail`, `photo`).
@@ -612,8 +629,11 @@ impl AgentService {
         if let Some(app) = &request.app {
             params.insert("app".into(), json!(app));
         }
-        if let Some(effort) = request.mode.and_then(|m| m.effort) {
+        if let Some(effort) = request.mode.and_then(|m| m.effort).or(request.effort) {
             params.insert("effort".into(), json!(effort));
+        }
+        if let Some(mode) = request.mode.filter(|m| !m.caps.is_empty()) {
+            params.insert("caps".into(), mode.caps.iter().map(|(tool, most)| ((*tool).to_owned(), json!(most))).collect::<serde_json::Map<_, _>>().into());
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),
@@ -999,5 +1019,24 @@ fn valid_event(e: &Value) -> bool {
         Some("done" | "cancelled" | "resumed") => true,
         Some("paused") => e.get("step").is_some_and(Value::is_u64) && e.get("of").is_none_or(Value::is_u64),
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_suggestion_can_say_how_hard_the_model_thinks_and_nothing_else_passes() {
+        let send = |extra: Value| {
+            let mut v = json!({ "conversation": "c1", "text": "Add a bass" });
+            v.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            parse_send(&v)
+        };
+        assert_eq!(send(json!({ "effort": "none" })).unwrap().effort, Some("none"));
+        assert_eq!(send(json!({ "effort": "low" })).unwrap().effort, Some("low"));
+        assert_eq!(send(json!({})).unwrap().effort, None);
+        assert!(send(json!({ "effort": "max" })).is_none(), "an effort the model does not know is refused");
+        assert!(send(json!({ "effort": 3 })).is_none());
     }
 }

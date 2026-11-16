@@ -133,6 +133,8 @@ const DID: Record<string, (on: string) => string> = {
   'drives.read': (on) => (on ? `Read ${on} on a drive` : 'Looked on a drive'),
   'drives.write': (on) => (on ? `Changed ${on} on a drive` : 'Changed a drive'),
   'payments.pay': (on) => (on ? `Paid ${on}` : 'Made a payment'),
+  'contacts.read': () => 'Looked in your contacts',
+  'contacts.write': (on) => (on ? `Changed the address book ${on}` : 'Changed your contacts'),
   'sheets.read': (on) => (on ? `Read the workbook ${on}` : 'Read a workbook'),
   'sheets.list': () => 'Looked at your workbooks',
   'sheets.write': (on) => (on ? `Changed the workbook ${on}` : 'Changed a workbook'),

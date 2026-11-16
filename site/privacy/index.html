@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mobius privacy policy</title>
+  <meta name="description" content="What the Mobius desktop app does with your data, including data from Google accounts.">
+  <link rel="icon" href="/assets/mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+<main>
+  <header><img src="/assets/mark.svg" alt=""><a href="/">Mobius</a></header>
+
+  <h1>Privacy policy</h1>
+  <p class="lead">Effective [DATE]. This policy covers the Mobius desktop app, published by [PUBLISHER NAME].</p>
+
+  <h2>The short version</h2>
+  <p>Mobius is an app that runs on your computer. What you keep in it stays on your computer and in the services you
+  connect it to. We do not run a Mobius server and we do not collect, receive, sell or share your data. The only things
+  that leave your computer are requests Mobius makes for you: to the AI model service you chose, to services you
+  connected (such as your mail, calendar or cloud drive), and to GitHub to check for updates.</p>
+
+  <h2>Where your data goes</h2>
+  <table>
+    <tr><th>What</th><th>Where it goes</th></tr>
+    <tr><td>Your notes, documents, tasks, conversations, memory and settings</td><td>Files in the Mobius data folder on your computer.</td></tr>
+    <tr><td>What you ask Mobius, and what it reads to answer</td><td>To the AI model service you chose in Settings, under that service's own terms. With a model that runs on your computer, nowhere.</td></tr>
+    <tr><td>Passwords, API keys and sign-in tokens</td><td>The secret store of your operating system (Windows Credential Manager). Each one is only ever sent to the service it belongs to.</td></tr>
+    <tr><td>Mail, calendars, contacts and files from your accounts</td><td>Copied between that service and your computer, directly. Never through a server of ours.</td></tr>
+    <tr><td>Update checks</td><td>Mobius asks GitHub whether a newer version exists and downloads it from there. GitHub sees the request as it would any download.</td></tr>
+  </table>
+  <p>Mobius has no analytics, advertising or tracking. Email is shown without scripts or remote images, so tracking
+  pixels in messages do not load.</p>
+
+  <h2>Google accounts</h2>
+  <p>If you choose to sign in with Google, Mobius asks for access to the Google services you connect, such as Google
+  Drive (and, later, Google Calendar). You see exactly what it asks for on Google's sign-in screen before you allow it.</p>
+  <ul>
+    <li><b>What Mobius accesses.</b> The files in your Google Drive, and later your calendar events, so it can show
+    them in Mobius, keep a copy on your computer in step with Google, and make the changes you ask for.</li>
+    <li><b>How it is used.</b> Only to provide those features to you. When you ask the agent about a file or an event,
+    the parts it needs to answer are sent to the AI model service you chose, as with anything else you ask about.</li>
+    <li><b>Where it is kept.</b> On your computer. Your Google sign-in token is kept in your operating system's secret
+    store and sent only to Google.</li>
+    <li><b>Sharing.</b> We do not receive your Google data, so we cannot sell it, share it, use it for advertising or
+    use it to train AI models. Mobius does not use Google data to develop, improve or train generalized AI or machine
+    learning models.</li>
+  </ul>
+  <p>Mobius's use and transfer of information received from Google APIs adheres to the
+  <a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>,
+  including the Limited Use requirements.</p>
+
+  <h2>Your choices</h2>
+  <ul>
+    <li>Disconnect an account in Mobius at any time, or revoke Mobius's access from your
+    <a href="https://myaccount.google.com/permissions">Google account's third-party access page</a>.</li>
+    <li><b>Settings › Privacy › Remove my data</b> deletes everything Mobius keeps on your computer.</li>
+    <li><b>Settings › Privacy › Privacy report</b> shows what Mobius read and changed in the last seven days, and where
+    your requests were answered.</li>
+  </ul>
+
+  <h2>Children</h2>
+  <p>Mobius is not directed at children under 13.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the new version is posted here with a new effective date, and the history is kept in the
+  <a href="https://github.com/BevActual/mobius">public repository</a>.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy: [CONTACT EMAIL], or an issue on
+  <a href="https://github.com/BevActual/mobius/issues">GitHub</a>. To report a security problem privately, use
+  <a href="https://github.com/BevActual/mobius/security/advisories/new">GitHub's private vulnerability reporting</a>.</p>
+
+  <footer><a href="/">Home</a> · <a href="https://github.com/BevActual/mobius">GitHub</a></footer>
+</main>
+</body>
+</html>

@@ -102,6 +102,7 @@ fn wait_for_marks(marking: &(Mutex<u32>, std::sync::Condvar)) {
 struct SyncHost {
     data_dir: PathBuf,
     drives: Arc<crate::drives::Drives>,
+    contact_accounts: Arc<crate::contact_accounts::ContactAccounts>,
     turn_history: Arc<crate::turn_history::TurnHistory>,
     emit: Emit,
     changed_outside: crate::mcp_server::Changed,
@@ -115,9 +116,16 @@ impl SyncHost {
 
 impl crate::sync_pairs::SyncHost for SyncHost {
     fn drive(&self, id: &str) -> Result<Box<dyn crate::drives::Drive>, String> {
+        // A CardDAV address book syncs like a drive folder.
+        if id.starts_with(crate::contact_accounts::PREFIX) {
+            return self.contact_accounts.drive(id);
+        }
         self.drives.open(id)
     }
     fn drive_name(&self, id: &str) -> Option<String> {
+        if id.starts_with(crate::contact_accounts::PREFIX) {
+            return self.contact_accounts.name(id);
+        }
         self.drives.name(id)
     }
     fn root(&self) -> Result<PathBuf, String> {
@@ -292,12 +300,17 @@ pub struct Bridge {
     /// The test command of each Code project, which only the person sets.
     code_tests: crate::code_tests::TestCommands,
     tasks: mobius_workspace::tasks::Tasks,
+    contacts: mobius_workspace::contacts::Contacts,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
     drives: Arc<crate::drives::Drives>,
+    /// Files picked on Google Drive, opened from Files (`drive.file` only).
+    google_drive: Mutex<Arc<crate::google_drive::GoogleDrive>>,
     /// Workspace folders synced with a folder on a drive.
     syncs: Arc<crate::sync_pairs::Syncs>,
+    /// Address books on CardDAV servers, each synced with its folder under `contacts/`.
+    contact_accounts: Arc<crate::contact_accounts::ContactAccounts>,
     mail: Arc<crate::mail::store::Mail>,
     /// What Mobius remembers about the person between conversations.
     memory: crate::memory::Memory,
@@ -311,6 +324,8 @@ pub struct Bridge {
     fetch_prices: bool,
     /// For each conversation, the app its last message was sent from ("mail"), so its use is counted there.
     sent_from: Mutex<std::collections::HashMap<String, String>>,
+    /// Small questions a tool is asking the model all at once (`ask_each`), waiting for their answers.
+    asks: crate::ask_each::Asks,
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
     key_sign_in: Mutex<Arc<crate::key_sign_in::KeySignIn>>,
     hf_sign_in: Mutex<Arc<crate::device_sign_in::DeviceSignIn>>,
@@ -413,9 +428,10 @@ impl Bridge {
         );
         let turn_history = Arc::new(crate::turn_history::TurnHistory::open(data_dir.join("turn-history.json")));
         let drives = Arc::new(crate::drives::Drives::new(&data_dir, secrets.clone()));
+        let contact_accounts = Arc::new(crate::contact_accounts::ContactAccounts::new(&data_dir, secrets.clone()));
         let syncs = crate::sync_pairs::Syncs::open(
             &data_dir,
-            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
+            Arc::new(SyncHost { data_dir: data_dir.clone(), drives: drives.clone(), contact_accounts: contact_accounts.clone(), turn_history: turn_history.clone(), emit: emit.clone(), changed_outside }),
         );
         let bridge = Bridge {
             mcp_server,
@@ -459,6 +475,7 @@ impl Bridge {
             prices: Arc::new(crate::usage::PriceList::new(data_dir.join("usage-prices.json"))),
             fetch_prices: std::env::var_os("MOBIUS_TEST").is_none(),
             sent_from: Mutex::new(std::collections::HashMap::new()),
+            asks: crate::ask_each::Asks::default(),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
             copilot,
@@ -485,7 +502,14 @@ impl Bridge {
             code: mobius_workspace::code::Code::new(data_dir.join("workspace")),
             processes: crate::code_processes::Processes::default(),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
-            tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            tasks: {
+                // A CalDAV account's task lists show in Tasks beside the person's own.
+                let tasks = mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                tasks.set_remote(calendar_accounts.clone());
+                tasks.set_mirrors(calendar_accounts.task_mirrors(&tasks.local_lists()));
+                tasks
+            },
+            contacts: mobius_workspace::contacts::Contacts::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
                 calendar.set_remote(calendar_accounts.clone());
@@ -494,6 +518,8 @@ impl Bridge {
             },
             calendar_accounts,
             drives,
+            google_drive: Mutex::new(Arc::new(crate::google_drive::GoogleDrive::new(crate::google_drive::App::built_in(), crate::google_drive::Endpoints::default(), secrets.clone(), &data_dir.join("google-drive.json")))),
+            contact_accounts,
             syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
             memory: crate::memory::Memory::new(data_dir.join("memory.md")),
@@ -682,8 +708,10 @@ impl Bridge {
             ("video", _) => Ok(self.video_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
+            ("contacts", _) => Ok(self.contacts_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("drives", _) => Ok(self.drives_call(method, args)),
+            ("googleDrive", _) => Ok(self.google_drive_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -797,6 +825,10 @@ impl Bridge {
                     "trash" => self.workspace.trash(&text(0)),
                     _ => self.workspace.put_back(&text(0), &text(1)),
                 };
+                // A file opened from Google Drive keeps its way back there when it moves.
+                if let (Ok(path), "rename" | "move") = (&done, method) {
+                    let _ = lock(&self.google_drive).moved(&text(0), path);
+                }
                 Ok(match done {
                     Ok(path) => json!({ "ok": true, "path": path }),
                     Err(error) => json!({ "ok": false, "error": error }),
@@ -1406,7 +1438,7 @@ impl Bridge {
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
         stage.store(1, std::sync::atomic::Ordering::Relaxed);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1539,6 +1571,13 @@ impl Bridge {
             let result = self.tasks.run(tool, &args).map(Value::String);
             if result.is_ok() && tool != "tasks.list" {
                 (self.emit)("mobius:tasks-changed", json!({ "list": args.get("list").and_then(Value::as_str).unwrap_or(mobius_workspace::tasks::DEFAULT_LIST), "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::contacts::is_contact_tool(tool) {
+            let result = self.contacts.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool == "contacts.save" {
+                (self.emit)("mobius:contacts-changed", json!({ "book": args.get("book").and_then(Value::as_str).unwrap_or(mobius_workspace::contacts::DEFAULT_BOOK), "by": "assistant" }));
             }
             return result;
         }
@@ -1862,7 +1901,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -1917,6 +1956,61 @@ impl Bridge {
             self.copilot.use_site_for_tests(site, client_id);
             *lock(&self.copilot_command) = Some(command.to_path_buf());
         }
+    }
+
+    /// Use Google Drive at this pretend Google, as this app. Does nothing unless the test hooks are on.
+    pub fn use_google_drive_for_tests(&self, app: crate::google_drive::App, at: crate::google_drive::Endpoints) {
+        if self.test_hooks.load(std::sync::atomic::Ordering::SeqCst) {
+            *lock(&self.google_drive) = Arc::new(crate::google_drive::GoogleDrive::new(Some(app), at, self.secrets.clone(), &self.data_dir.join("google-drive.json")));
+        }
+    }
+
+    /// Files' "Open from Google Drive". Every answer is what was asked for or `{ ok: false, message }`; a pick's
+    /// result comes later as `mobius:google-drive-changed` with the files `opened` and those that `failed`.
+    fn google_drive_call(&self, method: &str, args: &[Value]) -> Value {
+        use crate::google_drive::CHANGED;
+        let google = lock(&self.google_drive).clone();
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let emit = self.emit.clone();
+        let result: Result<Value, String> = match method {
+            "status" => Ok(google.status()),
+            "signIn" => google.start_sign_in(Arc::new(move |_| emit("mobius:google-drive-changed", Value::Null))).map(|p| json!(p)),
+            "cancel" => {
+                google.cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "signOut" => {
+                google.sign_out();
+                emit("mobius:google-drive-changed", Value::Null);
+                Ok(json!({ "ok": true }))
+            }
+            "links" => Ok(json!(google.links())),
+            "linkOf" => Ok(text(0).and_then(|p| google.link_of(p)).map_or(Value::Null, |l| json!(l))),
+            "forget" => text(0).ok_or_else(|| "Which file?".to_owned()).and_then(|p| google.forget(p)).map(|()| json!({ "ok": true })),
+            "saveBack" => text(0).ok_or_else(|| "Which file?".to_owned()).and_then(|path| {
+                let bytes = self.workspace.read_file(path, crate::drives::MAX_FILE)?;
+                let link = google.save_back(path, &bytes)?;
+                emit("mobius:google-drive-changed", json!({ "saved": link }));
+                Ok(json!({ "ok": true, "link": link }))
+            }),
+            // Pick on Google Drive, then copy each file into `folder` (default "Google Drive"), never over anything.
+            "open" => {
+                let folder = text(0).map(|f| f.trim_matches('/').to_owned()).filter(|f| !f.is_empty()).unwrap_or_else(|| "Google Drive".to_owned());
+                let (me, data_dir) = (google.clone(), self.data_dir.clone());
+                google
+                    .start_pick(Arc::new(move |picked: Result<Vec<String>, String>| {
+                        let workspace = mobius_workspace::files::Workspace::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
+                        let (opened, failed) = match picked {
+                            Ok(ids) => me.open_into(&workspace, &folder, &ids),
+                            Err(e) => (Vec::new(), vec![json!({ "message": e })]),
+                        };
+                        emit("mobius:google-drive-changed", json!({ "opened": opened, "failed": failed }));
+                    }))
+                    .map(|p| json!(p))
+            }
+            _ => Err(format!("Google Drive cannot {method}.")),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "conflict": message == CHANGED, "message": message }))
     }
 
     /// Sign in to ChatGPT at this pretend OpenAI. Does nothing unless the test hooks are on.
@@ -2930,6 +3024,73 @@ impl Bridge {
 
     /// The Tasks app. Every answer is the list asked for or `{ ok: false, message }`; a change to a task that moved or
     /// changed meanwhile also says `conflict: true`, so the window reloads instead of changing the wrong task.
+    /// The address book, for Mail and Calendar: names as you address someone, and a person card from a sender.
+    fn contacts_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let contacts = &self.contacts;
+        let one = |r: Result<mobius_workspace::contacts::Contact, String>| r.map(|c| c.to_json());
+        let result: Result<Value, String> = match method {
+            "books" => Ok(json!(contacts.books())),
+            "list" => Ok(Value::Array(contacts.all(text(0).filter(|b| !b.is_empty())).iter().map(mobius_workspace::contacts::Contact::to_json).collect())),
+            "get" => match (text(0), text(1)) {
+                (Some(book), Some(id)) => one(contacts.get(book, id)),
+                _ => Err("a book and an id are needed".into()),
+            },
+            "search" => {
+                let limit = args.get(1).and_then(Value::as_u64).map_or(20, |n| usize::try_from(n).unwrap_or(200));
+                Ok(Value::Array(contacts.search(text(0).unwrap_or(""), limit).iter().map(mobius_workspace::contacts::Contact::to_json).collect()))
+            }
+            "byEmail" => Ok(text(0).and_then(|e| contacts.by_email(e)).map_or(Value::Null, |c| c.to_json())),
+            "save" => match args.get(2).map(mobius_workspace::contacts::Draft::from_json) {
+                Some(Ok(draft)) => one(contacts.save(text(0).unwrap_or(""), text(1).filter(|i| !i.is_empty()), &draft, text(3))),
+                Some(Err(e)) => Err(e),
+                None => Err("the contact's fields are needed".into()),
+            },
+            "remove" => match (text(0), text(1)) {
+                (Some(book), Some(id)) => contacts.remove(book, id, text(2)),
+                _ => Err("a book and an id are needed".into()),
+            },
+            "restore" => match (text(0), text(1), text(2)) {
+                (Some(book), Some(id), Some(card)) => one(contacts.restore(book, id, card)),
+                _ => Err("a book, an id and the card are needed".into()),
+            },
+            "accounts" => Ok(self.contact_accounts.list()),
+            // Signs in, finds the account's address books, and syncs each with its own folder under contacts/.
+            "connect" => {
+                let a = args.first().cloned().unwrap_or(Value::Null);
+                let field = |k: &str| a.get(k).and_then(Value::as_str).unwrap_or("");
+                let taken: Vec<String> = contacts.books().into_iter().filter(|b| b != mobius_workspace::contacts::DEFAULT_BOOK || !contacts.all(Some(b)).is_empty()).collect();
+                self.contact_accounts.connect(field("name"), field("server"), field("username"), field("password"), &taken).and_then(|account| {
+                    for (i, book) in account.books.iter().enumerate() {
+                        let drive = crate::contact_accounts::drive_id(&account.id, i);
+                        if let Err(e) = self.syncs.add(&format!("{}/{}", mobius_workspace::contacts::FOLDER, book.folder), &drive, "") {
+                            for d in self.contact_accounts.remove(&account.id).unwrap_or_default() {
+                                self.syncs.remove_drive(&d);
+                            }
+                            return Err(e);
+                        }
+                    }
+                    Ok(json!({ "id": account.id, "name": account.name, "books": account.books.iter().map(|b| b.folder.clone()).collect::<Vec<_>>() }))
+                })
+            }
+            // Stops syncing the account's books and forgets it. The cards here stay.
+            "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| self.contact_accounts.remove(id)).map(|drives| {
+                for d in drives {
+                    self.syncs.remove_drive(&d);
+                }
+                json!({ "ok": true })
+            }),
+            _ => Err(format!("unknown contacts call {method}")),
+        };
+        if result.is_ok() && matches!(method, "save" | "remove" | "restore") {
+            (self.emit)("mobius:contacts-changed", json!({ "book": text(0).filter(|b| !b.is_empty()).unwrap_or(mobius_workspace::contacts::DEFAULT_BOOK), "by": "person" }));
+        }
+        match result {
+            Ok(v) => v,
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     fn tasks_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::tasks::Change;
         let text = |i: usize| args.get(i).and_then(Value::as_str);
@@ -3032,6 +3193,8 @@ impl Bridge {
     fn refresh_mirrors(&self) {
         self.calendar.set_mirrors(self.calendar_accounts.mirrors(&self.calendar.local_calendars()));
         (self.emit)("mobius:calendar-changed", json!({ "calendar": null, "by": "another app" }));
+        self.tasks.set_mirrors(self.calendar_accounts.task_mirrors(&self.tasks.local_lists()));
+        (self.emit)("mobius:tasks-changed", json!({ "list": null, "by": "another app" }));
     }
 
     /// The Mail app. Every answer is what was asked for or `{ ok: false, message }`. Sending is here, for the person's
@@ -3181,6 +3344,28 @@ impl Bridge {
                     "s3" => drives.add_s3(field("name"), field("server"), field("bucket"), field("folder"), field("region"), field("username"), field("password")),
                     _ => drives.add(field("name"), field("server"), field("username"), field("password")),
                 }
+            }
+            // Dropbox: a browser sign-in, then the drive is kept (docs/developers/drives.md, "Dropbox").
+            ("dropboxStatus", _) => Ok(drives.dropbox_status()),
+            ("dropboxCancel", _) => {
+                drives.cancel_dropbox();
+                Ok(json!({ "ok": true }))
+            }
+            ("addDropbox", _) => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str);
+                let (emit, syncs) = (self.emit.clone(), Arc::clone(&self.syncs));
+                let again = field("again").map(str::to_owned);
+                drives.add_dropbox(field("name").unwrap_or(""), field("folder").unwrap_or(""), field("again"), Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(drive) => {
+                        if let Some(id) = &again {
+                            syncs.signed_in(id);
+                        }
+                        let id = drive.get("id").and_then(Value::as_str).unwrap_or("").to_owned();
+                        emit("mobius:drive-sign-in", json!({ "kind": "dropbox", "ok": true, "drive": drive }));
+                        emit("mobius:drives-changed", json!({ "drive": id, "path": "", "by": "person" }));
+                    }
+                    Err(message) => emit("mobius:drive-sign-in", json!({ "kind": "dropbox", "ok": false, "message": message })),
+                }))
             }
             ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
             ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
@@ -3685,6 +3870,10 @@ impl Bridge {
                 if let Some(finish) = arg(3).get("finish") {
                     request["finish"] = finish.clone();
                 }
+                // { effort: "none" }: how hard the model thinks for this suggestion's turn.
+                if let Some(effort) = arg(3).get("effort") {
+                    request["effort"] = effort.clone();
+                }
                 // { tools: ["tasks", "calendar"] }: only the tools of the apps the suggestion works in are offered.
                 if let Some(tools) = arg(3).get("tools") {
                     request["tools"] = tools.clone();
@@ -3873,6 +4062,31 @@ impl Bridge {
     /// One step of a turn, with when it happened, kept in `turn-timings.jsonl` (the last few thousand lines): the
     /// message sent, each model round (from the core: start-up, first word, end, tokens), each event the window saw,
     /// and each tool the application ran. Read to see where a slow turn's time went.
+    /// For a tool: ask the model many small questions at once (the quick model, a few at a time, no tools), giving
+    /// `each` every answer as it lands and returning them all in the order asked. Cancelling the conversation's turn
+    /// stops it. Each answer is also told to the window (`mobius:asked`), so the tool's progress can show.
+    pub fn ask_each(&self, job: &crate::ask_each::Job, each: &mut dyn FnMut(&str, &Result<String, String>)) -> Result<crate::ask_each::Answers, String> {
+        let started = std::time::Instant::now();
+        let call = |method: &str, params: Value| {
+            self.core.call(method, params, std::time::Duration::from_secs(10)).map_err(|e| match e {
+                crate::process::CallError::Rpc(e) => e.message,
+                other => format!("{other:?}"),
+            })
+        };
+        let conversation = job.conversation.clone();
+        let out = self.asks.run(
+            job,
+            &call,
+            &mut |id, answer| {
+                (self.emit)("mobius:asked", json!({ "conversation": conversation, "id": id, "ok": answer.is_ok() }));
+                each(id, answer);
+            },
+            crate::ask_each::MOST_WAIT,
+        );
+        self.note_timing(json!({ "step": "ask_each", "conversation": job.conversation, "count": job.asks.len(), "ms": started.elapsed().as_millis(), "ok": out.is_ok() }));
+        out
+    }
+
     fn note_timing(&self, mut step: Value) {
         step["at"] = json!(now_ms());
         let file = self.data_dir.join("turn-timings.jsonl");
@@ -3915,6 +4129,9 @@ impl Bridge {
         }
         if method == "agent.usage" {
             self.record_usage(params);
+            return;
+        }
+        if self.asks.on_notification(method, params) {
             return;
         }
         if self.models.get().is_some_and(|m| m.handle_notification(method, params)) {

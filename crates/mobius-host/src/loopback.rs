@@ -50,15 +50,37 @@ pub struct Callback {
     listener: TcpListener,
     path: &'static str,
     port: u16,
+    /// One more page served while waiting, at its own unguessable path (Google's picker, which then comes back to
+    /// `path`).
+    extra: Option<(String, String)>,
+    /// The title and text of the page shown when the wait ends well.
+    finished: (&'static str, &'static str),
 }
 
 impl Callback {
     /// Listen on a free port of 127.0.0.1 for `path`.
     pub fn listen(path: &'static str) -> Result<Callback, String> {
-        let listener = TcpListener::bind("127.0.0.1:0").map_err(|e| format!("Could not listen for the sign-in: {e}"))?;
+        Callback::listen_on(path, 0)
+    }
+
+    /// Listen on `port` of 127.0.0.1 (0: any free one), for a service that only takes the address it was given.
+    pub fn listen_on(path: &'static str, port: u16) -> Result<Callback, String> {
+        let listener = TcpListener::bind(("127.0.0.1", port)).map_err(|e| {
+            if e.kind() == std::io::ErrorKind::AddrInUse { format!("Port {port} on this computer is in use, and the sign-in needs it. Close what's using it, or try again in a minute.") } else { format!("Could not listen for the sign-in: {e}") }
+        })?;
         listener.set_nonblocking(true).map_err(|e| e.to_string())?;
         let port = listener.local_addr().map_err(|e| e.to_string())?.port();
-        Ok(Callback { listener, path, port })
+        Ok(Callback { listener, path, port, extra: None, finished: ("You're signed in", "You can close this tab and go back to Mobius.") })
+    }
+
+    /// Also serve `html` at `path` while waiting. The page is never the end of the wait.
+    pub fn serve_page(&mut self, path: String, html: String) {
+        self.extra = Some((path, html));
+    }
+
+    /// What the browser shows when the wait ends well.
+    pub fn finished_page(&mut self, title: &'static str, text: &'static str) {
+        self.finished = (title, text);
     }
 
     pub fn port(&self) -> u16 {
@@ -89,7 +111,7 @@ impl Callback {
                     }
                     let result = finish(&query);
                     match &result {
-                        Ok(_) => respond(&mut stream, "200 OK", &page("You're signed in", "You can close this tab and go back to Mobius.")),
+                        Ok(_) => respond(&mut stream, "200 OK", &page(self.finished.0, self.finished.1)),
                         Err(e) => respond(&mut stream, "200 OK", &page("Sign-in didn't finish", e)),
                     }
                     return result;
@@ -107,7 +129,14 @@ impl Callback {
         let mut line = String::new();
         BufReader::new(Read::by_ref(stream).take(8 * 1024)).read_line(&mut line).ok()?;
         let target = line.split_whitespace().nth(1).unwrap_or("");
-        match url::Url::parse(&format!("http://127.0.0.1{target}")).ok().filter(|u| u.path() == self.path) {
+        let url = url::Url::parse(&format!("http://127.0.0.1{target}")).ok();
+        if let (Some(u), Some((path, html))) = (&url, &self.extra)
+            && u.path() == path
+        {
+            respond(stream, "200 OK", html);
+            return None;
+        }
+        match url.filter(|u| u.path() == self.path) {
             Some(u) => Some(u.query_pairs().map(|(k, v)| (k.into_owned(), v.into_owned())).collect()),
             None => {
                 respond(stream, "404 Not Found", &page("Not here", "This address is only for signing in to Mobius."));

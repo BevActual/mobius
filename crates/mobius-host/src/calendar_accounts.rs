@@ -8,12 +8,18 @@
 //!
 //! Each calendar is mirrored to a file in `calendar-accounts/<account>/` in the data folder; the passwords are kept in
 //! the system's secret store. Google and Microsoft accounts need their own sign-in and come later.
+//!
+//! A CalDAV account's **task lists** (collections of `VTODO`s, such as Reminders lists on iCloud or Nextcloud Tasks)
+//! show in the Tasks app the same way: each is mirrored to `tasks-<n>.md` beside the calendars, as a Markdown list
+//! Tasks reads, with each task's server text kept in `tasks-<n>.json` so what Mobius doesn't show survives a change.
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mobius_workspace::calendar::{Event, Mirror, Remote, parse, write};
+use mobius_workspace::tasks::{RemoteTask, TaskMirror, TaskRemote, mirror_text};
+use mobius_workspace::tasks_ical::{todo_ics, todos};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
@@ -51,6 +57,12 @@ pub struct Account {
     pub username: String,
     #[serde(default)]
     pub calendars: Vec<RemoteCalendar>,
+    /// Collections of tasks, shown in Tasks.
+    #[serde(default)]
+    pub task_lists: Vec<RemoteCalendar>,
+    /// Whether the account was asked for its task lists (accounts connected before Tasks could show them weren't).
+    #[serde(default)]
+    pub tasks_looked: bool,
     #[serde(default)]
     pub last_sync_ms: u64,
     #[serde(default)]
@@ -252,26 +264,63 @@ pub fn xml(text: &str) -> Res<Node> {
 
 // ---- talking to servers -------------------------------------------------------------------------------------------
 
-struct Answer {
-    status: u16,
-    etag: Option<String>,
-    location: Option<String>,
-    body: String,
+pub(crate) struct Answer {
+    pub status: u16,
+    pub etag: Option<String>,
+    pub location: Option<String>,
+    pub body: String,
+}
+
+/// The HTTP client for CalDAV and CardDAV: no redirects of its own (they are followed by hand, credentials only to the
+/// same site), and WebDAV's methods allowed.
+pub(crate) fn dav_agent() -> ureq::Agent {
+    ureq::Agent::config_builder()
+        .http_status_as_error(false)
+        .max_redirects(0)
+        .allow_non_standard_methods(true)
+        .timeout_connect(Some(Duration::from_secs(10)))
+        .timeout_global(Some(Duration::from_secs(60)))
+        .user_agent("Mobius")
+        .build()
+        .into()
+}
+
+/// One request, following up to five redirects. Credentials go only to the same site.
+pub(crate) fn dav_request(http: &ureq::Agent, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
+    let mut at = url.clone();
+    for _ in 0..6 {
+        let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
+        if let Some((user, password)) = auth.filter(|_| same_site(url, &at)) {
+            use base64::Engine;
+            builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
+        }
+        for (k, v) in headers {
+            builder = builder.header(*k, *v);
+        }
+        let request = builder.body(body.unwrap_or("").to_owned()).map_err(|e| e.to_string())?;
+        let mut response = http.run(request).map_err(|e| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server")))?;
+        let status = response.status().as_u16();
+        let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
+        let (etag, location) = (header("etag"), header("location"));
+        if matches!(status, 301 | 302 | 303 | 307 | 308) {
+            let next = location.as_deref().and_then(|l| at.join(l).ok()).ok_or("The server sent Mobius somewhere it could not follow.")?;
+            if !matches!(next.scheme(), "https" | "http") {
+                return Err("The server sent Mobius somewhere it could not follow.".into());
+            }
+            at = next;
+            continue;
+        }
+        let body = response.body_mut().with_config().limit(MAX_BODY).read_to_string().map_err(|e| e.to_string())?;
+        return Ok(Answer { status, etag, location, body });
+    }
+    Err("The server sent Mobius round in circles.".into())
 }
 
 impl Accounts {
     pub fn new(data_dir: &Path, secrets: Arc<dyn Secrets>) -> Accounts {
         let file = data_dir.join("calendar-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
-        let http = ureq::Agent::config_builder()
-            .http_status_as_error(false)
-            .max_redirects(0)
-            .allow_non_standard_methods(true)
-            .timeout_connect(Some(Duration::from_secs(10)))
-            .timeout_global(Some(Duration::from_secs(60)))
-            .user_agent("Mobius")
-            .build()
-            .into();
+        let http = dav_agent();
         Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http }
     }
 
@@ -290,35 +339,23 @@ impl Accounts {
         self.dir.join(account).join(format!("{index}.ics"))
     }
 
-    /// One request, following up to five redirects. Credentials go only to the same site.
+    fn task_file(&self, account: &str, index: usize) -> PathBuf {
+        self.dir.join(account).join(format!("tasks-{index}.md"))
+    }
+
+    /// Each task's text on the server, by its id.
+    fn task_texts(&self, account: &str, index: usize) -> BTreeMap<String, String> {
+        std::fs::read(self.dir.join(account).join(format!("tasks-{index}.json"))).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+    }
+
+    fn keep_task_texts(&self, account: &str, index: usize, texts: &BTreeMap<String, String>) -> Res<()> {
+        let file = self.dir.join(account).join(format!("tasks-{index}.json"));
+        std::fs::create_dir_all(file.parent().unwrap_or(Path::new("."))).map_err(|e| e.to_string())?;
+        std::fs::write(&file, serde_json::to_vec(texts).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
+    }
+
     fn request(&self, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
-        let mut at = url.clone();
-        for _ in 0..6 {
-            let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
-            if let Some((user, password)) = auth.filter(|_| same_site(url, &at)) {
-                use base64::Engine;
-                builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
-            }
-            for (k, v) in headers {
-                builder = builder.header(*k, *v);
-            }
-            let request = builder.body(body.unwrap_or("").to_owned()).map_err(|e| e.to_string())?;
-            let mut response = self.http.run(request).map_err(|e| format!("Could not reach {}: {e}", at.host_str().unwrap_or("the server")))?;
-            let status = response.status().as_u16();
-            let header = |name: &str| response.headers().get(name).and_then(|v| v.to_str().ok()).map(str::to_owned);
-            let (etag, location) = (header("etag"), header("location"));
-            if matches!(status, 301 | 302 | 303 | 307 | 308) {
-                let next = location.as_deref().and_then(|l| at.join(l).ok()).ok_or("The server sent Mobius somewhere it could not follow.")?;
-                if !matches!(next.scheme(), "https" | "http") {
-                    return Err("The server sent Mobius somewhere it could not follow.".into());
-                }
-                at = next;
-                continue;
-            }
-            let body = response.body_mut().with_config().limit(MAX_BODY).read_to_string().map_err(|e| e.to_string())?;
-            return Ok(Answer { status, etag, location, body });
-        }
-        Err("The server sent Mobius round in circles.".into())
+        dav_request(&self.http, method, url, auth, headers, body)
     }
 
     fn dav(&self, method: &str, url: &url::Url, auth: (&str, &str), depth: &str, body: &str) -> Res<Node> {
@@ -337,8 +374,31 @@ impl Accounts {
         json!(self.lock().iter().map(|a| json!({
             "id": a.id, "kind": a.kind, "name": a.name, "url": a.url, "username": a.username,
             "calendars": a.calendars.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
+            "taskLists": a.task_lists.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
             "lastSyncMs": a.last_sync_ms, "problem": a.problem,
         })).collect::<Vec<_>>())
+    }
+
+    /// The task lists to show in Tasks, named so none hides one of the person's own lists or another account's.
+    pub fn task_mirrors(&self, local: &[String]) -> Vec<TaskMirror> {
+        let mut taken: Vec<String> = local.iter().map(|n| n.to_lowercase()).collect();
+        let mut out = Vec::new();
+        for a in self.lock().iter().filter(|a| a.kind == "caldav") {
+            for (i, c) in a.task_lists.iter().enumerate() {
+                let mut name = c.name.clone();
+                if taken.contains(&name.to_lowercase()) {
+                    name = format!("{} ({})", c.name, a.name);
+                }
+                let mut n = 2;
+                while taken.contains(&name.to_lowercase()) {
+                    name = format!("{} ({}) {n}", c.name, a.name);
+                    n += 1;
+                }
+                taken.push(name.to_lowercase());
+                out.push(TaskMirror { name: mobius_workspace::notes::file_name_for(&name), file: self.task_file(&a.id, i), account: a.name.clone() });
+            }
+        }
+        out
     }
 
     /// The calendars to show, named so none hides another: a clash with one of the person's own calendars (or with
@@ -370,7 +430,7 @@ impl Accounts {
         if self.lock().len() >= MAX_ACCOUNTS {
             return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
         }
-        let mut account = Account { id: new_id(), kind: "subscription".into(), name: name.clone(), url: url.to_string(), username: String::new(), calendars: vec![RemoteCalendar { href: url.to_string(), name, ctag: String::new(), items: BTreeMap::new() }], last_sync_ms: 0, problem: None };
+        let mut account = Account { id: new_id(), kind: "subscription".into(), name: name.clone(), url: url.to_string(), username: String::new(), calendars: vec![RemoteCalendar { href: url.to_string(), name, ctag: String::new(), items: BTreeMap::new() }], task_lists: Vec::new(), tasks_looked: true, last_sync_ms: 0, problem: None };
         // Read once now, so a wrong link is said at once rather than later.
         self.sync_subscription(&mut account)?;
         let mut all = self.lock();
@@ -389,12 +449,12 @@ impl Accounts {
         if self.lock().len() >= MAX_ACCOUNTS {
             return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
         }
-        let calendars = self.discover(&base, (username, password))?;
-        if calendars.is_empty() {
+        let (calendars, task_lists) = self.discover(&base, (username, password))?;
+        if calendars.is_empty() && task_lists.is_empty() {
             return Err("That account has no calendars Mobius can show.".into());
         }
         let name = clean_name(name).or_else(|| base.host_str().map(str::to_owned)).unwrap_or_else(|| "CalDAV".into());
-        let mut account = Account { id: new_id(), kind: "caldav".into(), name, url: base.to_string(), username: username.to_owned(), calendars, last_sync_ms: 0, problem: None };
+        let mut account = Account { id: new_id(), kind: "caldav".into(), name, url: base.to_string(), username: username.to_owned(), calendars, task_lists, tasks_looked: true, last_sync_ms: 0, problem: None };
         if !self.secrets.put(&secret_name(&account.id), password) {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
@@ -405,7 +465,7 @@ impl Accounts {
         let mut all = self.lock();
         all.push(account.clone());
         self.save(&all);
-        Ok(json!({ "id": account.id, "name": account.name, "calendars": account.calendars.iter().map(|c| c.name.clone()).collect::<Vec<_>>() }))
+        Ok(json!({ "id": account.id, "name": account.name, "calendars": account.calendars.iter().map(|c| c.name.clone()).collect::<Vec<_>>(), "taskLists": account.task_lists.iter().map(|c| c.name.clone()).collect::<Vec<_>>() }))
     }
 
     pub fn remove(&self, id: &str) -> Res<Value> {
@@ -429,7 +489,7 @@ impl Accounts {
         let accounts: Vec<Account> = self.lock().iter().filter(|a| only.is_none_or(|id| a.id == id)).cloned().collect();
         let mut changed = false;
         for mut account in accounts {
-            let before = account.calendars.clone();
+            let before = (account.calendars.clone(), account.task_lists.clone());
             let result = if account.kind == "caldav" {
                 match self.secrets.get(&secret_name(&account.id)) {
                     Some(password) => self.sync_caldav(&mut account, &password),
@@ -440,7 +500,7 @@ impl Accounts {
             };
             account.problem = result.err();
             account.last_sync_ms = now_ms();
-            changed |= account.calendars != before;
+            changed |= (&account.calendars, &account.task_lists) != (&before.0, &before.1);
             let mut all = self.lock();
             if let Some(slot) = all.iter_mut().find(|a| a.id == account.id) {
                 *slot = account;
@@ -480,7 +540,8 @@ impl Accounts {
     }
 
     /// The account's calendars that hold events: principal → calendar home → calendars.
-    fn discover(&self, base: &url::Url, auth: (&str, &str)) -> Res<Vec<RemoteCalendar>> {
+    /// The account's calendars, and its task lists.
+    fn discover(&self, base: &url::Url, auth: (&str, &str)) -> Res<(Vec<RemoteCalendar>, Vec<RemoteCalendar>)> {
         const PRINCIPAL: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>"#;
         const HOME: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-home-set/></d:prop></d:propfind>"#;
         const LIST: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><cs:getctag/></d:prop></d:propfind>"#;
@@ -498,7 +559,7 @@ impl Accounts {
         let list = self.dav("PROPFIND", &home, auth, "1", LIST)?;
         let mut responses = Vec::new();
         list.all("response", &mut responses);
-        let mut out = Vec::new();
+        let (mut out, mut tasks) = (Vec::new(), Vec::new());
         for r in responses {
             let is_calendar = r.first("resourcetype").is_some_and(|t| t.find("calendar").is_some());
             let comps: Vec<String> = {
@@ -506,15 +567,23 @@ impl Accounts {
                 r.all("comp", &mut found);
                 found.iter().filter_map(|c| c.attrs.iter().find(|(k, _)| k == "name").map(|(_, v)| v.to_ascii_uppercase())).collect()
             };
-            if !is_calendar || !(comps.is_empty() || comps.iter().any(|c| c == "VEVENT")) {
+            let (events, todo) = (comps.is_empty() || comps.iter().any(|c| c == "VEVENT"), comps.iter().any(|c| c == "VTODO"));
+            if !is_calendar || !(events || todo) {
                 continue;
             }
             let Some(href) = r.text_of("href") else { continue };
             let href = home.join(&href).map_err(|e| e.to_string())?.to_string();
             let name = r.text_of("displayname").filter(|n| !n.is_empty()).unwrap_or_else(|| href.trim_end_matches('/').rsplit('/').next().unwrap_or("Calendar").to_owned());
-            out.push(RemoteCalendar { href, name: clean_name(&name).unwrap_or_else(|| "Calendar".into()), ctag: String::new(), items: BTreeMap::new() });
+            let found = RemoteCalendar { href, name: clean_name(&name).unwrap_or_else(|| "Calendar".into()), ctag: String::new(), items: BTreeMap::new() };
+            // A collection that holds both shows in Calendar and in Tasks.
+            if todo {
+                tasks.push(found.clone());
+            }
+            if events {
+                out.push(found);
+            }
         }
-        Ok(out)
+        Ok((out, tasks))
     }
 
     /// Mirrors each calendar's events from a year back to two years ahead, skipping calendars that have not changed.
@@ -528,6 +597,14 @@ impl Accounts {
             from.format("%Y%m%d"),
             to.format("%Y%m%d")
         );
+        if !account.tasks_looked
+            && let Ok((_, lists)) = url::Url::parse(&account.url).map_err(|e| e.to_string()).and_then(|base| self.discover(&base, auth))
+        {
+            account.task_lists = lists;
+            account.tasks_looked = true;
+        }
+        self.sync_tasks(account, password)?;
+        let auth = (account.username.as_str(), password);
         let id = account.id.clone();
         for (i, cal) in account.calendars.iter_mut().enumerate() {
             let url = url::Url::parse(&cal.href).map_err(|e| e.to_string())?;
@@ -556,6 +633,69 @@ impl Accounts {
             cal.ctag = ctag;
         }
         Ok(())
+    }
+
+    /// Mirrors each task list's tasks, skipping lists that have not changed. Open tasks all come; done ones, the most
+    /// recent first, up to what a list holds.
+    fn sync_tasks(&self, account: &mut Account, password: &str) -> Res<()> {
+        const CTAG: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><cs:getctag/></d:prop></d:propfind>"#;
+        const QUERY: &str = r#"<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VTODO"/></c:comp-filter></c:filter></c:calendar-query>"#;
+        const MOST: usize = 1500;
+        let auth = (account.username.as_str(), password);
+        let id = account.id.clone();
+        for (i, list) in account.task_lists.iter_mut().enumerate() {
+            let url = url::Url::parse(&list.href).map_err(|e| e.to_string())?;
+            let file = self.task_file(&id, i);
+            let ctag = self.dav("PROPFIND", &url, auth, "0", CTAG).ok().and_then(|d| d.text_of("getctag")).unwrap_or_default();
+            if !ctag.is_empty() && ctag == list.ctag && file.exists() {
+                continue;
+            }
+            let doc = self.dav("REPORT", &url, auth, "1", QUERY)?;
+            let mut responses = Vec::new();
+            doc.all("response", &mut responses);
+            let (mut found, mut items, mut texts) = (Vec::new(), BTreeMap::new(), BTreeMap::new());
+            for r in responses {
+                let (Some(href), Some(data)) = (r.text_of("href"), r.text_of("calendar-data")) else { continue };
+                for todo in todos(&data) {
+                    items.insert(todo.uid.clone(), (href.clone(), r.text_of("getetag").unwrap_or_default()));
+                    texts.insert(todo.uid.clone(), data.clone());
+                    found.push(todo);
+                }
+            }
+            found.sort_by(|a, b| (a.task.task.done, a.order.0.is_none(), a.order.0, &a.order.1, &a.uid).cmp(&(b.task.task.done, b.order.0.is_none(), b.order.0, &b.order.1, &b.uid)));
+            found.truncate(MOST);
+            let tasks: Vec<(String, RemoteTask)> = found.into_iter().map(|t| (t.uid, t.task)).collect();
+            std::fs::create_dir_all(file.parent().unwrap_or(Path::new("."))).map_err(|e| e.to_string())?;
+            std::fs::write(&file, mirror_text(&list.name, &tasks)).map_err(|e| e.to_string())?;
+            self.keep_task_texts(&id, i, &texts)?;
+            list.items = items;
+            list.ctag = ctag;
+        }
+        Ok(())
+    }
+
+    /// The account and task list a mirror file belongs to.
+    fn task_owner(&self, mirror: &TaskMirror) -> Option<(Account, usize)> {
+        self.lock().iter().find_map(|a| (0..a.task_lists.len()).find(|i| self.task_file(&a.id, *i) == mirror.file).map(|i| (a.clone(), i)))
+    }
+
+    fn remember_task(&self, account: &str, index: usize, uid: &str, item: Option<(String, String, String)>) {
+        let mut texts = self.task_texts(account, index);
+        match &item {
+            Some((_, _, text)) => texts.insert(uid.to_owned(), text.clone()),
+            None => texts.remove(uid),
+        };
+        let _ = self.keep_task_texts(account, index, &texts);
+        let mut all = self.lock();
+        if let Some(list) = all.iter_mut().find(|a| a.id == account).and_then(|a| a.task_lists.get_mut(index)) {
+            match item {
+                Some((href, etag, _)) => list.items.insert(uid.to_owned(), (href, etag)),
+                None => list.items.remove(uid),
+            };
+            // The list changed: read it fully next time.
+            list.ctag.clear();
+        }
+        self.save(&all);
     }
 
     /// The account and calendar a mirror file belongs to.
@@ -635,6 +775,64 @@ impl Remote for Accounts {
     }
 }
 
+impl TaskRemote for Accounts {
+    fn put(&self, mirror: &TaskMirror, uid: &str, task: &RemoteTask, new: bool) -> Res<()> {
+        let (account, index) = self.task_owner(mirror).ok_or("that list's account is gone")?;
+        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let list = &account.task_lists[index];
+        let base = url::Url::parse(&list.href).map_err(|e| e.to_string())?;
+        let known = list.items.get(uid).cloned();
+        let href = match &known {
+            Some((href, _)) => href.clone(),
+            None => {
+                let safe: String = uid.chars().map(|c| if c.is_ascii_alphanumeric() || "-_.".contains(c) { c } else { '-' }).collect();
+                format!("{}/{safe}.ics", base.path().trim_end_matches('/'))
+            }
+        };
+        let url = base.join(&href).map_err(|e| e.to_string())?;
+        let body = todo_ics(self.task_texts(&account.id, index).get(uid).map(String::as_str), uid, task);
+        let mut headers = vec![("Content-Type", "text/calendar; charset=utf-8")];
+        let if_match;
+        match (&known, new) {
+            (Some((_, etag)), _) if !etag.is_empty() => {
+                if_match = etag.clone();
+                headers.push(("If-Match", if_match.as_str()));
+            }
+            (None, _) => headers.push(("If-None-Match", "*")),
+            _ => {}
+        }
+        let answer = self.request("PUT", &url, Some((&account.username, &password)), &headers, Some(&body))?;
+        match answer.status {
+            200 | 201 | 204 => {
+                let href = answer.location.and_then(|l| url.join(&l).ok()).map_or_else(|| url.path().to_owned(), |u| u.path().to_owned());
+                self.remember_task(&account.id, index, uid, Some((href, answer.etag.unwrap_or_default(), body)));
+                Ok(())
+            }
+            412 => Err("That task was changed on the server meanwhile. Wait for Tasks to catch up and try again.".into()),
+            401 | 403 => Err("The server did not let Mobius change that list.".into()),
+            s => Err(format!("The server answered {s}.")),
+        }
+    }
+
+    fn delete(&self, mirror: &TaskMirror, uid: &str) -> Res<()> {
+        let (account, index) = self.task_owner(mirror).ok_or("that list's account is gone")?;
+        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let list = &account.task_lists[index];
+        let Some((href, etag)) = list.items.get(uid).cloned() else { return Ok(()) };
+        let url = url::Url::parse(&list.href).and_then(|b| b.join(&href)).map_err(|e| e.to_string())?;
+        let headers: Vec<(&str, &str)> = if etag.is_empty() { vec![] } else { vec![("If-Match", etag.as_str())] };
+        let answer = self.request("DELETE", &url, Some((&account.username, &password)), &headers, None)?;
+        match answer.status {
+            200 | 204 | 404 => {
+                self.remember_task(&account.id, index, uid, None);
+                Ok(())
+            }
+            412 => Err("That task was changed on the server meanwhile. Wait for Tasks to catch up and try again.".into()),
+            s => Err(format!("The server answered {s}.")),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -671,6 +869,7 @@ mod tests {
         let store: Arc<Mutex<BTreeMap<String, String>>> = Arc::default();
         let log: Arc<Mutex<Vec<String>>> = Arc::default();
         store.lock().unwrap().insert("/cal/work/a.ics".into(), "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261110T090000\r\nDTEND:20261110T100000\r\nSUMMARY:Kickoff\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n".into());
+        store.lock().unwrap().insert("/cal/todo/t1.ics".into(), "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t1\r\nSUMMARY:Renew passport\r\nDUE;VALUE=DATE:20261201\r\nCATEGORIES:Admin\r\nEND:VTODO\r\nEND:VCALENDAR\r\n".into());
         let (s, l) = (store.clone(), log.clone());
         std::thread::spawn(move || {
             for stream in listener.incoming() {
@@ -708,9 +907,9 @@ mod tests {
                         ("PROPFIND", "/dav/") => ("207 Multi-Status", String::new(), ms("<d:response><d:href>/dav/</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/principals/ana/</d:href></d:current-user-principal></d:prop></d:propstat></d:response>".into())),
                         ("PROPFIND", "/principals/ana/") => ("207 Multi-Status", String::new(), ms("<d:response><d:href>/principals/ana/</d:href><d:propstat><d:prop><c:calendar-home-set><d:href>/cal/</d:href></c:calendar-home-set></d:prop></d:propstat></d:response>".into())),
                         ("PROPFIND", "/cal/") => ("207 Multi-Status", String::new(), ms(r#"<d:response><d:href>/cal/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop></d:propstat></d:response><d:response><d:href>/cal/work/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Work</d:displayname><c:supported-calendar-component-set><c:comp name="VEVENT"/></c:supported-calendar-component-set></d:prop></d:propstat></d:response><d:response><d:href>/cal/todo/</d:href><d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype><d:displayname>Reminders</d:displayname><c:supported-calendar-component-set><c:comp name="VTODO"/></c:supported-calendar-component-set></d:prop></d:propstat></d:response>"#.into())),
-                        ("PROPFIND", "/cal/work/") => ("207 Multi-Status", String::new(), ms(format!("<d:response><d:href>/cal/work/</d:href><d:propstat><d:prop><cs:getctag>{}</cs:getctag></d:prop></d:propstat></d:response>", s.lock().unwrap().len()))),
-                        ("REPORT", "/cal/work/") => {
-                            let items: String = s.lock().unwrap().iter().map(|(h, d)| format!("<d:response><d:href>{h}</d:href><d:propstat><d:prop><d:getetag>\"{}\"</d:getetag><c:calendar-data>{}</c:calendar-data></d:prop></d:propstat></d:response>", d.len(), d.replace('&', "&amp;").replace('<', "&lt;"))).collect();
+                        ("PROPFIND", p @ ("/cal/work/" | "/cal/todo/")) => ("207 Multi-Status", String::new(), ms(format!("<d:response><d:href>{p}</d:href><d:propstat><d:prop><cs:getctag>{}</cs:getctag></d:prop></d:propstat></d:response>", s.lock().unwrap().iter().filter(|(h, _)| h.starts_with(p)).map(|(_, d)| d.len()).sum::<usize>()))),
+                        ("REPORT", p @ ("/cal/work/" | "/cal/todo/")) => {
+                            let items: String = s.lock().unwrap().iter().filter(|(h, _)| h.starts_with(p)).map(|(h, d)| format!("<d:response><d:href>{h}</d:href><d:propstat><d:prop><d:getetag>\"{}\"</d:getetag><c:calendar-data>{}</c:calendar-data></d:prop></d:propstat></d:response>", d.len(), d.replace('&', "&amp;").replace('<', "&lt;"))).collect();
                             ("207 Multi-Status", String::new(), ms(items))
                         }
                         ("PUT", p) => {
@@ -745,7 +944,8 @@ mod tests {
         let accounts = Arc::new(Accounts::new(dir.path(), secrets.clone()));
         assert!(accounts.connect("Mine", &base, "ana", "wrong").unwrap_err().contains("app password"));
         let made = accounts.connect("Mine", &base, "ana", "app-pass").unwrap();
-        assert_eq!(made["calendars"], json!(["Work"]), "the to-do list is left out");
+        assert_eq!(made["calendars"], json!(["Work"]), "the to-do list is left out of Calendar");
+        assert_eq!(made["taskLists"], json!(["Reminders"]), "and shows in Tasks");
         let mirrors = accounts.mirrors(&["Calendar".into(), "Work".into()]);
         assert_eq!(mirrors.len(), 1);
         assert_eq!((mirrors[0].name.as_str(), mirrors[0].writable), ("Work (Mine)", true), "no clash with the person's own Work");
@@ -769,6 +969,29 @@ mod tests {
         assert!(cal.update("Work (Mine)", "a", &mobius_workspace::calendar::Draft { title: Some("Mine".into()), ..Default::default() }).unwrap_err().contains("meanwhile"));
         assert!(accounts.sync(None));
         assert_eq!(cal.events("2026-11-10", "2026-11-10").unwrap()[0]["title"], "Changed on the phone");
+
+        // The task list: read into Tasks, and each change sent to the server first, keeping what Tasks doesn't show.
+        let tasks = mobius_workspace::tasks::Tasks::new(dir.path().join("ws"), dir.path().join("cp"));
+        tasks.set_mirrors(accounts.task_mirrors(&["Inbox".into()]));
+        tasks.set_remote(accounts.clone());
+        let read = tasks.read("Reminders").unwrap();
+        assert_eq!((read["tasks"][0]["text"].clone(), read["tasks"][0]["due"].clone()), (json!("Renew passport"), json!("2026-12-01")));
+        let line = usize::try_from(read["tasks"][0]["line"].as_u64().unwrap()).unwrap();
+        tasks.update("Reminders", line, "Renew passport", mobius_workspace::tasks::Change { done: Some(true), ..Default::default() }).unwrap();
+        let sent = store.lock().unwrap()["/cal/todo/t1.ics"].clone();
+        assert!(sent.contains("STATUS:COMPLETED") && sent.contains("CATEGORIES:Admin"), "{sent}");
+        tasks.add("Reminders", "Book flights", Some("2026-12-02")).unwrap();
+        let made: Vec<String> = store.lock().unwrap().iter().filter(|(h, d)| h.starts_with("/cal/todo/") && d.contains("SUMMARY:Book flights")).map(|(h, _)| h.clone()).collect();
+        assert_eq!(made.len(), 1);
+        assert!(store.lock().unwrap()[&made[0]].contains("DUE;VALUE=DATE:20261202"));
+        tasks.clear_done("Reminders").unwrap();
+        assert!(!store.lock().unwrap().contains_key("/cal/todo/t1.ics"), "cleared away on the server too");
+        // Made on the phone: there after the next read.
+        store.lock().unwrap().insert("/cal/todo/t9.ics".into(), "BEGIN:VCALENDAR\r\nBEGIN:VTODO\r\nUID:t9\r\nSUMMARY:Call mum\r\nEND:VTODO\r\nEND:VCALENDAR\r\n".into());
+        accounts.sync(None);
+        let texts: Vec<Value> = tasks.read("Reminders").unwrap()["tasks"].as_array().unwrap().iter().map(|t| t["text"].clone()).collect();
+        assert_eq!(texts.len(), 2);
+        assert!(texts.contains(&json!("Call mum")) && texts.contains(&json!("Book flights")));
 
         let id = accounts.list()[0]["id"].as_str().unwrap().to_owned();
         accounts.remove(&id).unwrap();

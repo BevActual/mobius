@@ -257,3 +257,19 @@
 .studio-page .studio-auto-head { position: sticky; left: 0; z-index: 2; display: flex; align-items: flex-start; padding: var(--sp-1) var(--sp-2); box-sizing: border-box; background: var(--paper); border-right: var(--hairline-w) solid var(--line); border-top: var(--hairline-w) solid var(--line-soft); }
 .studio-page .studio-auto-name { font-size: var(--fs-xs); color: var(--muted); }
 .studio-page .ui-lane.studio-auto { border-top: var(--hairline-w) solid var(--line-soft); }
+
+/* The Workbench: one effect opened up as its parts and cables, in place of the track's devices. */
+.studio-bench { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--paper); outline: 0; }
+.studio-bench-head { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1) var(--sp-2); min-width: 0; }
+.studio-bench-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.studio-bench-tag { padding: 0 var(--sp-1); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); font-size: var(--fs-xs); color: var(--muted); }
+.studio-bench-about { flex: 1 1 16em; margin: 0; min-width: 0; color: var(--muted); font-size: var(--fs-sm); }
+.studio-bench-canvas { flex: 1 1 0; height: auto; min-height: calc(var(--hit-min) * 6); }
+.studio-bench-box { display: flex; flex-direction: column; align-items: stretch; gap: 0; min-width: 0; width: 100%; }
+.studio-bench-kind { font-size: var(--fs-xs); color: var(--muted); padding-bottom: var(--sp-1); }
+.studio-bench-setting { display: flex; align-items: center; gap: var(--sp-1); min-height: calc(var(--fs-xs) * 1.9); font-size: var(--fs-xs); white-space: nowrap; }
+/* A setting a cable can move has its port in the margin; the rest line up beside it. */
+.studio-bench-setting > .ui-port { height: auto; }
+.studio-bench-dot { flex: none; width: var(--port-size); }
+.studio-bench-name { color: var(--muted); }
+.studio-bench-value { margin-left: auto; padding-left: var(--sp-2); color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }

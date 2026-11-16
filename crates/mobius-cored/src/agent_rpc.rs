@@ -119,6 +119,9 @@ struct SendParams {
     /// mode sets it.
     #[serde(default)]
     effort: Option<String>,
+    /// At most this many calls of each named tool run in the turn (Triage: five `mail.draft`): an app's mode sets it.
+    #[serde(default)]
+    caps: std::collections::BTreeMap<String, u32>,
 }
 
 #[derive(Deserialize)]
@@ -133,6 +136,12 @@ struct ReadParam {
 #[serde(deny_unknown_fields)]
 struct ConversationParams {
     conversation: String,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct JobParams {
+    job: String,
 }
 
 /// The person's answer to a question the model asked.
@@ -168,6 +177,8 @@ pub struct Agent {
     window: Option<usize>,
     /// The instructions every turn starts from; a turn's own (a bot's, what Mobius remembers) are added after them.
     base_system: String,
+    /// `agent.ask_each` jobs still running.
+    asking: crate::ask_each::Running,
 }
 
 /// Context windows of servers this daemon started itself, by address (the local models' `llama-server`).
@@ -303,7 +314,7 @@ fn host_error(error: &HostError) -> ExtensionError {
 impl Agent {
     pub fn new(inbox: SyncSender<Inbox>, store: Box<dyn ConversationStore>) -> Result<Self, mobius_core::model::ModelError> {
         let principal = Principal::new(PrincipalKind::Agent, "mobius-agent")?;
-        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, quick: None, quick_turns: VecDeque::new(), model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new() })
+        Ok(Agent { host: Host::with_store(principal, store, Box::new(mobius_core::core::system_clock())), provider: None, fallback: None, quick: None, quick_turns: VecDeque::new(), model: None, max_steps: DEFAULT_MAX_STEPS, inbox, queued: Vec::new(), outbound: HashMap::new(), next_outbound: 1, claude: ClaudeSetup::default(), windows: KnownWindows::default(), window: None, base_system: String::new(), asking: crate::ask_each::Running::default() })
     }
 
     pub fn set_claude(&mut self, claude: ClaudeSetup) {
@@ -496,6 +507,59 @@ impl Agent {
         Some(self.host.tool_result(core, turn_id, &call_id, result))
     }
 
+    /// Start asking many small questions at once; each answer comes as an `agent.asked` notification as it lands, and
+    /// `agent.asked_all` when every one has (or the job was stopped). Answers at once with how many run at a time.
+    fn ask_each(&mut self, p: crate::ask_each::AskEachParams) -> Result<Value, ExtensionError> {
+        p.check().map_err(ExtensionError::invalid_params)?;
+        let (Some(mut provider), Some(chat_model)) = (self.provider.clone(), self.model.clone()) else {
+            return Err(ExtensionError::invalid_params("no model is set up"));
+        };
+        if let Some((second, second_model)) = self.fallback.clone() {
+            provider = Arc::new(FallbackProvider::new(provider, second, second_model, Box::new(|_, _| {})));
+        }
+        // The quick model answers when there is one (and the caller wants it); the chat model when it cannot.
+        let (model, kind) = match self.quick.clone().filter(|_| p.quick) {
+            Some((quick, quick_model)) => {
+                provider = Arc::new(FallbackProvider::new(quick, provider, chat_model, Box::new(|_, _| {})));
+                (quick_model, "quick")
+            }
+            None => (chat_model, "chat"),
+        };
+        let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        {
+            let mut running = self.asking.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+            if running.contains_key(&p.job) {
+                return Err(ExtensionError::invalid_params("a job of that name is already running"));
+            }
+            running.insert(p.job.clone(), (p.conversation.clone(), stop.clone()));
+        }
+        let at_once = p.at_once.unwrap_or(crate::ask_each::AT_ONCE).min(p.items.len());
+        let requests = p.items.iter().map(|i| (i.id.clone(), p.request_for(&model, i))).collect::<Vec<_>>();
+        let answer_job = p.job.clone();
+        let (inbox, running, job, conversation, count) = (self.inbox.clone(), self.asking.clone(), p.job, p.conversation, p.items.len());
+        std::thread::spawn(move || {
+            let started = std::time::Instant::now();
+            let failed = std::sync::atomic::AtomicUsize::new(0);
+            let note = |method: &str, params: Value| inbox.send(Inbox::Notify(json!({ "jsonrpc": "2.0", "method": method, "params": params }))).is_ok();
+            let asked = crate::ask_each::ask_all(provider, requests, at_once, &stop, &|id, answer| match answer {
+                crate::ask_each::Answer::Text(text, usage) => {
+                    if let Some(u) = usage {
+                        note("agent.usage", json!({ "conversation": conversation, "turn": null, "kind": kind, "model": u.model, "endpoint": u.endpoint, "input": u.input, "output": u.output, "cached": u.cached }));
+                    }
+                    note("agent.asked", json!({ "job": job, "conversation": conversation, "id": id, "text": text }));
+                }
+                crate::ask_each::Answer::Failed(error) => {
+                    failed.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    note("agent.asked", json!({ "job": job, "conversation": conversation, "id": id, "error": error }));
+                }
+            });
+            running.lock().unwrap_or_else(std::sync::PoisonError::into_inner).remove(&job);
+            let stopped = stop.load(std::sync::atomic::Ordering::SeqCst);
+            note("agent.asked_all", json!({ "job": job, "conversation": conversation, "asked": asked, "of": count, "failed": failed.into_inner(), "stopped": stopped, "ms": started.elapsed().as_millis() }));
+        });
+        Ok(json!({ "job": answer_job, "at_once": at_once }))
+    }
+
     fn configure(&mut self, params: Option<&Value>) -> Result<Value, ExtensionError> {
         let params: ConfigureParams = params_as(params)?;
         let model = params.model.trim();
@@ -592,7 +656,7 @@ impl Extension for Agent {
                     return Err(ExtensionError::invalid_params("effort must be none, low, medium or high"));
                 }
                 let reads = p.reads.iter().map(|r| (r.tool.clone(), if r.arguments.is_null() { json!({}) } else { r.arguments.clone() })).collect();
-                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')), effort: p.effort.clone() };
+                let setup = TurnSetup { system, model: p.model.clone(), plan_only: p.plan, read_only: p.ask, images: p.images.clone(), project: p.project.clone().filter(|x| !x.is_empty()), reads, finish_on_changes: p.finish, tools: p.tools.clone(), app: p.app.clone().filter(|a| !a.is_empty() && a.len() <= 40 && a.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')), effort: p.effort.clone(), caps: p.caps.iter().take(8).filter(|(tool, _)| tool.len() <= 64).map(|(tool, most)| (tool.clone(), *most)).collect() };
                 let (turn, outs) = self.host.send_reading(core, &p.conversation, &p.text, setup).map_err(|e| host_error(&e))?;
                 if p.quick && p.model.is_none() && self.quick.is_some() {
                     // The last few turns Best fit sent to the quick model; older ones have long finished.
@@ -605,10 +669,13 @@ impl Extension for Agent {
                 Ok(json!({ "turn": turn }))
             }),
             "agent.cancel" => params_as::<ConversationParams>(params).map(|p| {
+                crate::ask_each::stop_conversation(&self.asking, &p.conversation);
                 let outs = self.host.cancel(core, &p.conversation);
                 self.queued.extend(outs);
                 json!({})
             }),
+            "agent.ask_each" => params_as::<crate::ask_each::AskEachParams>(params).and_then(|p| self.ask_each(p)),
+            "agent.ask_cancel" => params_as::<JobParams>(params).map(|p| json!({ "stopped": crate::ask_each::stop_job(&self.asking, &p.job) })),
             "agent.take_over" => params_as::<ConversationParams>(params).and_then(|p| {
                 let outs = self.host.take_over(&p.conversation).map_err(|e| host_error(&e))?;
                 self.queued.extend(outs);

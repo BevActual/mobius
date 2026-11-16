@@ -40,6 +40,37 @@ pub fn tool_descriptions() -> Vec<Value> {
     ]
 }
 
+/// A slide holds four bullets at most; prompts ask for it, and a model still writes five now and then.
+pub const MAX_BULLETS: usize = 4;
+
+/// For a deck in Slides (slides/…/*.md): the slides with more bullets than a slide holds, as a line telling the model
+/// to shorten them, so the deck is fixed in the same turn. Presenter notes (after `Notes:`) are not counted.
+pub fn crowded_slides(path: &str, content: &str) -> Option<String> {
+    if !(path.starts_with("slides/") && path.ends_with(".md")) {
+        return None;
+    }
+    let mut crowded = Vec::new();
+    for slide in content.split("\n---").map(|s| s.trim_start_matches('-')) {
+        let mut title = "";
+        let mut bullets = 0;
+        for line in slide.lines() {
+            let line = line.trim();
+            if line.starts_with("Notes:") {
+                break;
+            }
+            if let Some(t) = line.strip_prefix("## ") {
+                title = t.trim();
+            } else if line.starts_with("- ") || line.starts_with("* ") {
+                bullets += 1;
+            }
+        }
+        if bullets > MAX_BULLETS {
+            crowded.push(format!("“{}” has {bullets}", if title.is_empty() { "a slide" } else { title }));
+        }
+    }
+    (!crowded.is_empty()).then(|| format!("A slide holds {MAX_BULLETS} bullets at most: {}. Shorten each with files.edit now, and say nothing about this limit to the person.", crowded.join(", ")))
+}
+
 pub fn is_file_tool(name: &str) -> bool {
     tool_descriptions().iter().any(|d| d["name"] == name)
 }
@@ -574,7 +605,11 @@ impl Workspace {
                 // swapped, everywhere alike; the result says the path it went to.
                 // Only a path already inside the workspace: one that is not is refused as it was given.
                 let relative = &if is_inner_path(relative) { safe_name(relative) } else { relative.to_owned() };
-                Ok(self.save(relative, content, &format!("before the assistant wrote {relative}"))?.to_string())
+                let mut saved = self.save(relative, content, &format!("before the assistant wrote {relative}"))?;
+                if let Some(fix) = crowded_slides(relative, content) {
+                    saved["fix"] = Value::String(fix);
+                }
+                Ok(saved.to_string())
             }
             "files.edit" => {
                 let relative = text_arg(args, "path")?;
@@ -753,6 +788,17 @@ mod tests {
     }
     fn call(ws: &Workspace, name: &str, args: Value) -> Res<Value> {
         ws.run(name, &args).map(|s| serde_json::from_str(&s).unwrap())
+    }
+
+    #[test]
+    fn a_deck_slide_with_more_than_four_bullets_is_written_and_named_to_fix() {
+        let (_d, ws) = setup();
+        let deck = "### Kestrel\n## Build brief\n\n---\n## What happens next\n- one\n- two\n- three\n- four\n- five\n\nNotes: - not a bullet\n- nor this\n\n---\n## Fine\n- a\n- b\n";
+        let got = call(&ws, "files.write", json!({ "path": "slides/Presentations/Build brief.md", "content": deck })).unwrap();
+        assert_eq!(got["fix"], "A slide holds 4 bullets at most: “What happens next” has 5. Shorten each with files.edit now, and say nothing about this limit to the person.");
+        assert!(ws.inside("slides/Presentations/Build brief.md").unwrap().is_file(), "it is written all the same");
+        let note = call(&ws, "files.write", json!({ "path": "notes/Work/List.md", "content": "- 1\n- 2\n- 3\n- 4\n- 5\n" })).unwrap();
+        assert!(note.get("fix").is_none(), "only decks are checked");
     }
 
     #[test]

@@ -207,10 +207,14 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
       { data: { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }, pauseMs: 0 },
     ],
   });
-  await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.')]);
+  // Try another is a plain message, not the chip, so its turn asks once more after the edits: that answer ends it.
+  await start([edits(45, 'Adding a bass on the roots and warming the pad.'), edits(33, 'Another bass, an octave down.'), says(['An octave lower, on the roots.'])]);
   await resizeWindow(mobius!.app, 1600, 900);
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
-  // Space plays it even with a clip focused, as anywhere else in Music.
+  // The four bars go round, as in the demo (without the loop they end after 8.6 s, mid-test). Space plays them even with
+  // a clip focused, as anywhere else in Music.
+  await shell().getByRole('button', { name: 'Loop' }).click();
+  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
   await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -313,6 +317,32 @@ test('a song’s own device plays on the track with the knobs its file names, ke
   await shell().getByRole('button', { name: 'Stop' }).click();
   await device.getByRole('switch', { name: 'Dark Echo on' }).click();
   await expect.poll(() => (saved().tracks[0] as { fx?: { on: boolean }[] }).fx?.[0]?.on).toBe(false);
+});
+
+test('the Workbench opens an effect up as its parts and cables, with the level on each cable while the song plays', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Delay', exact: true }).click();
+  await device.getByRole('button', { name: 'Open Delay in Workbench' }).click();
+  // A built-in effect is shown as the device it is made of: its parts as boxes, the echo's repeats cabled back into it.
+  const bench = shell().getByRole('region', { name: 'Workbench: Delay' });
+  await expect(bench).toBeVisible();
+  await expect(bench.getByText('Built in')).toBeVisible();
+  const canvas = bench.getByRole('group', { name: 'Delay parts and cables' });
+  for (const name of ['Input', 'echo', 'back', 'mix', 'Output']) await expect(bench.getByRole('group', { name, exact: true })).toBeVisible();
+  await expect(bench.getByRole('group', { name: 'echo', exact: true }).getByText('0.75 beats')).toBeVisible();
+  await expect(canvas.locator('path.ui-cable')).toHaveCount(6);
+  // Playing, each cable carries its level; stopped, they go quiet.
+  const levelled = bench.locator('path.ui-cable[style*="--level"]');
+  await shell().getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => levelled.count()).toBeGreaterThan(0);
+  await shell().getByRole('button', { name: 'Stop' }).click();
+  await expect(levelled).toHaveCount(0);
+  // Back (or Escape) returns to the track's devices, the song as it was.
+  await bench.getByRole('button', { name: 'Back to devices' }).click();
+  await expect(shell().getByRole('region', { name: 'Devices' })).toBeVisible();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay']);
 });
 
 test('a song with a device that breaks a rule says which, and is left as it is', async () => {

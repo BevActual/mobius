@@ -22,6 +22,10 @@ in the [launch checklist](../launch.md).
   another or Rewind is seen in every moment.
 - **Nothing is staged.** A moment is recorded from a build anyone can install, on the demo workspace below. If the app
   can't do it yet, the row says Gap and it is built, not faked.
+- **Right every time.** A moment is Have only when its content is right in five runs in a row on one build, and each
+  round in `demo/results.md` says how many of its runs were right. Keeping the quickest of several right takes is
+  fine. Keeping the one right take among wrong ones is staging. What the app can count or check, it does itself:
+  totals, limits and names come from what the tools did, not from the model's sums.
 
 ## What is shown, and where
 
@@ -48,7 +52,7 @@ Every moment runs on one seeded workspace, so clips agree with each other and an
 
 ## The moments
 
-Status: **Have** (works on `main` today and meets the bar), **Partly** (works, but not well enough to show), **Gap**
+Status: **Have** (works on `main` today, meets the bar and is right five runs in a row), **Partly** (works, but not well enough to show), **Gap**
 (has to be built). Rows with a time were last run with a real model on 14 and 15 November 2026 (`demo/results.md`); the
 others are a first read that the owning lead corrects.
 

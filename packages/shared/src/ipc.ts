@@ -149,7 +149,7 @@ export interface TaskItem { line: number; text: string; done: boolean; due: stri
 /** How a task comes back once ticked off: its due date moves to the next one and it stays open. */
 export type TaskRepeat = 'day' | 'weekday' | 'week' | 'month' | 'year';
 export interface TaskList { list: string; tasks: TaskItem[]; version: string }
-export interface TaskListInfo { name: string; open: number; done: number }
+export interface TaskListInfo { name: string; open: number; done: number; /** The CalDAV account a list is kept on (its changes go there first); absent for the person's own lists. */ account?: string }
 export interface TaskChange { text?: string; done?: boolean; due?: string | null; time?: string | null; repeat?: TaskRepeat | null; flagged?: boolean; notes?: string }
 /** Where a task points: its line and its words, which must still match. */
 export interface TaskAt { line: number; expect: string }
@@ -232,19 +232,29 @@ export interface CalendarSuggestion { id: string; calendar: string; title: strin
 /** A calendar and where it is kept: the person's own (`account` null), or an account's. */
 export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
-export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; lastSyncMs: number; problem: string | null }
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
-export interface DriveAccount { id: string; kind: 'webdav' | 's3'; name: string; url: string; /** For S3, the access key id. */ username: string; /** S3's region. */ region?: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox'; name: string; /** For Dropbox, `dropbox:` and the folder in it. */ url: string; /** For S3, the access key id; for Dropbox, the email it signed in with. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
 export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
 export interface DriveEntry { name: string; path: string; folder: boolean; size: number; modified: string | null; etag: string | null; contentType: string | null; /** The service's own id, where it has one. */ id?: string; /** A document that lives only in the service (a Google Doc): it opens at this address. */ link?: string }
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
+/** How a browser sign-in for a drive ended: the drive it added (or signed in again), or why not. */
+export type DriveSignIn = { kind: 'dropbox'; ok: true; drive: DriveAccount } | { kind: 'dropbox'; ok: false; message: string };
+/** A Dropbox to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). `again` renews that drive's sign-in. */
+export interface NewDropbox { name?: string; folder?: string; again?: string }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+export interface GoogleDriveStatus { setUp: boolean; signedIn: boolean; account: string | null; pending: GoogleDrivePending | null; hint: string | null }
+export interface GoogleDrivePending { url: string; kind: 'signIn' | 'pick' }
+/** A file picked on Google Drive and copied into the workspace at `path`. `exported`: a Google Docs, Sheets or Slides copy, not saved back. */
+export interface GoogleDriveLink { id: string; name: string; mimeType: string; path: string; version: string; exported: boolean; link: string | null }
+/** `null` after a sign-in or sign-out; `opened` and `failed` after a pick; `saved` after a save back. */
+export type GoogleDriveChanged = null | { opened: GoogleDriveLink[]; failed: { id?: string; message: string }[] } | { saved: GoogleDriveLink };
 /** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
 export interface SyncStatus {
   state: 'idle' | 'syncing' | 'offline' | 'paused' | 'signIn';
@@ -262,6 +272,29 @@ export interface SyncStatus {
 export interface SyncPair { id: string; folder: string; drive: string; remote: string; paused: boolean; created: number; status: SyncStatus }
 export interface SyncChanged { pair: string; status: SyncStatus }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+
+/** An email address or a phone number, with its kind (`work`, `home`, `cell`) when the card gives one. */
+export interface ContactValue { value: string; label: string }
+/** A person in the address book: a vCard file in `contacts/<book>/<id>.vcf`. */
+export interface Contact {
+  book: string;
+  id: string;
+  name: string;
+  emails: ContactValue[];
+  phones: ContactValue[];
+  org: string;
+  title: string;
+  note: string;
+  /** `YYYY-MM-DD`, or `--MM-DD` with no year; empty when not known. */
+  birthday: string;
+  /** Sent back with a change, so one made elsewhere since is refused (`conflict`). */
+  version: string;
+}
+/** What a save sets. A field left out stays as it is; emails and phones replace the ones there. */
+export interface ContactDraft { name?: string; emails?: (ContactValue | string)[]; phones?: (ContactValue | string)[]; org?: string; title?: string; note?: string; birthday?: string }
+/** An account on a CardDAV server (iCloud, Fastmail, Nextcloud): each address book syncs with its folder under `contacts/`. */
+export interface ContactAccount { id: string; name: string; url: string; username: string; books: { name: string; folder: string; drive: string }[] }
+export interface ContactsChanged { book: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'browser'; models: Array<{ id: string; label: string }> }
@@ -430,7 +463,7 @@ export interface MobiusBridge {
   agent: {
     /** `plan` asks the agent for a plan only: it proposes the steps and does nothing until the person starts it. */
     /** `options.images` attaches pictures, as `data:` URLs, for models that read them. `options.app` is the app it was sent from (Settings, Usage). */
-    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean; /** Only the tools of these apps are offered (tasks, calendar): the part of a tool's name before the dot. */ tools?: readonly string[] }): Promise<AgentResult<{ turn: number }>>;
+    send(conversation: string, text: string, context?: ContextItem[], options?: { plan?: boolean; ask?: boolean; quick?: boolean; mode?: string; images?: string[]; app?: string; /** Reads to do before the model is asked: a suggestion's own. */ reads?: readonly { tool: string; arguments: Record<string, unknown> }[]; /** The turn is done once its changes are made, with no closing answer. */ finish?: boolean; /** Only the tools of these apps are offered (tasks, calendar): the part of a tool's name before the dot. */ tools?: readonly string[]; /** How hard the model thinks for this turn: a suggestion whose work is laid out needs little. */ effort?: 'none' | 'low' | 'medium' | 'high' }): Promise<AgentResult<{ turn: number }>>;
     /** The models the server offers, for the switcher. */
     models(): Promise<AgentResult<{ models: string[] }>>;
     /** Use another model on the same server, with everything else as it was. */
@@ -651,6 +684,28 @@ export interface MobiusBridge {
     clearDone(list: string): Promise<TaskList | NotesFailure>;
     onChanged(listener: (change: TasksChanged) => void): () => void;
   };
+  /** The address book, shown inside Mail and Calendar (there is no People app). Only the Tauri shell has it. */
+  contacts?: {
+    books(): Promise<string[] | NotesFailure>;
+    /** Everyone, or everyone in one book, sorted by name. */
+    list(book?: string): Promise<Contact[] | NotesFailure>;
+    get(book: string, id: string): Promise<Contact | NotesFailure>;
+    /** By name, email, company or phone digits; names that start with the query come first. */
+    search(query: string, limit?: number): Promise<Contact[] | NotesFailure>;
+    /** Who has this address (any case): a sender's or an attendee's card. `null` when nobody does. */
+    byEmail(email: string): Promise<Contact | null | NotesFailure>;
+    /** Adds a contact (`id` null; `book` empty for the main one) or changes one, checked against `version`. */
+    save(book: string, id: string | null, draft: ContactDraft, version?: string): Promise<Contact | NotesFailure>;
+    /** `text` is the card as it was, for `restore` (Undo). */
+    remove(book: string, id: string, version?: string): Promise<{ book: string; removed: string; text: string } | NotesFailure>;
+    restore(book: string, id: string, text: string): Promise<Contact | NotesFailure>;
+    accounts(): Promise<ContactAccount[] | NotesFailure>;
+    /** Signs in, finds the address books, and syncs each with a folder of its own (shown in Files' sync too). */
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; books: string[] } | NotesFailure>;
+    /** Stops syncing the account's books and forgets it; the cards here stay. */
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
+    onChanged(listener: (change: ContactsChanged) => void): () => void;
+  };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {
     calendars(): Promise<string[] | NotesFailure>;
@@ -666,7 +721,7 @@ export interface MobiusBridge {
     decline(id: string): Promise<{ declined: string } | NotesFailure>;
     accounts(): Promise<CalendarAccount[] | NotesFailure>;
     subscribe(name: string, link: string): Promise<{ id: string; name: string } | NotesFailure>;
-    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[] } | NotesFailure>;
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; calendars: string[]; taskLists: string[] } | NotesFailure>;
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
@@ -680,6 +735,12 @@ export interface MobiusBridge {
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
     /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
     signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
+    /** Whether this build can sign in to Dropbox (it needs Mobius's app key), and the sign-in page while one waits. */
+    dropboxStatus?(): Promise<{ setUp: boolean; pending: string | null } | DriveFailure>;
+    /** Starts the Dropbox sign-in: open `url` in the browser. How it ends arrives on `onSignIn`. */
+    addDropbox?(drive: NewDropbox): Promise<{ url: string } | DriveFailure>;
+    dropboxCancel?(): Promise<{ ok: true } | DriveFailure>;
+    onSignIn?(listener: (done: DriveSignIn) => void): () => void;
     browse(id: string, folder: string): Promise<DriveEntry[] | DriveFailure>;
     read(id: string, path: string): Promise<{ base64: string; size: number; etag: string | null; contentType: string | null } | DriveFailure>;
     /** With `etag`, replaces the file only if it is still that version; without, makes a new file and never replaces one. */
@@ -708,6 +769,26 @@ export interface MobiusBridge {
     /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
     syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
     onSync?(listener: (change: SyncChanged) => void): () => void;
+  };
+  /**
+   * Files picked on Google Drive (Mobius asks only for the files people pick). `open` shows Google's picker in the
+   * browser; the files picked are copied into the workspace and come back as `mobius:google-drive-changed` with
+   * `opened` and `failed`. A copy saves back over its file unless the file changed on Drive since (`conflict`).
+   */
+  googleDrive?: {
+    status(): Promise<GoogleDriveStatus>;
+    /** The page to open in the browser to sign in. */
+    signIn(): Promise<GoogleDrivePending | DriveFailure>;
+    cancel(): Promise<{ ok: true }>;
+    signOut(): Promise<{ ok: true }>;
+    /** Shows the picker; picked files land in `folder` (default "Google Drive"). */
+    open(folder?: string): Promise<GoogleDrivePending | DriveFailure>;
+    links(): Promise<GoogleDriveLink[]>;
+    /** Where a workspace file came from on Drive, or `null`. */
+    linkOf(path: string): Promise<GoogleDriveLink | null>;
+    saveBack(path: string): Promise<{ ok: true; link: GoogleDriveLink } | DriveFailure>;
+    forget(path: string): Promise<{ ok: true } | DriveFailure>;
+    onChanged(listener: (change: GoogleDriveChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {

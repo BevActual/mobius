@@ -125,6 +125,33 @@ fn an_allowed_tool_call_runs_and_its_result_goes_back_to_the_model() {
 }
 
 #[test]
+fn a_turn_of_changes_that_ends_without_a_word_asks_the_model_once_more_for_one() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    // A small local model: one call, then an empty answer (all of it spent thinking), then the line it was asked for.
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", "demo.echo", json!({ "text": "ping" }))]), text(""), text("I echoed ping.")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo ping", 1);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    let requests = provider.requests();
+    assert_eq!(requests.len(), 3);
+    assert!(!requests[1].system.contains("without writing anything"), "the first answer after the call is asked for as usual");
+    assert!(requests[2].system.contains("without writing anything"));
+    let said: Vec<AgentEvent> = turn.drain_events().into_iter().filter(|e| matches!(e, AgentEvent::Message { .. })).collect();
+    assert_eq!(said, [AgentEvent::Message { text: "I echoed ping.".into() }]);
+
+    // Asked once only: a second empty answer ends the turn.
+    let provider = ScriptedProvider::new(vec![calls("", vec![call("c2", "demo.echo", json!({}))]), text(""), text("")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo", 2);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 3);
+    // A turn that said something already, or made no call, is not asked again.
+    let provider = ScriptedProvider::new(vec![calls("Echoing.", vec![call("c3", "demo.echo", json!({}))]), text("")]);
+    let (mut turn, step) = w.engine.start(&w.core, vec![], "echo", 3);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(provider.requests().len(), 2);
+}
+
+#[test]
 fn a_tool_that_needs_approval_parks_the_turn_and_resumes_when_approved() {
     let mut w = world(10);
     let provider = ScriptedProvider::new(vec![calls("", vec![call("c1", "demo.echo", json!({ "text": "hi" }))]), text("Done.")]);
@@ -584,7 +611,7 @@ fn a_turns_own_effort_stands_in_for_the_chosen_one() {
 #[test]
 fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_model() {
     let mut w = smart_world();
-    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None };
+    let setup = TurnSetup { system: Some("You are the research bot.".to_owned()), model: Some("research-model".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None, caps: vec![] };
     let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
     let Step::CallModel(first) = &step else { panic!("{step:?}") };
     assert_eq!((first.model.as_str(), first.system.as_str()), ("research-model", with_rule("You are the research bot.").as_str()));
@@ -599,10 +626,10 @@ fn a_turn_can_use_its_own_instructions_and_model_and_the_reviewer_asks_the_same_
 #[test]
 fn a_turn_with_only_one_of_them_changed_keeps_the_other_usual() {
     let w = world(10);
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: None, model: Some("m2".to_owned()), plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None, caps: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("m2", with_rule("You are a test.").as_str()));
-    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None });
+    let (_t, step) = w.engine.start_with(&w.core, vec![], "go", 1, TurnSetup { system: Some("S".to_owned()), model: None, plan_only: false, read_only: false, images: vec![], project: None, reads: vec![], finish_on_changes: false, tools: vec![], app: None, effort: None, caps: vec![] });
     let Step::CallModel(r) = &step else { panic!("{step:?}") };
     assert_eq!((r.model.as_str(), r.system.as_str()), ("test-model", with_rule("S").as_str()));
 }
@@ -1044,4 +1071,40 @@ fn allowing_the_web_for_this_question_lets_the_rest_of_the_turn_read_the_web_and
     // A new message asks again.
     let (mut next, step) = w.engine.start(&w.core, vec![], "and Lisbon?", 2);
     assert!(matches!(drive(&mut w, &mut next, &provider, step), Step::AwaitApproval { .. }), "the next question asks again");
+}
+
+#[test]
+fn a_call_past_its_tools_cap_is_not_made_shown_or_reported_as_a_failure() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let echo = |id: &str| call(id, "demo.echo", json!({ "text": id }));
+    let provider = ScriptedProvider::new(vec![calls("", vec![echo("e1"), echo("e2"), echo("e3")]), text("Done.")]);
+    let setup = TurnSetup { caps: vec![("demo.echo".to_owned(), 2)], ..TurnSetup::default() };
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
+    assert_eq!(drive(&mut w, &mut turn, &provider, step), Step::Done);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 2, "only two run");
+    assert_eq!(tool_events(&mut turn), ["call e1", "result e1", "call e2", "result e2"], "the window counts only what was made");
+    let results = tool_messages(&turn);
+    assert_eq!(results.len(), 3, "the model still gets an answer for every call");
+    assert!(!results[2].2 && results[2].1 == mobius_agent::engine::NOT_MADE, "{results:?}");
+}
+
+#[test]
+fn a_cap_counts_calls_that_ran_early_once() {
+    let mut w = world(10);
+    allow_always(&mut w, "demo.echo");
+    let (e1, e2, e3) = (call("e1", "demo.echo", json!({ "text": "a" })), call("e2", "demo.echo", json!({ "text": "b" })), call("e3", "demo.echo", json!({ "text": "c" })));
+    let provider = ScriptedProvider::new(vec![calls("", vec![e1.clone(), e2.clone(), e3.clone()]), text("Done.")]);
+    let setup = TurnSetup { caps: vec![("demo.echo".to_owned(), 2)], ..TurnSetup::default() };
+    let (mut turn, step) = w.engine.start_with(&w.core, vec![], "go", 1, setup);
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, e1), Step::Idle);
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, e2), Step::Idle);
+    assert_eq!(w.engine.on_early_call(&mut turn, &mut w.core, e3), Step::Idle, "the third waits for the whole answer");
+    assert_eq!(w.runs.load(Ordering::SeqCst), 2);
+    let next = w.engine.on_model(&mut turn, &mut w.core, provider.complete(&request_of(&step), &mut |_| true));
+    assert_eq!(drive(&mut w, &mut turn, &provider, next), Step::Done);
+    assert_eq!(w.runs.load(Ordering::SeqCst), 2, "the two that ran early are not counted again, and the third is not made");
+    let results = tool_messages(&turn);
+    assert_eq!(results.iter().map(|r| r.0.as_str()).collect::<Vec<_>>(), ["e1", "e2", "e3"]);
+    assert_eq!(results[2].1, mobius_agent::engine::NOT_MADE);
 }

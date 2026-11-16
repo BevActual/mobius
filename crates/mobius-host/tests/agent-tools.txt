@@ -14,6 +14,8 @@ files.move
 tasks.list
 tasks.add
 tasks.update
+contacts.search
+contacts.save
 photos.edit
 design.edit
 calendar.list

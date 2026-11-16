@@ -24,6 +24,8 @@ export interface Suggestion {
   finishes?: true;
   /** The apps whose tools it works with (tasks, calendar): only theirs are offered, so the request is much shorter. */
   tools?: readonly string[];
+  /** How hard the model thinks for its turn: a suggestion whose work is fully laid out starts sooner with little. */
+  effort?: 'none' | 'low' | 'medium' | 'high';
 }
 
 /** A read done before the model is asked: a tool that only reads, and its arguments. */
@@ -203,8 +205,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'studio':
       return state.note
         ? [
-            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays.
-            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS }] : []),
+            // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays. The two
+            // edits are laid out in full, so the model doesn't think first (on 0.1.9 thinking held the first edit to 9.5 s).
+            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS, effort: 'none' as const }] : []),
             { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
@@ -223,7 +226,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'design':
       return state.note
         ? [
-            { label: 'Make a dark version', prompt: 'Add a new frame to this design, to the right of the others, that is a dark mode version of the first frame. Use the colour styles already in the design where they fit, add any new colours as styles, and check that text contrast passes AA. Keep the ids of what you leave alone; give new layers new ids.', attach: 'note' },
+            { label: 'Make a dark version', prompt: 'Add a new frame to this design, to the right of the others, that is a dark mode version of the first frame. Use the colour styles already in the design where they fit, add any new colours as styles, and check that text contrast passes AA. Keep the ids of what you leave alone; give new layers new ids. In your reply, describe the new frame in words a designer uses: no ids, coordinates or colour codes.', attach: 'note' },
             { label: 'Check contrast', prompt: 'Check the contrast of every text layer in this design against what is behind it, and list any below AA (4.5:1) with a colour that would pass. Change nothing yet.', attach: 'note' },
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
@@ -312,7 +315,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'calendar':
       return [
         // The demo's Calendar moment: the box reads "Find a time with " and the person names who, such as Sam.
-        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name: check with calendar.free, and look with mail.search for what they said about when suits them and follow it: for afternoons, call calendar.free with dayStart 13:00 so every free afternoon is there. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end. End with the times in one short list. I want to meet with ' },
+        { label: 'Find a time with…', box: 'Find a time with ', prompt: 'Find an hour in the next seven days, on weekdays only, when I am free and so are the people I name. First look with mail.search for what they said about when suits them. Then call calendar.free once, following it: for afternoons, with dayStart 13:00 so every free afternoon is there. Then suggest the best two or three of the free times calendar.free gives, on different days where it can, each with calendar.suggest, best first. Then draft the invitation for the best one with mail.draft, to them, with the time and what it is about. Send nothing, and say nothing until the end, not even a note that you will look again. End with the times in one short list. I want to meet with ' },
         { label: 'What is coming up?', prompt: 'Look at my calendar for the next seven days and tell me what to prepare for. Where it would help, suggest time to prepare.' },
         { label: 'Plan my week', prompt: 'Look at my calendar and my tasks and suggest when to do the most important tasks this week.' },
       ];

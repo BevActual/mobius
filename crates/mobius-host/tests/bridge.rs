@@ -1080,6 +1080,35 @@ fn the_assistant_changing_a_note_tells_the_window() {
 }
 
 #[test]
+fn contacts_are_vcard_files_mail_and_calendar_look_up_and_the_agent_saves() {
+    let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    assert_eq!(call(&b, "contacts", "books", json!([])), json!(["Contacts"]));
+    let made = call(&b, "contacts", "save", json!(["", null, { "name": "Priya Raman", "emails": [{ "value": "priya@northway.example", "label": "work" }] }]));
+    assert_eq!(made["name"], "Priya Raman");
+    let id = made["id"].as_str().unwrap().to_owned();
+    assert!(dir.path().join(format!("workspace/contacts/Contacts/{id}.vcf")).exists());
+    assert_eq!(call(&b, "contacts", "byEmail", json!(["Priya@Northway.example"]))["id"], id.as_str());
+    assert_eq!(call(&b, "contacts", "byEmail", json!(["nobody@x.example"])), json!(null));
+    assert_eq!(call(&b, "contacts", "search", json!(["pri"]))[0]["id"], id.as_str());
+    let changed = call(&b, "contacts", "save", json!(["Contacts", id, { "title": "Buyer" }, made["version"]]));
+    assert_eq!(changed["title"], "Buyer");
+    let stale = call(&b, "contacts", "save", json!(["Contacts", id, { "title": "X" }, made["version"]]));
+    assert_eq!((stale["ok"].clone(), stale["conflict"].clone()), (json!(false), json!(true)));
+    assert_eq!(call(&b, "contacts", "save", json!(["", null, { "emails": ["not an address"] }]))["ok"], false);
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:contacts-changed" && v["by"] == "person"));
+    events.lock().unwrap().clear();
+    let said = b.host_request("host.tool", &json!({ "tool": "contacts.save", "arguments": { "name": "Sam Okafor", "phones": [{ "value": "+44 7700 900456", "label": "cell" }] } })).unwrap();
+    assert!(said.to_string().contains("Sam Okafor"), "{said}");
+    assert!(events.lock().unwrap().iter().any(|(name, v)| name == "mobius:contacts-changed" && v["by"] == "assistant"));
+    let found = b.host_request("host.tool", &json!({ "tool": "contacts.search", "arguments": { "query": "okafor" } })).unwrap();
+    assert!(found.to_string().contains("+44 7700 900456"), "{found}");
+    assert_eq!(call(&b, "contacts", "list", json!([])).as_array().unwrap().len(), 2);
+    assert_eq!(call(&b, "contacts", "accounts", json!([])), json!([]));
+    assert_eq!(call(&b, "contacts", "connect", json!([{ "name": "x", "server": "", "username": "", "password": "" }]))["ok"], false);
+    assert_eq!(call(&b, "contacts", "removeAccount", json!(["nope"]))["ok"], false);
+}
+
+#[test]
 fn tasks_are_real_files_the_window_and_the_agent_both_change() {
     let (b, _c, events, dir) = bridge_in(tempfile::tempdir().unwrap());
     assert_eq!(call(&b, "tasks", "lists", json!([])), json!([{ "name": "Inbox", "open": 0, "done": 0 }]));
@@ -1849,6 +1878,29 @@ fn a_model_calls_tokens_are_counted_for_settings_usage_and_the_window_is_told() 
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "yesterday", "to": "today" }]))["ok"], false);
     call(&b, "usage", "clear", json!([]));
     assert_eq!(call(&b, "usage", "query", json!([{ "from": "2000-01-01", "to": "2999-12-31" }])), json!([]));
+}
+
+#[test]
+fn dropbox_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    let status = call(&b, "drives", "dropboxStatus", json!([]));
+    assert_eq!((status["setUp"].clone(), status["pending"].clone()), (json!(false), serde_json::Value::Null));
+    let add = call(&b, "drives", "addDropbox", json!([{ "folder": "Notes" }]));
+    assert_eq!((add["ok"].clone(), add["message"].clone()), (json!(false), json!(mobius_host::dropbox::NOT_SET_UP)));
+    assert_eq!(call(&b, "drives", "dropboxCancel", json!([]))["ok"], true);
+    assert_eq!(call(&b, "drives", "list", json!([])), json!([]));
+}
+
+#[test]
+fn google_drive_says_it_is_not_set_up_until_mobius_is_registered() {
+    let (b, _c) = bridge();
+    let status = call(&b, "googleDrive", "status", json!([]));
+    assert_eq!((status["setUp"].clone(), status["signedIn"].clone()), (json!(false), json!(false)));
+    let open = call(&b, "googleDrive", "open", json!([]));
+    assert_eq!((open["ok"].clone(), open["message"].clone()), (json!(false), json!(mobius_host::google_drive::NOT_SET_UP)));
+    assert_eq!(call(&b, "googleDrive", "links", json!([])), json!([]));
+    assert_eq!(call(&b, "googleDrive", "saveBack", json!(["a.md"]))["ok"], false);
+    assert_eq!(call(&b, "googleDrive", "linkOf", json!(["a.md"])), serde_json::Value::Null);
 }
 
 #[test]

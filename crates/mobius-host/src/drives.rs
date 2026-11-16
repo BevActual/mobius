@@ -137,6 +137,25 @@ fn decoded(path: &str) -> Vec<String> {
     path.split('/').filter(|s| !s.is_empty()).map(|s| percent_decode_str(s).decode_utf8_lossy().into_owned()).collect()
 }
 
+/// An ETag as the HTTP headers give it. Some servers (wsgidav, a few NAS boxes) leave the quotes off `getetag` while
+/// their `ETag` header has them, so the same version would look like a change and `If-Match` would never match.
+fn entity_tag(tag: &str) -> String {
+    let tag = tag.trim();
+    if tag.starts_with('"') || tag.starts_with("W/") { tag.to_owned() } else { format!("\"{tag}\"") }
+}
+
+/// What a file is, for a PUT. CardDAV and CalDAV servers (iCloud among them) want a card or an event sent as one.
+fn content_type_for(path: &str) -> &'static str {
+    let lower = path.to_ascii_lowercase();
+    if lower.ends_with(".vcf") {
+        "text/vcard; charset=utf-8"
+    } else if lower.ends_with(".ics") {
+        "text/calendar; charset=utf-8"
+    } else {
+        "application/octet-stream"
+    }
+}
+
 fn http_agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
@@ -327,7 +346,7 @@ impl WebDav {
                     name: path.rsplit('/').next().unwrap_or("").to_owned(),
                     size: prop("getcontentlength").and_then(|s| s.parse().ok()).unwrap_or(0),
                     modified: prop("getlastmodified"),
-                    version: prop("getetag"),
+                    version: prop("getetag").map(|e| entity_tag(&e)),
                     content_type: prop("getcontenttype").filter(|_| !folder),
                     // Nextcloud and ownCloud give each file an id that a move keeps.
                     id: prop("fileid"),
@@ -353,6 +372,12 @@ impl WebDav {
             507 => "The drive is full.".into(),
             s => format!("The server answered {s}."),
         }
+    }
+
+    /// Why a PUT did not work. A new file (no version) cannot itself be missing, so a 404 means the folder it goes in
+    /// is: Nextcloud answers that way where RFC 4918 says 409.
+    fn put_failed(status: u16, etag: Option<&str>) -> String {
+        WebDav::failed(if status == 404 && etag.is_none() { 409 } else { status }, etag)
     }
 
     fn version_of(&self, path: &str) -> Option<String> {
@@ -403,10 +428,10 @@ impl Drive for WebDav {
         }
         let url = self.url_of(path, false)?;
         let condition = etag.map_or(("If-None-Match", "*".to_owned()), |e| ("If-Match", e.to_owned()));
-        let reply = self.send("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], bytes, 64 * 1024)?;
+        let reply = self.send("PUT", &url, &[condition, ("Content-Type", content_type_for(path).to_owned())], bytes, 64 * 1024)?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 
@@ -473,10 +498,10 @@ impl Drive for WebDav {
         }
         let url = self.url_of(path, false)?;
         let condition = etag.map_or(("If-None-Match", "*".to_owned()), |e| ("If-Match", e.to_owned()));
-        let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
+        let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", content_type_for(path).to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 }
@@ -542,12 +567,13 @@ impl WebDav {
 #[serde(rename_all = "camelCase")]
 pub struct DriveAccount {
     pub id: String,
-    /// `webdav` or `s3`.
+    /// `webdav`, `s3` or `dropbox`.
     pub kind: String,
     pub name: String,
-    /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`.
+    /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`; for Dropbox,
+    /// `dropbox:` and the folder in it (`dropbox:/Notes`, or `dropbox:/` for the whole Dropbox).
     pub url: String,
-    /// The account name; for S3, the access key id.
+    /// The account name; for S3, the access key id; for Dropbox, the email it signed in with.
     pub username: String,
     /// S3's region (`eu-west-2`, R2's `auto`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -559,6 +585,8 @@ pub struct Drives {
     secrets: Arc<dyn Secrets>,
     state: Mutex<Vec<DriveAccount>>,
     http: ureq::Agent,
+    /// Dropbox sign-in, and opening a Dropbox drive with the tokens kept for it.
+    dropbox: Mutex<Arc<crate::dropbox::Service>>,
 }
 
 fn secret_name(id: &str) -> String {
@@ -569,7 +597,9 @@ impl Drives {
     pub fn new(data_dir: &Path, secrets: Arc<dyn Secrets>) -> Drives {
         let file = data_dir.join("drives.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
-        Drives { file, secrets, state: Mutex::new(state), http: http_agent() }
+        let http = http_agent();
+        let dropbox = Arc::new(crate::dropbox::Service::new(crate::dropbox::built_in_key(), crate::dropbox::Endpoints::default(), http.clone()));
+        Drives { file, secrets, state: Mutex::new(state), http, dropbox: Mutex::new(dropbox) }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<DriveAccount>> {
@@ -687,6 +717,9 @@ impl Drives {
     /// of the old one.
     pub fn sign_in(&self, id: &str, password: &str) -> Res<Value> {
         let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
+        if account.kind == "dropbox" {
+            return Err("Sign in to Dropbox again from the drive's menu.".into());
+        }
         if password.is_empty() {
             return Err("Enter the password (an app password for Nextcloud and Fastmail).".into());
         }
@@ -695,6 +728,78 @@ impl Drives {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
         Ok(json!({ "ok": true }))
+    }
+
+    fn dropbox(&self) -> Arc<crate::dropbox::Service> {
+        self.dropbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// Use this Dropbox sign-in (a pretend Dropbox, in tests).
+    pub fn use_dropbox(&self, service: crate::dropbox::Service) {
+        *self.dropbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(service);
+    }
+
+    /// Whether this build can sign in to Dropbox, and the sign-in page while one waits.
+    pub fn dropbox_status(&self) -> Value {
+        self.dropbox().status()
+    }
+
+    pub fn cancel_dropbox(&self) {
+        self.dropbox().cancel();
+    }
+
+    /// Starts a Dropbox sign-in in the browser and returns the page to open. Once the person allows it, the drive is
+    /// checked and kept: `folder` in their Dropbox (made if it isn't there; empty for the whole Dropbox), named
+    /// `name`. With `again`, that Dropbox drive's sign-in is renewed instead. `done` gets the drive, or why not.
+    pub fn add_dropbox(self: &Arc<Self>, name: &str, folder: &str, again: Option<&str>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        let again = match again {
+            Some(id) => Some(self.lock().iter().find(|a| a.id == id && a.kind == "dropbox").cloned().ok_or("That drive is gone.")?),
+            None if self.lock().len() >= MAX_DRIVES => return Err(format!("There can be at most {MAX_DRIVES} drives.")),
+            None => None,
+        };
+        let folder = names(folder)?.join("/");
+        let name = Some(name.trim()).filter(|n| !n.is_empty()).and_then(clean_name).or_else(|| folder.rsplit('/').next().filter(|f| !f.is_empty()).and_then(clean_name)).unwrap_or_else(|| "Dropbox".into());
+        let me = Arc::clone(self);
+        let pending = self.dropbox().start(Arc::new(move |signed: Res<crate::dropbox::SignedIn>| done(signed.and_then(|signed| me.keep_dropbox(&name, &folder, again.as_ref(), &signed)))))?;
+        Ok(json!(pending))
+    }
+
+    fn keep_dropbox(&self, name: &str, folder: &str, again: Option<&DriveAccount>, signed: &crate::dropbox::SignedIn) -> Res<Value> {
+        let tokens = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
+        if let Some(account) = again {
+            if !account.username.is_empty() && !signed.email.is_empty() && !account.username.eq_ignore_ascii_case(&signed.email) {
+                return Err(format!("That drive is in the Dropbox of {}; sign in with that account.", account.username));
+            }
+            if !self.secrets.put(&secret_name(&account.id), &tokens) {
+                return Err("The sign-in could not be kept in this computer's secret store.".into());
+            }
+            return Ok(json!(account));
+        }
+        let account = DriveAccount { id: new_id(), kind: "dropbox".into(), name: name.to_owned(), url: format!("dropbox:/{folder}"), username: signed.email.clone(), region: None };
+        if !self.secrets.put(&secret_name(&account.id), &tokens) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let checked = (|| {
+            let drive = self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), folder)?;
+            if !folder.is_empty() {
+                let (parent, last) = folder.rsplit_once('/').unwrap_or(("", folder));
+                let top = self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), parent)?;
+                match top.make_folder(last) {
+                    Ok(()) => {}
+                    Err(e) if e == EXISTS => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            drive.check()
+        })();
+        if let Err(e) = checked {
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(e);
+        }
+        let mut all = self.lock();
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!(account))
     }
 
     pub fn remove(&self, id: &str) -> Res<Value> {
@@ -717,6 +822,10 @@ impl Drives {
     }
 
     fn connect(&self, account: &DriveAccount, password: &str) -> Res<Box<dyn Drive>> {
+        if account.kind == "dropbox" {
+            let folder = account.url.strip_prefix("dropbox:").ok_or("The drive's address is not a Dropbox folder.")?;
+            return Ok(Box::new(self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), folder)?));
+        }
         let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
         match account.kind.as_str() {
             "webdav" => Ok(Box::new(WebDav::with_agent(url, &account.username, password, self.http.clone()))),
@@ -898,6 +1007,13 @@ pub(crate) mod tests {
     use std::collections::BTreeMap;
     use std::io::{BufRead, BufReader, Read, Write};
 
+    #[test]
+    fn an_etag_a_listing_gives_without_quotes_matches_the_header() {
+        assert_eq!(entity_tag("1028234-1794786647-3"), "\"1028234-1794786647-3\"");
+        assert_eq!(entity_tag("\"abc\""), "\"abc\"");
+        assert_eq!(entity_tag("W/\"abc\""), "W/\"abc\"");
+    }
+
     /// What the fake server holds: path → (bytes, version). Folders end in `/`.
     pub(crate) type Store = Arc<Mutex<BTreeMap<String, (Vec<u8>, u32)>>>;
 
@@ -1007,7 +1123,8 @@ pub(crate) mod tests {
                             if (!if_match.is_empty() && current.as_deref() != Some(if_match.as_str())) || (if_none == "*" && current.is_some()) {
                                 ("412 Precondition Failed", String::new(), Vec::new())
                             } else if !st.contains_key(&parent_of(&k)) {
-                                ("409 Conflict", String::new(), Vec::new())
+                                // Nextcloud answers a new file in a missing folder with 404, where RFC 4918 says 409.
+                                if uploads.is_some() { ("404 Not Found", String::new(), Vec::new()) } else { ("409 Conflict", String::new(), Vec::new()) }
                             } else {
                                 let v = st.get(&k).map_or_else(|| seen.get(&k).copied().unwrap_or(0) + 1, |(_, v)| v + 1);
                                 seen.insert(k.clone(), v);

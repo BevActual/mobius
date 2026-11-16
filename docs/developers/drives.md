@@ -1,13 +1,13 @@
 # Drives
 
 A drive is a folder on a server the person already runs or pays for, opened from Files beside the workspace. Mobius
-needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV) and
-`crates/mobius-host/src/s3.rs` (S3-style storage).
+needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV),
+`crates/mobius-host/src/s3.rs` (S3-style storage) and `crates/mobius-host/src/dropbox.rs` (Dropbox).
 
 ## How it works
 
 - **One interface, many kinds.** Every drive implements the `Drive` trait: `check`, `list`, `read`, `write`,
-  `make_folder`, `rename`, `delete`. WebDAV and S3-style storage are the kinds so far. Others (network shares, the
+  `make_folder`, `rename`, `delete`. WebDAV, S3-style storage and Dropbox are the kinds so far. Others (network shares, the
   cloud drives) are other implementations, without changing the bridge, sync or the window.
 - **Browsing copies nothing.** Each call goes to the server, with no local mirror. A workspace folder can also be kept in
   step with a drive folder both ways: see [Two-way sync](#two-way-sync-design).
@@ -22,6 +22,7 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 | Bridge call | Does |
 | --- | --- |
 | `list`, `add {name, server, username, password}`, `remove id` | The person's drives. For S3, `add {kind: "s3", name, server, bucket, folder?, region?, username, password}`: the service's address, the bucket, a folder in it, the access key id and its secret |
+| `dropboxStatus`, `addDropbox {name?, folder?, again?}`, `dropboxCancel` | Dropbox: whether this build can sign in, and the sign-in page to open. The drive (or why not) arrives as `mobius:drive-sign-in { kind, ok, drive \| message }` |
 | `browse id folder` | Folders first, then files, with size, date and version |
 | `read id path` | The file as base64, with its version (up to 32 MB) |
 | `write id path {base64 \| text} etag?` | Replace that version, or make a new file |
@@ -54,6 +55,31 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 | Synology, QNAP | The WebDAV address set up on the NAS | Usually its own port (5005 / 5006 on Synology). |
 | Apache `mod_dav`, nginx | The WebDAV folder | A folder named without its final `/` is redirected; Mobius follows. |
 
+## Dropbox
+
+A folder in the person's Dropbox, or all of it, as a drive: browsing, copying and two-way sync work as on any other.
+
+- **Sign-in** is Dropbox's own page in the browser, with PKCE and no client secret, back to
+  `http://127.0.0.1:47613/dropbox` (`Callback::listen_on` in `loopback.rs`: Dropbox matches the redirect exactly, so
+  the port is fixed; a second Mobius signing in at once is told the port is busy). Mobius asks for offline access, keeps
+  the access and refresh tokens as the drive's secret, and refreshes the access token a few minutes before it runs out,
+  or when Dropbox answers 401. A refused refresh asks the person to sign in again; `addDropbox {again: id}` renews that
+  drive's tokens, and only for the same Dropbox account.
+- **Accounts** are kind `dropbox`, with the folder as `dropbox:/Work/Plans` (`dropbox:/` for the whole Dropbox) and the
+  email that signed in. A folder that isn't there yet is made when the drive is added.
+- **Versions** are Dropbox's `rev`. A change uploads with `mode: update` and the rev it replaces, a new file with
+  `mode: add` and `autorename: false`, so neither writes over a change made in Dropbox. A delete sends `parent_rev`.
+  Moves use `move_v2` and never replace what is at the destination.
+- **Paths** go in the `Dropbox-API-Arg` header for downloads and uploads, as JSON with everything past ASCII written as
+  `\uXXXX`, as Dropbox requires.
+- **Limits.** One upload request takes up to 150 MB; bigger files need an upload session, which comes later.
+- **The app key** is built in from `MOBIUS_DROPBOX_APP_KEY` at build time. A build without it says Dropbox isn't set up
+  in this build, and Files' Add drive form shows that under Dropbox. Registering Mobius with Dropbox is in
+  [Drive and calendar sign-in](../reference/drive-sign-in.md#dropbox).
+- **Tests.** `dropbox.rs` runs against a pretend Dropbox: sign-in, versions that refuse stale writes, a folder as a drive
+  of its own, Drives keeping a new folder, and the two-way sync soak (`drive_sync::tests::soak`, the same one WebDAV and
+  S3 pass).
+
 ## S3-style storage
 
 Amazon S3, Cloudflare R2, Backblaze B2, Wasabi, MinIO and the rest of the services that speak the S3 API. The person
@@ -78,6 +104,27 @@ pastes an access key; nothing is registered with anyone.
 - **Errors** come from S3's error code: a wrong key or secret says the server did not accept them (sync shows Sign in),
   a missing bucket names it, and a bucket in another region says to give its region.
 
+## Google Drive (the files people pick)
+
+Mobius asks Google only for `drive.file`: the files the person picks, and the ones Mobius makes. So Google Drive isn't a
+drive in the list above, and has no browsing or sync. Files has **Open from Google Drive** instead
+(`crates/mobius-host/src/google_drive.rs`, bridge namespace `googleDrive`):
+
+1. **Sign in** on Google's page, with PKCE, back to a one-time page on `127.0.0.1` (`loopback.rs`). Google lets people
+   untick the file access; a sign-in without it is refused with a sentence saying so.
+2. **Pick.** Mobius serves Google's picker from a second page on that same port, at an unguessable path. The picked
+   files' ids come back to the waiting page; closing the picker picks nothing.
+3. **Open.** Each file is copied into the workspace (`Google Drive/` by default, never over a file already there) and
+   remembered in `google-drive.json`: its Drive id and version, and where the copy is. The link follows the copy when
+   it's renamed or moved in Files. Google Docs, Sheets, Slides and Drawings come in as Markdown, CSV, PDF and PNG copies.
+4. **Save back** checks the file's version on Drive first. If it changed there, nothing is written and the answer has
+   `conflict: true`. The copies of Google files aren't saved back.
+
+The app's client ID, client secret and picker key are built in from `MOBIUS_GOOGLE_CLIENT_ID`,
+`MOBIUS_GOOGLE_CLIENT_SECRET` and `MOBIUS_GOOGLE_PICKER_KEY` at build time (Google says a desktop app's secret can't be
+kept secret). A build without them says Google Drive isn't set up. `tests/google_drive.rs` runs the whole flow against
+a pretend Google. Files bigger than 32 MB aren't opened or saved back yet.
+
 ## Known limits and quirks
 
 - **Big files.** Opening a drive file in an app, and the agent's `drives.*` tools, read and write a whole file in
@@ -90,6 +137,14 @@ pastes an access key; nothing is registered with anyone.
   file: it is tried again next round.
 - **Nextcloud's legacy path** `remote.php/webdav/` also works when given in full.
 - **Weak ETags.** Some servers send `W/"…"`; Mobius sends the version back exactly as it got it.
+- **ETags without quotes.** wsgidav and a few NAS boxes leave the quotes off `getetag` in a listing while their `ETag`
+  header has them. Mobius adds them, so the same version never looks like a change and `If-Match` still matches.
+- **ETags that change once a second.** wsgidav and Apache build an ETag from the file's time and size. On a server whose
+  time is in whole seconds, an edit of the same size within the second keeps its ETag, so Mobius can miss it until the
+  file changes again, and `If-Match` can't catch a write in that second. Nextcloud and ownCloud give each change a new
+  ETag. The real-server soak test waits a second between rounds for this.
+- **A new file in a missing folder.** RFC 4918 says 409; Nextcloud and ownCloud answer 404. A write with no version
+  treats either as a missing folder, and sync makes the folders and writes again.
 - **Servers that ignore `If-Match`.** A few minimal servers do; on those a change can overwrite someone else's. Nextcloud, ownCloud
   and Apache honour it; nginx's WebDAV module is worth checking before relying on it.
 - **Folder versions.** A folder's ETag changes when anything in it changes on Nextcloud, but not on every server, so it

@@ -1,5 +1,5 @@
 import { Menu as Base } from '@base-ui/react/menu';
-import { useCallback, useId, useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import { growFrom, morphOut } from '../motion';
 import { KeyCaps } from './Tooltip';
 
@@ -24,6 +24,26 @@ export interface MenuEntry {
   checked?: boolean;
   /** A grey line under the label on what it does ("Add effect" › "Echo: repeats that fade"); makes the row two lines. */
   detail?: string;
+}
+
+/**
+ * How many menus are open, anywhere: the shell asks so a native web page, which draws above everything, steps aside
+ * while one is open (the Panels menu, an app's More menu, a row's context menu).
+ */
+let openMenus = 0;
+const menuListeners = new Set<() => void>();
+function useCountedOpen(open: boolean) {
+  useEffect(() => {
+    if (!open) return;
+    openMenus += 1;
+    menuListeners.forEach((l) => l());
+    return () => { openMenus -= 1; menuListeners.forEach((l) => l()); };
+  }, [open]);
+}
+const subscribeMenus = (l: () => void) => { menuListeners.add(l); return () => { menuListeners.delete(l); }; };
+/** Whether any menu is open now. */
+export function useAnyMenuOpen(): boolean {
+  return useSyncExternalStore(subscribeMenus, () => openMenus > 0, () => false);
 }
 
 /**
@@ -143,6 +163,7 @@ function Rows({ entries, pick }: { entries: readonly MenuEntry[]; pick: (run: ()
  */
 export function PointMenu({ x, y, label, entries, onClose }: { x: number; y: number; label: string; entries: readonly MenuEntry[]; onClose: () => void }) {
   const { open, close, popupRef, finalFocus } = useMorphingOpen(true, onClose);
+  useCountedOpen(open);
   const anchor = useMemo(() => ({ getBoundingClientRect: () => DOMRect.fromRect({ x, y, width: 0, height: 0 }) }), [x, y]);
   return (
     <Base.Root open={open} modal={false} onOpenChange={(next) => { if (!next) close(); }}>
@@ -169,6 +190,7 @@ export function Menu({ label, entries, trigger, side = 'bottom', align = 'start'
   align?: 'start' | 'center' | 'end';
 }) {
   const { open, show, close, popupRef, finalFocus } = useMorphingOpen(false);
+  useCountedOpen(open);
   return (
     <Base.Root open={open} onOpenChange={(next) => { if (next) show(); else close(); }}>
       <Base.Trigger render={trigger} />
