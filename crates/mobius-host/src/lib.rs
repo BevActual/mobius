@@ -25,6 +25,7 @@ pub mod schedules;
 pub mod calendar_accounts;
 pub mod contact_accounts;
 pub mod drives;
+pub mod google_drive;
 pub mod s3;
 pub mod drive_sync;
 pub mod sync_pairs;
