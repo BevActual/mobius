@@ -6,7 +6,7 @@ with Google (Drive first, Calendar later).
 **Not published yet.** The site is for **mobiusworkspace.com**, the public name being Mobius Workspace (build plan,
 #496). The domain is registered at Cloudflare, with its DNS pointing at GitHub Pages. To publish:
 
-1. Fill in `[DATE]` and `[PUBLISHER NAME]` in `privacy/index.html`, and check that the policy still matches the app,
+1. Check that `privacy/index.html` still matches the app (its date and publisher are filled in),
    including which Google scopes Mobius asks for and anything new that leaves the computer.
 2. In the repository's **Settings › Pages**, set **Source** to **GitHub Actions** and the custom domain to
    `mobiusworkspace.com`, then tick **Enforce HTTPS** once the certificate is ready.
