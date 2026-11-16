@@ -1,20 +1,25 @@
-# Mobius website (draft)
+# Mobius Workspace website
 
 The home page and the privacy policy. Google needs both on a domain the publisher owns before Mobius can offer Sign in
 with Google (Drive first, Calendar later).
 
-**Not published.** Nothing deploys this folder yet. Before it goes live:
+**Not published yet.** The site is for **mobiusworkspace.com**, the public name being Mobius Workspace (build plan,
+#496). The domain is registered at Cloudflare, with its DNS pointing at GitHub Pages. To publish:
 
-1. Andrew registers a domain and says to publish.
-2. Fill in the placeholders in `privacy/index.html`: `[DATE]`, `[PUBLISHER NAME]` and `[CONTACT EMAIL]`.
-3. Check that the policy still matches the app, including which Google scopes Mobius asks for and anything new that
-   leaves the computer.
-4. Add a GitHub Pages workflow that publishes `site/` at the root of the domain, and a `CNAME` file with the domain.
-5. Give Google the home page and privacy policy addresses on the OAuth consent screen.
+1. Check that `privacy/index.html` still matches the app (its date and publisher are filled in),
+   including which Google scopes Mobius asks for and anything new that leaves the computer.
+2. In the repository's **Settings › Pages**, set **Source** to **GitHub Actions** and the custom domain to
+   `mobiusworkspace.com`, then tick **Enforce HTTPS** once the certificate is ready.
+3. Run **Actions › website › Run workflow** (`.github/workflows/pages.yml`). It only ever runs by hand.
+4. Give Google the home page and privacy policy addresses on the OAuth consent screen.
+
+DNS at Cloudflare, all set to DNS only (grey cloud) so GitHub can issue the certificate: four `A` records for `@`
+(185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153) and a `CNAME` for `www` to `bevactual.github.io`.
+Email Routing forwards `hello@mobiusworkspace.com`, the contact address in the privacy policy.
 
 ## The domain
 
-Choose the domain for Mobius as a whole, not only for sign-in. This site is meant to grow into Mobius's home on the web:
+The domain is for Mobius as a whole, not only for sign-in. This site is meant to grow into Mobius's home on the web:
 docs, and later paid things such as sound packs and plugins for Music, add-ons for other apps, and a Mobius AI service
 (build plan, #483). Those are ideas for later, and none of them is built yet.
 
