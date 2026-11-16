@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
+import { addressName, connectorDisplayName, connectorProblem, isConnectorName, splitArgs, suggestName } from './connector-form';
 
 describe('Add a Connector', () => {
   it('splits the arguments as a terminal would, keeping quoted spaces', () => {
@@ -38,5 +38,14 @@ describe('a connector row', () => {
     expect(connectorProblem('The command was not found')).toBe('the command wasn’t found. Check it in mcp.json');
     expect(connectorProblem('Timed out waiting for the server')).toBe('timed out waiting for the server');
     expect(connectorProblem(undefined)).toBe('unknown problem');
+  });
+});
+
+describe('addressName', () => {
+  it('names a connector at an address after its site', () => {
+    expect(addressName('https://mcp.linear.app/sse')).toBe('linear');
+    expect(addressName('https://api.githubcopilot.com/mcp/')).toBe('githubcopilot');
+    expect(addressName('http://127.0.0.1:8080/mcp')).toBe('');
+    expect(addressName('not an address')).toBe('');
   });
 });

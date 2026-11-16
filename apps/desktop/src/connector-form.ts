@@ -37,6 +37,15 @@ export function suggestName(command: string, args: readonly string[]): string {
   return isConnectorName(name) ? name : '';
 }
 
+/** A name for a connector at an address, from its site: https://mcp.linear.app/sse → linear. */
+export function addressName(address: string): string {
+  let host = '';
+  try { host = new URL(address.trim()).hostname; } catch { return ''; }
+  const labels = host.toLowerCase().split('.').filter((l) => !['mcp', 'www', 'api', 'app', 'com', 'io', 'dev', 'ai', 'net', 'org', 'co'].includes(l));
+  const name = (labels[0] ?? '').replace(/[^a-z0-9]+/g, '_').replace(/^[^a-z]+/, '').replace(/_+$/, '').slice(0, 24);
+  return isConnectorName(name) ? name : '';
+}
+
 /** Names people know a connector by, for ids that are well-known services; any other id is shown as it is. */
 const KNOWN_NAMES: Record<string, string> = {
   github: 'GitHub', gitlab: 'GitLab', linear: 'Linear', slack: 'Slack', notion: 'Notion', jira: 'Jira', figma: 'Figma',

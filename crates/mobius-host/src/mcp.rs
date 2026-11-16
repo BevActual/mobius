@@ -18,6 +18,9 @@ pub struct McpState {
     starting: AtomicBool,
     /// Held while servers are started or stopped, so two changes never race.
     changing: Mutex<()>,
+    /// Where connectors at an address keep their sign-ins; none in tests that never sign in.
+    secrets: Mutex<Option<Arc<dyn crate::secrets::Secrets>>>,
+    pub sign_ins: Arc<crate::mcp_sign_in::SignIns>,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -25,10 +28,32 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 impl McpState {
-    /// Which servers run, which did not start (and why), and whether the file itself could not be used.
+    /// The secret store connectors at an address keep their sign-ins in. Set before they start.
+    pub fn use_secrets(&self, secrets: Arc<dyn crate::secrets::Secrets>) {
+        *lock(&self.secrets) = Some(secrets);
+    }
+
+    fn tokens_for(&self, name: &str, config: &mobius_mcp::config::ServerConfig) -> Option<Arc<dyn mobius_mcp::client::Tokens>> {
+        let secrets = lock(&self.secrets).clone()?;
+        config.url.is_some().then(|| Arc::new(crate::mcp_sign_in::Kept::new(secrets, name)) as Arc<dyn mobius_mcp::client::Tokens>)
+    }
+
+    /// Where a connector that asked for a sign-in says its sign-in is described, if it asked.
+    pub fn sign_in_pointer(&self, name: &str) -> Option<String> {
+        lock(&self.failed).iter().find(|(s, _)| s == name).and_then(|(_, e)| mobius_mcp::client::sign_in_needed(e)).map(str::to_owned)
+    }
+
+    /// Which servers run, which did not start (and why), and whether the file itself could not be used. One that
+    /// needs the person to sign in says so (`signIn`), and whether that sign-in is open in the browser now.
     pub fn status(&self) -> Value {
         let running = lock(&self.hub).as_ref().map(|h| h.servers()).unwrap_or_default();
-        let failed: Vec<Value> = lock(&self.failed).iter().map(|(server, error)| json!({ "server": server, "error": error })).collect();
+        let failed: Vec<Value> = lock(&self.failed)
+            .iter()
+            .map(|(server, error)| match mobius_mcp::client::sign_in_needed(error) {
+                Some(_) => json!({ "server": server, "error": "It needs you to sign in.", "signIn": true, "signingIn": self.sign_ins.waiting(server) }),
+                None => json!({ "server": server, "error": error }),
+            })
+            .collect();
         json!({ "running": running, "failed": failed, "problem": lock(&self.problem).clone() })
     }
 
@@ -61,7 +86,7 @@ impl McpState {
         let _changing = lock(&self.changing);
         let mut next = lock(&self.hub).as_deref().cloned().unwrap_or_default();
         let gone = next.stop_server(name);
-        let started = next.start_server(name, server);
+        let started = next.start_server_with(name, server, self.tokens_for(name, server));
         lock(&self.failed).retain(|(s, _)| s != name);
         for tool in gone {
             let _ = core.call("tools.unregister_external", json!({ "name": tool }), Duration::from_secs(5));
@@ -98,7 +123,7 @@ impl McpState {
         };
         match mobius_mcp::config::parse(&text) {
             Ok(servers) => {
-                let (hub, failed) = Hub::start(&servers);
+                let (hub, failed) = Hub::start_with(&servers, &|name| servers.get(name).and_then(|c| self.tokens_for(name, c)));
                 *lock(&self.failed) = failed;
                 *lock(&self.hub) = Some(Arc::new(hub));
             }
@@ -142,7 +167,13 @@ pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[S
         return Err("Use a short name in lowercase letters, digits and _, starting with a letter (such as github).".into());
     }
     if command.trim().is_empty() {
-        return Err("Give the command that runs the server.".into());
+        return Err("Give the command that runs the server, or its address.".into());
+    }
+    // An address is a connector over HTTP: no program to run, and it may ask the person to sign in.
+    let address = command.trim();
+    let remote = address.starts_with("https://") || address.starts_with("http://");
+    if remote && !mobius_mcp::config::is_server_url(address) {
+        return Err("A connector's address must be https (or http on this computer).".into());
     }
     let mut root = read_root(config)?;
     let Some(object) = root.as_object_mut() else { return Err("mcp.json is not a JSON object, so it was left as it is.".into()) };
@@ -152,6 +183,11 @@ pub fn add_server(config: &std::path::Path, name: &str, command: &str, args: &[S
         return Err(format!("There is already a connector called {name}."));
     }
     let mut entry = serde_json::Map::new();
+    if remote {
+        entry.insert("url".into(), json!(address));
+        servers.insert(name.to_owned(), Value::Object(entry));
+        return write_root(config, &root);
+    }
     entry.insert("command".into(), json!(command.trim()));
     if !args.is_empty() {
         entry.insert("args".into(), json!(args));

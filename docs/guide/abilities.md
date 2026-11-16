@@ -65,7 +65,15 @@ is `https`, or `http` only for a server on this computer:
 
 Mobius speaks MCP's Streamable HTTP to it: it keeps the session the server starts, reads answers sent as JSON or as a
 stream, answers the server's pings, and ends the session when it stops. Redirects aren't followed, so a key never goes
-to another address. A server that asks for a sign-in instead of a key shows that it needs one.
+to another address. In Abilities, Add a connector takes an address as well as a command, and writes the `url` entry
+for you.
+
+A server that asks for a sign-in instead of a key shows **Sign in** on its row. Mobius signs in the way MCP describes:
+it finds the server's sign-in from its protected resource metadata, registers itself with that sign-in server, and
+opens the sign-in page in the browser (OAuth with PKCE, the token bound to the server's address). When the browser
+comes back, the connector starts. The sign-in is kept in this computer's secret store, refreshed before it runs out,
+and removed with the connector. A sign-in server that doesn't let apps register themselves can't be used yet: use a
+key in `headers` if it offers one.
 
 Each server's tools appear to Mobius as `mcp.<server>.<tool>`. Each server has its own approval, so the first use asks
 as your mode says. Servers start with a minimal environment: only the variables you list under `env` are passed.

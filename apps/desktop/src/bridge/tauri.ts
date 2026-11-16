@@ -27,6 +27,7 @@ import {
   type GoogleDriveChanged,
   type DrivesChanged,
   type DriveSignIn,
+  type ConnectorSignIn,
   type SyncChanged,
   type SheetsChanged,
   type CodeChanged,
@@ -301,6 +302,9 @@ export function createTauriBridge(): MobiusBridge {
       addConnector: (draft) => call('extensions', 'addConnector', [draft], () => ({ ok: false as const, error: 'Not available.' })),
       startConnector: (name) => call('extensions', 'startConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
       removeConnector: (name) => call('extensions', 'removeConnector', [name], () => ({ ok: false as const, error: 'Not available.' })),
+      connectorSignIn: (name) => call('extensions', 'connectorSignIn', [name], () => ({ ok: false as const, error: 'Not available.' })),
+      connectorSignInCancel: (name) => call('extensions', 'connectorSignInCancel', [name], () => ({ ok: false as const, error: 'Not available.' })),
+      onSignIn: (listener) => on<ConnectorSignIn>('mobius:connector-sign-in', listener),
     },
     share: {
       status: () => call('share', 'status', [], () => ({ enabled: false, allowChanges: false, port: 0, running: false, url: null, problem: 'Not available.' })),

@@ -469,7 +469,11 @@ impl Bridge {
             turn_marks: Arc::new(Mutex::new(mobius_store::file::read_json(&data_dir.join("turn-marks.json")).and_then(|v: Value| serde_json::from_value(v).ok()).unwrap_or_default())),
             marking: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
             ending: Arc::new((Mutex::new(0), std::sync::Condvar::new())),
-            mcp: Arc::default(),
+            mcp: {
+                let mcp = Arc::new(crate::mcp::McpState::default());
+                mcp.use_secrets(secrets.clone());
+                mcp
+            },
             providers: Arc::new(crate::providers::Providers::new(secrets.clone())),
             usage: Arc::new(crate::usage::UsageBook::open(data_dir.join("usage.json"))),
             prices: Arc::new(crate::usage::PriceList::new(data_dir.join("usage-prices.json"))),
@@ -781,9 +785,18 @@ impl Bridge {
                     Err(error) => json!({ "ok": false, "error": error }),
                 })
             }
+            // Abilities: sign in to a connector at an address that asked for it, in the browser; it starts once signed in.
+            ("extensions", "connectorSignIn") => Ok(self.connector_sign_in(arg(0).as_str().unwrap_or(""))),
+            ("extensions", "connectorSignInCancel") => {
+                self.mcp.sign_ins.cancel(arg(0).as_str().unwrap_or(""));
+                Ok(json!({ "ok": true }))
+            }
             ("extensions", "removeConnector") => Ok(match crate::mcp::remove_server(&self.data_dir.join("mcp.json"), arg(0).as_str().unwrap_or("")) {
                 Ok(entry) => {
                     self.mcp.stop_one(arg(0).as_str().unwrap_or(""), &self.core);
+                    // Its sign-in goes with it.
+                    self.mcp.sign_ins.cancel(arg(0).as_str().unwrap_or(""));
+                    self.secrets.delete(&crate::mcp_sign_in::secret_name(arg(0).as_str().unwrap_or("")));
                     json!({ "ok": true, "status": self.mcp_status(), "removed": entry })
                 }
                 Err(error) => json!({ "ok": false, "error": error }),
@@ -3526,6 +3539,38 @@ impl Bridge {
     /// Which MCP servers are running, which failed to start and why (for the settings page).
     /// The servers' state, with what changed in mcp.json since Mobius opened: `waiting` start when it opens again,
     /// `leaving` stop then.
+    /// Start signing in to connector `name` (one at an address in mcp.json): the page to open in the browser. When
+    /// the browser comes back the connector is started with its sign-in, and the window told (`mobius:connector-sign-in`).
+    fn connector_sign_in(&self, name: &str) -> Value {
+        let config = self.data_dir.join("mcp.json");
+        let servers = match std::fs::read_to_string(&config).map_err(|_| "mcp.json could not be read".to_owned()).and_then(|t| mobius_mcp::config::parse(&t)) {
+            Ok(s) => s,
+            Err(error) => return json!({ "ok": false, "error": error }),
+        };
+        let Some(address) = servers.get(name).and_then(|c| c.url.clone()) else {
+            return json!({ "ok": false, "error": format!("{name} isn't a connector at an address, so there is nothing to sign in to.") });
+        };
+        let pointed = self.mcp.sign_in_pointer(name).filter(|p| *p != address);
+        let (mcp, core, emit, server) = (Arc::clone(&self.mcp), Arc::clone(&self.core), self.emit.clone(), name.to_owned());
+        let started = self.mcp.sign_ins.start(
+            name,
+            &address,
+            pointed.as_deref(),
+            Arc::clone(&self.secrets),
+            Arc::new(move |kept: Result<(), String>| {
+                let outcome = kept.and_then(|()| mcp.start_one(&config, &server, &core));
+                match outcome {
+                    Ok(()) => emit("mobius:connector-sign-in", json!({ "server": server, "ok": true })),
+                    Err(message) => emit("mobius:connector-sign-in", json!({ "server": server, "ok": false, "message": message })),
+                }
+            }),
+        );
+        match started {
+            Ok(url) => json!({ "ok": true, "url": url, "status": self.mcp_status() }),
+            Err(error) => json!({ "ok": false, "error": error }),
+        }
+    }
+
     pub fn mcp_status(&self) -> Value {
         let mut status = self.mcp.status();
         let listed = crate::mcp::configured(&self.data_dir.join("mcp.json"));
