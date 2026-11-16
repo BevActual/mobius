@@ -1,6 +1,7 @@
 import type { SuggestedRead } from './surface';
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { MobiusMark } from './MobiusMark';
+import { TRY_ANOTHER_ASK } from './ReviewBar';
 import { Welcome } from './Welcome';
 import { describeAction, finalNote, finalVerb, groupSummary, pastAction, plainUse, previewArguments, toolTarget } from './actions';
 import type { HubTarget } from './search-hub';
@@ -278,6 +279,8 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
   };
   const [sending, setSending] = useState(false);
   const shownArgs = describeArguments(item.args);
+  // What a screen reader says for the step: the words shown, never the tool's own name.
+  const spoken = (item.status === 'done' ? pastAction(item.name, item.args) : null) ?? plainAction(item.name, item.args);
   const respond = async (approve: boolean, duration: AnswerFor) => {
     if (item.requestId === undefined) return;
     setSending(true);
@@ -297,10 +300,10 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
             : <span className="tool-name" data-plain={said ? true : undefined} title={item.name}>{said ?? item.name}</span>;
         })()}
         <span className="tool-status">{STATUS_TEXT[item.status]}</span>
-        {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details of ${item.name}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
+        {finished && <button type="button" className="msg-action tool-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} details: ${spoken}`} onClick={toggle}>{open ? 'Hide' : 'Details'}</button>}
       </div>
       {open && (
-        <div className="tool-details" role="group" aria-label={`Details of ${item.name}`}>
+        <div className="tool-details" role="group" aria-label={`Details: ${spoken}`}>
           {!details ? <p className="dl-sub">Loading…</p> : (
             <>
               <h4 className="tool-h">Asked</h4>
@@ -435,6 +438,14 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const title = conversations.find((c) => c.id === active)?.title ?? 'New conversation';
+  // The list opens under its button, moved left as far as it takes to stay inside the window (the panel is on the right).
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open || !menu.current || !trigger.current) { setShift(0); return; }
+    // Where the list starts with no shift: the left edge of what it is placed in.
+    const start = menu.current.offsetParent?.getBoundingClientRect().left ?? trigger.current.getBoundingClientRect().left;
+    setShift(Math.max(8 - start, Math.min(0, window.innerWidth - 8 - menu.current.offsetWidth - start)));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -475,7 +486,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
         {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
       </button>
       {open && (
-        <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move}>
+        <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move} style={shift ? { left: shift } : undefined}>
           <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New conversation</button>
           <div className="convo-sep" role="separator" />
           {conversations.length === 0 && <p className="convo-empty">Nothing saved yet</p>}
@@ -773,7 +784,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               item.kind === 'user' ? (
                 <Fragment key={item.id}>
                   {stamps.has(item.id) && item.at !== undefined && <p className="msg-stamp"><time dateTime={new Date(item.at).toISOString()}>{stampLabel(item.at, Date.now())}</time></p>}
-                  {(() => { const { shown, steps } = splitSteps(item.text); return (
+                  {(() => { const { shown, steps } = splitSteps(item.text === TRY_ANOTHER_ASK ? 'Try another way' : item.text); return (
                     <div className="msg user">{shown}{steps !== null && <details className="msg-steps"><summary>Details</summary><p>{steps}</p></details>}</div>
                   ); })()}
                   {item.images && item.images.length > 0 && (

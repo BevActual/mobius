@@ -41,8 +41,8 @@ test('by default the agent cannot open a local address, and says why', async () 
   await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It would not open.');
   expect(await tabCount()).toBe(1);
-  await shell().getByRole('button', { name: /Show details of browser.open/ }).click();
-  await expect(shell().getByRole('group', { name: /Details of/ })).toContainText('local network');
+  await shell().getByRole('button', { name: /Show details: Open .* in the browser/ }).click();
+  await expect(shell().getByRole('group', { name: /Details:/ })).toContainText('local network');
 });
 
 test('the switch in settings turns the rule off and on', async () => {
@@ -83,7 +83,7 @@ test('the agent cannot read a local page the person has open, until allowed', as
   await say('read this page');
   await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('I could not read it.');
-  await shell().getByRole('button', { name: /Show details of browser.read/ }).click();
-  await expect(shell().getByRole('group', { name: /Details of/ })).toContainText('local network');
-  await expect(shell().getByRole('group', { name: /Details of/ })).not.toContainText('Fixture home');
+  await shell().getByRole('button', { name: /Show details: Read the page open in the browser/ }).click();
+  await expect(shell().getByRole('group', { name: /Details:/ })).toContainText('local network');
+  await expect(shell().getByRole('group', { name: /Details:/ })).not.toContainText('Fixture home');
 });

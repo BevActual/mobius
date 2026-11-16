@@ -97,14 +97,14 @@ test('a finished tool step shows what it was asked and what it returned', async 
   const approval = shell().getByRole('group', { name: /Approval needed/ });
   await approval.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('You have one tab.');
-  const toggle = shell().getByRole('button', { name: /Show details of/ });
+  const toggle = shell().getByRole('button', { name: /Show details:/ });
   await expect(toggle).toBeVisible();
   await toggle.click();
-  const details = shell().getByRole('group', { name: /Details of/ });
+  const details = shell().getByRole('group', { name: /Details:/ });
   await expect(details).toContainText('Asked');
   await expect(details).toContainText('Returned');
   await expect(details).toContainText(fixture.origin);
-  await shell().getByRole('button', { name: /Hide details of/ }).click();
+  await shell().getByRole('button', { name: /Hide details:/ }).click();
   await expect(details).toHaveCount(0);
 });
 
@@ -112,6 +112,6 @@ test('a tool step that failed says so in its details', async () => {
   await start([callsTool('no-such-tool'), says(['That did not work.'])]);
   await say('do something odd');
   await expect(log().locator('.msg.assistant')).toHaveText('That did not work.');
-  await shell().getByRole('button', { name: /Show details of/ }).click();
-  await expect(shell().getByRole('group', { name: /Details of/ })).toContainText('It failed with');
+  await shell().getByRole('button', { name: /Show details:/ }).click();
+  await expect(shell().getByRole('group', { name: /Details:/ })).toContainText('It failed with');
 });

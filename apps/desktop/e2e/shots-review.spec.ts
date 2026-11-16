@@ -39,7 +39,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shot('1a-agent-waiting');
       await shell.getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();
       await expect(shell.locator('.msg.assistant').last()).toContainText('one tab');
-      await shell.getByRole('button', { name: /Show details of/ }).click();
+      await shell.getByRole('button', { name: /Show details:/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
       await shell.getByRole('button', { name: /^Applications/ }).click();

@@ -65,7 +65,9 @@ export function Turns({ conversation, busy, version = 0, rewindTo }: {
   useEffect(() => { if (!busy) void load(); }, [busy, load, version]);
   // The end of the turn just finished is saved a moment after it: read the list again then.
   useEffect(() => { const t = window.setTimeout(() => void load(), 1500); return () => window.clearTimeout(t); }, [load, version]);
-  useEffect(() => { if (!rewound) return undefined; const t = window.setTimeout(() => setRewound(null), 10_000); return () => window.clearTimeout(t); }, [rewound]);
+  // The Undo stays 20 seconds, and as long as the pointer or focus is on it.
+  const [holding, setHolding] = useState(false);
+  useEffect(() => { if (!rewound || holding) return undefined; const t = window.setTimeout(() => setRewound(null), 20_000); return () => window.clearTimeout(t); }, [rewound, holding]);
   const asked = useRef<string | null>(null);
   const hasTurn = !!rewindTo && turns.some((t) => t.start === rewindTo);
   useEffect(() => {
@@ -104,7 +106,9 @@ export function Turns({ conversation, busy, version = 0, rewindTo }: {
     <section aria-label="Turns">
       <h3 className="clist-group"><span className="group-toggle"><span>Turns</span><span className="group-count">{turns.length}</span></span></h3>
       {rewound && (
-        <UndoToast text={`Rewound to “${rewound.ask || 'that turn'}”`} onUndo={() => void undo()} onDismiss={() => setRewound(null)} />
+        <div className="rewind-undo" onPointerEnter={() => setHolding(true)} onPointerLeave={() => setHolding(false)} onFocus={() => setHolding(true)} onBlur={() => setHolding(false)}>
+          <UndoToast text={`Rewound to “${rewound.ask || 'that turn'}”`} onUndo={() => void undo()} onDismiss={() => setRewound(null)} />
+        </div>
       )}
       {problem && <p className="review-problem" role="alert">{problem}</p>}
       <ul className="clist turn-list" role="list" aria-label="Turns of this conversation">
