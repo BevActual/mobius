@@ -319,6 +319,32 @@ test('a song’s own device plays on the track with the knobs its file names, ke
   await expect.poll(() => (saved().tracks[0] as { fx?: { on: boolean }[] }).fx?.[0]?.on).toBe(false);
 });
 
+test('the Workbench opens an effect up as its parts and cables, with the level on each cable while the song plays', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Delay', exact: true }).click();
+  await device.getByRole('button', { name: 'Open Delay in Workbench' }).click();
+  // A built-in effect is shown as the device it is made of: its parts as boxes, the echo's repeats cabled back into it.
+  const bench = shell().getByRole('region', { name: 'Workbench: Delay' });
+  await expect(bench).toBeVisible();
+  await expect(bench.getByText('Built in')).toBeVisible();
+  const canvas = bench.getByRole('group', { name: 'Delay parts and cables' });
+  for (const name of ['Input', 'echo', 'back', 'mix', 'Output']) await expect(bench.getByRole('group', { name, exact: true })).toBeVisible();
+  await expect(bench.getByRole('group', { name: 'echo', exact: true }).getByText('0.75 beats')).toBeVisible();
+  await expect(canvas.locator('path.ui-cable')).toHaveCount(6);
+  // Playing, each cable carries its level; stopped, they go quiet.
+  const levelled = bench.locator('path.ui-cable[style*="--level"]');
+  await shell().getByRole('button', { name: 'Play' }).click();
+  await expect.poll(() => levelled.count()).toBeGreaterThan(0);
+  await shell().getByRole('button', { name: 'Stop' }).click();
+  await expect(levelled).toHaveCount(0);
+  // Back (or Escape) returns to the track's devices, the song as it was.
+  await bench.getByRole('button', { name: 'Back to devices' }).click();
+  await expect(shell().getByRole('region', { name: 'Devices' })).toBeVisible();
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((e) => e.kind)).toEqual(['delay']);
+});
+
 test('a song with a device that breaks a rule says which, and is left as it is', async () => {
   const text = JSON.stringify({ ...SONG, tracks: [{ ...SONG.tracks[0], fx: [{ id: 'fx1', kind: 'device', device: { name: 'Loop', parts: [{ id: 'in', kind: 'input' }, { id: 'a', kind: 'gain' }, { id: 'b', kind: 'gain' }, { id: 'out', kind: 'output' }], cables: [['in', 'a'], ['a', 'b'], ['b', 'a'], ['b', 'out']] } }] }] });
   fs.writeFileSync(file(), text);

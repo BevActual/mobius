@@ -274,6 +274,9 @@ pub const READS_CLOSE: &str = "\n</reads>";
 pub const MAX_READS: usize = 6;
 
 /// Added to the next request after the person took over and handed back.
+/// For a model that ended a turn of changes without a word: the next answer tells the person what was done.
+const SAY_WHAT_YOU_DID: &str = "You finished without writing anything to the person. Now tell them, in a sentence or two, what you did and anything they should check. Do not call any more tools.";
+
 pub const HANDED_BACK: &str = "The person took over for a while and used the apps themself, then handed back. What you read before may have changed: read the current state again (the page, document or list you were working on) before your next step, and carry on from what is there now.";
 
 /// Added to the instructions of a plan-only turn.
@@ -315,6 +318,8 @@ pub struct Turn {
     round: Round,
     /// The model has written something to the person in this turn, in any round.
     said: bool,
+    /// The model ended the turn after its changes without a word to the person, and was asked once more for one.
+    nudged: bool,
     /// The person allowed reading the web for this question: web.search and web.read run without asking again
     /// until the turn ends.
     web_for_turn: bool,
@@ -515,7 +520,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, web_for_turn: false, ran: HashMap::new() };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, nudged: false, web_for_turn: false, ran: HashMap::new() };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -612,6 +617,12 @@ impl Engine {
                 turn.early.waiting.clear();
                 turn.messages.push(Message::Assistant { text: completion.text, tool_calls: calls.clone() });
                 if calls.is_empty() {
+                    // A model that ends a turn of changes saying nothing (a small local one, after its thinking) is
+                    // asked once more for a line, so the person is never left with changes and no answer.
+                    if !turn.said && !turn.nudged && turn.steps > 1 {
+                        turn.nudged = true;
+                        return self.next_model_call(core, turn);
+                    }
                     return self.finish(turn);
                 }
                 self.run_calls(turn, core, calls.into(), true)
@@ -904,6 +915,7 @@ impl Engine {
         };
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
+        let system = if turn.nudged { format!("{system}\n\n{SAY_WHAT_YOU_DID}") } else { system };
         let system = if turn.setup.finish_on_changes { format!("{system}\n\n{FINISH_ON_CHANGES}") } else { system };
         ChatRequest {
             model: self.model_of(turn),

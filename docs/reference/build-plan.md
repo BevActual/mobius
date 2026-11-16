@@ -71,10 +71,10 @@ and Triage is right in content but shows its first change at 25 seconds.
 | A daytime run of Plan my day, and the model on this computer | Launch | Scheduled for Sunday 15 November | Home's and Settings' moments |
 | Content fixes from the runs (`demo/results.md`) | Apps lead | Building | Recording |
 | A before and after hold | Design lead | Next | Photo's moment |
-| Two-way sync of workspace folders; S3-style storage | Builder, then Apps lead for Files | Building | Notes, Docs and the rest on a person's own server |
+| Two-way sync of workspace folders; S3-style storage | Builder, then Apps lead for Files | Have: both on `main`; the soak test against real servers (Nextcloud, wsgidav) is #478 | Notes, Docs and the rest on a person's own server |
 | Unstable tests: `database.spec` | Builder | Open | Every pull request |
 | Clips and the reel | Launch | After a moment meets the bar | The README and launch |
-| Meetings in Calendar and Notes, contacts in Mail and Calendar, the Messages app | Apps lead, Builder for the contacts store | After the demo moments, in that order | |
+| Meetings in Calendar and Notes, contacts in Mail and Calendar, the Messages app | Apps lead, Builder for the contacts store | The contacts store is building now; the rest after the demo moments, in that order | |
 
 ## Shell queue
 
@@ -85,7 +85,10 @@ The Builder's order. Earlier rows (app modes, row sizes, the slots, failed runs,
 | --- | --- | --- | --- |
 | 1 | Turn speed, in the demo plan's order: Triage's first change next | Every demo moment | Building |
 | 2 | Tools for Photo and Design | Their demo moments | Building |
-| 3 | Drives: two-way sync, then S3-style storage ([Drives](#drives)) | Files, and every app that keeps plain files | Building; WebDAV drives are on `main` |
+| 3 | Drives: two-way sync, then S3-style storage ([Drives](#drives)) | Files, and every app that keeps plain files | Have: WebDAV, sync and S3 on `main`. Sync soaks against Nextcloud and wsgidav nightly (#478) |
+| 3a | The contacts store: one `.vcf` per contact, an index, CardDAV on the sync code, and bridge calls for Mail and Calendar | Contacts in Mail and Calendar | Building |
+| 3b | Task lists over CalDAV | Tasks on the same servers as Calendar | Next |
+| 3c | Cloud drives (Dropbox, OneDrive, Google Drive) and Google and Microsoft sign-in for Mail and Calendar | Those services | Waiting on Andrew registering Mobius: the steps are in [Drive and calendar sign-in](drive-sign-in.md) |
 | 4 | Video: clip lengths and a clip list, then a first cut | Video's demo moment | Building; the cut waits on footage |
 | 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
@@ -264,13 +267,13 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 
 | App | Connects today | Next, in this order | Owner |
 | --- | --- | --- | --- |
-| Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts | Builder |
-| Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each |
-| Files | The workspace folder on this computer, and WebDAV drives you browse, open from and copy to (Nextcloud and most self-hosted drives) | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
-| Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar | Builder, Apps lead |
+| Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts, waiting on Andrew registering Mobius ([steps](drive-sign-in.md)) | Builder |
+| Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each ([steps](drive-sign-in.md)) |
+| Files | The workspace folder on this computer; WebDAV and S3-style drives you browse, open from and copy to; two-way sync of chosen folders with either | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
+| Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar (next after contacts) | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
-| People | Nothing: there is no address book | An address book in the core over CardDAV (one `.vcf` per contact in `workspace/contacts/`), shown inside Mail and Calendar; no People app for now ([decided](#decided)) | Builder for the core, Apps lead for Mail and Calendar |
+| People | Nothing: there is no address book | An address book in the core over CardDAV (one `.vcf` per contact in `workspace/contacts/`), shown inside Mail and Calendar; no People app for now ([decided](#decided)). Building | Builder for the core, Apps lead for Mail and Calendar |
 | Messages | Nothing yet | Slack, Discord and Telegram on their official APIs, in a Messages app (early, in Abilities, after the demo; [decided](#decided)) | Builder for the accounts, Apps lead for the app |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
 
@@ -282,11 +285,11 @@ Mobius reads a drive freely and asks before every change on one. In order:
 | Order | Drive | Needs | Status |
 | --- | --- | --- | --- |
 | 1 | WebDAV: Nextcloud, ownCloud, a NAS, Fastmail Files | A server address and an app password | Have |
-| 2 | Two-way sync of chosen workspace folders with a drive, so Notes, Docs and the rest can live on a server. The local folder stays the working copy; a conflict keeps both. | Nothing | Building: Andrew chose to start it on 15 November 2026 |
+| 2 | Two-way sync of chosen workspace folders with a drive, so Notes, Docs and the rest can live on a server. The local folder stays the working copy; a conflict keeps both. | Nothing | Have: on `main` since 15 November 2026, soaked nightly against Nextcloud and wsgidav |
 | 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Have: browse, copy and sync, with multipart upload for big files |
-| 4 | Dropbox | Andrew registering Mobius with Dropbox | Waiting on the registration |
-| 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs | Waiting on the registration |
-| 6 | Google Drive | Andrew registering Mobius with Google. Full access to a person's Drive is a restricted permission that Google reviews before an app is public; until that passes, sign-in is limited to named test accounts. | Waiting on the registration and Google's review |
+| 4 | Dropbox | Andrew registering Mobius with Dropbox ([steps](drive-sign-in.md#dropbox)) | Waiting on the registration |
+| 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs ([steps](drive-sign-in.md#microsoft)) | Waiting on the registration |
+| 6 | Google Drive: the files people pick (`drive.file`, Andrew's choice on 16 November 2026), opened through Google's picker; no folder browsing or sync. Whole-Drive access is a later decision, because Google requires a paid security assessment every year for it | Andrew registering Mobius with Google ([steps](drive-sign-in.md#google)). Testing works now; publishing needs a domain | Waiting on the registration; the picker flow is built after the contacts store |
 | 7 | Network shares (SMB) | Nothing | Later |
 
 Cloud drives sign in on the service's own page and Mobius keeps only the token, in the system's secret store. Sync is
@@ -306,3 +309,18 @@ Not scheduled. Each needs a decision before it starts.
 - Subagents.
 - Sync between devices and a self-hosted Mobius server, the step from working with a Nextcloud to standing in for one.
 - A first Instrument round for Search, Research, Review, Terminal and Canvas.
+
+### Paying for Mobius, later
+
+Andrew's direction on 16 November 2026. Not scheduled, and nothing is built for it yet.
+
+- **Mobius stays MIT open source.** Anyone can use, change and share every app and the agent, with no account. Nothing
+  that works today moves behind a payment.
+- **Money comes from services around it**, sold on the Mobius website: sound packs and third-party plugins for Music,
+  add-ons for other apps, and later a Mobius AI service as one more choice beside the model services people bring.
+- **A store inside Mobius too.** It lives in Abilities, beside the apps, connectors and skills already there, and sells
+  the same packs, plugins and add-ons as the website, which holds the account and the purchase.
+- **What this asks of today's work:** the website Launch drafts leaves room for a store, accounts and sign-in later;
+  the domain is chosen for the product, not one page; Plugins in Abilities (above) are designed so that free and paid
+  plugins install the same way; a paid service is always optional and never the default.
+- **Each piece needs a decision before it starts**, and comes after launch.

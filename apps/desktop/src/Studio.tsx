@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
+import { StudioWorkbench } from './StudioBench';
 import { GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, fitTracks, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch } from './ui';
 import { SideNew } from './SideNew';
@@ -205,20 +206,26 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
 /** One effect on the track, as a shared device: on or off, dragged along the chain by its grip, taken off, and its settings. */
-function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed }: {
+const BENCH_ICON = 'M3.5 6.5h3M13.5 13.5h3M6.5 6.5c4 0 3 7 7 7M6.5 6.5a1.5 1.5 0 1 1 0-.01M13.5 13.5a1.5 1.5 0 1 1 0-.01';
+/** The button on an effect's head that opens it up in the Workbench. */
+const BenchButton = ({ name, onOpen }: { name: string; onOpen: () => void }) => <IconButton label={`Open ${name} in Workbench`} title="See its parts and cables" icon={<Icon d={BENCH_ICON} />} onClick={onOpen} />;
+
+function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed }: {
   effect: Effect; at: number;
+  /** Opens the effect in the Workbench. */
+  onOpen: () => void;
   /** What Mobius changed on this effect and nobody has kept yet: `fx:<id>` for the whole effect, `fx:<id>:<setting>`. */
   proposed?: ReadonlySet<string>;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
 }) {
-  if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} onChange={onChange} onRemove={onRemove} folded={folded} onFold={onFold} proposed={proposed} />;
+  if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} onChange={onChange} onRemove={onRemove} onOpen={onOpen} folded={folded} onFold={onFold} proposed={proposed} />;
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
     <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
-      actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      actions={<><BenchButton name={name} onOpen={onOpen} /><IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
       <div className="studio-fx-body">
       {effect.kind === 'delay' && (
         <Segmented label="Time" wide value={String(effect.time) as (typeof DELAY_TIMES)[number]['value']} choices={DELAY_TIMES} onChange={(v) => onChange((e) => { (e as Extract<Effect, { kind: 'delay' }>).time = Number(v); }, 'fx:time')} />
@@ -243,8 +250,9 @@ function EffectBlock({ effect, at, onChange, onRemove, folded, onFold, proposed 
 }
 
 /** A song's own device on the track: its name, what it is for, and the knobs its file names as controls. */
-function DeviceBlock({ effect, at, onChange, onRemove, folded, onFold, proposed }: {
+function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed }: {
   effect: Extract<Effect, { kind: 'device' }>; at: number; proposed?: ReadonlySet<string>;
+  onOpen: () => void;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
@@ -252,7 +260,7 @@ function DeviceBlock({ effect, at, onChange, onRemove, folded, onFold, proposed 
   const { device } = effect;
   return (
     <DeviceFrame className="studio-fx studio-fx-device" title={device.name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
-      actions={<IconButton label={`Remove ${device.name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      actions={<><BenchButton name={device.name} onOpen={onOpen} /><IconButton label={`Remove ${device.name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
       <div className="studio-fx-body">
         {device.about && <p className="studio-fx-about">{device.about}</p>}
         {device.controls.length > 0 && <ParamGrid label={`${device.name} controls`} columns={4}>
@@ -295,8 +303,10 @@ const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label 
  * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
  * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack, proposed }: {
+export function StudioDevice({ track, onTrack, onOpen, proposed }: {
   track: Track | null;
+  /** Opens one of the track's effects in the Workbench, by its id. */
+  onOpen?: (fx: string) => void;
   /** The settings Mobius changed on this track and nobody has kept yet (soundChanges keys): marked, and turned to. */
   proposed?: ReadonlySet<string>;
   onTrack: (fn: (t: Track) => void, tag?: string) => void;
@@ -386,7 +396,7 @@ export function StudioDevice({ track, onTrack, proposed }: {
           <DeviceChain label={`${track.name} effects`} count={fx.length}
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
-              <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
+              <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
                 onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
@@ -466,6 +476,8 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
   const [editing, setEditing] = useState(false);
   /** What the bottom area shows for the chosen track: its notes or its devices. */
   const [detail, setDetail] = useState<'notes' | 'device'>('notes');
+  /** The effect open in the Workbench, in place of the track's devices: on which track, and its id. */
+  const [bench, setBench] = useState<{ track: string; fx: string } | null>(null);
   /** Which view of the song is shown: its clips (Session) or the song from start to end (Arrange). */
   const [view, setView] = useState<'session' | 'arrange'>('arrange');
   /** The chosen clip's slot on the chosen track, in the Session view; its notes are the ones in the bottom area. */
@@ -735,6 +747,8 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
 
   const track = song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null;
   const total = song.bars * BEATS_PER_BAR;
+  // The Workbench shows its effect while that track stays chosen and the effect is still on it.
+  const benchFx = bench && track && bench.track === track.id ? track.fx?.find((e) => e.id === bench.fx) ?? null : null;
   // In the Session view the bottom area edits the chosen clip, which goes round on its own length.
   const clip: Clip | null = view === 'session' && track && clipAt !== null ? (track.slots?.[clipAt] ?? null) : null;
   const span = clip ? clip.bars * BEATS_PER_BAR : total;
@@ -1335,8 +1349,11 @@ export function StudioEditor({ songs, review, working = false }: { songs: NotesS
                 </>}
                 <IconButton className="studio-roll-close" label={detail === 'notes' ? 'Hide notes' : 'Hide devices'} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => setEditing(false)} />
               </div>
-          {detail === 'device' ? (
-            <StudioDevice track={track} proposed={proposedKeys} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+          {detail === 'device' && benchFx ? (
+            <StudioWorkbench device={benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
+              levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
+          ) : detail === 'device' ? (
+            <StudioDevice track={track} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
           ) : view === 'session' && !clip ? (
             <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
           ) : drumView === 'steps' ? (

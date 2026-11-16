@@ -1,0 +1,84 @@
+# Two-way sync against real WebDAV servers: Nextcloud (what most people run) and wsgidav (a plain server whose ETags
+# change once a second). The same soak test runs in Checks against the stand-in server; here it meets real ones.
+# Runs when the sync or drive code changes, every night, and by hand.
+name: Sync soak
+
+on:
+  pull_request:
+    paths:
+      - crates/mobius-host/src/drive_sync.rs
+      - crates/mobius-host/src/drives.rs
+      - crates/mobius-host/src/sync_pairs.rs
+      - .github/workflows/sync-soak.yml
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-soak-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  soak:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      nextcloud:
+        image: nextcloud:30-apache
+        ports:
+          - 8080:80
+        env:
+          SQLITE_DATABASE: nextcloud
+          NEXTCLOUD_ADMIN_USER: soak
+          NEXTCLOUD_ADMIN_PASSWORD: soak-only-password-in-ci
+          NEXTCLOUD_TRUSTED_DOMAINS: localhost 127.0.0.1
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Build the test
+        run: cargo test -p mobius-host --lib --no-run
+      - name: Wait for Nextcloud to finish installing
+        timeout-minutes: 6
+        run: |
+          until curl -fs http://localhost:8080/status.php | grep -q '"installed":true'; do sleep 5; done
+          curl -fs -u soak:soak-only-password-in-ci -X PROPFIND -H "Depth: 0" http://localhost:8080/remote.php/dav/files/soak/ > /dev/null
+      - name: Soak against Nextcloud
+        env:
+          MOBIUS_SOAK_WEBDAV: http://localhost:8080/remote.php/dav/files/soak/ soak soak-only-password-in-ci
+        run: cargo test -p mobius-host --lib soak_against_a_real_webdav_server -- --ignored --nocapture
+      - name: Nextcloud's log, when the soak failed
+        if: failure()
+        run: |
+          docker logs --tail 200 "${{ job.services.nextcloud.id }}" 2>&1 | tail -200
+          docker exec "${{ job.services.nextcloud.id }}" tail -n 50 /var/www/html/data/nextcloud.log || true
+      - name: Start wsgidav
+        run: |
+          python3 -m venv "$RUNNER_TEMP/dav"
+          "$RUNNER_TEMP/dav/bin/pip" install --quiet wsgidav==4.4.0 cheroot
+          mkdir -p "$RUNNER_TEMP/davroot"
+          cat > "$RUNNER_TEMP/dav.yaml" <<YAML
+          host: 127.0.0.1
+          port: 8099
+          provider_mapping:
+            "/dav": "$RUNNER_TEMP/davroot"
+          http_authenticator:
+            domain_controller: null
+            accept_basic: true
+            accept_digest: false
+            default_to_digest: false
+          simple_dc:
+            user_mapping:
+              "*":
+                "soak":
+                  password: "soak"
+          logging:
+            enable: false
+          YAML
+          nohup "$RUNNER_TEMP/dav/bin/wsgidav" --config "$RUNNER_TEMP/dav.yaml" > "$RUNNER_TEMP/dav.log" 2>&1 &
+          for i in $(seq 1 30); do curl -fs -o /dev/null -u soak:soak -X PROPFIND -H "Depth: 0" http://127.0.0.1:8099/dav/ && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/dav.log"; exit 1
+      - name: Soak against wsgidav
+        env:
+          MOBIUS_SOAK_WEBDAV: http://127.0.0.1:8099/dav/ soak soak
+        run: cargo test -p mobius-host --lib soak_against_a_real_webdav_server -- --ignored --nocapture

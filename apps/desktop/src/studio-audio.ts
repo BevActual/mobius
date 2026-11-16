@@ -200,11 +200,12 @@ function impulse(ctx: BaseAudioContext, size: number, damp: number): AudioBuffer
  * device: the four built-in effects as their built-in devices, a song's own as written. `lfos` gathers the devices'
  * moving waves, so a strip that is replaced can stop them.
  */
-export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonly Effect[], secondsPerBeat: number, lfos: OscillatorNode[] = []): AudioNode {
+export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonly Effect[], secondsPerBeat: number, lfos: OscillatorNode[] = [], tap?: (fx: string, part: string, node: AudioNode) => void): AudioNode {
   let at: AudioNode = input;
   for (const e of fx) {
     if (!e.on) continue;
-    at = e.kind === 'device' ? deviceGraph(ctx, at, e.device, secondsPerBeat, lfos, true) : deviceGraph(ctx, at, builtinDevice(e), secondsPerBeat, lfos, false);
+    const partTap = tap && ((part: string, node: AudioNode) => tap(e.id, part, node));
+    at = e.kind === 'device' ? deviceGraph(ctx, at, e.device, secondsPerBeat, lfos, true, partTap) : deviceGraph(ctx, at, builtinDevice(e), secondsPerBeat, lfos, false, partTap);
   }
   return at;
 }
@@ -225,9 +226,10 @@ function softLimit(): Float32Array {
 /**
  * A device's parts and cables as Web Audio nodes, from `input` (its input part) to the returned node (its output
  * part). A cable to a setting adds what comes down it to that setting, in the units it is heard in (a filter's cutoff
- * in Hz, a delay's time in seconds). With `limit`, the device's sound passes a soft limiter on its way out.
+ * in Hz, a delay's time in seconds). With `limit`, the device's sound passes a soft limiter on its way out. `tap` is
+ * handed each sounding part's output (not an LFO's), so the Workbench can show the level on the cables leaving it.
  */
-export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Device, secondsPerBeat: number, lfos: OscillatorNode[] = [], limit = true): AudioNode {
+export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Device, secondsPerBeat: number, lfos: OscillatorNode[] = [], limit = true, tap?: (part: string, node: AudioNode) => void): AudioNode {
   const nodes = new Map<string, { in: Record<string, AudioNode>; out: AudioNode | null; params: Record<string, AudioParam> }>();
   for (const part of device.parts) {
     const n = (v: string | number | undefined) => (typeof v === 'number' ? v : 0);
@@ -269,6 +271,7 @@ export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Dev
       }
     }
   }
+  if (tap) for (const part of device.parts) { const out = nodes.get(part.id)?.out; if (out && part.kind !== 'lfo' && part.kind !== 'output') tap(part.id, out); }
   const parts = new Map(device.parts.map((p) => [p.id, p]));
   // With one cable into the output, the sound leaves straight from that part, with no extra node on the way.
   const outPart = device.parts.find((p) => p.kind === 'output');
@@ -290,10 +293,10 @@ export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Dev
 }
 
 /** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
-function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number, lfos: OscillatorNode[] = []): AudioNode {
+function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number, lfos: OscillatorNode[] = [], tap?: (fx: string, part: string, node: AudioNode) => void): AudioNode {
   const input = ctx.createGain();
   input.gain.value = t.volume;
-  let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat, lfos);
+  let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat, lfos, tap);
   if (t.pan) {
     const pan = ctx.createStereoPanner();
     pan.pan.value = t.pan;
@@ -321,6 +324,16 @@ export interface Player {
   beat(): number;
   /** The song as it is now (same tempo and length): a new part, a changed sound or effect is heard from the next beat or two, with no restart. */
   update?(song: Song): void;
+  /** How loud a part of a track's effect is sounding now, in dB (−90 for silence), or null when it isn't playing. */
+  level?(track: string, fx: string, part: string): number | null;
+}
+
+/** A level in dB from a stretch of samples: their RMS, with silence at −90. */
+export function rmsDb(samples: Float32Array): number {
+  let sum = 0;
+  for (const v of samples) sum += v * v;
+  const rms = Math.sqrt(sum / Math.max(1, samples.length));
+  return rms > 0 ? Math.max(-90, 20 * Math.log10(rms)) : -90;
 }
 
 /**
@@ -389,6 +402,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
     stop() { stopped = true; window.clearInterval(timer); void ctx.close(); },
     beat() { return songBeat(Math.max(0, (ctx.currentTime - start) / spb), fromBeat, cycle); },
     update(next) { song = next; },
+    level: stripOf.level,
   };
 }
 
@@ -399,22 +413,33 @@ export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? []]);
  * Each track's strip, made the first time it plays and kept, so echoes and reverb tails carry on. A change to its pan
  * or effects makes a new one (the old one lets what it is playing ring out); a change of volume moves its fader.
  */
-function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): (t: Track) => AudioNode {
-  const strips = new Map<string, { key: string; volume: number; out: AudioNode; lfos: OscillatorNode[] }>();
-  return (t) => {
+function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): ((t: Track) => AudioNode) & { level: (track: string, fx: string, part: string) => number | null } {
+  const strips = new Map<string, { key: string; volume: number; out: AudioNode; lfos: OscillatorNode[]; taps: Map<string, AnalyserNode> }>();
+  const strip = (t: Track) => {
     const key = stripKey(t);
     let s = strips.get(t.id);
     if (!s || s.key !== key) {
       // The old strip rings out; its devices' waves stop once that has had time to fade.
       for (const o of s?.lfos ?? []) o.stop(ctx.currentTime + 10);
       const lfos: OscillatorNode[] = [];
-      s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb, lfos), lfos };
+      // Each part of each effect is listened to, for the levels the Workbench draws on its cables.
+      const taps = new Map<string, AnalyserNode>();
+      const tap = (fx: string, part: string, node: AudioNode) => { const a = ctx.createAnalyser(); a.fftSize = 512; node.connect(a); taps.set(`${fx}/${part}`, a); };
+      s = { key, volume: t.volume, out: trackStrip(ctx, t, master, spb, lfos, tap), lfos, taps };
       strips.set(t.id, s);
     }
     if (s.volume !== t.volume && s.out instanceof GainNode && !t.volumeAuto?.length) s.out.gain.setTargetAtTime(t.volume, ctx.currentTime, 0.02);
     s.volume = t.volume;
     return s.out;
   };
+  const buf = new Float32Array(512);
+  const level = (track: string, fx: string, part: string): number | null => {
+    const a = strips.get(track)?.taps.get(`${fx}/${part}`);
+    if (!a) return null;
+    a.getFloatTimeDomainData(buf);
+    return rmsDb(buf);
+  };
+  return Object.assign(strip, { level });
 }
 
 /** What each track of the Session view is playing: the clip in that slot, since `start` (in beats played). */
@@ -492,6 +517,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
     beat() { return Math.max(0, (ctx.currentTime - start) / spb); },
     launch(trackId, slot) { queued[trackId] = slot; },
     update(next) { song = next; },
+    level: strip.level,
     playing() { return { ...playing }; },
     queued() { return { ...queued }; },
   };
