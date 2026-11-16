@@ -58,19 +58,19 @@ pub struct Tokens {
     pub expires: u64,
 }
 
-fn now() -> u64 {
+pub(crate) fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
-fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
+pub(crate) fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
 
-fn form(pairs: &[(&str, &str)]) -> String {
+pub(crate) fn form(pairs: &[(&str, &str)]) -> String {
     pairs.iter().map(|(k, v)| format!("{k}={}", url::form_urlencoded::byte_serialize(v.as_bytes()).collect::<String>())).collect::<Vec<_>>().join("&")
 }
 
-fn read_body(response: ureq::http::Response<ureq::Body>, limit: u64) -> Res<(u16, HashMap<String, String>, Vec<u8>)> {
+pub(crate) fn read_body(response: ureq::http::Response<ureq::Body>, limit: u64) -> Res<(u16, HashMap<String, String>, Vec<u8>)> {
     let status = response.status().as_u16();
     let headers = response.headers().iter().filter_map(|(k, v)| v.to_str().ok().map(|v| (k.as_str().to_ascii_lowercase(), v.to_owned()))).collect();
     let mut body = Vec::new();

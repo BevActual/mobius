@@ -655,7 +655,11 @@ export interface MobiusBridge {
     /** Start a connector from mcp.json now, or start a running one again. A failure still answers with the status. */
     startConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus }> & { status?: ConnectorStatus }>;
     /** Take a connector out of mcp.json; a running one stops at once. */
-    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command: string; args?: string[]; env?: Record<string, string> } }>>;
+    removeConnector?(name: string): Promise<AgentResult<{ status: ConnectorStatus; /** Its entry as it was, for Undo. */ removed?: { command?: string; url?: string; args?: string[]; env?: Record<string, string> } }>>;
+    /** Sign in to a connector at an address that asked for it: open `url` in the browser. How it ends arrives on `onSignIn`. */
+    connectorSignIn?(name: string): Promise<AgentResult<{ url: string; status: ConnectorStatus }>>;
+    connectorSignInCancel?(name: string): Promise<AgentResult>;
+    onSignIn?(listener: (done: ConnectorSignIn) => void): () => void;
   };
   share?: {
     status(): Promise<ShareStatus>;
@@ -1391,7 +1395,9 @@ export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: numb
 export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 /** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
 export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }
-export interface ConnectorStatus { running: string[]; failed: { server: string; error: string }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
+/** How a connector's sign-in in the browser ended; once signed in, it has been started. */
+export type ConnectorSignIn = { server: string; ok: true } | { server: string; ok: false; message: string };
+export interface ConnectorStatus { running: string[]; failed: { server: string; error: string; /** It is at an address and needs the person to sign in. */ signIn?: boolean; /** That sign-in is open in the browser now. */ signingIn?: boolean }[]; problem: string | null; /** In mcp.json, not started yet: starts when Mobius opens again. */ waiting?: string[]; /** Started, but no longer in mcp.json: stops when Mobius opens again. */ leaving?: string[] }
 /** A connector to add: a short name, the command that runs the MCP server, its arguments and its keys. */
 export interface ConnectorDraft { name: string; command: string; args: string[]; env: Record<string, string> }
 export interface ShareStatus { enabled: boolean; allowChanges: boolean; port: number; running: boolean; url: string | null; problem: string | null }
