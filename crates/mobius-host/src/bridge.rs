@@ -1610,6 +1610,36 @@ impl Bridge {
             let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
             return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
         }
+        if tool == "mail.draft_replies" {
+            // Triage's replies, each written by its own call at once. The quick model writes them unless
+            // MOBIUS_TRIAGE_DRAFTS=chat (to compare the two on one build).
+            let replies: Vec<(String, String)> = args.get("replies").and_then(Value::as_array).into_iter().flatten()
+                .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("why").and_then(Value::as_str).unwrap_or("").to_owned())))
+                .collect();
+            let (system, asks) = self.mail.draft_asks(&replies);
+            let job = crate::ask_each::Job {
+                conversation: params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned(),
+                system,
+                asks: asks.into_iter().map(|(id, prompt)| crate::ask_each::Ask { id, prompt }).collect(),
+                max_tokens: Some(500),
+                at_once: Some(crate::mail::store::MAX_TRIAGE_DRAFTS),
+                chat: std::env::var("MOBIUS_TRIAGE_DRAFTS").is_ok_and(|v| v == "chat"),
+                ..Default::default()
+            };
+            let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            let why_of = |id: &str| replies.iter().find(|(r, _)| r == id).map(|(_, w)| w.clone()).unwrap_or_default();
+            let (mut made, mut not_made) = (Vec::new(), Vec::new());
+            for (id, answer) in answers {
+                match answer.map(|body| body.trim().to_owned()).ok().filter(|b| !b.is_empty()).map(|body| self.mail.save_draft(&json!({ "replyTo": id, "body": body, "why": why_of(&id) }), "mobius")) {
+                    Some(Ok(d)) => made.push(json!({ "id": id, "draft": d["id"] })),
+                    _ => not_made.push(id),
+                }
+            }
+            if !made.is_empty() {
+                (self.emit)("mobius:mail-changed", json!({ "by": "assistant" }));
+            }
+            return Ok(Value::String(json!({ "made": made, "notMade": not_made, "note": "Kept as suggested drafts. The person reads them and decides; nothing is sent." }).to_string()));
+        }
         if crate::mail::store::is_mail_tool(tool) {
             let result = self.mail.run(tool, &args).map(Value::String);
             if result.is_ok() && tool == "mail.draft" {

@@ -86,6 +86,7 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'mail.search': return s('query') ? `search your mail for ${quote(s('query'), 40)}` : 'look through your mail';
     case 'mail.read': return 'read an email';
     case 'mail.sort': return 'sort your unread mail';
+    case 'mail.draft_replies': { const n = Array.isArray(a.replies) ? a.replies.length : 0; return n === 1 ? 'draft one reply' : `draft ${n} replies`; }
     // A reply says so; a new email says who it is to ("draft an email to Priya"), or that it is new.
     case 'mail.draft': return s('replyTo') || s('reply_to') || s('in_reply_to') ? 'draft a reply for you to send' : s('to') ? `draft an email to ${s('to')}` : 'draft a new email';
     case 'contacts.search': return s('query') ? `look up ${quote(s('query'), 40)} in your contacts` : 'look through your contacts';
