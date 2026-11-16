@@ -386,6 +386,8 @@ fn a_mode_or_suggestion_offers_only_its_apps_tools_and_a_plain_message_offers_al
     assert!(sent(json!({ "conversation": "c-4", "text": "hi" })).get("tools").is_none());
     assert_eq!(sent(json!({ "conversation": "c-5", "text": "sort my inbox", "mode": "triage" }))["effort"], "low", "Triage thinks briefly: with no thinking it stopped after one message (round 18)");
     assert!(sent(json!({ "conversation": "c-6", "text": "hi" })).get("effort").is_none(), "the person's setting stands");
+    assert_eq!(sent(json!({ "conversation": "c-7", "text": "sort my inbox", "mode": "triage" }))["caps"], json!({ "mail.draft": 5 }), "Triage makes five drafts at most, kept in code");
+    assert!(sent(json!({ "conversation": "c-8", "text": "hi" })).get("caps").is_none());
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": ["tasks.list"] })).is_none(), "a kind, not a tool");
     assert!(parse_send(&json!({ "conversation": "c-1", "text": "hi", "tools": vec!["a"; 13] })).is_none(), "at most twelve");
 }

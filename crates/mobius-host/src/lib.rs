@@ -23,6 +23,7 @@ pub mod workspace_guide;
 pub mod turn_history;
 pub mod schedules;
 pub mod calendar_accounts;
+pub mod contact_accounts;
 pub mod drives;
 pub mod google_drive;
 pub mod s3;

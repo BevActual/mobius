@@ -288,6 +288,8 @@ export interface Contact {
 }
 /** What a save sets. A field left out stays as it is; emails and phones replace the ones there. */
 export interface ContactDraft { name?: string; emails?: (ContactValue | string)[]; phones?: (ContactValue | string)[]; org?: string; title?: string; note?: string; birthday?: string }
+/** An account on a CardDAV server (iCloud, Fastmail, Nextcloud): each address book syncs with its folder under `contacts/`. */
+export interface ContactAccount { id: string; name: string; url: string; username: string; books: { name: string; folder: string; drive: string }[] }
 export interface ContactsChanged { book: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
@@ -693,6 +695,11 @@ export interface MobiusBridge {
     /** `text` is the card as it was, for `restore` (Undo). */
     remove(book: string, id: string, version?: string): Promise<{ book: string; removed: string; text: string } | NotesFailure>;
     restore(book: string, id: string, text: string): Promise<Contact | NotesFailure>;
+    accounts(): Promise<ContactAccount[] | NotesFailure>;
+    /** Signs in, finds the address books, and syncs each with a folder of its own (shown in Files' sync too). */
+    connect(account: { name: string; server: string; username: string; password: string }): Promise<{ id: string; name: string; books: string[] } | NotesFailure>;
+    /** Stops syncing the account's books and forgets it; the cards here stay. */
+    removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: ContactsChanged) => void): () => void;
   };
   /** The Calendar app. Only the Tauri shell has it. */
