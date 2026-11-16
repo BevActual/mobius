@@ -232,7 +232,10 @@ export interface CalendarSuggestion { id: string; calendar: string; title: strin
 /** A calendar and where it is kept: the person's own (`account` null), or an account's. */
 export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
-export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
+/** How a calendar sign-in in the browser ended. */
+export type CalendarSignIn = { ok: true; account: { id: string; name: string } } | { ok: false; message: string };
+
+export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
@@ -729,6 +732,12 @@ export interface MobiusBridge {
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     /** Reads one account (or all of them) again now. */
     sync(id: string | null): Promise<CalendarAccount[] | NotesFailure>;
+    /** Google: whether this build can sign in, and a sign-in page still open. */
+    googleStatus?(): Promise<{ setUp: boolean; pending: string | null; hint: string | null } | NotesFailure>;
+    /** Starts signing in to Google (`again`: that account's sign-in ended) and answers the page to open; how it ends comes to `onSignIn`. */
+    googleSignIn?(account: { name?: string; again?: string }): Promise<{ url: string } | NotesFailure>;
+    googleCancel?(): Promise<{ ok: true } | NotesFailure>;
+    onSignIn?(listener: (done: CalendarSignIn) => void): () => void;
     onChanged(listener: (change: CalendarChanged) => void): () => void;
   };
   /** Drives: folders on the person's own servers, opened from Files. Each call goes to the server. Only the Tauri shell has it. */

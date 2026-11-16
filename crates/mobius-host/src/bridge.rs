@@ -2010,6 +2010,10 @@ impl Bridge {
     pub fn restore_quick(&self) -> Value {
         let choice = lock(&self.preferences).get()["quickModel"].as_str().unwrap_or("").to_owned();
         let quick = choice.split_once('|').and_then(|(id, model)| {
+            // A plan's sign-in is the plan's own (its app, or a token the agent asks for when it calls).
+            if let Some(plan) = crate::providers::find_subscription(id) {
+                return Some((plan.address.to_owned(), model.to_owned(), None));
+            }
             let provider = crate::providers::find(id)?;
             let key = self.providers.key(id);
             if provider.needs_key && key.is_none() {
@@ -2440,8 +2444,8 @@ impl Bridge {
         let text = |i: usize| args.get(i).and_then(Value::as_str);
         let p = &self.providers;
         let changed = || (self.emit)("mobius:providers-changed", Value::Null);
-        // Subscriptions (sign in, no key) go first.
-        if let Some(sub) = text(0).and_then(crate::providers::find_subscription) {
+        // Subscriptions (sign in, no key) go first, but the quick model is chosen the same way for plans and gateways.
+        if let Some(sub) = text(0).and_then(crate::providers::find_subscription).filter(|_| method != "useQuick") {
             if sub.address == crate::providers::CHATGPT_ADDRESS {
                 return self.chatgpt_call(method, sub, text(1));
             }
@@ -2519,10 +2523,18 @@ impl Bridge {
             "keySignInStatus" => {
                 if text(0) == Some("huggingface") { lock(&self.hf_sign_in).status() } else { lock(&self.key_sign_in).status() }
             }
-            // The model for quick jobs (the Act mode's reviewer): a gateway's model, or 'none' for the chat model.
+            // The model for quick jobs (the Act mode's reviewer, Triage's sorting): a gateway's model, a model of a
+            // plan signed in to (Haiku on the Claude subscription), or 'none' for the chat model.
             "useQuick" => {
                 let choice = match (text(0), text(1).map(str::trim)) {
                     (Some("none"), _) => String::new(),
+                    (Some(id), Some(model)) if !model.is_empty() && crate::providers::find_subscription(id).is_some() => {
+                        let plan = crate::providers::find_subscription(id).map_or(&[][..], crate::providers::subscription_models);
+                        if !plan.iter().any(|(m, _)| *m == model) {
+                            return failed("That model isn't offered on that plan.");
+                        }
+                        format!("{id}|{model}")
+                    }
                     (Some(id), Some(model)) if !model.is_empty() => {
                         let Some(provider) = crate::providers::find(id) else { return failed("That gateway is not known.") };
                         if provider.voice_only {
@@ -3574,6 +3586,21 @@ impl Bridge {
                 changed_accounts(accounts.connect(field("name"), field("server"), field("username"), field("password")))
             }
             "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|id| changed_accounts(accounts.remove(id))),
+            // Google: a sign-in on Google's page, then the account is kept; the window hears how it ended
+            // (`mobius:calendar-sign-in`) and asks for the account's calendars again.
+            "googleStatus" => Ok(accounts.google_status()),
+            "googleCancel" => {
+                accounts.google_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "googleSignIn" => {
+                let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str);
+                let emit = self.emit.clone();
+                accounts.google_sign_in(field("name").unwrap_or(""), field("again"), Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(account) => emit("mobius:calendar-sign-in", json!({ "ok": true, "account": account })),
+                    Err(message) => emit("mobius:calendar-sign-in", json!({ "ok": false, "message": message })),
+                }))
+            }
             "sync" => {
                 accounts.sync(text(0));
                 self.refresh_mirrors();
@@ -3597,7 +3624,7 @@ impl Bridge {
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync") {
+                if !matches!(method, "calendars" | "events" | "sources" | "suggestions" | "accounts" | "subscribe" | "connect" | "removeAccount" | "sync" | "googleStatus" | "googleCancel" | "googleSignIn") {
                     let name = value.get("calendar").or_else(|| value.get("name")).cloned().unwrap_or(Value::Null);
                     (self.emit)("mobius:calendar-changed", json!({ "calendar": name, "by": "person" }));
                 }

@@ -19,12 +19,13 @@ each one offers in its calendar settings.
 In the [Google Cloud console](https://console.cloud.google.com/):
 
 1. **Create a project** (for example "Mobius").
-2. **Enable the Google Calendar API**: APIs & Services › Library › Google Calendar API › Enable.
+2. **Enable the Google Calendar API and the CalDAV API**: APIs & Services › Library › each one › Enable. Mobius lists
+   the calendars with the first and reads and changes events with the second.
 3. **Set up Google Auth Platform** (APIs & Services › OAuth consent screen › Get started):
    - *Branding*: app name "Mobius", support email, logo, home page, privacy policy link.
    - *Audience*: **External**. While the app is in *Testing*, add the Google accounts that may sign in as test users.
-   - *Data access*: add the scope `https://www.googleapis.com/auth/calendar.events` (read and change events). Add
-     `https://www.googleapis.com/auth/calendar.readonly` too if Mobius should list calendars it cannot change.
+   - *Data access*: add `openid`, `email` and `https://www.googleapis.com/auth/calendar`. Google's CalDAV endpoint
+     takes only this whole-calendar scope.
 4. **Create the client**: APIs & Services › Credentials › Create credentials › OAuth client ID › Application type
    **Desktop app**. Note the **client ID**. Google also shows a "client secret" for desktop apps. It is not treated as
    secret, but Google's token endpoint still asks for it, so it ships with the app.
@@ -64,9 +65,13 @@ New registration:
 
 - Sign in with the system browser (PKCE, loopback redirect). Keep the refresh token in the system secret store, as
   CalDAV passwords already are.
-- **Google**: read and write through Google's CalDAV endpoint
-  (`https://apidata.googleusercontent.com/caldav/v2/<calendar>/events`) with the access token. The existing CalDAV
-  mirroring and change code is reused.
+- **Google** (built, waiting on the registration): Settings › Calendar › Add a calendar › Google opens Google's page.
+  Mobius lists the account's calendars with the Calendar API, then reads and writes each through Google's CalDAV
+  endpoint (`https://apidata.googleusercontent.com/caldav/v2/<calendar>/events/`) with the access token, reusing the
+  CalDAV mirroring and change code. Calendars shared to read only (such as holidays) show but can't be changed. When
+  Google ends a sign-in (every 7 days while in Testing), the account stays and offers **Sign in again**. The client ID
+  and secret are the ones Google Drive uses (`MOBIUS_GOOGLE_CLIENT_ID`, `MOBIUS_GOOGLE_CLIENT_SECRET`); Calendar keeps
+  its own sign-in per account, apart from Drive's.
 - **Microsoft**: read and write through Microsoft Graph (`/me/calendars`, `/me/calendarView`, `/me/events`). Events
   are converted to and from the same mirror files.
 - The same rules as today: changes go to the server first and are refused if the event changed elsewhere meanwhile. The

@@ -1624,6 +1624,12 @@ fn the_quick_model_comes_from_a_gateway_and_goes_with_its_key() {
     assert_eq!(call(&b, "providers", "useQuick", json!(["none"]))["ok"], true);
     assert!(last().get("quick").is_none());
     assert_eq!(call(&b, "preferences", "get", json!([]))["quickModel"], "");
+
+    // A plan's model: Haiku on the Claude subscription, which signs in through its own app.
+    let chosen = call(&b, "providers", "useQuick", json!(["claude-code", "haiku"]));
+    assert_eq!(chosen["ok"], true, "{chosen}");
+    assert_eq!(last()["quick"], json!({ "base_url": "claude-code://subscription", "model": "haiku" }));
+    assert_eq!(call(&b, "providers", "useQuick", json!(["claude-code", "gpt-5.5"]))["ok"], false, "not on that plan");
 }
 
 /// A thread started in a project tells the model which project it is in; other conversations say nothing of it.
