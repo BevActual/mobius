@@ -1,13 +1,13 @@
 # Drives
 
 A drive is a folder on a server the person already runs or pays for, opened from Files beside the workspace. Mobius
-needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV) and
-`crates/mobius-host/src/s3.rs` (S3-style storage).
+needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV),
+`crates/mobius-host/src/s3.rs` (S3-style storage) and `crates/mobius-host/src/dropbox.rs` (Dropbox).
 
 ## How it works
 
 - **One interface, many kinds.** Every drive implements the `Drive` trait: `check`, `list`, `read`, `write`,
-  `make_folder`, `rename`, `delete`. WebDAV and S3-style storage are the kinds so far. Others (network shares, the
+  `make_folder`, `rename`, `delete`. WebDAV, S3-style storage and Dropbox are the kinds so far. Others (network shares, the
   cloud drives) are other implementations, without changing the bridge, sync or the window.
 - **Browsing copies nothing.** Each call goes to the server, with no local mirror. A workspace folder can also be kept in
   step with a drive folder both ways: see [Two-way sync](#two-way-sync-design).
@@ -22,6 +22,7 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 | Bridge call | Does |
 | --- | --- |
 | `list`, `add {name, server, username, password}`, `remove id` | The person's drives. For S3, `add {kind: "s3", name, server, bucket, folder?, region?, username, password}`: the service's address, the bucket, a folder in it, the access key id and its secret |
+| `dropboxStatus`, `addDropbox {name?, folder?, again?}`, `dropboxCancel` | Dropbox: whether this build can sign in, and the sign-in page to open. The drive (or why not) arrives as `mobius:drive-sign-in { kind, ok, drive \| message }` |
 | `browse id folder` | Folders first, then files, with size, date and version |
 | `read id path` | The file as base64, with its version (up to 32 MB) |
 | `write id path {base64 \| text} etag?` | Replace that version, or make a new file |
@@ -53,6 +54,31 @@ in every approval mode, because nothing in Mobius can undo it there. Read text f
 | Fastmail Files | `https://myfiles.fastmail.com/` | App password with Files access. |
 | Synology, QNAP | The WebDAV address set up on the NAS | Usually its own port (5005 / 5006 on Synology). |
 | Apache `mod_dav`, nginx | The WebDAV folder | A folder named without its final `/` is redirected; Mobius follows. |
+
+## Dropbox
+
+A folder in the person's Dropbox, or all of it, as a drive: browsing, copying and two-way sync work as on any other.
+
+- **Sign-in** is Dropbox's own page in the browser, with PKCE and no client secret, back to
+  `http://127.0.0.1:47613/dropbox` (`Callback::listen_on` in `loopback.rs`: Dropbox matches the redirect exactly, so
+  the port is fixed; a second Mobius signing in at once is told the port is busy). Mobius asks for offline access, keeps
+  the access and refresh tokens as the drive's secret, and refreshes the access token a few minutes before it runs out,
+  or when Dropbox answers 401. A refused refresh asks the person to sign in again; `addDropbox {again: id}` renews that
+  drive's tokens, and only for the same Dropbox account.
+- **Accounts** are kind `dropbox`, with the folder as `dropbox:/Work/Plans` (`dropbox:/` for the whole Dropbox) and the
+  email that signed in. A folder that isn't there yet is made when the drive is added.
+- **Versions** are Dropbox's `rev`. A change uploads with `mode: update` and the rev it replaces, a new file with
+  `mode: add` and `autorename: false`, so neither writes over a change made in Dropbox. A delete sends `parent_rev`.
+  Moves use `move_v2` and never replace what is at the destination.
+- **Paths** go in the `Dropbox-API-Arg` header for downloads and uploads, as JSON with everything past ASCII written as
+  `\uXXXX`, as Dropbox requires.
+- **Limits.** One upload request takes up to 150 MB; bigger files need an upload session, which comes later.
+- **The app key** is built in from `MOBIUS_DROPBOX_APP_KEY` at build time. A build without it says Dropbox isn't set up
+  in this build, and Files' Add drive form shows that under Dropbox. Registering Mobius with Dropbox is in
+  [Drive and calendar sign-in](../reference/drive-sign-in.md#dropbox).
+- **Tests.** `dropbox.rs` runs against a pretend Dropbox: sign-in, versions that refuse stale writes, a folder as a drive
+  of its own, Drives keeping a new folder, and the two-way sync soak (`drive_sync::tests::soak`, the same one WebDAV and
+  S3 pass).
 
 ## S3-style storage
 

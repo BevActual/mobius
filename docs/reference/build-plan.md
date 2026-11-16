@@ -269,7 +269,7 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | --- | --- | --- | --- |
 | Mail | Any provider over IMAP and SMTP, with ready-made settings for the common ones | Sign-in for Google and Microsoft accounts, waiting on Andrew registering Mobius ([steps](drive-sign-in.md)) | Builder |
 | Calendar | CalDAV (iCloud, Fastmail, Nextcloud, any server), subscribed links, its own files | Google and Microsoft sign-in | Builder, waiting on Andrew registering Mobius with each ([steps](drive-sign-in.md)) |
-| Files | The workspace folder on this computer; WebDAV and S3-style drives you browse, open from and copy to; two-way sync of chosen folders with either | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
+| Files | The workspace folder on this computer; WebDAV, S3-style and Dropbox drives you browse, open from and copy to; two-way sync of chosen folders with any of them. Dropbox works once Andrew registers Mobius with it | See [Drives](#drives) below | Builder for the connection, Apps lead for Files |
 | Tasks | Its own files | Task lists over CalDAV, so tasks sync with the same servers as Calendar (next after contacts) | Builder, Apps lead |
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live | Connectors over HTTP with sign-in, so a team's own tools and data are one address away | Builder |
@@ -287,7 +287,7 @@ Mobius reads a drive freely and asks before every change on one. In order:
 | 1 | WebDAV: Nextcloud, ownCloud, a NAS, Fastmail Files | A server address and an app password | Have |
 | 2 | Two-way sync of chosen workspace folders with a drive, so Notes, Docs and the rest can live on a server. The local folder stays the working copy; a conflict keeps both. | Nothing | Have: on `main` since 15 November 2026, soaked nightly against Nextcloud and wsgidav |
 | 3 | S3-style storage (Amazon S3, Backblaze B2, Cloudflare R2, MinIO) | Keys the person pastes; no registration | Have: browse, copy and sync, with multipart upload for big files |
-| 4 | Dropbox | Andrew registering Mobius with Dropbox ([steps](drive-sign-in.md#dropbox)) | Waiting on the registration |
+| 4 | Dropbox | Andrew registering Mobius with Dropbox ([steps](drive-sign-in.md#dropbox)) | Built: browse, copy and sync, tested against a pretend Dropbox. Says it isn't set up until the app key is in the build |
 | 5 | OneDrive and SharePoint | Andrew registering Mobius with Microsoft, the same registration Calendar sign-in needs ([steps](drive-sign-in.md#microsoft)) | Waiting on the registration |
 | 6 | Google Drive: the files people pick (`drive.file`, Andrew's choice on 16 November 2026), opened through Google's picker; no folder browsing or sync. Whole-Drive access is a later decision, because Google requires a paid security assessment every year for it | Andrew registering Mobius with Google ([steps](drive-sign-in.md#google)). Testing works now; publishing needs a domain | Waiting on the registration; the picker flow is built after the contacts store |
 | 7 | Network shares (SMB) | Nothing | Later |

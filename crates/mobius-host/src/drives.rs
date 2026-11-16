@@ -567,12 +567,13 @@ impl WebDav {
 #[serde(rename_all = "camelCase")]
 pub struct DriveAccount {
     pub id: String,
-    /// `webdav` or `s3`.
+    /// `webdav`, `s3` or `dropbox`.
     pub kind: String,
     pub name: String,
-    /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`.
+    /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`; for Dropbox,
+    /// `dropbox:` and the folder in it (`dropbox:/Notes`, or `dropbox:/` for the whole Dropbox).
     pub url: String,
-    /// The account name; for S3, the access key id.
+    /// The account name; for S3, the access key id; for Dropbox, the email it signed in with.
     pub username: String,
     /// S3's region (`eu-west-2`, R2's `auto`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -584,6 +585,8 @@ pub struct Drives {
     secrets: Arc<dyn Secrets>,
     state: Mutex<Vec<DriveAccount>>,
     http: ureq::Agent,
+    /// Dropbox sign-in, and opening a Dropbox drive with the tokens kept for it.
+    dropbox: Mutex<Arc<crate::dropbox::Service>>,
 }
 
 fn secret_name(id: &str) -> String {
@@ -594,7 +597,9 @@ impl Drives {
     pub fn new(data_dir: &Path, secrets: Arc<dyn Secrets>) -> Drives {
         let file = data_dir.join("drives.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
-        Drives { file, secrets, state: Mutex::new(state), http: http_agent() }
+        let http = http_agent();
+        let dropbox = Arc::new(crate::dropbox::Service::new(crate::dropbox::built_in_key(), crate::dropbox::Endpoints::default(), http.clone()));
+        Drives { file, secrets, state: Mutex::new(state), http, dropbox: Mutex::new(dropbox) }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<DriveAccount>> {
@@ -712,6 +717,9 @@ impl Drives {
     /// of the old one.
     pub fn sign_in(&self, id: &str, password: &str) -> Res<Value> {
         let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
+        if account.kind == "dropbox" {
+            return Err("Sign in to Dropbox again from the drive's menu.".into());
+        }
         if password.is_empty() {
             return Err("Enter the password (an app password for Nextcloud and Fastmail).".into());
         }
@@ -720,6 +728,78 @@ impl Drives {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
         Ok(json!({ "ok": true }))
+    }
+
+    fn dropbox(&self) -> Arc<crate::dropbox::Service> {
+        self.dropbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// Use this Dropbox sign-in (a pretend Dropbox, in tests).
+    pub fn use_dropbox(&self, service: crate::dropbox::Service) {
+        *self.dropbox.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(service);
+    }
+
+    /// Whether this build can sign in to Dropbox, and the sign-in page while one waits.
+    pub fn dropbox_status(&self) -> Value {
+        self.dropbox().status()
+    }
+
+    pub fn cancel_dropbox(&self) {
+        self.dropbox().cancel();
+    }
+
+    /// Starts a Dropbox sign-in in the browser and returns the page to open. Once the person allows it, the drive is
+    /// checked and kept: `folder` in their Dropbox (made if it isn't there; empty for the whole Dropbox), named
+    /// `name`. With `again`, that Dropbox drive's sign-in is renewed instead. `done` gets the drive, or why not.
+    pub fn add_dropbox(self: &Arc<Self>, name: &str, folder: &str, again: Option<&str>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        let again = match again {
+            Some(id) => Some(self.lock().iter().find(|a| a.id == id && a.kind == "dropbox").cloned().ok_or("That drive is gone.")?),
+            None if self.lock().len() >= MAX_DRIVES => return Err(format!("There can be at most {MAX_DRIVES} drives.")),
+            None => None,
+        };
+        let folder = names(folder)?.join("/");
+        let name = Some(name.trim()).filter(|n| !n.is_empty()).and_then(clean_name).or_else(|| folder.rsplit('/').next().filter(|f| !f.is_empty()).and_then(clean_name)).unwrap_or_else(|| "Dropbox".into());
+        let me = Arc::clone(self);
+        let pending = self.dropbox().start(Arc::new(move |signed: Res<crate::dropbox::SignedIn>| done(signed.and_then(|signed| me.keep_dropbox(&name, &folder, again.as_ref(), &signed)))))?;
+        Ok(json!(pending))
+    }
+
+    fn keep_dropbox(&self, name: &str, folder: &str, again: Option<&DriveAccount>, signed: &crate::dropbox::SignedIn) -> Res<Value> {
+        let tokens = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
+        if let Some(account) = again {
+            if !account.username.is_empty() && !signed.email.is_empty() && !account.username.eq_ignore_ascii_case(&signed.email) {
+                return Err(format!("That drive is in the Dropbox of {}; sign in with that account.", account.username));
+            }
+            if !self.secrets.put(&secret_name(&account.id), &tokens) {
+                return Err("The sign-in could not be kept in this computer's secret store.".into());
+            }
+            return Ok(json!(account));
+        }
+        let account = DriveAccount { id: new_id(), kind: "dropbox".into(), name: name.to_owned(), url: format!("dropbox:/{folder}"), username: signed.email.clone(), region: None };
+        if !self.secrets.put(&secret_name(&account.id), &tokens) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let checked = (|| {
+            let drive = self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), folder)?;
+            if !folder.is_empty() {
+                let (parent, last) = folder.rsplit_once('/').unwrap_or(("", folder));
+                let top = self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), parent)?;
+                match top.make_folder(last) {
+                    Ok(()) => {}
+                    Err(e) if e == EXISTS => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            drive.check()
+        })();
+        if let Err(e) = checked {
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(e);
+        }
+        let mut all = self.lock();
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!(account))
     }
 
     pub fn remove(&self, id: &str) -> Res<Value> {
@@ -742,6 +822,10 @@ impl Drives {
     }
 
     fn connect(&self, account: &DriveAccount, password: &str) -> Res<Box<dyn Drive>> {
+        if account.kind == "dropbox" {
+            let folder = account.url.strip_prefix("dropbox:").ok_or("The drive's address is not a Dropbox folder.")?;
+            return Ok(Box::new(self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), folder)?));
+        }
         let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
         match account.kind.as_str() {
             "webdav" => Ok(Box::new(WebDav::with_agent(url, &account.username, password, self.http.clone()))),

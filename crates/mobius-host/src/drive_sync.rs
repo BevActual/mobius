@@ -511,7 +511,7 @@ fn apply(drive: &dyn Drive, root: &Path, remote: &str, base: &mut Base, path: &s
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::drives::WebDav;
     use crate::drives::tests::{Store, server, server_with};
@@ -740,7 +740,7 @@ mod tests {
     /// conflict copy. Not one edit is lost.
     /// The drive as someone else changes it, for the soak test: the stand-in server's store, or a real server through a
     /// second client of its own.
-    trait OtherSide {
+    pub(crate) trait OtherSide {
         fn put(&mut self, rel: &str, text: &str);
         fn delete(&mut self, rel: &str);
         /// Every file under the paired folder, by its path in the pair, with its text.
@@ -777,14 +777,16 @@ mod tests {
     }
 
     /// A real WebDAV server, changed by a client of its own, as another computer would.
-    struct RealServer {
-        drive: WebDav,
-        remote: String,
+    pub(crate) struct RealServer {
+        pub(crate) drive: Box<dyn Drive>,
+        pub(crate) remote: String,
+        /// How long to wait before an edit is sure of a new version (whole-second ETags on some WebDAV servers).
+        pub(crate) settle_ms: u64,
     }
 
     impl OtherSide for RealServer {
         fn settle(&self) {
-            std::thread::sleep(std::time::Duration::from_millis(1100));
+            std::thread::sleep(std::time::Duration::from_millis(self.settle_ms));
         }
         fn put(&mut self, rel: &str, text: &str) {
             let mut folder = self.remote.clone();
@@ -801,7 +803,7 @@ mod tests {
             let _ = self.drive.delete(&format!("{}/{rel}", self.remote), None);
         }
         fn files(&self) -> BTreeMap<String, String> {
-            drive_files(&self.drive, &self.remote).unwrap().into_keys().map(|rel| {
+            drive_files(self.drive.as_ref(), &self.remote).unwrap().into_keys().map(|rel| {
                 let text = String::from_utf8_lossy(&self.drive.read(&format!("{}/{rel}", self.remote)).unwrap().bytes).into_owned();
                 (rel, text)
             }).collect()
@@ -829,7 +831,7 @@ mod tests {
         let remote = format!("mobius-soak-{}-{}", std::process::id(), std::time::SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis());
         drive.make_folder(&remote).unwrap();
         let root = tempfile::tempdir().unwrap();
-        let mut other = RealServer { drive: WebDav::new(url, user, password), remote: remote.clone() };
+        let mut other = RealServer { drive: Box::new(WebDav::new(url, user, password)), remote: remote.clone(), settle_ms: 1100 };
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| soak(&drive, root.path(), &remote, &mut other, files)));
         let _ = drive.delete(&remote, None);
         if let Err(e) = outcome {
@@ -843,10 +845,10 @@ mod tests {
         assert!(differ.is_empty(), "{what}: {} differ\n{}", differ.len(), differ.join("\n"));
     }
 
-    /// Hundreds of files through eight rounds of edits, deletes and new files on both sides. Every other round is cut
+    /// Hundreds of files (at least 70: the Rewind edits every seventh of the first seventy) through eight rounds of edits, deletes and new files on both sides. Every other round is cut
     /// off a third of the way, and there is a Rewind in the middle. After each round both sides hold every edit, and our
     /// side of each conflict is kept as a copy.
-    fn soak(drive: &dyn Drive, root: &Path, remote: &str, other: &mut dyn OtherSide, files: usize) {
+    pub(crate) fn soak(drive: &dyn Drive, root: &Path, remote: &str, other: &mut dyn OtherSide, files: usize) {
         let mut base = Base::default();
         let run = |base: &mut Base, options: &RoundOptions| round(drive, root, remote, base, options, &mut |_| {}).unwrap();
         let plain = RoundOptions { stamp: "2026-11-15 14.32", ..RoundOptions::default() };
@@ -962,7 +964,11 @@ mod tests {
                 workspace.restore(&mark).unwrap();
                 tick();
                 let r = run(&mut base, &plain);
-                assert_eq!(r.uploaded.len(), 10, "{r:?}");
+                // A file that was there before goes back to its old text; one that wasn't is removed again.
+                let (mut back, mut gone): (Vec<String>, Vec<String>) = (0..10).map(|i| name(i * 7)).partition(|n| before.contains_key(n));
+                back.sort();
+                gone.sort();
+                assert_eq!((r.uploaded.clone(), r.deleted_on_drive.clone()), (back, gone), "{r:?}");
                 assert_eq!(synced_files(), before);
                 assert_eq!(other.files(), before);
             }
