@@ -12,7 +12,7 @@ import './chart.css';
 import './pads.css';
 import './patch.css';
 
-export { Menu, PointMenu, type MenuEntry } from './Menu';
+export { Menu, PointMenu, useAnyMenuOpen, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
 export { BeforeAfter, HoldButton, useHold, type Hold } from './BeforeAfter';
 export { AppFrame, ToolbarControls, ToolbarItem, type ToolbarParts } from './AppFrame';

@@ -86,7 +86,8 @@ import { agoLabel } from './desk-view';
 import { APP_ICONS, Rail, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
-import { AppFrame, InspectorDock, PanelsMenu, TooltipLayer, type AppMenuState } from './ui';
+import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
+import { AppFrame, InspectorDock, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -763,9 +764,11 @@ export function App() {
   const [addressSuggesting, setAddressSuggesting] = useState(false);
   // A menu over the page puts the page away at once, not when its picture arrives: a slow picture left a toolbar menu
   // drawn under the page, cut off at its top edge. Hovers and drags wait for the picture, so the page never flashes.
-  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || addressSuggesting);
+  // Any menu (Panels, an app's own, a row's) is open: the page steps aside, as it does for the menu bar.
+  const anyMenu = useAnyMenuOpen();
+  const needCover = shows('browser') && (floatingShown || drag !== null || hovering || splitDrag !== null || selectionMenu || menuOpen || anyMenu || addressSuggesting);
   const [cover, setCover] = useState<{ url: string | null } | null>(null);
-  const menuOverPage = shows('browser') && (menuOpen || selectionMenu || addressSuggesting);
+  const menuOverPage = shows('browser') && (menuOpen || anyMenu || selectionMenu || addressSuggesting);
   useEffect(() => {
     if (!needCover) { setCover(null); return undefined; }
     let live = true;
@@ -800,9 +803,23 @@ export function App() {
   /** A web page in the browser: the tab it is already open in, or a new one. */
   const showPage = (url: string) => {
     openApp('browser');
-    const tab = browser.tabs.find((t) => t.url === url);
+    const tab = browser.tabs.find((t) => sameUrl(t.url, url));
     if (tab) window.mobius.browser.activate(tab.id); else void window.mobius.browser.open(url);
   };
+  // A web link clicked in an app (Notes): shown in its tab, or a new one; in the background with Ctrl.
+  const showPageNow = useRef(showPage);
+  showPageNow.current = showPage;
+  const tabsNow = useRef(browser.tabs);
+  tabsNow.current = browser.tabs;
+  useEffect(() => {
+    const on = (event: Event) => {
+      const { url, background } = (event as CustomEvent<WebLink>).detail;
+      if (!background) { showPageNow.current(url); return; }
+      if (!tabsNow.current.some((t) => sameUrl(t.url, url))) void window.mobius.browser.open(url);
+    };
+    window.addEventListener(WEB_LINK_EVENT, on);
+    return () => window.removeEventListener(WEB_LINK_EVENT, on);
+  }, []);
   /** Open something found in Search in the app it belongs to. */
   /** A file Mobius changed, opened in its app (from Review). */
   const openChangedFile = (path: string) => {
