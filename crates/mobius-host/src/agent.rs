@@ -180,6 +180,9 @@ pub struct AppMode {
     /// How hard the model thinks before it writes, for this mode's turns (`none`, `low`): a mode whose work is sorting
     /// and writing, not working something out, starts sooner. None keeps the person's setting.
     pub effort: Option<&'static str>,
+    /// At most this many calls of a tool run in one of the mode's turns: a call past it is not made, and the model is
+    /// told so plainly, so a limit is kept in code rather than reported to the person.
+    pub caps: &'static [(&'static str, u32)],
 }
 
 /// The efforts a suggestion may ask for.
@@ -197,6 +200,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &["mail", "tasks", "calendar"],
         effort: Some("low"),
+        caps: &[("mail.draft", 5)],
     },
     AppMode {
         id: "review",
@@ -207,6 +211,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
     AppMode {
         id: "analyse",
@@ -217,6 +222,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
     AppMode {
         id: "debug",
@@ -227,6 +233,7 @@ pub const APP_MODES: &[AppMode] = &[
         finish: false,
         tools: &[],
         effort: None,
+        caps: &[],
     },
 ];
 
@@ -624,6 +631,9 @@ impl AgentService {
         }
         if let Some(effort) = request.mode.and_then(|m| m.effort).or(request.effort) {
             params.insert("effort".into(), json!(effort));
+        }
+        if let Some(mode) = request.mode.filter(|m| !m.caps.is_empty()) {
+            params.insert("caps".into(), mode.caps.iter().map(|(tool, most)| ((*tool).to_owned(), json!(most))).collect::<serde_json::Map<_, _>>().into());
         }
         match self.call("agent.send", Value::Object(params)) {
             Ok(v) => json!({ "ok": true, "turn": v.get("turn").cloned().unwrap_or(Value::Null) }),

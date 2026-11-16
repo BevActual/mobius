@@ -1103,6 +1103,9 @@ fn contacts_are_vcard_files_mail_and_calendar_look_up_and_the_agent_saves() {
     let found = b.host_request("host.tool", &json!({ "tool": "contacts.search", "arguments": { "query": "okafor" } })).unwrap();
     assert!(found.to_string().contains("+44 7700 900456"), "{found}");
     assert_eq!(call(&b, "contacts", "list", json!([])).as_array().unwrap().len(), 2);
+    assert_eq!(call(&b, "contacts", "accounts", json!([])), json!([]));
+    assert_eq!(call(&b, "contacts", "connect", json!([{ "name": "x", "server": "", "username": "", "password": "" }]))["ok"], false);
+    assert_eq!(call(&b, "contacts", "removeAccount", json!(["nope"]))["ok"], false);
 }
 
 #[test]

@@ -426,6 +426,9 @@ export function createTauriBridge(): MobiusBridge {
       save: (book, id, draft, version) => call('contacts', 'save', [book, id, draft, version ?? null], () => ({ ok: false as const, message: 'Contacts are not available.' })),
       remove: (book, id, version) => call('contacts', 'remove', [book, id, version ?? null], () => ({ ok: false as const, message: 'Contacts are not available.' })),
       restore: (book, id, text) => call('contacts', 'restore', [book, id, text], () => ({ ok: false as const, message: 'Contacts are not available.' })),
+      accounts: () => call('contacts', 'accounts', [], () => []),
+      connect: (account) => call('contacts', 'connect', [account], () => ({ ok: false as const, message: 'Contacts are not available.' })),
+      removeAccount: (id) => call('contacts', 'removeAccount', [id], () => ({ ok: false as const, message: 'Contacts are not available.' })),
       onChanged: (listener) => on<ContactsChanged>('mobius:contacts-changed', listener),
     },
     calendar: {
