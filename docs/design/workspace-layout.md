@@ -1,51 +1,24 @@
 # Workspace layout: one frame, a shape per app
 
-Owner direction (adopted 2026-11-13, "One Mobius layout for every app"): every app has the same five-zone window. Only
-what is inside the zones changes per app, so moving between apps never feels like moving between products. Mobius sits
-beside the work in its own panel at the right edge, opened from the same place in every app. The theme is timeless: flat surfaces, type,
-spacing and restraint, not this year's materials. [Design rules](rules.md) says how each part must look and behave.
+> This describes the target layout for Instrument. The installed app may still show the rail and the shared sidebar during the transition.
 
-## The five zones
+The shell provides one toolbar, a content area, docks for app panels and the separate Mobius panel. The content can fill the width when the app’s panels are closed. [Design rules](rules.md) defines how these pieces look and behave.
 
-```
-┌──────┬────────────┬──────────────────────────────────────────┬──────────────┐
-│ Rail │  Sidebar   │ Toolbar: ☰ Title · line │ app controls │ Share ⋯ ✦ │
-│      │            ├──────────────────────────────────────────┤ Inspector │ Mobius │
-│ Home │ New        │                                          │ (the app's│ (just  │
-│ Find │ Search     │                 Content                  │  panels,  │ Mobius,│
-│ Apps │ Places     │            (one or more views)           │  if any)  │ no tabs│
-│  …   │ From Mobius│                                          │              │
-│ ⚙ 👤 │ More       ├──────────────── bottom dock ─────────────┤              │
-└──────┴────────────┴──────────────────────────────────────────┴──────────────┘
-```
+## App switcher
 
-| Zone | Its job | Always the same | Filled by the app |
-| --- | --- | --- | --- |
-| 1. App rail (far left, about 52px) | Get to any app, see what needs you | Home, Search, pinned apps, then Mobius, Activity with its badge, Settings and profile at the foot. Never folds away. | Nothing. Badges and dots only. |
-| 2. Sidebar | Move around inside the app | New, Search, the app's places in sections, From Mobius, More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
-| 3. Toolbar (one row) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
-| 4. Content | The work | A solid surface, the shared empty state, the shared review bar | One or more views, and a bottom dock |
-| 5. Right side | Details, then Mobius | The app's inspector (if it has one), then the Mobius panel alone at the far right edge. Mobius is never a tab. | Whether the app has an inspector, and what is in it |
-
-Little Mobius and split view are in the Window menu and their keys, where the launcher also finds them. Comments keep a
-toolbar button before Share, because it shows the count of open threads and whether comment mode is on; it is also in
-View › Comments. Below 980px the sidebar folds and the inspector and Mobius panel close; each comes back over the content from its toggle.
+The **app switcher** is the leading control in the toolbar. It shows the current app and opens the shared launcher on apps, with pinned and recent apps and a search field. It stays reachable by keyboard and at narrow widths. The switcher shows its shortcut, and a separate shortcut returns to the previous app. Home, Activity and Settings are reachable from the switcher.
 
 ## What changes per app
 
-Apps differ in three ways only: what fills the toolbar middle, whether the sidebar starts open, and which panels they
-have. Five kinds cover every app.
+Each app defines its own named panels, their allowed docks, and which start open. The existing **Panels** button lists them by name and toggles them. Left, right and bottom are dock positions. An empty dock takes no space. The shell provides the same panel headers, resizing and layout behavior everywhere. Mobius has its own button and its own dock at the far right.
 
-| Kind | Apps | Sidebar at start | Toolbar middle | Inspector on the right |
-| --- | --- | --- | --- | --- |
-| Organise | Mail, Tasks, Calendar, Files, Projects | Open | View switch (Day, Week, Month), Today, the main actions (Reply, Reply All, Forward) | No. Mail and Calendar open details in the content |
-| Write | Notes, Docs, Knowledge, Reader | Open, folds on its own while typing | Aa, insert, history. The Docs outline moves into the sidebar under the document | No |
-| Browse | Browser, Research, Search | Open | Back, forward, reload and the address bar | No |
-| Data | Sheets, Database, Views | Open | Formula or query bar, then filter and sort | Optional (cell or column details) |
-| Make | Slides, Design, Canvas, Photo, Video, Music, Code, Terminal | Folded, to give the canvas room | Tools and play or run (Add slide, Play, transport, crop) | Yes: Slides style, Design layers, Photo adjust, Music device |
-
-The Agent app is the one special case. Its content is the conversation, so the Mobius panel stays closed there and the
-Mobius button opens the conversation list instead.
+| App | Example panels |
+| --- | --- |
+| Mail | Mailboxes can start open on the left. |
+| Calendar | Calendars can be hidden to give the week more room. |
+| Docs | Outline and Comments are available from Panels. |
+| Design | Layers and Properties sit around the canvas in the app’s default layout. |
+| Music | Devices or Mixer can sit beneath the arrangement. |
 
 ## Views and panels
 
@@ -53,9 +26,7 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 
 - A **view** fills the content zone and is switched in the toolbar (Session or Arrange in Music; Library or Edit in
   Photo; Day, Week, Month in Calendar).
-- A **panel** is a named piece around the view (Clip, Devices, Mixer, Inspector, Timeline, Filmstrip, Outline, and also
-  the sidebar and Mobius). It can be turned on or off, resized, docked left, bottom or right, or popped out into its own
-  window. Little Mobius is the Mobius panel popped out.
+- A **panel** is a named piece around the view. It can be shown, hidden, resized, docked left, bottom or right, or popped out into its own window.
 - A **layout** is a saved arrangement of panels (Arranging, Mixing, Sound design), picked, saved or reset from the
   app's Panels menu.
 
@@ -65,8 +36,7 @@ stages: show, hide and resize; then move between docks; then pop out into a wind
 ## Mobius's three sizes
 
 - **Full**: Home and the Agent app, where the conversation is the content.
-- **Beside**: the Mobius panel at the right edge in every other app, opened from the Mobius button or the rail. The sidebar never changes
-  face, so you keep your lists while you talk.
+- **Beside**: the Mobius panel at the right edge in every other app, opened from the Mobius button.
 - **In place**: verbs on a selection (Ask, Rewrite, Summarise, Make a task), with the result dashed where it lands.
 
 ## The theme
@@ -80,21 +50,18 @@ dark). Single-weight line icons in the frame; colour tiles only in the launcher.
 
 ## Roll-out
 
-1. **Shell (Builder):** an `AppFrame` in `apps/desktop/src/ui/` with slots for the sidebar, toolbar title, toolbar
-   controls and inspector; the app rail; the right panel with Mobius; the window icons moved to menus; the theme tokens
-   (three surfaces, two densities, Inter).
-2. **Sidebar skeleton (Builder):** a shared `AppSidebar` that enforces New, Search, sections, From Mobius, More.
-3. **Apps adopt (app threads):** each app moves its second row into the toolbar slot and its help text out of the
-   sidebar, one small PR each. Daily apps first: Mail, Calendar, Tasks, Notes, Docs, Browser.
+1. Put the app switcher in the shared toolbar and move workspace navigation and activity indicators into it.
+2. Extend the existing Panels menu and shared docks so apps can provide their own panels, including navigation and tools on the left.
+3. Move each app’s current navigation and tools into its named panels. Check narrow layouts and keyboard access before removing the old shell controls.
 
 ## Shell features
 
 - **Split view**: Window › Split view (or Ctrl+\\) puts a second app beside the first. Each pane has a small header
-  (choose its app, swap, close); the toolbar and sidebar follow the focused pane. Drag the divider, or focus it and use
+  (choose its app, swap, close); the toolbar and app panels follow the focused pane. Drag the divider, or focus it and use
   the arrow keys. Below 980 px the second pane folds away until the window is wide again.
 - **Beside the conversation**: when the agent writes a note, changes a task list or opens a web page while you are in the
   Agent app, it opens in the second pane, and typing stays in the conversation. A pane you chose for something else is
-  never replaced; that app gets its dot on the rail instead.
+  never replaced; that app gets an indicator in the app switcher.
 - **Replies read as formatting**: headings, lists, quotes, code, bold and links (links open as tabs in Mobius). The
   reply is read into plain data, never HTML, and only web and mail links are followed.
 - **Little Mobius**: the Mobius panel popped out into a small window kept above other apps (Ctrl+Shift+M). It shares
@@ -106,10 +73,8 @@ dark). Single-weight line icons in the frame; colour tiles only in the launcher.
 - **Review and undo**: each agent turn begins with a checkpoint. When a turn ends having changed notes, task lists or
   files, a strip above the message box says so: Review lists each change with its own Undo; Undo all puts back only
   what that turn changed, so edits made since elsewhere are kept. A changed note says so above the page, with Show
-  changes and Undo all; changed pages and lists carry a dot in their sidebars.
-- **Your rail**: drag an app on the rail to reorder it (or Alt+Up/Down on a focused app), or right-click it to move it,
-  hide it, or edit the list. Settings › Appearance › Layout has the full list. Hidden apps are still in the launcher.
-  Pin a note, a task list or a web page, and it stays in its app's sidebar.
+  changes and Undo all; changed pages and lists carry a dot in their app panels.
+- **Pinned items**: Pin apps in the app switcher. Pinned notes, task lists and web pages stay in their respective apps.
 
 ## What the shell and apps hold
 
@@ -118,7 +83,7 @@ These came from the Mobius Agent design canvas (Mobius 2 boards), which is now h
 - **Mark and icon**: the thin trefoil from the Logo board (V10), one ribbon knotted three times with rounded cuts, filled in the current colour at every size. The app icon (window, taskbar, installer) is the same trefoil in white on an indigo rounded square, matching the tray; the glossy ring is retired.
 - **Menus**: File, Edit, View, Go, the app's own menu, Window, Help, from one definition (`menus.ts`). In the toolbar on
   Windows and Linux (one Menu button in a narrow window), in the system menu bar on macOS.
-- **Launcher**: one search for apps, pages and every menu command, with Ask Mobius first once a model is set up.
+- **Launcher**: one search for apps, pages and every menu command, with an Ask Mobius entry once a model is set up.
 - **Welcome**: the print draws in, then how much Mobius should do (the approval setting), then the model.
 - **The Mobius panel**: "Sees:" names the apps Mobius has worked in; the conversation; proposals (dashed until kept);
   suggestions.
