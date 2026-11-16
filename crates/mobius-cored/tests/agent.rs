@@ -965,3 +965,41 @@ fn a_server_that_reports_no_tokens_still_counts_as_a_request_by_the_model_that_a
     assert_eq!(used[0]["params"]["endpoint"], backup.url());
     assert_eq!(used[0]["params"]["input"], 0);
 }
+
+#[test]
+fn ask_each_asks_the_quick_model_once_per_item_and_says_each_answer_as_it_lands() {
+    let chat = fake(vec![]);
+    let quick = fake(vec![says(&["{\"group\":\"reply\"}"], 0), says(&["{\"group\":\"later\"}"], 0), says(&["{\"group\":\"archive\"}"], 0)]);
+    let mut d = Daemon::start(&[]);
+    d.call(1, "agent.configure", json!({ "base_url": chat.url(), "model": "chat-model", "quick": { "base_url": quick.url(), "model": "quick-model" } }));
+    let items = json!([{ "id": "m1", "prompt": "From: Priya" }, { "id": "m2", "prompt": "From: News" }, { "id": "m3", "prompt": "From: Shop" }]);
+    let r = d.call(2, "agent.ask_each", json!({ "job": "sort-1", "conversation": "c1", "system": "Sort this mail.", "items": items, "max_tokens": 100 }));
+    assert_eq!(r["result"]["job"], "sort-1", "{r}");
+    assert_eq!(d.call(3, "agent.ask_each", json!({ "job": "x", "conversation": "c1", "items": [] }))["error"]["code"], -32602);
+    let mut answered = Vec::new();
+    let all = loop {
+        let n = d.note();
+        if n["method"] == "agent.asked" {
+            assert_eq!(n["params"]["job"], "sort-1");
+            answered.push((n["params"]["id"].as_str().unwrap().to_owned(), n["params"]["text"].as_str().unwrap().to_owned()));
+        }
+        if n["method"] == "agent.asked_all" {
+            break n;
+        }
+    };
+    assert_eq!(all["params"]["asked"], 3);
+    assert_eq!(all["params"]["failed"], 0);
+    answered.sort();
+    assert_eq!(answered.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["m1", "m2", "m3"]);
+    let asked = quick.bodies.lock().unwrap().clone();
+    assert_eq!(asked.len(), 3);
+    assert!(asked.iter().all(|b| b["model"] == "quick-model" && b.get("tools").is_none_or(|t| t.as_array().is_some_and(Vec::is_empty)) && b["max_tokens"] == 100), "{asked:?}");
+    assert!(chat.bodies.lock().unwrap().is_empty(), "the chat model is not asked");
+}
+
+#[test]
+fn ask_each_needs_a_model() {
+    let mut d = Daemon::start(&[]);
+    let r = d.call(1, "agent.ask_each", json!({ "job": "j", "conversation": "c1", "items": [{ "id": "a", "prompt": "hi" }] }));
+    assert!(r["error"]["message"].as_str().unwrap().contains("no model"), "{r}");
+}
