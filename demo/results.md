@@ -8,22 +8,96 @@ round 12 on, each run records three times: ask to first real thing, ask to last,
 | Moment | Run on | Model | Time (first / last / Keep where recorded) | Meets the bar | Weak |
 | --- | --- | --- | --- | --- | --- |
 | Home and Tasks: Plan my day (#448) | 15 Nov 11:28 local, b3f9798 (0.1.8 installed), chip | Sonnet 5.5 | 12.4 / 16.4 / 16.9 s (done) | Yes | None found: five blocks and Focus drawn full width, Priya's draft asks |
-| Mail: Triage (#447) | 15 Nov 11:29 local, b3f9798 (0.1.8 installed), fresh chat | Sonnet 5.5 | 15.2 / 21.7 / 35.0 s; count line 1.6 s | Yes, to the last change | The lines round after the changes takes 13 s |
-| Calendar: Find a time with… (#409) | 15 Nov, 0.1.8 installed, chip then "Sam" | Sonnet 5.5 | 9.2 / 11.2 / 14.8 s | Content nearly, first change no | Offers 3 afternoons, not every free one; a mid-turn line shows as its own answer (#459) |
+| Mail: Triage (#469, #475) | 16 Nov, #469 at 1df50f0 with main, fresh chat | Sonnet 5.5 | 13.8 to 16.8 / 18.8 to 28.1 / 29.0 to 37.6 s (3 of 5 right) | Content not five in a row; time no | Personal asks left unsorted land in Archive; round 2 about 20 s |
+| Calendar: Find a time with… (#459) | 16 Nov, 0.1.10 installed, chip then "Sam" | Sonnet 5.5 | Keep 12.8 s | Content yes | None found: three afternoons, a draft, no mid-turn line |
 | Notes: Meeting notes (#340, #350 seed) | 15 Nov, 3a8bf78, chip | Sonnet 5.5 | 7.2 / 7.2 / 12.6 s | Yes, to the last change | None found |
 | Docs: Shorter, Try another, One-page brief (#411) | 15 Nov, 0.1.8 installed | Sonnet 5.5 | Shorter 8.7 / 8.7 / 12.1 s; Try another 8.4 s; brief 16.5 s | Nearly | Try another wrongly says it is shorter; the brief is named "Build brief brief.md" (#458) |
-| Slides: Make this a deck (from the full Build brief) | 15 Nov, 0.1.9 installed, chip | Sonnet 5.5 | 17.5 s done, Keep 17.9 s | Nearly | One slide with five bullets (#464) |
-| Browser: Compare these (#296) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 21.6 s to the table, Keep 22.6 s | Content yes, time yes (30 s) | Table arrives at once and wraps in the narrow panel; links dead after a restart (#461) |
+| Slides: Make this a deck (from the full Build brief) | 16 Nov, 0.1.10 installed, chip | Sonnet 5.5 | Keep 15.2 s | Nearly | The reply states the four-bullet rule (#488) |
+| Browser: Compare these (#461) | 16 Nov, 0.1.10 installed, chip | Sonnet 5.5 | Keep 24.4 s | Content yes, time yes (30 s) | Links work after a restart; a second click opens a duplicate tab (#490) |
 | Files: Tidy this folder (#418, #427) | 15 Nov 06:44 UTC, 1c6a158, chip in Downloads | Sonnet 5.5 | 16.6 / 16.6 / 21.0 s | Content yes, time no | Step title "Move 50" and a tool name in the answer (#438) |
 | Sheets: What stands out? (#407) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 8.8 / 12.5 / 12.5 s | Last change yes, first no | None in content; chart under the grid, column E visible |
-| Music: Bass and a warmer pad (#406 chip) | 15 Nov, 0.1.9 installed, chip | Sonnet 5.5 | 9.5 / 11.5 / 12.0 s | Last change yes, first no | None in content; Space plays with a clip focused |
+| Music: Bass and a warmer pad (#473) | 16 Nov, 0.1.10 installed, chip | Sonnet 5.5 | 5.1 / 8.2 / 8.2 s (3 of 5 right) | Yes on time | F# out of key twice; a stray "12 keys" line in every reply |
 | Code: a failing test in Glance (#327, #350 seed) | 15 Nov, 3a8bf78, Glance card | Sonnet 5.5 | 3.6 / 4.4 / 8.0 s | Yes | None found |
-| Photo: Make these match (#434) | 15 Nov, 0.1.8 installed, chip | Sonnet 5.5 | 3.1 / 3.1 / 6.2 s | Yes | One adjustment for all ten, not per photo; step reads "photos.edit" (#457) |
+| Photo: Make these match (#434) | 15 Nov, 0.1.9 installed, chip | Sonnet 5.5 | Keep 5.4 to 6.1 s (6 of 6 right) | Yes | One adjustment for all ten, not per photo |
 | Database: Ask about it (#416) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | Answer 6.1 s, done 10.5 s (read only) | Nearly | None in content: question, SQL, four rows |
 | Research: Quick (#419, #422) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | Report 28.3 s, Keep 29.2 s, done 32.2 s | Nearly (30 s) | One approval card; the report lands at once, not filling in view |
 | Design: three takes (#421) | 15 Nov, 0.1.8 installed, typed | Sonnet 5.5 | 17.3 / 17.3 s, done 20.5 s | No | Step reads "design.edit"; it says it didn't look at the frames |
-| Activity: Rewind to here | 15 Nov, 0.1.8 installed | Sonnet 5.5 | 0.8 s to rewind | No | Rewound the wrong turn (#461) |
-| Notes: Meeting notes on a local model | 15 Nov, 0.1.8 installed, chip | Qwen3.5 9B, local | 21.9 / 21.9 / 22.1 s | Content yes, time no | No chat answer at all (#462); "end of week" became a Saturday |
+| Activity: Rewind to here (#461) | 16 Nov, 0.1.10 installed | Sonnet 5.5 | 0.8 s to rewind | Yes | None found |
+| Notes: Meeting notes on a local model (#462) | 16 Nov, 0.1.10 installed, chip | Qwen3.5 9B, local | Keep 22.8 s | Content yes, time no | None in content; an answer now shows |
+
+## Rounds 29 to 31 (0.1.9, branches, then installed 0.1.10 from 8269123)
+
+Run on Sunday 15 November, afternoon and evening local, Demo profile after a Reset before each run, Sonnet 5.5 unless
+named. From round 29 each moment is scored right-of-five (demo plan, #474): a moment is Have only when its content is
+right five runs in a row on one build. All times are from the press, in seconds; Keep is when Keep or Keep all shows.
+Runs wait until the PC has been idle for three minutes, so they never take focus from Andrew.
+
+### Right-of-five
+
+| Moment | Build | Right | Keep (range) | Why runs failed |
+| --- | --- | --- | --- | --- |
+| Plan my day | 0.1.9 (round 29) | 3 of 3 | 19.0, 36.1, 19.3 | None |
+| Triage, fresh chat | 0.1.9 (round 29) | 2 of 7 | 28.4 to 39.4 | Counts 34 and 39; a garbled Veltro line twice; "Northway Proving Ground" |
+| Photo: Make these match | 0.1.9 (round 29) | 6 of 6 | 5.4 to 6.1 | None |
+| Triage | #469 at 131cd9d with #475 (round 30) | 3 of 5 | 28.3 to 32.3 | A draft promised for Andrew; Sam's torque curves archived |
+| Triage | #469 at 5cac6fb with #475 (round 30b) | 2 of 5 | 29.2 to 33.6 | Veltro subject garbled twice; drafts claimed Andrew had documents he did not |
+| Triage | #469 at 1df50f0 with main (round 30c) | 3 of 5 | 29.0 to 37.6 | Priya's board-pack slide (and once Ana's shortlist) archived because the model left them unsorted |
+| Plan my day | #472 at e074888, low effort (round 31) | 4 of 5 | 13.4 to 17.6 (turn end) | One run's text did not match its blocks. Run at 16:50, so Focus and lunch were not tested |
+| Music: Bass and a warmer pad | installed 0.1.10 | 3 of 5 | 8.0 to 13.3 | An F# outside A minor twice; every reply carried a stray "12 keys, not 13" line |
+
+### Triage on #469, what changed between rounds
+
+- Counts now come from a read-only `mail.sort` tool, so every counts line adds to 40 (round 30 on). The split between
+  Later and Archive still moves from run to run.
+- #475 caps drafts at five in code: every run made five, extra calls came back "Not made", and no reply mentions a limit.
+- Round 30c: senders and subjects are copied from `mail.sort` exactly, and the Archive and Later lines name only what
+  `mail.sort` put there. Drafts thank the sender and take nothing on.
+- Still open: about 20 s of model round 2 (drafting), a first `mail.sort` call with names in place of ids in three of
+  five runs (a fourth round of about 4 s), and personal asks left out of every list landing in Archive.
+
+### Plan my day on #472 (low effort)
+
+| Run | First change | Last change | Turn end | Thinking |
+| --- | --- | --- | --- | --- |
+| P1 (cold) | 14.9 | 17.0 | 17.6 | 12.0 |
+| P2 | 12.0 | 13.9 | 14.7 | 8.3 |
+| P3 | 12.1 | 13.9 | 14.6 | 7.1 |
+| P4 | 13.0 | 15.6 | 16.1 | 9.2 |
+| P5 | 10.2 | 12.8 | 13.4 | 6.5 |
+
+One model round each. A daytime run is still needed for the Focus hour and the lunch gap.
+
+### Music on installed 0.1.10 (#473, no thinking)
+
+| Run | First change | Last change | Keep |
+| --- | --- | --- | --- |
+| M1 | 5.1 | 8.2 | 8.2 |
+| M2 | 5.1 | 8.0 | 8.0 |
+| M3 | 5.1 | 8.7 | 8.7 |
+| M4 | 5.0 | 8.7 | 8.7 |
+| M5 | 5.3 | 13.3 | 13.3 |
+
+Against 9.5 / 11.5 / 12.0 on 0.1.9. Bass, a warmer pad and a change bar describing both in all five. The bass follows
+the lowest chord note (A, F, G, G), since bar 3 of the seed is a C chord over G.
+
+### Retests on installed 0.1.10
+
+| Item | Result |
+| --- | --- |
+| Compare: links after a restart (#461) | Pass. Keep 24.4 s; the chat names the note instead of repeating the table |
+| Rewind from an Activity line (#461) | Pass. "Rewind 2 later", Sheets and Notes undone, 0.8 s |
+| Step words (#457, #461) | Pass on screen; hidden accessibility labels still read "photos.edit" |
+| Docs: brief file name, Try another (#458) | Pass. "Build brief one-page.md"; Try another says nothing about length |
+| Slides from the full brief (#464) | Pass. At most four bullets, Keep 15.2 s; the reply states the rule (#488) |
+| Find a time with Sam (#459) | Pass. Three afternoons, a draft, no mid-turn line, Keep 12.8 s |
+| Local model: Meeting notes on Qwen3.5 9B (#462) | Pass. An answer in chat, Keep 22.8 s |
+| Browser menus over a page (#470) | Fail. Panels opens behind the page; All chats runs 220 px off a 1440 px window (#490) |
+
+### Clips
+
+Draft clips, window only, 1440 by 900, 30 fps, pointer drawn, ending 1 s after Keep (round 28 lengths, #467):
+Plan my day 22.6 s (Keep 19.0), Photo 9.1 s (Keep 5.6) and Triage 37.4 s (Keep 33.8), recorded on 0.1.9. Triage stays a
+draft until it is right five in a row.
 
 ## Round 28 (installed 0.1.9, clip retakes with the pointer)
 
