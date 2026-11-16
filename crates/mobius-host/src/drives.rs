@@ -567,13 +567,14 @@ impl WebDav {
 #[serde(rename_all = "camelCase")]
 pub struct DriveAccount {
     pub id: String,
-    /// `webdav`, `s3` or `dropbox`.
+    /// `webdav`, `s3`, `dropbox` or `onedrive` (OneDrive and SharePoint).
     pub kind: String,
     pub name: String,
     /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`; for Dropbox,
-    /// `dropbox:` and the folder in it (`dropbox:/Notes`, or `dropbox:/` for the whole Dropbox).
+    /// `dropbox:` and the folder in it (`dropbox:/Notes`, or `dropbox:/` for the whole Dropbox); for OneDrive and
+    /// SharePoint, `onedrive:`, Graph's id of the drive, and the folder (`onedrive:b!x7…/Projects`).
     pub url: String,
-    /// The account name; for S3, the access key id; for Dropbox, the email it signed in with.
+    /// The account name; for S3, the access key id; for Dropbox, OneDrive and SharePoint, the account it signed in with.
     pub username: String,
     /// S3's region (`eu-west-2`, R2's `auto`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -587,6 +588,8 @@ pub struct Drives {
     http: ureq::Agent,
     /// Dropbox sign-in, and opening a Dropbox drive with the tokens kept for it.
     dropbox: Mutex<Arc<crate::dropbox::Service>>,
+    /// Microsoft sign-in, and opening a OneDrive or SharePoint drive with the tokens kept for it.
+    onedrive: Mutex<Arc<crate::onedrive::Service>>,
 }
 
 fn secret_name(id: &str) -> String {
@@ -599,7 +602,8 @@ impl Drives {
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default();
         let http = http_agent();
         let dropbox = Arc::new(crate::dropbox::Service::new(crate::dropbox::built_in_key(), crate::dropbox::Endpoints::default(), http.clone()));
-        Drives { file, secrets, state: Mutex::new(state), http, dropbox: Mutex::new(dropbox) }
+        let onedrive = Arc::new(crate::onedrive::Service::new(crate::onedrive::built_in_client_id(), crate::onedrive::Endpoints::default(), http.clone()));
+        Drives { file, secrets, state: Mutex::new(state), http, dropbox: Mutex::new(dropbox), onedrive: Mutex::new(onedrive) }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<DriveAccount>> {
@@ -717,8 +721,8 @@ impl Drives {
     /// of the old one.
     pub fn sign_in(&self, id: &str, password: &str) -> Res<Value> {
         let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
-        if account.kind == "dropbox" {
-            return Err("Sign in to Dropbox again from the drive's menu.".into());
+        if account.kind == "dropbox" || account.kind == "onedrive" {
+            return Err("This drive signs in again in the browser, from the drive's menu.".into());
         }
         if password.is_empty() {
             return Err("Enter the password (an app password for Nextcloud and Fastmail).".into());
@@ -802,6 +806,102 @@ impl Drives {
         Ok(json!(account))
     }
 
+    fn onedrive(&self) -> Arc<crate::onedrive::Service> {
+        self.onedrive.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
+    }
+
+    /// Use this Microsoft sign-in (a pretend Graph, in tests).
+    pub fn use_onedrive(&self, service: crate::onedrive::Service) {
+        *self.onedrive.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Arc::new(service);
+    }
+
+    /// Whether this build can sign in to Microsoft, and the sign-in page while one waits.
+    pub fn onedrive_status(&self) -> Value {
+        self.onedrive().status()
+    }
+
+    pub fn cancel_onedrive(&self) {
+        self.onedrive().cancel();
+    }
+
+    /// Starts a Microsoft sign-in in the browser and returns the page to open. Once the person allows it, the drive is
+    /// checked and kept: `folder` in their own OneDrive, or, with `link`, the SharePoint (or OneDrive) folder or library
+    /// that link opens, and `folder` inside it. A missing folder is made. With `again`, that drive's sign-in is renewed
+    /// instead. `done` gets the drive, or why not.
+    pub fn add_onedrive(self: &Arc<Self>, name: &str, folder: &str, link: &str, again: Option<&str>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        let again = match again {
+            Some(id) => Some(self.lock().iter().find(|a| a.id == id && a.kind == "onedrive").cloned().ok_or("That drive is gone.")?),
+            None if self.lock().len() >= MAX_DRIVES => return Err(format!("There can be at most {MAX_DRIVES} drives.")),
+            None => None,
+        };
+        let folder = names(folder)?.join("/");
+        let link = link.trim().to_owned();
+        if !link.is_empty() && !link.starts_with("https://") {
+            return Err("That isn't a link. Copy the folder's or library's link from SharePoint or OneDrive.".into());
+        }
+        let name = Some(name.trim()).filter(|n| !n.is_empty()).and_then(clean_name);
+        let me = Arc::clone(self);
+        let pending = self.onedrive().start(Arc::new(move |signed: Res<crate::onedrive::SignedIn>| done(signed.and_then(|signed| me.keep_onedrive(name.as_deref(), &folder, &link, again.as_ref(), &signed)))))?;
+        Ok(json!(pending))
+    }
+
+    fn keep_onedrive(&self, name: Option<&str>, folder: &str, link: &str, again: Option<&DriveAccount>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
+        let tokens = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
+        if let Some(account) = again {
+            if !account.username.is_empty() && !signed.email.is_empty() && !account.username.eq_ignore_ascii_case(&signed.email) {
+                return Err(format!("That drive belongs to {}; sign in with that account.", account.username));
+            }
+            if !self.secrets.put(&secret_name(&account.id), &tokens) {
+                return Err("The sign-in could not be kept in this computer's secret store.".into());
+            }
+            return Ok(json!(account));
+        }
+        let id = new_id();
+        let secret = secret_name(&id);
+        if !self.secrets.put(&secret, &tokens) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let service = self.onedrive();
+        let found = (|| {
+            let (drive, base, base_name) = if link.is_empty() {
+                if signed.drive.is_empty() {
+                    return Err("This account has no OneDrive yet. Add a SharePoint library by its link instead.".to_owned());
+                }
+                (signed.drive.clone(), String::new(), String::new())
+            } else {
+                let place = service.resolve(Arc::clone(&self.secrets), &secret, link)?;
+                (place.drive, place.folder, place.name)
+            };
+            let full = [base.as_str(), folder].iter().filter(|p| !p.is_empty()).copied().collect::<Vec<_>>().join("/");
+            // Graph makes one folder at a time, so each level of a new folder is made in turn.
+            let at = service.open(Arc::clone(&self.secrets), &secret, &drive, &base)?;
+            let mut made = String::new();
+            for part in folder.split('/').filter(|p| !p.is_empty()) {
+                made = if made.is_empty() { part.to_owned() } else { format!("{made}/{part}") };
+                match at.make_folder(&made) {
+                    Ok(()) => {}
+                    Err(e) if e == EXISTS => {}
+                    Err(e) => return Err(e),
+                }
+            }
+            service.open(Arc::clone(&self.secrets), &secret, &drive, &full)?.check()?;
+            let shown = folder.rsplit('/').next().filter(|f| !f.is_empty()).and_then(clean_name).or_else(|| clean_name(&base_name)).unwrap_or_else(|| if link.is_empty() { "OneDrive".into() } else { "SharePoint".into() });
+            Ok((drive, full, shown))
+        })();
+        let (drive, full, shown) = match found {
+            Ok(f) => f,
+            Err(e) => {
+                self.secrets.delete(&secret);
+                return Err(e);
+            }
+        };
+        let account = DriveAccount { id, kind: "onedrive".into(), name: name.map_or(shown, str::to_owned), url: format!("onedrive:{drive}/{full}"), username: signed.email.clone(), region: None };
+        let mut all = self.lock();
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!(account))
+    }
+
     pub fn remove(&self, id: &str) -> Res<Value> {
         let mut all = self.lock();
         let before = all.len();
@@ -825,6 +925,10 @@ impl Drives {
         if account.kind == "dropbox" {
             let folder = account.url.strip_prefix("dropbox:").ok_or("The drive's address is not a Dropbox folder.")?;
             return Ok(Box::new(self.dropbox().open(Arc::clone(&self.secrets), &secret_name(&account.id), folder)?));
+        }
+        if account.kind == "onedrive" {
+            let (drive, folder) = account.url.strip_prefix("onedrive:").and_then(|r| r.split_once('/')).ok_or("The drive's address is not a OneDrive folder.")?;
+            return Ok(Box::new(self.onedrive().open(Arc::clone(&self.secrets), &secret_name(&account.id), drive, folder)?));
         }
         let url = url::Url::parse(&account.url).map_err(|e| e.to_string())?;
         match account.kind.as_str() {

@@ -2,12 +2,13 @@
 
 A drive is a folder on a server the person already runs or pays for, opened from Files beside the workspace. Mobius
 needs no account or server of its own for it. The code is `crates/mobius-host/src/drives.rs` (WebDAV),
-`crates/mobius-host/src/s3.rs` (S3-style storage) and `crates/mobius-host/src/dropbox.rs` (Dropbox).
+`crates/mobius-host/src/s3.rs` (S3-style storage), `crates/mobius-host/src/dropbox.rs` (Dropbox) and
+`crates/mobius-host/src/onedrive.rs` (OneDrive and SharePoint).
 
 ## How it works
 
 - **One interface, many kinds.** Every drive implements the `Drive` trait: `check`, `list`, `read`, `write`,
-  `make_folder`, `rename`, `delete`. WebDAV, S3-style storage and Dropbox are the kinds so far. Others (network shares, the
+  `make_folder`, `rename`, `delete`. WebDAV, S3-style storage, Dropbox, and OneDrive and SharePoint are the kinds so far. Others (network shares, the
   cloud drives) are other implementations, without changing the bridge, sync or the window.
 - **Browsing copies nothing.** Each call goes to the server, with no local mirror. A workspace folder can also be kept in
   step with a drive folder both ways: see [Two-way sync](#two-way-sync-design).
@@ -23,6 +24,7 @@ needs no account or server of its own for it. The code is `crates/mobius-host/sr
 | --- | --- |
 | `list`, `add {name, server, username, password}`, `remove id` | The person's drives. For S3, `add {kind: "s3", name, server, bucket, folder?, region?, username, password}`: the service's address, the bucket, a folder in it, the access key id and its secret |
 | `dropboxStatus`, `addDropbox {name?, folder?, again?}`, `dropboxCancel` | Dropbox: whether this build can sign in, and the sign-in page to open. The drive (or why not) arrives as `mobius:drive-sign-in { kind, ok, drive \| message }` |
+| `onedriveStatus`, `addOnedrive {name?, folder?, link?, again?}`, `onedriveCancel` | The same for OneDrive and SharePoint: `link` is a SharePoint folder's or library's link; without it, the person's own OneDrive |
 | `browse id folder` | Folders first, then files, with size, date and version |
 | `read id path` | The file as base64, with its version (up to 32 MB) |
 | `write id path {base64 \| text} etag?` | Replace that version, or make a new file |
@@ -79,6 +81,37 @@ A folder in the person's Dropbox, or all of it, as a drive: browsing, copying an
 - **Tests.** `dropbox.rs` runs against a pretend Dropbox: sign-in, versions that refuse stale writes, a folder as a drive
   of its own, Drives keeping a new folder, and the two-way sync soak (`drive_sync::tests::soak`, the same one WebDAV and
   S3 pass).
+
+## OneDrive and SharePoint
+
+A folder in the person's OneDrive, or in a SharePoint document library they can reach, as a drive, through Microsoft
+Graph. Work, school and personal accounts all work.
+
+- **Sign-in** is Microsoft's own page in the browser, as a public client with PKCE and no secret, back to
+  `http://localhost:<port>`. The registration has `http://localhost`, and Microsoft lets a desktop app add any port;
+  Mobius listens on `127.0.0.1`, which browsers reach for `localhost`. It asks for `offline_access`, `User.Read` and
+  `Files.ReadWrite.All`, nothing that needs an admin's consent. Tokens refresh as Dropbox's do, and the newest refresh
+  token Microsoft sends is kept.
+- **SharePoint** libraries and folders are added from their link (the address bar, or Share, Copy link), resolved with
+  Graph's `/shares/u!…/driveItem` to the library's drive id and the folder's path. That needs only
+  `Files.ReadWrite.All`, so there is no site browsing and no `Sites.*` permission.
+- **Accounts** are kind `onedrive`, with `onedrive:<drive id>/<folder>` and the account that signed in. Each level of
+  a new folder is made when the drive is added.
+- **Versions** are the item's `eTag`, sent as `If-Match` on every change and delete; a new file goes with
+  `conflictBehavior=fail`. A file over 4 MB goes up in an upload session of 10 MiB pieces (multiples of 320 KiB, as
+  Graph asks); its version is checked when the session starts. Moves name the destination folder by its id and fail
+  rather than replace.
+- **Reading** takes the item's version first, then its bytes from the pre-signed download address, which no token goes
+  to. If the file changes in between, the next change is refused as stale, so nothing is overwritten.
+- **OneNote notebooks** are packages with no bytes; they list with a link that opens them on the web.
+- **Limits.** Files are read whole, up to 32 MB, as Dropbox's are. Graph's change feed (`delta`) isn't used yet; sync
+  lists folders.
+- **The client id** is built in from `MOBIUS_MICROSOFT_CLIENT_ID`. A build without it says OneDrive and SharePoint
+  aren't set up. Registering Mobius with Microsoft is in
+  [Drive and calendar sign-in](../reference/drive-sign-in.md#microsoft); the same registration serves Calendar later.
+- **Tests.** `onedrive.rs` runs against a pretend Graph: sign-in, refresh with a new refresh token, stale changes
+  refused, paging, moves, upload sessions, a SharePoint library from its link, Drives keeping both kinds, and the
+  two-way sync soak.
 
 ## S3-style storage
 
