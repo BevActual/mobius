@@ -256,32 +256,22 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 | README shows every app in the current look | Launch | Nothing |
 | First run takes five minutes or less from install to a first answer | Builder, Launch | Nothing |
 | A clip of each app's moment and a 60 to 90 second reel of the best ([demo plan](demo-plan.md)) | Launch | The demo workspace; each app's moment |
-| The rename to Modulaix ([below](#the-rename-to-modulaix)) | Builder, with every lead | Andrew: the domains registered and a clear USPTO search |
+| The name: Mobius Workspace at mobiusworkspace.com ([below](#the-name)) | Launch | Andrew: registering the domain; a trademark attorney's clearance before any filing or branding spend |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
 | Google and Microsoft calendar sign-in | Builder | Andrew: registering Mobius with each ([what it needs](calendar-sign-in.md)) |
 
-### The rename to Modulaix
+### The name
 
-Andrew chose Modulaix as the product name on 16 November 2026. Rocket Software holds live MOBIUS trademarks for
-software, and an open-source project called mobius already exists. **Mobius stays the working name until the rename
-is scheduled.** No work assumes the new name before then.
+Settled by Andrew on 16 November 2026: **no rename.** The product stays Mobius, its public name is **Mobius
+Workspace**, and its home on the web is **mobiusworkspace.com**, which Andrew registers himself.
 
-Starts when Andrew has registered modulaix.com and modulaix.app and the USPTO search is clear. It comes before the
-signed installer and v0.1.0, so the first public build carries the new name. It is done in one short window, with
-other merges held for it:
-
-1. **One rename pull request for the code** (Builder): the product name, the window title, the installer, the
-   Windows app identifier (`app.mobius.shell` today), crate and package names, and every string a person sees. A
-   person who already has a tester build keeps their workspace, settings, keys and chats: the first start of the
-   renamed app moves them across, and a test proves it.
-2. **The agent's own name in the app** (the Mobius panel, "Ask Mobius", the Mobius mark) follows the same pull
-   request. The mark keeps its shape.
-3. **Docs and README** (Docs and Launch leads), in one pull request after the code.
-4. **The repository name** on GitHub (Andrew, one setting; GitHub keeps the old address working) and the Azure
-   signing profile's name (Builder).
-5. **The site** under `site/` for modulaix.com (Launch).
-6. **Project memory** and every thread's name for the product (orchestrator).
+- The app keeps calling itself and its agent Mobius. "Mobius Workspace" is used where the full name helps a newcomer:
+  the website, the README title, the installer and store listings.
+- Rocket Software holds live MOBIUS trademarks for software. The longer name sets Mobius Workspace apart, but a
+  trademark attorney's clearance comes before any trademark filing or spending on the brand.
+- Launch points `site/` at mobiusworkspace.com once Andrew owns it. The Builder's rename sizing
+  (`/mnt/project-files/builder/rename-sizing.md`) is kept in case the name is ever revisited.
 
 ## Connections
 
