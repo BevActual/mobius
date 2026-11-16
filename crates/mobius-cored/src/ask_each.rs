@@ -11,9 +11,11 @@ use mobius_agent::message::Message;
 use mobius_agent::provider::{ChatRequest, NO_REASONING, Provider, ProviderError, Usage};
 use serde::Deserialize;
 
-/// How many calls run at once when the caller does not say. Tunable: ten is the most a caller may ask for.
+/// How many calls run at once when the caller does not say. Tunable; `MOST_AT_ONCE` is the most a caller may ask for.
 pub const AT_ONCE: usize = 6;
-pub const MOST_AT_ONCE: usize = 10;
+/// With the Claude subscription each call starts its own Claude Code process (two to three seconds of it start-up), so
+/// a whole inbox needs many at once to stay quick: 40 mails take 4 rounds at 10 (about 11 s), 2 at 20 (about 6 s).
+pub const MOST_AT_ONCE: usize = 24;
 pub const MOST_ITEMS: usize = 200;
 const MOST_PROMPT_CHARS: usize = 8_000;
 const MOST_SYSTEM_CHARS: usize = 8_000;
@@ -89,7 +91,7 @@ impl AskEachParams {
             return Err("max_tokens must be from 1 to 4096");
         }
         if self.at_once.is_some_and(|n| n == 0 || n > MOST_AT_ONCE) {
-            return Err("at_once must be from 1 to 10");
+            return Err("at_once must be from 1 to 24");
         }
         Ok(())
     }
@@ -334,7 +336,7 @@ mod tests {
         assert!(params(0).check().is_err());
         assert!(params(201).check().is_err());
         let mut many = params(2);
-        many.at_once = Some(11);
+        many.at_once = Some(25);
         assert!(many.check().is_err());
     }
 
