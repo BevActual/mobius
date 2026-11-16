@@ -256,18 +256,20 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 | README shows every app in the current look | Launch | Nothing |
 | First run takes five minutes or less from install to a first answer | Builder, Launch | Nothing |
 | A clip of each app's moment and a 60 to 90 second reel of the best ([demo plan](demo-plan.md)) | Launch | The demo workspace; each app's moment |
-| The rename to Modulaix ([below](#the-rename-to-modulaix)) | Builder, with every lead | Andrew: the domains registered and a clear USPTO search |
+| The rename ([below](#the-rename)) | Builder, with every lead | Andrew: the new name chosen, its domains registered and a clear USPTO search |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
 | Google and Microsoft calendar sign-in | Builder | Andrew: registering Mobius with each ([what it needs](calendar-sign-in.md)) |
 
-### The rename to Modulaix
+### The rename
 
-Andrew chose Modulaix as the product name on 16 November 2026. Rocket Software holds live MOBIUS trademarks for
-software, and an open-source project called mobius already exists. **Mobius stays the working name until the rename
+Mobius needs a new product name before launch: Rocket Software holds live MOBIUS trademarks for software, and an
+open-source project called mobius already exists. Modulaix was the first candidate (16 November 2026); Andrew found it
+not catchy enough, so the name is still being chosen. A name is ready when it is easy to say and spell from hearing
+it, its .com or .app domain is free, and a USPTO search is clear. **Mobius stays the working name until the rename
 is scheduled.** No work assumes the new name before then.
 
-Starts when Andrew has registered modulaix.com and modulaix.app and the USPTO search is clear. It comes before the
+Starts when Andrew has chosen the name, registered its domains and the USPTO search is clear. It comes before the
 signed installer and v0.1.0, so the first public build carries the new name. It is done in one short window, with
 other merges held for it:
 
@@ -280,7 +282,7 @@ other merges held for it:
 3. **Docs and README** (Docs and Launch leads), in one pull request after the code.
 4. **The repository name** on GitHub (Andrew, one setting; GitHub keeps the old address working) and the Azure
    signing profile's name (Builder).
-5. **The site** under `site/` for modulaix.com (Launch).
+5. **The site** under `site/` for the new domain (Launch).
 6. **Project memory** and every thread's name for the product (orchestrator).
 
 ## Connections
