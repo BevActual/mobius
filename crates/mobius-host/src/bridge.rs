@@ -1595,7 +1595,7 @@ impl Bridge {
             return result;
         }
         if tool == "mail.sort" {
-            // Triage: each unread message asked about on its own, all at once, on the quick model; the groups and
+            // Triage: each unread message asked about on its own, all at once, on the chat model; the groups and
             // counts are then made in code.
             let (system, asks) = self.mail.sort_asks();
             let job = crate::ask_each::Job {
@@ -1605,14 +1605,15 @@ impl Bridge {
                 max_tokens: Some(120),
                 // Two rounds for forty messages (each call can be its own process, so many at once pays).
                 at_once: Some(20),
+                // On the chat model: Haiku as the quick model sorted more loosely (30L), and the counts rest on it.
+                chat: true,
                 ..Default::default()
             };
             let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
             return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
         }
         if tool == "mail.draft_replies" {
-            // Triage's replies, each written by its own call at once. The quick model writes them unless
-            // MOBIUS_TRIAGE_DRAFTS=chat (to compare the two on one build).
+            // Triage's replies, each written by its own call at once.
             let replies: Vec<(String, String)> = args.get("replies").and_then(Value::as_array).into_iter().flatten()
                 .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("why").and_then(Value::as_str).unwrap_or("").to_owned())))
                 .collect();
@@ -1633,7 +1634,8 @@ impl Bridge {
                 asks: asked.asks.iter().map(|(id, prompt)| crate::ask_each::Ask { id: id.clone(), prompt: prompt.clone() }).collect(),
                 max_tokens: Some(500),
                 at_once: Some(crate::mail::store::MAX_TRIAGE_DRAFTS),
-                chat: std::env::var("MOBIUS_TRIAGE_DRAFTS").is_ok_and(|v| v == "chat"),
+                // On the chat model: Haiku as the quick model wrote drafts that promised and offered busy hours (30L).
+                chat: true,
                 ..Default::default()
             };
             let mut answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
