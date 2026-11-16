@@ -137,6 +137,13 @@ fn decoded(path: &str) -> Vec<String> {
     path.split('/').filter(|s| !s.is_empty()).map(|s| percent_decode_str(s).decode_utf8_lossy().into_owned()).collect()
 }
 
+/// An ETag as the HTTP headers give it. Some servers (wsgidav, a few NAS boxes) leave the quotes off `getetag` while
+/// their `ETag` header has them, so the same version would look like a change and `If-Match` would never match.
+fn entity_tag(tag: &str) -> String {
+    let tag = tag.trim();
+    if tag.starts_with('"') || tag.starts_with("W/") { tag.to_owned() } else { format!("\"{tag}\"") }
+}
+
 fn http_agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .http_status_as_error(false)
@@ -327,7 +334,7 @@ impl WebDav {
                     name: path.rsplit('/').next().unwrap_or("").to_owned(),
                     size: prop("getcontentlength").and_then(|s| s.parse().ok()).unwrap_or(0),
                     modified: prop("getlastmodified"),
-                    version: prop("getetag"),
+                    version: prop("getetag").map(|e| entity_tag(&e)),
                     content_type: prop("getcontenttype").filter(|_| !folder),
                     // Nextcloud and ownCloud give each file an id that a move keeps.
                     id: prop("fileid"),
@@ -353,6 +360,12 @@ impl WebDav {
             507 => "The drive is full.".into(),
             s => format!("The server answered {s}."),
         }
+    }
+
+    /// Why a PUT did not work. A new file (no version) cannot itself be missing, so a 404 means the folder it goes in
+    /// is: Nextcloud answers that way where RFC 4918 says 409.
+    fn put_failed(status: u16, etag: Option<&str>) -> String {
+        WebDav::failed(if status == 404 && etag.is_none() { 409 } else { status }, etag)
     }
 
     fn version_of(&self, path: &str) -> Option<String> {
@@ -406,7 +419,7 @@ impl Drive for WebDav {
         let reply = self.send("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], bytes, 64 * 1024)?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 
@@ -476,7 +489,7 @@ impl Drive for WebDav {
         let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 }
@@ -898,6 +911,13 @@ pub(crate) mod tests {
     use std::collections::BTreeMap;
     use std::io::{BufRead, BufReader, Read, Write};
 
+    #[test]
+    fn an_etag_a_listing_gives_without_quotes_matches_the_header() {
+        assert_eq!(entity_tag("1028234-1794786647-3"), "\"1028234-1794786647-3\"");
+        assert_eq!(entity_tag("\"abc\""), "\"abc\"");
+        assert_eq!(entity_tag("W/\"abc\""), "W/\"abc\"");
+    }
+
     /// What the fake server holds: path → (bytes, version). Folders end in `/`.
     pub(crate) type Store = Arc<Mutex<BTreeMap<String, (Vec<u8>, u32)>>>;
 
@@ -1007,7 +1027,8 @@ pub(crate) mod tests {
                             if (!if_match.is_empty() && current.as_deref() != Some(if_match.as_str())) || (if_none == "*" && current.is_some()) {
                                 ("412 Precondition Failed", String::new(), Vec::new())
                             } else if !st.contains_key(&parent_of(&k)) {
-                                ("409 Conflict", String::new(), Vec::new())
+                                // Nextcloud answers a new file in a missing folder with 404, where RFC 4918 says 409.
+                                if uploads.is_some() { ("404 Not Found", String::new(), Vec::new()) } else { ("409 Conflict", String::new(), Vec::new()) }
                             } else {
                                 let v = st.get(&k).map_or_else(|| seen.get(&k).copied().unwrap_or(0) + 1, |(_, v)| v + 1);
                                 seen.insert(k.clone(), v);
