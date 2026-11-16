@@ -292,6 +292,7 @@ pub struct Bridge {
     /// The test command of each Code project, which only the person sets.
     code_tests: crate::code_tests::TestCommands,
     tasks: mobius_workspace::tasks::Tasks,
+    contacts: mobius_workspace::contacts::Contacts,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
@@ -486,6 +487,7 @@ impl Bridge {
             processes: crate::code_processes::Processes::default(),
             code_tests: crate::code_tests::TestCommands::new(data_dir.join("code-tests.json")),
             tasks: mobius_workspace::tasks::Tasks::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
+            contacts: mobius_workspace::contacts::Contacts::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             calendar: {
                 let calendar = mobius_workspace::calendar::Calendar::new(data_dir.join("workspace"), data_dir.join("checkpoints"));
                 calendar.set_remote(calendar_accounts.clone());
@@ -682,6 +684,7 @@ impl Bridge {
             ("video", _) => Ok(self.video_call(method, args)),
             ("mail", _) => Ok(self.mail_call(method, args)),
             ("tasks", _) => Ok(self.tasks_call(method, args)),
+            ("contacts", _) => Ok(self.contacts_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
             ("drives", _) => Ok(self.drives_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
@@ -1406,7 +1409,7 @@ impl Bridge {
         wait_for_marks(&self.marking);
         slow("tool", "waiting for the checkpoint before the turn", waited);
         stage.store(1, std::sync::atomic::Ordering::Relaxed);
-        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
+        let tool = params.get("tool").and_then(Value::as_str).filter(|t| mobius_mcp::hub::is_mcp_tool(t) || mobius_workspace::files::is_file_tool(t) || mobius_workspace::tasks::is_task_tool(t) || mobius_workspace::contacts::is_contact_tool(t) || mobius_workspace::photos::is_photo_tool(t) || mobius_workspace::design::is_design_tool(t) || mobius_workspace::calendar::is_calendar_tool(t) || mobius_workspace::sheets::is_sheet_tool(t) || crate::mail::store::is_mail_tool(t) || crate::memory::is_memory_tool(t) || crate::schedules::is_schedule_tool(t) || crate::code_tests::is_code_tool(t) || crate::code_git::is_git_tool(t) || mobius_workspace::skills::is_skill_tool(t) || crate::web::is_web_tool(t) || crate::code_processes::is_process_tool(t) || crate::database::is_db_tool(t) || crate::comments::is_comment_tool(t) || crate::images::is_image_tool(t) || mobius_workspace::video::is_video_tool(t) || crate::drives::is_drive_tool(t) || tool_descriptions().iter().any(|d| d["name"] == *t)).ok_or("unknown tool")?;
         let args = params.get("arguments").cloned().unwrap_or(Value::Null);
         if mobius_mcp::hub::is_mcp_tool(tool) {
             return self.mcp.run(tool, &args).map(Value::String);
@@ -1539,6 +1542,13 @@ impl Bridge {
             let result = self.tasks.run(tool, &args).map(Value::String);
             if result.is_ok() && tool != "tasks.list" {
                 (self.emit)("mobius:tasks-changed", json!({ "list": args.get("list").and_then(Value::as_str).unwrap_or(mobius_workspace::tasks::DEFAULT_LIST), "by": "assistant" }));
+            }
+            return result;
+        }
+        if mobius_workspace::contacts::is_contact_tool(tool) {
+            let result = self.contacts.run(tool, &args).map(Value::String);
+            if result.is_ok() && tool == "contacts.save" {
+                (self.emit)("mobius:contacts-changed", json!({ "book": args.get("book").and_then(Value::as_str).unwrap_or(mobius_workspace::contacts::DEFAULT_BOOK), "by": "assistant" }));
             }
             return result;
         }
@@ -1862,7 +1872,7 @@ impl Bridge {
     }
 
     fn register_tools(&self) {
-        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
+        for tool in tool_descriptions().into_iter().chain(mobius_workspace::files::tool_descriptions()).chain(mobius_workspace::tasks::tool_descriptions()).chain(mobius_workspace::contacts::tool_descriptions()).chain(mobius_workspace::photos::tool_descriptions()).chain(mobius_workspace::design::tool_descriptions()).chain(mobius_workspace::calendar::tool_descriptions()).chain(mobius_workspace::sheets::tool_descriptions()).chain(crate::mail::store::tool_descriptions()).chain(crate::memory::tool_descriptions()).chain(crate::schedules::tool_descriptions()).chain(crate::code_tests::tool_descriptions()).chain(crate::code_git::tool_descriptions()).chain(mobius_workspace::skills::tool_descriptions()).chain(crate::web::tool_descriptions()).chain(crate::code_processes::tool_descriptions()).chain(crate::database::tool_descriptions()).chain(crate::comments::tool_descriptions()).chain(crate::images::tool_descriptions()).chain(mobius_workspace::video::tool_descriptions()).chain(crate::drives::tool_descriptions()) {
             let _ = self.core.call("tools.register_external", tool, Duration::from_secs(5));
         }
         self.mcp.begin(self.data_dir.join("mcp.json"), self.core.clone());
@@ -2930,6 +2940,47 @@ impl Bridge {
 
     /// The Tasks app. Every answer is the list asked for or `{ ok: false, message }`; a change to a task that moved or
     /// changed meanwhile also says `conflict: true`, so the window reloads instead of changing the wrong task.
+    /// The address book, for Mail and Calendar: names as you address someone, and a person card from a sender.
+    fn contacts_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let contacts = &self.contacts;
+        let one = |r: Result<mobius_workspace::contacts::Contact, String>| r.map(|c| c.to_json());
+        let result: Result<Value, String> = match method {
+            "books" => Ok(json!(contacts.books())),
+            "list" => Ok(Value::Array(contacts.all(text(0).filter(|b| !b.is_empty())).iter().map(mobius_workspace::contacts::Contact::to_json).collect())),
+            "get" => match (text(0), text(1)) {
+                (Some(book), Some(id)) => one(contacts.get(book, id)),
+                _ => Err("a book and an id are needed".into()),
+            },
+            "search" => {
+                let limit = args.get(1).and_then(Value::as_u64).map_or(20, |n| usize::try_from(n).unwrap_or(200));
+                Ok(Value::Array(contacts.search(text(0).unwrap_or(""), limit).iter().map(mobius_workspace::contacts::Contact::to_json).collect()))
+            }
+            "byEmail" => Ok(text(0).and_then(|e| contacts.by_email(e)).map_or(Value::Null, |c| c.to_json())),
+            "save" => match args.get(2).map(mobius_workspace::contacts::Draft::from_json) {
+                Some(Ok(draft)) => one(contacts.save(text(0).unwrap_or(""), text(1).filter(|i| !i.is_empty()), &draft, text(3))),
+                Some(Err(e)) => Err(e),
+                None => Err("the contact's fields are needed".into()),
+            },
+            "remove" => match (text(0), text(1)) {
+                (Some(book), Some(id)) => contacts.remove(book, id, text(2)),
+                _ => Err("a book and an id are needed".into()),
+            },
+            "restore" => match (text(0), text(1), text(2)) {
+                (Some(book), Some(id), Some(card)) => one(contacts.restore(book, id, card)),
+                _ => Err("a book, an id and the card are needed".into()),
+            },
+            _ => Err(format!("unknown contacts call {method}")),
+        };
+        if result.is_ok() && matches!(method, "save" | "remove" | "restore") {
+            (self.emit)("mobius:contacts-changed", json!({ "book": text(0).filter(|b| !b.is_empty()).unwrap_or(mobius_workspace::contacts::DEFAULT_BOOK), "by": "person" }));
+        }
+        match result {
+            Ok(v) => v,
+            Err(message) => json!({ "ok": false, "conflict": message == "changed elsewhere", "message": message }),
+        }
+    }
+
     fn tasks_call(&self, method: &str, args: &[Value]) -> Value {
         use mobius_workspace::tasks::Change;
         let text = |i: usize| args.get(i).and_then(Value::as_str);

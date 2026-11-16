@@ -263,6 +263,27 @@ export interface SyncPair { id: string; folder: string; drive: string; remote: s
 export interface SyncChanged { pair: string; status: SyncStatus }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
+/** An email address or a phone number, with its kind (`work`, `home`, `cell`) when the card gives one. */
+export interface ContactValue { value: string; label: string }
+/** A person in the address book: a vCard file in `contacts/<book>/<id>.vcf`. */
+export interface Contact {
+  book: string;
+  id: string;
+  name: string;
+  emails: ContactValue[];
+  phones: ContactValue[];
+  org: string;
+  title: string;
+  note: string;
+  /** `YYYY-MM-DD`, or `--MM-DD` with no year; empty when not known. */
+  birthday: string;
+  /** Sent back with a change, so one made elsewhere since is refused (`conflict`). */
+  version: string;
+}
+/** What a save sets. A field left out stays as it is; emails and phones replace the ones there. */
+export interface ContactDraft { name?: string; emails?: (ContactValue | string)[]; phones?: (ContactValue | string)[]; org?: string; title?: string; note?: string; birthday?: string }
+export interface ContactsChanged { book: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
+
 /** `cli`: the service's own app keeps the sign-in. `device`: a code entered on the service's site; Mobius keeps the token in the system secret store. */
 export interface AccountInfo { id: string; name: string; note: string; active: boolean; kind?: 'cli' | 'browser'; models: Array<{ id: string; label: string }> }
 /** A browser sign-in waiting for the person to finish it at `url`. */
@@ -650,6 +671,23 @@ export interface MobiusBridge {
     restoreList?(list: string, text: string): Promise<{ name: string } | NotesFailure>;
     clearDone(list: string): Promise<TaskList | NotesFailure>;
     onChanged(listener: (change: TasksChanged) => void): () => void;
+  };
+  /** The address book, shown inside Mail and Calendar (there is no People app). Only the Tauri shell has it. */
+  contacts?: {
+    books(): Promise<string[] | NotesFailure>;
+    /** Everyone, or everyone in one book, sorted by name. */
+    list(book?: string): Promise<Contact[] | NotesFailure>;
+    get(book: string, id: string): Promise<Contact | NotesFailure>;
+    /** By name, email, company or phone digits; names that start with the query come first. */
+    search(query: string, limit?: number): Promise<Contact[] | NotesFailure>;
+    /** Who has this address (any case): a sender's or an attendee's card. `null` when nobody does. */
+    byEmail(email: string): Promise<Contact | null | NotesFailure>;
+    /** Adds a contact (`id` null; `book` empty for the main one) or changes one, checked against `version`. */
+    save(book: string, id: string | null, draft: ContactDraft, version?: string): Promise<Contact | NotesFailure>;
+    /** `text` is the card as it was, for `restore` (Undo). */
+    remove(book: string, id: string, version?: string): Promise<{ book: string; removed: string; text: string } | NotesFailure>;
+    restore(book: string, id: string, text: string): Promise<Contact | NotesFailure>;
+    onChanged(listener: (change: ContactsChanged) => void): () => void;
   };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {

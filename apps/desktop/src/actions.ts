@@ -87,6 +87,8 @@ export function describeAction(name: string, args: unknown): string | null {
     case 'mail.read': return 'read an email';
     // A reply says so; a new email says who it is to ("draft an email to Priya"), or that it is new.
     case 'mail.draft': return s('replyTo') || s('reply_to') || s('in_reply_to') ? 'draft a reply for you to send' : s('to') ? `draft an email to ${s('to')}` : 'draft a new email';
+    case 'contacts.search': return s('query') ? `look up ${quote(s('query'), 40)} in your contacts` : 'look through your contacts';
+    case 'contacts.save': return s('id') ? `change ${s('name') ? quote(s('name')) : 'a contact'} in your contacts` : s('name') ? `add ${quote(s('name'))} to your contacts` : 'add a contact';
     case 'sheets.list': return 'see which workbooks there are';
     case 'sheets.read': return s('workbook') ? `read the workbook ${quote(s('workbook'))}` : 'read a workbook';
     case 'sheets.write': {

@@ -115,7 +115,7 @@ pub struct Event {
 // ---- reading and writing iCalendar ---------------------------------------------------------------------------------
 
 /// Long lines are folded onto continuation lines that start with a space or a tab.
-fn unfold(text: &str) -> Vec<String> {
+pub(crate) fn unfold(text: &str) -> Vec<String> {
     let mut lines: Vec<String> = Vec::new();
     for raw in text.split('\n') {
         let raw = raw.strip_suffix('\r').unwrap_or(raw);
@@ -131,7 +131,7 @@ fn unfold(text: &str) -> Vec<String> {
 }
 
 /// Lines longer than 75 bytes go onto continuation lines, never splitting a character.
-fn fold(line: &str) -> String {
+pub(crate) fn fold(line: &str) -> String {
     let mut out = String::new();
     let mut width = 0;
     for c in line.chars() {
@@ -146,7 +146,7 @@ fn fold(line: &str) -> String {
     out
 }
 
-fn unescape(text: &str) -> String {
+pub(crate) fn unescape(text: &str) -> String {
     let mut out = String::new();
     let mut chars = text.chars();
     while let Some(c) = chars.next() {
@@ -163,14 +163,14 @@ fn unescape(text: &str) -> String {
     out
 }
 
-fn escape(text: &str) -> String {
+pub(crate) fn escape(text: &str) -> String {
     text.replace('\\', "\\\\").replace(';', "\\;").replace(',', "\\,").replace("\r\n", "\\n").replace('\n', "\\n")
 }
 
-type Params = Vec<(String, String)>;
+pub(crate) type Params = Vec<(String, String)>;
 
 /// A content line split into its name, its parameters and its value.
-fn split_line(line: &str) -> Option<(String, Params, String)> {
+pub(crate) fn split_line(line: &str) -> Option<(String, Params, String)> {
     let colon = {
         // The first colon outside a quoted parameter value.
         let mut quoted = false;
