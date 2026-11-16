@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use crate::client::Client;
+use crate::client::{Client, Tokens};
 use crate::config::ServerConfig;
 
 type Res<T> = Result<T, String>;
@@ -46,10 +46,15 @@ pub fn is_mcp_tool(name: &str) -> bool {
 impl Hub {
     /// Start every configured server. A server that fails to start is reported and skipped; the rest still work.
     pub fn start(configs: &BTreeMap<String, ServerConfig>) -> (Hub, Vec<(String, String)>) {
+        Hub::start_with(configs, &|_| None)
+    }
+
+    /// The same, with where each network server's sign-in token comes from, by server name.
+    pub fn start_with(configs: &BTreeMap<String, ServerConfig>, tokens: &dyn Fn(&str) -> Option<Arc<dyn Tokens>>) -> (Hub, Vec<(String, String)>) {
         let mut hub = Hub::default();
         let mut failures = Vec::new();
         for (name, config) in configs {
-            let started = Client::start(config, START_TIMEOUT).and_then(|client| client.list_tools(START_TIMEOUT).map(|tools| (client, tools)));
+            let started = Client::start_with(config, tokens(name), START_TIMEOUT).and_then(|client| client.list_tools(START_TIMEOUT).map(|tools| (client, tools)));
             match started {
                 Ok((client, tools)) => hub.add(name, client, &tools),
                 Err(e) => failures.push((name.clone(), e)),
@@ -60,7 +65,12 @@ impl Hub {
 
     /// Start one more server (or start it again: the running one is stopped first). On failure the hub is unchanged.
     pub fn start_server(&mut self, name: &str, config: &ServerConfig) -> Res<()> {
-        let (client, tools) = Client::start(config, START_TIMEOUT).and_then(|client| client.list_tools(START_TIMEOUT).map(|tools| (client, tools)))?;
+        self.start_server_with(name, config, None)
+    }
+
+    /// The same, with where a network server's sign-in token comes from.
+    pub fn start_server_with(&mut self, name: &str, config: &ServerConfig, tokens: Option<Arc<dyn Tokens>>) -> Res<()> {
+        let (client, tools) = Client::start_with(config, tokens, START_TIMEOUT).and_then(|client| client.list_tools(START_TIMEOUT).map(|tools| (client, tools)))?;
         self.stop_server(name);
         self.add(name, client, &tools);
         Ok(())

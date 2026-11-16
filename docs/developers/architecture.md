@@ -63,7 +63,7 @@ The reasons are recorded in the [architecture decisions](../adr/README.md), espe
 | `crates/mobius-store` | Small JSON stores (settings, history, bookmarks, bots), written atomically and read defensively |
 | `crates/mobius-workspace` | The apps' files (notes, docs, tasks, calendars, sheets and formulas, photos, comments) and checkpoints |
 | `crates/mobius-browser` | The browser app: tabs, addresses, downloads, find, page tools, behind an `Engine` trait |
-| `crates/mobius-mcp` | The MCP client for connectors in `mcp.json` |
+| `crates/mobius-mcp` | The MCP client for connectors in `mcp.json`: programs over stdio, and servers at an address over Streamable HTTP |
 | `crates/mobius-shell` | The Tauri shell; the web view or Chromium (CEF) page engine, tray, menus, updater |
 | `apps/desktop` | The React interface, its unit tests, the end-to-end tests and dev scripts |
 | `packages/shared` | The bridge contract and the TypeScript types generated from the Rust types |

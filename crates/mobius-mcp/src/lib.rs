@@ -2,5 +2,6 @@
 //! untrusted text. Whether a call may happen is decided by the core, not here.
 pub mod client;
 pub mod config;
+mod http;
 pub mod hub;
 pub mod server;

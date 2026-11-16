@@ -10,7 +10,7 @@ use serde_json::json;
 const SECS: Duration = Duration::from_secs(10);
 
 fn config(env: &[(&str, &str)]) -> ServerConfig {
-    ServerConfig { command: env!("CARGO_BIN_EXE_fake-mcp-server").to_owned(), args: vec![], env: env.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect() }
+    ServerConfig { command: env!("CARGO_BIN_EXE_fake-mcp-server").to_owned(), env: env.iter().map(|(k, v)| ((*k).to_owned(), (*v).to_owned())).collect(), ..ServerConfig::default() }
 }
 fn client() -> Client {
     Client::start(&config(&[]), SECS).unwrap()
@@ -60,7 +60,7 @@ fn a_ping_from_the_server_is_answered() {
 
 #[test]
 fn a_program_that_is_not_there_fails_to_start_with_a_message() {
-    let missing = ServerConfig { command: "definitely-not-a-program-xyz".into(), args: vec![], env: BTreeMap::new() };
+    let missing = ServerConfig { command: "definitely-not-a-program-xyz".into(), ..ServerConfig::default() };
     assert!(Client::start(&missing, SECS).err().unwrap().contains("could not start"));
 }
 
@@ -76,7 +76,7 @@ fn the_server_gets_only_what_it_needs_plus_what_the_person_configured() {
 fn tools_get_plain_unique_names_that_fit_and_calls_reach_the_right_tool() {
     let mut configs = BTreeMap::new();
     configs.insert("fake".to_owned(), config(&[]));
-    configs.insert("broken".to_owned(), ServerConfig { command: "definitely-not-a-program-xyz".into(), args: vec![], env: BTreeMap::new() });
+    configs.insert("broken".to_owned(), ServerConfig { command: "definitely-not-a-program-xyz".into(), ..ServerConfig::default() });
     let (hub, failures) = Hub::start(&configs);
     assert_eq!(hub.servers(), ["fake"]);
     assert_eq!(failures.len(), 1);
@@ -108,7 +108,7 @@ fn a_server_can_be_started_and_stopped_while_the_others_keep_running() {
     assert!(!others.is_empty() && others.iter().all(|d| d["capability"] == "mcp.other"));
     assert_eq!(hub.run("mcp.other.echo", &json!({ "text": "y" })).unwrap().lines().next(), Some("y"));
     // One that cannot start leaves the hub as it was.
-    let broken = ServerConfig { command: "definitely-not-a-program-xyz".into(), args: vec![], env: BTreeMap::new() };
+    let broken = ServerConfig { command: "definitely-not-a-program-xyz".into(), ..ServerConfig::default() };
     assert!(hub.start_server("broken", &broken).is_err());
     assert_eq!(hub.servers(), ["fake", "other"]);
     // Starting a running one again restarts it, with the same names.
@@ -129,6 +129,10 @@ fn the_config_file_is_checked() {
     let ok = parse(r#"{ "servers": { "notes": { "command": "npx.cmd", "args": ["-y", "x"], "env": { "K": "v" } } } }"#).unwrap();
     assert_eq!(ok["notes"].args, ["-y", "x"]);
     assert_eq!(ok["notes"].env["K"], "v");
+    let remote = parse(r#"{ "servers": { "linear": { "url": "https://mcp.linear.app/mcp", "headers": { "Authorization": "Bearer k" } }, "local": { "url": "http://127.0.0.1:8080/mcp" } } }"#).unwrap();
+    assert_eq!(remote["linear"].url.as_deref(), Some("https://mcp.linear.app/mcp"));
+    assert_eq!(remote["linear"].headers["Authorization"], "Bearer k");
+    assert!(remote["local"].command.is_empty());
     for bad in [
         "not json", "{}", r#"{ "servers": [] }"#,
         r#"{ "servers": { "Bad-Name": { "command": "x" } } }"#,
@@ -137,6 +141,12 @@ fn the_config_file_is_checked() {
         r#"{ "servers": { "a": { "command": "x", "args": [1] } } }"#,
         r#"{ "servers": { "a": { "command": "x", "args": "no" } } }"#,
         r#"{ "servers": { "a": { "command": "x", "env": { "K": 1 } } } }"#,
+        r#"{ "servers": { "a": { "url": "http://example.com/mcp" } } }"#,
+        r#"{ "servers": { "a": { "url": "ftp://example.com" } } }"#,
+        r#"{ "servers": { "a": { "url": "https://user@example.com/mcp" } } }"#,
+        r#"{ "servers": { "a": { "url": "https://example.com/mcp", "command": "x" } } }"#,
+        r#"{ "servers": { "a": { "url": "https://example.com/mcp", "headers": { "Bad Name": "x" } } } }"#,
+        r#"{ "servers": { "a": { "url": "https://example.com/mcp", "headers": { "X-Key": "a\r\nHost: b" } } } }"#,
     ] {
         assert!(parse(bad).is_err(), "{bad}");
     }
@@ -147,7 +157,7 @@ fn the_config_file_is_checked() {
 #[test]
 #[ignore = "needs npx and the network"]
 fn a_real_reference_server_works() {
-    let config = ServerConfig { command: "npx".into(), args: vec!["-y".into(), "@modelcontextprotocol/server-everything".into()], env: BTreeMap::new() };
+    let config = ServerConfig { command: "npx".into(), args: vec!["-y".into(), "@modelcontextprotocol/server-everything".into()], ..ServerConfig::default() };
     let c = Client::start(&config, Duration::from_secs(120)).unwrap();
     let tools = c.list_tools(Duration::from_secs(30)).unwrap();
     assert!(tools.iter().any(|t| t.name == "echo"), "{:?}", tools.iter().map(|t| &t.name).collect::<Vec<_>>());

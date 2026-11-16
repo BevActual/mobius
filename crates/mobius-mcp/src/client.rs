@@ -1,4 +1,5 @@
-//! One MCP server over stdio: newline-delimited JSON-RPC 2.0.
+//! One MCP server: over stdio (newline-delimited JSON-RPC 2.0), or at an address over Streamable HTTP, where each
+//! message is a POST and the answer is JSON or a stream of server-sent events.
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -28,11 +29,29 @@ pub struct RemoteTool {
     pub input_schema: Value,
 }
 
+/// Where the bearer token for a server on the network comes from (a sign-in kept by the host). `stale`: the server
+/// refused the last one, so refresh it.
+pub trait Tokens: Send + Sync {
+    fn bearer(&self, stale: bool) -> Res<Option<String>>;
+}
+
+/// The start of the error for a server that wants a sign-in; the rest is where its sign-in is described
+/// (`resource_metadata`, RFC 9728), or its address.
+pub const SIGN_IN_NEEDED: &str = "sign-in needed: ";
+
+/// Whether a server that did not start wants a sign-in, and where its sign-in is described.
+pub fn sign_in_needed(error: &str) -> Option<&str> {
+    error.strip_prefix(SIGN_IN_NEEDED)
+}
+
 pub struct Client {
-    stdin: Arc<Mutex<ChildStdin>>,
-    pending: Pending,
+    link: Link,
     next: AtomicU64,
-    child: Mutex<Child>,
+}
+
+enum Link {
+    Stdio { stdin: Arc<Mutex<ChildStdin>>, pending: Pending, child: Mutex<Child> },
+    Http(crate::http::Http),
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -65,6 +84,24 @@ fn send(stdin: &Mutex<ChildStdin>, value: &Value) -> Res<()> {
 impl Client {
     /// Start the server and complete the MCP handshake.
     pub fn start(config: &ServerConfig, timeout: Duration) -> Res<Client> {
+        Client::start_with(config, None, timeout)
+    }
+
+    /// The same, with where a network server's sign-in token comes from.
+    pub fn start_with(config: &ServerConfig, tokens: Option<Arc<dyn Tokens>>, timeout: Duration) -> Res<Client> {
+        let client = match &config.url {
+            Some(url) => Client { link: Link::Http(crate::http::Http::new(url, &config.headers, tokens)?), next: AtomicU64::new(1) },
+            None => Client::spawn(config)?,
+        };
+        let init = client.request("initialize", &json!({ "protocolVersion": PROTOCOL, "capabilities": {}, "clientInfo": { "name": "mobius", "version": "0" } }), timeout)?;
+        if let Link::Http(http) = &client.link {
+            http.initialized(init.get("protocolVersion").and_then(Value::as_str).unwrap_or(PROTOCOL));
+        }
+        client.notify("notifications/initialized", timeout)?;
+        Ok(client)
+    }
+
+    fn spawn(config: &ServerConfig) -> Res<Client> {
         let mut command = Command::new(resolve_program(&config.command));
         command.args(&config.args).env_clear();
         for key in KEEP_ENV {
@@ -83,24 +120,34 @@ impl Client {
             let (stdin, pending) = (stdin.clone(), pending.clone());
             thread::spawn(move || read_loop(BufReader::new(stdout), &stdin, &pending));
         }
-        let client = Client { stdin, pending, next: AtomicU64::new(1), child: Mutex::new(child) };
-        client.request("initialize", &json!({ "protocolVersion": PROTOCOL, "capabilities": {}, "clientInfo": { "name": "mobius", "version": "0" } }), timeout)?;
-        send(&client.stdin, &json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }))?;
-        Ok(client)
+        Ok(Client { link: Link::Stdio { stdin, pending, child: Mutex::new(child) }, next: AtomicU64::new(1) })
+    }
+
+    fn notify(&self, method: &str, timeout: Duration) -> Res<()> {
+        let message = json!({ "jsonrpc": "2.0", "method": method });
+        match &self.link {
+            Link::Stdio { stdin, .. } => send(stdin, &message),
+            Link::Http(http) => http.notify(&message, timeout),
+        }
     }
 
     pub fn request(&self, method: &str, params: &Value, timeout: Duration) -> Res<Value> {
         let id = self.next.fetch_add(1, Ordering::Relaxed);
+        let message = json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params });
+        let (stdin, pending) = match &self.link {
+            Link::Http(http) => return http.request(id, &message, timeout).map_err(|e| if e == crate::http::TIMED_OUT { format!("the server did not answer {method} in time") } else { e }),
+            Link::Stdio { stdin, pending, .. } => (stdin, pending),
+        };
         let (tx, rx) = channel();
-        lock(&self.pending).insert(id, tx);
-        if let Err(e) = send(&self.stdin, &json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })) {
-            lock(&self.pending).remove(&id);
+        lock(pending).insert(id, tx);
+        if let Err(e) = send(stdin, &message) {
+            lock(pending).remove(&id);
             return Err(e);
         }
         match rx.recv_timeout(timeout) {
             Ok(result) => result,
             Err(_) => {
-                lock(&self.pending).remove(&id);
+                lock(pending).remove(&id);
                 Err(format!("the server did not answer {method} in time"))
             }
         }
@@ -157,9 +204,27 @@ impl Client {
 
 impl Drop for Client {
     fn drop(&mut self) {
-        let mut child = lock(&self.child);
-        let _ = child.kill();
-        let _ = child.wait();
+        match &self.link {
+            Link::Stdio { child, .. } => {
+                let mut child = lock(child);
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+            Link::Http(http) => http.end(),
+        }
+    }
+}
+
+/// What the client says to a request from the server: it answers pings, and has no other methods.
+pub(crate) fn answer(id: &Value, method: &str) -> Value {
+    if method == "ping" { json!({ "jsonrpc": "2.0", "id": id, "result": {} }) } else { json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "method not found" } }) }
+}
+
+/// A response's result, or its error as text.
+pub(crate) fn outcome(message: &Value) -> Res<Value> {
+    match message.get("error") {
+        Some(e) => Err(e.get("message").and_then(Value::as_str).unwrap_or("the server reported an error").chars().take(500).collect()),
+        None => Ok(message.get("result").cloned().unwrap_or(Value::Null)),
     }
 }
 
@@ -171,17 +236,12 @@ fn read_loop(reader: impl BufRead, stdin: &Mutex<ChildStdin>, pending: &Pending)
         match (message.get("id"), method) {
             // The server asked us something. We only answer pings; everything else is a method we do not have.
             (Some(id), Some(method)) => {
-                let reply = if method == "ping" { json!({ "jsonrpc": "2.0", "id": id, "result": {} }) } else { json!({ "jsonrpc": "2.0", "id": id, "error": { "code": -32601, "message": "method not found" } }) };
-                let _ = send(stdin, &reply);
+                let _ = send(stdin, &answer(id, method));
             }
             (Some(id), None) => {
                 let Some(id) = id.as_u64() else { continue };
                 let Some(tx) = lock(pending).remove(&id) else { continue };
-                let outcome = match message.get("error") {
-                    Some(e) => Err(e.get("message").and_then(Value::as_str).unwrap_or("the server reported an error").chars().take(500).collect()),
-                    None => Ok(message.get("result").cloned().unwrap_or(Value::Null)),
-                };
-                let _ = tx.send(outcome);
+                let _ = tx.send(outcome(&message));
             }
             _ => {}
         }
