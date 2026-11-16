@@ -557,7 +557,7 @@ fn main() {
                 let _ = emit_handle.emit(name, payload);
             });
             let secret_store: Arc<dyn mobius_host::secrets::Secrets> =
-                if std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") { Arc::new(mobius_host::secrets::FileSecrets::new(data_dir.join("test-secrets.json"))) } else { Arc::new(secrets::OsSecrets) };
+                if std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") { Arc::new(mobius_host::secrets::FileSecrets::new(data_dir.join("test-secrets.json"))) } else { Arc::new(mobius_host::secrets::Pieces(secrets::OsSecrets)) };
             let bridge = Arc::new(Bridge::new(core.clone(), data_dir.clone(), emit, secret_store));
             let _ = slot.set(bridge.clone());
             bridge.start_models();
