@@ -226,7 +226,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'design':
       return state.note
         ? [
-            { label: 'Make a dark version', prompt: 'Add a new frame to this design, to the right of the others, that is a dark mode version of the first frame. Use the colour styles already in the design where they fit, add any new colours as styles, and check that text contrast passes AA. Keep the ids of what you leave alone; give new layers new ids.', attach: 'note' },
+            { label: 'Make a dark version', prompt: 'Add a new frame to this design, to the right of the others, that is a dark mode version of the first frame. Use the colour styles already in the design where they fit, add any new colours as styles, and check that text contrast passes AA. Keep the ids of what you leave alone; give new layers new ids. In your reply, describe the new frame in words a designer uses: no ids, coordinates or colour codes.', attach: 'note' },
             { label: 'Check contrast', prompt: 'Check the contrast of every text layer in this design against what is behind it, and list any below AA (4.5:1) with a colour that would pass. Change nothing yet.', attach: 'note' },
             { label: 'Tidy the spacing', prompt: 'Line up the layers in this design on an 8-point grid with even spacing, changing only x, y, w and h. Keep every id.', attach: 'note' },
           ]
