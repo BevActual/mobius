@@ -245,6 +245,12 @@ export interface DriveEntry { name: string; path: string; folder: boolean; size:
 /** `conflict` is true when the file changed on the server since it was read: nothing was written. */
 export interface DriveFailure { ok: false; message: string; conflict: boolean }
 export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+export interface GoogleDriveStatus { setUp: boolean; signedIn: boolean; account: string | null; pending: GoogleDrivePending | null; hint: string | null }
+export interface GoogleDrivePending { url: string; kind: 'signIn' | 'pick' }
+/** A file picked on Google Drive and copied into the workspace at `path`. `exported`: a Google Docs, Sheets or Slides copy, not saved back. */
+export interface GoogleDriveLink { id: string; name: string; mimeType: string; path: string; version: string; exported: boolean; link: string | null }
+/** `null` after a sign-in or sign-out; `opened` and `failed` after a pick; `saved` after a save back. */
+export type GoogleDriveChanged = null | { opened: GoogleDriveLink[]; failed: { id?: string; message: string }[] } | { saved: GoogleDriveLink };
 /** Where a synced folder stands. `held`: files the agent changed that wait for Keep. `ask`: deletes waiting for a yes. Times are ms since 1970. */
 export interface SyncStatus {
   state: 'idle' | 'syncing' | 'offline' | 'paused' | 'signIn';
@@ -746,6 +752,26 @@ export interface MobiusBridge {
     /** Settles a conflict: mine sends the copy under the name; theirs deletes the copy. */
     syncResolve?(pair: string, path: string, keep: 'mine' | 'theirs'): Promise<{ ok: true } | DriveFailure>;
     onSync?(listener: (change: SyncChanged) => void): () => void;
+  };
+  /**
+   * Files picked on Google Drive (Mobius asks only for the files people pick). `open` shows Google's picker in the
+   * browser; the files picked are copied into the workspace and come back as `mobius:google-drive-changed` with
+   * `opened` and `failed`. A copy saves back over its file unless the file changed on Drive since (`conflict`).
+   */
+  googleDrive?: {
+    status(): Promise<GoogleDriveStatus>;
+    /** The page to open in the browser to sign in. */
+    signIn(): Promise<GoogleDrivePending | DriveFailure>;
+    cancel(): Promise<{ ok: true }>;
+    signOut(): Promise<{ ok: true }>;
+    /** Shows the picker; picked files land in `folder` (default "Google Drive"). */
+    open(folder?: string): Promise<GoogleDrivePending | DriveFailure>;
+    links(): Promise<GoogleDriveLink[]>;
+    /** Where a workspace file came from on Drive, or `null`. */
+    linkOf(path: string): Promise<GoogleDriveLink | null>;
+    saveBack(path: string): Promise<{ ok: true; link: GoogleDriveLink } | DriveFailure>;
+    forget(path: string): Promise<{ ok: true } | DriveFailure>;
+    onChanged(listener: (change: GoogleDriveChanged) => void): () => void;
   };
   /** The Mail app. Only the person sends: `send` is for the Send button, and the agent has no way to send. */
   mail?: {

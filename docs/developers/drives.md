@@ -78,6 +78,27 @@ pastes an access key; nothing is registered with anyone.
 - **Errors** come from S3's error code: a wrong key or secret says the server did not accept them (sync shows Sign in),
   a missing bucket names it, and a bucket in another region says to give its region.
 
+## Google Drive (the files people pick)
+
+Mobius asks Google only for `drive.file`: the files the person picks, and the ones Mobius makes. So Google Drive isn't a
+drive in the list above, and has no browsing or sync. Files has **Open from Google Drive** instead
+(`crates/mobius-host/src/google_drive.rs`, bridge namespace `googleDrive`):
+
+1. **Sign in** on Google's page, with PKCE, back to a one-time page on `127.0.0.1` (`loopback.rs`). Google lets people
+   untick the file access; a sign-in without it is refused with a sentence saying so.
+2. **Pick.** Mobius serves Google's picker from a second page on that same port, at an unguessable path. The picked
+   files' ids come back to the waiting page; closing the picker picks nothing.
+3. **Open.** Each file is copied into the workspace (`Google Drive/` by default, never over a file already there) and
+   remembered in `google-drive.json`: its Drive id and version, and where the copy is. The link follows the copy when
+   it's renamed or moved in Files. Google Docs, Sheets, Slides and Drawings come in as Markdown, CSV, PDF and PNG copies.
+4. **Save back** checks the file's version on Drive first. If it changed there, nothing is written and the answer has
+   `conflict: true`. The copies of Google files aren't saved back.
+
+The app's client ID, client secret and picker key are built in from `MOBIUS_GOOGLE_CLIENT_ID`,
+`MOBIUS_GOOGLE_CLIENT_SECRET` and `MOBIUS_GOOGLE_PICKER_KEY` at build time (Google says a desktop app's secret can't be
+kept secret). A build without them says Google Drive isn't set up. `tests/google_drive.rs` runs the whole flow against
+a pretend Google. Files bigger than 32 MB aren't opened or saved back yet.
+
 ## Known limits and quirks
 
 - **Big files.** Opening a drive file in an app, and the agent's `drives.*` tools, read and write a whole file in
