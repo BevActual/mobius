@@ -89,7 +89,7 @@ impl ContactAccounts {
     }
 
     fn dav(&self, url: &url::Url, auth: (&str, &str), depth: &str, body: &str) -> Res<Node> {
-        let answer = dav_request(&self.http, "PROPFIND", url, Some(auth), &[("Depth", depth), ("Content-Type", "application/xml; charset=utf-8")], Some(body))?;
+        let answer = dav_request(&self.http, "PROPFIND", url, Some(auth.into()), &[("Depth", depth), ("Content-Type", "application/xml; charset=utf-8")], Some(body))?;
         match answer.status {
             207 | 200 => xml(&answer.body),
             401 | 403 => Err("The server did not accept that name and password. iCloud and Fastmail need an app password, made in the account's security settings.".into()),

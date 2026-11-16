@@ -7,7 +7,10 @@
 //!   the agent's) changes back to the server.
 //!
 //! Each calendar is mirrored to a file in `calendar-accounts/<account>/` in the data folder; the passwords are kept in
-//! the system's secret store. Google and Microsoft accounts need their own sign-in and come later.
+//! the system's secret store.
+//! - a **Google account**: signed in on Google's own page (`calendar_sign_in`), its calendars found with Google's
+//!   calendar list, then mirrored and changed through Google's CalDAV endpoint with the sign-in's token, by the same
+//!   code as a CalDAV account. Microsoft accounts need their own sign-in and come later.
 //!
 //! A CalDAV account's **task lists** (collections of `VTODO`s, such as Reminders lists on iCloud or Nextcloud Tasks)
 //! show in the Tasks app the same way: each is mirrored to `tasks-<n>.md` beside the calendars, as a Markdown list
@@ -23,6 +26,7 @@ use mobius_workspace::tasks_ical::{todo_ics, todos};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
+use crate::calendar_sign_in::{EXPIRED, Endpoints, Found, Google, SignIn, Tokens};
 use crate::secrets::Secrets;
 
 type Res<T> = Result<T, String>;
@@ -43,16 +47,20 @@ pub struct RemoteCalendar {
     /// Each event's id → where it is on the server and its version there.
     #[serde(default)]
     pub items: BTreeMap<String, (String, String)>,
+    /// Shared with the person to read only (a Google calendar such as holidays).
+    #[serde(default)]
+    pub read_only: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: String,
-    /// `subscription` or `caldav`.
+    /// `subscription`, `caldav` or `google`.
     pub kind: String,
     pub name: String,
     pub url: String,
+    /// For a Google account, its email.
     #[serde(default)]
     pub username: String,
     #[serde(default)]
@@ -75,6 +83,37 @@ pub struct Accounts {
     secrets: Arc<dyn Secrets>,
     state: Mutex<Vec<Account>>,
     http: ureq::Agent,
+    google: Mutex<Arc<SignIn>>,
+}
+
+/// How a request says who it is for.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum Auth<'a> {
+    /// A CalDAV or CardDAV account's name and app password.
+    Basic(&'a str, &'a str),
+    /// A sign-in's access token.
+    Bearer(&'a str),
+}
+
+impl<'a> From<(&'a str, &'a str)> for Auth<'a> {
+    fn from((user, password): (&'a str, &'a str)) -> Auth<'a> {
+        Auth::Basic(user, password)
+    }
+}
+
+/// What an account signs in with, from the secret store.
+enum Key {
+    Password(String),
+    Token(String),
+}
+
+impl Key {
+    fn auth<'a>(&'a self, username: &'a str) -> Auth<'a> {
+        match self {
+            Key::Password(p) => Auth::Basic(username, p),
+            Key::Token(t) => Auth::Bearer(t),
+        }
+    }
 }
 
 fn now_ms() -> u64 {
@@ -126,6 +165,10 @@ pub(crate) fn same_site(a: &url::Url, b: &url::Url) -> bool {
         if parts.len() >= 2 { format!("{}.{}", parts[1], parts[0]) } else { host }
     };
     site(a) == site(b) && (b.scheme() == "https" || a.scheme() == b.scheme())
+}
+
+fn remote(found: Found) -> RemoteCalendar {
+    RemoteCalendar { href: found.href, name: clean_name(&found.name).unwrap_or_else(|| "Calendar".into()), ctag: String::new(), items: BTreeMap::new(), read_only: found.read_only }
 }
 
 // ---- a little XML, enough for WebDAV answers ----------------------------------------------------------------------
@@ -286,13 +329,17 @@ pub(crate) fn dav_agent() -> ureq::Agent {
 }
 
 /// One request, following up to five redirects. Credentials go only to the same site.
-pub(crate) fn dav_request(http: &ureq::Agent, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
+pub(crate) fn dav_request(http: &ureq::Agent, method: &str, url: &url::Url, auth: Option<Auth<'_>>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
     let mut at = url.clone();
     for _ in 0..6 {
         let mut builder = ureq::http::Request::builder().method(method).uri(at.as_str());
-        if let Some((user, password)) = auth.filter(|_| same_site(url, &at)) {
-            use base64::Engine;
-            builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
+        match auth.filter(|_| same_site(url, &at)) {
+            Some(Auth::Basic(user, password)) => {
+                use base64::Engine;
+                builder = builder.header("Authorization", format!("Basic {}", base64::engine::general_purpose::STANDARD.encode(format!("{user}:{password}"))));
+            }
+            Some(Auth::Bearer(token)) => builder = builder.header("Authorization", format!("Bearer {token}")),
+            None => {}
         }
         for (k, v) in headers {
             builder = builder.header(*k, *v);
@@ -321,7 +368,8 @@ impl Accounts {
         let file = data_dir.join("calendar-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let http = dav_agent();
-        Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http }
+        let google = Arc::new(SignIn::new(Google::built_in(), Endpoints::default()));
+        Accounts { file, dir: data_dir.join("calendar-accounts"), secrets, state: Mutex::new(state), http, google: Mutex::new(google) }
     }
 
     fn lock(&self) -> std::sync::MutexGuard<'_, Vec<Account>> {
@@ -354,14 +402,16 @@ impl Accounts {
         std::fs::write(&file, serde_json::to_vec(texts).map_err(|e| e.to_string())?).map_err(|e| e.to_string())
     }
 
-    fn request(&self, method: &str, url: &url::Url, auth: Option<(&str, &str)>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
+    fn request(&self, method: &str, url: &url::Url, auth: Option<Auth<'_>>, headers: &[(&str, &str)], body: Option<&str>) -> Res<Answer> {
         dav_request(&self.http, method, url, auth, headers, body)
     }
 
-    fn dav(&self, method: &str, url: &url::Url, auth: (&str, &str), depth: &str, body: &str) -> Res<Node> {
+    fn dav(&self, method: &str, url: &url::Url, auth: Auth<'_>, depth: &str, body: &str) -> Res<Node> {
         let answer = self.request(method, url, Some(auth), &[("Depth", depth), ("Content-Type", "application/xml; charset=utf-8")], Some(body))?;
         match answer.status {
             207 | 200 => xml(&answer.body),
+            401 if matches!(auth, Auth::Bearer(_)) => Err(EXPIRED.into()),
+            403 if matches!(auth, Auth::Bearer(_)) => Err("Google did not let Mobius read that calendar. Is the CalDAV API turned on for Mobius's Google project?".into()),
             401 | 403 => Err("The server did not accept that name and password. iCloud and Fastmail need an app password, made in the account's security settings.".into()),
             404 => Err("The server has no calendars at that address.".into()),
             s => Err(format!("The server answered {s}.")),
@@ -418,7 +468,7 @@ impl Accounts {
                     n += 1;
                 }
                 taken.push(name.to_lowercase());
-                out.push(Mirror { name, file: self.mirror_file(&a.id, i), account: a.name.clone(), writable: a.kind == "caldav" });
+                out.push(Mirror { name, file: self.mirror_file(&a.id, i), account: a.name.clone(), writable: matches!(a.kind.as_str(), "caldav" | "google") && !c.read_only });
             }
         }
         out
@@ -430,7 +480,7 @@ impl Accounts {
         if self.lock().len() >= MAX_ACCOUNTS {
             return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
         }
-        let mut account = Account { id: new_id(), kind: "subscription".into(), name: name.clone(), url: url.to_string(), username: String::new(), calendars: vec![RemoteCalendar { href: url.to_string(), name, ctag: String::new(), items: BTreeMap::new() }], task_lists: Vec::new(), tasks_looked: true, last_sync_ms: 0, problem: None };
+        let mut account = Account { id: new_id(), kind: "subscription".into(), name: name.clone(), url: url.to_string(), username: String::new(), calendars: vec![RemoteCalendar { href: url.to_string(), name, ctag: String::new(), items: BTreeMap::new(), read_only: true }], task_lists: Vec::new(), tasks_looked: true, last_sync_ms: 0, problem: None };
         // Read once now, so a wrong link is said at once rather than later.
         self.sync_subscription(&mut account)?;
         let mut all = self.lock();
@@ -449,7 +499,7 @@ impl Accounts {
         if self.lock().len() >= MAX_ACCOUNTS {
             return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
         }
-        let (calendars, task_lists) = self.discover(&base, (username, password))?;
+        let (calendars, task_lists) = self.discover(&base, (username, password).into())?;
         if calendars.is_empty() && task_lists.is_empty() {
             return Err("That account has no calendars Mobius can show.".into());
         }
@@ -458,7 +508,7 @@ impl Accounts {
         if !self.secrets.put(&secret_name(&account.id), password) {
             return Err("The password could not be kept in this computer's secret store.".into());
         }
-        if let Err(e) = self.sync_caldav(&mut account, password) {
+        if let Err(e) = self.sync_caldav(&mut account, &Key::Password(password.to_owned())) {
             self.secrets.delete(&secret_name(&account.id));
             return Err(e);
         }
@@ -484,17 +534,126 @@ impl Accounts {
         Ok(json!({ "ok": true }))
     }
 
+    // ---- Google ----
+
+    fn google(&self) -> Arc<SignIn> {
+        Arc::clone(&*self.state_google())
+    }
+
+    fn state_google(&self) -> std::sync::MutexGuard<'_, Arc<SignIn>> {
+        self.google.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// A pretend Google, in tests.
+    pub fn use_google(&self, google: Option<Google>, at: Endpoints) {
+        *self.state_google() = Arc::new(SignIn::new(google, at));
+    }
+
+    pub fn google_status(&self) -> Value {
+        self.google().status()
+    }
+
+    pub fn google_cancel(&self) {
+        self.google().cancel();
+    }
+
+    /// Start signing in to Google and return the page to open. Once the person agrees, the account is kept (or, with
+    /// `again`, that account gets the new sign-in) and `done` hears it, or why not.
+    pub fn google_sign_in(self: &Arc<Self>, name: &str, again: Option<&str>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        let again = match again {
+            Some(id) => Some(self.lock().iter().find(|a| a.id == id && a.kind == "google").map(|a| a.id.clone()).ok_or("That account is gone.")?),
+            None if self.lock().len() >= MAX_ACCOUNTS => return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts.")),
+            None => None,
+        };
+        let (me, name) = (Arc::clone(self), name.to_owned());
+        let url = self.google().start(Arc::new(move |signed: Res<Tokens>| done(signed.and_then(|tokens| me.keep_google(&name, again.as_deref(), &tokens)))))?;
+        Ok(json!({ "url": url }))
+    }
+
+    fn keep_google(&self, name: &str, again: Option<&str>, tokens: &Tokens) -> Res<Value> {
+        let text = serde_json::to_string(tokens).map_err(|e| e.to_string())?;
+        if let Some(id) = again {
+            let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That account is gone.")?;
+            let email = tokens.email.as_deref().unwrap_or("");
+            if !account.username.is_empty() && !email.is_empty() && !account.username.eq_ignore_ascii_case(email) {
+                return Err(format!("That account is {}; sign in with it.", account.username));
+            }
+            if !self.secrets.put(&secret_name(id), &text) {
+                return Err("The sign-in could not be kept in this computer's secret store.".into());
+            }
+            self.sync(Some(id));
+            return Ok(json!({ "id": id, "name": account.name }));
+        }
+        let google = self.google();
+        let calendars: Vec<RemoteCalendar> = google.calendars(&tokens.access)?.into_iter().map(remote).collect();
+        if calendars.is_empty() {
+            return Err("That Google account has no calendars Mobius can show.".into());
+        }
+        let email = tokens.email.clone().unwrap_or_default();
+        let name = clean_name(name).or_else(|| (!email.is_empty()).then(|| clean_name(&format!("Google ({email})")).unwrap_or_else(|| "Google".into()))).unwrap_or_else(|| "Google".into());
+        let mut account = Account { id: new_id(), kind: "google".into(), name, url: google.caldav().to_owned(), username: email, calendars, task_lists: Vec::new(), tasks_looked: true, last_sync_ms: now_ms(), problem: None };
+        if !self.secrets.put(&secret_name(&account.id), &text) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        if let Err(e) = self.sync_caldav(&mut account, &Key::Token(tokens.access.clone())) {
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(e);
+        }
+        let mut all = self.lock();
+        if all.len() >= MAX_ACCOUNTS {
+            drop(all);
+            self.secrets.delete(&secret_name(&account.id));
+            return Err(format!("There can be at most {MAX_ACCOUNTS} calendar accounts."));
+        }
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!({ "id": account.id, "name": account.name, "calendars": account.calendars.iter().map(|c| c.name.clone()).collect::<Vec<_>>() }))
+    }
+
+    /// Calendars added on Google since: added after the ones Mobius has, so each keeps its mirror file. One that went
+    /// away stays until the account is removed (reading it says why).
+    fn more_google_calendars(&self, account: &mut Account, token: &str) {
+        let Ok(found) = self.google().calendars(token) else { return };
+        for f in found {
+            if let Some(c) = account.calendars.iter_mut().find(|c| c.href == f.href) {
+                c.read_only = f.read_only;
+            } else if account.calendars.len() < crate::calendar_sign_in::MAX_CALENDARS {
+                account.calendars.push(remote(f));
+            }
+        }
+    }
+
+    /// What the account signs in with: its app password, or a Google token good for a few minutes more.
+    fn key(&self, account: &Account) -> Res<Key> {
+        let secret = self.secrets.get(&secret_name(&account.id));
+        if account.kind != "google" {
+            return secret.map(Key::Password).ok_or_else(|| "The password for this account is missing. Remove it and connect it again.".into());
+        }
+        let tokens: Tokens = secret.and_then(|t| serde_json::from_str(&t).ok()).ok_or(EXPIRED)?;
+        if tokens.fresh() {
+            return Ok(Key::Token(tokens.access));
+        }
+        let fresh = self.google().refresh(&tokens)?;
+        // Kept as best it can be: a refresh not kept only means another one next time.
+        let _ = serde_json::to_string(&fresh).map(|t| self.secrets.put(&secret_name(&account.id), &t));
+        Ok(Key::Token(fresh.access))
+    }
+
     /// Reads one account again (or every one), now. Problems are kept on the account to show, not returned.
     pub fn sync(&self, only: Option<&str>) -> bool {
         let accounts: Vec<Account> = self.lock().iter().filter(|a| only.is_none_or(|id| a.id == id)).cloned().collect();
         let mut changed = false;
         for mut account in accounts {
             let before = (account.calendars.clone(), account.task_lists.clone());
-            let result = if account.kind == "caldav" {
-                match self.secrets.get(&secret_name(&account.id)) {
-                    Some(password) => self.sync_caldav(&mut account, &password),
-                    None => Err("The password for this account is missing. Remove it and connect it again.".into()),
-                }
+            let result = if account.kind == "google" {
+                self.key(&account).and_then(|key| {
+                    if let Key::Token(token) = &key {
+                        self.more_google_calendars(&mut account, token);
+                    }
+                    self.sync_caldav(&mut account, &key)
+                })
+            } else if account.kind == "caldav" {
+                self.key(&account).and_then(|key| self.sync_caldav(&mut account, &key))
             } else {
                 self.sync_subscription(&mut account)
             };
@@ -541,7 +700,7 @@ impl Accounts {
 
     /// The account's calendars that hold events: principal → calendar home → calendars.
     /// The account's calendars, and its task lists.
-    fn discover(&self, base: &url::Url, auth: (&str, &str)) -> Res<(Vec<RemoteCalendar>, Vec<RemoteCalendar>)> {
+    fn discover(&self, base: &url::Url, auth: Auth<'_>) -> Res<(Vec<RemoteCalendar>, Vec<RemoteCalendar>)> {
         const PRINCIPAL: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>"#;
         const HOME: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-home-set/></d:prop></d:propfind>"#;
         const LIST: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/"><d:prop><d:resourcetype/><d:displayname/><c:supported-calendar-component-set/><cs:getctag/></d:prop></d:propfind>"#;
@@ -574,7 +733,7 @@ impl Accounts {
             let Some(href) = r.text_of("href") else { continue };
             let href = home.join(&href).map_err(|e| e.to_string())?.to_string();
             let name = r.text_of("displayname").filter(|n| !n.is_empty()).unwrap_or_else(|| href.trim_end_matches('/').rsplit('/').next().unwrap_or("Calendar").to_owned());
-            let found = RemoteCalendar { href, name: clean_name(&name).unwrap_or_else(|| "Calendar".into()), ctag: String::new(), items: BTreeMap::new() };
+            let found = RemoteCalendar { href, name: clean_name(&name).unwrap_or_else(|| "Calendar".into()), ctag: String::new(), items: BTreeMap::new(), read_only: false };
             // A collection that holds both shows in Calendar and in Tasks.
             if todo {
                 tasks.push(found.clone());
@@ -587,9 +746,9 @@ impl Accounts {
     }
 
     /// Mirrors each calendar's events from a year back to two years ahead, skipping calendars that have not changed.
-    fn sync_caldav(&self, account: &mut Account, password: &str) -> Res<()> {
+    fn sync_caldav(&self, account: &mut Account, key: &Key) -> Res<()> {
         const CTAG: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><cs:getctag/></d:prop></d:propfind>"#;
-        let auth = (account.username.as_str(), password);
+        let auth = key.auth(&account.username);
         let today = chrono::Utc::now().date_naive();
         let (from, to) = (today - chrono::Duration::days(365), today + chrono::Duration::days(730));
         let query = format!(
@@ -603,8 +762,8 @@ impl Accounts {
             account.task_lists = lists;
             account.tasks_looked = true;
         }
-        self.sync_tasks(account, password)?;
-        let auth = (account.username.as_str(), password);
+        self.sync_tasks(account, key)?;
+        let auth = key.auth(&account.username);
         let id = account.id.clone();
         for (i, cal) in account.calendars.iter_mut().enumerate() {
             let url = url::Url::parse(&cal.href).map_err(|e| e.to_string())?;
@@ -637,11 +796,11 @@ impl Accounts {
 
     /// Mirrors each task list's tasks, skipping lists that have not changed. Open tasks all come; done ones, the most
     /// recent first, up to what a list holds.
-    fn sync_tasks(&self, account: &mut Account, password: &str) -> Res<()> {
+    fn sync_tasks(&self, account: &mut Account, key: &Key) -> Res<()> {
         const CTAG: &str = r#"<?xml version="1.0" encoding="utf-8"?><d:propfind xmlns:d="DAV:" xmlns:cs="http://calendarserver.org/ns/"><d:prop><cs:getctag/></d:prop></d:propfind>"#;
         const QUERY: &str = r#"<?xml version="1.0" encoding="utf-8"?><c:calendar-query xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><d:getetag/><c:calendar-data/></d:prop><c:filter><c:comp-filter name="VCALENDAR"><c:comp-filter name="VTODO"/></c:comp-filter></c:filter></c:calendar-query>"#;
         const MOST: usize = 1500;
-        let auth = (account.username.as_str(), password);
+        let auth = key.auth(&account.username);
         let id = account.id.clone();
         for (i, list) in account.task_lists.iter_mut().enumerate() {
             let url = url::Url::parse(&list.href).map_err(|e| e.to_string())?;
@@ -720,7 +879,7 @@ impl Accounts {
 impl Remote for Accounts {
     fn put(&self, mirror: &Mirror, uid: &str, parts: &[Event], new: bool) -> Res<()> {
         let (account, index) = self.owner(mirror).ok_or("that calendar's account is gone")?;
-        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let key = self.key(&account)?;
         let cal = &account.calendars[index];
         let base = url::Url::parse(&cal.href).map_err(|e| e.to_string())?;
         let known = cal.items.get(uid).cloned();
@@ -743,7 +902,7 @@ impl Remote for Accounts {
             (None, true) => headers.push(("If-None-Match", "*")),
             _ => {}
         }
-        let answer = self.request("PUT", &url, Some((&account.username, &password)), &headers, Some(&body))?;
+        let answer = self.request("PUT", &url, Some(key.auth(&account.username)), &headers, Some(&body))?;
         match answer.status {
             200 | 201 | 204 => {
                 let href = answer.location.and_then(|l| url.join(&l).ok()).map_or_else(|| url.path().to_owned(), |u| u.path().to_owned());
@@ -758,12 +917,12 @@ impl Remote for Accounts {
 
     fn delete(&self, mirror: &Mirror, uid: &str) -> Res<()> {
         let (account, index) = self.owner(mirror).ok_or("that calendar's account is gone")?;
-        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let key = self.key(&account)?;
         let cal = &account.calendars[index];
         let Some((href, etag)) = cal.items.get(uid).cloned() else { return Err("Refresh the calendar first: Mobius does not know where that event is on the server.".into()) };
         let url = url::Url::parse(&cal.href).and_then(|b| b.join(&href)).map_err(|e| e.to_string())?;
         let headers: Vec<(&str, &str)> = if etag.is_empty() { vec![] } else { vec![("If-Match", etag.as_str())] };
-        let answer = self.request("DELETE", &url, Some((&account.username, &password)), &headers, None)?;
+        let answer = self.request("DELETE", &url, Some(key.auth(&account.username)), &headers, None)?;
         match answer.status {
             200 | 204 | 404 => {
                 self.remember(&account.id, index, uid, None);
@@ -778,7 +937,7 @@ impl Remote for Accounts {
 impl TaskRemote for Accounts {
     fn put(&self, mirror: &TaskMirror, uid: &str, task: &RemoteTask, new: bool) -> Res<()> {
         let (account, index) = self.task_owner(mirror).ok_or("that list's account is gone")?;
-        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let key = self.key(&account)?;
         let list = &account.task_lists[index];
         let base = url::Url::parse(&list.href).map_err(|e| e.to_string())?;
         let known = list.items.get(uid).cloned();
@@ -801,7 +960,7 @@ impl TaskRemote for Accounts {
             (None, _) => headers.push(("If-None-Match", "*")),
             _ => {}
         }
-        let answer = self.request("PUT", &url, Some((&account.username, &password)), &headers, Some(&body))?;
+        let answer = self.request("PUT", &url, Some(key.auth(&account.username)), &headers, Some(&body))?;
         match answer.status {
             200 | 201 | 204 => {
                 let href = answer.location.and_then(|l| url.join(&l).ok()).map_or_else(|| url.path().to_owned(), |u| u.path().to_owned());
@@ -816,12 +975,12 @@ impl TaskRemote for Accounts {
 
     fn delete(&self, mirror: &TaskMirror, uid: &str) -> Res<()> {
         let (account, index) = self.task_owner(mirror).ok_or("that list's account is gone")?;
-        let password = self.secrets.get(&secret_name(&account.id)).ok_or("The password for this account is missing.")?;
+        let key = self.key(&account)?;
         let list = &account.task_lists[index];
         let Some((href, etag)) = list.items.get(uid).cloned() else { return Ok(()) };
         let url = url::Url::parse(&list.href).and_then(|b| b.join(&href)).map_err(|e| e.to_string())?;
         let headers: Vec<(&str, &str)> = if etag.is_empty() { vec![] } else { vec![("If-Match", etag.as_str())] };
-        let answer = self.request("DELETE", &url, Some((&account.username, &password)), &headers, None)?;
+        let answer = self.request("DELETE", &url, Some(key.auth(&account.username)), &headers, None)?;
         match answer.status {
             200 | 204 | 404 => {
                 self.remember_task(&account.id, index, uid, None);
@@ -879,6 +1038,8 @@ mod tests {
                 reader.read_line(&mut line).unwrap();
                 let mut parts = line.split_whitespace();
                 let (method, path) = (parts.next().unwrap_or("").to_owned(), parts.next().unwrap_or("").to_owned());
+                // Google's CalDAV addresses, for a Google account: its own calendar, and holidays (which hold no events).
+                let path = path.replace("/g/ana%40example.com/events/", "/cal/work/").replace("/g/en.usa%23holiday%40group.v.calendar.google.com/events/", "/cal/todo/");
                 let (mut length, mut auth, mut if_match) = (0, String::new(), String::new());
                 loop {
                     let mut h = String::new();
@@ -897,7 +1058,7 @@ mod tests {
                 let mut body = vec![0; length];
                 reader.read_exact(&mut body).unwrap();
                 l.lock().unwrap().push(format!("{method} {path} {if_match}"));
-                let ok_auth = auth == format!("Basic {}", { use base64::Engine; base64::engine::general_purpose::STANDARD.encode("ana:app-pass") });
+                let ok_auth = auth == format!("Basic {}", { use base64::Engine; base64::engine::general_purpose::STANDARD.encode("ana:app-pass") }) || matches!(auth.as_str(), "Bearer a1" | "Bearer a2");
                 let ms = |inner: String| format!(r#"<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav" xmlns:cs="http://calendarserver.org/ns/">{inner}</d:multistatus>"#);
                 let (status, extra, reply) = if !ok_auth {
                     ("401 Unauthorized", String::new(), String::new())
@@ -934,6 +1095,63 @@ mod tests {
             }
         });
         (base, store, log)
+    }
+
+    #[test]
+    fn a_google_account_is_signed_in_mirrored_changed_and_signed_in_again() {
+        use crate::calendar_sign_in::tests::{agree, app, endpoints, google};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let (base, store, log) = server();
+        let (refused, refreshed) = (Arc::new(AtomicBool::new(false)), Arc::new(Mutex::new(0)));
+        let at = google(refused.clone(), refreshed.clone());
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = Arc::new(MemorySecrets::new(true));
+        let accounts = Arc::new(Accounts::new(dir.path(), secrets.clone()));
+        accounts.use_google(app(), endpoints(&at, &format!("{base}/g")));
+        let sign_in = |again: Option<&str>| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let page = accounts.google_sign_in("", again, Arc::new(move |r| tx.send(r).unwrap())).unwrap();
+            agree(page["url"].as_str().unwrap());
+            rx.recv_timeout(Duration::from_secs(10)).unwrap()
+        };
+        let kept = sign_in(None).unwrap();
+        assert_eq!(kept["calendars"], json!(["Ana", "Holidays"]), "the person's own first");
+        let id = kept["id"].as_str().unwrap().to_owned();
+        let listed = accounts.list();
+        assert_eq!((listed[0]["kind"].clone(), listed[0]["username"].clone()), (json!("google"), json!("ana@example.com")));
+        let mirrors = accounts.mirrors(&["Calendar".into()]);
+        assert_eq!(mirrors.iter().map(|m| (m.name.as_str(), m.writable)).collect::<Vec<_>>(), [("Ana", true), ("Holidays", false)], "holidays can be read, not changed");
+
+        let cal = mobius_workspace::calendar::Calendar::new(dir.path().join("ws"), dir.path().join("cp"));
+        cal.set_mirrors(mirrors);
+        cal.set_remote(accounts.clone());
+        assert_eq!(cal.events("2026-11-10", "2026-11-10").unwrap()[0]["title"], "Kickoff");
+        cal.add("Ana", &mobius_workspace::calendar::Draft { title: Some("Retro".into()), start: Some("2026-11-12T16:00".into()), ..Default::default() }).unwrap();
+        assert!(store.lock().unwrap().iter().any(|(h, d)| h.starts_with("/cal/work/") && d.contains("SUMMARY:Retro")), "sent over Google's CalDAV with the token");
+        assert!(log.lock().unwrap().iter().all(|l| !l.starts_with("PROPFIND /g/") || !l.contains("principals")), "no principal lookup: Google's list said where");
+
+        // The token runs out: the next read refreshes it first.
+        let mut tokens: Tokens = serde_json::from_str(&secrets.get(&secret_name(&id)).unwrap()).unwrap();
+        tokens.expires = 0;
+        secrets.put(&secret_name(&id), &serde_json::to_string(&tokens).unwrap());
+        accounts.sync(Some(&id));
+        assert_eq!(*refreshed.lock().unwrap(), 1);
+        assert_eq!(accounts.list()[0]["problem"], Value::Null);
+        assert!(secrets.get(&secret_name(&id)).unwrap().contains("\"a2\""), "the fresh token is kept");
+
+        // Google ends the sign-in: the account stays, says so, and signing in again mends it.
+        let mut tokens: Tokens = serde_json::from_str(&secrets.get(&secret_name(&id)).unwrap()).unwrap();
+        tokens.expires = 0;
+        secrets.put(&secret_name(&id), &serde_json::to_string(&tokens).unwrap());
+        refused.store(true, Ordering::SeqCst);
+        accounts.sync(Some(&id));
+        assert_eq!(accounts.list()[0]["problem"], EXPIRED);
+        assert_eq!(sign_in(Some(&id)).unwrap()["id"], json!(id));
+        assert_eq!(accounts.list()[0]["problem"], Value::Null);
+        assert_eq!(accounts.list().as_array().unwrap().len(), 1, "the same account, not a second one");
+
+        accounts.remove(&id).unwrap();
+        assert!(secrets.get(&secret_name(&id)).is_none(), "the sign-in goes with it");
     }
 
     #[test]

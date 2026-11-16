@@ -115,7 +115,8 @@ Calendar only.
 
 1. At [console.cloud.google.com](https://console.cloud.google.com), create a project called **Mobius**.
 2. **APIs & Services → Library:** enable the **Google Drive API**, the **Google Picker API** and the
-   **Google Calendar API**.
+   **Google Calendar API** and the **CalDAV API** (Mobius lists the calendars with the first and reads and changes their
+   events with the second).
 3. **Google Auth Platform → Branding:** app name **Mobius** and a support email. Leave the domain, homepage and privacy
    policy empty for now: testing doesn't need them.
 4. **Audience:** choose **External**. Leave it in **Testing**, and add Andrew's and any testers' Google accounts as
