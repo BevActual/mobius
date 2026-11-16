@@ -1616,7 +1616,14 @@ impl Bridge {
             let replies: Vec<(String, String)> = args.get("replies").and_then(Value::as_array).into_iter().flatten()
                 .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("why").and_then(Value::as_str).unwrap_or("").to_owned())))
                 .collect();
-            let (system, asks) = self.mail.draft_asks(&replies);
+            // The week ahead (events, then free hours), so a reply about meeting offers a free time or names the one booked.
+            let compact = |v: Result<String, String>| v.ok().map(|t| t.chars().take(3000).collect::<String>()).unwrap_or_default();
+            let week = format!(
+                "Events: {}\nFree: {}",
+                compact(self.calendar.run("calendar.list", &json!({}))),
+                compact(self.calendar.run("calendar.free", &json!({})))
+            );
+            let (system, asks) = self.mail.draft_asks(&replies, &week);
             let job = crate::ask_each::Job {
                 conversation: params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned(),
                 system,
