@@ -96,6 +96,8 @@ pastes an access key; nothing is registered with anyone.
   time is in whole seconds, an edit of the same size within the second keeps its ETag, so Mobius can miss it until the
   file changes again, and `If-Match` can't catch a write in that second. Nextcloud and ownCloud give each change a new
   ETag. The real-server soak test waits a second between rounds for this.
+- **A new file in a missing folder.** RFC 4918 says 409; Nextcloud and ownCloud answer 404. A write with no version
+  treats either as a missing folder, and sync makes the folders and writes again.
 - **Servers that ignore `If-Match`.** A few minimal servers do; on those a change can overwrite someone else's. Nextcloud, ownCloud
   and Apache honour it; nginx's WebDAV module is worth checking before relying on it.
 - **Folder versions.** A folder's ETag changes when anything in it changes on Nextcloud, but not on every server, so it

@@ -362,6 +362,12 @@ impl WebDav {
         }
     }
 
+    /// Why a PUT did not work. A new file (no version) cannot itself be missing, so a 404 means the folder it goes in
+    /// is: Nextcloud answers that way where RFC 4918 says 409.
+    fn put_failed(status: u16, etag: Option<&str>) -> String {
+        WebDav::failed(if status == 404 && etag.is_none() { 409 } else { status }, etag)
+    }
+
     fn version_of(&self, path: &str) -> Option<String> {
         let (_, doc) = self.propfind(&self.url_of(path, false).ok()?, "0").ok()?;
         self.entries(&doc?).into_iter().next().and_then(|e| e.version)
@@ -413,7 +419,7 @@ impl Drive for WebDav {
         let reply = self.send("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], bytes, 64 * 1024)?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 
@@ -483,7 +489,7 @@ impl Drive for WebDav {
         let reply = self.exchange("PUT", &url, &[condition, ("Content-Type", "application/octet-stream".to_owned())], Body::File(from), Sink::Memory(64 * 1024))?;
         match reply.status {
             200 | 201 | 204 => Ok(reply.etag.or_else(|| self.version_of(path))),
-            s => Err(WebDav::failed(s, etag)),
+            s => Err(WebDav::put_failed(s, etag)),
         }
     }
 }
@@ -1021,7 +1027,8 @@ pub(crate) mod tests {
                             if (!if_match.is_empty() && current.as_deref() != Some(if_match.as_str())) || (if_none == "*" && current.is_some()) {
                                 ("412 Precondition Failed", String::new(), Vec::new())
                             } else if !st.contains_key(&parent_of(&k)) {
-                                ("409 Conflict", String::new(), Vec::new())
+                                // Nextcloud answers a new file in a missing folder with 404, where RFC 4918 says 409.
+                                if uploads.is_some() { ("404 Not Found", String::new(), Vec::new()) } else { ("409 Conflict", String::new(), Vec::new()) }
                             } else {
                                 let v = st.get(&k).map_or_else(|| seen.get(&k).copied().unwrap_or(0) + 1, |(_, v)| v + 1);
                                 seen.insert(k.clone(), v);

@@ -995,6 +995,20 @@ mod tests {
     }
 
     #[test]
+    fn new_files_in_new_folders_reach_nextcloud_which_answers_404_for_a_missing_folder() {
+        let (address, store) = server_with("/remote.php/dav/files/ana/", None);
+        let drive = WebDav::new(url::Url::parse(&format!("{address}/remote.php/dav/files/ana/")).unwrap(), "ana", "app-pass");
+        drive.make_folder("Notes").unwrap();
+        let root = tempfile::tempdir().unwrap();
+        fs::create_dir_all(root.path().join("b/c")).unwrap();
+        fs::write(root.path().join("b/c/deep.md"), "deep").unwrap();
+        let mut base = Base::default();
+        let r = round(&drive, root.path(), "Notes", &mut base, &RoundOptions::default(), &mut |_| {}).unwrap();
+        assert_eq!((r.uploaded.as_slice(), r.failed.len()), (["b/c/deep.md".to_owned()].as_slice(), 0), "{r:?}");
+        assert_eq!(store.lock().unwrap()["/remote.php/dav/files/ana/Notes/b/c/deep.md"].0, b"deep");
+    }
+
+    #[test]
     fn left_out_names_and_service_documents_are_not_synced() {
         let mut p = pair();
         p.put_here(".DS_Store", "x");
