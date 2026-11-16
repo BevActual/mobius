@@ -5,8 +5,7 @@ Andrew adopted on 13 November 2026 ("One Mobius layout for every app"). That dir
 Guidelines, Linear, Dia, Notion, Microsoft's agent guidance, VS Code and Ableton Live, and on design reviews of the real
 app. Each review that settles a question adds or changes a rule here.
 
-[Workspace layout](workspace-layout.md) describes the five zones of the window, the views and panels, and what each one
-does. This page says how they must look and behave. Where the two disagree, this page wins.
+[Workspace layout](workspace-layout.md) describes the app switcher, toolbar, views and panels. This page says how they must look and behave. Where the two disagree, this page wins.
 
 [Instrument](instrument.md) is the full specification of the look: every size, every element, pop-out, and the Mobius
 panel with its composer. Andrew agreed it on 13 November 2026. This page is the short checklist for a review. Where this
@@ -20,9 +19,7 @@ and in a narrow window.
 > version of it in an app, and don't hand-set a size to match this page. Use the tokens and shared controls; they will
 > change under you.
 
-> **While the new frame lands.** The Builder is building the shared frame (`AppFrame`, the app rail, the right panel,
-> `AppSidebar`) and the new theme tokens. Until an app has moved into that frame, review its new work against these
-> rules, but don't ask it to redraw the parts the frame will replace.
+> This describes the target layout for Instrument. The installed app may still show the rail and the shared sidebar during the transition.
 
 ## Principles
 
@@ -31,11 +28,11 @@ reviewer can apply to a screenshot.
 
 | # | Principle | What it means in Mobius | The test |
 | --- | --- | --- | --- |
-| 1 | **The work comes first.** | Controls sit around the content and stay quiet. One toolbar row. A dim sidebar. No help text in the frame. | Squint at the screen. Is the content the first thing you see? |
-| 2 | **Same place in every app.** | The five zones. New, Search, the title, the ⋯ menu and the Mobius button never move. | Flip between two apps. Does anything in the frame jump? |
+| 1 | **The work comes first.** | Controls sit around the content and stay quiet. One toolbar row. No help text in the frame. | Squint at the screen. Is the content the first thing you see? |
+| 2 | **Same place in every app.** | The app switcher, title, Panels, ⋯ and Mobius have predictable positions in the toolbar. | Flip between two apps. Does anything in the frame jump? |
 | 3 | **One obvious way.** | Each action has one home. Mobius has one button. No second toolbar, no duplicate New. | Can you find two controls that do the same thing? |
 | 4 | **Familiar first. Spend the novelty on Mobius.** | Each app works the way its best rival does: the address bar is on top, mail is three panes. New ideas go into what only Mobius does. | Could a Gmail or Safari user work here in the first minute? |
-| 5 | **The app shapes the tools. The frame holds.** | Apps differ in the toolbar middle, their places, their views and their panels. Nothing else. | Is the difference inside a zone, or did the app redraw the zone? |
+| 5 | **The app shapes the tools. The frame holds.** | Apps choose their tools, views and named panels. The shell supplies the toolbar and docks. | Does the app use the shared toolbar and panel controls? |
 | 6 | **Mobius is beside you, never in the way.** | Three sizes only: full (Home and the Agent app), beside (the Mobius panel at the right edge), and in place (verbs on a selection). Every app works fully with Mobius closed. | With Mobius open, can you still see and use everything you could before? |
 | 7 | **You are the pilot.** | What Mobius is doing is always visible. What it changed is dashed until you Keep it. Why it did it is one click away. Undo always works. | Can you tell what Mobius did, why, and how to put it back? |
 | 8 | **Plain and honest.** | The interface shows what is really there and what Mobius really did, drawn as simply as it can be. Nothing is decoration. | Can you remove it without losing meaning? If yes, remove it. |
@@ -43,51 +40,20 @@ reviewer can apply to a screenshot.
 One working rule follows from these: **fix it once, in the shell.** A problem seen in three apps is a missing shared
 piece, not three app fixes. The design reviewer sends it to the Builder.
 
-## The five zones
+## App switcher
 
-Every app has the same five zones. An app fills a zone; it never moves or redraws it.
+The **app switcher** is the leading control in the toolbar. It shows the current app and opens the shared launcher on apps, with pinned and recent apps and a search field. It stays reachable by keyboard and at narrow widths. The switcher shows its shortcut, and a separate shortcut returns to the previous app. Home, Activity and Settings are reachable from the switcher.
 
-| Zone | Its job | Always the same | Filled by the app |
-| --- | --- | --- | --- |
-| 1. App rail (far left, about 52px) | Get to any app, see what needs you | Home, Search, pinned apps, then Mobius, Activity with its badge, Settings and profile at the foot. Never folds away. | Nothing. Badges and dots only. |
-| 2. Sidebar | Move around inside the app | One order: New, Search, the app's places in sections, From Mobius, then More (trash, archive). Same width, row styles and fold key. | The places: mailboxes, notebooks, folders, lists |
-| 3. Toolbar (one row, top of the content) | Act on what is open | Leading: sidebar toggle, the title of what is open, one grey line. Trailing: Comments, Share where it applies, the ⋯ menu, the Mobius button. | The middle: the app's own controls |
-| 4. Content | The work | A solid surface, the shared empty state, the shared review bar | Everything inside, as one or more views |
-| 5. Right side | Details, then Mobius | Two columns at most: the app's inspector (if it has one), then Mobius alone at the far right edge. Mobius is never a tab. | Whether the app has an inspector, and what is in it |
+## App panels
 
-- One window. Little Mobius is the Mobius panel popped out. Split view and Little Mobius live in the Window menu and
-  their keys, not in the top right. Comments are the one exception: see the toolbar.
-- **Narrow windows:** side by side when wide, one after another when narrow. Below 980px the sidebar folds and the right
-  panel closes, and each comes back over the content from its toggle. The rail and the toolbar stay.
+Each app defines its own named panels, their allowed docks, and which start open. The existing **Panels** button lists them by name and toggles them. Left, right and bottom are dock positions. An empty dock takes no space. The shell provides the same panel headers, resizing and layout behavior everywhere. Mobius has its own button and its own dock at the far right.
 
-## App rail
-
-- Single-weight line icons, no colour tiles. Colour tiles are only in the launcher.
-- A badge (filled count) means "needs you", and only that. A dot means "Mobius changed something here" and has a tooltip
-  that says so.
-- People can reorder and pin apps between the fixed top and foot. The fixed points never move.
-
-## Sidebar
-
-- The sidebar is for places only, at most two levels deep. A document's outline, slide thumbnails or a mini month are
-  the second level and sit in the sidebar under the item, not in the content.
-- The head holds only the app's name and the fold button. Switching apps is the rail's job.
-- Order, top to bottom: **New** (New note, New message…), then **Search**, then the places in sections, then **From
-  Mobius**, then **More** (Trash, Archive). Profile is on the rail, not here.
-- Section headers are sentence case, small, semibold and grey ("Notebooks", "Mailboxes"). No all-caps headers in a
-  sidebar. Small all-caps labels are allowed only on parameters in a pro app's panels ("TUNE", "DECAY").
-- Rows of a fixed kind (mailboxes, lists, settings panes) have a single-weight glyph. Rows of user content (notes,
-  documents) have a title and one grey line under it. Colour on a row is the person's own (a calendar, a tag, a folder).
-- A count is a plain grey number at the trailing edge. One mark per row: a row with a dot doesn't also carry a count.
-- Search is the shared sidebar search field (`.side-search`): 28px tall, with a magnifier glyph. Don't draw your own.
-- No help text, storage notes or explanations in the sidebar. Put them in Help, a tooltip or the empty state.
-- The sidebar is dimmer than the content: quiet text, few separators, no coloured icons in the frame.
+Use sentence case for panel and section names. Navigation panels use shared rows and search controls. App content supplies any calendar, tag or folder colours.
 
 ## Toolbar
 
 - One row on top of the content. Don't add a second action row inside the content.
-- Leading: the sidebar toggle, then the **title of what is open** (the page, the deck, the database, the mailbox) and
-  one grey line about it. Never the app's name again. With nothing open, the toolbar shows the app's controls only.
+- Leading: the app switcher, then the **title of what is open** and its optional detail.
 - Middle: the app's own controls for what is open (Aa and insert in an editor; Day, Week, Month and Today in Calendar;
   back, forward, reload and the address bar in the Browser; Reply, Reply All and Forward in Mail; transport in Music).
 - Trailing, always in this order: Comments, Share (where it applies), the ⋯ menu, the Mobius button.
@@ -106,19 +72,18 @@ Complex apps are made of views and panels that people can show, hide, resize, re
 | Term | What it is | Examples | What the person can do |
 | --- | --- | --- | --- |
 | View | What fills the content zone | Session or Arrange in Music. Library or Edit in Photo. Day, Week, Month in Calendar | Switch it in the toolbar |
-| Panel | A named, self-contained piece around the view | Clip, Devices, Mixer, Inspector, Timeline, Filmstrip, Outline; also the sidebar and Mobius | Turn it on or off, resize it, dock it left, bottom or right, or pop it out |
+| Panel | A named, self-contained piece around the view | Clip, Devices, Mixer, Inspector, Timeline, Filmstrip, Outline, Mailboxes, Layers | Turn it on or off, resize it, dock it left, bottom or right, or pop it out |
 | Layout | A saved arrangement of panels | Arranging, Mixing, Sound design | Pick one, save the current one, or reset |
 
-- The rail and the toolbar never move. Only panels do.
+- The toolbar stays in place as app panels move.
 - Every panel has the same header: its name, dock, pop out and close.
 - Each app has one **Panels** menu that lists every panel with a tick, where it sits, and its key.
-- Each app ships a sensible default layout. Simple apps (Mail, Notes) have two or three panels and use the same system.
+- Each app ships a sensible default layout. An app may open with no panels visible.
 - A docked panel changes between wide and tall to fit its side, where that makes sense.
 - **The Mobius panel is just Mobius.** It holds the chat, its cards and the composer, and never has tabs. An app's own
-  panels (Inspector, Adjust, Outline, Format, Details) go in the **inspector**, its own column between the content and
-  Mobius, as tabs among themselves. The inspector reopens on the tab used last.
+  panels share tabs with other app panels in the same dock. A dock reopens on the tab used last.
 - Wide or long panels (devices, timelines, filmstrips, terminals, speaker notes) go in the **bottom area** instead.
-- Inspectors and outlines always live in the inspector or the bottom area, never as a column inside the content.
+- Inspectors and outlines are named app panels and use the shared docks.
 - The content zone has a bottom dock for editors, timelines, filmstrips and terminals. Complex apps have a one-line info
   bar at the foot.
 - Use a segmented control only to switch views, centred above what it switches.
@@ -165,7 +130,7 @@ Complex apps are made of views and panels that people can show, hide, resize, re
   timecode, coordinates) and for code.
 - One row height per density in a view. Rows never change height to fit decoration.
 - An empty view uses the shared empty state: a small grey line drawing for the app, one short line, and the New action
-  as a button. It stays quiet: no sample data, no wall of suggestions, no instructions such as "New deck in the sidebar".
+  as a button. It stays quiet: no sample data, no wall of suggestions, no instructions such as "Open the menu to make a deck".
   A short list ends with the same designed state or sits in a centred reading column. It never leaves a blank grey field.
 - Loading shows placeholder bars in the content. No spinners in content.
 
@@ -178,15 +143,14 @@ Complex apps are made of views and panels that people can show, hide, resize, re
   body and headings together.
 - Short notes show the word count in the meta line under the title. Long documents (Docs, Knowledge pages) keep a quiet
   footer with the count and the save state. It shows one count at a time.
-- A document's outline is a panel (in the sidebar under the document by default), not a list drawn inside the page.
+- A document’s Outline is a named panel in the Panels menu.
 - Versions show the text as people read it (headings, bullets), never the stored Markdown.
 
 ## Mobius in every app
 
 - Mobius has three sizes: **full** (Home and the Agent app), **beside** (the Mobius panel at the right edge) and **in place** (verbs on a
   selection, with the result dashed where it lands). There is no fourth.
-- It opens in the Mobius panel at the right edge from the Mobius button at the trailing end of the toolbar, or from the rail. The sidebar
-  never changes face. In the Agent app the Mobius panel stays closed, and the Mobius button opens the conversation list.
+- It opens in the Mobius panel at the right edge from the Mobius button at the trailing end of the toolbar. In the Agent app the Mobius panel stays closed, and the Mobius button opens the conversation list.
 - The message box says what Mobius would look at ("Ask about your mail"). With nothing in particular, it says "Message
   Mobius". The panel is the same Mobius in every app; only what it sees and what the app puts in its slots changes.
 - The panel has four states, the same in every app: Resting, Working, Done and Asking. It is never empty: resting, it
@@ -233,7 +197,7 @@ guidance on clarity, layout and motion still is.
   clips. Content colours come from one shared palette of eight and show as a dot, a 3px edge or a soft tint.
 - **Themes:** a theme is a small set of neutral tokens. Light, Mid grey, Dark and Cool dark, with tone and contrast the
   person can adjust. Use the tokens in `tokens.css`; never a raw colour or pixel value.
-- **Density:** comfortable (14px text, 36px rows in sidebars and 40px in content lists, a 52px toolbar) for Mail, Notes
+- **Density:** comfortable (14px text, 36px rows in navigation panels and 40px in content lists, a 52px toolbar) for Mail, Notes
   and other daily apps; compact (13px text, 30px and 32px rows, a 44px toolbar) for Music, Video, Code, Database and
   Sheets. Reading pages (Home, a note, a doc) use 15 to 16px text in a column at most 680px wide, under a large page
   heading. Both densities come from the same tokens. No text is smaller than 11px, and nothing you must read to use
