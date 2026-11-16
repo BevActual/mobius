@@ -29,6 +29,7 @@ sheets.write
 mail.search
 mail.read
 mail.sort
+mail.draft_replies
 mail.draft
 memory.remember
 memory.forget

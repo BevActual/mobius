@@ -1595,7 +1595,7 @@ impl Bridge {
             return result;
         }
         if tool == "mail.sort" {
-            // Triage: each unread message asked about on its own, all at once, on the quick model; the groups and
+            // Triage: each unread message asked about on its own, all at once, on the chat model; the groups and
             // counts are then made in code.
             let (system, asks) = self.mail.sort_asks();
             let job = crate::ask_each::Job {
@@ -1605,10 +1605,67 @@ impl Bridge {
                 max_tokens: Some(120),
                 // Two rounds for forty messages (each call can be its own process, so many at once pays).
                 at_once: Some(20),
+                // On the chat model: Haiku as the quick model sorted more loosely (30L), and the counts rest on it.
+                chat: true,
                 ..Default::default()
             };
             let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
             return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
+        }
+        if tool == "mail.draft_replies" {
+            // Triage's replies, each written by its own call at once.
+            let replies: Vec<(String, String)> = args.get("replies").and_then(Value::as_array).into_iter().flatten()
+                .filter_map(|r| Some((r.get("id")?.as_str()?.to_owned(), r.get("why").and_then(Value::as_str).unwrap_or("").to_owned())))
+                .collect();
+            // The week ahead: events as a line each, and the free hours, earliest first, dealt out among the replies.
+            let listed: Value = self.calendar.run("calendar.list", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            let events: Vec<(String, String)> = listed.as_array().into_iter().flatten().take(40)
+                .map(|e| (e["start"].as_str().unwrap_or("").to_owned(), e["title"].as_str().unwrap_or("").to_owned()))
+                .collect();
+            let open: Value = self.calendar.run("calendar.free", &json!({})).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+            let free: Vec<String> = open["free"].as_array().into_iter().flatten()
+                .filter_map(|f| Some(format!("{} to {}", f["start"].as_str()?, f["end"].as_str()?.split('T').nth(1)?)))
+                .collect();
+            let asked = self.mail.draft_asks(&replies, &events, &free);
+            let conversation = params.get("conversation").and_then(Value::as_str).unwrap_or("").to_owned();
+            let job = crate::ask_each::Job {
+                conversation: conversation.clone(),
+                system: asked.system.clone(),
+                asks: asked.asks.iter().map(|(id, prompt)| crate::ask_each::Ask { id: id.clone(), prompt: prompt.clone() }).collect(),
+                max_tokens: Some(500),
+                at_once: Some(crate::mail::store::MAX_TRIAGE_DRAFTS),
+                // On the chat model: Haiku as the quick model wrote drafts that promised and offered busy hours (30L).
+                chat: true,
+                ..Default::default()
+            };
+            let mut answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            // A reply that leaves out the meeting already booked on its subject is asked once more, saying so.
+            let missed: Vec<crate::ask_each::Ask> = asked.booked.iter()
+                .filter(|(id, _, start)| answers.iter().any(|(a, body)| a == id && body.as_ref().is_ok_and(|b| !crate::mail::store::names_booked(b, start))))
+                .filter_map(|(id, line, _)| asked.asks.iter().find(|(a, _)| a == id).map(|(_, prompt)| crate::ask_each::Ask { id: id.clone(), prompt: format!("{prompt}\n\nYour last reply left this out. Say it, with its day and date: {line}.") }))
+                .collect();
+            if !missed.is_empty() {
+                let again = crate::ask_each::Job { asks: missed, ..job.clone() };
+                for (id, body) in self.ask_each(&again, &mut |_, _| {}).unwrap_or_default() {
+                    if body.is_ok() {
+                        if let Some(slot) = answers.iter_mut().find(|(a, _)| *a == id) {
+                            slot.1 = body;
+                        }
+                    }
+                }
+            }
+            let why_of = |id: &str| replies.iter().find(|(r, _)| r == id).map(|(_, w)| w.clone()).unwrap_or_default();
+            let (mut made, mut not_made) = (Vec::new(), Vec::new());
+            for (id, answer) in answers {
+                match answer.map(|body| body.trim().to_owned()).ok().filter(|b| !b.is_empty()).map(|body| self.mail.save_draft(&json!({ "replyTo": id, "body": body, "why": why_of(&id) }), "mobius")) {
+                    Some(Ok(d)) => made.push(json!({ "id": id, "draft": d["id"] })),
+                    _ => not_made.push(id),
+                }
+            }
+            if !made.is_empty() {
+                (self.emit)("mobius:mail-changed", json!({ "by": "assistant" }));
+            }
+            return Ok(Value::String(json!({ "made": made, "notMade": not_made, "note": "Kept as suggested drafts. The person reads them and decides; nothing is sent." }).to_string()));
         }
         if crate::mail::store::is_mail_tool(tool) {
             let result = self.mail.run(tool, &args).map(Value::String);
