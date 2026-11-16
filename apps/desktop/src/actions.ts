@@ -22,7 +22,7 @@ export function previewArguments(name: string, args: unknown): { label: string; 
     }
     case 'files.move': {
       const moves = Array.isArray(a.moves) ? (a.moves as unknown[]).filter((m): m is { from: string; to: string } => typeof m === 'object' && m !== null && typeof (m as { from?: unknown }).from === 'string' && typeof (m as { to?: unknown }).to === 'string') : [];
-      if (moves.length === 0) return null;
+      if (moves.length === 0) return a.plan === 'kind' ? { label: 'The moves', text: `Each loose file in ${s('folder') || 'your workspace'} into a folder for its kind, keeping its name`, mono: false } : null;
       const shown = moves.slice(0, 12).map((m) => `${m.from} → ${m.to}`);
       return { label: 'The moves', text: moves.length > 12 ? `${shown.join('\n')}\n… ${moves.length - 12} more` : shown.join('\n'), mono: true };
     }

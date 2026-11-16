@@ -13,6 +13,7 @@ describe('actions in plain words', () => {
     expect(describeAction('calendar.free', { with: ['Sam'], minutes: 60 })).toBe('look for a time when you and Sam are free');
     expect(describeAction('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }, { from: 'b.jpg', to: 'Pictures/b.jpg' }] })).toBe('move files and folders in “Downloads”');
     expect(previewArguments('files.move', { folder: 'Downloads', moves: [{ from: 'a.pdf', to: 'Documents/a.pdf' }] })).toEqual({ label: 'The moves', text: 'a.pdf → Documents/a.pdf', mono: true });
+    expect(previewArguments('files.move', { folder: 'Downloads', plan: 'kind' })).toEqual({ label: 'The moves', text: 'Each loose file in Downloads into a folder for its kind, keeping its name', mono: false });
     expect(describeAction('calendar.add', { title: 'Dentist', start: 'nonsense' })).toBe('add “Dentist” to your calendar on nonsense');
     expect(describeAction('calendar.add', {})).toBe('add an event to your calendar');
     expect(describeAction('calendar.list', {})).toBe('read your calendar');
