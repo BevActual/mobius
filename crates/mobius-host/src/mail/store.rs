@@ -1167,7 +1167,7 @@ impl Mail {
                     ids.iter().filter_map(|id| unread.iter().find(|m| m["id"] == id.as_str())).map(|m| json!({ "from": m["from"], "subject": m["subject"] })).collect()
                 };
                 json!({ "line": line, "total": total, "need": named(&need), "reply": named(&reply), "later": named(&later), "archive": archive.len(), "archiveByCategory": kinds,
-                    "archiveSenders": archive.iter().map(|m| m["from"].clone()).collect::<Vec<_>>(),
+                    "archiveSenders": archive.iter().map(|m| json!({ "from": m["from"], "subject": m["subject"] })).collect::<Vec<_>>(),
                     "movedToLater": moved.iter().map(|m| json!({ "from": m["from"], "subject": m["subject"] })).collect::<Vec<_>>() })
             }
             _ => return Err("unknown tool".into()),
@@ -1270,6 +1270,7 @@ mod tests {
         assert_eq!(unnamed["line"], "4 unread: 0 need you, 0 to answer, 2 for later, 2 to archive.");
         assert_eq!(unnamed["movedToLater"].as_array().unwrap().len(), 2);
         assert_eq!(sorted["need"][0]["subject"], "Build week");
+        assert!(sorted["archiveSenders"].as_array().unwrap().iter().any(|m| m["subject"] == "Issue 212"));
         assert_eq!(unnamed["later"].as_array().unwrap().len(), 2);
         // A message read already is not unread; one named twice is refused; so is an id it never gave.
         let read = mail.lock().messages.iter().find(|m| m.seen).unwrap().id.clone();
