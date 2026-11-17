@@ -73,8 +73,9 @@ export interface SurfaceState {
   settings?: boolean;
 }
 
-/** Tidy the folder open in Files: one files.move, so every move is checkpointed together and undone together. */
-export const tidyFolder = (folder: string) => `Tidy my ${folder} folder. Call files.list only once, for this folder (path ${JSON.stringify(folder)}): nothing else in my workspace needs reading. Then sort it in one files.move call, into at most six folders by kind (such as Invoices and quotes, Documents, Images, Installers, Archives, Spreadsheets) with no folders inside them. Rename nothing: every file keeps its name exactly, a copy such as "Invoice (1).pdf" too. Leave what is already tidy where it is. Delete nothing. Then say in a few lines which folders you made and what kind of file went in each, and how many files moved in all, as files.move gives it back (its files number): count nothing yourself. Name no tool in what you write.`;
+/** Tidy the folder open in Files: one files.move whose moves are worked out in code (plan "kind"), so every move is
+ *  checkpointed and undone together, and the model writes no list of moves and counts nothing. */
+export const tidyFolder = (folder: string) => `Tidy my ${folder} folder by kind. Call files.move once, with folder ${JSON.stringify(folder)} and plan "kind" and no moves: it works out every move itself, so read nothing first. Then write its lines, word for word, as your whole reply: nothing before or after them and no word of your own. Name no tool in what you write.`;
 
 /**
  * The demo's Browser moment: with a few product pages open, one ask compares them in a table in Notes, each cell

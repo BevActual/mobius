@@ -81,10 +81,9 @@ describe('what each app suggests', () => {
     const open = suggestionsFor({ app: 'files', hasPage: false, note: null, folder: 'Downloads' });
     expect(open[0]).toEqual({ label: 'Tidy this folder', prompt: tidyFolder('Downloads') });
     expect(open.map((s) => s.label)).not.toContain('Tidy a folder…');
-    expect(tidyFolder('Downloads')).toContain('one files.move call');
-    expect(tidyFolder('Downloads')).toContain('Delete nothing.');
-    // What the second demo run showed: two approvals to list, twelve folders, and three different counts.
-    for (const words of ['only once', 'at most six folders', 'no folders inside them', 'count nothing yourself', 'its files number', 'Rename nothing', 'Name no tool']) expect(tidyFolder('Downloads')).toContain(words);
+    expect(tidyFolder('Downloads')).toContain('Call files.move once');
+    // The moves and the counts are worked out in code: the model reads nothing and copies the lines it gets back.
+    for (const words of ['plan "kind"', 'read nothing first', 'word for word', 'Name no tool']) expect(tidyFolder('Downloads')).toContain(words);
   });
   it('offers a one-page brief from an open document, written beside it and leaving it as it is', () => {
     const brief = suggestionsFor({ app: 'docs', hasPage: false, note: { path: 'Documents/Plan.md', title: 'Plan', text: '# Plan' } })[0];
