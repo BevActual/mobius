@@ -42,6 +42,10 @@ interface cannot get around them. See [Working with Mobius](working-with-mobius.
 **Settings › Advanced › Profiles** keeps parts of your life apart, such as work and personal. Each profile has its own
 conversations, notes, tasks, memory, schedules and settings. Downloaded local models are shared between profiles.
 
+**Open the demo workspace**, in the same place, opens a made-up small team's mail, notes, calendar and files to try
+Mobius on without your own. Mobius starts again on a fresh copy, so nothing you do there changes it, and **Reset the
+demo workspace** starts it over. What is in it: [the demo workspace](../../demo/README.md).
+
 ## Notifications
 
 **Settings › Notifications** chooses when Mobius may tell you something while you are in another window: when it needs
