@@ -53,7 +53,7 @@ Pass `--trace off` unless you need traces; turn them on to debug a failure (`--t
 | **Windows end-to-end** ([`windows-e2e.yml`](../../.github/workflows/windows-e2e.yml)) | Pull requests, pushes to `main`, and by hand | The Playwright suite against the real app on Windows, in three shards, with one summary check named `e2e` |
 | **macOS build** ([`macos-build.yml`](../../.github/workflows/macos-build.yml)) | Pull requests and pushes to `main` | Compiles the shell on macOS so macOS-only code is checked. Nothing runs the app there yet |
 | **Release** ([`release.yml`](../../.github/workflows/release.yml)) | A `v*` tag | Builds, signs and drafts a release; see [Releases and updates](releasing.md) |
-| **Branch cleanup** ([`branch-cleanup.yml`](../../.github/workflows/branch-cleanup.yml)) | A pull request closes | Deletes the merged branch and its screenshots branch, keeping `main` |
+| **Branch cleanup** ([`branch-cleanup.yml`](../../.github/workflows/branch-cleanup.yml)) | A pull request closes; Mondays, and by hand | On close, deletes the branch (merged or not) and its screenshot branches. The weekly sweep deletes screenshot branches whose pull request is not open, and any branch with no open pull request whose last commit is over a week old, listing each in the run's summary. Keeps `main`, `shell/demo-recording` and `claude/` branches |
 
 A newer push to a pull request cancels that pull request's older runs. On `main` nothing is cancelled: each commit
 runs on its own, so two merges a few seconds apart are both tested. A branch with no pull request isn't checked, so

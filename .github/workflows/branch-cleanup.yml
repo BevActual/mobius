@@ -1,44 +1,92 @@
 name: branch cleanup
 
-# Keeps the branch list tidy: when a pull request merges, its branch is deleted, and when one merges or closes,
-# its ci-screens/<branch> screenshots branch goes too. Long-lived branches listed in KEEP are never touched.
-# A deleted branch can be restored from the pull request page ("Restore branch").
-# The job can wait in the runner queue for a long time, and by then the branch may already hold the next round's
+# Keeps the branch list few (build plan: merge when ready, keep branches few).
+# - When a pull request merges or closes, its branch goes, with its ci-screens/ and pr-screens/ screenshot branches.
+#   A closed branch can be restored from the pull request page ("Restore branch").
+# - Once a week (and by hand), a sweep deletes screenshot branches whose pull request is no longer open, and any other
+#   branch with no open pull request whose last commit is more than a week old. Each deletion is written to the run's
+#   summary with its last commit, so a branch can be made again from it.
+# Long-lived branches in KEEP and their screenshots, and Claude's own session branches (claude/), are never touched.
+# The close job can wait in the runner queue for a long time, and by then the branch may already hold the next round's
 # work under the same name, so a branch is deleted only while it still points at the pull request's own last commit.
 on:
   pull_request:
     types: [closed]
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
 
 permissions:
   contents: write
+  pull-requests: read
+
+env:
+  KEEP: main shell/demo-recording
 
 jobs:
   cleanup:
     # Only branches in this repository (a fork's branch is not ours to delete).
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
-      - name: Delete the merged branch and its screenshots
+      - name: Delete the closed pull request's branch and its screenshots
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
-          MERGED: ${{ github.event.pull_request.merged }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          KEEP: main
         run: |
           for k in $KEEP; do
-            if [ "$BRANCH" = "$k" ]; then echo "$BRANCH is long-lived; kept."; KEPT=1; fi
+            if [ "$BRANCH" = "$k" ]; then echo "$BRANCH is long-lived; kept."; exit 0; fi
           done
+          case "$BRANCH" in claude/*) echo "$BRANCH is a Claude session branch; kept."; exit 0 ;; esac
           gone() { gh api -X DELETE "repos/$REPO/git/refs/heads/$1" >/dev/null 2>&1 && echo "Deleted $1" || echo "$1 was not there"; }
           # Only while the branch is still this pull request's: new commits on it mean the next round has started.
           tip() { gh api "repos/$REPO/git/ref/heads/$1" --jq .object.sha 2>/dev/null; }
-          if [ -z "$KEPT" ]; then
-            NOW=$(tip "$BRANCH")
-            if [ -n "$NOW" ] && [ "$NOW" != "$HEAD_SHA" ]; then
-              echo "$BRANCH has moved on to $NOW since this pull request ($HEAD_SHA); kept with its screenshots."
-            else
-              gone "ci-screens/$BRANCH"
-              if [ "$MERGED" = "true" ]; then gone "$BRANCH"; else echo "Not merged; $BRANCH kept so the work is not lost."; fi
-            fi
+          NOW=$(tip "$BRANCH")
+          if [ -n "$NOW" ] && [ "$NOW" != "$HEAD_SHA" ]; then
+            echo "$BRANCH has moved on to $NOW since this pull request ($HEAD_SHA); kept with its screenshots."
+            exit 0
           fi
+          gone "ci-screens/$BRANCH"
+          gone "pr-screens/$BRANCH"
+          gone "$BRANCH"
+
+  sweep:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete screenshot branches without an open pull request, and week-old branches without one
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          OPEN=$(gh api --paginate "repos/$REPO/pulls?state=open&per_page=100" --jq '.[].head.ref')
+          CUTOFF=$(date -u -d '7 days ago' +%s)
+          has_pr() { printf '%s\n' "$OPEN" | grep -qxF "$1"; }
+          echo "### Branches deleted" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Branch | Last commit | Why |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          gh api --paginate "repos/$REPO/branches?per_page=100" --jq '.[] | .name + " " + .commit.sha' | while read -r NAME SHA; do
+            KEPT=
+            # A kept branch keeps its screenshots too (ci-screens/main).
+            for k in $KEEP; do [ "$NAME" = "$k" ] || [ "${NAME#*/}" = "$k" ] && KEPT=1; done
+            case "$NAME" in claude/*) KEPT=1 ;; esac
+            [ -n "$KEPT" ] && continue
+            has_pr "$NAME" && continue
+            WHY=
+            case "$NAME" in
+              ci-screens/*|pr-screens/*)
+                has_pr "${NAME#*/}" || WHY="its pull request is not open" ;;
+              *)
+                WHEN=$(gh api "repos/$REPO/commits/$SHA" --jq .commit.committer.date)
+                [ -n "$WHEN" ] && [ "$(date -u -d "$WHEN" +%s)" -lt "$CUTOFF" ] && WHY="no open pull request, last commit $WHEN" ;;
+            esac
+            [ -z "$WHY" ] && continue
+            if gh api -X DELETE "repos/$REPO/git/refs/heads/$NAME" >/dev/null 2>&1; then
+              echo "Deleted $NAME ($SHA): $WHY"
+              echo "| \`$NAME\` | \`$SHA\` | $WHY |" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Could not delete $NAME"
+            fi
+          done
