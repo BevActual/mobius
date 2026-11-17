@@ -96,7 +96,7 @@ describe('what each app suggests', () => {
     for (const tool of ['tasks.plan_day', 'tasks.schedule_day', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
     // The times, lunch and the Focus time hour are worked out in code; the model copies the lines and makes one reply.
-    for (const words of ['word for word', 'no word of your own', 'the start it gave', 'draft no others', 'never commits me', 'no day or deadline', 'check my calendar and come back']) expect(PLAN_MY_DAY).toContain(words);
+    for (const words of ['word for word', 'ends with their last line', 'no sentence of your own', 'being made, set or saved', 'the start it gave', 'draft no others', 'never commits me', 'no day or deadline', 'check my calendar and come back']) expect(PLAN_MY_DAY).toContain(words);
   });
   it('leads an open sheet with What stands out?, which leaves its working in the sheet as formulas', () => {
     const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];
