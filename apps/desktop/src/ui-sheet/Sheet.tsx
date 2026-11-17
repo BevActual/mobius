@@ -15,6 +15,8 @@ import {
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
 } from '../ui';
+import { GoButton, Launcher } from '../Launcher';
+import type { AppId } from '../apps';
 
 /**
  * The reference sheet (Instrument, "One app, not twenty": one page that shows every shared element in its states).
@@ -163,6 +165,29 @@ function MixerDemo() {
           meter={(m) => { meters.current[i] = m; }}
         />
       ))}
+    </div>
+  );
+}
+
+function LauncherDemo() {
+  const now = Date.UTC(2026, 10, 17, 15, 0);
+  const [pinned, setPinned] = useState<AppId[]>(['mail', 'calendar', 'tasks', 'notes', 'docs', 'files', 'browser']);
+  const noop = () => {};
+  const recent = [
+    { app: 'notes' as const, ref: 'n1', label: 'Garden plan', at: now - 4 * 60_000 },
+    { app: 'mail' as const, ref: 'm1', label: 'Northway Motors: P2 quote', at: now - 52 * 60_000 },
+    { app: 'docs' as const, ref: 'd1', label: 'Build week brief', at: now - 3 * 3_600_000 },
+    { app: 'studio' as const, ref: 's1', label: 'Tape delay sketch', at: now - 26 * 3_600_000 },
+  ];
+  return (
+    <div className="sheet-col">
+      <span className="sheet-note">The Go button leads the top bar; one dot while anything waits. It opens the launcher (Ctrl+K)</span>
+      <div className="sheet-row"><GoButton app="mail" waiting={4} keys="Ctrl+K" onOpen={noop} /><GoButton app="calendar" onOpen={noop} /></div>
+      <Launcher
+        inline open now={now} onClose={noop} tabs={[]} onNewTab={noop} onActivateTab={noop} onOpenApp={noop} onAsk={noop}
+        pinned={pinned} onPinned={setPinned} waiting={{ mail: 3, calendar: 1 }} recent={recent} onOpenRecent={noop}
+        places={{ home: noop, activity: noop, abilities: noop, settings: noop }}
+      />
     </div>
   );
 }
@@ -616,6 +641,9 @@ export function Sheet() {
 
         <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
           <MixerDemo />
+        </Card>
+        <Card title="Launcher and Go button (the frame without a rail: Ctrl+K with nothing typed)" shot="launcher" wide>
+          <LauncherDemo />
         </Card>
         <Card title="Patch canvas (Music's Workbench: a device's parts and cables). Mobius proposed the Chorus and its cables; the feedback loops under" shot="patch" wide>
           <PatchDemo />

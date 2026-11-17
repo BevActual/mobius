@@ -42,3 +42,18 @@ Back to [Shared controls](../shared-controls.md). Pictures: light theme, comfort
 Read typed text with `parseDate(text, now)` and `parseTime(text)` from the same module, so apps and the agent read
 dates the same way. Week start, day and month order, and the 12 or 24 hour clock come from `dates.ts` (`weekStart`,
 `dayMonthOrder`, `uses12Hour`); never set them per app.
+
+## Launcher and Go button
+
+The frame has no app rail (see [Panel layouts](../../design/panel-layouts.md)). The **Go button** leads the top bar and opens the launcher. Ctrl+K opens it from anywhere. Both live in `src/Launcher.tsx`.
+
+![The Go button, and the launcher with nothing typed: Ask Mobius, the pinned apps with waiting dots, Recent, and the places at the foot](img/launcher.png)
+
+| Part | What it does |
+| --- | --- |
+| `GoButton` | Shows the open app's icon and name, then a chevron. It carries one ink dot while anything waits in any app, and the launcher shows which app. Props: `app` (or a place such as `settings`), `waiting`, `keys` for the tooltip, and `onOpen`. |
+| `Launcher`, nothing typed | Ask Mobius comes first (`onOpenMobius`). The pinned apps follow in one row (`pinned`, `onPinned`), each with a dot from `waiting`. The first nine show Ctrl+1 to Ctrl+9. Then comes **Recent**: the things last open in any app, newest first, with the app and how long ago. The places sit at the foot: Home, Activity, Abilities and Settings (`places`). |
+| `Launcher`, typing | One search over apps, the items `find(query)` returns from every app, open pages and commands. Ask Mobius stays the first row, so a search that finds nothing becomes a question. Enter opens the first thing found. |
+| Pinning | Drag a pinned app along the row, or press Alt+Left or Alt+Right on it. Right-click (or press Shift+F10) on a pinned app to unpin it, or on an app in the results to pin it. Each change is announced. |
+| Keys | Up and Down go row to row, and Left and Right move along the pinned row and the places. Enter opens and Escape closes. |
+| Recent | Call `noteRecentItem({ app, ref, label })` (from `apps.ts`) when a note, thread, file or song opens, and pass `onOpenRecent(item)` to open one again. `recentItems()` reads them back, newest first, kept per device. |

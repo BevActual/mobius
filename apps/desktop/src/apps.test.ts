@@ -38,3 +38,17 @@ describe('apps', () => {
     expect(recentApps()).toEqual([]);
   });
 });
+
+import { noteRecentItem, recentItems } from './apps';
+describe('recent items', () => {
+  it('keeps the things opened last, newest first, once each', () => {
+    const store = new Map<string, string>();
+    (globalThis as { window?: unknown }).window ??= {};
+    (globalThis.window as unknown as { localStorage: unknown }).localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => store.set(k, v) };
+    noteRecentItem({ app: 'notes', ref: 'a', label: 'Garden plan' }, 1);
+    noteRecentItem({ app: 'mail', ref: 'b', label: 'Quote' }, 2);
+    noteRecentItem({ app: 'notes', ref: 'a', label: 'Garden plan' }, 3);
+    noteRecentItem({ app: 'notes', ref: 'c', label: '  ' }, 4);
+    expect(recentItems().map((r) => [r.ref, r.at])).toEqual([['a', 3], ['b', 2]]);
+  });
+});

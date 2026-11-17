@@ -1,0 +1,49 @@
+/* The launcher's rows across (pinned apps, places), Recent and the Go button (docs/design/panel-layouts.md). */
+
+.launcher[data-inline] { position: static; transform: none; display: flex; flex-direction: column; max-height: none; }
+.launcher-list { display: flex; flex-direction: column; gap: var(--sp-1); }
+.launcher-section { display: flex; flex-direction: column; }
+.launcher-mark { position: relative; display: inline-grid; place-items: center; flex: none; }
+.launcher-icon svg[data-place] { color: var(--muted); }
+
+/* Pinned apps: one row of tiles, the icon over the name. */
+.launcher-row { display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: 0 var(--sp-1); }
+.launcher-tile {
+  display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); width: calc(var(--sp-8) * 2.25);
+  padding: var(--sp-2) var(--sp-1); border-radius: var(--radius-control); cursor: default; user-select: none; touch-action: none;
+}
+.launcher-tile .launcher-icon svg { width: var(--sp-8); height: var(--sp-8); padding: var(--sp-1); }
+.launcher-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--ink); }
+.launcher-tile[aria-selected="true"] { background: var(--sel); }
+.launcher-tile:hover { background: var(--sel); }
+
+/* Something waiting there: one ink dot on the icon's corner, edged in the surface so it reads over the line icon. */
+.launcher-dot {
+  position: absolute; top: 0; right: 0; width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill);
+  background: var(--ink); box-shadow: 0 0 0 var(--focus-w) var(--raised);
+}
+
+/* Places at the foot: Home, Activity, Abilities, Settings, in a row above a hairline. */
+.launcher-places {
+  flex-direction: row; gap: var(--sp-1); margin-top: var(--sp-1); padding-top: var(--sp-2); border-top: var(--hairline-w) solid var(--line);
+}
+.launcher-places .launcher-tile { flex-direction: row; width: auto; flex: 1; justify-content: center; padding: var(--sp-1) var(--sp-2); }
+.launcher-places .launcher-icon svg { width: var(--sp-5); height: var(--sp-5); padding: 0; }
+.launcher-places .launcher-tile-name { color: var(--muted); }
+.launcher-places .launcher-tile[aria-selected="true"] .launcher-tile-name { color: var(--ink); }
+
+.launcher-option[data-kind="recent"] .launcher-detail, .launcher-option[data-kind="item"] .launcher-detail { font-variant-numeric: tabular-nums; }
+.launcher-status { position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* The Go button, leading the top bar: the open app's icon and name, a dot while anything waits, and a chevron. */
+.go-button {
+  position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--button-h); max-width: calc(var(--sp-8) * 7);
+  padding: 0 var(--sp-2) 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink);
+  font: inherit; font-size: var(--fs-lg); font-weight: var(--fw-semibold); cursor: default;
+}
+.go-button:hover, .go-button[aria-expanded="true"] { background: var(--sel); }
+.go-button:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.go-button .launcher-icon svg { width: var(--sp-6); height: var(--sp-6); padding: var(--sp-1); }
+.go-button-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.go-button .launcher-dot { position: static; flex: none; }
+.go-button svg.go-button-chevron { width: var(--sp-4); height: var(--sp-4); color: var(--muted); fill: none; stroke: currentColor; }
