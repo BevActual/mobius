@@ -48,6 +48,9 @@ covers the end-to-end suite.
    and how they're shaped.
 5. Make sure `npm test`, `npm run typecheck` and `npm run check:types` pass, then open a pull request that says what
    changed and why. Add screenshots, light and dark, for interface changes.
+6. Keep branches few and short-lived. A pull request is merged as soon as its checks pass and the result is in, so
+   open no more than two at a time, close a draft once another replaces it, and delete the branch when its pull request
+   closes. Name it for its part: `app/<name>`, `shell/<part>`, `docs/…` or `fix/…`.
 
 A decision that is hard to reverse (a new process, a storage format, an outside service, a change to permissions) gets
 an [architecture decision record](docs/adr/README.md).

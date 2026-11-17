@@ -116,10 +116,17 @@ Your whole workspace as a drive.
 - **The sidebar** has Workspace and Trash under Places, the workspace's folders (Notes, Docs, Sheets...) under Folders, a dot on
   a folder holding something new from Mobius until you look in it, and Made by Mobius under From Mobius.
 - **Made by Mobius** collects what Mobius created, dashed until you keep it, with a count of what is waiting.
-- **Drives** are folders on servers you already use: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any
-  WebDAV server. **Add a drive**, under Drives in the sidebar, asks for the server's address, your user name and an app
-  password (for Nextcloud and ownCloud the address alone is enough; Files finds your folder). The password is kept in
-  your computer's secret store and sent only to that server. A drive's folders list like the workspace's, with New
+- **Drives** are folders on storage you already use. **Add a drive**, under Drives in the sidebar, offers each kind:
+  - **Server (WebDAV)**: Nextcloud, ownCloud, a Synology or QNAP, Fastmail Files, or any WebDAV server. It asks for the
+    server's address, your user name and an app password (for Nextcloud and ownCloud the address alone is enough;
+    Files finds your folder).
+  - **Bucket (S3)**: Amazon S3, Cloudflare R2, Backblaze B2, Wasabi or your own MinIO, with the service's address, the
+    bucket, a folder in it if you like, and an access key.
+  - **Dropbox** and **OneDrive or SharePoint**: you sign in on Dropbox's or Microsoft's own page, so Mobius never sees
+    your password. For SharePoint, paste the library's or folder's link. These show once a build of Mobius is
+    registered with each service ([drive sign-in](../reference/drive-sign-in.md)).
+
+  Passwords and sign-ins are kept in your computer's secret store and sent only to that service. A drive's folders list like the workspace's, with New
   folder, F2 to rename, and drag to move within it. Each request goes to the server; nothing is mirrored.
 - **Copy between a drive and the workspace** by dragging: a drive's file onto Workspace or a folder in the sidebar
   copies it there, and a workspace file onto a drive in the sidebar copies it to the drive's top. Neither ever writes
@@ -127,3 +134,7 @@ Your whole workspace as a drive.
 - **Delete** on a drive deletes from the server for good, after asking. If someone changed the file on the server
   since Files listed it, the delete is refused and Files says so; the server's version stays. Right-click a drive in
   the sidebar to remove it: Files forgets its password, and everything on the server stays.
+- **Sync a folder with a drive**: right-click a workspace folder and choose **Sync with a Drive…**, then the drive and
+  the folder on it. From then on changes go both ways. When both sides changed a file, both are kept: yours as a
+  `(conflict, Mobius, …)` copy beside it, with **Open both**, **Keep mine** and **Keep theirs**. A round that would
+  delete more than 10 files asks first. Right-click the folder for **Sync Now** and **Stop Syncing…**.

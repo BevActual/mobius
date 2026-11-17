@@ -96,9 +96,11 @@ Your calendars by day, week or month.
 ![The Calendar app in Mobius](../readme/apps/calendar.png)
 
 - **Calendars it works with**: its own (`.ics` files in the workspace), subscribed links (`webcal://` or `https://…ics`,
-  read only), and CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud. Add, refresh and
-  remove accounts in **Settings › Calendar**. Google and Outlook can be subscribed to through their private iCal
-  address; signing in to them directly needs app registrations (see [calendar sign-in](../reference/calendar-sign-in.md)).
+  read only), CalDAV accounts with an app password, such as iCloud, Fastmail and Nextcloud, and Google or Outlook
+  (Outlook.com and Microsoft 365), where you sign in on Google's or Microsoft's own page. Add, refresh and remove
+  accounts in **Settings › Calendar › Add a calendar account**. Until a build of Mobius is registered with Google and
+  Microsoft, their sign-in says it isn't set up yet, and their calendars can still be subscribed to through the private
+  iCal address each one gives (see [calendar sign-in](../reference/calendar-sign-in.md)).
 - **The sidebar** lists your calendars as plain rows, each with its colour as a dot. Press one to hide its events, and
   again to show them; **Tasks with due dates** works the same way. Under **From Mobius**, **Suggested events** says how
   many events Mobius suggested or added are waiting for you, and goes to the first.
