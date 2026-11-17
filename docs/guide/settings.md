@@ -42,7 +42,7 @@ Save button.
 | --- | --- | --- |
 | **Browser** | Allowed sites, local addresses, bookmarks, history | [Browser](../apps/browse-and-find.md#browser) |
 | **Mail** | Mail accounts: add one with an app password, or remove one | [Mail](../apps/browse-and-find.md#mail) |
-| **Calendar** | Calendar accounts: subscribe to a link, or connect iCloud, Fastmail or Nextcloud | [Calendar](../apps/write-and-plan.md#calendar) |
+| **Calendar** | Calendar accounts: subscribe to a link, connect iCloud, Fastmail or Nextcloud, or sign in to Google or Outlook | [Calendar](../apps/write-and-plan.md#calendar) |
 | **Conversations** | Saved conversations, and where they are kept | [Agent](../apps/assistant.md#agent) |
 | **Schedules** | Requests to Mobius at a time of day | [Working with Mobius](working-with-mobius.md#schedules) |
 | **Abilities** | Opens the Abilities app | [Abilities](abilities.md) |

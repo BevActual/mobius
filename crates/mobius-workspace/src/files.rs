@@ -36,7 +36,7 @@ pub fn tool_descriptions() -> Vec<Value> {
         json!({ "name": "files.edit", "description": "Change part of a text file: replace one piece of text with another. Fails unless the old text appears exactly once (or replaceAll is true), so it cannot change the wrong place; the spaces and line breaks between its words may differ from the file's. A checkpoint is taken first.", "capability": "files.write", "resource_arg": "path",
             "input_schema": { "type": "object", "properties": { "path": path("The file, relative to the workspace."), "old": { "type": "string", "description": "The exact text to replace." }, "new": { "type": "string", "description": "What to put there." }, "replaceAll": { "type": "boolean", "description": "Replace every occurrence. Defaults to false." } }, "required": ["path", "old", "new"] } }),
         json!({ "name": "files.move", "description": "Move or rename files and folders inside one folder of the workspace, all in one go (to tidy it: into folders by kind or date, or to clearer names). Paths are relative to that folder; folders are made as needed; nothing is ever replaced. A checkpoint is taken first, so the person sees every move and can undo them all. Answers what moved and `files`, how many files that is (counting those inside moved folders).", "capability": "files.write", "resource_arg": "folder",
-            "input_schema": { "type": "object", "properties": { "folder": path("The folder whose contents are moved, relative to the workspace, such as Downloads. Moves stay inside it."), "moves": { "type": "array", "maxItems": MAX_MOVES, "description": "Each move: from (where it is now) and to (where it goes, with its name), both relative to folder, such as {\"from\":\"IMG_2041.jpg\",\"to\":\"Photos/2026-11/IMG_2041.jpg\"}.", "items": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] } } }, "required": ["folder", "moves"] } }),
+            "input_schema": { "type": "object", "properties": { "folder": path("The folder whose contents are moved, relative to the workspace, such as Downloads. Moves stay inside it."), "plan": { "type": "string", "enum": ["kind"], "description": "Instead of moves: \"kind\" tidies the folder by kind. The moves are worked out here (each loose file into a folder for its kind, such as Images or Invoices and quotes; nothing renamed; folders left as they are), with no listing first, and `lines` comes back to say what was done." }, "moves": { "type": "array", "maxItems": MAX_MOVES, "description": "Each move: from (where it is now) and to (where it goes, with its name), both relative to folder, such as {\"from\":\"IMG_2041.jpg\",\"to\":\"Photos/2026-11/IMG_2041.jpg\"}. Leave out with plan.", "items": { "type": "object", "properties": { "from": { "type": "string" }, "to": { "type": "string" } }, "required": ["from", "to"] } } }, "required": ["folder"] } }),
     ]
 }
 
@@ -652,7 +652,16 @@ impl Workspace {
             }
             "files.move" => {
                 let folder = text_arg(args, "folder")?.trim_matches('/');
-                let moves = args.get("moves").and_then(Value::as_array).filter(|m| !m.is_empty()).ok_or("moves must list at least one move")?;
+                // plan: "kind" — the moves are worked out here, so a tidy of sixty files is one short model round.
+                let by_kind = args.get("plan").and_then(Value::as_str) == Some("kind");
+                let kinds = if by_kind { Some(self.plan_by_kind(folder)?) } else { None };
+                if let Some(kinds) = kinds.as_ref().filter(|k| k.moves.is_empty()) {
+                    return Ok(json!({ "moved": [], "files": 0, "checkpoint": false, "lines": kinds.lines(folder, 0) }).to_string());
+                }
+                let moves = match &kinds {
+                    Some(kinds) => &kinds.moves,
+                    None => args.get("moves").and_then(Value::as_array).filter(|m| !m.is_empty()).ok_or("moves must list at least one move, or plan must be \"kind\"")?,
+                };
                 if moves.len() > MAX_MOVES {
                     return Err(format!("at most {MAX_MOVES} moves at once"));
                 }
@@ -707,10 +716,110 @@ impl Workspace {
                 }
                 // The files moved, counting those inside a moved folder: the number to tell the person.
                 let files: usize = planned.iter().map(|(_, _, _, target)| files_in(target)).sum();
-                Ok(json!({ "moved": done, "files": files, "checkpoint": checkpointed }).to_string())
+                let mut result = json!({ "moved": done, "files": files, "checkpoint": checkpointed });
+                if let Some(kinds) = &kinds {
+                    result["lines"] = json!(kinds.lines(folder, files));
+                }
+                Ok(result.to_string())
             }
             _ => Err("unknown tool".into()),
         }
+    }
+
+    /// The moves that tidy `folder` by kind: each loose file into the folder for its kind, keeping its name. Folders
+    /// already there are left as they are, and so is a file whose place is taken or whose kind is not known.
+    fn plan_by_kind(&self, folder: &str) -> Res<KindPlan> {
+        let dir = self.inside(folder)?;
+        let mut names: Vec<String> = fs::read_dir(&dir)
+            .map_err(|_| "that folder is not there".to_owned())?
+            .filter_map(Result::ok)
+            .filter(|e| e.metadata().is_ok_and(|m| m.is_file()))
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| !n.starts_with('.'))
+            .collect();
+        names.sort_by_key(|n| n.to_lowercase());
+        let mut plan = KindPlan::default();
+        for name in names {
+            let Some(kind) = kind_of(&name) else {
+                plan.left += 1;
+                continue;
+            };
+            if dir.join(kind).join(&name).exists() || plan.moves.len() >= MAX_MOVES {
+                plan.left += 1;
+                continue;
+            }
+            plan.moves.push(json!({ "from": name, "to": format!("{kind}/{name}") }));
+            let ext = name.rsplit_once('.').map(|(_, e)| e.to_uppercase()).unwrap_or_default();
+            match plan.folders.iter_mut().find(|(k, _, _)| *k == kind) {
+                Some((_, count, exts)) => {
+                    *count += 1;
+                    if !exts.contains(&ext) {
+                        exts.push(ext);
+                    }
+                }
+                None => plan.folders.push((kind, 1, vec![ext])),
+            }
+        }
+        plan.folders.sort_by_key(|(k, _, _)| KINDS.iter().position(|(name, _)| name == k));
+        Ok(plan)
+    }
+}
+
+/// The folders a tidy by kind sorts into, in the order they are told, with the file endings each takes.
+const KINDS: [(&str, &[&str]); 8] = [
+    ("Invoices and quotes", &[]),
+    ("Documents", &["pdf", "doc", "docx", "odt", "rtf", "txt", "md", "pages", "ppt", "pptx", "key", "odp", "epub"]),
+    ("Spreadsheets", &["csv", "xls", "xlsx", "ods", "numbers", "tsv"]),
+    ("Images", &["jpg", "jpeg", "png", "gif", "heic", "webp", "svg", "bmp", "tif", "tiff", "raw", "dng"]),
+    ("Drawings", &["dxf", "dwg", "step", "stp", "stl", "iges", "igs", "sldprt", "3mf", "obj"]),
+    ("Audio and video", &["mp3", "wav", "flac", "m4a", "aac", "ogg", "mp4", "mov", "mkv", "avi", "webm"]),
+    ("Archives", &["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz"]),
+    ("Installers", &["exe", "msi", "dmg", "pkg", "deb", "rpm", "appimage", "msix"]),
+];
+
+/// Words in a document's name that make it an invoice, quote or receipt.
+const MONEY_WORDS: [&str; 6] = ["invoice", "quote", "receipt", "bill", "estimate", "statement"];
+
+/// The folder a file goes in when a folder is tidied by kind; `None` for a kind not known, which stays where it is.
+fn kind_of(name: &str) -> Option<&'static str> {
+    let (stem, ext) = name.rsplit_once('.')?;
+    let ext = ext.to_lowercase();
+    let kind = KINDS.iter().find(|(_, exts)| exts.contains(&ext.as_str()))?.0;
+    let stem = stem.to_lowercase();
+    if kind == "Documents" && MONEY_WORDS.iter().any(|w| stem.split(|c: char| !c.is_alphabetic()).any(|part| part == *w || part == format!("{w}s"))) {
+        return Some(KINDS[0].0);
+    }
+    Some(kind)
+}
+
+/// A tidy by kind, worked out before anything moves.
+#[derive(Default)]
+struct KindPlan {
+    moves: Vec<Value>,
+    /// Each folder with how many files go in it and their endings, as PDF or JPG.
+    folders: Vec<(&'static str, usize, Vec<String>)>,
+    /// Files left where they are: a kind not known, or the place in its folder taken.
+    left: usize,
+}
+
+impl KindPlan {
+    /// What to tell the person, written here so every count is the real one.
+    fn lines(&self, folder: &str, files: usize) -> String {
+        let place = if folder.is_empty() { "your workspace".to_owned() } else { folder.rsplit('/').next().unwrap_or(folder).to_owned() };
+        if files == 0 {
+            return format!("{place} is already tidy: nothing needed moving.");
+        }
+        let plural = |n: usize, one: &str| if n == 1 { format!("1 {one}") } else { format!("{n} {one}s") };
+        let mut out = format!("I sorted {} in {place} into {} by kind:", plural(files, "file"), plural(self.folders.len(), "folder"));
+        for (kind, count, exts) in &self.folders {
+            out.push_str(&format!("\n- **{kind}**: {} ({})", plural(*count, "file"), exts.join(", ")));
+        }
+        let left = match self.left {
+            0 => String::new(),
+            n => format!("{} stayed where {} {}. ", plural(n, "file"), if n == 1 { "it" } else { "they" }, if n == 1 { "was" } else { "were" }),
+        };
+        out.push_str(&format!("\n\n{left}Nothing was renamed or deleted, and Undo puts every file back."));
+        out
     }
 }
 
@@ -1106,6 +1215,28 @@ mod tests {
         assert_ne!(mark, before);
         ws.restore(&ws.history(3).unwrap()[1].0).unwrap();
         assert!(root.join("Downloads/IMG_1.txt").is_file() && root.join("Downloads/Old/a.md").is_file() && root.join("Downloads/report.md").is_file());
+    }
+
+    #[test]
+    fn a_tidy_by_kind_is_planned_here_and_says_its_own_counts() {
+        let (_dir, ws) = setup();
+        let root = ws.root().join("Downloads");
+        fs::create_dir_all(root.join("Images")).unwrap();
+        for name in ["Invoice_1000 (1).pdf", "Quote_1007.pdf", "board-pack.docx", "IMG_1014.jpg", "Screenshot_1.png", "torque.csv", "setup_1.zip", "drawing.dxf", "odd.xyz"] {
+            fs::write(root.join(name), "x").unwrap();
+        }
+        fs::write(root.join("Images/Screenshot_1.png"), "taken").unwrap();
+        let got: Value = serde_json::from_str(&ws.run("files.move", &json!({ "folder": "Downloads", "plan": "kind" })).unwrap()).unwrap();
+        assert_eq!(got["files"], 7, "{got}");
+        for (path, there) in [("Invoices and quotes/Invoice_1000 (1).pdf", true), ("Invoices and quotes/Quote_1007.pdf", true), ("Documents/board-pack.docx", true), ("Images/IMG_1014.jpg", true), ("Spreadsheets/torque.csv", true), ("Archives/setup_1.zip", true), ("Drawings/drawing.dxf", true), ("Screenshot_1.png", true), ("odd.xyz", true)] {
+            assert_eq!(root.join(path).is_file(), there, "{path}");
+        }
+        assert_eq!(fs::read_to_string(root.join("Images/Screenshot_1.png")).unwrap(), "taken", "nothing replaced");
+        let lines = got["lines"].as_str().unwrap();
+        assert!(lines.starts_with("I sorted 7 files in Downloads into 6 folders by kind:\n- **Invoices and quotes**: 2 files (PDF)\n- **Documents**: 1 file (DOCX)"), "{lines}");
+        assert!(lines.contains("2 files stayed where they were. Nothing was renamed or deleted"), "{lines}");
+        let again: Value = serde_json::from_str(&ws.run("files.move", &json!({ "folder": "Downloads", "plan": "kind" })).unwrap()).unwrap();
+        assert_eq!((again["files"].as_u64(), again["lines"].as_str()), (Some(0), Some("Downloads is already tidy: nothing needed moving.")));
     }
 
     #[test]

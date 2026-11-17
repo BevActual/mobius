@@ -49,7 +49,9 @@ you want to build or change Mobius, go to **Developers**.
 | [Adding an app](developers/adding-an-app.md) | Every place a new app touches, from its icon to its README picture |
 | [Testing and CI](developers/testing.md) | Unit tests, end-to-end tests and the GitHub workflows |
 | [Shared controls](developers/shared-controls.md) | The component library every app uses, from `src/ui`, one page per group with pictures |
-| [Drives](developers/drives.md) | Folders on the person's own servers (WebDAV, Nextcloud): versions, quirks, notes for sync |
+| [Drives](developers/drives.md) | Drives of every kind (WebDAV, S3, Dropbox, OneDrive and SharePoint), and two-way sync |
+| [App guides for the agent](agent/README.md) | The longer guide to each app's files that the agent reads when it needs one |
+| [The demo workspace](../demo/README.md) | The made-up team every demo runs on, and how to open it |
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
@@ -60,7 +62,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Panel layouts](design/panel-layouts.md) | Views and panels, the panel header and docks, build stages, and each app's default layout |
 | [Design mocks](design/mocks/README.md) | The mock-ups behind Instrument, in light and dark |
 | [Archive](archive/README.md) | Earlier specs and reviews, and where each claude.ai page moved when the project came to the repo |
-| [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, and calendar sign-in requirements |
+| [Reference notes](reference/README.md) | Comparisons with Hermes Agent, the bar for each app, market research, calendar and drive sign-in requirements, and the demo plan |
 
 ## Help
 

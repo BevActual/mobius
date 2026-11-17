@@ -213,6 +213,11 @@ their first round comes up, with the answer added here.
   blocker for its owner: nothing else of theirs starts until it is fixed, or has a named cause and a date.
 - **The author tells the Builder when a pull request is opened,** and the Builder subscribes to it, so a green run
   wakes the Builder.
+- **Merge when ready, and keep branches few** (Andrew, 17 November 2026). A pull request lands as soon as it is green
+  and its result is in; a draft waiting on a test run says so in its first line. Each lead has at most two open
+  pull requests at a time. A branch lives only as long as its pull request: the branch cleanup workflow deletes it
+  and its `ci-screens/` branch when the pull request closes, and a closed one can be restored from its page.
+  Superseded drafts are closed, not left open. Long-lived branches are `main` and the demo recording branch only.
 - **A stall is raised, not waited out.** A lead blocked for more than one round on another lead says so to the
   orchestrator, who reorders the queues above.
 
