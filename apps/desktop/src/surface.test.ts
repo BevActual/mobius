@@ -22,6 +22,10 @@ describe('what each app suggests', () => {
     const first = suggestionsFor({ app: 'studio', hasPage: false, note: song(['drums', 'piano', 'pad']) })[0]!;
     expect(first).toMatchObject({ label: 'Bass and a warmer pad', attach: 'note', finishes: true, tools: ['files'], effort: 'none' });
     expect(first.prompt).toContain('two files.edit calls');
+    // What five timed runs showed: a key count the model argued with aloud, an F# in A minor, and roots taken from the lowest note.
+    expect(first.prompt).not.toMatch(/\d+ keys/);
+    expect(first.prompt).toContain('no sharps or flats outside it');
+    expect(first.prompt).toContain('even when another of its notes is lowest');
     expect(suggestionsFor({ app: 'studio', hasPage: false, note: song(['pad', 'bass']) })[0]!.label).toBe('Add a bass line');
     expect(suggestionsFor({ app: 'studio', hasPage: false, note: song(['piano']) })[0]!.label).toBe('Add a bass line');
     expect(suggestionsFor({ app: 'studio', hasPage: false, note: { ...song([]), text: 'not json' } })[0]!.label).toBe('Add a bass line');

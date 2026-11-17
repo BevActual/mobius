@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import type { Device } from './device-format';
 import type { TrackColour } from './song-format';
-import { benchBoxHeight, benchPatch, forwardCables } from './studio-bench';
+import { benchBoxHeight, benchPatch } from './studio-bench';
 import { Button, PatchCanvas, Port, layoutFlow, type PatchBox, type PatchLevels } from './ui';
 
 /** How often the cables' levels are read while the song plays: about 30 times a second. */
@@ -26,7 +26,7 @@ export function StudioWorkbench({ device, color, on, builtIn, levelOf, onClose }
   const shape = JSON.stringify(device);
   const patch = useMemo(() => benchPatch(device), [shape]); // eslint-disable-line react-hooks/exhaustive-deps
   const boxes = useMemo<PatchBox[]>(() => {
-    const at = layoutFlow(patch.boxes, forwardCables(patch), { column: 240, gap: 24, height: (b) => benchBoxHeight(patch.boxes.find((x) => x.id === b.id)!) });
+    const at = layoutFlow(patch.boxes, patch.cables, { column: 240, gap: 24, height: (b) => benchBoxHeight(patch.boxes.find((x) => x.id === b.id)!) });
     return patch.boxes.map((b) => ({
       id: b.id, title: b.title, color, inputs: b.inputs, outputs: b.outputs, ...at[b.id]!,
       children: b.settings.length > 0 || b.kindName ? (
