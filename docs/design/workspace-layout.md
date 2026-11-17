@@ -1,5 +1,9 @@
 # Workspace layout: one frame, a shape per app
 
+> **Replaced in part on 2026-11-17.** The app rail and the shared sidebar are gone: the frame is the top bar, the
+> content and Mobius, and each app owns its panels. [Panel layouts](panel-layouts.md) is the current page; the
+> zones below are kept for history.
+
 Owner direction (adopted 2026-11-13, "One Mobius layout for every app"): every app has the same five-zone window. Only
 what is inside the zones changes per app, so moving between apps never feels like moving between products. Mobius sits
 beside the work in its own panel at the right edge, opened from the same place in every app. The theme is timeless: flat surfaces, type,
