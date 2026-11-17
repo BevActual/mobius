@@ -46,6 +46,8 @@ pub struct Placed {
 pub struct Plan {
     /// Where the plan starts: now, rounded up to the half hour.
     pub start: Option<NaiveDateTime>,
+    /// Where it ends: nothing after it is told.
+    pub end: Option<NaiveDateTime>,
     /// Tasks to give a time and a suggested block.
     pub placed: Vec<Placed>,
     /// Tasks for today that already have a time or a block: shown, not changed.
@@ -92,6 +94,7 @@ pub fn plan(now: NaiveDateTime, lists: &Value, events: &Value, pending: &Value) 
     let (day_start, day_end) = (at(today, DAY_START), at(today, DAY_END));
     let start = rounded(now).max(day_start);
     plan.start = Some(start);
+    plan.end = Some(day_end);
 
     let mut busy: Vec<(NaiveDateTime, NaiveDateTime)> = Vec::new();
     for e in events.as_array().into_iter().flatten() {
@@ -183,28 +186,41 @@ pub fn plan(now: NaiveDateTime, lists: &Value, events: &Value, pending: &Value) 
         busy.push((s, lunch_end));
     }
 
-    // Focus time: the first hour of the longest free stretch.
-    if plan.focus.is_none() {
-        if let Some((s, f)) = gaps(&busy, start, day_end).into_iter().max_by_key(|(s, f)| (*f - *s, std::cmp::Reverse(*s))) {
-            if f - s >= Duration::minutes(60) {
-                plan.focus = Some((s, s + Duration::minutes(60)));
-                busy.push((s, s + Duration::minutes(60)));
-            }
-        }
+    // Focus time: the first hour of the longest free stretch, held while the tasks are placed so they go around it.
+    let focus_hour = |busy: &[(NaiveDateTime, NaiveDateTime)]| {
+        gaps(busy, start, day_end).into_iter().max_by_key(|(s, f)| (*f - *s, std::cmp::Reverse(*s))).filter(|(s, f)| *f - *s >= Duration::minutes(60)).map(|(s, _)| (s, s + Duration::minutes(60)))
+    };
+    let held_here = plan.focus.is_none();
+    if held_here {
+        plan.focus = focus_hour(&busy);
     }
-
     // Each task in the earliest free time it fits, so they sit back to back.
-    let mut no_room = Vec::new();
-    for w in wanted {
-        let length = Duration::minutes(minutes_for(&w.text));
-        match gaps(&busy, start, day_end).into_iter().find(|(s, f)| *f - *s >= length) {
-            Some((s, _)) => {
-                busy.push((s, s + length));
-                plan.placed.push(Placed { list: w.list, text: w.text, start: s, end: s + length, why: w.why });
+    let place = |wanted: Vec<Wanted>, busy: &mut Vec<(NaiveDateTime, NaiveDateTime)>, placed: &mut Vec<Placed>| {
+        let mut left = Vec::new();
+        for w in wanted {
+            let length = Duration::minutes(minutes_for(&w.text));
+            match gaps(busy, start, day_end).into_iter().find(|(s, f)| *f - *s >= length) {
+                Some((s, _)) => {
+                    busy.push((s, s + length));
+                    placed.push(Placed { list: w.list, text: w.text, start: s, end: s + length, why: w.why });
+                }
+                None => left.push(w),
             }
-            None => no_room.push(w.text),
         }
+        left
+    };
+    let mut with_focus = busy.clone();
+    with_focus.extend(plan.focus);
+    let mut left = place(wanted, &mut with_focus, &mut plan.placed);
+    // A task for today comes before Focus time: when one has no room, the hour goes to the tasks, and Focus takes
+    // whatever hour is still free after them.
+    if !left.is_empty() && held_here && plan.focus.is_some() {
+        busy.extend(plan.placed.iter().map(|p| (p.start, p.end)));
+        left = place(left, &mut busy, &mut plan.placed);
+        plan.focus = focus_hour(&busy);
     }
+    plan.placed.sort_by_key(|p| p.start);
+    let no_room: Vec<String> = left.into_iter().map(|w| w.text).collect();
     later.sort();
     plan.waiting = no_room.into_iter().map(|t| format!("{t} (no room left today)")).chain(later.into_iter().map(|(d, t)| format!("{t} (due {})", short_day(d)))).collect();
     plan
@@ -237,16 +253,15 @@ impl Plan {
     pub fn lines(&self) -> String {
         let hm = |t: NaiveDateTime| t.format("%H:%M").to_string();
         let mut rows: Vec<(NaiveDateTime, String)> = Vec::new();
-        for (s, f, t) in &self.events {
-            if *f > self.start.unwrap_or(*s) {
+        // Only what is still to come today, before the day ends: nothing already over, nothing after hours.
+        let ahead = |s: NaiveDateTime, f: NaiveDateTime| self.start.is_none_or(|from| f > from) && self.end.is_none_or(|to| s < to);
+        for (s, f, t) in self.events.iter().chain(&self.fixed) {
+            if ahead(*s, *f) {
                 rows.push((*s, format!("- {}–{} {t}", hm(*s), hm(*f))));
             }
         }
         for p in &self.placed {
             rows.push((p.start, format!("- {}–{} {}", hm(p.start), hm(p.end), p.text)));
-        }
-        for (s, f, t) in &self.fixed {
-            rows.push((*s, format!("- {}–{} {t}", hm(*s), hm(*f))));
         }
         if let Some((s, f)) = self.focus {
             rows.push((s, format!("- {}–{} **{FOCUS_TITLE}**, kept for focused work", hm(s), hm(f))));
@@ -268,7 +283,7 @@ impl Plan {
             out.push_str(&row);
         }
         if !self.waiting.is_empty() {
-            let shown: Vec<&str> = self.waiting.iter().take(3).map(String::as_str).collect();
+            let shown: Vec<&str> = self.waiting.iter().take(8).map(String::as_str).collect();
             let more = self.waiting.len() - shown.len();
             out.push_str(&format!("\n\nCan wait: {}{}.", shown.join(", "), if more > 0 { format!(", and {more} more") } else { String::new() }));
         }
@@ -372,6 +387,27 @@ mod tests {
         assert_eq!(plan.placed[0].start, now("13:30"));
         // The hour's task does not fit before the review, so it goes after focus time.
         assert_eq!(plan.placed[1].start, now("16:00"));
+    }
+
+    #[test]
+    fn late_in_the_day_tasks_come_before_focus_and_only_what_is_ahead_is_told() {
+        let lists = json!([{ "list": "Work", "tasks": [
+            { "text": "Book the rolling-road slot", "done": false, "due": "2026-11-13", "flagged": true },
+            { "text": "Renew the car insurance", "done": false, "due": "2026-11-10" },
+            { "text": "Confirm the wiring loom supplier", "done": false, "due": "2026-11-12" },
+            { "text": "Order spare caliper brackets", "done": false, "due": "2026-11-16", "time": "11:00" },
+            { "text": "Take the bins out", "done": false, "due": "2026-11-16", "time": "19:00" },
+        ] }]);
+        let events = json!([{ "title": "Supplier call", "start": "2026-11-16T15:30", "end": "2026-11-16T16:30", "allDay": false }]);
+        let plan = plan(now("15:41"), &lists, &events, &json!([]));
+        let placed: Vec<&str> = plan.placed.iter().map(|p| p.text.as_str()).collect();
+        assert_eq!(placed, ["Renew the car insurance", "Confirm the wiring loom supplier", "Book the rolling-road slot"]);
+        assert_eq!(plan.placed.len(), 3, "every task for today has a time: {:?}", plan.placed);
+        assert_eq!(plan.focus, None, "no hour is left for focus once the tasks are in");
+        assert!(plan.waiting.iter().all(|w| !w.contains("no room")), "{:?}", plan.waiting);
+        let lines = plan.lines();
+        assert!(!lines.contains("11:00") && !lines.contains("19:00"), "{lines}");
+        assert!(lines.contains("- 15:30–16:30 Supplier call\n- 16:30–17:00 "), "{lines}");
     }
 
     #[test]
