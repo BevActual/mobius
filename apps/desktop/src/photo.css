@@ -208,3 +208,11 @@
 .photo-side .photo-album-count { margin-left: auto; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .photo-side .photo-album-row[data-renaming] { cursor: default; }
 .photo-side li[data-drop] .photo-album-row { background: var(--sel); box-shadow: inset 0 0 0 2px var(--ink); }
+
+/* Filmstrip, the bottom panel: the album in a row under the open photo. */
+.photo-filmstrip { display: flex; gap: var(--sp-2); height: 100%; margin: 0; padding: var(--sp-2) var(--sp-3); overflow-x: auto; overflow-y: hidden; list-style: none; box-sizing: border-box; align-items: center; }
+.photo-filmstrip li { flex: none; height: 100%; }
+.photo-film { display: block; height: 100%; aspect-ratio: 1; padding: 0; border-radius: var(--radius-small); overflow: hidden; background: var(--sel); cursor: default; }
+.photo-film img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-film:focus-visible, .photo-film[aria-current="true"] { outline: 2px solid var(--ink); outline-offset: 2px; }
+.photo-film[data-proposed] { outline: 1.5px dashed var(--mobius); outline-offset: 2px; }

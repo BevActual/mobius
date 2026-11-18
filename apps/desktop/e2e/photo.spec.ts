@@ -77,6 +77,11 @@ test('adjustments are kept beside the photo, which never changes, and Export sav
   await expect(grid.getByRole('button', { name: 'coastline edited.jpg' })).toBeVisible();
   await grid.getByRole('button', { name: 'coastline.png' }).click();
   await expect(shell().getByRole('img', { name: 'The photo with edits' })).toBeVisible();
+  // The Filmstrip, under the photo, marks the open one and steps to another.
+  const strip = shell().getByRole('list', { name: 'Lisbon, one after another' });
+  await expect(strip.getByRole('button', { name: 'coastline.png' })).toHaveAttribute('aria-current', 'true');
+  await strip.getByRole('button', { name: 'coastline edited.jpg' }).click();
+  await expect(strip.getByRole('button', { name: 'coastline edited.jpg' })).toHaveAttribute('aria-current', 'true');
 });
 
 test('photos are renamed, moved and deleted with their edits, and come back from Recently Deleted', async () => {

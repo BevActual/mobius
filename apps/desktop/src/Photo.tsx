@@ -15,7 +15,7 @@ import { RECENTLY_DELETED, type PhotosState } from './usePhotos';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { useTurnFileChanged } from './liveMarks';
 import { onCommand } from './commands';
-import { AppSidebar, BeforeAfter, HoldButton, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useHold, useShowPanelTab } from './ui';
+import { AppSidebar, BeforeAfter, HoldButton, PanelLayout, PanelTab, Select, SidebarSearch, SidebarSection, Slider as UiSlider, ToolbarControls, ToolbarItem, useHold, useShowPanelTab, type PanelSpec } from './ui';
 
 import './photo.css';
 
@@ -361,16 +361,43 @@ const TABS: readonly { id: Tab; name: string }[] = [{ id: 'adjust', name: 'Adjus
 
 /** The open photo: the album's grid, or one photo with Adjust, Filters and Crop beside it, and Mobius's change to keep. */
 /** `working`: Mobius's turn is still running, so its change shows as it lands and Keep and Discard wait for the end. */
-export function PhotoEditor({ photos, review, working = false, changed }: { photos: PhotosState; review?: { conversation: string } | null; working?: boolean; /** Photos Mobius edited, waiting for Keep. */ changed?: ReadonlySet<string> }) {
+export function PhotoEditor({ photos, review, working = false, changed, listPanels = [] }: { photos: PhotosState; review?: { conversation: string } | null; working?: boolean; /** Photos Mobius edited, waiting for Keep. */ changed?: ReadonlySet<string>; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     const files = [...e.dataTransfer.files].filter((f) => /^image\//.test(f.type));
     const album = photos.album ?? photos.albums[0]?.name;
     if (files.length && album) void photos.addFiles(album, files);
   };
-  if (!photos.available) return <section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section>;
-  if (photos.browsing || !photos.open) return <PhotoGrid photos={photos} onDrop={onDrop} changed={changed} />;
-  return <PhotoView photos={photos} review={review} working={working} onDrop={onDrop} />;
+  if (!photos.available) return <PanelLayout app="photo" panels={listPanels}><section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section></PanelLayout>;
+  if (photos.browsing || !photos.open) return <PanelLayout app="photo" panels={listPanels}><PhotoGrid photos={photos} onDrop={onDrop} changed={changed} /></PanelLayout>;
+  // Filmstrip (bottom dock, shown): the album's photos in a row under the open one, to step through them.
+  const filmstrip: PanelSpec = { id: 'filmstrip', name: 'Filmstrip', dock: 'bottom', shown: true, size: 112, render: () => <Filmstrip photos={photos} changed={changed} /> };
+  return <PanelLayout app="photo" panels={[...listPanels, filmstrip]}><PhotoView photos={photos} review={review} working={working} onDrop={onDrop} /></PanelLayout>;
+}
+
+/** The open photo's album as a row of small pictures; the open one is marked, and a click opens another. */
+function Filmstrip({ photos, changed }: { photos: PhotosState; changed?: ReadonlySet<string> | undefined }) {
+  const album = photos.albums.find((a) => a.photos.some((p) => p.path === photos.open?.path)) ?? photos.albums.find((a) => a.name === photos.album) ?? null;
+  const list = album?.photos ?? [];
+  const thumb = useThumbs(photos.read, list);
+  const strip = useRef<HTMLUListElement>(null);
+  // The open photo scrolls into view when it changes.
+  useEffect(() => { strip.current?.querySelector('[aria-current="true"]')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }, [photos.open?.path]);
+  if (!album) return null;
+  return (
+    <ul ref={strip} className="photo-filmstrip" role="list" aria-label={`${album.name}, one after another`}>
+      {list.map((p) => {
+        const src = thumb(p);
+        return (
+          <li key={p.path}>
+            <button type="button" className="photo-film" aria-label={p.name} title={p.name} aria-current={photos.open?.path === p.path ? 'true' : undefined} data-proposed={changed?.has(p.path) || undefined} onClick={() => void photos.openPhoto(p.path)}>
+              {src ? <img src={src} alt="" draggable={false} /> : null}
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
 }
 
 function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; review?: { conversation: string } | null; working: boolean; onDrop: (e: DragEvent) => void }) {
