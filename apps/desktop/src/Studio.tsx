@@ -50,7 +50,7 @@ export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin:
   const folder = songs.page?.path.split('/')[0] ?? songs.notebooks[0]?.name;
   const made = all.filter((pg) => changed?.has(pg.path));
   return (
-    <AppSidebar label="Music sidebar" className="studio-side">
+    <AppSidebar label="Songs" className="studio-side">
       <SideNew item="song" onNew={() => newItemIn(songs, folder, STUDIO_WORDS.defaultGroup)} />
       <SidebarSearch label="Search music" value={query} onChange={setQuery} />
       <SidebarSection title="Songs" action={pin}>
@@ -319,7 +319,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed }: {
   const [folded, setFolded] = useState<ReadonlySet<string>>(new Set());
   const fold = (key: string) => (on: boolean) => setFolded((f) => { const next = new Set(f); if (on) next.add(key); else next.delete(key); return next; });
   const setKit = (k: keyof KitSound, v: number) => onTrack((t) => { if (t.instrument !== 'drums') return; t.kit = { ...(t.kit ?? KIT_DEFAULTS), [k]: v }; }, `kit:${k}`);
-  if (!track) return <div className="studio-device" aria-label="Device chain" role="region"><p className="studio-dev-note">Add a track from Sounds in the sidebar to set how it sounds.</p></div>;
+  if (!track) return <div className="studio-device" aria-label="Device chain" role="region"><p className="studio-dev-note">Add a track from Sounds, on the left, to set how it sounds.</p></div>;
   const fx = track.fx ?? [];
   return (
     <div className="studio-device" aria-label="Device chain" role="region" style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>

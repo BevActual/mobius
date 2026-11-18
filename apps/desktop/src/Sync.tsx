@@ -137,7 +137,7 @@ export function PairDialog({ sync, accounts, folder, folderName, onClose }: { sy
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const start = async () => {
-    if (!drive) { setError('Add a drive first, under Drives in the sidebar.'); return; }
+    if (!drive) { setError('Add a drive first, under Drives in Places.'); return; }
     if (!remote.trim()) { setError('Name the folder on the drive.'); return; }
     setStarting(true); setError(null);
     const problem = await sync.add(folder, drive, remote.trim().replace(/^\/+|\/+$/g, ''));

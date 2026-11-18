@@ -785,7 +785,12 @@ export function App() {
     '--right-w': `${rightWidth}px`,
   } as React.CSSProperties;
 
+  // The launcher's key pressed again while it is open switches it between its start and All apps.
+  const [launcherAgain, setLauncherAgain] = useState(0);
+  const launcherShown = useRef(launcherOpen);
+  launcherShown.current = launcherOpen;
   const openLauncher = useCallback(() => {
+    if (launcherShown.current) { setLauncherAgain((n) => n + 1); return; }
     opener.current = document.activeElement as HTMLElement | null;
     setLauncherOpen(true);
   }, []);
@@ -1924,7 +1929,7 @@ export function App() {
           return true;
         }}
       />
-      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={launch.activateTab} onOpenApp={launch.openApp}
+      <Launcher open={launcherOpen} again={launcherAgain} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={launch.activateTab} onOpenApp={launch.openApp}
         pinned={appearance.value.sidebarApps}
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}

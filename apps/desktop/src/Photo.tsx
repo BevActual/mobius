@@ -72,7 +72,7 @@ export function PhotoSidebar({ photos, pin, changed }: { photos: PhotosState; pi
   const [query, setQuery] = useState('');
   const shownAlbums = query.trim() ? photos.albums.filter((a) => a.name.toLowerCase().includes(query.trim().toLowerCase())) : photos.albums;
   return (
-    <AppSidebar label="Photo sidebar" className="photo-side">
+    <AppSidebar label="Albums" className="photo-side">
       {photos.albums.length > 0 && <SidebarSearch label="Search albums" placeholder="Search albums" value={query} onChange={setQuery} />}
       {(photos.albums.length > 0 || photos.deleted.length > 0) && (
         <SidebarSection title="Library">

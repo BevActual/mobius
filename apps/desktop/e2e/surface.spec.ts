@@ -158,7 +158,7 @@ test('in Notes, a note suggestion attaches the open note', async () => {
   fs.writeFileSync(path.join(userData, 'workspace', 'notes', 'Home', 'Errands.md'), '# Errands\nBuy stamps and call the plumber.\n');
   await start([says(['- [ ] Buy stamps']) ]);
   await openApp('Notes');
-  const side = shell().getByRole('complementary', { name: 'Notes sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Notebooks' });
   await side.getByRole('button', { name: 'Errands', exact: true }).click();
   await expect(shell().getByRole('textbox', { name: 'Note text' })).toContainText('Buy stamps');
   await suggestions().getByRole('button', { name: 'Make a to-do list' }).click();

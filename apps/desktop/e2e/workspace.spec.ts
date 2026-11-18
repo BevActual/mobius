@@ -46,7 +46,7 @@ test('the Go button opens every app through the launcher, says where you are, an
   await start();
   await expect(shell().getByRole('navigation', { name: 'Apps' })).toHaveCount(0);
   await onApp('Browser');
-  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notes sidebar"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
+  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', 'aside[aria-label="Notebooks"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
     await open(name);
     await expect(shell().locator(view)).toBeVisible();
     await onApp(name);
@@ -174,7 +174,7 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   // The Browser's list is its own Tabs panel, and its New follows the app you are in.
   await expect(leftSide().getByRole('heading', { name: 'Tabs', exact: true })).toBeVisible();
   await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveAttribute('title', 'New tab');
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Tabs' })).toBeVisible();
   // It sits under the top bar, which starts with the Go button at the window's left edge.
   const side = (await leftSide().boundingBox())!;
   const bar = (await shell().locator('.context-strip').boundingBox())!;
@@ -187,7 +187,7 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   const lists = shell().getByRole('navigation', { name: 'Lists' });
   await expect(lists).toBeVisible();
   await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
-  await expect(shell().getByRole('complementary', { name: 'Tasks sidebar' }).getByRole('button', { name: 'New list' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Lists' }).getByRole('button', { name: 'New list' })).toBeVisible();
   await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
@@ -222,7 +222,7 @@ test('the Mobius button shows and hides Mobius in the right panel, and the sideb
   await expect(beside).toBeVisible();
   await expect(composer()).toBeFocused();
   // The sidebar stays the app's own.
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Tabs' })).toBeVisible();
   await expect(leftSide().getByRole('textbox', { name: 'Message Mobius' })).toHaveCount(0);
 });
 
@@ -247,11 +247,11 @@ test('Mobius’s own apps open from All apps and the launcher’s foot', async (
   await start();
   const fromHub = async (name: string) => { await openAllApps(shell()); await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name, exact: true }).click(); };
   await fromHub('Agents');
-  const side = shell().getByRole('complementary', { name: 'Agent sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Chats' });
   await expect(side.getByRole('region', { name: 'Agents' })).toBeVisible();
   await fromHub('Activity');
   // Activity has its own sidebar and page in the Agent app's place.
-  await expect(shell().getByRole('complementary', { name: 'Activity sidebar' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Activity' })).toBeVisible();
   await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   // Agent itself opens on the conversations.
   await goToPlace(shell(), 'Home');
@@ -278,7 +278,7 @@ test('every app and Mobius page is found in All apps by its name and opens with 
     await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
   }
   await byKeys('Agents');
-  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' }).getByRole('region', { name: 'Agents' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Chats' }).getByRole('region', { name: 'Agents' })).toBeVisible();
   await byKeys('Activity');
   await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
   await byKeys('Settings');

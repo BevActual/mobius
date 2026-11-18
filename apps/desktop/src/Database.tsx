@@ -103,7 +103,7 @@ export function DatabaseSidebar({ db, pin, changed }: { db: DatabasesState; pin:
   const shownDbs = db.list.filter((d) => hit(d.name) || d.tables.some((t) => hit(t.name)));
   const rowsIn = (d: string) => db.list.find((x) => x.name === d)?.tables.reduce((n, t) => n + Math.max(0, t.rows), 0) ?? 0;
   return (
-    <aside className="side db-side" aria-label="Database sidebar">
+    <aside className="side db-side" aria-label="Tables">
       {db.list.length > 0 && <input className="side-search" type="search" aria-label="Search databases and tables" placeholder="Search" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') setQuery(''); }} />}
       <div className="side-head">
         <span className="side-title">Databases</span>

@@ -43,7 +43,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
   const changedInside = (folder: string) => code.project !== null && [...(changed ?? [])].some((c) => c.startsWith(`${code.project}/${folder}/`));
   const marks = useMemo(() => gitMarks(code.git.repo ? code.git.changes : []), [code.git]);
   return (
-    <AppSidebar label="Code sidebar" className="code-side">
+    <AppSidebar label="Explorer" className="code-side">
       {code.project && (
 <SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       )}
@@ -681,8 +681,8 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
   if (!code.project) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
   // Tests and Console (bottom dock, side by side): the test run and a shell in the project.
   const bottomPanels: PanelSpec[] = [
-    { id: 'tests', name: 'Tests', dock: 'bottom', shown: true, render: () => <TestsPanel code={code} /> },
-    { id: 'console', name: 'Console', dock: 'bottom', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+    { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, render: () => <TestsPanel code={code} /> },
+    { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
   return (

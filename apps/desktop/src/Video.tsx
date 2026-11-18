@@ -133,7 +133,7 @@ export function VideoSidebar({ video, pin, changed }: { video: VideoState; pin?:
   const files = useRef<HTMLInputElement>(null);
   const addFootage = () => files.current?.click();
   return (
-    <AppSidebar label="Video sidebar" className="video-side">
+    <AppSidebar label="Videos" className="video-side">
       <SideNew item="project" onNew={() => setNaming(true)} />
       {naming && (
         <form className="notes-name" onSubmit={(e) => void submit(e)}>

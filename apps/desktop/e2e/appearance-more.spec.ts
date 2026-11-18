@@ -106,7 +106,7 @@ test('hiding finished tool steps keeps the ones that still need you', async () =
 
 test('the tab list, once hidden, stays hidden after a restart, and Ctrl+\\ brings it back', async () => {
   await start([]);
-  const tabList = () => shell().getByRole('complementary', { name: 'Browser sidebar' });
+  const tabList = () => shell().getByRole('complementary', { name: 'Tabs' });
   await expect(tabList()).toBeVisible();
   await shell().getByRole('button', { name: 'Hide Tabs' }).click();
   await expect(tabList()).toHaveCount(0);

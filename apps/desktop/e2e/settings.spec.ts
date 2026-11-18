@@ -53,7 +53,7 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   await expect(shell().locator('.strip-title')).toHaveText('General');
   // One left panel: Settings' search and sections, not the last app's list beside them.
   await expect(shell().locator('.ui-dock[data-dock="left"]').getByRole('region', { name: 'Sections' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
+  await expect(shell().getByRole('complementary', { name: 'Tabs' })).toHaveCount(0);
   await expect(page().getByRole('button', { name: 'Close settings' })).toHaveCount(0);
   expect(await visibleViews()).toHaveLength(0);
   await shell().keyboard.press('Escape');
@@ -85,7 +85,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
   await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
-  await expect(shell().getByRole('complementary', { name: 'Settings sidebar' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
   await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Activity']);

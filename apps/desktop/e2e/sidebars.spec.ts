@@ -17,7 +17,7 @@ test.afterEach(async () => {
 });
 
 const shell = () => mobius!.shell;
-const tabs = (): Locator => shell().getByRole('complementary', { name: 'Browser sidebar' });
+const tabs = (): Locator => shell().getByRole('complementary', { name: 'Tabs' });
 const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent', exact: true });
 const left = (): Locator => shell().locator('.ui-dock[data-dock="left"]');
 const right = (): Locator => shell().locator('.dock.right');
@@ -102,7 +102,7 @@ test('a floating agent panel appears from the right edge and hides again', async
 test('Home keeps its chats in a panel of its own: on the left, hidden and shown again with Ctrl+\\, and kept that way', async () => {
   await goToPlace(shell(), 'Home');
   const chats = shell().getByRole('region', { name: 'Chats' });
-  await expect(chats.getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+  await expect(chats.getByRole('complementary', { name: 'Chats' })).toBeVisible();
   await expect(shell().locator('.dock.left')).toHaveCount(0);
   await shell().keyboard.press('Control+Backslash');
   await expect(chats).toHaveCount(0);
@@ -168,7 +168,7 @@ test('a section header folds what follows it, by click or key, and the fold is k
   await header.click();
   await expect(header).toHaveAttribute('aria-expanded', 'false');
   await expect(body).toBeHidden();
-  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Browser sidebar/Tabs');
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Tabs/Tabs');
   await header.press('Enter');
   await expect(header).toHaveAttribute('aria-expanded', 'true');
   await expect(body).toBeVisible();

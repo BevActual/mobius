@@ -34,7 +34,7 @@ const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
 /** Adds a track from Sounds in the sidebar. */
 async function addTrack(name: string): Promise<void> {
-  await shell().getByRole('complementary', { name: 'Music sidebar' }).getByRole('region', { name: 'Sounds' }).getByRole('button', { name, exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Songs' }).getByRole('region', { name: 'Sounds' }).getByRole('button', { name, exact: true }).click();
 }
 /** Opens the notes editor on a track, with a double-click on its first clip. */
 async function openNotes(name: string): Promise<void> {

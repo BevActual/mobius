@@ -54,7 +54,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   useEffect(() => { onTitle?.(query.trim() ? 'Search' : current?.label ?? 'Settings'); }, [onTitle, query, current?.label]);
   // The app sidebar (zone 2), from the shared pieces: search, then the sections under their headings, as in System Settings.
   const nav = (
-    <AppSidebar label="Settings sidebar">
+    <AppSidebar label="Sections">
       <SidebarSearch label="Search settings" value={query} onChange={setQuery} />
       <nav className="settings-nav" aria-label="Settings sections">
         {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (

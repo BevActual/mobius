@@ -145,7 +145,7 @@ test('a meeting recorded in a note is written down in the page, and Summarise an
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
   await shell().keyboard.press('Enter');
-  const side = shell().getByRole('complementary', { name: 'Notes sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Notebooks' });
   await side.getByRole('button', { name: 'New notebook' }).first().click();
   await side.getByRole('textbox', { name: 'Notebook name' }).fill('Work');
   await side.getByRole('button', { name: 'Create' }).click();

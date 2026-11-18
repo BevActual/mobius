@@ -401,7 +401,7 @@ const pointerAway = async (shell: Page) => {
 export async function goTo(shell: Page, name: string): Promise<void> {
   const launcher = await openLauncherFromGo(shell);
   await launcher.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
-  await launcher.getByRole('group', { name: 'Applications' }).getByRole('option', { name: new RegExp(`^${name}(,|$)`) }).first().click();
+  await launcher.getByRole('group', { name: 'Apps' }).getByRole('option', { name: new RegExp(`^${name}(,|$)`) }).first().click();
   await expect(launcher).toBeHidden();
   await pointerAway(shell);
 }

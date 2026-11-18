@@ -21,7 +21,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command';
+  kind: 'ask' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -72,13 +72,22 @@ interface Props {
   inline?: boolean;
   /** For the reference sheet: the time Recent counts from. */
   now?: number;
+  /** Changes when the launcher's key is pressed again while it is open: it switches to All apps and back. */
+  again?: number;
+  /** For the reference sheet: start in All apps. */
+  startIn?: LauncherView;
 }
 
+/** The start (Ask, Pinned, Recent, places), or every app as a grid. */
+export type LauncherView = 'start' | 'apps';
+/** All apps is a grid this many tiles across. */
+export const GRID_COLS = 7;
+
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Applications', item: 'In your apps', tab: 'Open pages', command: 'Commands',
+  ask: 'Ask Mobius', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
-const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place']);
+const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
 
 /** Apps in the order to offer them: recent first when nothing is typed, else names starting with the words first. */
 export function rankApps<T extends { id: AppId; name: string }>(apps: readonly T[], q: string, recent: readonly AppId[] = recentApps(6)): T[] {
@@ -90,8 +99,8 @@ export function rankApps<T extends { id: AppId; name: string }>(apps: readonly T
 export const pinnedApps = (pinned?: readonly AppId[]): AppId[] => [...new Set(pinned ?? DEFAULT_APPS)].filter((id) => id !== 'agent' && isAvailable(id));
 
 /**
- * Where the arrows go. Items are drawn in rows: the pinned apps share a row across, and so do the places; every other
- * item is a row of its own. Up and Down go to the row above or below (into a row across, to the same place in it, or
+ * Where the arrows go. Items are drawn in rows: the pinned apps share a row across, and so do the places; All apps
+ * is a grid `GRID_COLS` across; every other item is a row of its own. Up and Down go to the row above or below (into a row across, to the same place in it, or
  * its end), wrapping round; Left and Right move along a row across.
  */
 export function stepFrom(kinds: readonly LauncherItem['kind'][], at: number, key: 'ArrowUp' | 'ArrowDown' | 'ArrowLeft' | 'ArrowRight'): number {
@@ -99,7 +108,7 @@ export function stepFrom(kinds: readonly LauncherItem['kind'][], at: number, key
   const rows: number[][] = [];
   kinds.forEach((kind, i) => {
     const last = rows[rows.length - 1];
-    if (last && ACROSS.has(kind) && kinds[last[0]!] === kind) last.push(i);
+    if (last && ACROSS.has(kind) && kinds[last[0]!] === kind && !(kind === 'grid' && last.length >= GRID_COLS)) last.push(i);
     else rows.push([i]);
   });
   const r = rows.findIndex((row) => row.includes(at));
@@ -112,6 +121,17 @@ export function stepFrom(kinds: readonly LauncherItem['kind'][], at: number, key
   }
   const next = rows[(r + (key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length]!;
   return next[Math.min(c, next.length - 1)]!;
+}
+
+/** Every app that can be opened now, A to Z: what All apps shows. */
+export const everyApp = (): AppId[] => APPS.filter((a) => a.available && isInstalled(a.id) && a.id !== 'agent').sort((x, y) => x.name.localeCompare(y.name)).map((a) => a.id);
+
+/** A name with the typed words drawn in ink: the first place they appear, or nothing marked. */
+export function marked(label: string, query: string): ReactNode {
+  const q = query.trim();
+  const at = q ? label.toLowerCase().indexOf(q.toLowerCase()) : -1;
+  if (at < 0) return label;
+  return <>{label.slice(0, at)}<mark className="launcher-match">{label.slice(at, at + q.length)}</mark>{label.slice(at + q.length)}</>;
 }
 
 /** "Mail" or "Mail, 3 waiting". */
@@ -129,13 +149,23 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now,
+  places = {}, inline = false, now, again, startIn = 'start',
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState('');
-  // null: the default row (what was found, or Ask when nothing was). A number once the arrows or pointer chose.
-  const [chosen, setSelected] = useState<number | null>(null);
+  // null: the default row (what was found, or Ask when nothing was). An item's id once the arrows or pointer chose,
+  // so results that arrive later never move what is chosen.
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  // Kept while Mobius runs: it opens again in the view it was left in.
+  const [view, setView] = useState<LauncherView>(startIn);
+  const switchView = useCallback((to: LauncherView) => { setView(to); setQuery(''); setChosenId(null); }, []);
+  const againWas = useRef(again);
+  useEffect(() => {
+    if (againWas.current === again) return;
+    againWas.current = again;
+    if (open) switchView(view === 'apps' ? 'start' : 'apps');
+  }, [again, open, view, switchView]);
   const [status, setStatus] = useState('');
   // While a pinned app is dragged the order lives here; it is saved once, when it is let go.
   const [dragOrder, setDragOrder] = useState<AppId[] | null>(null);
@@ -150,6 +180,13 @@ export function Launcher({
       // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
       // land after the first letters typed into it, and the same words typed again went unseen (the field already held
       // them), so Enter opened whatever was first for an empty field.
+      // It opens from the Go button, just under it, when that is on screen; otherwise across the middle.
+      const go = document.querySelector('.go-button')?.getBoundingClientRect();
+      if (go && go.width > 0) {
+        element.style.setProperty('--launcher-left', `${Math.round(go.left)}px`);
+        element.style.setProperty('--launcher-top', `${Math.round(go.bottom + 4)}px`);
+        element.dataset.anchored = 'go';
+      } else delete element.dataset.anchored;
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) {
@@ -160,7 +197,7 @@ export function Launcher({
   useEffect(() => {
     if (open) return;
     setQuery('');
-    setSelected(null);
+    setChosenId(null);
     setStatus('');
     setDragOrder(null);
   }, [open]);
@@ -194,6 +231,15 @@ export function Launcher({
     const q = text.trim().toLowerCase();
     const typed = text.trim();
     const has = (words: string) => words.toLowerCase().includes(q);
+    if (view === 'apps') {
+      return [
+        ...everyApp().filter((id) => has(`${appName(id)} ${APPS.find((a) => a.id === id)?.also ?? ''}`)).map<LauncherItem>((id) => {
+          const at = pins.indexOf(id);
+          return { id: `grid-${id}`, kind: 'grid', app: id, label: appName(id), waiting: waiting[id] ?? 0, detail: at >= 0 && at < 9 ? `Ctrl+${at + 1}` : undefined, run: () => onOpenApp(id) };
+        }),
+        ...(places.abilities && has('Add apps abilities') ? [{ id: 'grid-more', kind: 'grid' as const, place: 'abilities' as const, label: 'Add apps', run: () => places.abilities!() }] : []),
+      ];
+    }
     if (!q) {
       const ask: LauncherItem[] = onOpenMobius || onAsk
         ? [{ id: 'ask', kind: 'ask', label: 'Ask Mobius', detail: 'Type a question', run: () => (onOpenMobius ? onOpenMobius() : onAsk?.('')) }]
@@ -203,6 +249,7 @@ export function Launcher({
         ...pins.map<LauncherItem>((id, i) => ({
           id: `pin-${id}`, kind: 'pinned', app: id, label: appName(id), waiting: waiting[id] ?? 0, detail: i < 9 ? `Ctrl+${i + 1}` : undefined, run: () => onOpenApp(id),
         })),
+        { id: 'all-apps', kind: 'pinned', label: 'All apps', run: () => switchView('apps') },
         ...lastOpen.map<LauncherItem>((r) => ({
           id: `recent-${r.app}-${r.ref}`, kind: 'recent', app: r.app, label: r.label, detail: `${appName(r.app)} · ${relativeTime(r.at, now ?? Date.now())}`,
           disabled: !onOpenRecent, run: () => onOpenRecent?.(r),
@@ -222,7 +269,7 @@ export function Launcher({
         label: app.name,
         waiting: waiting[app.id] ?? 0,
         // An app not added yet is found too: choosing it opens Abilities to add it.
-        detail: !app.available ? 'Not built yet' : isInstalled(app.id) ? (pins.includes(app.id) ? 'Pinned' : undefined) : 'Add from Abilities',
+        detail: !app.available ? 'Not built yet' : !isInstalled(app.id) ? 'Add from Abilities' : pins.indexOf(app.id) >= 0 && pins.indexOf(app.id) < 9 ? `Ctrl+${pins.indexOf(app.id) + 1}` : undefined,
         disabled: !app.available,
         run: () => onOpenApp(app.id),
       })),
@@ -243,18 +290,22 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
+  }, [view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
   const items = useMemo(() => listFor(query), [listFor, query]);
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
   // pressing Enter opens Notes, and with nothing typed Enter opens the first pinned app. With nothing found, Enter
   // asks. Worked out as the list is drawn, so a quick Enter right after typing gets the same row.
   const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
-  const selected = Math.min(chosen ?? (found > 0 ? found : 0), Math.max(0, items.length - 1));
+  const picked = chosenId === null ? -1 : items.findIndex((item) => item.id === chosenId);
+  const selected = picked >= 0 ? picked : Math.max(0, found > 0 ? found : 0);
   const current = items[selected];
+  const setSelected = (index: number) => setChosenId(items[index]?.id ?? null);
 
   const activate = (item: LauncherItem | undefined) => {
     if (!item || item.disabled || dragged.current) return;
+    // All apps is a view of the launcher, not somewhere to go: it stays open.
+    if (item.id === 'all-apps') { item.run(); return; }
     onClose();
     item.run();
   };
@@ -262,6 +313,14 @@ export function Launcher({
   const keys = (event: KeyboardEvent<HTMLInputElement>) => {
     const empty = event.currentTarget.value === '';
     const k = event.key;
+    // The launcher's key again, or Backspace or Escape with nothing typed in All apps: between the two views.
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && k.toLowerCase() === 'k') {
+      event.preventDefault();
+      event.stopPropagation();
+      switchView(view === 'apps' ? 'start' : 'apps');
+      return;
+    }
+    if (view === 'apps' && empty && (k === 'Backspace' || k === 'Escape')) { event.preventDefault(); switchView('start'); return; }
     // Alt+Left and Alt+Right move the chosen pinned app along the row.
     if (empty && event.altKey && (k === 'ArrowLeft' || k === 'ArrowRight') && current?.kind === 'pinned' && current.app && onPinned) {
       event.preventDefault();
@@ -271,7 +330,7 @@ export function Launcher({
       if (to < 0 || to >= order.length) return;
       [order[at], order[to]] = [order[to]!, order[at]!];
       onPinned(order);
-      setSelected(selected + (to - at));
+      // The same app stays chosen as it moves.
       setStatus(`${appName(current.app)} moved to ${to + 1} of ${order.length}`);
       return;
     }
@@ -291,6 +350,7 @@ export function Launcher({
       const typed = event.currentTarget.value;
       if (typed === query) activate(items[selected]);
       else { const list = listFor(typed); const first = list.findIndex((item) => item.kind !== 'ask' && !item.disabled); activate(list[first > 0 ? first : 0]); }
+      return;
     } else if (k === 'Escape') { event.preventDefault(); onClose(); }
   };
 
@@ -299,8 +359,8 @@ export function Launcher({
 
   const option = (item: LauncherItem, index: number) => {
     const across = ACROSS.has(item.kind);
-    const name = item.kind === 'pinned' || item.kind === 'app' ? withWaiting(item.label, item.waiting) : item.label;
-    const canPin = !!item.app && !!onPinned && (item.kind === 'pinned' || item.kind === 'app');
+    const name = item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid' ? withWaiting(item.label, item.waiting) : item.label;
+    const canPin = !!item.app && !!onPinned && (item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid');
     return {
       id: `launcher-option-${item.id}`,
       role: 'option' as const,
@@ -309,8 +369,10 @@ export function Launcher({
       'aria-label': item.detail && !across ? `${name}, ${item.detail}` : name,
       className: across ? 'launcher-tile' : 'launcher-option',
       'data-kind': item.kind,
-      title: item.kind === 'pinned' ? `${item.label}${item.detail ? ` (${item.detail})` : ''}${onPinned ? '. Drag to reorder, right-click to unpin' : ''}` : undefined,
-      onPointerMove: () => setSelected(index),
+      title: item.id === 'all-apps' ? 'Every app (Ctrl+K again)'
+        : item.kind === 'pinned' ? `${item.label}${item.detail ? ` (${item.detail})` : ''}${onPinned ? '. Drag to reorder, right-click to unpin' : ''}`
+          : item.kind === 'grid' && item.app ? `${item.label}${item.detail ? ` (${item.detail})` : ''}${onPinned ? (pins.includes(item.app) ? '. Right-click to unpin' : '. Right-click to pin') : ''}` : undefined,
+      onPointerMove: () => setChosenId(item.id),
       onClick: () => activate(item),
       onContextMenu: canPin ? (event: MouseEvent) => { event.preventDefault(); pin(item.app!, item.kind !== 'pinned' && !pins.includes(item.app!)); } : undefined,
     };
@@ -329,15 +391,15 @@ export function Launcher({
           aria-controls="launcher-list"
           aria-activedescendant={activeId}
           aria-autocomplete="list"
-          aria-label="Find apps, pages and commands"
-          placeholder="Find, open or ask anything"
+          aria-label={view === 'apps' ? 'Find an app' : 'Find apps, pages and commands'}
+          placeholder={view === 'apps' ? 'Find an app' : 'Find, open or ask anything'}
           autoComplete="off"
           spellCheck={false}
           value={query}
-          onChange={(event) => { setQuery(event.target.value); setSelected(null); }}
+          onChange={(event) => { setQuery(event.target.value); setChosenId(null); }}
           onKeyDown={keys}
         />
-        <kbd>Esc</kbd>
+        {view === 'apps' ? <button type="button" className="launcher-back" onClick={() => { switchView('start'); input.current?.focus(); }}>Back</button> : <kbd>Esc</kbd>}
       </div>
       <div id="launcher-list" role="listbox" aria-label="Results" className="launcher-list">
         {sections.map((kind) => {
@@ -347,10 +409,10 @@ export function Launcher({
               <div key={kind} role="group" aria-label={SECTION[kind]} className="launcher-section" data-kind={kind}>
                 <div className="launcher-heading" aria-hidden="true">{SECTION[kind]}</div>
                 <Reorder.Group
-                  as="div" axis="x" className="launcher-row" values={members.map(({ item }) => item.app!)}
+                  as="div" axis="x" className="launcher-row" values={members.flatMap(({ item }) => (item.app ? [item.app] : []))}
                   onReorder={(next: AppId[]) => { if (onPinned) setDragOrder(next); }}
                 >
-                  {members.map(({ item, index }) => (
+                  {members.filter(({ item }) => item.app).map(({ item, index }) => (
                     <Reorder.Item
                       key={item.id} as="div" value={item.app!} drag={onPinned ? 'x' : false} dragListener={Boolean(onPinned)}
                       onDragStart={() => { dragged.current = true; }}
@@ -369,7 +431,33 @@ export function Launcher({
                       <span className="launcher-tile-name">{item.label}</span>
                     </Reorder.Item>
                   ))}
+                  {members.filter(({ item }) => !item.app).map(({ item, index }) => (
+                    <div key={item.id} {...option(item, index)}>
+                      <span className="launcher-mark launcher-icon" aria-hidden="true">
+                        <svg viewBox="0 0 20 20" data-all-apps=""><rect x="4" y="4" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="4" width="4.5" height="4.5" rx="1" /><rect x="4" y="11.5" width="4.5" height="4.5" rx="1" /><rect x="11.5" y="11.5" width="4.5" height="4.5" rx="1" /></svg>
+                      </span>
+                      <span className="launcher-tile-name">{item.label}</span>
+                    </div>
+                  ))}
                 </Reorder.Group>
+              </div>
+            );
+          }
+          if (kind === 'grid') {
+            return (
+              <div key={kind} role="group" aria-label={SECTION[kind]} className="launcher-section" data-kind={kind}>
+                <div className="launcher-heading" aria-hidden="true">{SECTION[kind]}</div>
+                <div className="launcher-grid" style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}>
+                  {members.map(({ item, index }) => (
+                    <div key={item.id} {...option(item, index)}>
+                      <span className="launcher-mark">
+                        <AppMark app={item.app} place={item.place} kind={item.kind} />
+                        {dot(item)}
+                      </span>
+                      <span className="launcher-tile-name">{marked(item.label, query)}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           }
@@ -394,20 +482,25 @@ export function Launcher({
                     <AppMark app={item.app} place={item.place} kind={item.kind} />
                     {dot(item)}
                   </span>
-                  <span className="launcher-label">{item.label}</span>
+                  <span className="launcher-label">{marked(item.label, query)}</span>
                   {item.detail && <span className="launcher-detail" aria-hidden="true">{item.detail}</span>}
                 </div>
               ))}
             </div>
           );
         })}
-        {items.length === 0 && <div className="launcher-empty" role="status">No results for “{query.trim()}”.</div>}
+        {query.trim() !== '' && items.every((item) => item.kind === 'ask') && (
+          <div className="launcher-empty" role="status">
+            {view === 'apps' ? `No app is called “${query.trim()}”.` : items.length > 0 ? 'Nothing in your apps matches. Press Enter to ask Mobius.' : `No results for “${query.trim()}”.`}
+          </div>
+        )}
       </div>
-      <div className="launcher-foot" aria-hidden="true">
-        <span><kbd>↵</kbd> Open</span><span><kbd>↑</kbd><kbd>↓</kbd> Move</span>
-        {!query && onPinned && <span>Right-click an app to pin or unpin it</span>}
-        <span><kbd>Esc</kbd> Close</span>
-      </div>
+      {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
+      {(query.trim() !== '' || view === 'apps') && current && (
+        <div className="launcher-foot" aria-hidden="true">
+          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'command' ? 'Run' : 'Open'}</span>
+        </div>
+      )}
       <span className="launcher-status" role="status">{status}</span>
     </>
   );

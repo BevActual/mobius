@@ -35,7 +35,7 @@ async function start(replies: ModelReply[] = []): Promise<Launched> {
   return mobius;
 }
 const shell = () => mobius!.shell;
-const side = (): Locator => shell().getByRole('complementary', { name: 'Notes sidebar' });
+const side = (): Locator => shell().getByRole('complementary', { name: 'Notebooks' });
 /** The page as formatted text; `source()` is the Markdown view, the file itself in a text box. */
 const text = (): Locator => shell().getByRole('textbox', { name: 'Note text' });
 const source = (): Locator => shell().getByRole('textbox', { name: 'Page text' });
@@ -243,7 +243,7 @@ test('a pinned page is listed first, under Pinned, as well as in its notebook', 
   fs.writeFileSync(file('Work', 'Motors.md'), '# Motors\n');
   await start();
   await expect(side().getByRole('region', { name: 'Pinned' })).toHaveCount(0);
-  await side().getByRole('button', { name: 'Pin Motors to the sidebar' }).click();
+  await side().getByRole('button', { name: 'Pin Motors' }).click();
   const pinned = side().getByRole('region', { name: 'Pinned' });
   await expect(pinned.getByRole('button', { name: 'Motors', exact: true })).toBeVisible();
   await expect(side().getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Motors', exact: true })).toBeVisible();

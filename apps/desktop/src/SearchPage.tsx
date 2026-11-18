@@ -139,7 +139,7 @@ const SCOPE_APP: Record<HubFilter, string> = { all: 'search', conversation: 'age
 /** Search's sidebar: its scopes, in place of a list of apps (there is nothing to make here, so no New). */
 export function SearchSidebar({ filter, onFilter, pin }: { filter: HubFilter; onFilter: (filter: HubFilter) => void; pin?: ReactNode }) {
   return (
-    <aside className="side search-side" aria-label="Search sidebar">
+    <aside className="side search-side" aria-label="Scopes">
       <div className="side-head">
         <span className="side-title">Search in</span>
         <span className="side-actions">{pin}</span>
