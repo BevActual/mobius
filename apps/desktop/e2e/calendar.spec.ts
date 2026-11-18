@@ -385,3 +385,23 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   await shell().keyboard.press('Escape');
   await expect(made).toHaveCount(0);
 });
+
+test('an event says who is invited and how they answered, and Invite adds someone, keeping the answers already in', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T110000\r\nDTEND:${ics(today())}T120000\r\nSUMMARY:Budget review\r\nORGANIZER;CN=Mia Ko:mailto:mia@example.com\r\nATTENDEE;CN=Ana Silva;PARTSTAT=ACCEPTED:mailto:ana@example.com\r\nATTENDEE;PARTSTAT=DECLINED:mailto:rui@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  await tools().getByRole('radio', { name: 'Week' }).click();
+  await page().getByRole('button', { name: /^Budget review/ }).first().click();
+  const change = shell().getByRole('dialog', { name: 'Edit event' });
+  await expect(change.getByRole('list', { name: 'Answers' })).toHaveText(/Ana Silva · going.*rui@example\.com · not going/);
+  const invite = change.getByRole('combobox', { name: 'Invite' });
+  await expect(invite).toHaveValue('Ana Silva <ana@example.com>, rui@example.com');
+  await invite.fill('Ana Silva <ana@example.com>, rui@example.com, Lee Park <lee@example.com>');
+  await invite.press('Enter');
+  await expect(change).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('lee@example.com');
+  const kept = fs.readFileSync(file('Work'), 'utf8').replace(/\r\n /g, '');
+  expect(kept).toMatch(/ATTENDEE[^\r\n]*PARTSTAT=ACCEPTED[^\r\n]*ana@example\.com/);
+  expect(kept).toMatch(/ATTENDEE[^\r\n]*PARTSTAT=DECLINED[^\r\n]*rui@example\.com/);
+  expect(kept).toMatch(/ATTENDEE[^\r\n]*CN=Lee Park[^\r\n]*lee@example\.com/);
+});

@@ -1,5 +1,5 @@
 import { formatWith, timeLabel as timeOf } from './dates';
-import type { CalendarEvent } from '@mobius/shared';
+import type { CalendarAnswer, CalendarEvent, CalendarPerson } from '@mobius/shared';
 import { lengthLabel } from './ui/dateText';
 
 /** What the Calendar app shows: one day, a week (Monday first), or a month as whole weeks. */
@@ -403,3 +403,33 @@ export function isoWeek(day: Date): number {
 
 /** Sent when a calendar account is added, removed or refreshed in Settings, so Calendar reads its calendars again. */
 export const CALENDAR_ACCOUNTS_EVENT = 'mobius:calendar-accounts';
+
+/** Who is invited, as the Invite field shows it: `Name <email>` for each, comma-separated. */
+export function inviteText(people: readonly { name: string; email: string }[] = []): string {
+  return people.map((p) => (p.name && p.name !== p.email ? `${p.name} <${p.email}>` : p.email)).join(', ');
+}
+
+/** The Invite field read back: each address once, keeping the answer of anyone already on the event. */
+export function parseInvitees(text: string, existing: readonly CalendarPerson[] = []): { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[] {
+  const seen = new Set<string>();
+  const out: { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[] = [];
+  for (const part of text.split(/[,;]/)) {
+    const m = /^\s*(?:"?([^"<]*?)"?\s*<([^>]+)>|(\S+@\S+))\s*$/.exec(part);
+    const email = (m?.[2] ?? m?.[3] ?? '').trim();
+    if (!email.includes('@') || seen.has(email.toLowerCase())) continue;
+    seen.add(email.toLowerCase());
+    const was = existing.find((p) => p.email.toLowerCase() === email.toLowerCase());
+    const name = (m?.[1] ?? '').trim() || was?.name || '';
+    out.push({ ...(name ? { name } : {}), email, ...(was?.status ? { status: was.status } : {}) });
+  }
+  return out;
+}
+
+/** Whether the field names the same people as the event, in any order. */
+export function sameInvitees(a: readonly { email: string }[], b: readonly { email: string }[] = []): boolean {
+  const key = (l: readonly { email: string }[]) => l.map((p) => p.email.toLowerCase()).sort().join('\n');
+  return key(a) === key(b);
+}
+
+/** An attendee's answer in words, or nothing while it waits. */
+export const answerWord = (status: CalendarAnswer): string => ({ accepted: 'going', declined: 'not going', tentative: 'maybe', 'needs-action': '', '': '' })[status];

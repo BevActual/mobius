@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -230,5 +230,20 @@ describe('the Glance in the Mobius panel', () => {
   });
   it('leaves out the free time once the working day is over', () => {
     expect(calendarGlance(events, day('2026-11-14T19:30'))[2]!.value).toBeNull();
+  });
+});
+
+describe('who is invited', () => {
+  const on = [{ name: 'Ana Silva', email: 'ana@example.com', status: 'accepted' as const }, { name: '', email: 'rui@example.com', status: 'needs-action' as const }];
+  it('shows the people and reads the field back, keeping answers', () => {
+    expect(inviteText(on)).toBe('Ana Silva <ana@example.com>, rui@example.com');
+    expect(parseInvitees('ana@example.com, "Mia Ko" <mia@example.com>; nope, Ana <ANA@example.com>', on)).toEqual([
+      { name: 'Ana Silva', email: 'ana@example.com', status: 'accepted' },
+      { name: 'Mia Ko', email: 'mia@example.com' },
+    ]);
+    expect(sameInvitees(parseInvitees(inviteText(on), on), on)).toBe(true);
+    expect(sameInvitees([{ email: 'x@example.com' }], on)).toBe(false);
+    expect(answerWord('declined')).toBe('not going');
+    expect(answerWord('needs-action')).toBe('');
   });
 });
