@@ -28,6 +28,11 @@ const MAX_RANGE_DAYS: i64 = 400;
 const MAX_EXPANDED: usize = 2000;
 const MAX_SUGGESTIONS: usize = 50;
 const MAX_WHY: usize = 300;
+const MAX_PEOPLE: usize = 100;
+const MAX_NAME: usize = 120;
+const MAX_EMAIL: usize = 254;
+/// What an attendee answered (`PARTSTAT`), as Mobius names it.
+pub const STATUSES: [&str; 4] = ["needs-action", "accepted", "declined", "tentative"];
 /// Events the agent suggests, waiting for the person to add or decline them. In the calendar folder, so they are
 /// checkpointed with it, but hidden from the list of calendars.
 const SUGGESTIONS: &str = ".suggestions.json";
@@ -108,8 +113,78 @@ pub struct Event {
     pub location: String,
     pub notes: String,
     pub repeat: Option<Repeat>,
+    /// Who is invited (`ATTENDEE`), in the order the file has them.
+    pub attendees: Vec<Person>,
+    /// Who sent the invitation (`ORGANIZER`).
+    pub organizer: Option<Person>,
     /// Lines of the event Mobius does not use, kept as they were.
     pub extra: Vec<String>,
+}
+
+/// Someone on an event: an attendee or its organizer, by address.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct Person {
+    pub name: String,
+    pub email: String,
+    /// One of `STATUSES`; empty for the organizer, or for an answer Mobius does not name (kept in `params`).
+    pub status: String,
+    /// Its other parameters (ROLE, RSVP, CUTYPE and the like), kept as they were.
+    pub params: Vec<(String, String)>,
+}
+
+/// An `ATTENDEE` or `ORGANIZER` line's person. None without an address.
+fn person_of(params: &[(String, String)], value: &str) -> Option<Person> {
+    let value = value.trim();
+    let email = if value.len() >= 7 && value[..7].eq_ignore_ascii_case("mailto:") { &value[7..] } else { value };
+    if email.trim().is_empty() {
+        return None;
+    }
+    let mut person = Person { email: email.trim().to_owned(), ..Person::default() };
+    for (k, v) in params {
+        match k.as_str() {
+            "CN" => person.name = v.clone(),
+            "PARTSTAT" if STATUSES.contains(&v.to_ascii_lowercase().as_str()) => person.status = v.to_ascii_lowercase(),
+            _ => person.params.push((k.clone(), v.clone())),
+        }
+    }
+    Some(person)
+}
+
+/// A parameter's value as iCalendar writes it: quoted when it holds a separator, never with a quote inside.
+fn param_value(v: &str) -> String {
+    let v: String = v.chars().filter(|c| *c != '"' && !c.is_control()).collect();
+    if v.contains([':', ';', ',']) { format!("\"{v}\"") } else { v }
+}
+
+fn person_line(property: &str, p: &Person) -> String {
+    let mut line = property.to_owned();
+    if !p.name.is_empty() {
+        line.push_str(&format!(";CN={}", param_value(&p.name)));
+    }
+    if !p.status.is_empty() {
+        line.push_str(&format!(";PARTSTAT={}", p.status.to_ascii_uppercase()));
+    }
+    for (k, v) in &p.params {
+        line.push_str(&format!(";{k}={}", param_value(v)));
+    }
+    format!("{line}:mailto:{}", p.email)
+}
+
+/// An answer for the agent: events without their attendees and organizer, as before they were read.
+fn without_people(mut v: Value) -> Value {
+    match &mut v {
+        Value::Array(list) => *list = std::mem::take(list).into_iter().map(without_people).collect(),
+        Value::Object(map) => {
+            map.remove("attendees");
+            map.remove("organizer");
+        }
+        _ => {}
+    }
+    v
+}
+
+fn person_json(p: &Person) -> Value {
+    json!({ "name": p.name, "email": p.email, "status": p.status })
 }
 
 // ---- reading and writing iCalendar ---------------------------------------------------------------------------------
@@ -268,6 +343,8 @@ fn event_of(lines: &[String]) -> Option<Event> {
     let mut location = String::new();
     let mut notes = String::new();
     let mut repeat = None;
+    let mut attendees = Vec::new();
+    let mut organizer = None;
     let mut extra = Vec::new();
     let mut nested = 0;
     for line in lines {
@@ -292,6 +369,11 @@ fn event_of(lines: &[String]) -> Option<Event> {
             "LOCATION" => location = unescape(&value),
             "DESCRIPTION" => notes = unescape(&value),
             "RRULE" => repeat = parse_repeat(&value),
+            "ATTENDEE" | "ORGANIZER" => match person_of(&params, &value) {
+                Some(p) if name == "ATTENDEE" => attendees.push(p),
+                Some(p) => organizer = Some(p),
+                None => extra.push(line.clone()),
+            },
             _ => extra.push(line.clone()),
         }
     }
@@ -300,7 +382,7 @@ fn event_of(lines: &[String]) -> Option<Event> {
         When::Day(d) => When::Day(d + Duration::days(1)),
         When::At(t) => When::At(t),
     });
-    Some(Event { uid: uid.unwrap_or_else(new_uid), title: if title.trim().is_empty() { "Busy".into() } else { title }, start, end, location, notes, repeat, extra })
+    Some(Event { uid: uid.unwrap_or_else(new_uid), title: if title.trim().is_empty() { "Busy".into() } else { title }, start, end, location, notes, repeat, attendees, organizer, extra })
 }
 
 /// `PT1H30M`, `P1D`, `P2W`.
@@ -355,6 +437,10 @@ pub fn write(name: &str, events: &[Event], other: &[String]) -> String {
         if let Some(r) = &e.repeat {
             lines.push(format!("RRULE:{}", repeat_text(r)));
         }
+        if let Some(o) = &e.organizer {
+            lines.push(person_line("ORGANIZER", o));
+        }
+        lines.extend(e.attendees.iter().map(|a| person_line("ATTENDEE", a)));
         lines.extend(e.extra.iter().cloned());
         lines.push("END:VEVENT".into());
     }
@@ -468,13 +554,99 @@ pub struct Draft {
     /// For a repeating event, the start of the one time the window showed and changed: a new start then moves every
     /// time by as much, rather than starting the series again there.
     pub occurrence: Option<String>,
+    /// Who is invited, as sent: `[{ name, email, status }]`, the whole list. Checked when the event is saved.
+    pub attendees: Option<Value>,
+    /// Who sent it, as sent: `{ name, email }`, or null for no one. Checked when the event is saved.
+    pub organizer: Option<Value>,
 }
 
 impl Draft {
     pub fn from_json(v: &Value) -> Draft {
         let s = |k: &str| v.get(k).and_then(Value::as_str).map(str::to_owned);
-        Draft { title: s("title"), start: s("start"), end: s("end"), location: s("location"), notes: s("notes"), repeat: s("repeat"), occurrence: s("occurrence") }
+        Draft {
+            title: s("title"),
+            start: s("start"),
+            end: s("end"),
+            location: s("location"),
+            notes: s("notes"),
+            repeat: s("repeat"),
+            occurrence: s("occurrence"),
+            attendees: v.get("attendees").cloned(),
+            organizer: v.get("organizer").cloned(),
+        }
     }
+}
+
+/// A person as sent, checked. Their status and other parameters carry over from `was` (the same address before).
+fn person_sent(v: &Value, was: Option<&Person>, attendee: bool) -> Res<Person> {
+    let bad = || "a person on an event is { name, email } with a real address".to_owned();
+    let text = |k: &str| match v.get(k) {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(s)) => Ok(Some(s.trim().to_owned())),
+        Some(_) => Err(bad()),
+    };
+    if !v.is_object() {
+        return Err(bad());
+    }
+    let email = text("email")?.ok_or_else(bad)?;
+    let ok_email = email.len() <= MAX_EMAIL
+        && email.split('@').count() == 2
+        && email.split('@').all(|part| !part.is_empty())
+        && !email.chars().any(|c| c.is_whitespace() || c.is_control() || "\"<>:;,()[]\\".contains(c));
+    if !ok_email {
+        return Err(format!("{email:?} is not an email address"));
+    }
+    let name = text("name")?.unwrap_or_default();
+    if name.chars().count() > MAX_NAME || name.chars().any(char::is_control) {
+        return Err(format!("a person's name is up to {MAX_NAME} characters on one line"));
+    }
+    let status = match text("status")? {
+        Some(s) if attendee => {
+            let s = s.to_ascii_lowercase();
+            if !STATUSES.contains(&s.as_str()) {
+                return Err(format!("an attendee's status is one of {}", STATUSES.join(", ")));
+            }
+            s
+        }
+        _ if attendee => was.map_or_else(|| "needs-action".to_owned(), |w| w.status.clone()),
+        _ => String::new(),
+    };
+    Ok(Person { name, email, status, params: was.map(|w| w.params.clone()).unwrap_or_default() })
+}
+
+/// The attendees and organizer a save leaves on the event: as sent, or as they were when the draft leaves them out.
+fn people_sent(draft: &Draft, base: Option<&Event>) -> Res<(Vec<Person>, Option<Person>)> {
+    let same = |a: &Person, email: &str| a.email.eq_ignore_ascii_case(email);
+    let attendees = match &draft.attendees {
+        None => base.map(|b| b.attendees.clone()).unwrap_or_default(),
+        Some(Value::Array(list)) => {
+            if list.len() > MAX_PEOPLE {
+                return Err(format!("an event has up to {MAX_PEOPLE} attendees"));
+            }
+            let mut out: Vec<Person> = Vec::new();
+            for v in list {
+                let email = v.get("email").and_then(Value::as_str).unwrap_or("").trim();
+                let was = base.and_then(|b| b.attendees.iter().find(|a| same(a, email)));
+                let p = person_sent(v, was, true)?;
+                if out.iter().any(|o| same(o, &p.email)) {
+                    return Err(format!("{} is on the event twice", p.email));
+                }
+                out.push(p);
+            }
+            out
+        }
+        Some(_) => return Err("attendees is a list of { name, email, status }".into()),
+    };
+    let organizer = match &draft.organizer {
+        None => base.and_then(|b| b.organizer.clone()),
+        Some(Value::Null) => None,
+        Some(v) => {
+            let email = v.get("email").and_then(Value::as_str).unwrap_or("").trim();
+            let was = base.and_then(|b| b.organizer.as_ref()).filter(|o| same(o, email));
+            Some(person_sent(v, was, false)?)
+        }
+    };
+    Ok((attendees, organizer))
 }
 
 /// The ways to repeat an event that the window and the agent offer, by name.
@@ -613,7 +785,8 @@ fn event_json(calendar: &str, e: &Event, start: When, read_only: bool) -> Value 
     let end = e.end.shifted(shift);
     let all_day = matches!(e.start, When::Day(_));
     json!({ "id": e.uid, "calendar": calendar, "title": e.title, "start": start.show(), "end": end.show(), "allDay": all_day,
-        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "repeat": e.repeat.as_ref().map_or("", repeat_name), "readOnly": read_only })
+        "location": e.location, "notes": e.notes, "repeats": e.repeat.is_some(), "repeat": e.repeat.as_ref().map_or("", repeat_name), "readOnly": read_only,
+        "attendees": e.attendees.iter().map(person_json).collect::<Vec<_>>(), "organizer": e.organizer.as_ref().map(person_json) })
 }
 
 /// The starts a repeating event skips (`EXDATE`), and the one a changed copy of a single time replaces
@@ -878,8 +1051,9 @@ impl Calendar {
     pub fn add(&self, calendar: &str, draft: &Draft) -> Res<Value> {
         let (title, start, end, location, notes) = Self::checked(draft, None)?;
         let repeat = repeat_named(draft.repeat.as_deref().unwrap_or(""))?;
+        let (attendees, organizer) = people_sent(draft, None)?;
         let (mut events, other) = self.load(calendar)?;
-        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat, extra: Vec::new() };
+        let event = Event { uid: new_uid(), title, start, end, location, notes, repeat, attendees, organizer, extra: Vec::new() };
         self.send(calendar, Some((std::slice::from_ref(&event), true)), None)?;
         events.push(event.clone());
         self.store(calendar, &events, &other)?;
@@ -891,6 +1065,7 @@ impl Calendar {
         // The event itself, not a changed copy of one of its times.
         let at = events.iter().position(|e| e.uid == uid && (e.repeat.is_some() || moments_in(e, "RECURRENCE-ID").is_empty())).ok_or("that event is not in that calendar")?;
         let (title, mut start, mut end, location, notes) = Self::checked(draft, Some(&events[at]))?;
+        let (attendees, organizer) = people_sent(draft, Some(&events[at]))?;
         let base = &events[at];
         // One time of a repeating event moved: every time moves by as much, so the series keeps its first time.
         if base.repeat.is_some()
@@ -905,6 +1080,7 @@ impl Calendar {
         }
         let mut changed = base.clone();
         (changed.title, changed.start, changed.end, changed.location, changed.notes) = (title, start, end, location, notes);
+        (changed.attendees, changed.organizer) = (attendees, organizer);
         if let Some(name) = &draft.repeat {
             changed.repeat = repeat_named(name)?;
         }
@@ -939,6 +1115,8 @@ impl Calendar {
         }
         let text = |k: &str| args.get(k).and_then(Value::as_str).map(str::trim).filter(|s| !s.is_empty());
         let calendar = text("calendar").unwrap_or(DEFAULT_CALENDAR);
+        // The agent neither sees nor sets who is invited yet: a CalDAV server can email an invitation on its own.
+        let draft = || Draft { attendees: None, organizer: None, ..Draft::from_json(args) };
         let result = match tool {
             "calendar.list" => {
                 let today = Local::now().date_naive();
@@ -957,20 +1135,20 @@ impl Calendar {
             }
             "calendar.add" => {
                 self.checkpoint(&format!("before the agent added an event to {calendar}"));
-                self.add(calendar, &Draft::from_json(args))?
+                self.add(calendar, &draft())?
             }
             "calendar.suggest" => {
                 self.checkpoint(&format!("before the agent suggested an event for {calendar}"));
-                self.suggest(calendar, &Draft::from_json(args), text("why").unwrap_or(""))?
+                self.suggest(calendar, &draft(), text("why").unwrap_or(""))?
             }
             "calendar.update" => {
                 let uid = text("id").ok_or("id is the event's id from calendar.list")?;
                 self.checkpoint(&format!("before the agent changed an event in {calendar}"));
-                self.update(calendar, uid, &Draft::from_json(args))?
+                self.update(calendar, uid, &draft())?
             }
             _ => return Err("unknown tool".into()),
         };
-        Ok(result.to_string())
+        Ok(without_people(result).to_string())
     }
 
     fn suggestions_file(&self) -> PathBuf {
@@ -1107,6 +1285,67 @@ mod tests {
         assert_eq!(moved["end"], "2026-11-13T14:00", "keeps its length");
         c.remove("Calendar", lunch["id"].as_str().unwrap()).unwrap();
         assert_eq!(c.events("2026-11-09", "2026-11-15").unwrap().as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn attendees_and_the_organizer_are_read_written_and_kept_through_a_save() {
+        let (dir, c) = store();
+        let file = dir.path().join("workspace/calendar/Calendar.ics");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        // As a CalDAV server sends it: a quoted name with a comma, other parameters, and an answer Mobius does not name.
+        fs::write(&file, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:m1\r\nDTSTART:20261116T100000\r\nDTEND:20261116T110000\r\nSUMMARY:Supplier review\r\nORGANIZER;CN=\"Okafor, Sam\":mailto:sam@northway.example\r\nATTENDEE;CN=Priya Raman;PARTSTAT=ACCEPTED;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:priya@northway.example\r\nATTENDEE;PARTSTAT=DELEGATED:MAILTO:jo@northway.example\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        let shown = c.events("2026-11-16", "2026-11-16").unwrap();
+        assert_eq!(shown[0]["organizer"], json!({ "name": "Okafor, Sam", "email": "sam@northway.example", "status": "" }));
+        assert_eq!(shown[0]["attendees"], json!([
+            { "name": "Priya Raman", "email": "priya@northway.example", "status": "accepted" },
+            { "name": "", "email": "jo@northway.example", "status": "" },
+        ]));
+        // A save that leaves them out keeps them, with their other parameters.
+        c.update("Calendar", "m1", &Draft { title: Some("Supplier review, moved".into()), ..Draft::default() }).unwrap();
+        // Read as unfolded lines: long ones are folded in the file.
+        let text = unfold(&fs::read_to_string(&file).unwrap()).join("\n");
+        assert!(text.contains("ORGANIZER;CN=\"Okafor, Sam\":mailto:sam@northway.example"), "{text}");
+        assert!(text.contains("ATTENDEE;CN=Priya Raman;PARTSTAT=ACCEPTED;ROLE=REQ-PARTICIPANT;RSVP=TRUE:mailto:priya@northway.example"), "{text}");
+        assert!(text.contains("ATTENDEE;PARTSTAT=DELEGATED:mailto:jo@northway.example"), "{text}");
+        // The list as sent replaces it: Priya keeps her answer and parameters, Ana is new and has not answered yet.
+        let saved = c.update("Calendar", "m1", &Draft::from_json(&json!({ "attendees": [{ "email": "Priya@northway.example", "name": "Priya Raman" }, { "name": "Ana Silva", "email": "ana@example.org" }] }))).unwrap();
+        assert_eq!(saved["attendees"], json!([
+            { "name": "Priya Raman", "email": "Priya@northway.example", "status": "accepted" },
+            { "name": "Ana Silva", "email": "ana@example.org", "status": "needs-action" },
+        ]));
+        assert!(unfold(&fs::read_to_string(&file).unwrap()).join("\n").contains("ATTENDEE;CN=Ana Silva;PARTSTAT=NEEDS-ACTION:mailto:ana@example.org"));
+        let cleared = c.update("Calendar", "m1", &Draft::from_json(&json!({ "attendees": [], "organizer": null }))).unwrap();
+        assert_eq!((cleared["attendees"].clone(), cleared["organizer"].clone()), (json!([]), Value::Null));
+        // A new event takes them too.
+        let added = c.add("Calendar", &Draft::from_json(&json!({ "title": "Kickoff", "start": "2026-11-17T09:00", "organizer": { "name": "Me", "email": "me@example.org" }, "attendees": [{ "email": "sam@northway.example", "status": "tentative" }] }))).unwrap();
+        assert_eq!(added["attendees"][0]["status"], "tentative");
+        assert_eq!(added["organizer"]["email"], "me@example.org");
+        // The agent's tools neither show them nor set them.
+        let listed: Value = serde_json::from_str(&c.run("calendar.list", &json!({ "from": "2026-11-17", "to": "2026-11-17" })).unwrap()).unwrap();
+        assert!(listed[0].get("attendees").is_none() && listed[0].get("organizer").is_none(), "{listed}");
+        let by_agent: Value = serde_json::from_str(&c.run("calendar.add", &json!({ "title": "Call", "start": "2026-11-18T09:00", "attendees": [{ "email": "x@example.org" }] })).unwrap()).unwrap();
+        assert_eq!(c.events("2026-11-18", "2026-11-18").unwrap()[0]["attendees"], json!([]), "{by_agent}");
+    }
+
+    #[test]
+    fn people_that_are_not_real_addresses_or_come_twice_are_refused() {
+        let (_d, c) = store();
+        let with = |people: Value| c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-12T09:00", "attendees": people })));
+        assert!(with(json!([{ "email": "ana@example.org" }])).is_ok());
+        for bad in [
+            json!("ana@example.org"),
+            json!([{ "name": "Ana" }]),
+            json!([{ "email": "not an address" }]),
+            json!([{ "email": "a@b@c" }]),
+            json!([{ "email": "ana@example.org:x" }]),
+            json!([{ "email": "ana@example.org", "status": "maybe" }]),
+            json!([{ "email": "ana@example.org", "name": "two\nlines" }]),
+            json!([{ "email": "ana@example.org" }, { "email": "ANA@example.org" }]),
+            Value::Array(vec![json!({ "email": "a@example.org" }); MAX_PEOPLE + 1]),
+        ] {
+            assert!(with(bad.clone()).is_err(), "{bad}");
+        }
+        assert!(c.add("Calendar", &Draft::from_json(&json!({ "title": "x", "start": "2026-11-12T09:00", "organizer": { "email": "nobody" } }))).is_err());
     }
 
     #[test]

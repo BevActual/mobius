@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, TimeZone, Utc};
-use mobius_workspace::calendar::{Event, Repeat, When};
+use mobius_workspace::calendar::{Event, Person, Repeat, When};
 use percent_encoding::{AsciiSet, NON_ALPHANUMERIC, utf8_percent_encode};
 use serde_json::{Value, json};
 
@@ -113,7 +113,20 @@ pub fn event_of(e: &Value) -> Option<Event> {
     let start = when(e.get("start")?, all_day)?;
     let end = when(e.get("end")?, all_day).filter(|end| *end > start).unwrap_or(start);
     let text = |p: &str| e.pointer(p).and_then(Value::as_str).unwrap_or("").trim().to_owned();
-    Some(Event { uid: id.to_owned(), title: text("/subject"), start, end, location: text("/location/displayName"), notes: text("/body/content"), repeat: None, extra: Vec::new() })
+    // Who is invited, and who sent it, as Graph has them. Kept as read: a change to them is not written back to Graph.
+    let person = |p: &Value, status: &str| {
+        let email = p.pointer("/emailAddress/address").and_then(Value::as_str).unwrap_or("").trim();
+        (!email.is_empty()).then(|| Person { name: p.pointer("/emailAddress/name").and_then(Value::as_str).unwrap_or("").trim().to_owned(), email: email.to_owned(), status: status.to_owned(), params: Vec::new() })
+    };
+    let answer = |a: &Value| match a.pointer("/status/response").and_then(Value::as_str).unwrap_or("") {
+        "accepted" | "organizer" => "accepted",
+        "declined" => "declined",
+        "tentativelyAccepted" => "tentative",
+        _ => "needs-action",
+    };
+    let attendees = e.get("attendees").and_then(Value::as_array).map(|list| list.iter().filter_map(|a| person(a, answer(a))).collect()).unwrap_or_default();
+    let organizer = e.get("organizer").and_then(|o| person(o, ""));
+    Some(Event { uid: id.to_owned(), title: text("/subject"), start, end, location: text("/location/displayName"), notes: text("/body/content"), repeat: None, attendees, organizer, extra: Vec::new() })
 }
 
 /// A repetition as Graph writes it, from where the event starts. None for one Graph can't take.
@@ -203,7 +216,7 @@ impl Graph<'_> {
     /// Every occurrence in `[from, to)` of calendar `href`, and each one's Graph id and version, by its id.
     pub fn read(&self, href: &str, from: NaiveDate, to: NaiveDate) -> Res<(Vec<Event>, Items)> {
         let mut next = Some(format!(
-            "{href}/calendarView?startDateTime={}T00:00:00Z&endDateTime={}T00:00:00Z&$top=250&$select=id,subject,start,end,isAllDay,location,body,isCancelled",
+            "{href}/calendarView?startDateTime={}T00:00:00Z&endDateTime={}T00:00:00Z&$top=250&$select=id,subject,start,end,isAllDay,location,body,isCancelled,attendees,organizer",
             from.format("%Y-%m-%d"),
             to.format("%Y-%m-%d")
         ));
@@ -369,7 +382,7 @@ pub(crate) mod tests {
     #[test]
     fn events_go_both_ways_in_local_time() {
         let at = |d: &str| When::parse(d).unwrap();
-        let e = Event { uid: "x".into(), title: "Retro".into(), start: at("2026-11-12T16:00"), end: at("2026-11-12T16:30"), location: String::new(), notes: "Bring notes".into(), repeat: Some(Repeat { freq: "WEEKLY".into(), interval: 2, count: Some(5), until: None, by_day: vec![3] }), extra: Vec::new() };
+        let e = Event { uid: "x".into(), title: "Retro".into(), start: at("2026-11-12T16:00"), end: at("2026-11-12T16:30"), location: String::new(), notes: "Bring notes".into(), repeat: Some(Repeat { freq: "WEEKLY".into(), interval: 2, count: Some(5), until: None, by_day: vec![3] }), attendees: Vec::new(), organizer: None, extra: Vec::new() };
         let body = body_of(&e, true);
         assert_eq!(body["start"]["timeZone"], "UTC");
         assert_eq!(body["recurrence"]["pattern"], json!({ "type": "weekly", "interval": 2, "daysOfWeek": ["thursday"], "firstDayOfWeek": "monday" }));
@@ -380,13 +393,27 @@ pub(crate) mod tests {
         let read = event_of(&back).unwrap();
         assert_eq!((read.start, read.end, read.title.as_str(), read.notes.as_str()), (e.start, e.end, "Retro", "Bring notes"), "UTC there, local here");
 
-        let day = Event { uid: "d".into(), title: "Offsite".into(), start: When::Day(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap()), end: When::Day(NaiveDate::from_ymd_opt(2026, 11, 14).unwrap()), location: String::new(), notes: String::new(), repeat: Some(Repeat { freq: "YEARLY".into(), interval: 1, count: None, until: None, by_day: Vec::new() }), extra: Vec::new() };
+        let day = Event { uid: "d".into(), title: "Offsite".into(), start: When::Day(NaiveDate::from_ymd_opt(2026, 11, 12).unwrap()), end: When::Day(NaiveDate::from_ymd_opt(2026, 11, 14).unwrap()), location: String::new(), notes: String::new(), repeat: Some(Repeat { freq: "YEARLY".into(), interval: 1, count: None, until: None, by_day: Vec::new() }), attendees: Vec::new(), organizer: None, extra: Vec::new() };
         let body = body_of(&day, true);
         assert_eq!((body["isAllDay"].clone(), body["start"]["dateTime"].clone()), (json!(true), json!("2026-11-12T00:00:00")));
         assert_eq!(body["recurrence"]["pattern"], json!({ "type": "absoluteYearly", "interval": 1, "dayOfMonth": 12, "month": 11 }));
         let mut back = body;
         back["id"] = json!("g2");
         assert_eq!(event_of(&back).unwrap().end, day.end, "all-day keeps its days whatever the time zone");
+    }
+
+    #[test]
+    fn attendees_and_the_organizer_are_read_with_their_answers() {
+        let e = event_of(&json!({ "id": "ev", "subject": "Review", "isAllDay": false,
+            "start": { "dateTime": "2026-11-10T09:00:00.0000000", "timeZone": "UTC" }, "end": { "dateTime": "2026-11-10T10:00:00.0000000", "timeZone": "UTC" },
+            "organizer": { "emailAddress": { "name": "Sam Okafor", "address": "sam@northway.example" } },
+            "attendees": [
+                { "emailAddress": { "name": "Priya Raman", "address": "priya@northway.example" }, "status": { "response": "tentativelyAccepted" } },
+                { "emailAddress": { "name": "Jo", "address": "jo@northway.example" }, "status": { "response": "none" } },
+                { "emailAddress": { "name": "No address" } },
+            ] })).unwrap();
+        assert_eq!(e.organizer.map(|o| (o.name, o.email)), Some(("Sam Okafor".into(), "sam@northway.example".into())));
+        assert_eq!(e.attendees.iter().map(|a| (a.email.as_str(), a.status.as_str())).collect::<Vec<_>>(), vec![("priya@northway.example", "tentative"), ("jo@northway.example", "needs-action")]);
     }
 
     #[test]
