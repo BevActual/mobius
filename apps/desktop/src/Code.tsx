@@ -13,7 +13,7 @@ import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
-import { AppSidebar, Button, KeyCaps, SidebarRow, SidebarSection } from './ui';
+import { AppSidebar, Button, KeyCaps, PanelLayout, SidebarRow, SidebarSection, type PanelSpec } from './ui';
 import './code.css';
 import { afterPaint } from './ui/frame';
 
@@ -491,7 +491,7 @@ function TestsPanel({ code }: { code: CodeState }) {
   const last = tests.last;
   const summary = tests.running ? 'Running…' : last ? (last.timedOut ? 'Ran out of time' : last.passed ? `Passed · ${last.seconds} s` : `Failed · ${last.seconds} s`) : '';
   return (
-    <section className="code-tests" aria-label="Tests">
+    <section className="code-tests code-panel">
       <header className="code-tests-head">
         {summary ? <span className="code-tests-summary" data-state={tests.running ? 'running' : last?.passed ? 'pass' : 'fail'} role="status">{summary}{tests.by === 'assistant' && !tests.running ? ' · run by Mobius' : ''}</span> : <span className="code-tests-summary">{tests.command ? 'Not run yet' : 'No test command'}</span>}
         <span className="code-tests-actions">
@@ -528,7 +528,7 @@ function ConsolePanel({ code }: { code: CodeState }) {
   const submit = (e: FormEvent) => { e.preventDefault(); const c = command.trim(); if (!c || (running && !keep)) return; setCommand(''); void (keep ? code.startProcess(c) : code.runCommand(c)); };
   const live = code.processes.filter((p) => p.running || Date.now() - p.started < 600_000);
   return (
-    <section className="code-console" aria-label="Console">
+    <section className="code-console code-panel">
       {live.length > 0 && (
         <ul className="code-procs" aria-label="Running">
           {live.map((p) => (
@@ -610,14 +610,10 @@ function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void })
   );
 }
 
-const PANEL_KEY = 'mobius.code.panel';
 
 /** The open file: as Mobius changed it (to keep or discard) or as you type it, and the project's tests below. */
-export function CodeEditor({ code, review }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null }) {
+export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState; review?: { conversation: string; settled?: boolean } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const file = code.open && code.project ? `code/${code.project}/${code.open.path}` : null;
-  const [bottom, setBottom] = useState<'tests' | 'console'>('tests');
-  const [panel, setPanel] = useState(() => { try { return window.localStorage.getItem(PANEL_KEY) !== 'hidden'; } catch { return true; } });
-  const showPanel = (on: boolean) => { setPanel(on); try { window.localStorage.setItem(PANEL_KEY, on ? 'shown' : 'hidden'); } catch { /* Not kept. */ } };
   const [bar, setBar] = useState<'find' | 'line' | null>(null);
   const [quick, setQuick] = useState(false);
   // Ctrl+P opens a file by name from anywhere in the app.
@@ -629,9 +625,8 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     return () => window.removeEventListener('keydown', onKey);
   }, [code.project]);
   useEffect(() => { setBar(null); }, [code.open?.path]);
-  // A command Mobius runs shows where it can be seen.
-  const runs = code.consoleRuns.length;
-  useEffect(() => { if (runs > 0 && code.consoleRuns[runs - 1]?.by === 'assistant') { setBottom('console'); showPanel(true); } }, [runs]); // eslint-disable-line react-hooks/exhaustive-deps
+  // A command Mobius runs shows where it can be seen: the Console panel opens for it.
+  const assistantRuns = code.consoleRuns.filter((r) => r.by === 'assistant').length;
   const [kept, setKept] = useState(false);
   const [before, setBefore] = useState<string | null | undefined>(undefined);
   useEffect(() => {
@@ -682,10 +677,16 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
     return () => window.removeEventListener('keydown', onKey);
   }); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!code.available) return <section className="code-page empty" aria-label="Code"><EmptyState app="code" title="Code is not available here" /></section>;
-  if (!code.project) return <section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section>;
+  if (!code.available) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="Code is not available here" /></section></PanelLayout>;
+  if (!code.project) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
+  // Tests and Console (bottom dock, side by side): the test run and a shell in the project.
+  const bottomPanels: PanelSpec[] = [
+    { id: 'tests', name: 'Tests', dock: 'bottom', shown: true, render: () => <TestsPanel code={code} /> },
+    { id: 'console', name: 'Console', dock: 'bottom', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+  ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
   return (
+    <PanelLayout app="code" panels={[...listPanels, ...bottomPanels]}>
     <section className="code-page" aria-label="Code">
       <div className="code-main">
         {code.open ? (
@@ -721,19 +722,8 @@ export function CodeEditor({ code, review }: { code: CodeState; review?: { conve
         )}
       </div>
       {quick && <QuickOpen code={code} onClose={() => setQuick(false)} />}
-      <div className="code-bottom" data-hidden={!panel || undefined}>
-        <div className="code-bottom-tabs">
-          <div role="tablist" aria-label="Below the file">
-            <button type="button" role="tab" aria-selected={panel && bottom === 'tests'} onClick={() => { setBottom('tests'); showPanel(true); }}>Tests{code.tests.last && !code.tests.running && <span className="code-tab-dot" data-state={code.tests.last.passed ? 'pass' : 'fail'} aria-hidden="true" />}</button>
-            <button type="button" role="tab" aria-selected={panel && bottom === 'console'} onClick={() => { setBottom('console'); showPanel(true); }}>Console</button>
-          </div>
-          <button type="button" className="strip-btn code-panel-toggle" aria-expanded={panel} aria-label={panel ? 'Hide the panel' : 'Show the panel'} title={panel ? 'Hide the panel' : 'Show the panel'} onClick={() => showPanel(!panel)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><path d={panel ? 'm5 8 5 5 5-5' : 'm5 12 5-5 5 5'} /></svg>
-          </button>
-        </div>
-        {panel && (bottom === 'tests' ? <TestsPanel code={code} /> : <ConsolePanel code={code} />)}
-      </div>
     </section>
+    </PanelLayout>
   );
 }
 

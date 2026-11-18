@@ -29,6 +29,8 @@ export interface PanelSpec {
   /** For a panel that is there only while something is open (Tasks' Details): hiding it closes that thing instead,
    *  so it is not kept hidden for the next one. */
   onHide?: () => void;
+  /** Changed to show the panel from inside the app (Code's Console when Mobius runs a command there). */
+  reveal?: number;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;
 }
@@ -119,6 +121,13 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     if (p) update((was) => ({ ...was, shown: { ...was.shown, [id]: !(was.shown[id] ?? p.shown ?? false) } }));
   }, [panels, isShown, update]);
   const reset = useCallback(() => update(() => EMPTY), [update]);
+  // A panel whose `reveal` changed since the last render is shown.
+  const reveals = useRef<Record<string, number | undefined>>({});
+  useEffect(() => {
+    const now = panels.filter((p) => p.reveal !== undefined && reveals.current[p.id] !== undefined && reveals.current[p.id] !== p.reveal);
+    for (const p of panels) reveals.current[p.id] = p.reveal;
+    if (now.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(now.map((p) => [p.id, true])) } }));
+  }, [panels, update]);
 
   // The frame lists this app's panels in its Panels menu while the app is on screen.
   const register = useContext(Registry);
