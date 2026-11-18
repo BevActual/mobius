@@ -60,3 +60,4 @@ drives.fetch
 drives.write
 drives.move
 drives.delete
+studio.bass_and_pad

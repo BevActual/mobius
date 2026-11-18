@@ -34,6 +34,7 @@ pub mod dropbox;
 pub mod onedrive;
 pub mod drive_sync;
 pub mod sync_pairs;
+pub mod bass;
 pub mod demo;
 pub mod mail;
 pub mod chatgpt;

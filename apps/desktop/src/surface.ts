@@ -110,10 +110,11 @@ export const matchAlbum = (album: string) => `Make the photos in the album "${al
 export const MAKE_A_DECK = 'Make this document a deck in my Slides, as slides/Presentations/<its title>.md, about eight slides, in the deck format: slides split by a line ---; in each, an optional style comment (<!-- style: accent --> for the opening title, <!-- style: dark --> for a section, <!-- style: warm --> for one big statement), a ### kicker, a ## title, - bullets (three or four, never more, a few words each), and after Notes: what to say, in my voice. Open with a title slide that has a kicker and a title and no bullets. Give each main part of the document a section slide or a bullets slide, put its one key point and its biggest number each on a statement slide, and end on what happens next; at most half the slides have bullets. Use only what this document says: read no other file, and keep its facts and numbers exactly. Leave this document as it is. End with one short line naming the deck and its slide count.';
 
 /** Music's chips change the song file and nothing else, so only the file tools are offered. */
-export const STUDIO_TOOLS = ['files'] as const;
+export const STUDIO_TOOLS = ['files', 'studio'] as const;
 
-/** Music's demo ask, as two small edits made together, so the bass and the pad arrive within a few seconds. */
-export const BASS_AND_PAD = 'Add a bassline under this song and make the pad warmer, with two files.edit calls on the song file in one step, and no other call. First, the bass: old is the last note of the last track and everything after it to the end of the file, new is the same with a new bass track added after the last track: {"id" a new one,"name":"Bass","instrument":"bass","color" a free one,"volume":0.8,"notes":[...]}, MIDI 33 to 52, every note in the song\'s key, the chord\'s own root on each bar line with a passing note or two, every bar of the song. Second, the pad: old is its whole "sound":{...} object exactly as it is, new has the same keys with a warmer sound (cutoff about half, a little less resonance, shape lower, a touch of drive). Leave the other tracks\' notes as they are. In the same answer, first say in one short line what you are adding and changing; I hear each edit as it lands, so don\'t say you can\'t play it.';
+/** Music's demo ask: the bass and the warmer pad are worked out in code (studio.bass_and_pad) and written as one
+ *  change, so the model only says one line and makes one call. */
+export const bassAndPad = (path: string) => `Add a bassline under this song and make the pad warmer: call studio.bass_and_pad once, with path ${JSON.stringify(path)}, and no other call. In the same answer, first say in one short line what you are adding and changing; I hear it as it lands, so don't say you can't play it.`;
 
 /** Whether a song (its file's text) has a pad and no bass: Music's demo ask fits it. */
 export function wantsBassAndPad(text: string): boolean {
@@ -208,7 +209,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             // The demo's Music moment: a song with a pad and no bass gets both in one press, heard while it plays. The two
             // edits are laid out in full, so the model doesn't think first (on 0.1.9 thinking held the first edit to 9.5 s).
-            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: BASS_AND_PAD, attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS, effort: 'none' as const }] : []),
+            ...(wantsBassAndPad(state.note.text) ? [{ label: 'Bass and a warmer pad', prompt: bassAndPad(state.note.path), attach: 'note' as const, finishes: true as const, tools: STUDIO_TOOLS, effort: 'none' as const }] : []),
             { label: 'Add a bass line', prompt: 'Add a bass track to this song that follows its chords and key: root notes on beat 1 and the "and" of 3, varied a little every fourth bar. Leave the other tracks as they are; give the new track a new id.', attach: 'note' },
             { label: 'Add drums', prompt: 'Add a drums track to this song that fits its tempo: kick, snare on 2 and 4, closed hats in eighths, a small fill in the last bar. Leave the other tracks as they are.', attach: 'note' },
             { label: 'Describe a part…', prompt: 'In this song, ', attach: 'note' },
