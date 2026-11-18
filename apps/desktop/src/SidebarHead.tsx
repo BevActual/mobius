@@ -6,8 +6,9 @@ import { newKeys } from './SideNew';
 import { afterPaint } from './ui/frame';
 
 interface Props {
-  /** What the sidebar belongs to: the open app's name, or Settings. */
-  title: string;
+  /** What the sidebar belongs to: the open app's name, or Settings. Left out in an app's own list panel, whose header
+   *  already names it. */
+  title?: string;
   /** The open app's New; none where there is nothing to make, or the app's own list starts with one. */
   create?: { label: string; run: () => void } | undefined;
   /** Notes, task lists and pages pinned by the person, in their order. */
@@ -35,9 +36,11 @@ export function SidebarHead({ title, create, favourites = [], onOpenFavourite, o
   const pinOrder: Favourite[] = pinDrag ?? [...favourites];
   return (
     <div className="app-side">
-      <div className="app-side-head">
-        <h2 className="app-side-title">{title}</h2>
-      </div>
+      {title !== undefined && (
+        <div className="app-side-head">
+          <h2 className="app-side-title">{title}</h2>
+        </div>
+      )}
       {create && (
         <button type="button" className="app-side-new" aria-label="Create" title={create.label} onClick={create.run}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>

@@ -27,7 +27,7 @@ const shell = () => mobius!.shell;
 const onApp = (name: string) => expectOnApp(shell(), name);
 const open = (name: string) => (name === 'Home' ? goToPlace(shell(), 'Home') : goTo(shell(), name));
 const mobiusButton = (): Locator => shell().locator('.context-strip [data-mobius-face]');
-const leftSide = (): Locator => shell().locator('.dock.left');
+const leftSide = (): Locator => shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])');
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 
 async function start(replies: ModelReply[] = []): Promise<void> {
@@ -191,11 +191,11 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
   await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
-  // The toolbar's list button hides and shows it, and so does Ctrl+\.
-  await shell().getByRole('button', { name: 'Show lists' }).click();
+  // The lists are Tasks' own panel: its close button hides them, and Ctrl+\ hides and shows them.
+  await leftSide().getByRole('button', { name: 'Hide Lists' }).click();
   await expect(leftSide()).toHaveCount(0);
   await onApp('Tasks');
-  await shell().getByRole('button', { name: 'Show lists' }).click();
+  await shell().keyboard.press('Control+Backslash');
   await expect(lists).toBeVisible();
   await shell().keyboard.press('Control+Backslash');
   await expect(leftSide()).toHaveCount(0);
@@ -382,7 +382,7 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await open('Tasks');
   const filter = shell().getByRole('button', { name: /From Mobius/ });
   await expect(filter).toContainText('1');
-  const lists = shell().locator('.dock.left');
+  const lists = shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])');
   await expect(lists.getByRole('button', { name: /^Home/ }).first()).toBeVisible();
   await filter.click();
   await expect(filter).toHaveAttribute('aria-pressed', 'true');
