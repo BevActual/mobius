@@ -31,6 +31,16 @@ This works as it does today, with a working Recent:
 - Recent: up to eight items, newest first, deduplicated. Items that no longer exist are dropped.
 - The places.
 
+### All apps
+
+Pinned shows only some apps, so every app also needs a place you can browse without typing:
+
+- The pinned row ends with an **All apps** tile (a grid mark). Clicking it, choosing it with the keys, or pressing Ctrl+K a second time switches the launcher to the All apps view.
+- **All apps** shows every app you have, as tiles in a grid, A to Z. Each tile carries its waiting dot and its key if it is pinned. The last tile is **Get more apps**, which opens Abilities.
+- **Pinning from the grid:** drag a tile up onto the pinned row, or right-click it to pin or unpin it.
+- **Typing** in this view filters the grid. Backspace on an empty field, or Escape, goes back to the start.
+- **Remembered:** the launcher reopens in whichever view you left it in until you close Mobius.
+
 ### Typing
 
 The sections come in this order. Each one is left out when it has nothing to show.
