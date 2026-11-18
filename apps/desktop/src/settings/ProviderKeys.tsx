@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AccountInfo, AccountStatus, ProviderInfo } from '@mobius/shared';
+import type { AccountInfo, AccountStatus, AgentSettings, ProviderInfo } from '@mobius/shared';
 import { Empty, Placeholder, Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
@@ -30,12 +30,30 @@ export function ProvidersSection({ highlight, settings, onSaveSettings }: Sectio
   );
 }
 
-function ProviderList() {
+/**
+ * A new person's first choice of model, under the welcome (first run in five minutes: no address to know, no doc to
+ * read). Sign in to a plan, paste or sign in for a key, or use a server on this computer, each one press from here;
+ * the custom server form, for an address of your own, is the last thing, behind its button.
+ */
+export function FirstRunModels({ settings, onSave }: { settings: AgentSettings; onSave: SectionProps['onSaveSettings'] }) {
+  const [custom, setCustom] = useState(false);
+  return (
+    <div className="first-run-models" role="group" aria-label="Choose a model">
+      <p className="srow-desc">Sign in to a plan you already have, connect a service with its key, or use a model on this computer.</p>
+      <ProviderList open />
+      {!custom
+        ? <button type="button" className="btn link" onClick={() => setCustom(true)}>Custom server…</button>
+        : <SettingsForm key={`${settings.baseUrl}|${settings.model}`} settings={settings} onSave={onSave} onDone={() => setCustom(false)} />}
+    </div>
+  );
+}
+
+function ProviderList({ open = false }: { /** Start with every gateway listed (first run), not only the connected ones. */ open?: boolean }) {
   const api = window.mobius.providers;
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const reload = useCallback(() => void api?.list().then((got) => setProviders(Array.isArray(got) ? got : [])), [api]);
   useEffect(() => { reload(); return api?.onChanged(reload); }, [api, reload]);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(open);
   if (!api) return <Empty>Gateways are available in the desktop app.</Empty>;
   const list = Array.isArray(providers) ? providers : [];
   const connected = list.filter((p) => p.hasKey || p.active);
@@ -43,8 +61,8 @@ function ProviderList() {
   const local = list.filter((p) => !p.needsKey && !connected.includes(p));
   return (
     <div className="providers">
-      <Accounts onChanged={reload} />
-      {connected.length > 0 ? (
+      <Accounts onChanged={reload} hideMissing={open} />
+      {open && connected.length === 0 ? null : connected.length > 0 ? (
         <ul className="plist" role="list" aria-label="Connected gateways">
           {connected.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
         </ul>
@@ -54,7 +72,7 @@ function ProviderList() {
           <p className="srow-desc">Connect a service with its key, sign in to a plan, or use a server on this computer.</p>
         </div>
       )}
-      <button type="button" className="btn" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>{adding ? 'Done adding' : 'Add Gateway…'}</button>
+      {!open && <button type="button" className="btn" aria-expanded={adding} onClick={() => setAdding((a) => !a)}>{adding ? 'Done adding' : 'Add Gateway…'}</button>}
       {adding && <>
       <h4 className="plist-head">With an API key</h4>
       <ul className="plist" role="list" aria-label="Online services">
@@ -185,7 +203,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
 }
 
 /** Plans you sign in to: the service's own app keeps the sign-in, Mobius only asks it whether it is signed in. */
-function Accounts({ onChanged }: { onChanged: () => void }) {
+function Accounts({ onChanged, hideMissing = false }: { onChanged: () => void; /** First run: a plan whose app is not on this computer is left out, not shown as a problem. */ hideMissing?: boolean }) {
   const api = window.mobius.providers!;
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const reload = useCallback(() => void api.accounts().then((got) => setAccounts(Array.isArray(got) ? got : [])), [api]);
@@ -195,13 +213,13 @@ function Accounts({ onChanged }: { onChanged: () => void }) {
     <>
       <h4 className="plist-head">With your subscription</h4>
       <ul className="plist" role="list" aria-label="Subscriptions">
-        {accounts.map((a) => <AccountRow key={a.id} account={a} onChanged={() => { reload(); onChanged(); }} />)}
+        {accounts.map((a) => <AccountRow key={a.id} account={a} hideMissing={hideMissing} onChanged={() => { reload(); onChanged(); }} />)}
       </ul>
     </>
   );
 }
 
-function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged: () => void }) {
+function AccountRow({ account: a, onChanged, hideMissing = false }: { account: AccountInfo; onChanged: () => void; hideMissing?: boolean }) {
   const api = window.mobius.providers!;
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [choosing, setChoosing] = useState(false);
@@ -240,6 +258,7 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setChoosing(false); onChanged();
   };
+  if (hideMissing && status !== null && !status.installed) return null;
   const said = status === null ? 'Checking…' : !status.installed ? (a.id === 'copilot' ? 'Copilot CLI is not installed' : 'Claude Code is not installed') : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
     <li className="prow" aria-label={a.name} data-active={a.active || undefined}>

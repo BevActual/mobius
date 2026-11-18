@@ -26,7 +26,7 @@ import { RestingPanel } from './Resting';
 import { attachmentLabel, hereOf, type SurfaceState } from './surface';
 import { activityOf } from './activity';
 import { WorkingIndicator } from './Working';
-import { SettingsForm } from './settings/ModelForm';
+import { FirstRunModels } from './settings/ProviderKeys';
 import { SignInForTask } from './SignIn';
 
 const STATUS_TEXT: Record<ToolStatus, string> = {
@@ -744,7 +744,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
       {showSettings && settings ? (
         <div className="chat-scroll">
           <Welcome />
-          <SettingsForm key={`${settings.baseUrl}|${settings.model}`} settings={settings} onSave={onSaveSettings} />
+          <FirstRunModels settings={settings} onSave={onSaveSettings} />
         </div>
       ) : (
         <>
