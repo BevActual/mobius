@@ -85,6 +85,12 @@ test('channels by account, a channel read and its thread, Send only from the per
   await expect(log.getByRole('button', { name: '2 replies' })).toBeVisible();
   await shell().getByRole('button', { name: 'Hide Thread' }).click();
   await expect(thread).toHaveCount(0);
+  // A sender's name opens the Person panel: who they are, here someone not in the address book.
+  await log.getByRole('button', { name: 'Priya Nair' }).first().click();
+  const person = shell().getByLabel('Contact', { exact: true });
+  await expect(person).toContainText('Priya Nair');
+  await expect(person).toContainText('Not in your contacts.');
+  await shell().getByRole('button', { name: 'Hide Person' }).click();
   // Only the person's own Send sends.
   const box = shell().getByRole('textbox', { name: 'Message #general' });
   await box.fill('Looking now');

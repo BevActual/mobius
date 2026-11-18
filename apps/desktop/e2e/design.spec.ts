@@ -264,8 +264,10 @@ test('Assets places a copy of a component and puts a colour style on what is pic
   const assets = shell().getByRole('region', { name: 'Assets', exact: true });
   await assets.getByRole('button', { name: 'Place Card' }).click();
   await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['instance', 'instance']);
-  // A colour style goes on the picked frame's fill.
+  // A colour style goes on the picked frame's fill. Layers and Assets are tabs in one place on the left.
+  await shell().getByRole('tab', { name: 'Layers' }).click();
   await tree.getByRole('button', { name: 'Home', exact: true }).click();
+  await shell().getByRole('tab', { name: 'Assets' }).click();
   await assets.getByRole('button', { name: 'Use Ink' }).click();
   await expect.poll(() => saved().frames[0]!.fill).toBe('style:Ink');
 });

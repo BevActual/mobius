@@ -603,7 +603,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
   const components = doc.frames.filter((f) => f.component);
   const canPlace = doc.frames.some((f) => !f.component);
   // Assets (left dock, as in Figma): the design's components to place, and its colour styles to use on what is picked.
-  const assets: PanelSpec = { id: 'assets', name: 'Assets', dock: 'left', shown: false, render: () => (
+  const assets: PanelSpec = { id: 'assets', name: 'Assets', dock: 'left', group: 'side', shown: false, render: () => (
     <div className="design-assets">
       <div className="design-panel-title">Components</div>
       {components.length === 0
@@ -764,7 +764,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
   ) }];
 
   // Layers (left, under the list of designs): the frames and their layers as a tree, as Figma and Sketch keep them.
-  const layersPanel: PanelSpec = { id: 'layers', name: 'Layers', dock: 'left', shown: true, render: () => (
+  const layersPanel: PanelSpec = { id: 'layers', name: 'Layers', dock: 'left', group: 'side', shown: true, render: () => (
     <nav className="design-layers" aria-label="Layers">
       {doc.frames.length === 0 && (
         <div className="design-layers-empty">

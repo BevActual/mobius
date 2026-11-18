@@ -681,8 +681,8 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
   if (!code.project) return <PanelLayout app="code" panels={listPanels}><section className="code-page empty" aria-label="Code"><EmptyState app="code" title="No project open" line="A project is a folder of files Mobius can read, suggest changes to and test." action={{ label: 'New project', run: () => void code.createProject('Project') }} /></section></PanelLayout>;
   // Tests and Console (bottom dock, side by side): the test run and a shell in the project.
   const bottomPanels: PanelSpec[] = [
-    { id: 'tests', name: 'Tests', dock: 'bottom', shown: true, render: () => <TestsPanel code={code} /> },
-    { id: 'console', name: 'Console', dock: 'bottom', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
+    { id: 'tests', name: 'Tests', dock: 'bottom', group: 'run', shown: true, render: () => <TestsPanel code={code} /> },
+    { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
   return (
