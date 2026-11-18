@@ -436,7 +436,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
 
   // Design opens on a design, never on an empty window: the last one (useNotes remembers it), else the newest.
   // Only with no designs at all is there nothing to show, and New sits in the sidebar (Ctrl+N).
-  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState icon={<path d={ICON.frame} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />} label="No designs yet" title="No designs yet" line="Start one with New design in the sidebar (Ctrl+N)." /></section>;
+  if (!designs.page) return <section className="design-page empty" aria-label="Design"><EmptyState icon={<path d={ICON.frame} fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" />} label="No designs yet" title="No designs yet" line="Start one with New design in Designs (Ctrl+N)." /></section>;
   if (!doc) {
     return (
       <section className="design-page empty" aria-label="Design">

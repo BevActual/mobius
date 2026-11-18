@@ -67,7 +67,7 @@ export function SheetsSidebar({ sheets, pin, changed, starts, onStart }: { sheet
   const q = query.trim().toLowerCase();
   const shownBooks = q ? sheets.workbooks.filter((w) => w.name.toLowerCase().includes(q) || w.sheets.some((s) => s.toLowerCase().includes(q))) : sheets.workbooks;
   return (
-    <aside className="side sheets-side" aria-label="Sheets sidebar">
+    <aside className="side sheets-side" aria-label="Sheets">
       <div className="side-head">
         <span className="side-title">Workbooks</span>
         <span className="side-actions">

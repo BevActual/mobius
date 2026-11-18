@@ -90,7 +90,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
   });
   const deletingInfo = tasks.lists.find((l) => l.name === deleting);
   return (
-    <AppSidebar label="Tasks sidebar">
+    <AppSidebar label="Lists">
       <SidebarSearch label="Search tasks" value={tasks.query} onChange={tasks.setQuery} />
       <SideNew item="list" onNew={() => setNaming(true)} />
       <nav className="task-lists tasks-nav" aria-label="Lists">
@@ -124,7 +124,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
                     {!changed?.has(l.name) && <span className="list-count">{l.open || ''}</span>}
                   </button>
-                  {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name} to the sidebar`} title={pinned?.has(l.name) ? 'Unpin from the sidebar' : 'Pin to the sidebar'} onClick={() => onPin(l.name)}>
+                  {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name}`} title={pinned?.has(l.name) ? 'Unpin' : 'Pin to the top'} onClick={() => onPin(l.name)}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
                   </button>}
                   {l.name !== DEFAULT_LIST_NAME && (

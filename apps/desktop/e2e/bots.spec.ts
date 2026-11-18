@@ -36,7 +36,7 @@ const openApp = async (name: string) => {
 };
 const shell = () => mobius!.shell;
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
-const list = (): Locator => shell().getByRole('complementary', { name: 'Agent sidebar' });
+const list = (): Locator => shell().getByRole('complementary', { name: 'Chats' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
 const say = async (text: string) => {
   await expect(shell().getByRole('button', { name: 'Stop' })).toHaveCount(0);

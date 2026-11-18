@@ -125,7 +125,7 @@ export function ProjectsSidebar({ projects, pin, conversations }: { projects: Pr
   const waiting = (p: ProjectInfo) => conversations.filter((c) => p.threads.includes(c.id)).reduce((n, c) => n + c.waiting, 0);
   const shown = projects.list.filter((p) => p.name.toLowerCase().includes(query.trim().toLowerCase()));
   return (
-    <AppSidebar label="Projects sidebar" className="projects-side"
+    <AppSidebar label="Projects" className="projects-side"
       // Double-click renames, as in Finder; F2 renames and Delete asks to delete the focused project.
       onDoubleClick={(e) => { const p = rowProject(projects, e.target); if (p) projects.ask(p.id, 'rename'); }}
       onKeyDown={(e) => {

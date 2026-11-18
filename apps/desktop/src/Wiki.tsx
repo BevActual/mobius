@@ -65,7 +65,7 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
     </li>
   );
   return (
-    <aside className="side wiki-side" aria-label="Knowledge sidebar">
+    <aside className="side wiki-side" aria-label="Pages">
       <div className="side-head">
         <span className="side-title">Knowledge</span>
         {pin && <span className="side-actions">{pin}</span>}

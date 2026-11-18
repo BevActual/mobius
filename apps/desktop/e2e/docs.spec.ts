@@ -40,7 +40,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a new document is written on the page with formatting and kept as Markdown, with its outline beside it', async () => {
   await start();
-  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('button', { name: 'New document', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'New document', exact: true }).click();
   await expect(page()).toBeVisible();
   await expect.poll(() => fs.existsSync(file('Documents/Untitled.md'))).toBe(true);
   await page().click();
@@ -60,7 +60,7 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.type(' early.');
   await expect.poll(() => fs.readFileSync(file('Documents/Untitled.md'), 'utf8'), { timeout: 5000 }).toContain('## Plan\n\nBook the **terrace** early.');
   // The sidebar lists the open document's headings under it, and the line under the title counts its words.
-  await expect(shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
+  await expect(shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
   await expect(page().locator('.doc-meta')).toContainText(/\d+ words/);
   await expect(editor().locator('.doc-status')).toHaveCount(0);
 });
@@ -73,7 +73,7 @@ test('a writing tool asks Mobius, and its changes are marked in the page, each k
     callsTool('files-edit', { path: 'docs/Work/Offsite brief.md', old: '- Plan on the 13th', new: '- Plan on the terrace on the 13th' }),
     says(['Made it shorter.']),
   ]);
-  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
   // Mobius's writing tools are at the top of the window's one ⋯, on the whole document when nothing is chosen.
   await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
@@ -111,7 +111,7 @@ test('a change Mobius makes to the open document is marked as it lands, and its 
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
   // The answer comes slowly, so the turn is still running when the document has changed.
   await start([callsTool('files-edit', { path: 'docs/Work/Offsite brief.md', old: '- Plan on the 13th', new: '- Plan on the terrace on the 13th' }), says(['Moved ', 'it.'], 3000)]);
-  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
   await shell().evaluate(() => window.mobius.preferences.set({ approvalMode: 'off' }));
   await shell().getByRole('textbox', { name: 'Message Mobius' }).fill('plan on the terrace');
@@ -131,7 +131,7 @@ test('a comment on chosen words, a link to another document, and Share all work 
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
   fs.writeFileSync(file('Work/Venues.md'), '# Venues\n\nThe lodge, or the farm.\n');
   await start();
-  await shell().getByRole('complementary', { name: 'Docs sidebar' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
   await expect(page()).toContainText('We have been talking');
 
   // A comment: kept beside the document, its words marked in the page.

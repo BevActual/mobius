@@ -26,7 +26,7 @@ async function start(replies: ModelReply[]): Promise<Launched> {
 const shell = () => mobius!.shell;
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 const log = (): Locator => shell().getByRole('log', { name: 'Conversation' });
-const list = (): Locator => shell().getByRole('complementary', { name: 'Agent sidebar' });
+const list = (): Locator => shell().getByRole('complementary', { name: 'Chats' });
 const say = async (text: string) => {
   // A message typed while the previous turn is still finishing is not sent, so wait for it to end.
   await expect(mobius!.shell.getByRole('button', { name: 'Stop' })).toHaveCount(0);

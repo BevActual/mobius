@@ -60,7 +60,7 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await expect(title()).toHaveText('Notes');
   await tools().getByRole('button', { name: 'Forward' }).click();
   await expect(title()).toHaveText('Work');
-  await expect(shell().getByRole('complementary', { name: 'Files sidebar' }).getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
+  await expect(shell().getByRole('complementary', { name: 'Places' }).getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
   // The sidebar's search narrows the folder; the keyboard selects and opens.
   await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('nothing like it');
   await expect(page).toContainText('Nothing here matches');
@@ -90,7 +90,7 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await log.getByRole('group', { name: 'Approval needed: files.write' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toContainText('I wrote a brief');
   await openFiles();
-  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Places' });
   await side.getByRole('button', { name: /Made by Mobius/ }).click();
   const made = shell().getByRole('region', { name: 'Made by Mobius', exact: true });
   await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
@@ -224,7 +224,7 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
   await plan.press('Delete');
   await expect(plan).toHaveCount(0);
 
-  const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Places' });
   await side.getByRole('button', { name: 'Trash', exact: true }).click();
   await expect(title()).toHaveText('Trash');
   const trash = shell().getByRole('region', { name: 'Trash', exact: true });
@@ -260,7 +260,7 @@ test('a drive on the person\'s own server: added from its address, browsed, and 
     dav.files.set('Shared/Budget.csv', { body: Buffer.from('Item,Cost\nVenue,900\n'), version: 1 });
     await start();
     await openFiles();
-    const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+    const side = shell().getByRole('complementary', { name: 'Places' });
     await side.getByRole('button', { name: 'Add a drive' }).click();
     const form = shell().getByRole('form', { name: 'New drive' });
     // A wrong password is said plainly, and nothing is kept.
@@ -359,7 +359,7 @@ test('Files pairs a folder with a drive, says how its sync stands, pauses, signs
   try {
     await start();
     await openFiles();
-    const side = shell().getByRole('complementary', { name: 'Files sidebar' });
+    const side = shell().getByRole('complementary', { name: 'Places' });
     await side.getByRole('button', { name: 'Add a drive' }).click();
     const form = shell().getByRole('form', { name: 'New drive' });
     await form.getByRole('textbox', { name: 'Server address', exact: true }).fill(dav.origin);

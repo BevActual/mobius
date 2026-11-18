@@ -43,7 +43,7 @@ export function CodeSidebar({ code, pin, changed, starts, onStart }: { code: Cod
   const changedInside = (folder: string) => code.project !== null && [...(changed ?? [])].some((c) => c.startsWith(`${code.project}/${folder}/`));
   const marks = useMemo(() => gitMarks(code.git.repo ? code.git.changes : []), [code.git]);
   return (
-    <AppSidebar label="Code sidebar" className="code-side">
+    <AppSidebar label="Explorer" className="code-side">
       {code.project && (
 <SideNew item="file" title="New file, in the folder of the open one" onNew={() => { setNaming('file'); setName(code.open ? code.open.path.split('/').slice(0, -1).concat('').join('/') : ''); }} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
       )}

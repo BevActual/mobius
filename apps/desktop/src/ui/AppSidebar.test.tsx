@@ -4,10 +4,10 @@ import { AppSidebar, SidebarRow, SidebarSection } from './AppSidebar';
 
 describe('the app sidebar pieces', () => {
   it('adds an app class and data attributes to the shared sidebar', () => {
-    const html = renderToStaticMarkup(<AppSidebar label="Notes sidebar" className="notes-side" data-app="notes"><p /></AppSidebar>);
+    const html = renderToStaticMarkup(<AppSidebar label="Notebooks" className="notes-side" data-app="notes"><p /></AppSidebar>);
     expect(html).toContain('class="side ui-side notes-side"');
     expect(html).toContain('data-app="notes"');
-    expect(html).toContain('aria-label="Notes sidebar"');
+    expect(html).toContain('aria-label="Notebooks"');
   });
   it('folds a section from its name, and shows a row’s second line', () => {
     const open = renderToStaticMarkup(<SidebarSection title="Work" foldable><SidebarRow label="Plan" sub="First words" onSelect={() => {}} /></SidebarSection>);

@@ -39,7 +39,7 @@ test('the page stays glued to the slot when the window resizes and the panel tog
     const view = (await views(mobius.app)).find((v) => v.visible)!;
     return Math.max(...(['x', 'y', 'width', 'height'] as const).map((key) => Math.abs(view.bounds[key] - slot[key])));
   }).toBeLessThanOrEqual(2);
-  await expect(mobius.shell.getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
+  await expect(mobius.shell.getByRole('complementary', { name: 'Tabs' })).toHaveCount(0);
 });
 
 test('the address field navigates, and the tab list follows the page title', async () => {

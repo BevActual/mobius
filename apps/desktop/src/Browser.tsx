@@ -145,7 +145,7 @@ function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: Br
     { label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
     { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
     // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
-    { label: pinnedPages.has(tab.url) ? 'Unpin from the sidebar' : 'Pin to the sidebar', run: () => onPinPage(tab), disabled: !web },
+    { label: pinnedPages.has(tab.url) ? 'Unpin page' : 'Pin page', run: () => onPinPage(tab), disabled: !web },
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
     { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
@@ -178,7 +178,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
   const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
   return (
-    <AppSidebar label="Browser sidebar">
+    <AppSidebar label="Tabs">
       <div className="browser-side">
         <SidebarSearch label="Search tabs and bookmarks" placeholder="Search" value={query} onChange={setQuery} />
         <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>

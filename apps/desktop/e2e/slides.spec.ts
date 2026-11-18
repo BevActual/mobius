@@ -41,7 +41,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Slides');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('complementary', { name: 'Slides sidebar' }).getByRole('button', { name: 'Offsite kickoff', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Decks' }).getByRole('button', { name: 'Offsite kickoff', exact: true }).click();
   await expect(nav().getByRole('button')).toHaveCount(2);
 }
 

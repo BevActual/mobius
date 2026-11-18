@@ -13,7 +13,7 @@ export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pi
   const q = query.trim().toLowerCase();
   const groups = channelGroups(messages.accounts, messages.channels);
   return (
-    <AppSidebar label="Messages sidebar">
+    <AppSidebar label="Channels">
       <SidebarSearch label="Find a channel" value={query} onChange={setQuery} />
       {groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
       {groups.map(({ account, channels }, i) => {

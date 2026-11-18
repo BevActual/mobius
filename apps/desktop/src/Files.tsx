@@ -257,7 +257,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
   // A dot only on a folder holding something new from Mobius that the person has not looked in since.
   const held = new Set(files.made.files.map((f) => f.split('/')[0]!).filter((r) => !files.seen.has(r)));
   return (
-    <AppSidebar label="Files sidebar">
+    <AppSidebar label="Places">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
       <SidebarSection title="Places" {...(pin ? { action: pin } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} drop={files.can.move ? files.drop('') : undefined} />

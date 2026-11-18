@@ -89,7 +89,7 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
   const { changed: added } = useCalendarReview(review, calendar.events);
   const waiting = [...calendar.suggestions, ...added].sort((a, b) => a.start.localeCompare(b.start));
   return (
-    <AppSidebar label="Calendar sidebar">
+    <AppSidebar label="Calendars">
       <SidebarSearch label="Search events" value={query} onChange={setQuery} />
       {query.trim() ? <EventSearch calendar={calendar} query={query} /> : (
         <div className="calendar-groups">

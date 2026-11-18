@@ -114,7 +114,7 @@ export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
     ];
 
   return (
-    <AppSidebar label="Docs sidebar">
+    <AppSidebar label="Documents">
       {(openFolder || docs.notebooks.length === 0) && (
         <SideNew item="document" onNew={() => newItemIn(docs, openFolder, 'Documents')} title={openFolder ? `New document in ${openFolder}` : 'New document'}
           {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />

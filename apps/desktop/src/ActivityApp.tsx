@@ -93,7 +93,7 @@ export function ActivitySidebar({ feed, conversations, pin }: { feed: ActivityFe
     <SidebarRow key={p} label={label} {...(n ? { count: n } : {})} current={feed.place === p} onSelect={() => feed.setPlace(p)} />
   );
   return (
-    <AppSidebar label="Activity sidebar" className="act-side">
+    <AppSidebar label="Activity" className="act-side">
       <SidebarSection title="Show" action={pin}>
         {row('needs', 'Needs you', board.needsYou.length)}
         {row('today', 'Today', count('today'))}

@@ -20,6 +20,9 @@ export function newItemIn(notes: NotesState, group: string | null | undefined, f
   if (into) void notes.createPage(into);
   else if (fallback) void notes.createNotebook(fallback).then((made) => { if (made) void notes.createPage(made); });
 }
+/** The list panel's name for each app that uses this list, as the panel's header names it (App.tsx OWN_LIST). */
+const LIST_NAME: Record<string, string> = { Notes: 'Notebooks', Slides: 'Decks', Design: 'Designs', Canvas: 'Boards', Music: 'Songs', Research: 'Reports', Views: 'Dashboards' };
+
 export const NOTES_WORDS: SidebarWords = { app: 'Notes', group: 'notebook', groups: 'Notebooks', item: 'page', items: 'pages', about: 'Pages are kept as Markdown files in your workspace, so the agent can read and edit them too.', defaultGroup: 'Notes' };
 const cap = (w: string) => w.charAt(0).toUpperCase() + w.slice(1);
 
@@ -97,7 +100,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
         trail={<>
           {notesRow && pg.modified > 0 && <span className="note-side-when" aria-hidden="true">{listDate(pg.modified, now)}</span>}
-          {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title} to the sidebar`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
+          {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title}`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
           </button>}
           {/* Delete is in the row's menu, not on hover; choosing it asks once more, here in the row. It goes away when
@@ -115,7 +118,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const lead = (name: string) => (name === first ? pin : null);
 
   return (
-    <AppSidebar label={`${words.app} sidebar`} className="notes-side" data-app={words === NOTES_WORDS ? 'notes' : undefined}>
+    <AppSidebar label={LIST_NAME[words.app] ?? words.groups} className="notes-side" data-app={words === NOTES_WORDS ? 'notes' : undefined}>
       {/* New first, then Search, then the places: one order in every app. New goes in the folder that is open (or the first). */}
       {(openNotebook || words.defaultGroup) && (
         <SideNew item={words.item} onNew={newItem} title={openNotebook ? `New ${words.item} in ${openNotebook}` : `New ${words.item}`} {...(starts ? { starts } : {})} {...(onStart ? { onStart } : {})} />
