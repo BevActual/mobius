@@ -31,8 +31,9 @@ Slack only returns to an address registered with it.
 5. Under **Manage Distribution**, turn on public distribution, so people outside your workspace can sign in. This needs
    no Slack review unless you list the app in the Slack Marketplace.
 
-**Hand back:** the Client ID. The Builder builds it into Mobius as `MOBIUS_SLACK_CLIENT_ID`, and Launch adds it to the
-release build.
+**Done** (18 November 2026): the app is registered in Andrew's BevingtonSystems workspace with PKCE on, and its
+Client ID is built into Mobius (`CLIENT_ID` in `crates/mobius-host/src/slack.rs`). Public distribution (step 5) is not
+turned on yet, so for now only people in that workspace can sign in.
 
 What it unlocks: Settings › Messages › **Sign in to Slack**, then that workspace's channels, direct messages, groups and
 threads in Messages.
