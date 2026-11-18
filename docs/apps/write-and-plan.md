@@ -45,7 +45,7 @@ Longer documents, with an outline and comments.
   divider, code block); Mobius's writing tools; the margin's comments; earlier versions; and a serif font.
 - **Outline** is a panel in the [inspector](../getting-started/tour.md#the-inspector) (show it from the Panels menu): the document's headings, the one you are reading marked.
   Click one to go there.
-- **Comments** in the margin. **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
+- **Comments** in the Comments panel on the right, beside the outline (Document options, Show comments). **Ask Mobius** on a comment and its answer comes back in the thread; open comments are
   sent along with the document when you ask Mobius about it.
 - **Mobius's writing tools** work on the selection or the whole document. Each change Mobius makes is one dashed block
   in the page where it is, with the words it took out struck through, and its own **Discard**, **Try another** and
