@@ -786,7 +786,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -1182,7 +1182,7 @@ export function App() {
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => isAvailable(a.id)),
@@ -1599,6 +1599,8 @@ export function App() {
                 onOpenApp={openApp}
                 onOpenConversation={conversation.select}
                 onOpenSchedules={() => openSettingsAt('schedules')}
+                // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
+                {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
             )}
             state={conversation.state}
