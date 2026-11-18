@@ -281,6 +281,13 @@ export interface SyncChanged { pair: string; status: SyncStatus }
 export interface CalendarChanged { calendar: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
 
 /** An email address or a phone number, with its kind (`work`, `home`, `cell`) when the card gives one. */
+/** Messages (Apps lead; accounts by the Builder): chat on Slack, Discord and Telegram through their official APIs. */
+export type ChatService = 'slack' | 'discord' | 'telegram';
+export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
+export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number }
+export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
+export interface ChatChanged { account: string; channel?: string }
+
 export interface ContactValue { value: string; label: string }
 /** A person in the address book: a vCard file in `contacts/<book>/<id>.vcf`. */
 export interface Contact {
@@ -716,6 +723,16 @@ export interface MobiusBridge {
     /** Stops syncing the account's books and forgets it; the cards here stay. */
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: ContactsChanged) => void): () => void;
+  };
+  /** The Messages app. Only the person sends: Mobius drafts, and never calls `send`. Not there until accounts are built. */
+  messages?: {
+    accounts(): Promise<ChatAccount[] | NotesFailure>;
+    channels(account: string): Promise<ChatChannel[] | NotesFailure>;
+    /** Newest last; `before` pages back, `thread` reads one thread's replies. */
+    history(account: string, channel: string, options?: { before?: string; thread?: string; limit?: number }): Promise<ChatMessage[] | NotesFailure>;
+    send(account: string, channel: string, text: string, thread?: string): Promise<ChatMessage | NotesFailure>;
+    markRead(account: string, channel: string, upTo: string): Promise<void>;
+    onChanged(listener: (change: ChatChanged) => void): () => void;
   };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {

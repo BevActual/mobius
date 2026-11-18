@@ -1,0 +1,90 @@
+import { expect, test } from '@playwright/test';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { startModel, type ModelFixture } from './model-fixture';
+
+test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Messages is built in the Tauri shell');
+
+let fixture: Fixture;
+let model: ModelFixture | undefined;
+let mobius: Launched | undefined;
+let userData: string;
+test.beforeEach(async () => {
+  fixture = await startFixture();
+  userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-messages-'));
+});
+test.afterEach(async () => {
+  await mobius?.close();
+  mobius = undefined;
+  await model?.close();
+  model = undefined;
+  await fixture.close();
+  removeTestData(userData);
+});
+
+const shell = () => mobius!.shell;
+
+async function start(): Promise<void> {
+  model = await startModel([]);
+  fs.writeFileSync(path.join(userData, 'preferences.json'), JSON.stringify({ installedApps: ['notes', 'tasks', 'calendar', 'mail', 'docs', 'browser', 'messages'] }));
+  mobius = await launch(fixture.origin + '/', { userData, openMobius: true, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+}
+const openMessages = async () => {
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Messages');
+  await shell().keyboard.press('Enter');
+};
+
+test('with no accounts yet, Messages says where its channels will come from', async () => {
+  await start();
+  await openMessages();
+  await expect(shell().getByRole('region', { name: 'No accounts yet' })).toBeVisible();
+});
+
+test('channels by account, a channel read and its thread, Send only from the person, and Catch me up put to Mobius', async () => {
+  await start();
+  // The accounts' bridge comes from the host (the Builder's part); this stands in for it with one Slack workspace.
+  await shell().evaluate(() => {
+    const t = (h: number, m: number) => new Date(2026, 10, 18, h, m).getTime();
+    const sent: string[] = [];
+    (window as unknown as { sentMessages: string[] }).sentMessages = sent;
+    const history = [
+      { id: 'm1', channel: 'general', author: { id: 'priya', name: 'Priya Nair' }, text: 'The build is red again', at: t(9, 5), replies: 1 },
+      { id: 'm2', channel: 'general', author: { id: 'priya', name: 'Priya Nair' }, text: 'Can someone look before standup?', at: t(9, 6), reactions: [{ emoji: '👀', count: 2 }] },
+    ];
+    window.mobius.messages = {
+      accounts: async () => [{ id: 'w', service: 'slack', name: 'Northway', status: 'ready' }],
+      channels: async () => [{ id: 'general', account: 'w', name: 'general', kind: 'channel', unread: 2, mentions: 1, last: t(9, 6) }, { id: 'priya', account: 'w', name: 'Priya Nair', kind: 'direct', unread: 0, mentions: 0, last: t(8, 0) }],
+      history: async (_a, _c, options) => (options?.thread ? [{ id: 'r1', channel: 'general', author: { id: 'lee', name: 'Lee Park' }, text: 'On it', at: t(9, 10), thread: 'm1' }] : history),
+      send: async (_a, _c, text) => { sent.push(text); return { id: `s${sent.length}`, channel: 'general', author: { id: 'me', name: 'Me', me: true }, text, at: t(9, 20) }; },
+      markRead: async () => undefined,
+      onChanged: () => () => undefined,
+    };
+  });
+  await openMessages();
+  const side = shell().getByRole('complementary', { name: 'Messages sidebar' });
+  await expect(side.getByRole('region', { name: 'Northway · Slack' })).toBeVisible();
+  await side.getByRole('button', { name: /^#general/ }).click();
+  const log = shell().getByRole('log', { name: '#general' });
+  await expect(log).toContainText('Priya Nair');
+  await expect(log).toContainText('Can someone look before standup?');
+  await expect(log.getByRole('list', { name: 'Reactions' })).toHaveText('👀 2');
+  // A thread opens in place, with a way back.
+  await log.getByRole('button', { name: '1 reply' }).click();
+  await expect(shell().getByRole('log', { name: 'Thread in #general' })).toContainText('On it');
+  await shell().getByRole('button', { name: 'Back to #general' }).click();
+  // Only the person's own Send sends.
+  const box = shell().getByRole('textbox', { name: 'Message #general' });
+  await box.fill('Looking now');
+  await box.press('Enter');
+  await expect(box).toHaveValue('');
+  await expect(log).toContainText('Looking now');
+  expect(await shell().evaluate(() => (window as unknown as { sentMessages: string[] }).sentMessages)).toEqual(['Looking now']);
+  // Catch me up: the channel attached as someone else's words, and the ask in Mobius's box, not sent.
+  await shell().getByRole('group', { name: 'Messages' }).getByRole('button', { name: 'Catch me up' }).click();
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/^Catch me up on #general/);
+  expect(model!.requests).toHaveLength(0);
+});
