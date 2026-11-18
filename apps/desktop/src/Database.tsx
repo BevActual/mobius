@@ -310,7 +310,31 @@ function Loading() {
 
 const hasNoFilter = (b: Browse) => b.filter.trim() === '';
 
-function DataView({ db }: { db: DatabasesState }) {
+/** The grid's active row, for the Record panel: each column and its value, and a way to change one. */
+type RecordRow = { key: string; at: number; columns: string[]; values: DbCell[]; save?: (col: number, text: string) => void };
+
+/** Record (right dock, hidden until asked for): the active row, one column to a line, each changed in place. */
+function RecordPanel({ row }: { row: RecordRow | null }) {
+  if (!row) return <div className="db-record empty"><p>Pick a row to see it here.</p></div>;
+  return (
+    <form className="db-record" aria-label={`Row ${row.at + 1}`} onSubmit={(e) => e.preventDefault()}>
+      <p className="db-record-line">Row {row.at + 1}</p>
+      {row.columns.map((c, j) => {
+        const v = row.values[j] ?? null;
+        return (
+          <label key={`${row.key}:${j}:${editText(v)}`} className="db-record-field">
+            <span>{c}</span>
+            <input defaultValue={editText(v)} placeholder={v === null ? 'NULL' : undefined} readOnly={!row.save} data-kind={v === null ? 'null' : typeof v}
+              onBlur={(e) => { if (row.save && e.currentTarget.value !== editText(v)) row.save(j, e.currentTarget.value); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } else if (e.key === 'Escape') { e.currentTarget.value = editText(v); } }} />
+          </label>
+        );
+      })}
+    </form>
+  );
+}
+
+function DataView({ db, onRecord }: { db: DatabasesState; onRecord?: (row: RecordRow | null) => void }) {
   const [filter, setFilter] = useState(db.browse.filter);
   const [editing, setEditing] = useState<At | null>(null);
   const [active, setActive] = useState<At>({ row: 0, col: 0 });
@@ -375,6 +399,14 @@ function DataView({ db }: { db: DatabasesState }) {
     if (at >= 0) { const c = Math.max(0, types.findIndex((x) => !/^id$/i.test(x.name))); setActive({ row: at, col: c }); setEditing({ row: at, col: c }); setFresh(null); }
   }, [r, fresh]); // eslint-disable-line react-hooks/exhaustive-deps
   const undo = db.undo && db.undo.db === db.open && db.undo.table === db.table ? db.undo : null;
+  // The active row goes to the Record panel whenever it, or the rows, change.
+  const at = Math.min(active.row, rows.length - 1);
+  useEffect(() => {
+    if (!onRecord) return;
+    if (at < 0 || !rows[at]) { onRecord(null); return; }
+    onRecord({ key: `${db.table}:${hasId ? rowid(at) : at}`, at: db.browse.page * PAGE_ROWS + at, columns, values: rows[at]!, save: hasId ? (j, text) => void save(at, j, text) : undefined });
+  }, [r, at, db.table]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onRecord?.(null), []); // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <>
       <DbTools db={db}>
@@ -542,6 +574,7 @@ export function databaseSub(db: DatabasesState): string | undefined {
 /** The open database: a table's rows or columns, or a statement to run, and what it gave. */
 export function DatabasePage({ db, review, listPanels = [] }: { db: DatabasesState; review?: { conversation: string } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const { show, keep, discard } = useDbReview(review, db.open);
+  const [record, setRecord] = useState<RecordRow | null>(null);
   if (!db.open) {
     return (
       <PanelLayout app="database" panels={listPanels}>
@@ -559,8 +592,11 @@ export function DatabasePage({ db, review, listPanels = [] }: { db: DatabasesSta
   const placeholder = info?.tables[0] ? `SELECT * FROM ${info.tables[0].name} LIMIT 100;` : 'CREATE TABLE …';
   // Query (bottom dock, hidden until asked for): a statement and what it gave, under the table's rows or columns.
   const queryPanel: PanelSpec = { id: 'query', name: 'Query', dock: 'bottom', shown: false, render: () => <div className="db-query"><SqlView db={db} placeholder={placeholder} /></div> };
+  // Record (right dock, hidden until asked for): the grid's active row, one column to a line.
+  const recordPanel: PanelSpec = { id: 'record', name: 'Record', dock: 'right', shown: false, render: () => <RecordPanel row={record} /> };
+  const panels = !table || view === 'sql' ? listPanels : view === 'data' ? [...listPanels, recordPanel, queryPanel] : [...listPanels, queryPanel];
   return (
-    <PanelLayout app="database" panels={table && view !== 'sql' ? [...listPanels, queryPanel] : listPanels}>
+    <PanelLayout app="database" panels={panels}>
     <section className="db-page" aria-label="Database">
       {show && (
         <div className="note-review db-review" role="status">
@@ -572,7 +608,7 @@ export function DatabasePage({ db, review, listPanels = [] }: { db: DatabasesSta
       {/* The table's name and its line are the toolbar's title (databasePlace); its views and tools sit in the toolbar's middle. */}
       {table && view !== 'data' && <DbTools db={db} />}
       {db.message && <p className="db-message" role="alert">{db.message}</p>}
-      {view === 'data' && <DataView db={db} />}
+      {view === 'data' && <DataView db={db} onRecord={setRecord} />}
       {view === 'structure' && <StructureView db={db} />}
       {view === 'sql' && <SqlView db={db} placeholder={placeholder} />}
     </section>

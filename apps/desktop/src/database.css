@@ -97,3 +97,12 @@
 /* Query, the bottom panel: the statement on top and what it gave filling the rest. */
 .db-query { height: 100%; min-height: 0; display: flex; flex-direction: column; }
 .db-query .db-editor textarea { min-height: 0; }
+
+/* Record, the right panel: the active row, one column to a line. */
+.db-record { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); overflow: auto; height: 100%; min-height: 0; }
+.db-record.empty p, .db-record-line { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
+.db-record-field { display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--muted); }
+.db-record-field input { font: inherit; font-size: var(--fs-md); color: var(--ink); background: var(--field); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); height: var(--control-h); padding: 0 var(--sp-2); font-variant-numeric: tabular-nums; }
+.db-record-field input[data-kind="number"] { font-family: var(--font-mono); }
+.db-record-field input:focus-visible { outline: 2px solid var(--accent); outline-offset: -1px; }
+.db-record-field input[readonly] { color: var(--muted); }
