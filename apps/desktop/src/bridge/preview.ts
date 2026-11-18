@@ -114,6 +114,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // The preview cannot start again on another profile; it says so.
   'profiles.openDemo': () => ({ ok: false, error: 'The demo workspace opens in the Mobius app, not the preview.' }),
   'window.quickEntryActive': () => false,
+  'window.launcherKeyActive': () => false,
   'mini.isOpen': () => false,
   // Tasks are kept in memory for as long as the preview is open.
   ...PREVIEW_TASKS,

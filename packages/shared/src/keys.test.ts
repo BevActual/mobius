@@ -85,8 +85,8 @@ describe('a set of bindings', () => {
   });
 
   it('has the defaults it always had, all valid and all different', () => {
-    expect(SHORTCUT_ACTIONS).toHaveLength(10);
-    expect(DEFAULT_KEYBINDINGS).toMatchObject({ launcher: 'mod+k', address: 'mod+l', newTab: 'mod+t', closeTab: 'mod+w', settings: 'mod+,', find: 'mod+f', splitView: 'mod+shift+\\', littleMobius: 'mod+shift+m', holdToTalk: 'mod+space' });
+    expect(SHORTCUT_ACTIONS).toHaveLength(11);
+    expect(DEFAULT_KEYBINDINGS).toMatchObject({ launcher: 'mod+k', address: 'mod+l', newTab: 'mod+t', closeTab: 'mod+w', settings: 'mod+,', find: 'mod+f', splitView: 'mod+shift+\\', littleMobius: 'mod+shift+m', holdToTalk: 'mod+shift+space', launcherAnywhere: 'mod+space' });
     expect(isKeyBindings(DEFAULT_KEYBINDINGS)).toBe(true);
   });
 });

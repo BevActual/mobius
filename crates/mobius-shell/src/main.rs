@@ -4,6 +4,7 @@
 mod awake;
 mod secrets;
 mod tray;
+mod launcher;
 mod menu;
 mod profiles;
 mod updater;
@@ -96,6 +97,11 @@ impl Dialogs for SystemDialogs {
     }
     fn shortcut_registrar(&self) -> Box<dyn mobius_host::quick_entry::Registrar> {
         Box::new(GlobalKeys { handle: self.handle.clone() })
+    }
+    fn show_launcher(&self) {
+        if !self.keep_hidden {
+            launcher::toggle(&self.handle);
+        }
     }
     fn bring_forward(&self) {
         if self.keep_hidden {
@@ -391,6 +397,9 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
     if namespace == "tray" && method == "set" {
         let mut before = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return tray::set(&app, &mut before, &args);
+    }
+    if namespace == "launcher" {
+        return launcher::call(&app, &method, &args);
     }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
@@ -689,6 +698,10 @@ fn main() {
                 // Little Mobius belongs to the main window: it goes when the main window does.
                 if let WindowEvent::Destroyed = event && let Some(mini) = mini_handle.get_webview_window(MINI) {
                     let _ = mini.close();
+                }
+                // So is the launcher's window, which is only ever hidden: Mobius must not keep running behind it.
+                if let WindowEvent::Destroyed = event && let Some(launcher) = mini_handle.get_webview_window(launcher::LABEL) {
+                    let _ = launcher.close();
                 }
                 if let WindowEvent::Focused(true) = event {
                     focus_bridge.window_activated(std::time::Duration::from_secs(120));

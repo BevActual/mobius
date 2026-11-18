@@ -771,9 +771,11 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
   const bindings = preferences.keybindings;
   const change = useCallback((next: KeyBindings) => void onPreferences({ keybindings: next }), [onPreferences]);
   const [working, setWorking] = useState<boolean | null>(null);
+  const [launcherWorking, setLauncherWorking] = useState<boolean | null>(null);
   useEffect(() => {
     let live = true;
     void window.mobius.window.quickEntryActive().then((active) => live && setWorking(active));
+    void window.mobius.window.launcherKeyActive?.().then((active) => live && setLauncherWorking(active));
     return () => { live = false; };
     // Asked again whenever the preferences come back, not only when the binding changes: the binding shows at once,
     // before the system has taken the combination, and asking then says it is not working.
@@ -788,6 +790,12 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
           {FIXED_SHORTCUTS.map(([keys, what]) => <FixedShortcut key={keys} keys={keys} what={what} />)}
         </ul>
         {changed ? <p className="shortcut-foot"><button type="button" className="btn" onClick={() => change(DEFAULT_KEYBINDINGS)}>Reset all shortcuts</button></p> : null}
+      </Row>
+      <Row path={path('launcher-anywhere')} title="Launcher from anywhere" description="Opens the launcher over any app, even when Mobius is in the background, and closes back to where you were. In Mobius it opens the launcher there." highlight={highlight === 'launcher-anywhere'}>
+        <ul className="shortcut-list" aria-label="Launcher from anywhere">
+          <ShortcutRow action="launcherAnywhere" bindings={bindings} onChange={change} />
+        </ul>
+        {bindings.launcherAnywhere !== '' && launcherWorking === false ? <p role="status" className="srow-text" data-testid="launcher-key-taken">Another program is already using these keys, so this one is not working yet. Choose different keys.</p> : null}
       </Row>
       <Row path={path('quick-entry')} title="Quick entry from anywhere" description="A shortcut that works even when Mobius is in the background. It brings Mobius up and starts a message. It is off until you choose keys." highlight={highlight === 'quick-entry'}>
         <ul className="shortcut-list" aria-label="Quick entry">

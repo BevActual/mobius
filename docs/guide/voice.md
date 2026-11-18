@@ -5,7 +5,7 @@ each has its own service and a fallback if that service cannot answer.
 
 ## Dictating
 
-Hold **Ctrl+Space** in the message box and speak; let go to stop. You can also use the **Dictate** button beside the message box. In Notes, **+ › Record a meeting** listens to a whole
+Hold **Ctrl+Shift+Space** in the message box and speak; let go to stop. A quick tap starts listening instead, and another tap stops it. You can also use the **Dictate** button beside the message box. In Notes, **+ › Record a meeting** listens to a whole
 meeting with the same service and writes it into the page ([Notes](../apps/write-and-plan.md)).
 
 **Listen with** chooses who turns speech into text:

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
+import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
@@ -1343,6 +1343,31 @@ export function App() {
   launcherCommands.push({ id: 'open-agents', label: 'Agents', detail: 'Your named agents', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } });
   launcherCommands.push({ id: 'all-apps', label: 'All apps', detail: 'Every app, with what is happening in it', run: openHub });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
+  // What the launcher does, the same from Ctrl+K and from the launcher's own window over other apps.
+  const launch = {
+    openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); },
+    activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
+    newTab,
+    openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },
+    places: { home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() },
+    openMobius: () => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); },
+    ask: settings?.configured ? (question: string) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined,
+  };
+  const launchNow = useRef(launch);
+  launchNow.current = launch;
+  // Chosen in the launcher's own window: Mobius has come forward, and opens it here.
+  useEffect(() => window.mobius.launcherWindow?.onLaunch((value) => {
+    const chosen = parseLaunchChoice(value);
+    const l = launchNow.current;
+    if (!chosen) return;
+    if (chosen.kind === 'app') { if (findApp(chosen.app)) l.openApp(chosen.app as AppId); }
+    else if (chosen.kind === 'recent') { if (findApp(chosen.app)) l.openRecent({ app: chosen.app as AppId, ref: chosen.ref, label: chosen.label }); }
+    else if (chosen.kind === 'place') l.places[chosen.place]();
+    else if (chosen.kind === 'tab') l.activateTab(chosen.id);
+    else if (chosen.kind === 'new-tab') l.newTab();
+    else if (chosen.kind === 'mobius') l.openMobius();
+    else if (chosen.kind === 'ask') { if (chosen.text.trim() && l.ask) l.ask(chosen.text); else l.openMobius(); }
+  }), []);
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
   const menusNow = useRef(menus);
@@ -1904,16 +1929,16 @@ export function App() {
           return true;
         }}
       />
-      <Launcher open={launcherOpen} again={launcherAgain} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={(id) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); }}
+      <Launcher open={launcherOpen} again={launcherAgain} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={launch.activateTab} onOpenApp={launch.openApp}
         pinned={appearance.value.sidebarApps}
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
         recent={launcherOpen ? recentItems() : []}
-        onOpenRecent={(item) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); }}
+        onOpenRecent={launch.openRecent}
         find={(query) => launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))}
-        places={{ home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() }}
-        onOpenMobius={() => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); }}
-        onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
+        places={launch.places}
+        onOpenMobius={launch.openMobius}
+        onAsk={launch.ask}
         commands={launcherCommands} />
       <TooltipLayer />
     </AppFrame>

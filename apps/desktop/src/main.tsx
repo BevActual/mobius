@@ -5,6 +5,7 @@ import { installTauriBridge } from './bridge/tauri';
 import { installPreviewBridge } from './bridge/preview';
 import { App } from './App';
 import { MiniApp, isMiniWindow } from './MiniApp';
+import { LauncherWindow, isLauncherWindow } from './LauncherWindow';
 import { MotionRoot } from './motion';
 import { startKeepingEarlyKeys } from './early-keys';
 import { preloadPreferences } from './usePreferences';
@@ -57,7 +58,7 @@ await Promise.race([preloadPreferences(), new Promise((resolve) => setTimeout(re
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <MotionRoot>
-      {isMiniWindow() ? <MiniApp /> : <App />}
+      {isMiniWindow() ? <MiniApp /> : isLauncherWindow() ? <LauncherWindow /> : <App />}
     </MotionRoot>
   </StrictMode>,
 );

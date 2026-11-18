@@ -714,6 +714,7 @@ mod browser {
         held: Arc<std::sync::atomic::AtomicBool>,
         keys: Arc<std::sync::Mutex<Vec<String>>>,
         forwarded: std::sync::atomic::AtomicUsize,
+        launched: std::sync::atomic::AtomicUsize,
     }
     struct SpyKeys(Arc<std::sync::Mutex<Vec<String>>>);
     impl mobius_host::quick_entry::Registrar for SpyKeys {
@@ -762,6 +763,9 @@ mod browser {
         }
         fn bring_forward(&self) {
             self.0.forwarded.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        }
+        fn show_launcher(&self) {
+            self.0.launched.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         }
     }
 
@@ -859,12 +863,33 @@ mod browser {
         keys["quickEntry"] = json!("mod+alt+space");
         call(&b, "preferences", "set", json!([{ "keybindings": keys }]));
         assert_eq!(call(&b, "window", "quickEntryActive", json!([])), json!(true));
-        assert_eq!(spy.keys.lock().unwrap().clone(), vec!["CommandOrControl+Alt+Space"]);
+        assert!(spy.keys.lock().unwrap().contains(&"CommandOrControl+Alt+Space".to_owned()));
         call(&b, "test", "quickPress", json!([]));
         assert_eq!(spy.forwarded.load(std::sync::atomic::Ordering::SeqCst), 1);
         call(&b, "preferences", "set", json!([{ "keybindings": defaults_keys() }]));
         assert_eq!(call(&b, "window", "quickEntryActive", json!([])), json!(false));
-        assert!(spy.keys.lock().unwrap().is_empty());
+        assert!(!spy.keys.lock().unwrap().contains(&"CommandOrControl+Alt+Space".to_owned()));
+    }
+
+    #[test]
+    fn the_launcher_key_works_from_anywhere_opening_its_own_window_or_the_one_in_mobius() {
+        let (b, spy, _d) = with_spy();
+        b.enable_test_hooks();
+        assert_eq!(call(&b, "window", "launcherKeyActive", json!([])), json!(true), "Ctrl+Space from the start");
+        assert!(spy.keys.lock().unwrap().contains(&"CommandOrControl+Space".to_owned()));
+        call(&b, "test", "launcherKeyPress", json!([]));
+        assert_eq!(spy.launched.load(std::sync::atomic::Ordering::SeqCst), 1, "over another app, its own window");
+        spy.focused.store(true, std::sync::atomic::Ordering::SeqCst);
+        call(&b, "test", "launcherKeyPress", json!([]));
+        assert_eq!(spy.launched.load(std::sync::atomic::Ordering::SeqCst), 1, "in Mobius, the launcher in the window");
+        let mut keys = defaults_keys();
+        keys["launcherAnywhere"] = json!("mod+alt+l");
+        call(&b, "preferences", "set", json!([{ "keybindings": keys }]));
+        let held = spy.keys.lock().unwrap().clone();
+        assert!(held.contains(&"CommandOrControl+Alt+L".to_owned()) && !held.contains(&"CommandOrControl+Space".to_owned()), "{held:?}");
+        keys["launcherAnywhere"] = json!("");
+        call(&b, "preferences", "set", json!([{ "keybindings": keys }]));
+        assert_eq!(call(&b, "window", "launcherKeyActive", json!([])), json!(false), "turned off");
     }
 
     #[test]

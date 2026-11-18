@@ -14,19 +14,19 @@ const asElement = (f: Fake): Element => ({
 }) as unknown as Element;
 
 describe('hold to talk', () => {
-  it('is Ctrl+Space (Cmd+Space on a Mac) by default, with nothing else held', () => {
-    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { ctrl: true }))).toBe(true);
-    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { meta: true }))).toBe(true);
+  it('is Ctrl+Shift+Space (Cmd+Shift+Space on a Mac) by default, leaving Ctrl+Space to the launcher', () => {
+    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { ctrl: true, shift: true }))).toBe(true);
+    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { meta: true, shift: true }))).toBe(true);
     expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space'))).toBe(false);
-    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { ctrl: true, shift: true }))).toBe(false);
+    expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('Space', { ctrl: true }))).toBe(false);
     expect(isHoldToTalk(DEFAULT_KEYBINDINGS, press('KeyK', { ctrl: true }))).toBe(false);
   });
 
   it('follows the binding chosen in Settings, Keyboard, and does nothing when it is cleared', () => {
     const moved = { ...DEFAULT_KEYBINDINGS, holdToTalk: 'mod+alt+d' };
     expect(isHoldToTalk(moved, press('KeyD', { ctrl: true, alt: true }))).toBe(true);
-    expect(isHoldToTalk(moved, press('Space', { ctrl: true }))).toBe(false);
-    expect(isHoldToTalk({ ...DEFAULT_KEYBINDINGS, holdToTalk: '' }, press('Space', { ctrl: true }))).toBe(false);
+    expect(isHoldToTalk(moved, press('Space', { ctrl: true, shift: true }))).toBe(false);
+    expect(isHoldToTalk({ ...DEFAULT_KEYBINDINGS, holdToTalk: '' }, press('Space', { ctrl: true, shift: true }))).toBe(false);
   });
 
   it('listens only when the keyboard is in the composer or the Mobius panel around it', () => {

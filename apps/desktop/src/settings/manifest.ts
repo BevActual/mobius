@@ -192,6 +192,7 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'Click a shortcut to change it.',
     subpages: [{ id: 'shortcuts', label: 'Shortcuts', rows: [
       row('shortcut-list', 'Keyboard shortcuts', 'Change the keys for each shortcut.', 'keys', 'hotkeys', 'keybindings', 'rebind', 'remap', 'ctrl', 'command', 'reset shortcuts'),
+      row('launcher-anywhere', 'Launcher from anywhere', 'Open the launcher over any app, even when Mobius is in the background.', 'ctrl+space', 'raycast', 'spotlight', 'alfred', 'command bar', 'system-wide', 'tray'),
       row('quick-entry', 'Quick entry from anywhere', 'A shortcut that works even when Mobius is in the background.', 'global shortcut', 'global hotkey', 'summon', 'bring up', 'wake', 'launch'),
     ] }],
   },

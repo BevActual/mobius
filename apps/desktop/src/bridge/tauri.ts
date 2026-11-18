@@ -109,6 +109,7 @@ export function createTauriBridge(): MobiusBridge {
       onState: never,
       onShortcut: (listener) => on<Shortcut>('mobius:shortcut', listener),
       quickEntryActive: () => call('window', 'quickEntryActive', [], () => false),
+      launcherKeyActive: () => call('window', 'launcherKeyActive', [], () => false),
     },
     surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]) },
     changes: {
@@ -132,6 +133,12 @@ export function createTauriBridge(): MobiusBridge {
       showMain: () => call('mini', 'showMain', [], () => null).then(() => undefined),
       setOnTop: (onTop) => call('mini', 'setOnTop', [onTop], () => null).then(() => undefined),
       onChange: (listener) => on<boolean>('mobius:mini', listener, () => call('mini', 'isOpen', [], () => false)),
+    },
+    launcherWindow: {
+      hide: () => call('launcher', 'hide', [], () => null).then(() => undefined),
+      run: (chosen) => call('launcher', 'run', [chosen], () => null).then(() => undefined),
+      onShown: (listener) => on<null>('mobius:launcher-shown', () => listener()),
+      onLaunch: (listener) => on<unknown>('mobius:launch', listener),
     },
     profiles: {
       list: () => call('profiles', 'list', [], () => ({ current: 'default', list: [{ id: 'default', name: 'Personal' }] })),

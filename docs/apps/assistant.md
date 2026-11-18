@@ -16,7 +16,7 @@ The Agent app is Mobius's home, named **Home** in the rail. It opens on the **de
 - **The sidebar** starts with a search, then your conversations (grouped by agent once you have more than one),
   what is scheduled, and the ones you archived. **New conversation** (Ctrl+N) at its head starts one. **Agents** and
   [Activity](#activity) open from **All apps** in the rail.
-- **The message box** takes text, pictures and files, dictation (hold Ctrl+Space), `/skill` names, the mode
+- **The message box** takes text, pictures and files, dictation (hold Ctrl+Shift+Space), `/skill` names, the mode
   (Shift+Tab), the model and the effort.
 - **In a turn**, Mobius shows its plan as a checklist, each tool it uses as a plain sentence ("Added 6 tasks to P2
   build"), and, at the end, a card naming each app it changed.

@@ -95,7 +95,7 @@ fn keybindings_need_every_action_valid_and_no_two_alike() {
     let b = keys::defaults();
     assert!(keys::is_key_bindings(&b));
     let with = |action: &str, value: Value| { let mut c = b.clone(); c[action] = value; c };
-    assert!(keys::is_key_bindings(&with("quickEntry", json!("mod+shift+space"))));
+    assert!(keys::is_key_bindings(&with("quickEntry", json!("mod+alt+space"))));
     assert!(keys::is_key_bindings(&with("find", json!("f3"))));
     assert!(keys::is_key_bindings(&with("find", json!(""))));
     for bad in [
