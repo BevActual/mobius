@@ -6,7 +6,8 @@ import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { useAddressSuggestions } from './ContactPanel';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -667,6 +668,9 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
   const [endTime, setEndTime] = useState(initialAllDay ? '10:00' : endText.slice(11, 16));
   const [where, setWhere] = useState(original?.location ?? '');
   const [notes, setNotes] = useState(original?.notes ?? '');
+  // Who is invited: names from the address book as one is typed, as in Mail's To.
+  const [invite, setInvite] = useState(inviteText(original?.attendees));
+  const invitePeople = useAddressSuggestions(invite);
   const initialRepeat = original?.repeat ?? (original?.repeats ? 'custom' : '');
   const [repeat, setRepeat] = useState(initialRepeat);
   const writable = calendar.calendars.filter((c) => !calendar.readOnly(c));
@@ -684,6 +688,8 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
       notes: notes.trim(),
     };
     if (repeat !== initialRepeat) draft.repeat = repeat;
+    const invited = parseInvitees(invite, original?.attendees);
+    if (!sameInvitees(invited, original?.attendees)) draft.attendees = invited;
     setBusy(true);
     let done: unknown;
     if (original) {
@@ -726,7 +732,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
   const live = useRef({ save, busy, changed: () => false as boolean });
   live.current = {
     save, busy,
-    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
+    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || invite !== inviteText(original?.attendees) || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
   };
   useEffect(() => {
     if (!at) return undefined;
@@ -762,6 +768,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
         <fieldset className="cal-editor-fields" disabled={locked}>
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
         <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
+        <input className="cal-editor-place" aria-label="Invite" placeholder="Invite people" list="cal-invite-people" autoComplete="off" value={invite} maxLength={2000} onChange={(e) => setInvite(e.target.value)} />
+        <datalist id="cal-invite-people">{invitePeople.map((v) => <option key={v} value={v} />)}</datalist>
+        {(original?.attendees?.length ?? 0) > 0 && (
+          <ul className="cal-invitees" aria-label="Answers">
+            {original!.attendees!.map((p) => <li key={p.email}>{p.name || p.email}{answerWord(p.status) && <span> · {answerWord(p.status)}</span>}</li>)}
+          </ul>
+        )}
         <div className="cal-editor-group">
           <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
           <div className="cal-editor-row">
