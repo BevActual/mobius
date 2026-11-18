@@ -1864,13 +1864,13 @@ export function App() {
           return true;
         }}
       />
-      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); openApp(id); }}
+      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={(id) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); }}
         pinned={appearance.value.sidebarApps}
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
         recent={launcherOpen ? recentItems() : []}
-        onOpenRecent={(item) => { closeSettings(); openApp(item.app); }}
-        places={{ home: () => { closeSettings(); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() }}
+        onOpenRecent={(item) => { opener.current = null; closeSettings(); openApp(item.app); }}
+        places={{ home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() }}
         onOpenMobius={() => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); }}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
