@@ -2,6 +2,7 @@ import { useSideFolds } from '../side-fold';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Menu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
+import { afterPaint } from './frame';
 
 /**
  * Panels (docs/design/panel-layouts.md: show, hide, resize). A panel is a named, self-contained piece of an app that
@@ -31,6 +32,9 @@ export interface PanelSpec {
   onHide?: () => void;
   /** Changed to show the panel from inside the app (Code's Console when Mobius runs a command there). */
   reveal?: number;
+  /** Panels with the same group in one dock share a place there, as tabs in one header (Code's Terminal, Tests and
+   *  Problems at the bottom). Each is still shown and hidden on its own; showing one brings its tab to the front. */
+  group?: string;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;
 }
@@ -42,7 +46,12 @@ export const DOCK_SIZE = {
   bottom: { min: 120, maxShare: 0.7, initial: 260 },
 } as const;
 
-export interface SavedLayout { shown: Record<string, boolean>; size: Partial<Record<PanelDock, number>> }
+export interface SavedLayout {
+  shown: Record<string, boolean>;
+  size: Partial<Record<PanelDock, number>>;
+  /** The panel in front of each tab group, by group. */
+  front?: Record<string, string>;
+}
 
 const storeKey = (app: string) => `mobius.layout.${app}`;
 const EMPTY: SavedLayout = { shown: {}, size: {} };
@@ -58,7 +67,8 @@ export function parseLayout(text: string | null): SavedLayout {
       const n = v.size?.[dock];
       if (typeof n === 'number' && Number.isFinite(n)) size[dock] = n;
     }
-    return { shown, size };
+    const front = Object.fromEntries(Object.entries(v.front ?? {}).filter(([, id]) => typeof id === 'string')) as Record<string, string>;
+    return Object.keys(front).length > 0 ? { shown, size, front } : { shown, size };
   } catch {
     return EMPTY;
   }
@@ -69,7 +79,7 @@ function readLayout(app: string): SavedLayout {
 }
 function writeLayout(app: string, layout: SavedLayout) {
   try {
-    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0) window.localStorage.removeItem(storeKey(app));
+    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0 && Object.keys(layout.front ?? {}).length === 0) window.localStorage.removeItem(storeKey(app));
     else window.localStorage.setItem(storeKey(app), JSON.stringify(layout));
   } catch { /* Kept only until Mobius closes. */ }
 }
@@ -79,6 +89,24 @@ export function clampDock(dock: PanelDock, size: number, room = Infinity): numbe
   if (dock !== 'bottom') return Math.round(Math.min(DOCK_SIZE[dock].max, Math.max(DOCK_SIZE[dock].min, size)));
   const max = Math.max(DOCK_SIZE.bottom.min, Math.floor(room * DOCK_SIZE.bottom.maxShare));
   return Math.round(Math.min(max, Math.max(DOCK_SIZE.bottom.min, size)));
+}
+
+/** One place in a dock: a panel on its own, or a tab group's shown panels with the one in front. */
+export interface DockPlace { key: string; panels: PanelSpec[]; front: PanelSpec }
+
+/** A dock's shown panels as places, in the order declared; a group sits where its first shown panel is. The front of
+ *  a group is the one kept in front if it is still shown, else the first. */
+export function dockPlaces(shown: readonly PanelSpec[], front: Record<string, string> = {}): DockPlace[] {
+  const places: DockPlace[] = [];
+  const byGroup = new Map<string, DockPlace>();
+  for (const p of shown) {
+    const at = p.group ? byGroup.get(p.group) : undefined;
+    if (at) { at.panels.push(p); if (front[p.group!] === p.id) at.front = p; continue; }
+    const place = { key: p.group ? `group:${p.group}` : p.id, panels: [p], front: p };
+    if (p.group) byGroup.set(p.group, place);
+    places.push(place);
+  }
+  return places;
 }
 
 /** The keys that show or hide a whole dock of the open app's panels (docs/design/panel-layouts.md). */
@@ -115,18 +143,27 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     setSaved((was) => { const next = change(was); writeLayout(app, next); return next; });
   }, [app]);
   const isShown = useCallback((p: PanelSpec) => saved.shown[p.id] ?? p.shown ?? false, [saved.shown]);
+  const isFront = useCallback((p: PanelSpec) => {
+    if (!p.group) return true;
+    const place = dockPlaces(panels.filter((x) => x.dock === p.dock && isShown(x)), saved.front).find((x) => x.panels.includes(p));
+    return place?.front === p;
+  }, [panels, isShown, saved.front]);
   const toggle = useCallback((id: string) => {
     const p = panels.find((x) => x.id === id);
-    if (p?.onHide && isShown(p)) { p.onHide(); return; }
-    if (p) update((was) => ({ ...was, shown: { ...was.shown, [id]: !(was.shown[id] ?? p.shown ?? false) } }));
-  }, [panels, isShown, update]);
+    if (!p) return;
+    const on = isShown(p);
+    // A panel shown behind another tab comes to the front rather than hiding.
+    if (on && p.group && !isFront(p)) { update((was) => ({ ...was, front: { ...was.front, [p.group!]: id } })); return; }
+    if (p.onHide && on) { p.onHide(); return; }
+    update((was) => ({ ...withFront(was, on ? [] : [p]), shown: { ...was.shown, [id]: !on } }));
+  }, [panels, isShown, isFront, update]);
   const reset = useCallback(() => update(() => EMPTY), [update]);
   // A panel whose `reveal` changed since the last render is shown.
   const reveals = useRef<Record<string, number | undefined>>({});
   useEffect(() => {
     const now = panels.filter((p) => p.reveal !== undefined && reveals.current[p.id] !== undefined && reveals.current[p.id] !== p.reveal);
     for (const p of panels) reveals.current[p.id] = p.reveal;
-    if (now.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(now.map((p) => [p.id, true])) } }));
+    if (now.length > 0) update((was) => ({ ...withFront(was, now), shown: { ...was.shown, ...Object.fromEntries(now.map((p) => [p.id, true])) } }));
   }, [panels, update]);
 
   // The frame lists this app's panels in its Panels menu while the app is on screen.
@@ -179,16 +216,22 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, main.current?.clientHeight ?? Infinity);
     return { ...was, size: next };
   });
-  const hide = (id: string) => {
-    const p = panels.find((x) => x.id === id);
-    if (p?.onHide) p.onHide(); else update((was) => ({ ...was, shown: { ...was.shown, [id]: false } }));
+  // Close in a tab group's header hides the whole group.
+  const hide = (place: DockPlace) => {
+    place.panels.filter((p) => p.onHide).forEach((p) => p.onHide!());
+    const rest = place.panels.filter((p) => !p.onHide);
+    if (rest.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(rest.map((p) => [p.id, false])) } }));
   };
+  const choose = (p: PanelSpec) => update((was) => withFront(was, [p]));
+  const draw = (shown: PanelSpec[]) => dockPlaces(shown, saved.front).map((place) => (
+    <Panel key={place.key} place={place} onHide={() => hide(place)} onChoose={choose} />
+  ));
 
   return (
     <div className="ui-panels" data-app={app}>
       {left.length > 0 && (
         <div ref={leftDock} className="ui-dock" data-dock="left" style={{ width: leftSize }}>
-          {left.map((p) => <Panel key={p.id} spec={p} onHide={() => hide(p.id)} />)}
+          {draw(left)}
           <DockEdge dock="left" size={leftSize} onSize={(n) => resize('left', n)} />
         </div>
       )}
@@ -197,31 +240,72 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
         {bottom.length > 0 && (
           <div className="ui-dock" data-dock="bottom" style={{ height: bottomSize }}>
             <DockEdge dock="bottom" size={bottomSize} onSize={(n) => resize('bottom', n)} />
-            {bottom.map((p) => <Panel key={p.id} spec={p} onHide={() => hide(p.id)} />)}
+            {draw(bottom)}
           </div>
         )}
       </div>
       {right.length > 0 && (
         <div className="ui-dock" data-dock="right" style={{ width: rightSize }}>
           <DockEdge dock="right" size={rightSize} onSize={(n) => resize('right', n)} />
-          {right.map((p) => <Panel key={p.id} spec={p} onHide={() => hide(p.id)} />)}
+          {draw(right)}
         </div>
       )}
     </div>
   );
 }
 
-/** Every panel has the same header: its name, then close. Nothing else lives there. */
-function Panel({ spec, onHide }: { spec: PanelSpec; onHide: () => void }) {
+/** Bring these panels to the front of their tab groups. */
+function withFront(was: SavedLayout, shown: readonly PanelSpec[]): SavedLayout {
+  const grouped = shown.filter((p) => p.group);
+  return grouped.length === 0 ? was : { ...was, front: { ...was.front, ...Object.fromEntries(grouped.map((p) => [p.group!, p.id])) } };
+}
+
+/** Every panel has the same header: its name (or, for a tab group, its tabs), then close. Nothing else lives there. */
+function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => void; onChoose: (p: PanelSpec) => void }) {
+  const spec = place.front;
+  const tabbed = place.panels.length > 1;
+  const list = useRef<HTMLDivElement>(null);
+  const key = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    const at = place.panels.indexOf(spec);
+    const to = e.key === 'ArrowRight' ? at + 1 : e.key === 'ArrowLeft' ? at - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? place.panels.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    const next = place.panels[(to + place.panels.length) % place.panels.length]!;
+    onChoose(next);
+    afterPaint(() => list.current?.querySelector<HTMLElement>(`[data-tab="${CSS.escape(next.id)}"]`)?.focus());
+  };
+  const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : `Hide ${spec.name}`;
   return (
-    <section className="ui-panel" aria-label={spec.name} data-panel={spec.id}>
+    <section className="ui-panel" aria-label={spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})}>
       <header className="ui-panel-head">
-        <h2 className="ui-panel-name">{spec.name}</h2>
-        <button type="button" className="ui-panel-close" aria-label={`Hide ${spec.name}`} title={`Hide ${spec.name}`} onClick={onHide}>
+        {tabbed ? (
+          <div ref={list} className="ui-panel-tabs" role="tablist" aria-label="Panels" onKeyDown={key}>
+            {place.panels.map((p) => {
+              const on = p === spec;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  id={`panel-tab-${p.id}`}
+                  className="ui-panel-tab"
+                  data-tab={p.id}
+                  aria-selected={on}
+                  aria-controls={`panel-body-${spec.id}`}
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => onChoose(p)}
+                >{p.name}</button>
+              );
+            })}
+          </div>
+        ) : (
+          <h2 className="ui-panel-name">{spec.name}</h2>
+        )}
+        <button type="button" className="ui-panel-close" aria-label={hideLabel} title={hideLabel} onClick={onHide}>
           <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>
         </button>
       </header>
-      <div className="ui-panel-body">{spec.render()}</div>
+      <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}>{spec.render()}</div>
     </section>
   );
 }

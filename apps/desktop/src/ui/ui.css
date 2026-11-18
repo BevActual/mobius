@@ -104,6 +104,17 @@
 .ui-panel { display: flex; flex-direction: column; }
 .ui-panel-head { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h, var(--control-h)); padding: 0 var(--sp-1) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
 .ui-panel-name { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+/* A tab group's header: the panels' names as tabs, the one in front ink with an ink underline on the header's edge. */
+.ui-panel[data-tabbed] > .ui-panel-head { padding-left: var(--sp-1); }
+.ui-panel-tabs { flex: 1; display: flex; align-items: stretch; align-self: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.ui-panel-tab {
+  position: relative; flex: none; padding: 0 var(--sp-2); border: 0; background: none; cursor: default; white-space: nowrap;
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted);
+}
+.ui-panel-tab::after { content: ""; position: absolute; left: var(--sp-1); right: var(--sp-1); bottom: calc(var(--hairline-w) * -1); height: var(--focus-w); border-radius: var(--radius-pill); }
+.ui-panel-tab:hover, .ui-panel-tab[aria-selected="true"] { color: var(--ink); }
+.ui-panel-tab[aria-selected="true"]::after { background: var(--ink); }
+.ui-panel-tab:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); border-radius: var(--radius-small); }
 .ui-panel-close { display: inline-grid; place-items: center; width: var(--sp-6); height: var(--sp-6); padding: 0; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); }
 .ui-panel-close:hover { background: var(--soft); color: var(--ink); }
 .ui-panel-close svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
