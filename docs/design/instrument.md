@@ -280,7 +280,7 @@ comfortable first, then compact. Comment on a row to change it.
 | List panel row | `SidebarRow`: line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 32px / 28px |
 | List panel section label | `SidebarSection`: small grey semibold label above a group ("Lists"). Sentence case. Small all-caps only in pro apps' panels. | 11 to 12px |
 | From Mobius row | In a list panel, the last group. Dashed Mobius icon, with an indigo note at the right such as "2 new". | Same as a row |
-| Top bar | One row. The Go button, the title of what is open, the app's controls in the middle, then the trailing group. A hairline below and no fill. | 52px / 44px tall |
+| Top bar | One row across the whole window, above every panel and Mobius. The Go button, the title of what is open, the app's controls in the middle, then the trailing group (and the window controls on Windows). A hairline below and no fill. | 52px / 44px tall |
 | Toolbar title | The name of what is open, with a grey detail after it ("Today · Thursday 13 November"). Never repeats the app name. | 15px semibold |
 | Trailing group | Fixed order: Panels, Comments, Share, the more menu, Mobius. Apps without comments or sharing leave those out. | 32px buttons |
 | Mobius button | The only tinted button in the frame: indigo icon on a pale indigo wash. Opens and closes the Mobius panel at the right edge. | 32px |
