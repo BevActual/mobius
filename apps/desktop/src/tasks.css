@@ -54,8 +54,8 @@
 .tasks-nav .list-item:is(:hover, :focus-within) .list-count { visibility: hidden; }
 
 /* ---------- Page ---------- */
-.stage .tasks-page.tasks-page, .pane-body > .tasks-page.tasks-page { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: 0; overflow: hidden; }
-.tasks-page > .tasks-main, .tasks-page > .task-inspector { max-width: none; margin: 0; }
+.stage .tasks-page.tasks-page, .pane-body .tasks-page.tasks-page { display: grid; grid-template-columns: minmax(0, 1fr); padding: 0; overflow: hidden; }
+.tasks-page > .tasks-main { max-width: none; margin: 0; }
 .tasks-main { min-width: 0; overflow: auto; padding: var(--sp-6) var(--sp-8) var(--sp-8); }
 .tasks-main > * { max-width: var(--reading-w); margin-left: auto; margin-right: auto; }
 /* The tasks line up under the add row, at the same width. */
@@ -167,7 +167,8 @@
 @keyframes tasks-wait { from { opacity: 1; } to { opacity: 0.5; } }
 
 /* ---------- Inspector ---------- */
-.task-inspector { width: var(--panel-w); min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-4); border-left: var(--hairline-w) solid var(--line); background: var(--sidebar); animation: tasks-in var(--dur-med) var(--ease); }
+/* Details: the right panel while a task is picked (PanelLayout draws its edge, header and background). */
+.task-inspector { min-height: 100%; display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4) var(--sp-4); }
 @keyframes tasks-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
 .task-inspector-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); }
 .task-inspector-where { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
@@ -208,9 +209,6 @@
 
 
 @media (prefers-reduced-motion: reduce) {
-  .task-inspector, .list-confirm, .task-when, .task-went, .task-skeleton-bar { animation: none; }
+  .list-confirm, .task-when, .task-went, .task-skeleton-bar { animation: none; }
   .task-line, .task-items .task-check, .task-items .task-tools { transition: none; }
-}
-@media (max-width: 900px) {
-  .task-inspector { position: absolute; z-index: 25; inset: 0 0 0 auto; width: min(var(--panel-w), 90%); box-shadow: var(--shadow-3); }
 }

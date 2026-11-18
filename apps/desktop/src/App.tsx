@@ -182,7 +182,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
-const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research'];
+const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks'];
 
 export function App() {
   const browser = useBrowser();
@@ -1479,7 +1479,7 @@ export function App() {
       case 'notes':
         return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'tasks':
-        return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <TasksPage tasks={tasks} listPanels={listFor('tasks')} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
         return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && liveMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
