@@ -164,3 +164,29 @@ test('a meeting recorded in a note is written down in the page, and Summarise an
   await expect(composer()).toHaveValue(/Add each action to Tasks/);
   expect(model!.requests).toHaveLength(0);
 });
+
+test('Record meeting on a calendar event opens its page in Meetings, says which event it was, and listens', async () => {
+  const d = new Date();
+  const today = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+  const iso = `${today.slice(0, 4)}-${today.slice(4, 6)}-${today.slice(6)}`;
+  fs.mkdirSync(path.join(userData, 'workspace', 'calendar'), { recursive: true });
+  fs.writeFileSync(path.join(userData, 'workspace', 'calendar', 'Work.ics'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${today}T110000\r\nDTEND:${today}T120000\r\nSUMMARY:Budget review\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start({});
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Calendar');
+  await shell().keyboard.press('Enter');
+  const cal = shell().locator('.calendar-page');
+  await shell().getByRole('group', { name: 'Calendar' }).getByRole('radio', { name: 'Week' }).click();
+  await cal.getByRole('button', { name: /^Budget review/ }).first().click({ button: 'right' });
+  await shell().getByRole('menu', { name: 'Budget review' }).getByRole('menuitem', { name: 'Record meeting' }).click();
+  const note = shell().getByRole('textbox', { name: 'Note text' });
+  await expect(note.locator('h1')).toHaveText(`${iso} Budget review`);
+  await expect(note).toContainText('Calendar: Work');
+  const end = shell().getByRole('toolbar', { name: 'Format' }).getByRole('button', { name: /^End meeting/ });
+  await expect(end).toBeVisible();
+  await shell().waitForTimeout(1200);
+  await end.click();
+  await expect(note).toContainText('book the terrace for Friday');
+  const kept = path.join(userData, 'workspace', 'notes', 'Meetings', `${iso} Budget review.md`);
+  await expect.poll(() => (fs.existsSync(kept) ? fs.readFileSync(kept, 'utf8') : '')).toContain('### Transcript');
+});
