@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { AppSidebar, Button, Confirm, IconButton, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
+import { AppSidebar, Button, Confirm, IconButton, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
 import { APP_ICONS } from './Rail';
 import { appOf } from './review-view';
 import { TURN_FILES_EVENT, type TurnFiles } from './useTurnChanges';
@@ -321,6 +321,25 @@ function DrivesSection({ files }: { files: FilesState }) {
   );
 }
 
+/** Info (right, hidden until asked for): what the picked file or folder is, or the open folder when nothing is picked. */
+function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntry & { path: string }) | null; here: string; count: number; onOpen?: () => void; onCopyPath: (path: string) => void }) {
+  const path = entry ? entry.path : here;
+  const name = entry ? entry.name : (here.split('/').pop() || 'Workspace');
+  const facts: [string, string][] = entry
+    ? [['Kind', fileKind(entry.path, entry.type)], ...(entry.type === 'file' ? [['Size', size(entry.bytes)] as [string, string]] : []), ['Modified', entry.modified ? new Date(entry.modified).toLocaleString() : '—'], ['Where', entry.path.includes('/') ? entry.path.slice(0, entry.path.lastIndexOf('/')) : 'Workspace']]
+    : [['Kind', 'Folder'], ['Holds', count === 1 ? '1 item' : `${count} items`], ['Where', here || 'Workspace']];
+  return (
+    <div className="files-info" aria-label={`About ${name}`}>
+      <div className="files-info-head"><FileIcon path={path || 'workspace'} type={entry?.type ?? 'folder'} /><strong>{name}</strong></div>
+      <dl className="files-info-facts">{facts.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      <div className="files-info-actions">
+        {entry && onOpen && <Button kind="quiet" onClick={onOpen}>Open</Button>}
+        {path && <Button kind="quiet" onClick={() => onCopyPath(path)}>Copy path</Button>}
+      </div>
+    </div>
+  );
+}
+
 /** Explorer on Windows and Linux file managers alike say Explorer-ish words; Finder on a Mac. */
 const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'Show in Finder' : 'Show in Explorer';
 
@@ -567,6 +586,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         ))}
       </nav>}
       {fileMenu}
+      <PanelTab id="info" name="Info">{(() => { const e = rows.find((x) => x.path === selected) ?? null; return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />; })()}</PanelTab>
     </section>
   );
 }
