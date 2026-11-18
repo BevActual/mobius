@@ -116,6 +116,21 @@ test('a wiki page keeps its earlier versions from the checkpoints, and one can b
   await expect.poll(() => fs.readFileSync(page, 'utf8'), { timeout: 10_000 }).toContain('Mondays');
 });
 
+test('Links here, on the right, lists the pages that link to this one, and a click opens one', async () => {
+  const dir = path.join(userData, 'workspace', 'wiki', 'Pages');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Team rules.md'), '# Team rules\n\nBuilds start on Mondays.\n');
+  fs.writeFileSync(path.join(dir, 'Onboarding.md'), '# Onboarding\n\nRead the [Team rules](Team%20rules.md) first.\n');
+  await start();
+  await openWiki();
+  await shell().getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: /Team rules/ }).click();
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Links here' }).click();
+  const links = shell().getByRole('list', { name: 'Pages that link here' });
+  await links.getByRole('button', { name: /Onboarding/ }).click();
+  await expect(shell().getByRole('textbox', { name: 'Document text' })).toContainText('Read the');
+});
+
 test('in How I work a line can be added with its kind, changed and forgotten, in the same memory.md', async () => {
   fs.writeFileSync(memory(), '# What Mobius remembers\n\n- Likes boutique hotels <!-- prefs · Browser, June · kept -->\n- Rui runs the terrace venue <!-- people · Mail · kept -->\n- Uses metric units\n');
   await start();
