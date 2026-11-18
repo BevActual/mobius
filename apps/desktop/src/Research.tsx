@@ -5,6 +5,7 @@ import { useFileReview } from './useFileReview';
 import { DEPTHS, claimCounts, followUpPrompt, isWaiting, researchPrompt, sourcesOf, startingPage, titleFor, type Depth } from './research-format';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 
 export const RESEARCH_WORDS: SidebarWords = { app: 'Research', group: 'folder', groups: 'Folders', item: 'report', items: 'reports', about: 'Reports are kept as Markdown files in your workspace, with their sources, so Docs and the agent can open them too.', defaultGroup: 'Research' };
 export const RESEARCH_FOLDER = 'Research';
@@ -27,7 +28,7 @@ const EXAMPLES = [
  * Research: ask a question, and Mobius searches the web from several angles, reads the best pages and writes a report
  * with its sources. The report is a page like any other; follow-ups add to it.
  */
-export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone }: {
+export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone, listPanels = [] }: {
   research: NotesState;
   review?: { conversation: string } | null;
   /** The agent is working on something now. */
@@ -37,6 +38,8 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
   /** Sends a request to the agent, with the open report attached when `attach` is set. */
   onAsk: (prompt: string, attach: boolean) => void;
   onAskDone: () => void;
+  /** The app's list, from the frame: its left panel. */
+  listPanels?: readonly PanelSpec[];
 }) {
   const [question, setQuestion] = useState('');
   const [depth, setDepth] = useState<Depth>('quick');
@@ -69,6 +72,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
   if (showForm) {
     return (
       <section className="research-page research-ask" aria-label="Research">
+        <PanelLayout app="research" panels={listPanels}>
         <form className="research-form" onSubmit={(e) => void start(e)}>
           <h1>What should Mobius find out?</h1>
           <p className="research-lede">Mobius searches the web from a few angles, reads the best pages, and writes you a report with every source, here in Research.</p>
@@ -101,15 +105,40 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
             </ul>
           )}
         </form>
+        </PanelLayout>
       </section>
     );
   }
 
   const waiting = isWaiting(research.text);
   const changed = review && before !== undefined && before !== research.text;
+  const siteCount = new Set(sources.map((s) => s.site)).size;
+  // Sources (right dock, as Perplexity keeps them beside the answer): a panel of Research's own.
+  const sourcesPanel: PanelSpec = { id: 'sources', name: 'Sources', dock: 'right', shown: true, render: () => (
+    <aside className="research-sources" aria-label="Sources">
+      {sources.length === 0 && <p className="design-hint">{waiting ? 'The pages Mobius reads are listed here.' : 'This report lists no sources.'}</p>}
+      <ol>
+        {sources.map((s) => (
+          <li key={s.url}>
+            <a href={s.url} title={s.url} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(s.url); }}>
+              <span className="research-source-site">{s.site}</span>
+              <span className="research-source-title">{s.title}</span>
+              {s.note && <span className="research-source-note">{s.note}</span>}
+            </a>
+          </li>
+        ))}
+      </ol>
+    </aside>
+  ) };
   return (
     <section className="research-page" aria-label="Research">
-      <div className="research-body">
+      {/* The report's controls sit in the window's toolbar, as Notes' and Docs' do. */}
+      <ToolbarControls label="Report">
+        {!waiting && <span className="research-meta">{sources.length === 1 ? '1 source' : `${sources.length} sources`}{claims.web ? ` · ${claims.web} ${claims.web === 1 ? 'fact' : 'facts'} marked from the web` : ''}</span>}
+        <span className="spacer" />
+        <button type="button" className="btn" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? 'Done' : 'Edit'}</button>
+      </ToolbarControls>
+      <PanelLayout app="research" panels={[...listPanels, sourcesPanel]}>
         <article className="research-report" aria-label="Report">
           {changed && (
             <div className="note-review" role="status">
@@ -118,12 +147,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
               <ReviewActions onKeep={keep} onDiscard={discard} />
             </div>
           )}
-          <div className="research-tools" role="toolbar" aria-label="Report">
-            {waiting && <span className="research-working" role="status">{busy ? 'Mobius is researching. The report appears here when it is written.' : 'Waiting for Mobius. If it stopped, ask again.'}</span>}
-            {!waiting && <span className="research-meta">{sources.length === 1 ? '1 source' : `${sources.length} sources`}{claims.web ? ` · ${claims.web} ${claims.web === 1 ? 'fact' : 'facts'} marked from the web` : ''}</span>}
-            <span className="research-gap" />
-            <button type="button" className="btn" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>{editing ? 'Done' : 'Edit'}</button>
-          </div>
+          {waiting && <p className="research-working" role="status">{busy ? 'Mobius is researching. The report appears here when it is written.' : 'Waiting for Mobius. If it stopped, ask again.'}</p>}
           {!waiting && sources.length > 0 && (
             // As in Perplexity: where the answer comes from, at a glance, before reading it.
             <div className="research-chips" aria-label="Sources at a glance">
@@ -131,7 +155,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
                 const first = sources.find((s) => s.site === site)!;
                 return <a key={site} className="research-chip" href={first.url} title={first.title} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(first.url); }}><span className="research-chip-dot" aria-hidden="true">{site.charAt(0).toUpperCase()}</span>{site}</a>;
               })}
-              {new Set(sources.map((s) => s.site)).size > 4 && <span className="research-chip research-more">+{new Set(sources.map((s) => s.site)).size - 4}</span>}
+              {siteCount > 4 && <span className="research-chip research-more">+{siteCount - 4}</span>}
             </div>
           )}
           {editing ? (
@@ -146,22 +170,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone 
             </form>
           )}
         </article>
-        <aside className="research-sources" aria-label="Sources">
-          <div className="design-panel-title">Sources</div>
-          {sources.length === 0 && <p className="design-hint">{waiting ? 'The pages Mobius reads are listed here.' : 'This report lists no sources.'}</p>}
-          <ol>
-            {sources.map((s) => (
-              <li key={s.url}>
-                <a href={s.url} title={s.url} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(s.url); }}>
-                  <span className="research-source-site">{s.site}</span>
-                  <span className="research-source-title">{s.title}</span>
-                  {s.note && <span className="research-source-note">{s.note}</span>}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </aside>
-      </div>
+      </PanelLayout>
     </section>
   );
 }

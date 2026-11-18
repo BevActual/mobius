@@ -1492,10 +1492,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-examples { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
 .research-example { width: 100%; text-align: left; padding: 8px 12px; border-radius: 10px; color: var(--muted); font-size: var(--fs-sm); }
 .research-example:hover { background: var(--field); color: var(--ink); }
-.research-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 260px; }
-.research-report { min-width: 0; overflow-y: auto; padding: var(--sp-4) clamp(16px, 5vw, 56px) var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-3); }
-.research-tools { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
-.research-gap { flex: 1; }
+.research-report { box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: var(--sp-4) clamp(16px, 5vw, 56px) var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-3); }
+.research-meta { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .research-working { color: var(--accent); }
 .research-working::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--accent); animation: research-pulse var(--dur-loop) var(--ease) infinite; }
 @keyframes research-pulse { 50% { opacity: 0.3; } }
@@ -1505,14 +1503,14 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-chip:hover { background: color-mix(in srgb, var(--accent) 12%, var(--field)); }
 .research-chip-dot { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--app-research); color: #fff; font-size: var(--fs-floor); font-weight: 700; }
 .research-more { padding: 0 10px; color: var(--muted); }
-.research-text { max-width: 720px; font-size: 15px; line-height: 1.6; }
+.research-text { max-width: 680px; font-size: 15px; line-height: 1.6; }
 .research-text h1 { font-size: 26px; line-height: 1.25; margin: 0 0 12px; }
 .research-text h2 { font-size: 18px; margin: 24px 0 8px; }
 .research-text blockquote { margin: 0 0 12px; padding: 4px 12px; border-left: 3px solid var(--line); color: var(--muted); }
 .research-edit { flex: 1; min-height: 360px; padding: 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font: 13px/1.5 var(--font-mono); resize: vertical; }
 .research-follow { display: flex; gap: var(--sp-2); max-width: 720px; margin-top: var(--sp-3); }
 .research-follow input { flex: 1; min-width: 0; height: 34px; padding: 0 12px; border-radius: var(--radius-pill); border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; }
-.research-sources { overflow-y: auto; padding: var(--sp-3) var(--sp-2); border-left: 1px solid var(--line); background: var(--panel); }
+.research-sources { padding: var(--sp-2); }
 .research-sources ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; counter-reset: source; }
 .research-sources li { counter-increment: source; }
 .research-sources a { display: grid; grid-template-columns: 20px 1fr; gap: 1px 6px; padding: 8px; border-radius: 8px; color: inherit; text-decoration: none; }
@@ -1521,7 +1519,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-source-site { color: var(--muted); font-size: var(--fs-xs); }
 .research-source-title { font-size: var(--fs-sm); font-weight: 600; color: var(--accent); }
 .research-source-note { color: var(--muted); font-size: var(--fs-xs); }
-@media (max-width: 760px) { .research-body { grid-template-columns: 1fr; } .research-sources { display: none; } }
 
 /* Canvas: a whiteboard of stickies, shapes, text, arrows and pen lines on a dotted ground; Mobius's changes dashed. */
 .stage .canvas-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); }
