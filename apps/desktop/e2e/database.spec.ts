@@ -98,6 +98,15 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await cell.fill('180.5');
   await cell.press('Enter');
   await expect(casaPrice()).toContainText('180.5');
+  // Record, the right panel, shows the active row one column to a line; a change there changes the cell.
+  await shell.getByRole('button', { name: 'Panels' }).click();
+  await shell.getByRole('menuitemcheckbox', { name: 'Record' }).click();
+  const record = shell.getByRole('region', { name: 'Record' });
+  await expect(record.getByRole('textbox', { name: 'Rooms' })).toHaveValue('9');
+  await record.getByRole('textbox', { name: 'Rooms' }).fill('10');
+  await record.getByRole('textbox', { name: 'Rooms' }).press('Enter');
+  await expect(casaRooms()).toHaveText('10');
+  await shell.getByRole('button', { name: 'Hide Record' }).click();
   await shell.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
   // Query, the bottom panel, runs a statement under the table's columns.
