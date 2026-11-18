@@ -182,7 +182,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
-const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database'];
+const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database', 'messages'];
 
 export function App() {
   const browser = useBrowser();
@@ -1548,7 +1548,7 @@ export function App() {
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':
-        return <MessagesPage messages={chat} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
+        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':

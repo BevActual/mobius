@@ -68,21 +68,30 @@ test('channels by account, a channel read and its thread, Send only from the per
   const side = shell().getByRole('complementary', { name: 'Messages sidebar' });
   await expect(side.getByRole('region', { name: 'Northway · Slack' })).toBeVisible();
   await side.getByRole('button', { name: /^#general/ }).click();
-  const log = shell().getByRole('log', { name: '#general' });
+  const log = shell().getByRole('log', { name: '#general', exact: true });
   await expect(log).toContainText('Priya Nair');
   await expect(log).toContainText('Can someone look before standup?');
   await expect(log.getByRole('list', { name: 'Reactions' })).toHaveText('👀 2');
-  // A thread opens in place, with a way back.
+  // A thread opens beside the channel, on the right, with the message it hangs from; a reply there goes in the thread.
   await log.getByRole('button', { name: '1 reply' }).click();
-  await expect(shell().getByRole('log', { name: 'Thread in #general' })).toContainText('On it');
-  await shell().getByRole('button', { name: 'Back to #general' }).click();
+  const thread = shell().getByRole('log', { name: 'Thread in #general' });
+  await expect(thread).toContainText('The build is red again');
+  await expect(thread).toContainText('On it');
+  await expect(log).toBeVisible();
+  const reply = shell().getByRole('textbox', { name: 'Reply in thread' });
+  await reply.fill('Thanks Lee');
+  await reply.press('Enter');
+  await expect(thread).toContainText('Thanks Lee');
+  await expect(log.getByRole('button', { name: '2 replies' })).toBeVisible();
+  await shell().getByRole('button', { name: 'Hide Thread' }).click();
+  await expect(thread).toHaveCount(0);
   // Only the person's own Send sends.
   const box = shell().getByRole('textbox', { name: 'Message #general' });
   await box.fill('Looking now');
   await box.press('Enter');
   await expect(box).toHaveValue('');
   await expect(log).toContainText('Looking now');
-  expect(await shell().evaluate(() => (window as unknown as { sentMessages: string[] }).sentMessages)).toEqual(['Looking now']);
+  expect(await shell().evaluate(() => (window as unknown as { sentMessages: string[] }).sentMessages)).toEqual(['Thanks Lee', 'Looking now']);
   // Catch me up: the channel attached as someone else's words, and the ask in Mobius's box, not sent.
   await shell().getByRole('group', { name: 'Messages' }).getByRole('button', { name: 'Catch me up' }).click();
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/^Catch me up on #general/);
