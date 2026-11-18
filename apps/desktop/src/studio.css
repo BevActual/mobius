@@ -10,6 +10,7 @@
 .stage .studio-page { background: var(--paper); }
 .stage .studio-page:not(.empty) { flex-direction: row; }
 .studio-page .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.studio-page > .ui-panels { flex: 1; min-width: 0; min-height: 0; height: auto; }
 .studio-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 
 /* Loading: grey bars the shape of the tracks, still, until the song is open. */
@@ -108,15 +109,11 @@
 
 /* ---------- Piano roll ---------- */
 .studio-editor { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+/* The bottom panel's body is the editor's whole room. */
+.ui-panel-body > .studio-editor { height: 100%; }
 /* Devices at their own height: the editor wraps its row, and the arrangement above takes what is left. */
-.studio-editor[data-fit] { flex: 0 1 auto; }
-.studio-editor[data-fit] .studio-device { flex: 0 1 auto; }
 /* The divider between the tracks and the notes: a hairline with a wider grab area. */
-.studio-divider { flex: none; position: relative; height: var(--hairline-w); background: var(--line); cursor: row-resize; z-index: 5; touch-action: none; outline: none; }
-.studio-divider::before { content: ""; position: absolute; left: 0; right: 0; top: calc(-1 * var(--sp-1)); bottom: calc(-1 * var(--sp-1)); }
-.studio-divider:hover, .studio-divider:focus-visible { background: var(--ink); }
 .studio-roll-bar { flex: none; container-type: inline-size; display: flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sp-2); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); background: var(--paper); font-size: var(--fs-sm); }
-.studio-roll-close { margin-left: auto; color: var(--muted); }
 .studio-roll-title { display: inline-flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); white-space: nowrap; }
 /* Where the velocity slider sits in the roll bar: its width only. */
 .studio-roll-bar .studio-velocity { flex: none; width: calc(var(--sp-8) * 3); column-gap: 0; }

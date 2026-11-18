@@ -143,8 +143,8 @@ A small studio for writing songs as notes.
   drum, or for any other instrument a row per note of the song's key across two octaves (pick them with Range, and how long each step plays with Note length). Rows are named as the song's key spells
   them, so B♭ in F major. Piano roll and Steps switch how you edit the notes. In Steps,
   click a step to switch it on or off (Shift+click for an accent), drag across to paint, and pick the bar beside it. Under it, the **velocity lane** has one bar
-  per note: drag up for louder, down for softer. Drag the divider, or press Up and Down on it, for more room either
-  side; Home fits the tracks again.
+  per note: drag up for louder, down for softer. The notes and devices are the bottom panel (Clip or Devices, Shift+Tab
+  switches): drag its edge, or press Up and Down on it, for more room; double-click it for the usual size.
 - **The computer keyboard** plays the chosen track: turn it on with the keys button in the toolbar. A S D F G H J K
   play the white keys from C and W E T Y U the black ones; Z and X move down or up an octave and C and V make it
   softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the

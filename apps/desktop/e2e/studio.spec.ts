@@ -581,14 +581,14 @@ test('velocity is drawn under the roll and dragged per note; the track list fits
   expect(saved().tracks[0]!.notes.find((n) => n.pitch === 60)!.velocity).toBe(0.7);
   await shell().keyboard.press('Control+z');
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 57)!.velocity).toBe(0.7);
-  // The divider gives the notes more room from the keyboard, and Home fits the list to its tracks again.
-  const divider = shell().getByRole('separator', { name: 'Resize tracks and notes' });
-  const fit = Number(await divider.getAttribute('aria-valuenow'));
-  await divider.focus();
+  // The notes are the bottom panel: its edge gives them more room from the keyboard, and a double-click puts it back.
+  const edge = shell().getByRole('separator', { name: 'Resize the panels at the bottom' });
+  const fit = Number(await edge.getAttribute('aria-valuenow'));
+  await edge.focus();
   await shell().keyboard.press('ArrowUp');
-  await expect(divider).toHaveAttribute('aria-valuenow', String(Math.max(96, fit - 24)));
-  await shell().keyboard.press('Home');
-  await expect(divider).toHaveAttribute('aria-valuenow', String(fit));
+  await expect(edge).toHaveAttribute('aria-valuenow', String(fit + 16));
+  await edge.dblclick();
+  await expect(edge).toHaveAttribute('aria-valuenow', String(fit));
   // Drums get rows tall enough to name each drum in full.
   await tracks().getByRole('listitem', { name: 'Bass' }).click();
   await addTrack('Drums');
