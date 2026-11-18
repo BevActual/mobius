@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, parseLayout, pressIs } from './PanelLayout';
+import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, dockPlaces, parseLayout, pressIs, type PanelSpec } from './PanelLayout';
 
 const press = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...over });
 
@@ -34,6 +34,38 @@ describe('panels', () => {
     expect(html).toContain('aria-label="Resize the panels on the left"');
   });
 
+  it('put panels that share a group in one place with tabs, the first in front unless another was kept there', () => {
+    const p = (id: string, group?: string): PanelSpec => ({ id, name: id[0]!.toUpperCase() + id.slice(1), dock: 'bottom', shown: true, ...(group ? { group } : {}), render: () => <p>{`Body of ${id}`}</p> });
+    const all = [p('terminal', 'run'), p('notes'), p('tests', 'run'), p('problems', 'run')];
+    const places = dockPlaces(all);
+    expect(places.map((x) => x.key)).toEqual(['group:run', 'notes']);
+    expect(places[0]!.panels.map((x) => x.id)).toEqual(['terminal', 'tests', 'problems']);
+    expect(places[0]!.front.id).toBe('terminal');
+    expect(dockPlaces(all, { run: 'tests' })[0]!.front.id).toBe('tests');
+    expect(dockPlaces(all, { run: 'gone' })[0]!.front.id).toBe('terminal');
+
+    const html = renderToStaticMarkup(<PanelLayout app="test" panels={all}><p>Content</p></PanelLayout>);
+    expect(html).toContain('role="tablist"');
+    expect(html).toMatch(/role="tab"[^>]*aria-selected="true"[^>]*>Terminal</);
+    expect(html).toMatch(/role="tab"[^>]*aria-selected="false"[^>]*>Tests</);
+    expect(html).toContain('Body of terminal');
+    expect(html).not.toContain('Body of tests');
+    expect(html).toContain('aria-label="Hide Terminal, Tests, Problems"');
+    expect(html).toContain('<h2 class="ui-panel-name">Notes</h2>');
+  });
+
+  it('draw a group with one panel shown as a plain panel, its name and close', () => {
+    const html = renderToStaticMarkup(
+      <PanelLayout app="test" panels={[
+        { id: 'layers', name: 'Layers', dock: 'left', group: 'side', shown: true, render: () => <p>Frame 1</p> },
+        { id: 'assets', name: 'Assets', dock: 'left', group: 'side', render: () => <p>Icons</p> },
+      ]}><p>Content</p></PanelLayout>,
+    );
+    expect(html).not.toContain('role="tablist"');
+    expect(html).toContain('<h2 class="ui-panel-name">Layers</h2>');
+    expect(html).not.toContain('Icons');
+  });
+
   it('show or hide a whole dock with its key: Ctrl+\\ the left, Ctrl+Alt+\\ the right, Ctrl+J the bottom', () => {
     expect(pressIs(DOCK_KEYS.left, press('\\', { ctrlKey: true }), false)).toBe(true);
     expect(pressIs(DOCK_KEYS.left, press('\\', { ctrlKey: true, altKey: true }), false)).toBe(false);
@@ -53,6 +85,7 @@ describe('panels', () => {
   it('read a kept layout, and treat anything unreadable as nothing kept', () => {
     expect(parseLayout('{"shown":{"a":true,"b":"x"},"size":{"right":400,"bottom":"tall"}}')).toEqual({ shown: { a: true }, size: { right: 400 } });
     expect(parseLayout('{"shown":{},"size":{"left":300}}')).toEqual({ shown: {}, size: { left: 300 } });
+    expect(parseLayout('{"shown":{},"size":{},"front":{"run":"tests","bad":3}}')).toEqual({ shown: {}, size: {}, front: { run: 'tests' } });
     expect(parseLayout('not json')).toEqual({ shown: {}, size: {} });
     expect(parseLayout(null)).toEqual({ shown: {}, size: {} });
   });
