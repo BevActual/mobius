@@ -62,3 +62,4 @@ drives.move
 drives.delete
 tasks.plan_day
 tasks.schedule_day
+studio.bass_and_pad

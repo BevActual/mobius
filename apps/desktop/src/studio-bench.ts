@@ -72,29 +72,6 @@ export function benchPatch(device: Device): BenchPatch {
   return { boxes, cables, source };
 }
 
-/**
- * The cables that set where boxes go: all but those that run back to a part the sound already passed (an echo's
- * repeats), walking from the parts nothing feeds, so a feedback loop doesn't push the rest of the patch rightward.
- */
-export function forwardCables(patch: Pick<BenchPatch, 'boxes' | 'cables'>): PatchCable[] {
-  const next = new Map<string, string[]>();
-  for (const c of patch.cables) next.set(c.from.box, [...(next.get(c.from.box) ?? []), c.to.box]);
-  const back = new Set<string>();
-  const state = new Map<string, 'walking' | 'done'>();
-  const walk = (id: string) => {
-    state.set(id, 'walking');
-    for (const to of next.get(id) ?? []) {
-      if (state.get(to) === 'walking') back.add(`${id}>${to}`);
-      else if (!state.has(to)) walk(to);
-    }
-    state.set(id, 'done');
-  };
-  const fed = new Set(patch.cables.map((c) => c.to.box));
-  for (const b of patch.boxes) if (!fed.has(b.id) && !state.has(b.id)) walk(b.id);
-  for (const b of patch.boxes) if (!state.has(b.id)) walk(b.id);
-  return patch.cables.filter((c) => !back.has(`${c.from.box}>${c.to.box}`));
-}
-
 /** About how tall a box is drawn, so the first layout leaves room between boxes in a column. */
 export const benchBoxHeight = (b: Pick<BenchBox, 'inputs' | 'outputs' | 'settings' | 'kindName'>): number =>
   36 + Math.max(b.inputs.length * 36, b.outputs.length * 36, (b.kindName ? 20 : 0) + b.settings.length * 22, 44) + 8;

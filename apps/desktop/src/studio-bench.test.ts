@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDevice } from './device-format';
 import { builtinDevice, newEffect, type BuiltinEffect } from './song-format';
-import { benchBoxHeight, benchPatch, forwardCables } from './studio-bench';
+import { benchBoxHeight, benchPatch } from './studio-bench';
 import { layoutFlow } from './ui';
 
 const tape = () => {
@@ -46,10 +46,8 @@ describe('the Workbench’s picture of a device', () => {
   it('lays the parts out in the order the sound goes, without boxes in a column overlapping', () => {
     const patch = benchPatch(tape());
     const { boxes } = patch;
-    // The echo's repeats (back → echo) run backwards, so they don't shape the layout.
-    expect(forwardCables(patch).map((c) => `${c.from.box}>${c.to.box}`)).not.toContain('back>echo');
-    expect(forwardCables(patch)).toHaveLength(7);
-    const at = layoutFlow(boxes, forwardCables(patch), { column: 240, height: (b) => benchBoxHeight(boxes.find((x) => x.id === b.id)!) });
+    // The echo's repeats (back → echo) run backwards; layoutFlow leaves such loops out of the layout itself.
+    const at = layoutFlow(boxes, patch.cables, { column: 240, height: (b) => benchBoxHeight(boxes.find((x) => x.id === b.id)!) });
     expect(at.in!.x).toBeLessThan(at.echo!.x);
     expect(at.echo!.x).toBeLessThan(at.tone!.x);
     expect(at.mix!.x).toBeLessThan(at.out!.x);
