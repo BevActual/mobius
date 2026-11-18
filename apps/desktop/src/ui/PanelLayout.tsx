@@ -145,6 +145,8 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     const onDock = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
       const dock = DOCKS.find((d) => pressIs(DOCK_KEYS[d], e, mac()));
+      // A place that uses the key for itself says so (Music's notes join with Ctrl+J, as in a studio).
+      if (dock && (e.target as Element | null)?.closest?.(`[data-own-keys~="${DOCK_KEYS[dock]}"]`)) return;
       const inDock = dock ? panels.filter((p) => p.dock === dock) : [];
       if (inDock.length === 0) return;
       e.preventDefault();

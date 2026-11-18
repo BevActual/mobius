@@ -182,7 +182,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
-const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code'];
+const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio'];
 
 export function App() {
   const browser = useBrowser();
@@ -1493,7 +1493,7 @@ export function App() {
       case 'video':
         return <VideoEditor video={video} listPanels={listFor('video')} review={video.project && liveMarks.video.has(video.project) ? { conversation: conversation.state.conversation } : null} />;
       case 'studio':
-        return <StudioEditor songs={songs} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <StudioEditor songs={songs} listPanels={listFor('studio')} review={songs.page && liveMarks.songs.has(songs.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'photo':
         return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} changed={liveMarks.photos} />;
       case 'design':
