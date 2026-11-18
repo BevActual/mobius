@@ -5,7 +5,6 @@ use serde_json::{Value, json};
 
 use crate::settings::{Field, Settings, in_range, is_flag, one_of};
 
-pub const LEFT_WIDTH: (f64, f64, f64) = (200.0, 420.0, 248.0);
 pub const RIGHT_WIDTH: (f64, f64, f64) = (300.0, 640.0, 340.0);
 
 /// The apps the sidebar may list. Its `sidebarApps` setting says which, in what order; the rest stay in All apps.
@@ -42,7 +41,7 @@ fn is_clippings_page(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || (s.ends_with(".md") && s.chars().count() <= 500 && !s.chars().any(char::is_control)))
 }
 
-static FIELDS: [Field; 18] = [
+static FIELDS: [Field; 15] = [
     Field { name: "theme", default: || json!("system"), check: |v| one_of(v, &["system", "light", "mid", "dark", "cool"]) },
     Field { name: "zoom", default: || json!(1), check: |v| in_range(v, 0.75, 1.5) },
     Field { name: "chatTextScale", default: || json!(1), check: |v| in_range(v, 0.85, 1.4) },
@@ -52,13 +51,10 @@ static FIELDS: [Field; 18] = [
     Field { name: "toolSteps", default: || json!("show"), check: |v| one_of(v, &["show", "hide-finished"]) },
     // Whether list views show their key-hint bar.
     Field { name: "keyHints", default: || json!(true), check: is_flag },
-    Field { name: "sidebarAtStart", default: || json!(true), check: is_flag },
     Field { name: "resumeLast", default: || json!(true), check: is_flag },
-    Field { name: "leftSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
     Field { name: "rightSidebar", default: || json!("attached"), check: |v| one_of(v, &["attached", "floating"]) },
     // Kept for older saved files; Mobius now always sits in the right panel, beside the work.
     Field { name: "agentPlace", default: || json!("beside"), check: |v| one_of(v, &["sidebar", "beside"]) },
-    Field { name: "leftWidth", default: || json!(LEFT_WIDTH.2), check: |v| in_range(v, LEFT_WIDTH.0, LEFT_WIDTH.1) },
     Field { name: "rightWidth", default: || json!(RIGHT_WIDTH.2), check: |v| in_range(v, RIGHT_WIDTH.0, RIGHT_WIDTH.1) },
     // Which apps the sidebar lists, in order. At least one; each once.
     Field { name: "sidebarApps", default: || json!(SIDEBAR_APPS), check: is_app_list },

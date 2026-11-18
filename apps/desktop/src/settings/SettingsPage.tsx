@@ -39,7 +39,7 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   about: AboutSection,
 };
 
-export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null, onTitle, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string; /** The app's sidebar: Settings' search and sections go there, as an app's own list does. */ sidebar?: HTMLElement | null; /** The page's name, for the window's title row. */ onTitle?: (title: string) => void }) {
+export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null, ownsNav = false, onTitle, ...rest }: Passed & { onClose: () => void; initial?: SectionId; initialSubpage?: string; /** The app's sidebar: Settings' search and sections go there, as an app's own list does. */ sidebar?: HTMLElement | null; /** The sections are a panel of their own: while it is hidden, they are not drawn in the page. */ ownsNav?: boolean; /** The page's name, for the window's title row. */ onTitle?: (title: string) => void }) {
   const [section, setSection] = useState<SectionId>(initial ?? 'general');
   const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'general')?.subpages[0]?.id ?? '');
   const [query, setQuery] = useState('');
@@ -90,7 +90,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   return (
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
       <div className="settings-body">
-        {sidebar ? createPortal(nav, sidebar) : nav}
+        {sidebar ? createPortal(nav, sidebar) : ownsNav ? null : nav}
         <div className="settings-content">
           <div className="settings-column">
           {query.trim() ? (

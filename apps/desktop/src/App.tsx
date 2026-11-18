@@ -3,7 +3,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
+import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, recentItems, APPS, COMPACT_APPS } from './apps';
@@ -21,7 +21,6 @@ import { useDownloads } from './useDownloads';
 import { GoButton, Launcher, pinnedApps } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
-import { useSideFolds } from './side-fold';
 import { UpdateNotice } from './UpdateNotice';
 import { pressOf, takeEarlyKeys } from './early-keys';
 import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
@@ -177,7 +176,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
-  photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks',
+  photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
 const LIST_HANDED: readonly AppId[] = ['design', 'slides'];
@@ -246,8 +245,6 @@ export function App() {
   useEffect(() => {
     if (!appearance.loaded || startedUp.current) return;
     startedUp.current = true;
-    if (!appearance.value.sidebarAtStart || appearance.value.leftSidebar === 'floating') setPanelOpen(false);
-    if (appearance.value.leftSidebar === 'floating') setAgentListOpen(false);
     // Mobius sits in the right panel, beside the work, from the start (the layout adopted 2026-11-13).
     if (appearance.value.rightSidebar !== 'floating') setChatOpen(true);
     if (!appearance.value.resumeLast) conversation.startFresh();
@@ -645,7 +642,6 @@ export function App() {
     calendar: eventsToday > 0 ? `${plural(eventsToday, 'event')} today` : 'Nothing today',
     search: 'Find anything',
   };
-  const [panelOpen, setPanelOpen] = useState(true);
   const startedUp = useRef(false);
   // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
   // app's own; it no longer turns into Mobius.
@@ -668,20 +664,11 @@ export function App() {
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
     { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
-  // The apps still listed here have their list drawn by the shell; an app in OWN_LIST draws its own, as a panel.
-  // The Browser's page is drawn natively beside the list, and Search draws its scopes as chips when the list is away.
-  const hasAppList = inBrowser || inSearch;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
     || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
-  const leftFloating = appearance.value.leftSidebar === 'floating';
   const rightFloating = appearance.value.rightSidebar === 'floating';
-  const [agentListOpen, setAgentListOpen] = useState(true);
-  const leftOpen = inAgent ? agentListOpen : panelOpen;
-  const setLeftOpen = inAgent ? setAgentListOpen : setPanelOpen;
-  // The five zones (docs/design/panel-layouts.md): a slim rail, then the app sidebar as its own column beside the page.
-  const hasLeft = hasAppList || settingsOpen;
   const rightOpen = hasRight && chatOpen && !learnOpen;
   useEffect(() => { if (rightOpen && miniOpen) void window.mobius.mini.close(); }, [rightOpen]); // eslint-disable-line react-hooks/exhaustive-deps
   // Learn (shell/learn-view): Mobius opening beside the page takes the slot back from Learn.
@@ -690,13 +677,9 @@ export function App() {
   const [hovering, setHovering] = useState(false);
   // A narrow window draws the docks narrower than saved, so the content keeps room for its toolbar (dock-fit.ts).
   const windowWidth = useWindowWidth();
-  const fitted = fitDocks(windowWidth, appearance.value.leftWidth, appearance.value.rightWidth,
-    hasLeft && !leftFloating && leftOpen, (!rightFloating && rightOpen) || learnOpen);
-  const leftWidth = drag?.side === 'left' ? drag.width : fitted.left;
+  const fitted = fitDocks(windowWidth, appearance.value.rightWidth, (!rightFloating && rightOpen) || learnOpen);
   const rightWidth = drag?.side === 'right' ? drag.width : fitted.right;
-  const leftDock = useRef<HTMLDivElement>(null);
   const rightDock = useRef<HTMLDivElement>(null);
-  const hideLeft = useCallback(() => setLeftOpen(false), [setLeftOpen]);
   // Mobius beside the page goes back toward where it is asked from (its corner) before it is put away.
   // An app opened from the switcher, All apps or the launcher grows out of the tile or row that was clicked.
   const shownApp = useRef(app);
@@ -731,13 +714,10 @@ export function App() {
   if (waitingNow) lastWaiting.current = waitingNow;
   const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
-  const leftFromEdge = useRef(false);
   const rightFromEdge = useRef(false);
   // The floating agent panel came out because the pointer reached the edge (not the toolbar button or a shortcut).
   const [peeked, setPeeked] = useState(false);
   useEffect(() => { if (!chatOpen) setPeeked(false); }, [chatOpen]);
-  useAutoHide(leftFloating, hasLeft && leftOpen, hideLeft, leftDock, leftFromEdge);
-  useSideFolds(leftDock, hasLeft && leftOpen);
   // Comments: on anything in the open document, in comment mode (the button, or C).
   const [commenting, setCommenting] = useState(false);
   const [commentFocus, setCommentFocus] = useState<string | null>(null);
@@ -761,30 +741,19 @@ export function App() {
   useMorphIn(rightDock, rightOpen);
   useAutoHide(rightFloating, rightOpen, hideRight, rightDock, rightFromEdge);
   // Switching to floating while the pointer and keyboard are elsewhere puts the sidebar away.
-  const wasFloating = useRef({ left: leftFloating, right: rightFloating });
+  const wasFloating = useRef(rightFloating);
   useEffect(() => {
-    const away = (dock: HTMLElement | null) => !dock || (!dock.matches(':hover') && !dock.contains(document.activeElement));
-    if (!wasFloating.current.left && leftFloating && away(leftDock.current)) setLeftOpen(false);
-    if (!wasFloating.current.right && rightFloating && away(rightDock.current)) setChatOpen(false);
-    wasFloating.current = { left: leftFloating, right: rightFloating };
-  }, [leftFloating, rightFloating, setLeftOpen]);
-  const setMode = (side: Side, mode: SidebarMode) => void appearance.set(side === 'left' ? { leftSidebar: mode } : { rightSidebar: mode });
-  const pin = (side: Side) => {
-    const floating = side === 'left' ? leftFloating : rightFloating;
-    const what = side === 'left' ? 'list' : 'agent panel';
-    return (
-      <button type="button" className="strip-btn" aria-pressed={!floating} aria-label={floating ? `Attach the ${what}` : `Float the ${what}`} title={floating ? 'Attach: keep it beside the page' : 'Float: show it over the page, and hide it when not used'} onClick={() => setMode(side, floating ? 'attached' : 'floating')}>
-        <svg viewBox="0 0 20 20" aria-hidden="true">{floating ? <path d="M10 3v6M6 9h8l-1 4H7zM10 13v4" /> : <path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" />}</svg>
-      </button>
-    );
-  };
+    const dock = rightDock.current;
+    if (!wasFloating.current && rightFloating && (!dock || (!dock.matches(':hover') && !dock.contains(document.activeElement)))) setChatOpen(false);
+    wasFloating.current = rightFloating;
+  }, [rightFloating]);
   const resizer = (side: Side, label: string) => (
-    <Resizer side={side} width={side === 'left' ? leftWidth : rightWidth} label={label} onHover={setHovering}
+    <Resizer side={side} width={rightWidth} label={label} onHover={setHovering}
       onDrag={(width) => setDrag(width === null ? null : { side, width })}
-      onCommit={(width) => void appearance.set(side === 'left' ? { leftWidth: width } : { rightWidth: width })} />
+      onCommit={(width) => void appearance.set({ rightWidth: width })} />
   );
   // The native page is drawn above everything in the window. To draw over it, put a picture of it in its place first.
-  const floatingShown = (hasLeft && leftFloating && leftOpen) || (rightFloating && rightOpen);
+  const floatingShown = rightFloating && rightOpen;
   // The selection menu drops over the page, so the page's picture stands in for it while the menu is open.
   const [selectionMenu, setSelectionMenu] = useState(false);
   // A menu from the toolbar is open: the web page shows as a picture under it, as under the other menus.
@@ -804,14 +773,10 @@ export function App() {
     void window.mobius.browser.snapshot().then((url) => { if (live) setCover({ url }); });
     return () => { live = false; };
   }, [needCover]);
-  const leftAttached = hasLeft && !leftFloating && leftOpen;
   const rightAttached = (!rightFloating && rightOpen) || learnOpen;
   const layout = {
-    '--col-left': leftAttached ? `${leftWidth}px` : '0px',
     '--col-right': rightAttached ? `${rightWidth}px` : '0px',
-    '--pad-left': leftAttached ? '0px' : '8px',
     '--pad-right': rightAttached ? '0px' : '8px',
-    '--left-w': `${leftWidth}px`,
     '--right-w': `${rightWidth}px`,
   } as React.CSSProperties;
 
@@ -970,8 +935,6 @@ export function App() {
     if (!keysReady) return;
     const answer = (press: KeyPress, claim: () => void) => {
       const plainMod = (press.ctrl || press.meta) && !press.alt && !press.shift;
-      // Ctrl+\ shows or hides the app's list (an app with its own left panels answers it first, in PanelLayout).
-      if (plainMod && press.code === 'Backslash' && hasLeft) { claim(); setLeftOpen((open) => !open); return; }
       // Ctrl+1 to Ctrl+9 open the pinned apps, in the launcher's order.
       const digit = plainMod && /^Digit[1-9]$/.test(press.code) ? Number(press.code.slice(5)) : 0;
       const pinnedApp = digit ? pinnedApps(appearance.value.sidebarApps)[digit - 1] : undefined;
@@ -997,7 +960,7 @@ export function App() {
     window.addEventListener('keydown', onKey);
     for (const press of takeEarlyKeys(performance.now())) answer(press, () => undefined);
     return () => window.removeEventListener('keydown', onKey);
-  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation, hasLeft, setLeftOpen, appearance.value.sidebarApps, closeSettings, openApp]);
+  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation, appearance.value.sidebarApps, closeSettings, openApp]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -1123,6 +1086,10 @@ export function App() {
           return <DesignSidebar designs={designs} pin={null} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
         case 'slides':
           return <SlidesSidebar slides={slides} pin={null} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
+        case 'browser':
+          return <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />;
+        case 'search':
+          return <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={null} />;
         default:
           return null;
       }
@@ -1142,6 +1109,9 @@ export function App() {
     );
   };
   ownListRef.current = ownListBody;
+  const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
+    { id: 'list', name: 'Sections', dock: 'left', shown: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
+  ], []);
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
     const panels = ownListPanels[id];
@@ -1156,17 +1126,6 @@ export function App() {
     const mac = window.mobius.platform === 'darwin';
     window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', code: 'Backslash', ctrlKey: !mac, metaKey: mac, bubbles: true, cancelable: true }));
   };
-
-  const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
-          <>
-            {inSearch ? (
-              <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
-            ) : (
-              <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
-            )}
-            <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
-          </>
-  );
 
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
@@ -1228,8 +1187,8 @@ export function App() {
     apps: APPS.filter((a) => isAvailable(a.id)),
     keys: bindings,
     state: {
-      // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft ? leftOpen : ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
+      // The sidebar is the open app's own list, a panel of its layout.
+      sidebarShown: ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1247,7 +1206,7 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: () => (hasLeft ? setLeftOpen((open) => !open) : toggleOwnList()),
+      toggleSidebar: toggleOwnList,
       toggleAgent: () => setChatOpen((open) => !open),
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
@@ -1587,7 +1546,6 @@ export function App() {
             focusToken={searchFocus}
             filter={searchFilter}
             onFilter={setSearchFilter}
-            chips={!(hasLeft && leftOpen)}
             canAsk={settings?.configured === true && coreStatus === 'ready' && !conversation.state.busy}
             onAsk={(question) => { openApp('agent'); void conversation.send(question, []); }}
             onOpen={openTarget}
@@ -1707,7 +1665,7 @@ export function App() {
             pin={pinned}
             place={settingsOpen ? 'Settings' : appName(app)}
             onPlace={openHub}
-            menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => setMode('right', rightFloating ? 'attached' : 'floating') }] : undefined}
+            menuItems={rightOpen ? [{ label: rightFloating ? 'Attach the agent panel' : 'Float the agent panel', onSelect: () => void appearance.set({ rightSidebar: rightFloating ? 'attached' : 'floating' }) }] : undefined}
             onHide={hideRight}
             {...(window.mobius.mini ? { onPopOut: toggleMini } : {})}
             onOpenVoice={() => openSettingsAt('voice')}
@@ -1763,7 +1721,7 @@ export function App() {
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
-      data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-chat': rightOpen ? 'open' : 'closed' }}
       toolbar={{
         // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
         wideMiddle: inBrowser && !settingsOpen,
@@ -1771,9 +1729,6 @@ export function App() {
         lead: <>
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
           <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
-          {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
-            <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
-          </button>}
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank.
         title: place || (!settingsOpen && appName(app)) || undefined,
@@ -1804,11 +1759,10 @@ export function App() {
           <PanelsMenu
             app={own}
             shell={[
-              ...(hasLeft ? [{ name: 'Sidebar', shown: leftOpen, keys: 'mod+\\', toggle: () => setLeftOpen((open) => !open) }] : []),
               ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
             ]}
             describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
-            onReset={() => setLeftOpen(true)}
+            onReset={() => {}}
           />
         ),
         trail: (appMenu) => <>
@@ -1825,26 +1779,11 @@ export function App() {
       <div className="body" style={layout}>
         {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
         {inBrowser && !settingsOpen && browserChrome}
-        {hasLeft && leftOpen && (
-          <div ref={leftDock} className="dock left" data-floating={leftFloating || undefined}>
-            <SidebarHead
-              // Agents app (marked): its own name; New agent is the + by its list.
-              title={settingsOpen ? 'Settings' : inActivity ? 'Activity' : inAgents ? 'Agents' : app === 'agent' ? 'Home' /* Home: the rail's name */ : appName(app)}
-              create={settingsOpen || inActivity || inAgents || createInList.includes(app) ? undefined : createFor(app)}
-              favourites={settingsOpen ? [] : favourites}
-              onOpenFavourite={openFavourite}
-              onUnpin={togglePin}
-              onReorderFavourites={(next) => void appearance.set({ favourites: next })}
-              currentFavourite={settingsOpen ? null : currentFavourite}
-            >
-              {appSidebar(pin('left'))}
-            </SidebarHead>
-            {resizer('left', 'Resize the list')}
-          </div>
-        )}
-        {hasLeft && leftFloating && !leftOpen && <div className="hotzone left" data-testid="hotzone-left" onPointerEnter={() => { leftFromEdge.current = true; setLeftOpen(true); }} />}
-        <main className="stage" tabIndex={-1} data-split={split || undefined} data-edge-left={(hasLeft && leftFloating && !leftOpen) || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
+        <main className="stage" tabIndex={-1} data-split={split || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
+          {/* Settings' sections are its own left panel, as an app's list is. */}
           {settingsOpen && (
+            <div className="settings-frame">
+            <PanelLayout app="settings" panels={settingsPanels}>
             <SettingsPage
               {...(settingsSection === 'layout' ? { initial: 'appearance' as const, initialSubpage: 'layout' } : settingsSection === 'profiles' ? { initial: 'advanced' as const, initialSubpage: 'profiles' } : settingsSection ? { initial: settingsSection } : {})}
               onClose={() => { setSettingsSection(undefined); closeSettings(); }}
@@ -1863,7 +1802,10 @@ export function App() {
               onDeleteConversation={conversation.remove}
               onRefreshConversations={conversation.refresh}
               coreStatus={coreStatus}
+              ownsNav
             />
+            </PanelLayout>
+            </div>
           )}
           {(split ? ([0, 1] as const) : ([focused] as const)).map((index, at) => {
             const id = split ? (panes[index] ?? app) : app;

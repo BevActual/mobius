@@ -16,13 +16,13 @@ describe('appearance changes', () => {
     }
   });
   it('has sensible defaults', () => {
-    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: 248, rightWidth: 340, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
+    expect(DEFAULT_APPEARANCE).toEqual({ theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: 340, sidebarApps: ['agent', 'search', 'browser', 'mail', 'notes', 'docs', 'sheets', 'slides', 'tasks', 'calendar'], favourites: [], clippingsPage: '' });
   });
 });
 
 describe('more appearance choices', () => {
   it('accept each of the named choices and the two switches', () => {
-    expect(parseAppearancePatch({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false })).toEqual({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', sidebarAtStart: false, resumeLast: false });
+    expect(parseAppearancePatch({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', resumeLast: false })).toEqual({ chatFont: 'serif', textDirection: 'rtl', density: 'compact', toolSteps: 'hide-finished', resumeLast: false });
   });
   it('keep where Mobius opens: in the sidebar, or pinned beside the page', () => {
     expect(parseAppearancePatch({ agentPlace: 'beside' })).toEqual({ agentPlace: 'beside' });
@@ -76,8 +76,11 @@ describe('context sizes for local models', () => {
 
 describe('where the sidebars sit', () => {
   it('start attached, and each can be set to floating or back, and nothing else', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftSidebar: 'attached', rightSidebar: 'attached', leftWidth: 248, rightWidth: 340 });
-    expect(parseAppearancePatch({ leftSidebar: 'floating' })).toEqual({ leftSidebar: 'floating' });
+    expect(DEFAULT_APPEARANCE).toMatchObject({ rightSidebar: 'attached', rightWidth: 340 });
+    expect(parseAppearancePatch({ rightSidebar: 'floating' })).toEqual({ rightSidebar: 'floating' });
+    // The shell's own list is gone (each app's list is a panel of its own): its saved choices are ignored.
+    expect(parseAppearance({ ...DEFAULT_APPEARANCE, leftSidebar: 'floating', leftWidth: 300, sidebarAtStart: false })).toEqual(DEFAULT_APPEARANCE);
+    expect(parseAppearancePatch({ leftWidth: 300 })).toBeNull();
     // The old navigation choice (sidebar or rail) is gone: the rail is always there. A saved one is ignored.
     expect(parseAppearance({ ...DEFAULT_APPEARANCE, navigation: 'rail' })).toEqual(DEFAULT_APPEARANCE);
     expect(parseAppearancePatch({ sidebarApps: ['notes', 'agent'] })).toEqual({ sidebarApps: ['notes', 'agent'] });
@@ -90,23 +93,15 @@ describe('where the sidebars sit', () => {
     expect(parseAppearancePatch({ clippingsPage: 'Work/Reading.md' })).toEqual({ clippingsPage: 'Work/Reading.md' });
     expect(parseAppearancePatch({ clippingsPage: '' })).toEqual({ clippingsPage: '' });
     for (const bad of ['Work/Reading', 'a\nb.md', 7]) expect(parseAppearancePatch({ clippingsPage: bad })).toBeNull();
-    expect(parseAppearancePatch({ rightSidebar: 'floating', leftSidebar: 'attached' })).toEqual({ rightSidebar: 'floating', leftSidebar: 'attached' });
-    for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) {
-      expect(parseAppearancePatch({ leftSidebar: bad }), String(bad)).toBeNull();
-      expect(parseAppearancePatch({ rightSidebar: bad }), String(bad)).toBeNull();
-    }
+    for (const bad of ['hidden', 'pinned', '', 'Floating', 1, null, true]) expect(parseAppearancePatch({ rightSidebar: bad }), String(bad)).toBeNull();
   });
 });
 
-describe('how wide the sidebars are', () => {
-  it('start at the usual widths and accept only widths inside each side\'s range', () => {
-    expect(DEFAULT_APPEARANCE).toMatchObject({ leftWidth: 248, rightWidth: 340 });
-    expect(parseAppearancePatch({ leftWidth: 300, rightWidth: 500 })).toEqual({ leftWidth: 300, rightWidth: 500 });
-    expect(parseAppearancePatch({ leftWidth: 200 })).toEqual({ leftWidth: 200 });
-    expect(parseAppearancePatch({ leftWidth: 420 })).toEqual({ leftWidth: 420 });
-    for (const bad of [199, 421, 0, -5, Number.NaN, Infinity, '300', null]) expect(parseAppearancePatch({ leftWidth: bad }), String(bad)).toBeNull();
-    for (const bad of [299, 641, 100, Number.NaN, '400']) expect(parseAppearancePatch({ rightWidth: bad }), String(bad)).toBeNull();
-    expect(parseAppearancePatch({ rightWidth: 250 }), 'a width fine for the left is too small for the right').toBeNull();
+describe('how wide the agent panel is', () => {
+  it('starts at the usual width and accepts only widths inside its range', () => {
+    expect(DEFAULT_APPEARANCE).toMatchObject({ rightWidth: 340 });
+    expect(parseAppearancePatch({ rightWidth: 500 })).toEqual({ rightWidth: 500 });
+    for (const bad of [299, 641, 100, 250, Number.NaN, Infinity, '400', null]) expect(parseAppearancePatch({ rightWidth: bad }), String(bad)).toBeNull();
   });
 });
 

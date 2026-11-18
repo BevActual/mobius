@@ -171,8 +171,8 @@ test('the app hub shows every app with what is happening in it, starts new thing
 test('the top bar runs the window’s width, and the list under it belongs to the open app', async () => {
   seed();
   await start();
-  // The sidebar's head names the app, and its New follows the app you are in.
-  await expect(leftSide().getByRole('heading', { name: 'Browser', exact: true })).toBeVisible();
+  // The Browser's list is its own Tabs panel, and its New follows the app you are in.
+  await expect(leftSide().getByRole('heading', { name: 'Tabs', exact: true })).toBeVisible();
   await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveAttribute('title', 'New tab');
   await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
   // It sits under the top bar, which starts with the Go button at the window's left edge.
@@ -357,14 +357,14 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await scopes.getByRole('button', { name: 'Tasks' }).click();
   await expect(scopes.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
   await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
-  // The scopes show once: in the sidebar while it shows, as chips under the field when it is folded away.
+  // The scopes show once: in their panel while it shows, as chips under the field when it is hidden.
   const chips = shell().locator('.search-page').getByRole('radiogroup', { name: 'Show' });
-  await expect(chips).toHaveCount(0);
-  const scopesToggle = shell().getByRole('button', { name: 'Show scopes' });
-  if ((await scopesToggle.getAttribute('aria-pressed')) === 'true') await scopesToggle.click();
+  await expect(chips).toBeHidden();
+  await leftSide().getByRole('button', { name: 'Hide Scopes' }).click();
   await expect(chips.getByRole('radio', { name: 'Tasks' })).toHaveAttribute('aria-checked', 'true');
-  await scopesToggle.click();
-  await expect(chips).toHaveCount(0);
+  await shell().keyboard.press('Control+Backslash');
+  await expect(chips).toBeHidden();
+  await expect(scopes).toBeVisible();
   // The Agent home: what is in your apps is as wide as the message box, and centred with it.
   await open('Agent');
   // Measured once the page has settled (it grows in as the app opens).

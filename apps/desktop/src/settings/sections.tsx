@@ -207,18 +207,12 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('sidebar-apps')} title="Apps in the sidebar" description="Choose which apps the sidebar lists, and their order. The others stay in All apps." highlight={highlight === 'sidebar-apps'}>
           <SidebarAppsEditor value={appearance.sidebarApps} onChange={(sidebarApps) => set({ sidebarApps })} />
         </Row>
-        <Row path={path('sidebar-at-start')} title="Show the tab list at start" description="Whether the browser's list of tabs is open when Mobius starts." highlight={highlight === 'sidebar-at-start'}>
-          <Toggle label="Show the tab list at start" checked={appearance.sidebarAtStart} onChange={(sidebarAtStart) => set({ sidebarAtStart })} />
-        </Row>
-        <Row path={path('left-sidebar')} title="Tab and conversation list" description="Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again." highlight={highlight === 'left-sidebar'}>
-          <Choice label="Tab and conversation list" name="left-sidebar" value={appearance.leftSidebar} options={SIDEBAR_MODES} onChange={(leftSidebar) => set({ leftSidebar })} />
-        </Row>
         <Row path={path('right-sidebar')} title="Agent panel" description="Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again." highlight={highlight === 'right-sidebar'}>
           <Choice label="Agent panel" name="right-sidebar" value={appearance.rightSidebar} options={SIDEBAR_MODES} onChange={(rightSidebar) => set({ rightSidebar })} />
         </Row>
-        <Row path={path('sidebar-size')} title="Sidebar sizes" description="Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back." highlight={highlight === 'sidebar-size'}>
-          <p className="srow-text">Now: list {appearance.leftWidth} px, agent panel {appearance.rightWidth} px.</p>
-          <button type="button" className="btn" disabled={appearance.leftWidth === SIDEBAR_WIDTH.left.default && appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default })}>Reset sizes</button>
+        <Row path={path('sidebar-size')} title="Agent panel size" description="Drag the edge of the agent panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back. An app's own panels keep their sizes in that app." highlight={highlight === 'sidebar-size'}>
+          <p className="srow-text">Now: {appearance.rightWidth} px.</p>
+          <button type="button" className="btn" disabled={appearance.rightWidth === SIDEBAR_WIDTH.right.default} onClick={() => set({ rightWidth: SIDEBAR_WIDTH.right.default })}>Reset size</button>
         </Row>
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />

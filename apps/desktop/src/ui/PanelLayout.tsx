@@ -1,3 +1,4 @@
+import { useSideFolds } from '../side-fold';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { Menu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
@@ -148,7 +149,10 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   }, [panels, isShown, toggle, update]);
 
   const main = useRef<HTMLDivElement>(null);
+  const leftDock = useRef<HTMLDivElement>(null);
   const left = panels.filter((p) => p.dock === 'left' && isShown(p));
+  // The lists on the left fold their sections, as every sidebar does (side-fold.ts).
+  useSideFolds(leftDock, left.length > 0);
   const right = panels.filter((p) => p.dock === 'right' && isShown(p));
   const leftSize = clampDock('left', saved.size.left ?? left.find((p) => p.size)?.size ?? DOCK_SIZE.left.initial);
   const bottom = panels.filter((p) => p.dock === 'bottom' && isShown(p));
@@ -164,7 +168,7 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   return (
     <div className="ui-panels" data-app={app}>
       {left.length > 0 && (
-        <div className="ui-dock" data-dock="left" style={{ width: leftSize }}>
+        <div ref={leftDock} className="ui-dock" data-dock="left" style={{ width: leftSize }}>
           {left.map((p) => <Panel key={p.id} spec={p} onHide={() => hide(p.id)} />)}
           <DockEdge dock="left" size={leftSize} onSize={(n) => resize('left', n)} />
         </div>

@@ -35,7 +35,7 @@
 .studio-side .ui-side-row-trail { border-radius: var(--radius-control); }
 .studio-side .ui-side-row-trail:has(> .list-row[aria-current="page"]) { background: var(--side-select); }
 .studio-side .ui-side-row-trail:has(> .list-row:hover):not(:has(> .list-row[aria-current="page"])) { background: var(--side-hover); }
-.dock.left .studio-side .ui-side-row-trail > .list-row:is([aria-current="page"], :hover) { background: transparent; }
+.ui-dock[data-dock="left"] .studio-side .ui-side-row-trail > .list-row:is([aria-current="page"], :hover) { background: transparent; }
 
 /* ---------- Arrangement ---------- */
 .studio-page .studio-arrange { flex: 1 1 auto; min-height: 96px; overflow: auto; position: relative; }

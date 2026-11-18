@@ -1189,18 +1189,12 @@ export interface AppearanceSettings {
   toolSteps: ToolSteps;
   /** Whether list views show the small bar of their most useful keys (it also hides itself once the keys are used). */
   keyHints: boolean;
-  /** Whether the browser's side list is open when Mobius starts. */
-  sidebarAtStart: boolean;
   /** Whether the conversation you were in is opened again when Mobius starts (otherwise it starts blank). */
   resumeLast: boolean;
-  /** The list on the left (tabs, or conversations): part of the window, or floating over it and hiding itself. */
-  leftSidebar: SidebarMode;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
   rightSidebar: SidebarMode;
   /** Where Mobius opens: the sidebar turns into Mobius (the default), or it is pinned beside the page. */
   agentPlace: 'sidebar' | 'beside';
-  /** How wide the left list is, in pixels. */
-  leftWidth: number;
   /** How wide the agent panel is, in pixels. */
   rightWidth: number;
   /** The apps the sidebar lists, in order. The others stay in All apps. */
@@ -1224,7 +1218,7 @@ export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'doc
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 }, inspector: { min: 240, max: 440, default: 280 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, sidebarAtStart: true, resumeLast: true, leftSidebar: 'attached', rightSidebar: 'attached', agentPlace: 'beside', leftWidth: SIDEBAR_WIDTH.left.default, rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1526,12 +1520,9 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   density: oneOf<Density>('comfortable', 'compact'),
   toolSteps: oneOf<ToolSteps>('show', 'hide-finished'),
   keyHints: (v): v is boolean => typeof v === 'boolean',
-  sidebarAtStart: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
-  leftSidebar: oneOf<SidebarMode>('attached', 'floating'),
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   agentPlace: oneOf<'sidebar' | 'beside'>('sidebar', 'beside'),
-  leftWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.left),
   rightWidth: (v): v is number => inRange(v, SIDEBAR_WIDTH.right),
   clippingsPage: (v): v is string => typeof v === 'string' && (v === '' || (v.endsWith('.md') && [...v].length <= 500 && !/[\u0000-\u001f\u007f]/.test(v))),
   favourites: (v): v is Favourite[] => Array.isArray(v) && v.length <= MAX_FAVOURITES && v.every(isFavourite),
