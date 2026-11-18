@@ -49,7 +49,7 @@ Each group has its own page, with a picture of every control in its states.
 | --- | --- | --- |
 | [Basic controls](ui/basics.md) | `Button`, `IconButton`, `TextField`, `Select`, `Segmented`, `Switch`, `Checkbox`, `Slider`, `ParamCell`, `Meter`, `Progress`, `Chip`, `Dot`, `Count`, `StatusLetter`, `StatusText`, `Avatar`, `ListRow`, `Swatches` | <img src="ui/img/buttons.png" alt="" width="240"> |
 | [Shared objects](ui/objects.md) | `ObjectRow`, `ObjectCard`, `ObjectChip` | <img src="ui/img/objects.png" alt="" width="240"> |
-| [Menus, dialogs and dates](ui/menus-and-dialogs.md) | `Popover`, `ChoiceMenu`, `Dialog`, `Confirm`, `ContentTabs`, `DateField`, `TimeField`, `TimeRange`, `MonthPicker` | <img src="ui/img/menus.png" alt="" width="240"> |
+| [Menus, dialogs and dates](ui/menus-and-dialogs.md) | `Popover`, `ChoiceMenu`, `Dialog`, `Confirm`, `ContentTabs`, `DateField`, `TimeField`, `TimeRange`, `MonthPicker`, `Launcher`, `GoButton` | <img src="ui/img/menus.png" alt="" width="240"> |
 | [Pro controls](ui/pro-controls.md) | `NumberField`, `Readout`, `LetterToggle`, `Transport`, `LevelMeter`, `GainReductionMeter` | <img src="ui/img/pro.png" alt="" width="240"> |
 | [Instrument controls](ui/instruments.md) | `Knob`, `EnvelopeGraph`, `FilterGraph`, `StepGrid`, `AutomationLane`, `XYPad`, `WaveformView`, `PadGrid` | <img src="ui/img/instruments.png" alt="" width="240"> |
 | [Devices](ui/devices.md) | `DeviceChain`, `DeviceFrame`, `EqGraph`, `PatchCanvas`, `Port` | <img src="ui/img/devices.png" alt="" width="240"> |

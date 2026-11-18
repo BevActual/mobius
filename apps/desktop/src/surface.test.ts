@@ -3,10 +3,9 @@ import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
 import { ASK_DATABASE, COMPARE_TABS, isStarter, MAKE_A_DECK, matchAlbum, noteContext, PLAN_MY_DAY, planMyDayReads, suggestionsFor, tasksContext, tidyFolder, WHAT_STANDS_OUT } from './surface';
 
 describe('Plan my day reads before the model is asked', () => {
-  it('reads the clock first, so the day is planned from now', () => {
+  it('reads the day as worked out in code, and unread mail for the one reply', () => {
     const reads = planMyDayReads(new Date(2026, 10, 15, 17, 14));
-    expect(reads.map((r) => r.tool)).toEqual(['clock.now', 'tasks.list', 'calendar.list', 'mail.search']);
-    expect(reads[2]!.arguments).toEqual({ from: '2026-11-15', to: '2026-11-15' });
+    expect(reads.map((r) => r.tool)).toEqual(['tasks.plan_day', 'mail.search']);
   });
 });
 
@@ -94,10 +93,10 @@ describe('what each app suggests', () => {
   });
   it('leads Home and Tasks with Plan my day: the same ask, which times tasks and suggests blocks but sends nothing', () => {
     for (const app of ['agent', 'tasks'] as const) expect(suggestionsFor({ app, hasPage: false, note: null })[0]).toMatchObject({ label: 'Plan my day', prompt: PLAN_MY_DAY });
-    for (const tool of ['tasks.list', 'calendar.list', 'tasks.update', 'calendar.suggest', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
+    for (const tool of ['tasks.plan_day', 'tasks.schedule_day', 'mail.draft']) expect(PLAN_MY_DAY).toContain(tool);
     expect(PLAN_MY_DAY).toContain('Do not send anything');
-    // What the third demo run showed: a task due tomorrow was planned for today, and two replies were drafted.
-    for (const words of ['not for today', 'draft no others', 'one line of a few words', 'back to back', 'Focus time', 'never commits me', 'no day or deadline', 'check my calendar and come back']) expect(PLAN_MY_DAY).toContain(words);
+    // The times, lunch and the Focus time hour are worked out in code; the model copies the lines and makes one reply.
+    for (const words of ['word for word', 'ends with their last line', 'no sentence of your own', 'being made, set or saved', 'the start it gave', 'draft no others', 'never commits me', 'no day or deadline', 'check my calendar and come back']) expect(PLAN_MY_DAY).toContain(words);
   });
   it('leads an open sheet with What stands out?, which leaves its working in the sheet as formulas', () => {
     const first = suggestionsFor({ app: 'sheets', hasPage: false, note: null, sheet: { title: 'Sales', source: 'sheets/Sales.json', text: 'A1: Month' } })[0];

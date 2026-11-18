@@ -1985,3 +1985,22 @@ fn the_bass_and_pad_ask_finds_a_song_named_from_musics_folder() {
     let song: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(ws.join("studio/Songs/Demo.json")).unwrap()).unwrap();
     assert!(song["tracks"].as_array().unwrap().iter().any(|t| t["instrument"] == "bass"), "{song}");
 }
+
+/// Plan my day is worked out in code and made in one call: the task gets its time today, and its block and the
+/// Focus time hour are suggested in the calendar. A second call changes nothing more.
+#[test]
+fn plan_my_day_is_made_in_one_call_from_the_start_it_was_worked_out_at() {
+    let (b, _core, _events, _dir) = bridge_in(tempfile::tempdir().unwrap());
+    let tool = |name: &str, args: serde_json::Value| b.host_request("host.tool", &json!({ "tool": name, "arguments": args }));
+    let today = chrono::Local::now().format("%Y-%m-%d").to_string();
+    tool("tasks.add", json!({ "list": "Work", "text": "Call the bank", "due": today })).unwrap();
+    let planned: serde_json::Value = serde_json::from_str(tool("tasks.plan_day", json!({})).unwrap().as_str().unwrap()).unwrap();
+    assert!(planned["lines"].is_string() && planned["start"].is_string(), "{planned}");
+    let made: serde_json::Value = serde_json::from_str(tool("tasks.schedule_day", json!({ "start": "09:00" })).unwrap().as_str().unwrap()).unwrap();
+    assert_eq!(made["made"], 1, "{made}");
+    assert!(made["lines"].as_str().unwrap().contains("- 09:00–09:30 Call the bank"), "{made}");
+    let list = tool("tasks.list", json!({ "list": "Work" })).unwrap();
+    assert!(list.as_str().unwrap().contains("\"time\":\"09:00\""), "{list}");
+    let again: serde_json::Value = serde_json::from_str(tool("tasks.schedule_day", json!({ "start": "09:00" })).unwrap().as_str().unwrap()).unwrap();
+    assert_eq!(again["made"], 0, "{again}");
+}
