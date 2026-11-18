@@ -72,6 +72,8 @@ interface Props {
   inline?: boolean;
   /** For the reference sheet: the time Recent counts from. */
   now?: number;
+  /** Ask Mobius about a row (Alt+Enter, or Ask Mobius about this in its actions): Mobius opens with it attached. */
+  onAskAbout?: (item: { app?: AppId; label: string; detail?: string }) => void;
   /** Changes when the launcher's key is pressed again while it is open: it switches to All apps and back. */
   again?: number;
   /** For the reference sheet: start in All apps. */
@@ -134,6 +136,14 @@ export function marked(label: string, query: string): ReactNode {
   return <>{label.slice(0, at)}<mark className="launcher-match">{label.slice(at, at + q.length)}</mark>{label.slice(at + q.length)}</>;
 }
 
+/** With ">" first, only commands: those matching the words after it. Null when the text doesn't start with ">". */
+export function commandsOnly<T extends { label: string; detail?: string }>(commands: readonly T[], text: string, limit = 30): T[] | null {
+  const typed = text.trim();
+  if (!typed.startsWith('>')) return null;
+  const words = typed.slice(1).trim().toLowerCase();
+  return commands.filter((c) => `${c.label} ${c.detail ?? ''}`.toLowerCase().includes(words)).slice(0, limit);
+}
+
 /** "Mail" or "Mail, 3 waiting". */
 const withWaiting = (name: string, waiting = 0) => (waiting > 0 ? `${name}, ${waiting} waiting` : name);
 
@@ -149,7 +159,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start',
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -159,7 +169,10 @@ export function Launcher({
   const [chosenId, setChosenId] = useState<string | null>(null);
   // Kept while Mobius runs: it opens again in the view it was left in.
   const [view, setView] = useState<LauncherView>(startIn);
-  const switchView = useCallback((to: LauncherView) => { setView(to); setQuery(''); setChosenId(null); }, []);
+  // Narrowed to one app (Tab on an app), or showing one row's actions (Shift+Enter).
+  const [scope, setScope] = useState<AppId | null>(null);
+  const [actionsFor, setActionsFor] = useState<LauncherItem | null>(null);
+  const switchView = useCallback((to: LauncherView) => { setView(to); setQuery(''); setChosenId(null); setScope(null); setActionsFor(null); }, []);
   const againWas = useRef(again);
   useEffect(() => {
     if (againWas.current === again) return;
@@ -198,6 +211,8 @@ export function Launcher({
     if (open) return;
     setQuery('');
     setChosenId(null);
+    setScope(null);
+    setActionsFor(null);
     setStatus('');
     setDragOrder(null);
   }, [open]);
@@ -227,10 +242,47 @@ export function Launcher({
   }, [onPinned, pinned]);
 
   /** What a query finds, in the order shown. */
+  const pinRef = useRef(pin);
+  pinRef.current = pin;
+  const narrow = useCallback((app: AppId) => { setScope(app); setActionsFor(null); setQuery(''); setChosenId(null); input.current?.focus(); }, []);
+  const narrowRef = useRef(narrow);
+  narrowRef.current = narrow;
+
+  /** What can be done with a row: shown by Shift+Enter. */
+  const actionsOf = useCallback((item: LauncherItem): LauncherItem[] => {
+    const act = (id: string, label: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label, detail, run });
+    const pinned = item.app ? pins.includes(item.app) : false;
+    return [
+      act('open', item.kind === 'command' ? 'Run' : 'Open', item.run, '↵'),
+      ...(onAskAbout ? [act('ask', 'Ask Mobius about this', () => onAskAbout({ app: item.app, label: item.label, detail: item.detail }), 'Alt+↵')] : []),
+      ...(item.app && onPinned && (item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid')
+        ? [act('pin', pinned ? 'Unpin' : 'Pin', () => pinRef.current(item.app!, !pinned))] : []),
+      ...(item.app && !scope ? [act('scope', `Search in ${appName(item.app)}`, () => narrowRef.current(item.app!), 'Tab')] : []),
+      act('copy', 'Copy name', () => { void navigator.clipboard?.writeText(item.label).catch(() => undefined); }),
+    ];
+  }, [pins, onAskAbout, onPinned, scope]);
+
   const listFor = useCallback((text: string): LauncherItem[] => {
     const q = text.trim().toLowerCase();
     const typed = text.trim();
     const has = (words: string) => words.toLowerCase().includes(q);
+    if (actionsFor) return actionsOf(actionsFor).filter((a) => has(a.label));
+    // ">" first: commands only.
+    const only = view === 'start' && !scope ? commandsOnly(commands, typed) : null;
+    if (only) {
+      return only
+        .map<LauncherItem>((c) => ({ id: `cmd-${c.id}`, kind: 'command', label: c.label, detail: c.detail, run: c.run }));
+    }
+    // Narrowed to one app: its items, then its commands; with nothing typed, the app itself first.
+    if (scope) {
+      const name = appName(scope);
+      return [
+        ...(!q ? [{ id: `app-${scope}`, kind: 'app' as const, app: scope, label: `Open ${name}`, run: () => onOpenApp(scope) }] : []),
+        ...(q ? (find?.(typed) ?? []).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, run: item.run })) : []),
+        ...commands.filter((c) => (c.detail ?? '').includes(name) && has(c.label)).slice(0, 12)
+          .map<LauncherItem>((c) => ({ id: `cmd-${c.id}`, kind: 'command', label: c.label, detail: c.detail, run: c.run })),
+      ];
+    }
     if (view === 'apps') {
       return [
         ...everyApp().filter((id) => has(`${appName(id)} ${APPS.find((a) => a.id === id)?.also ?? ''}`)).map<LauncherItem>((id) => {
@@ -290,7 +342,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
   const items = useMemo(() => listFor(query), [listFor, query]);
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
@@ -305,7 +357,7 @@ export function Launcher({
   const activate = (item: LauncherItem | undefined) => {
     if (!item || item.disabled || dragged.current) return;
     // All apps is a view of the launcher, not somewhere to go: it stays open.
-    if (item.id === 'all-apps') { item.run(); return; }
+    if (item.id === 'all-apps' || item.id === 'act-scope') { item.run(); return; }
     onClose();
     item.run();
   };
@@ -320,7 +372,27 @@ export function Launcher({
       switchView(view === 'apps' ? 'start' : 'apps');
       return;
     }
+    // Back out of the actions, then out of an app, then out of All apps.
+    if (actionsFor && (k === 'Escape' || (empty && (k === 'Backspace' || k === 'ArrowLeft')))) { event.preventDefault(); setActionsFor(null); setQuery(''); setChosenId(actionsFor.id); return; }
+    if (scope && empty && (k === 'Backspace' || k === 'Escape')) { event.preventDefault(); setScope(null); setChosenId(null); return; }
     if (view === 'apps' && empty && (k === 'Backspace' || k === 'Escape')) { event.preventDefault(); switchView('start'); return; }
+    // Tab on an app (or something in one) narrows the launcher to that app.
+    if (k === 'Tab' && !event.shiftKey && !actionsFor && !scope && current?.app && current.kind !== 'grid') { event.preventDefault(); narrow(current.app); return; }
+    // Shift+Enter, or Right at the end of the words, shows the chosen row's actions.
+    const atEnd = event.currentTarget.selectionStart === event.currentTarget.value.length;
+    if (!actionsFor && current && current.kind !== 'ask' && !current.disabled && current.id !== 'all-apps'
+      && ((k === 'Enter' && event.shiftKey) || (k === 'ArrowRight' && !empty && atEnd && !ACROSS.has(current.kind)))) {
+      event.preventDefault();
+      setActionsFor(current); setQuery(''); setChosenId(null);
+      return;
+    }
+    // Alt+Enter asks Mobius about the chosen row.
+    if (k === 'Enter' && event.altKey && onAskAbout && current && current.kind !== 'ask' && !actionsFor) {
+      event.preventDefault();
+      onClose();
+      onAskAbout({ app: current.app, label: current.label, detail: current.detail });
+      return;
+    }
     // Alt+Left and Alt+Right move the chosen pinned app along the row.
     if (empty && event.altKey && (k === 'ArrowLeft' || k === 'ArrowRight') && current?.kind === 'pinned' && current.app && onPinned) {
       event.preventDefault();
@@ -383,6 +455,13 @@ export function Launcher({
   const body = (
     <>
       <div className="launcher-search">
+        {(scope || actionsFor) && (
+          <span className="launcher-scope" aria-hidden="true">
+            {scope && !actionsFor && <AppMark app={scope} kind="app" />}
+            {actionsFor ? actionsFor.label : appName(scope!)}
+            <svg viewBox="0 0 20 20"><path d="M8 5.5 12.5 10 8 14.5" /></svg>
+          </span>
+        )}
         <input
           ref={input}
           id="launcher-input"
@@ -391,8 +470,8 @@ export function Launcher({
           aria-controls="launcher-list"
           aria-activedescendant={activeId}
           aria-autocomplete="list"
-          aria-label={view === 'apps' ? 'Find an app' : 'Find apps, pages and commands'}
-          placeholder={view === 'apps' ? 'Find an app' : 'Find, open or ask anything'}
+          aria-label={actionsFor ? `Actions for ${actionsFor.label}` : scope ? `Search in ${appName(scope)}` : view === 'apps' ? 'Find an app' : 'Find apps, pages and commands'}
+          placeholder={actionsFor ? 'Choose an action' : scope ? `Search in ${appName(scope)}` : view === 'apps' ? 'Find an app' : 'Find, open or ask anything'}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -454,7 +533,7 @@ export function Launcher({
                         <AppMark app={item.app} place={item.place} kind={item.kind} />
                         {dot(item)}
                       </span>
-                      <span className="launcher-tile-name">{marked(item.label, query)}</span>
+                      <span className="launcher-tile-name">{marked(item.label, query.trim().replace(/^>\s*/, ''))}</span>
                     </div>
                   ))}
                 </div>
@@ -475,14 +554,14 @@ export function Launcher({
           }
           return (
             <div key={kind} role="group" aria-label={SECTION[kind]} className="launcher-section" data-kind={kind}>
-              {kind !== 'ask' && <div className="launcher-heading" aria-hidden="true">{SECTION[kind]}</div>}
+              {kind !== 'ask' && <div className="launcher-heading" aria-hidden="true">{actionsFor ? 'Actions' : scope && kind === 'item' ? `In ${appName(scope)}` : SECTION[kind]}</div>}
               {members.map(({ item, index }) => (
                 <div key={item.id} {...option(item, index)}>
                   <span className="launcher-mark">
                     <AppMark app={item.app} place={item.place} kind={item.kind} />
                     {dot(item)}
                   </span>
-                  <span className="launcher-label">{marked(item.label, query)}</span>
+                  <span className="launcher-label">{marked(item.label, query.trim().replace(/^>\s*/, ''))}</span>
                   {item.detail && <span className="launcher-detail" aria-hidden="true">{item.detail}</span>}
                 </div>
               ))}
@@ -496,9 +575,11 @@ export function Launcher({
         )}
       </div>
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
-      {(query.trim() !== '' || view === 'apps') && current && (
+      {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
           <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'command' ? 'Run' : 'Open'}</span>
+          {!actionsFor && current.kind !== 'ask' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
+          {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
       )}
       <span className="launcher-status" role="status">{status}</span>

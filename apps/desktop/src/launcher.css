@@ -73,6 +73,15 @@
 .launcher-grid .launcher-icon svg { width: var(--sp-8); height: var(--sp-8); padding: var(--sp-1); }
 .launcher-tile .launcher-icon svg[data-all-apps] { width: var(--sp-8); height: var(--sp-8); padding: var(--sp-1); background: var(--field); color: var(--muted); }
 
+/* Narrowed to one app, or one row's actions: a chip before the words. Backspace on an empty field takes it away. */
+.launcher-scope {
+  display: inline-flex; align-items: center; gap: var(--sp-1); flex: none; max-width: 40%; height: var(--button-h); padding: 0 var(--sp-1) 0 var(--sp-2);
+  border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium);
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.launcher-scope .launcher-icon svg { width: var(--sp-5); height: var(--sp-5); padding: 0; background: none; color: var(--muted); }
+.launcher-scope > svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.launcher-foot { gap: var(--sp-4); }
 /* Opened from Go: just under it, left edges lined up, kept on screen; it grows from that corner. */
 .launcher[data-anchored="go"] {
   top: var(--launcher-top); left: clamp(var(--sp-4), var(--launcher-left), calc(100vw - min(640px, 100vw - 32px) - var(--sp-4)));
