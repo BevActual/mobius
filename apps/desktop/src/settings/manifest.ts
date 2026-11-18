@@ -40,7 +40,7 @@ const SECTIONS: readonly SettingsSection[] = [
         row('chat-font', 'Conversation font', 'The typeface used for messages.', 'font', 'typeface', 'serif', 'sans', 'monospace', 'mono', 'family'),
       ] },
       { id: 'layout', label: 'Layout', rows: [
-        row('sidebar-apps', 'Apps in the sidebar', 'Choose which apps the sidebar lists, and their order. The others stay in All apps.', 'sidebar', 'apps', 'reorder', 'order', 'hide', 'show', 'customise', 'customize', 'rail'),
+        row('sidebar-apps', 'Pinned apps', 'The apps pinned at the top of Go (Ctrl+K), in order. Ctrl+1 to Ctrl+9 open the first nine. The others are under Applications.', 'pin', 'pinned', 'apps', 'go', 'launcher', 'reorder', 'order', 'hide', 'show', 'customise', 'customize', 'ctrl+1', 'shortcut'),
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
         row('sidebar-size', 'Agent panel size', 'Drag the edge of the agent panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),

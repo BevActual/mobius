@@ -204,7 +204,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
   if (subpage === 'layout') {
     return (
       <>
-        <Row path={path('sidebar-apps')} title="Apps in the sidebar" description="Choose which apps the sidebar lists, and their order. The others stay in All apps." highlight={highlight === 'sidebar-apps'}>
+        <Row path={path('sidebar-apps')} title="Pinned apps" description="The apps pinned at the top of Go (Ctrl+K), in order. Ctrl+1 to Ctrl+9 open the first nine. The others are under Applications." highlight={highlight === 'sidebar-apps'}>
           <SidebarAppsEditor value={appearance.sidebarApps} onChange={(sidebarApps) => set({ sidebarApps })} />
         </Row>
         <Row path={path('right-sidebar')} title="Agent panel" description="Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again." highlight={highlight === 'right-sidebar'}>
@@ -1060,7 +1060,7 @@ function SidebarAppsEditor({ value, onChange }: { value: SidebarApp[]; onChange:
     onChange(next);
   };
   return (
-    <ul className="sidebar-apps" aria-label="Apps in the sidebar">
+    <ul className="sidebar-apps" aria-label="Pinned apps">
       {[...value, ...hidden].map((id) => {
         const shown = value.includes(id);
         const at = value.indexOf(id);
