@@ -11,6 +11,31 @@ The Go button and Ctrl+K open the launcher. It is how you get anywhere in Mobius
 | **Do** | Type what you want done | Commands: the open app's, every app's "New …", and settings you can flip |
 | **Ask** | Type a question | Ask Mobius is always the first row, so a search with no match becomes a question |
 
+## Mobius's Raycast
+
+Raycast is the bar for a launcher: one box, everything from the keyboard, commands that take arguments, an actions menu on every row, and extensions anyone can add. Mobius starts with an advantage Raycast lacks, because the apps, their data and the agent all live in one place. So the launcher doesn't call out to the apps. It is the fastest way into them.
+
+| Raycast has | Mobius's version |
+|---|---|
+| Commands with arguments ("Create event › title, date") | **Commands that read the rest of the line.** "event lunch with Sam fri 1pm" fills in New event, and Enter shows the result before saving it. The same goes for "task …", "mail Sam …", "note …" and "timer 25m". Each app declares its own (`commands` with `args`) |
+| Actions panel (⌘K on a row) | Shift+Enter on any row: Open, Ask Mobius about this, Copy link, Pin, Reveal, and the app's own actions |
+| Quick AI and AI Chat | **Ask Mobius inline.** A short question gets its answer inside the launcher, with Continue in Mobius to carry it into the panel. Longer work opens the panel right away |
+| Calculator, units, time zones | Answered in the Top hit row as you type ("12% of 340", "3pm PT in London", "5 km in miles"). Enter copies the answer |
+| Clipboard history | **Clipboard** place: the last 50 copies across Mobius, searchable, kept on this device, never including anything from a password field |
+| Snippets | Text you save once and paste with a keyword. Lives in Notes under Snippets, so it syncs like any note |
+| Quicklinks | A saved search or address with a blank to fill ("Docs search {query}", "Issue {n}"). Made with Save as quicklink on any search |
+| Aliases and hotkeys per command | Right-click any app, command or quicklink to give it a short alias or its own key |
+| Fallback commands | When nothing matches, the rows are: Ask Mobius, Search the web, then Search in each pinned app |
+| Store and extensions | Abilities. An ability adds a LauncherSource, the same registry the built-in apps use |
+| Window management, system settings | Not in the first version. Mobius manages its own panels and layouts (Panels menu, Reset layout) |
+| A hotkey that works anywhere on the computer | Andrew's call. See the decision below |
+
+What only Mobius can do:
+
+- **Things that are waiting.** Mail to answer, a review to keep, and a meeting about to start show up at the top of an empty launcher, under Ask.
+- **"About this".** Whatever is selected in the open app (some text, a cell, a clip) carries into the launcher as context. Typing "summarize" or "translate to French" works on it.
+- **Hand it off.** Any command can be handed to Mobius instead of run straight away: Alt+Enter asks Mobius to do it with the same words.
+
 ## Where it falls short today (checked on main, fed360ec)
 
 1. **Recent stays empty.** `noteRecentItem` is never called, so nothing gets recorded.
@@ -129,5 +154,6 @@ The Apps lead's apps view uses the same registry: it lets you jump to any item i
 3. **The source registry** (Builder), then each app's `find` and `commands` (Apps lead).
 4. **Narrowing to an app with Tab, `>`, and the actions menu** (Design lead).
 5. **Choice memory in ranking** (Design lead).
+6. **Raycast set:** commands with arguments and quick answers (Design lead, plus each app's `args`), then inline Ask, Clipboard, Snippets and Quicklinks, aliases and per-command keys (Builder and Design lead).
 
 Each step lands with unit tests for ranking and selection, and with an e2e test: Ctrl+K, type part of a note's name, press Enter, and the note is open.
