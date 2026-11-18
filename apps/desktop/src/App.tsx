@@ -177,8 +177,10 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
-  photo: 'Albums', studio: 'Songs', video: 'Videos',
+  photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks',
 };
+/** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
+const LIST_HANDED: readonly AppId[] = ['design', 'slides'];
 
 export function App() {
   const browser = useBrowser();
@@ -667,9 +669,8 @@ export function App() {
     { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
   // The apps still listed here have their list drawn by the shell; an app in OWN_LIST draws its own, as a panel.
-  // Design and Slides lay out panels of their own already; the Browser's page is drawn natively beside the list; Search
-  // draws its scopes as chips when the list is away. Their lists move next.
-  const hasAppList = inBrowser || inSearch || inDesign || inSlides;
+  // The Browser's page is drawn natively beside the list, and Search draws its scopes as chips when the list is away.
+  const hasAppList = inBrowser || inSearch;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -1118,6 +1119,10 @@ export function App() {
           return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
         case 'sheets':
           return <SheetsSidebar sheets={sheets} pin={null} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
+        case 'design':
+          return <DesignSidebar designs={designs} pin={null} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
+        case 'slides':
+          return <SlidesSidebar slides={slides} pin={null} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
         default:
           return null;
       }
@@ -1137,9 +1142,10 @@ export function App() {
     );
   };
   ownListRef.current = ownListBody;
+  const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
     const panels = ownListPanels[id];
-    return panels ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
+    return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
   };
   // Whether the open app's own list is showing, as it was kept (for the View menu's tick).
   const ownListShown = (() => {
@@ -1153,11 +1159,7 @@ export function App() {
 
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
-            {inDesign ? (
-              <DesignSidebar designs={designs} pin={pinNode} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
-            ) : inSlides ? (
-              <SlidesSidebar slides={slides} pin={pinNode} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
-            ) : inSearch ? (
+            {inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : (
               <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
@@ -1504,7 +1506,7 @@ export function App() {
       case 'docs':
         return <DocEditor docs={docs} inFrame autoFocus={app === 'docs'} review={docs.page && liveMarks.docs.has(docs.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onWritingTool} onComments={onDocComments} busy={conversation.state.busy} />;
       case 'slides':
-        return <SlidesEditor slides={slides} review={slides.page && liveMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
+        return <SlidesEditor slides={slides} listPanels={listFor('slides')} review={slides.page && liveMarks.slides.has(slides.page.path) ? { conversation: conversation.state.conversation } : null} onTool={onSlidesTool} busy={conversation.state.busy} />;
       case 'skills':
         if (extPlace !== 'skills') return <ExtensionsPage place={extPlace} onOpenApp={openApp} />;
         return <>
@@ -1518,7 +1520,7 @@ export function App() {
       case 'photo':
         return <PhotoEditor photos={photos} review={photos.open && liveMarks.photos.has(photos.open.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} changed={liveMarks.photos} />;
       case 'design':
-        return <DesignEditor designs={designs} review={designs.page && liveMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <DesignEditor designs={designs} listPanels={listFor('design')} review={designs.page && liveMarks.designs.has(designs.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'files':
         return <FilesPage files={files} onOpenFile={openChangedFile} onAsk={startWithMobius} />;
       case 'review':

@@ -278,7 +278,9 @@ function SlidesFormat({ slides, at, current, change, toggleSkip, adding, onRepla
 const typing = (t: EventTarget | null) => t instanceof HTMLElement && (['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName) || t.isContentEditable);
 
 /** The open deck: slides down the side, the one chosen to edit at 16:9, its presenter notes, a Format inspector, and Play. */
-export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { slides: NotesState; review?: { conversation: string } | null; onTool?: (tool: SlidesTool, slide: number) => void; busy?: boolean }) {
+const NO_LIST: readonly PanelSpec[] = [];
+
+export function SlidesEditor({ slides: deck, review, onTool, busy = false, listPanels = NO_LIST }: { slides: NotesState; review?: { conversation: string } | null; onTool?: (tool: SlidesTool, slide: number) => void; busy?: boolean; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const path = deck.page?.path ?? null;
   const slides = useMemo(() => parseDeck(deck.text), [deck.text]);
   // The slide shown. If the deck is briefly shorter (read again from disk mid-edit), the choice is kept, not moved.
@@ -300,6 +302,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const notesView = useRef<ReactNode>(null);
   const NOTES_PANEL = useMemo<PanelSpec[]>(() => [{ id: 'notes', name: 'Presenter notes', dock: 'bottom', shown: true, size: 120, render: () => notesView.current }], []);
+  const slidesPanels = useMemo(() => [...listPanels, ...NOTES_PANEL], [listPanels, NOTES_PANEL]);
   useEffect(() => { setDraft(null); }, [at, path]);
   useEffect(() => setAt(0), [path]);
 
@@ -518,7 +521,7 @@ export function SlidesEditor({ slides: deck, review, onTool, busy = false }: { s
         </div>
       )}
       <div className="slides-body">
-        <PanelLayout app="slides" panels={NOTES_PANEL}>
+        <PanelLayout app="slides" panels={slidesPanels}>
         <div className="slides-work">
         <nav ref={navRef} className="slides-nav" aria-label="Slides" onKeyDown={onNavKey} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDropAt(null); }}>
           {slides.map((s, i) => (

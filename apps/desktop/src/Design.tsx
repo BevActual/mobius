@@ -136,7 +136,7 @@ const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect:
  * toolbar, picked with a click, Shift-click or a box, moved with smart guides, sized from any edge, lined up from the
  * inspector, copied and duplicated, text typed on the canvas, and Mobius's changes dashed to keep or discard.
  */
-export function DesignEditor({ designs, review }: { designs: NotesState; review?: { conversation: string } | null }) {
+export function DesignEditor({ designs, review, listPanels = [] }: { designs: NotesState; review?: { conversation: string } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const parsed = useMemo(() => (designs.page ? parseDesign(designs.text) : null), [designs.page, designs.text]);
   const doc = parsed && 'doc' in parsed ? parsed.doc : null;
   const [selected, setSelected] = useState<string[]>([]);
@@ -738,7 +738,7 @@ export function DesignEditor({ designs, review }: { designs: NotesState; review?
           </span>
         </div>
       </ToolbarControls>
-      <PanelLayout app="design" panels={panels}>
+      <PanelLayout app="design" panels={[...listPanels, ...panels]}>
       <div className="design-body">
         <nav className="design-layers" aria-label="Layers">
           <div className="design-panel-title">Layers</div>
