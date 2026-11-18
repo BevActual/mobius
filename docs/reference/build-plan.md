@@ -42,9 +42,10 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 1. **Keep `main` green and the queue short.** An open pull request that is green and reviewed lands before new work
    starts. A flaky test is fixed, never skipped.
-2. **The demo: one moment for every app.** Each app is shown by the one thing that makes someone want to use it,
-   listed in the [demo plan](demo-plan.md). The round that builds an app's moment comes before that app's other
-   rounds, in the demo plan's order: Home, Mail, Calendar, Tasks, Notes, Docs, Browser and Files first.
+2. **Build the product.** Finishing apps, the shell and connections comes first (Andrew, 18 November 2026: "focus on
+   getting it done instead of constantly running a demo"). Each app's [demo moment](demo-plan.md) is a feature like
+   any other: it is built, covered by unit and end-to-end tests, and lands on its tests. There are no real-model
+   reliability rounds while building; Launch runs each moment once on a real model just before recording, at launch.
 3. **One wording and one set of controls everywhere.** The Permission names, shared selects and shared date fields
    replace what is left of the old ones, in the apps and in the docs.
 4. **The shell pieces apps are waiting on,** in the order under [Shell queue](#shell-queue).
@@ -54,27 +55,18 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
-As of the evening of 14 November 2026, Pacific time. On `main` since the last refresh: the speed steps (calls run as
-they are written, reads fetched ahead, one round for a suggestion, only the open apps' tools), WebDAV drives with the
-Files screens, tools for Photo and Design, Music's folded round, the design for two-way sync, and the rule for
-[a new app or part of one that exists](#a-new-app-or-part-of-one-that-exists).
+As of 18 November 2026. Building comes first; demo runs are stopped until recording.
 
-Where the moments stand after real-model rounds 13 to 15: Code and Notes meet the bar, Plan my day meets the time,
-and Triage is right in content but shows its first change at 25 seconds.
-
-| Item | Owner | Status | Unblocks |
-| --- | --- | --- | --- |
-| Triage's first change within five seconds | Builder for the turn, Apps lead for Triage's instructions | Next: the second round writes for 24 s before anything shows | Mail's moment and the reel |
-| Changes dashed in the app as they land | Apps lead | Notes and Photo on `main`; Tasks, Calendar, Mail, Docs, Sheets and Files to follow | Plan my day and Triage arriving one by one |
-| Timing again, on today's `main`: Calendar, Docs, Slides, Browser, Files, Sheets | Launch | Next; these were last timed before the speed steps | Knowing which moments still need work |
-| First real-model runs: Music, Photo, Design, Database, Research, Rewind | Launch, with each owner's script | Next | The rest of the reel |
-| A daytime run of Plan my day, and the model on this computer | Launch | Scheduled for Sunday 15 November | Home's and Settings' moments |
-| Content fixes from the runs (`demo/results.md`) | Apps lead | Building | Recording |
-| A before and after hold | Design lead | Next | Photo's moment |
-| Two-way sync of workspace folders; S3-style storage | Builder, then Apps lead for Files | Have: both on `main`; the soak test against real servers (Nextcloud, wsgidav) is #478 | Notes, Docs and the rest on a person's own server |
-| Unstable tests: `database.spec` | Builder | Open | Every pull request |
-| Clips and the reel | Launch | After a moment meets the bar | The README and launch |
-| Meetings in Calendar and Notes, contacts in Mail and Calendar, the Messages app | Apps lead, Builder for the contacts store | The contacts store is building now; the rest after the demo moments, in that order | |
+| Item | Owner | Status |
+| --- | --- | --- |
+| Apps own their panels: the app switcher, a left dock, per-app defaults, Mobius docked ([#514](https://github.com/BevActual/mobius/pull/514)) | Design lead for the spec, Apps lead for the apps | Building |
+| Plan my day and Files Tidy worked out in code (#512, #511); Music's bass in code (#519) | Apps lead, Music | Land on their tests |
+| First run: a fresh install to a useful first answer in five minutes, with no terminal and no doc | Builder | Next |
+| Contacts in Mail and Calendar over CardDAV, then Meetings in Calendar and Notes | Apps lead, Builder for the store | Store on `main`; the app pieces next |
+| The Messages app (Slack, Discord, Telegram) | Builder for the accounts, Apps lead for the app | After Contacts |
+| Calendar and drive sign-in for Google, Microsoft and Dropbox | Builder | Built; waits on Andrew registering Mobius ([drive sign-in](drive-sign-in.md)) |
+| Design and Research weak points, Database's Analyse mode | Apps lead | After the panels |
+| Clips and the reel | Launch | At launch, after one real-model run of each moment |
 
 ## Shell queue
 
