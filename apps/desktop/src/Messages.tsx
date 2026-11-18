@@ -51,7 +51,7 @@ export function MessagesPage({ messages, onAsk }: { messages: MessagesState; /**
   if (messages.accounts.length === 0) {
     return (
       <section className="messages-page empty" aria-label="Messages">
-        <EmptyState app="messages" title="No accounts yet" line={messages.available ? 'Add Slack, Discord or Telegram in Settings to see your channels here.' : 'Slack, Discord and Telegram accounts are on their way. Your channels will show here.'} />
+        <EmptyState app="messages" title="No accounts yet" line={messages.available ? 'Add a Slack account in Settings to see your channels here.' : 'Slack, Discord and Telegram accounts are on their way. Your channels will show here.'} />
       </section>
     );
   }

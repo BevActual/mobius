@@ -286,7 +286,8 @@ export type ChatService = 'slack' | 'discord' | 'telegram';
 export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
 export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number }
 export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
-export interface ChatChanged { account: string; channel?: string }
+export interface ChatChanged { account: string; channel?: string | null }
+export type ChatSignIn = { ok: true; account: { id: string; service: ChatService; name: string } } | { ok: false; message: string };
 
 export interface ContactValue { value: string; label: string }
 /** A person in the address book: a vCard file in `contacts/<book>/<id>.vcf`. */
@@ -724,7 +725,7 @@ export interface MobiusBridge {
     removeAccount(id: string): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: ContactsChanged) => void): () => void;
   };
-  /** The Messages app. Only the person sends: Mobius drafts, and never calls `send`. Not there until accounts are built. */
+  /** The Messages app. Only the person sends: Mobius drafts, and never calls `send`. Only the Tauri shell has it. */
   messages?: {
     accounts(): Promise<ChatAccount[] | NotesFailure>;
     channels(account: string): Promise<ChatChannel[] | NotesFailure>;
@@ -733,6 +734,14 @@ export interface MobiusBridge {
     send(account: string, channel: string, text: string, thread?: string): Promise<ChatMessage | NotesFailure>;
     markRead(account: string, channel: string, upTo: string): Promise<void>;
     onChanged(listener: (change: ChatChanged) => void): () => void;
+    /** Forgets the account and its sign-in; its messages stay on the service. */
+    removeAccount?(id: string): Promise<{ ok: true } | NotesFailure>;
+    /** Slack: whether this build can sign in, and a sign-in page still open. */
+    slackStatus?(): Promise<{ setUp: boolean; pending: string | null; hint: string | null } | NotesFailure>;
+    /** Starts signing in to Slack (again, for a workspace already here) and answers the page to open; how it ends comes to `onSignIn`. */
+    slackSignIn?(): Promise<{ url: string } | NotesFailure>;
+    slackCancel?(): Promise<{ ok: true } | NotesFailure>;
+    onSignIn?(listener: (done: ChatSignIn) => void): () => void;
   };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {

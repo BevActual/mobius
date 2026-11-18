@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -139,6 +139,15 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'The calendars Calendar reads from elsewhere.',
     subpages: [
       { id: 'accounts', label: 'Accounts', rows: [row('calendar-accounts', 'Calendar accounts', 'Subscribe to a calendar link, or connect iCloud, Fastmail or Nextcloud. Refresh or remove one.', 'calendar', 'caldav', 'subscribe', 'webcal', 'ics', 'icloud', 'fastmail', 'nextcloud', 'google calendar', 'outlook', 'add account', 'remove account', 'refresh')] },
+    ],
+  },
+  // Messages: the chat accounts it reads and sends through as you.
+  {
+    id: 'messages',
+    label: 'Messages',
+    description: 'The chat accounts Messages reads and sends through.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('messages-accounts', 'Message accounts', 'Sign in to Slack, or remove a workspace. Its messages stay on Slack.', 'slack', 'chat', 'workspace', 'sign in', 'add account', 'remove account')] },
     ],
   },
   {
@@ -298,7 +307,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
   ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 
