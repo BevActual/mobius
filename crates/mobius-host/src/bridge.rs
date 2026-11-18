@@ -303,6 +303,8 @@ pub struct Bridge {
     contacts: mobius_workspace::contacts::Contacts,
     calendar: mobius_workspace::calendar::Calendar,
     calendar_accounts: Arc<crate::calendar_accounts::Accounts>,
+    /// The Messages app's accounts (Slack), read and sent through as the person.
+    messages: Arc<crate::messages::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
     drives: Arc<crate::drives::Drives>,
     /// Files picked on Google Drive, opened from Files (`drive.file` only).
@@ -521,6 +523,7 @@ impl Bridge {
                 calendar
             },
             calendar_accounts,
+            messages: Arc::new(crate::messages::Accounts::new(&data_dir, secrets.clone())),
             drives,
             google_drive: Mutex::new(Arc::new(crate::google_drive::GoogleDrive::new(crate::google_drive::App::built_in(), crate::google_drive::Endpoints::default(), secrets.clone(), &data_dir.join("google-drive.json")))),
             contact_accounts,
@@ -714,6 +717,7 @@ impl Bridge {
             ("tasks", _) => Ok(self.tasks_call(method, args)),
             ("contacts", _) => Ok(self.contacts_call(method, args)),
             ("calendar", _) => Ok(self.calendar_call(method, args)),
+            ("messages", _) => Ok(self.messages_call(method, args)),
             ("drives", _) => Ok(self.drives_call(method, args)),
             ("googleDrive", _) => Ok(self.google_drive_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
@@ -3612,6 +3616,55 @@ impl Bridge {
             _ => Err("A drive is needed.".to_owned()),
         };
         result.unwrap_or_else(|message| json!({ "ok": false, "conflict": message == crate::drives::CHANGED, "message": message }))
+    }
+
+    /// The Messages app. Every answer is what was asked for or `{ ok: false, message }`. `send` is only ever the
+    /// person's own Send; the agent has no way to it.
+    fn messages_call(&self, method: &str, args: &[Value]) -> Value {
+        let text = |i: usize| args.get(i).and_then(Value::as_str);
+        let option = |k: &str| args.get(2).and_then(|o| o.get(k));
+        let accounts = &self.messages;
+        let changed = |account: &str, channel: Option<&str>| (self.emit)("mobius:messages-changed", json!({ "account": account, "channel": channel }));
+        let result = match method {
+            "accounts" => Ok(accounts.list()),
+            "channels" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|a| accounts.channels(a)),
+            "history" => match (text(0), text(1)) {
+                (Some(a), Some(c)) => {
+                    let limit = option("limit").and_then(Value::as_u64).map_or(100, |n| usize::try_from(n).unwrap_or(200));
+                    accounts.history(a, c, option("before").and_then(Value::as_str), option("thread").and_then(Value::as_str), limit)
+                }
+                _ => Err("a conversation is needed".to_owned()),
+            },
+            "send" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(t)) => accounts.send(a, c, t, text(3).filter(|t| !t.is_empty())).inspect(|_| changed(a, Some(c))),
+                _ => Err("a conversation and a message are needed".to_owned()),
+            },
+            "markRead" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(ts)) => accounts.mark_read(a, c, ts).map(|()| json!({ "ok": true })),
+                _ => Err("a conversation is needed".to_owned()),
+            },
+            "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|a| accounts.remove(a)).inspect(|_| changed(text(0).unwrap_or(""), None)),
+            // Slack: a sign-in on Slack's page; the window hears how it ended (`mobius:messages-sign-in`).
+            "slackStatus" => Ok(accounts.slack_status()),
+            "slackCancel" => {
+                accounts.slack_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "slackSignIn" => {
+                let emit = self.emit.clone();
+                let done: Arc<dyn Fn(Result<Value, String>) + Send + Sync> = Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(account) => {
+                        emit("mobius:messages-sign-in", json!({ "ok": true, "account": account }));
+                        emit("mobius:messages-changed", json!({ "account": account["id"], "channel": null }));
+                    }
+                    Err(message) if message == "cancelled" => {}
+                    Err(message) => emit("mobius:messages-sign-in", json!({ "ok": false, "message": message })),
+                });
+                accounts.slack_sign_in(done)
+            }
+            _ => return json!({ "ok": false, "message": "unknown" }),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "message": message }))
     }
 
     /// The Calendar app. Every answer is what was asked for or `{ ok: false, message }`.
