@@ -140,7 +140,8 @@ test('a comment on chosen words, a link to another document, and Share all work 
   const composer = shell().getByRole('dialog', { name: 'New comment' });
   await composer.getByRole('textbox', { name: 'Comment' }).fill('Or the 11th?');
   await composer.getByRole('button', { name: 'Comment' }).click();
-  await expect(shell().getByRole('region', { name: 'Comments' })).toContainText('Or the 11th?');
+  // Comments are the inspector's Comments panel, beside the outline; commenting brings it forward.
+  await expect(shell().getByRole('complementary', { name: 'Inspector' }).getByRole('region', { name: 'Comments' })).toContainText('Or the 11th?');
   await expect(page().locator('.note-commented')).toHaveCount(1);
   const kept = path.join(userData, 'workspace', 'docs', '.comments', 'Work', 'Offsite brief.json');
   await expect.poll(() => fs.existsSync(kept) && JSON.parse(fs.readFileSync(kept, 'utf8'))[0]?.text).toBe('Or the 11th?');

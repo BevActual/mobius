@@ -31,7 +31,7 @@ import { copyFormatted, copyText, pageAsHtml } from './note-share';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, type MenuEntry } from './ui';
+import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, useInspector, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
@@ -398,7 +398,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       {/* The document's view options. Not a second ⋯: the window's ⋯ beside it holds the app's menus. */}
       <Menu label="Document options" align="end" entries={[
         { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline },
-        ...(extras.onComments && inFrame ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments }] : []),
+        ...(extras.onComments && inFrame ? [{ label: extras.commentsOpen ? 'Hide comments' : extras.comments ? `Show comments (${extras.comments} open)` : 'Show comments', run: extras.onComments }] : []),
         ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory }] : []),
         extras.font === 'serif'
           ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans'), separated: true }
@@ -421,7 +421,7 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
 
 /**
  * The open document: a page you write on (headings, lists, checklists, tables, pictures, links to other documents),
- * kept as Markdown and saved as you type, with its outline beside it and its comments in the margin. History puts an
+ * kept as Markdown and saved as you type, with its outline and its comments beside it (in the window, the inspector's Outline and Comments panels). History puts an
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
@@ -611,7 +611,15 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
-  const [commentsOpen, setCommentsOpen] = useState(true);
+  const [marginOpen, setMarginOpen] = useState(true);
+  // In the window, comments are the inspector's Comments panel (right, beside the outline); elsewhere, a margin.
+  const inspector = useInspector();
+  const commentsOpen = inFrame ? inspector.open && inspector.active === 'comments' : marginOpen;
+  const setCommentsOpen = (open: boolean) => {
+    if (!inFrame) setMarginOpen(open);
+    else if (open) inspector.show('comments');
+    else inspector.setOpen(false);
+  };
   const [composing, setComposing] = useState<{ quote: string; top: number; left: number } | null>(null);
   // The page's own right-click menu, in place of the web view's (which offers Inspect Element and the like).
   const [editMenu, setEditMenu] = useState<{ x: number; y: number } | null>(null);
@@ -820,7 +828,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   };
   if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, waiting: busy, tall: tallGroups.current };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
-  const margin = own && commentState.available && commentsOpen && commentState.comments.length > 0;
+  const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
     <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
       {docs.status === 'conflict' && (
@@ -838,8 +846,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           ...(own?.versions ? { onHistory: () => setHistory(true) } : {}),
           ...(own ? { onShare: (how: ShareHow) => void share(how) } : {}),
           outline: outlineOpen, onOutline: toggleOutline,
-          comments: openComments, commentsOpen: commentsOpen && commentState.comments.length > 0,
-          ...(own && commentState.available ? { onComments: () => setCommentsOpen((o) => !o) } : {}),
+          comments: openComments, commentsOpen: commentsOpen && (inFrame || commentState.comments.length > 0),
+          ...(own && commentState.available ? { onComments: () => setCommentsOpen(!commentsOpen) } : {}),
         }} />
       )}
       <input ref={picker} type="file" multiple hidden onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />
@@ -866,6 +874,15 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       )}
       {/* The outline, as the right panel's Outline tab beside Mobius. */}
       {inFrame && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
+      {/* Comments, as the inspector's Comments panel: each opens its words in the page. Hidden until asked for. */}
+      {inFrame && own && commentState.available && (
+        <PanelTab id="comments" name="Comments">
+          <div className="doc-comments-panel">
+            {commentState.comments.length === 0 && !commentState.problem && <p className="doc-outline-empty">Select words and choose Comment to add one.</p>}
+            <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} {...(askAbout ? { onAsk: askAbout } : {})} />
+          </div>
+        </PanelTab>
+      )}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
           {outlineOpen && !inFrame && (

@@ -208,3 +208,8 @@
 .doc-outline-panel .doc-outline-empty { margin: 0; padding: var(--sp-2); color: var(--muted); font-size: var(--fs-md); }
 .doc-outline-panel .doc-outline-item:hover { color: var(--ink); background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .doc-outline-panel .doc-outline-item[aria-current] { color: var(--ink); background: var(--sel); font-weight: var(--fw-medium); }
+/* Comments, as the inspector's Comments panel. */
+.doc-comments-panel { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); }
+.doc-comments-panel .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
+.doc-comments-panel .note-comment { flex-direction: column; align-items: stretch; gap: 2px; background: var(--bg); border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--line); }
+.doc-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
