@@ -30,6 +30,34 @@ time it is opened. There is no app rail and no shared sidebar.
 | Left, right and bottom docks | The app's panels. A dock with nothing shown takes no space. The bottom dock runs under the content only. | App |
 | Mobius | The Mobius panel and nothing else: the chat, its cards and the composer. Always the far right edge, docked (Andrew 2026-11-17: docked, not floating). Pop out makes it Little Mobius. | Shell |
 
+### The top bar is almost a panel
+
+Andrew, 2026-11-17: the frame should feel modular. The top bar is listed in the Panels menu like a panel and can be:
+
+- **Hidden** (focus mode, from the Panels menu or Ctrl+Shift+F): it slides away, and moving the pointer to the top
+  edge brings it back over the content. The window can still be dragged from that edge.
+- **Customised**: right-click it to choose which of the app's commands sit in the middle and in what order, kept per
+  app. The Go button, the title, Panels, ⋯ and Mobius are always there and cannot be removed.
+- **Compact**: a shorter height, the default in compact apps.
+
+It never moves to another dock and never closes without a way back: it holds the window's drag area and buttons, and
+the Go button and Mobius stay in one place in every app.
+
+### Tool panels
+
+Where an app has a full set of tools, they are a panel like any other (shown, hidden, docked, popped out), and the
+top bar's middle keeps only the few commands the app always needs.
+
+| App | Tool panel | Starts |
+|---|---|---|
+| Design, Canvas, Photo | Tools: the tool palette | Left, shown; pops out as a floating strip |
+| Docs, Notes | Format: the formatting bar | Under the top bar, shown; hidden in focus mode |
+| Code | Run: run, tests, branch | Under the top bar, hidden |
+| Sheets | Formula and Format: the formula bar and format tools | Under the top bar, shown |
+| Video | Tools: blade, trim, titles | Left of the timeline, shown |
+
+A panel docked "under the top bar" lays out in a row across the content, like the bottom dock but at the top.
+
 ## The Go button and Ctrl+K
 
 The Go button opens the launcher (Ctrl+K), which now does everything the rail did.
@@ -86,7 +114,7 @@ interface AppLayout {
   views: { id: string; name: string }[];          // one entry: no switch shown
   panels: {
     id: string; name: string; key?: string;
-    dock: 'left' | 'right' | 'bottom';            // where it starts
+    dock: 'left' | 'right' | 'bottom' | 'top';    // where it starts ('top': a tool row under the top bar)
     shown: boolean;                               // whether it starts open
     allow?: ('left' | 'right' | 'bottom' | 'window')[];  // default: all
   }[];
