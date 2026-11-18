@@ -1,6 +1,7 @@
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppMenu, AppSidebar, KeyHintBar, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppMenu, AppSidebar, KeyHintBar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { ContactPanel, useAddressSuggestions } from './ContactPanel';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
 import { TryAnotherContext } from './ReviewBar';
@@ -148,6 +149,8 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   useEffect(() => setD(draft), [draft.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const to = useRef<HTMLInputElement>(null);
   const body = useRef<HTMLTextAreaElement>(null);
+  const toPeople = useAddressSuggestions(d.to);
+  const ccPeople = useAddressSuggestions(d.cc);
   useEffect(() => {
     if (draft.id) return;
     if (draft.to) { body.current?.focus({ preventScroll: true }); body.current?.setSelectionRange(0, 0); } else to.current?.focus({ preventScroll: true });
@@ -160,8 +163,11 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   };
   return (
     <form className="mail-compose" aria-label={d.replyTo ? 'Reply' : 'New message'} onSubmit={(e) => { e.preventDefault(); void send(); }}>
-      <label className="mail-field"><span>To</span><input ref={to} aria-label="To" value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} onBlur={() => void keep(d)} /></label>
-      <label className="mail-field"><span>Cc</span><input aria-label="Cc" value={d.cc} onChange={(e) => setD({ ...d, cc: e.target.value })} onBlur={() => void keep(d)} /></label>
+      <label className="mail-field"><span>To</span><input ref={to} aria-label="To" list="mail-to-people" autoComplete="off" value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} onBlur={() => void keep(d)} /></label>
+      <label className="mail-field"><span>Cc</span><input aria-label="Cc" list="mail-cc-people" autoComplete="off" value={d.cc} onChange={(e) => setD({ ...d, cc: e.target.value })} onBlur={() => void keep(d)} /></label>
+      {/* Names from the address book as an address is typed. */}
+      <datalist id="mail-to-people">{toPeople.map((v) => <option key={v} value={v} />)}</datalist>
+      <datalist id="mail-cc-people">{ccPeople.map((v) => <option key={v} value={v} />)}</datalist>
       <label className="mail-field"><span>Subject</span><input aria-label="Subject" value={d.subject} onChange={(e) => setD({ ...d, subject: e.target.value })} onBlur={() => void keep(d)} /></label>
       {/* A reply or forward starts above the quoted message, ready to type; a new message starts at To. */}
       <textarea ref={body} aria-label="Message" value={d.body} rows={12} onChange={(e) => setD({ ...d, body: e.target.value })} onBlur={() => void keep(d)} />
@@ -401,6 +407,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
   }
   return (
     <section className="mail-page" aria-label="Mail">
+      <PanelTab id="contact" name="Contact"><ContactPanel person={mail.open?.from ?? null} messages={mail.messages} onOpen={(id) => void mail.read(id)} /></PanelTab>
       <div className="mail-list-pane">
         {v.kind === 'drafts' ? (
           <div role="listbox" aria-label={mailPlace(v)} className="mail-list">
