@@ -47,3 +47,28 @@
 .go-button-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .go-button .launcher-dot { position: static; flex: none; }
 .go-button svg.go-button-chevron { width: var(--sp-4); height: var(--sp-4); color: var(--muted); fill: none; stroke: currentColor; }
+
+/* The launcher keeps one height while it is open, so the field never moves as results come and go. */
+.launcher { height: min(calc(var(--sp-8) * 17.5), 76vh); }
+.launcher[data-inline] { height: calc(var(--sp-8) * 17.5); }
+.launcher .launcher-list { flex: 1; min-height: 0; }
+/* Section labels in sentence case, as every other list. */
+.launcher .launcher-heading { text-transform: none; letter-spacing: 0; }
+/* Rows follow the density, as every list does. */
+.launcher .launcher-option { min-height: var(--row-h); padding-top: 0; padding-bottom: 0; }
+/* What was typed, drawn in ink wherever a name holds it. */
+.launcher-match { background: none; color: var(--ink); font-weight: var(--fw-semibold); }
+.launcher-label:has(.launcher-match), .launcher-tile-name:has(.launcher-match) { color: var(--muted); }
+.launcher-empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.launcher-back {
+  height: var(--button-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none;
+  color: var(--muted); font: inherit; font-size: var(--fs-sm);
+}
+.launcher-back:hover { background: var(--sel); color: var(--ink); }
+.launcher-back:focus-visible { outline: var(--focus-w) solid var(--ink); }
+
+/* All apps: every app as a tile, a grid seven across, A to Z. Its tile at the end of Pinned is a plain grid mark. */
+.launcher-grid { display: grid; gap: var(--sp-1); padding: 0 var(--sp-1); }
+.launcher-grid .launcher-tile { width: auto; }
+.launcher-grid .launcher-icon svg { width: var(--sp-8); height: var(--sp-8); padding: var(--sp-1); }
+.launcher-tile .launcher-icon svg[data-all-apps] { width: var(--sp-8); height: var(--sp-8); padding: var(--sp-1); background: var(--field); color: var(--muted); }
