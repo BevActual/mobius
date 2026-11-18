@@ -238,3 +238,6 @@
 /* In the Event panel: the panel is the sheet, so the form fills it and the notes have room. */
 .cal-editor[data-docked] { width: auto; min-height: 100%; padding: var(--sp-3) var(--sp-4) var(--sp-4); border-radius: 0; background: transparent; box-shadow: none; }
 .cal-editor[data-docked] textarea { min-height: 160px; }
+/* Someone invited: a link-like name that opens the Person panel. */
+.cal-invitee { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; cursor: pointer; }
+.cal-invitee:hover { text-decoration-color: currentColor; }

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { CalendarDraft, CalendarEvent, CalendarSuggestion } from '@mobius/shared';
+import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
-import { useAddressSuggestions } from './ContactPanel';
+import { ContactPanel, useAddressSuggestions } from './ContactPanel';
 import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
@@ -656,7 +656,7 @@ const newStart = (anchor: Date) => {
   return isoTime(n);
 };
 
-function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void }) {
+function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock, onPerson }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void; /** Shows someone on the event in the Person panel. */ onPerson?: (person: CalendarPerson) => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -778,7 +778,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock 
         <datalist id="cal-invite-people">{invitePeople.map((v) => <option key={v} value={v} />)}</datalist>
         {(original?.attendees?.length ?? 0) > 0 && (
           <ul className="cal-invitees" aria-label="Answers">
-            {original!.attendees!.map((p) => <li key={p.email}>{p.name || p.email}{answerWord(p.status) && <span> · {answerWord(p.status)}</span>}</li>)}
+            {original!.attendees!.map((p) => <li key={p.email}>{onPerson ? <button type="button" className="cal-invitee" title={`About ${p.name || p.email}`} onClick={() => onPerson(p)}>{p.name || p.email}</button> : (p.name || p.email)}{answerWord(p.status) && <span> · {answerWord(p.status)}</span>}</li>)}
           </ul>
         )}
         <div className="cal-editor-group">
@@ -965,6 +965,9 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
 
 export function CalendarPage({ calendar, newToken = 0, review = null, working = false, onMeeting }: { calendar: CalendarState; newToken?: number; /** Record an event's meeting: a note for it, listening. */ onMeeting?: (event: CalendarEvent) => void; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
+  // Person (right, hidden until someone on an event is picked): who they are, and their coming meetings.
+  const [person, setPerson] = useState<CalendarPerson | null>(null);
+  const showPerson = useShowPanelTab();
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
   const takeBack = async () => { const u = undoable; setUndoable(null); await u?.undo(); };
@@ -1148,7 +1151,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} />}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={(p) => { setPerson(p); showPerson('person'); }} />}
+      <PanelTab id="person" name="Person"><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>
     </section>
   );
 }

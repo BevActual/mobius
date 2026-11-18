@@ -415,3 +415,15 @@ test('an event says who is invited and how they answered, and Invite adds someon
   expect(kept).toMatch(/ATTENDEE[^\r\n]*PARTSTAT=DECLINED[^\r\n]*rui@example\.com/);
   expect(kept).toMatch(/ATTENDEE[^\r\n]*CN=Lee Park[^\r\n]*lee@example\.com/);
 });
+
+test('someone invited opens in the Person panel, with their coming meetings', async () => {
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T230000\r\nDTEND:${ics(today())}T233000\r\nSUMMARY:Budget review\r\nATTENDEE;CN=Ana Silva;PARTSTAT=ACCEPTED:mailto:ana@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  await tools().getByRole('radio', { name: 'Week' }).click();
+  await page().getByRole('button', { name: /^Budget review/ }).first().click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('list', { name: 'Answers' }).getByRole('button', { name: 'Ana Silva' }).click();
+  const card = shell().getByLabel('Contact', { exact: true });
+  await expect(card).toContainText('Ana Silva');
+  await expect(card.getByRole('region', { name: 'Meetings with Ana Silva' })).toContainText('Budget review');
+});
