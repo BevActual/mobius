@@ -36,3 +36,14 @@ describe('launcher views', () => {
     expect(marked('Mail', 'x')).toBe('Mail');
   });
 });
+
+import { commandsOnly } from './Launcher';
+describe('launcher commands only', () => {
+  const commands = [{ label: 'New message', detail: 'Mail · Ctrl+N' }, { label: 'New event', detail: 'Calendar' }, { label: 'Print', detail: 'File' }];
+  it('lists only commands after ">", matched on their name and where they live', () => {
+    expect(commandsOnly(commands, 'new')).toBeNull();
+    expect(commandsOnly(commands, '>')!.map((c) => c.label)).toEqual(['New message', 'New event', 'Print']);
+    expect(commandsOnly(commands, '> new')!.map((c) => c.label)).toEqual(['New message', 'New event']);
+    expect(commandsOnly(commands, '>calendar')!.map((c) => c.label)).toEqual(['New event']);
+  });
+});

@@ -187,6 +187,17 @@ function LauncherDemo() {
         inline open now={now} onClose={noop} tabs={[]} onNewTab={noop} onActivateTab={noop} onOpenApp={noop} onAsk={noop}
         pinned={pinned} onPinned={setPinned} waiting={{ mail: 3, calendar: 1 }} recent={recent} onOpenRecent={noop}
         places={{ home: noop, activity: noop, abilities: noop, settings: noop }}
+        onAskAbout={noop}
+        commands={[
+          { id: 'compose', label: 'New message', detail: 'Mail · Ctrl+N', run: noop },
+          { id: 'event', label: 'New event', detail: 'Calendar', run: noop },
+          { id: 'note', label: 'New note', detail: 'Notes', run: noop },
+        ]}
+        find={(q) => [
+          { id: 'p2', app: 'mail' as const, label: 'Northway Motors: P2 quote', detail: 'Mail · 52 min ago', run: noop },
+          { id: 'garden', app: 'notes' as const, label: 'Garden plan', detail: 'Notes · 4 min ago', run: noop },
+          { id: 'invoice', app: 'mail' as const, label: 'Invoice 2041 from Harbor Print', detail: 'Mail · Monday', run: noop },
+        ].filter((i) => i.label.toLowerCase().includes(q.toLowerCase()))}
       />
     </div>
   );
