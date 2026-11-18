@@ -390,8 +390,12 @@ async function openLauncherFromGo(shell: Page) {
 }
 
 /** The pointer leaves the launcher's spot once it has closed: left there, it can rest on a panel's resize edge, which
- *  puts the web page away while hovered (as it should for a person). */
-const pointerAway = (shell: Page) => shell.mouse.move(2, 400);
+ *  puts the web page away while hovered (as it should for a person). It goes to the top bar's middle, clear of every
+ *  panel's edge and of a floating list's edge zone. */
+const pointerAway = async (shell: Page) => {
+  const width = await shell.evaluate(() => window.innerWidth);
+  await shell.mouse.move(Math.round(width / 2), 6);
+};
 
 /** Opens an app as a person would: the Go button, its name typed, then its row. */
 export async function goTo(shell: Page, name: string): Promise<void> {
