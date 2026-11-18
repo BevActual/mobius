@@ -592,6 +592,52 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
     ];
   };
 
+  /** A colour style on the picked layers: the fill of a shape or a frame, the colour of text. */
+  const applyStyle = (name: string) => change((d) => {
+    for (const id of selected) {
+      const hit = findNode(d, id);
+      if (hit?.node) { if (hit.node.type === 'text') hit.node.color = `style:${name}`; else if (hit.node.type !== 'instance') hit.node.fill = `style:${name}`; }
+      else if (hit) hit.frame.fill = `style:${name}`;
+    }
+  });
+  const components = doc.frames.filter((f) => f.component);
+  const canPlace = doc.frames.some((f) => !f.component);
+  // Assets (left dock, as in Figma): the design's components to place, and its colour styles to use on what is picked.
+  const assets: PanelSpec = { id: 'assets', name: 'Assets', dock: 'left', shown: false, render: () => (
+    <div className="design-assets">
+      <div className="design-panel-title">Components</div>
+      {components.length === 0
+        ? <p className="design-hint">None yet. Pick layers and choose Create component to reuse them.</p>
+        : (
+          <ul className="design-asset-list" aria-label="Components">
+            {components.map((c) => (
+              <li key={c.id}>
+                <button type="button" className="design-asset" disabled={!canPlace} title={canPlace ? `Place a copy of ${c.name}` : 'Make a frame first'} aria-label={`Place ${c.name}`} onClick={() => insertCopy(c.id)}>
+                  <span className="design-asset-name">{c.name}</span>
+                  <span className="design-asset-size">{c.w} × {c.h}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      <div className="design-panel-title">Colour styles</div>
+      {doc.styles.length === 0
+        ? <p className="design-hint">None yet. Add one in the Inspector with nothing picked.</p>
+        : (
+          <ul className="design-asset-list" aria-label="Colour styles">
+            {doc.styles.map((st) => (
+              <li key={st.name}>
+                <button type="button" className="design-asset" disabled={selected.length === 0} title={selected.length ? `Use ${st.name} on what is picked` : 'Pick a layer or frame first'} aria-label={`Use ${st.name}`} onClick={() => applyStyle(st.name)}>
+                  <span className="design-asset-swatch" style={{ background: st.color }} aria-hidden="true" />
+                  <span className="design-asset-name">{st.name}</span>
+                  <code className="design-asset-size">{st.color}</code>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+    </div>
+  ) };
   // The inspector is a panel in the right dock, beside Mobius, as in the Music mock; it hides from the Panels menu.
   const panels: PanelSpec[] = [{ id: 'inspector', name: 'Inspector', dock: 'right', shown: true, keys: 'mod+alt+i', render: () => (
     <div className="design-inspector">
@@ -738,7 +784,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
           </span>
         </div>
       </ToolbarControls>
-      <PanelLayout app="design" panels={[...listPanels, ...panels]}>
+      <PanelLayout app="design" panels={[...listPanels, assets, ...panels]}>
       <div className="design-body">
         <nav className="design-layers" aria-label="Layers">
           <div className="design-panel-title">Layers</div>

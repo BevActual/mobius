@@ -250,3 +250,22 @@ test('layers become a component; a copy keeps its own text, and detaches back in
   await inspector().getByRole('button', { name: 'Detach' }).click();
   await expect.poll(() => saved().frames[0]!.children.map((c) => [c.type, c.text ?? ''])).toEqual([['text', 'Porto offsite'], ['rect', '']]);
 });
+
+test('Assets places a copy of a component and puts a colour style on what is picked', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  await tree.getByRole('button', { name: 'Title', exact: true }).click();
+  await tree.getByRole('button', { name: 'Card', exact: true }).click({ modifiers: ['Shift'] });
+  await inspector().getByRole('button', { name: 'Create component' }).click();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['instance']);
+  // Assets is a left panel, shown from the Panels menu.
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Assets' }).click();
+  const assets = shell().getByRole('region', { name: 'Assets', exact: true });
+  await assets.getByRole('button', { name: 'Place Card' }).click();
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['instance', 'instance']);
+  // A colour style goes on the picked frame's fill.
+  await tree.getByRole('button', { name: 'Home', exact: true }).click();
+  await assets.getByRole('button', { name: 'Use Ink' }).click();
+  await expect.poll(() => saved().frames[0]!.fill).toBe('style:Ink');
+});
