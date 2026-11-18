@@ -53,6 +53,7 @@ export function LauncherWindow() {
         places={{ home: () => run({ kind: 'place', place: 'home' }), activity: () => run({ kind: 'place', place: 'activity' }), abilities: () => run({ kind: 'place', place: 'abilities' }), settings: () => run({ kind: 'place', place: 'settings' }) }}
         onOpenMobius={() => run({ kind: 'mobius' })}
         onAsk={(text) => run({ kind: 'ask', text })}
+        onAskAbout={(item) => run({ kind: 'ask-about', app: item.app ?? '', label: item.label, ...(item.detail ? { detail: item.detail } : {}) })}
       />
     </div>
   );

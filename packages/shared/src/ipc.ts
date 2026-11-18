@@ -370,7 +370,8 @@ export type LaunchChoice =
   | { kind: 'tab'; id: string }
   | { kind: 'new-tab' }
   | { kind: 'mobius' }
-  | { kind: 'ask'; text: string };
+  | { kind: 'ask'; text: string }
+  | { kind: 'ask-about'; app: string; label: string; detail?: string };
 
 /** A choice as it arrives from the other window, checked: anything else is ignored. */
 export function parseLaunchChoice(value: unknown): LaunchChoice | null {
@@ -385,6 +386,10 @@ export function parseLaunchChoice(value: unknown): LaunchChoice | null {
     case 'new-tab': return { kind: 'new-tab' };
     case 'mobius': return { kind: 'mobius' };
     case 'ask': { const t = text('text', 20000); return t !== null ? { kind: 'ask', text: t } : null; }
+    case 'ask-about': {
+      const app = text('app', 40) ?? ''; const label = text('label', 400); const detail = text('detail', 2000);
+      return label ? { kind: 'ask-about', app, label, ...(detail ? { detail } : {}) } : null;
+    }
     default: return null;
   }
 }

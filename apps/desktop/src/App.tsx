@@ -1351,6 +1351,15 @@ export function App() {
     openRecent: (item: { app: AppId; ref: string; label: string }) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); },
     places: { home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() },
     openMobius: () => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); },
+    // Mobius opens with the thing chosen attached, as an item is from inside its app; the person says what to ask.
+    askAbout: (item: { app?: AppId; label: string; detail?: string }) => {
+      closeSettings();
+      if (hasRight) openRight(); else openApp('agent');
+      const where = item.app ? appName(item.app) : 'Mobius';
+      const text = [`${item.label}, in ${where}.`, item.detail ? `Details: ${item.detail}` : ''].filter(Boolean).join('\n');
+      setIncoming({ token: Date.now(), item: { kind: 'file', title: item.label.slice(0, 120), source: where, text: text.slice(0, MAX_CONTEXT_ITEM_CHARS) } });
+      setFocusToken((n) => n + 1);
+    },
     ask: settings?.configured ? (question: string) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined,
   };
   const launchNow = useRef(launch);
@@ -1366,6 +1375,7 @@ export function App() {
     else if (chosen.kind === 'tab') l.activateTab(chosen.id);
     else if (chosen.kind === 'new-tab') l.newTab();
     else if (chosen.kind === 'mobius') l.openMobius();
+    else if (chosen.kind === 'ask-about') l.askAbout({ ...(findApp(chosen.app) ? { app: chosen.app as AppId } : {}), label: chosen.label, ...(chosen.detail ? { detail: chosen.detail } : {}) });
     else if (chosen.kind === 'ask') { if (chosen.text.trim() && l.ask) l.ask(chosen.text); else l.openMobius(); }
   }), []);
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
@@ -1939,6 +1949,7 @@ export function App() {
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}
+        onAskAbout={launch.askAbout}
         commands={launcherCommands} />
       <TooltipLayer />
     </AppFrame>
