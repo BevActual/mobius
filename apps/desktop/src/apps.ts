@@ -92,3 +92,28 @@ export const askAbout = (id: AppId, open = true): string => {
   if (!about || (!open && /^th(is|ese) /.test(about))) return 'Ask Mobius';
   return `Ask about ${about}`;
 };
+
+/**
+ * A thing opened in an app (a note, a thread, a file, a song), for the launcher's Recent. The app says how to open it
+ * again from `ref`. Kept per device, newest first.
+ */
+export interface RecentItem { app: AppId; ref: string; label: string; at: number }
+const RECENT_ITEMS_KEY = 'mobius.recent.items';
+export function recentItems(limit = 8): RecentItem[] {
+  try {
+    const kept: unknown = JSON.parse(window.localStorage.getItem(RECENT_ITEMS_KEY) ?? '[]');
+    if (!Array.isArray(kept)) return [];
+    return kept.filter((r): r is RecentItem => !!r && typeof r === 'object' && typeof (r as RecentItem).ref === 'string' && typeof (r as RecentItem).label === 'string'
+      && typeof (r as RecentItem).at === 'number' && isAvailable((r as RecentItem).app)).slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+/** Note that `ref` was opened in `app` (call it when a note, thread, file or song opens). */
+export function noteRecentItem(item: Omit<RecentItem, 'at'>, at = Date.now()): void {
+  if (!item.label.trim()) return;
+  try {
+    const rest = recentItems(40).filter((r) => !(r.app === item.app && r.ref === item.ref));
+    window.localStorage.setItem(RECENT_ITEMS_KEY, JSON.stringify([{ ...item, at }, ...rest].slice(0, 40)));
+  } catch { /* Not kept. */ }
+}
