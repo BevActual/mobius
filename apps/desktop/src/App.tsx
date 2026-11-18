@@ -656,7 +656,8 @@ export function App() {
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
   // Each own-list app's panel, made once: its body is drawn from the latest render through the ref.
   const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
-  const homeListName = sideMode === 'activity' ? 'Activity' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  // Activity's list filters its page (which is the region named Activity), so the panel is named for that.
+  const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : 'Chats';
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
     { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
@@ -1086,7 +1087,7 @@ export function App() {
     })();
     return (
       <SidebarHead
-        create={id === 'agent' || createInList.includes(id) ? undefined : createFor(id)}
+        create={(id === 'agent' && (inActivity || inAgents)) || createInList.includes(id) ? undefined : createFor(id)}
         favourites={favourites}
         onOpenFavourite={openFavourite}
         onUnpin={togglePin}
