@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo } from '@mobius/shared';
-import { hubResults, type HubSources } from './search-hub';
+import { hubResults, launcherFind, targetApp, targetLabel, targetOfRef, type HubSources } from './search-hub';
 
 const conv = (id: string, title: string, updated_ms: number): ConversationInfo => ({ id, title, updated_ms, messages: 2, activity: 'idle', waiting: 0 }) as ConversationInfo;
 const sources = (): HubSources => ({
@@ -61,5 +61,26 @@ describe('one place to find everything', () => {
     expect(hubResults(made, '', 'made').map((r) => r.where)).toEqual(['Design › Trip app', 'Code', 'Photo › Lisbon', 'Music › Songs', 'Video']);
     expect(hubResults(made, 'offsite', 'all').filter((r) => r.kind === 'made').map((r) => r.target)).toEqual([{ app: 'code', project: 'offsite-planner' }, { app: 'video', project: 'Offsite recap' }]);
     expect(hubResults(made, 'lisbon', 'made')[0]!.target).toEqual({ app: 'photo', path: 'Lisbon/coast.jpg' });
+  });
+});
+
+describe('the launcher', () => {
+  const launcherSources = () => {
+    const { noteHits: _n, history: _h, bookmarks: _b, ...rest } = sources();
+    return { ...rest, docFolders: [{ name: 'Docs', pages: [{ path: 'Docs/Plumbing plan.md', title: 'Plumbing plan', modified: 10 }] }] };
+  };
+  it('finds things by name as you type, notes and documents included, and nothing with nothing typed', () => {
+    expect(launcherFind(launcherSources(), '').length).toBe(0);
+    expect(launcherFind(launcherSources(), 'plumb').map((r) => r.key)).toEqual(['c:b', 'docs:Docs/Plumbing plan.md', 't:Inbox:2']);
+    expect(launcherFind(launcherSources(), 'plan').map((r) => r.key)).toEqual(['n:Work/Plan.md', 'c:a', 'docs:Docs/Plumbing plan.md']);
+  });
+  it('keeps what it opened so Recent can open the same thing again', () => {
+    const target = { app: 'notes', path: 'Work/Plan.md', title: 'Plan' } as const;
+    expect(targetOfRef(JSON.stringify(target))).toEqual(target);
+    expect(targetOfRef('not json')).toBeNull();
+    expect(targetApp(target)).toBe('notes');
+    expect(targetApp({ app: 'open', id: 'mail' })).toBeNull();
+    expect(targetLabel({ app: 'photo', path: 'Photos/Trip/beach.jpg' })).toBe('beach');
+    expect(targetLabel({ app: 'browser', url: 'https://example.com/a' })).toBe('example.com');
   });
 });

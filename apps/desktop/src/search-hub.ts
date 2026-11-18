@@ -177,3 +177,54 @@ function modifiedOf(notebooks: Notebook[], path: string): number | null {
   for (const nb of notebooks) for (const p of nb.pages) if (p.path === path) return p.modified;
   return null;
 }
+
+/** What the launcher has without asking the apps again: everything but search hits, mail and pages. */
+export type LauncherSources = Omit<HubSources, 'noteHits' | 'docHits' | 'deckHits' | 'mail' | 'history' | 'bookmarks'>;
+
+/** Pages whose title has every word, as if they were search hits (the launcher finds by name, as you type). */
+function titleHits(folders: Notebook[] | undefined, ws: string[]): NoteHit[] {
+  const out: NoteHit[] = [];
+  for (const nb of folders ?? []) for (const p of nb.pages) if (matches(p.title, ws)) out.push({ path: p.path, title: p.title, notebook: nb.name, line: '' });
+  return out;
+}
+
+/**
+ * The launcher's find: items in every app whose name matches what was typed, from what the apps already hold, so it
+ * answers on each key without waiting. Search (the app) also looks through what notes and documents say, and mail.
+ */
+export function launcherFind(sources: LauncherSources, query: string): HubResult[] {
+  const ws = words(query);
+  if (ws.length === 0) return [];
+  return hubResults({ ...sources, noteHits: titleHits(sources.notebooks, ws), docHits: titleHits(sources.docFolders, ws), deckHits: titleHits(sources.deckFolders, ws), mail: [], history: [], bookmarks: [] }, query, 'all');
+}
+
+/** The app a target opens in, or null for one that is an app itself rather than a thing in it. */
+export function targetApp(target: HubTarget): AppId | null {
+  if (target.app === 'open' || target.app === 'calendar') return null;
+  return target.app;
+}
+
+/** A name for a target in Recent: its title, else the last part of its path or its own name. */
+export function targetLabel(target: HubTarget): string {
+  const last = (path: string) => (path.split('/').pop() ?? path).replace(/\.[a-z0-9]+$/i, '');
+  switch (target.app) {
+    case 'notes': case 'docs': case 'slides': case 'design': case 'canvas': case 'research': case 'reader': case 'studio': return target.title || last(target.path);
+    case 'sheets': return target.workbook;
+    case 'tasks': return target.list;
+    case 'database': return target.name;
+    case 'photo': return last(target.path);
+    case 'video': case 'code': return target.project;
+    case 'browser': return host(target.url);
+    default: return '';
+  }
+}
+
+/** A Recent entry's `ref` back to what it opens, when it was kept by `openTarget`. */
+export function targetOfRef(ref: string): HubTarget | null {
+  try {
+    const t: unknown = JSON.parse(ref);
+    return t && typeof t === 'object' && typeof (t as { app?: unknown }).app === 'string' ? (t as HubTarget) : null;
+  } catch {
+    return null;
+  }
+}
