@@ -172,13 +172,21 @@ test('a new person is welcomed, and chooses how much Mobius does before choosing
   await levels.getByRole('radio', { name: /^Auto/ }).click();
   await expect(levels.getByRole('radio', { name: /^Auto/ })).toHaveAttribute('aria-checked', 'true');
   expect((await mobius.shell.evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
+  // Then a model, with no address to know: plans to sign in to, services by name, and servers on this computer, each one
+  // press away; the form for an address of your own waits behind Custom server.
+  const choose = mobius.shell.getByRole('group', { name: 'Choose a model' });
+  await expect(choose.getByRole('list', { name: 'Online services' })).toBeVisible();
+  await expect(choose.getByRole('list', { name: 'Servers on this computer' })).toBeVisible();
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toHaveCount(0);
+  await choose.getByRole('button', { name: 'Custom server…' }).click();
   await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
 });
 
 test('settings: the model can be set up from the panel, survives a restart, and the key stays out of sight', async () => {
   model = await startModel([says(['Configured.']), says(['Still configured.'])]);
   mobius = await launch(fixture.origin + '/');
-  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible({ timeout: 15_000 });
+  await mobius.shell.getByRole('group', { name: 'Choose a model' }).getByRole('button', { name: 'Custom server…' }).click({ timeout: 15_000 });
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
   await expect(composer()).toHaveCount(0);
   await mobius.shell.getByLabel('Server address').fill(model.url);
   await mobius.shell.getByLabel('Model', { exact: true }).fill('my-model');
@@ -207,7 +215,8 @@ test('settings: the model can be set up from the panel, survives a restart, and 
 
 test('settings the core refuses are explained and not saved', async () => {
   mobius = await launch(fixture.origin + '/');
-  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible({ timeout: 15_000 });
+  await mobius.shell.getByRole('group', { name: 'Choose a model' }).getByRole('button', { name: 'Custom server…' }).click({ timeout: 15_000 });
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
   await mobius.shell.getByLabel('Server address').fill('http://example.com/v1');
   await mobius.shell.getByLabel('Model', { exact: true }).fill('m');
   await mobius.shell.getByLabel('API key').fill('k');
