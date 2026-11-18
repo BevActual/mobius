@@ -40,6 +40,8 @@ import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
+import { MessagesPage, MessagesSidebar } from './Messages';
+import { useMessages } from './useMessages';
 import { SlidesEditor, SlidesSidebar, type SlidesTool } from './Slides';
 import { useMail } from './useMail';
 import { useSheets } from './useSheets';
@@ -174,7 +176,7 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
  */
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
-  agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
+  agent: 'Chats', mail: 'Mailboxes', messages: 'Channels', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
@@ -236,6 +238,7 @@ export function App() {
   const sheets = useSheets(used('sheets'));
   const code = useCode(used('code'));
   const mail = useMail();
+  const chat = useMessages(used('messages'));
   const tasks = useTasks();
   const calendar = useCalendar();
   const [eventToken, setEventToken] = useState(0);
@@ -1047,6 +1050,8 @@ export function App() {
           return <FilesSidebar files={files} pin={null} />;
         case 'mail':
           return <MailSidebar mail={mail} pin={null} starts={startsFor('mail')} onStart={startWithMobius} />;
+        case 'messages':
+          return <MessagesSidebar messages={chat} pin={null} />;
         case 'docs':
           return <DocsSidebar synced={syncedIn('docs')} docs={docs} pin={null} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />;
         case 'calendar':
@@ -1541,6 +1546,8 @@ export function App() {
         return <CodeEditor code={code} review={code.open && code.project && liveMarks.code.has(`${code.project}/${code.open.path}`) ? { conversation: conversation.state.conversation, settled: !conversation.state.busy } : null} />;
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
+      case 'messages':
+        return <MessagesPage messages={chat} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':

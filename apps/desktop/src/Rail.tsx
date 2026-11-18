@@ -11,6 +11,7 @@ export const APP_ICONS: Record<string, ReactNode> = {
   tasks: <><rect x="3.5" y="4" width="5" height="5" rx="1" /><path d="m4.8 6.5 1 1 1.6-2M11 6.5h5.5M11 13.5h5.5" /><rect x="3.5" y="11" width="5" height="5" rx="1" /></>,
   calendar: <><rect x="3.5" y="4.5" width="13" height="12" rx="2" /><path d="M3.5 8.5h13M7 3v3M13 3v3M7 11.5h2M11 11.5h2M7 14h2" /></>,
   sheets: <><rect x="3.5" y="4" width="13" height="12" rx="2" /><path d="M3.5 8h13M3.5 12h13M8 4v12" /></>,
+  messages: <><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z" /><path d="M7 7.5h6M7 10h4" /></>,
   mail: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></>,
   slides: <><rect x="3" y="4" width="14" height="9.5" rx="1.5" /><path d="M10 13.5V16M7 16.5h6M8.5 7l3 1.8-3 1.8z" /></>,
   skills: <><path d="M5 4.5h10M5 8.5h10M5 12.5h6" /><path d="m12.5 14.5 1.5 1.5 3-3" /></>,

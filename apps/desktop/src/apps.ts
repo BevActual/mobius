@@ -1,4 +1,4 @@
-export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki' | 'projects' | 'views';
+export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo' | 'studio' | 'video' | 'skills' | 'docs' | 'sheets' | 'slides' | 'mail' | 'notes' | 'canvas' | 'research' | 'reader' | 'database' | 'terminal' | 'tasks' | 'calendar' | 'review' | 'files' | 'wiki' | 'projects' | 'views' | 'messages';
 
 /** What an app is for. The hub groups apps this way, so however many there are, they read as a few clear groups. */
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
@@ -11,6 +11,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true, group: 'Browse and find' },
   { id: 'agent', name: 'Agent', available: true, group: 'Assistant' },
   { id: 'mail', name: 'Mail', available: true, group: 'Browse and find' },
+  { id: 'messages', name: 'Messages', available: true, group: 'Browse and find', also: 'Chat Slack Discord Telegram Channels' },
   { id: 'skills', name: 'Abilities', available: true, group: 'Assistant', own: true, also: 'Extensions Add apps Skills Connectors Plugins Catalogue Updates MCP Tools' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },

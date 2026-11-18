@@ -49,6 +49,18 @@ Mobius never sends mail itself. It writes drafts; you press Send.
 
 **Kept in:** `workspace/mail/<account>/`, a copy of each account's recent Inbox and Sent mail, with your drafts.
 
+## Messages
+
+Slack, Discord and Telegram in one place, with a catch-up when you come back. Add it from **Abilities**.
+
+- **Accounts** use each service's official API. They are on their way: until one is added, Messages says so.
+- **The sidebar** lists each account's channels, then group and direct messages, most recent first. A number shows mentions, or else unread messages. **Find a channel** narrows the list.
+- **A channel** shows each person's messages together under their name, with reactions. **N replies** opens the thread in place, and **Back to #channel** returns.
+- **Write** at the bottom. Enter sends and Shift+Enter starts a new line. Only you send: Mobius never sends a message.
+- **Catch me up** (in the toolbar) attaches the open channel as someone else's words, which Mobius treats as data, as it does an email. It puts the ask in Mobius's box: at most five lines on what was said and decided, and a reply drafted to anything that waits on you, for you to send.
+
+**Kept in:** nothing beyond what the service gives back. Messages are read from the service as you open them.
+
 ## Search
 
 One box for everything Mobius keeps: conversations, notes, tasks and pages. The sidebar narrows it to one kind of thing.

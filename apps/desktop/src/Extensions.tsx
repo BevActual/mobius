@@ -29,6 +29,7 @@ export const abilitiesTitle = (place: ExtensionPlace): string => PLACE_NAMES[pla
 const APP_PURPOSE: Partial<Record<AppId, string>> = {
   browser: 'A full web browser with tabs, favourites and downloads.',
   mail: 'Your mail on this computer, sorted, with drafts in your tone.',
+  messages: 'Slack, Discord and Telegram in one place, with a catch-up when you come back.',
   search: 'One box for conversations, notes, tasks, docs, mail and pages.',
   research: 'Ask a question; Mobius searches, reads and writes a report.',
   reader: 'Pages saved to read later, as clean readable text.',
