@@ -1972,3 +1972,16 @@ fn a_connector_at_an_address_that_asks_for_a_sign_in_says_so_and_offers_one() {
     assert_eq!(call(&b, "extensions", "addConnector", json!([{ "name": "plain", "command": "http://example.com/mcp" }]))["ok"], false);
     assert_eq!(call(&b, "extensions", "connectorSignInCancel", json!(["tracker"]))["ok"], true);
 }
+
+/// Music's demo ask is worked out in code: a song named from Music's own folder gets a bass track and a warmer pad.
+#[test]
+fn the_bass_and_pad_ask_finds_a_song_named_from_musics_folder() {
+    let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
+    let ws = dir.path().join("workspace");
+    std::fs::create_dir_all(ws.join("studio/Songs")).unwrap();
+    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo/workspace/studio/Songs/Demo.json"), ws.join("studio/Songs/Demo.json")).unwrap();
+    let done = b.host_request("host.tool", &json!({ "tool": "studio.bass_and_pad", "arguments": { "path": "Songs/Demo.json" } }));
+    assert!(done.is_ok(), "{done:?}");
+    let song: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(ws.join("studio/Songs/Demo.json")).unwrap()).unwrap();
+    assert!(song["tracks"].as_array().unwrap().iter().any(|t| t["instrument"] == "bass"), "{song}");
+}

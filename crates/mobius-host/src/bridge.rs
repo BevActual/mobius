@@ -1582,7 +1582,9 @@ impl Bridge {
         }
         if crate::bass::is_bass_tool(tool) {
             // Music's demo ask: the bass and the warmer pad are worked out in code and written as one change.
-            let path = args.get("path").and_then(Value::as_str).ok_or("path is the song file")?.trim_start_matches('/').to_owned();
+            let given = args.get("path").and_then(Value::as_str).ok_or("path is the song file")?.trim_start_matches('/');
+            // Music names a song from its own folder (Songs/Demo.json); the workspace keeps it under studio/.
+            let path = if given.starts_with("studio/") { given.to_owned() } else { format!("studio/{given}") };
             let read: Value = serde_json::from_str(&self.workspace.run("files.read", &json!({ "path": path }))?).unwrap_or(Value::Null);
             let text = read["content"].as_str().ok_or("that song could not be read")?;
             let song: Value = serde_json::from_str(text).map_err(|_| "that file is not a song".to_owned())?;
