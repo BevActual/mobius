@@ -29,22 +29,38 @@ jobs:
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring. The runner's own Azure
-      # mirror once answered the index but never served a package, so apt uses Canonical's archive instead; each
-      # attempt gives up after a minute without progress, is tried up to three times, and the step is capped.
+      # What the Tauri shell builds against on Linux (WebKitGTK), and the system keyring. The packages and apt's index
+      # are cached, so a run normally installs without reaching a mirror at all. Otherwise apt uses Canonical's archive
+      # (the runner's Azure mirror once answered the index but never served a package); each apt call gives up after
+      # 20 seconds without progress and 150 seconds in all, so a slow mirror fails fast and is tried again, three times.
+      # Fresh each month, so the cached packages keep up with the archive's updates.
+      - id: month
+        run: echo "month=$(date -u +%Y-%m)" >> "$GITHUB_OUTPUT"
+      - name: Restore the system library packages
+        uses: actions/cache@v4
+        with:
+          path: ~/apt-cache
+          key: apt-${{ runner.os }}-${{ runner.arch }}-${{ steps.month.outputs.month }}-${{ hashFiles('.github/workflows/ci.yml') }}
       - name: Install the system libraries
         timeout-minutes: 8
         run: |
+          PKGS="libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config"
+          CACHE="$HOME/apt-cache"
+          mkdir -p "$CACHE/archives/partial" "$CACHE/lists/partial"
+          OPTS="-o Dir::Cache::Archives=$CACHE/archives -o Dir::State::Lists=$CACHE/lists -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          apt_get() { sudo timeout -k 10 150 apt-get $OPTS "$@"; }
+          # Saved for the next run: the cache is read as the runner's user.
+          keep() { sudo chown -R "$(id -u):$(id -g)" "$CACHE"; }
+          if ls "$CACHE"/lists/*_Packages >/dev/null 2>&1 && apt_get install -y --no-download $PKGS; then
+            echo "Installed from the cache"; keep; exit 0
+          fi
           for f in /etc/apt/apt-mirrors.txt /etc/apt/sources.list /etc/apt/sources.list.d/*; do
             [ -f "$f" ] && sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|http://archive.ubuntu.com/ubuntu|g' "$f"
           done
-          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=60 -o Acquire::https::Timeout=60"
           for attempt in 1 2 3; do
-            if sudo apt-get $APT_OPTS update && sudo apt-get $APT_OPTS install -y libwebkit2gtk-4.1-dev libdbus-1-dev libssl-dev pkg-config; then
-              exit 0
-            fi
+            if apt_get update && apt_get install -y $PKGS; then keep; exit 0; fi
             echo "apt attempt $attempt failed; trying again"
-            sleep $((attempt * 10))
+            sleep $((attempt * 5))
           done
           exit 1
       - run: npm ci
