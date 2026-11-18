@@ -5,7 +5,8 @@ and from Mobius. Andrew agreed it on 13 November 2026, with the decisions listed
 
 This page is the full specification: sizes, colour, every element, pop-out, the Mobius panel and its composer.
 [Design rules](rules.md) is the short checklist reviewers use on a pull request, and it follows this page.
-[Workspace layout](workspace-layout.md) describes the five zones, which Instrument does not change.
+[Panel layouts](panel-layouts.md) describes the frame (decided 17 November 2026): a top bar led by the Go button, the
+content, the app's own docks, and Mobius at the right edge. There is no app rail and no shared sidebar.
 
 > **While the shell catches up.** The Builder makes the shell changes once for every app (see
 > [How it rolls out](#how-it-rolls-out)). Until a size, control or card described here exists in the shell, an app
@@ -36,7 +37,8 @@ on 13 November 2026.
 
 **Stays the same**
 
-- The five zones, and Mobius alone at the right edge, never a tab.
+- The frame from [Panel layouts](panel-layouts.md): top bar, content, the app's own docks, and Mobius alone at the right
+  edge, never a tab.
 - The neutral frame, three flat surfaces, hairlines, and no glass or blur.
 - Ink for state, indigo with a dashed edge for Mobius, and colour for the user's content.
 - The four themes, Inter, single-weight line icons, and two densities.
@@ -53,7 +55,7 @@ on 13 November 2026.
 | Toolbar | 48px tall, 13px title | 52px tall, 15px title |
 | Reading pages | Same sizes as lists, except 44px rows on Home | A centred column, 15 to 16px text and a large page heading |
 | Corners on floating things | 8px | 10 to 14px |
-| Section labels | Sentence case, never all-caps | Small all-caps allowed in pro apps' panels only. Sidebars stay sentence case. |
+| Section labels | Sentence case, never all-caps | Small all-caps allowed in pro apps' panels only. List panels stay sentence case. |
 | Empty state | An icon, a bold title, a grey line and New | A small line drawing per app, one line and New. Also shown at the end of short lists. |
 | Mobius working | A looping progress cue | The dot-matrix pattern with numbered steps and Stop |
 | Red | Record, errors and deleting | Adds overdue items and Calendar's now line |
@@ -94,12 +96,12 @@ small and sparse next to the mocks.
 | Setting | Before | Instrument |
 | --- | --- | --- |
 | Comfortable text | 13px | 14px |
-| Comfortable row height | 30px | 36px in sidebars, 40px in content lists |
+| Comfortable row height | 30px | 36px in list panels, 40px in content lists |
 | Compact text | 12.5px | 13px |
-| Compact row height | 26px | 30px in sidebars, 32px in content lists |
+| Compact row height | 26px | 30px in list panels, 32px in content lists |
 | Toolbar height | 48px | 52px comfortable, 44px compact |
 | Toolbar title | 13px semibold | 15px semibold |
-| Sidebar app name | 15px | 17px Inter Display |
+| List panel title | 15px | 17px Inter Display |
 | Two-line row, for a list beside a reading pane (Mail, Notes) | None | 56px comfortable, 48px compact (`--row-list-2`) |
 | Reading pages (Home, a note, a doc) | Same as lists | 15 to 16px body, 44px rows, a column at most 680px wide |
 | Page heading on reading pages | None | 28 to 34px Inter Display, bold |
@@ -120,8 +122,8 @@ Rules that go with the sizes:
 
 These mostly restate the adopted theme. Rules 4 and 5 are new.
 
-1. The frame is neutral in every theme: rail, sidebar, toolbar and panels carry no colour.
-2. Ink shows state. Selection is a grey fill, primary buttons are ink, and the current app in the rail is ink.
+1. The frame is neutral in every theme: the top bar, docks and panels carry no colour.
+2. Ink shows state. Selection is a grey fill, primary buttons are ink, and a waiting dot is ink.
 3. Indigo with a dashed edge means Mobius and nothing else.
 4. Colour belongs to the user's content: calendar colours, list colours, track colours, labels, charts. Content colours
    come from one shared palette of eight, so apps match each other.
@@ -140,14 +142,14 @@ These mostly restate the adopted theme. Rules 4 and 5 are new.
 2. **Numbers line up.** Times, dates, counts, sizes, money and cell values use tabular figures everywhere.
 3. **Monospace is for instrument readouts.** Tempo, timecode, position, coordinates and code use the mono face. Ordinary
    lists and prose never do.
-4. **Keys are shown where you act.** Every menu item with a shortcut shows it. The sidebar's New and Search show their
+4. **Keys are shown where you act.** Every menu item with a shortcut shows it. A list panel's New and Search show their
    keys. Tooltips show the key after the name.
 5. **Lists can show a key-hint bar.** List views in daily apps may show a small bar of the four or five most useful keys
    at the bottom. It can be turned off in Settings.
 6. **Numbering means order.** Tracks, slides and steps are numbered because their order matters. Nothing is numbered for
    decoration.
 
-Section labels: small all-caps labels ("TUNE", "DECAY") are allowed in pro apps' panels only. Sidebars and daily apps
+Section labels: small all-caps labels ("TUNE", "DECAY") are allowed in pro apps' panels only. List panels and daily apps
 keep sentence case.
 
 ## Personality
@@ -174,20 +176,29 @@ The panel rules are already in the docs and are repeated here so the style reads
 **Panels**
 
 1. **The Mobius panel is just Mobius** (Andrew, 14 November 2026). It holds the chat, its cards and slots, and the
-   composer, and nothing else. It has no tabs. An app's own panels never share it: they go in the **inspector**, a column
-   of its own between the content and Mobius, or in the **bottom area** under the content when they are wide or long
-   (timelines, devices, terminals, speaker notes). Mobius always sits at the far right edge, in the same place in every
-   app.
-   The inspector holds the app's panels (Format, Inspector, Adjust, Outline, Details) as tabs among themselves, and
-   Mobius sits beside it, never as one of its tabs. [Panel layouts](panel-layouts.md) lists where each app's panels go.
-2. Notes, comments and detail views live in the bottom area. Nothing sits as an extra column inside the content.
-3. One Panels menu shows, hides, moves and pops out every panel and saves layouts. Each panel has a shortcut.
+   composer, and nothing else. It has no tabs. Mobius always sits at the far right edge, in the same place in every
+   app, docked.
+2. **Each app owns its panels** (Andrew, 17 November 2026). An app declares its panels and where each starts: the left
+   dock, the right dock (between the content and Mobius) or the bottom dock under the content. Panels in one dock are
+   tabs among themselves. A dock with nothing shown takes no space. [Panel layouts](panel-layouts.md) gives every
+   app's default layout.
+3. Every panel has the same header: its name or tabs, then dock, pop out and close. A list panel on the left may use
+   the library's `SidebarSection`, `SidebarRow` and `SidebarSearch`, but no app has to follow one order.
+4. One Panels menu shows, hides, moves and pops out every panel and saves layouts. Each panel has a shortcut; Ctrl+\\,
+   Ctrl+Alt+\\ and Ctrl+J toggle the left, right and bottom docks.
 
 **Launcher**
 
-1. One search finds apps, actions, files and messages. Results are grouped under short section labels, with one top hit.
-2. Every row shows what Enter will do, and its own key if it has one.
-3. "Ask Mobius" is always the last row, with the dashed indigo mark.
+The launcher replaces the app rail. The **Go button** leads the top bar (the open app's icon and name, one ink dot
+while anything waits anywhere) and opens it; Ctrl+K opens it from anywhere. It is built: `src/Launcher.tsx`, pictured
+in [Menus, dialogs and dates](../developers/ui/menus-and-dialogs.md).
+
+1. **Nothing typed:** Ask Mobius first; the pinned apps in one row, each with a dot while something waits there (drag
+   to reorder, right-click to pin or unpin, Ctrl+1 to Ctrl+9 open them); Recent, the things last open in any app; and
+   Home, Activity, Abilities and Settings at the foot.
+2. **Typing:** one search over apps, items in every app, open pages and commands, grouped under short section labels.
+   Ask Mobius stays the first row, so a search that finds nothing becomes a question. Enter opens the first thing found.
+3. Every row shows what Enter will do, and its own key if it has one.
 4. A footer shows the keys for moving, opening and closing.
 
 ## Popping things out
@@ -199,9 +210,9 @@ of this, not a special case.
 | --- | --- | --- |
 | Any panel | Mobius, Format, Device, Inspector, Outline | That panel alone, at panel width |
 | The bottom area | Notes in Slides, the mixer in Music, a terminal in Code | That area alone |
-| Any view of an app | Calendar's month beside its week, a second Sheets tab | The view with its toolbar row, and no rail or sidebar |
+| Any view of an app | Calendar's month beside its week, a second Sheets tab | The view with its toolbar row, and no docks |
 | One item | A mail you're writing, a note, a doc, a task's detail, a browser tab | The item with its toolbar row |
-| A whole app | Music on a second screen | The full five zones |
+| A whole app | Music on a second screen | The whole frame: top bar, docks and Mobius |
 
 How you do it, the same way everywhere:
 
@@ -213,8 +224,7 @@ How you do it, the same way everywhere:
 
 How a popped-out window looks and behaves:
 
-1. It's the same instrument: the same toolbar row, sizes and states. It has no rail and no sidebar unless it's a whole
-   app.
+1. It's the same instrument: the same toolbar row, sizes and states. It has no docks unless it's a whole app.
 2. Its title says what it is and where it's from ("Format · Kestrel P2 update").
 3. It stays live. A popped-out panel follows the selection in its main window, and a popped-out item saves as you work.
 4. A popped-out item, view or app has its own Mobius button. Mobius opens inside that window and sees what that window
@@ -262,22 +272,21 @@ comfortable first, then compact. Comment on a row to change it.
 
 | Element | How it looks and behaves | Size |
 | --- | --- | --- |
-| App rail | Neutral strip on the far left. Home and Search at the top, then pinned apps, with Mobius and Settings at the foot. Never folds away. | 52px wide |
-| Rail icon | Single-weight line icon in grey. The current app gets a grey fill and ink icon. Only one is lit at a time. A dot marks an app that needs you. | 36px button, 18px icon |
-| Sidebar | Same surface as the rail, with a hairline between. Order is always: app name, New, Search, places, lists, From Mobius. | 240px, folds below 980px |
-| Sidebar app name | The app's name in Inter Display. No icon tile and no switcher. | 17px semibold |
-| New button | Bordered white button across the sidebar, a plus icon, a verb-led label ("New task") and its key at the right. | 34px / 30px tall |
+| Go button | Leads the top bar: the open app's line icon and name, a chevron, and one ink dot while anything waits in any app. Opens the launcher. Replaces the app rail. | 30px / 28px tall |
+| Left dock | The app's own panels on the left (a list of places, an outline, layers), each under the shared panel header. Same surface as the frame, with a hairline to the content. Takes no space when nothing in it is shown. | 240px, resizable; an overlay below 980px |
+| Panel header | The panel's name (or its tabs), then dock, pop out and close. The same in every dock and every app. | `--panel-head-h` |
+| New button | Bordered white button across a left list panel (or in the top bar where an app has no list panel), a plus icon, a verb-led label ("New task") and its key at the right. | 34px / 30px tall |
 | Search field | Shared field with a magnifier and the "/" key shown. | 32px / 28px tall |
-| Sidebar row | Line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 32px / 28px |
-| Sidebar section label | Small grey semibold label above a group ("Lists"). Sentence case. Small all-caps only in pro apps' panels. | 11 to 12px |
-| From Mobius row | Always the last group. Dashed Mobius icon, with an indigo note at the right such as "2 new". | Same as a row |
-| Toolbar | One row. Title at the left, the app's controls in the middle, then the trailing group. A hairline below and no fill. | 52px / 44px tall |
+| List panel row | `SidebarRow`: line icon, label, and an optional grey count at the right. Selected is a grey fill with medium-weight ink. | 32px / 28px |
+| List panel section label | `SidebarSection`: small grey semibold label above a group ("Lists"). Sentence case. Small all-caps only in pro apps' panels. | 11 to 12px |
+| From Mobius row | In a list panel, the last group. Dashed Mobius icon, with an indigo note at the right such as "2 new". | Same as a row |
+| Top bar | One row. The Go button, the title of what is open, the app's controls in the middle, then the trailing group. A hairline below and no fill. | 52px / 44px tall |
 | Toolbar title | The name of what is open, with a grey detail after it ("Today · Thursday 13 November"). Never repeats the app name. | 15px semibold |
-| Trailing group | Fixed order: Comments, Share, the more menu, Mobius. Apps without comments or sharing leave those out. | 32px buttons |
+| Trailing group | Fixed order: Panels, Comments, Share, the more menu, Mobius. Apps without comments or sharing leave those out. | 32px buttons |
 | Mobius button | The only tinted button in the frame: indigo icon on a pale indigo wash. Opens and closes the Mobius panel at the right edge. | 32px |
-| Inspector | The app's own panels, between the content and Mobius. Same surface as the sidebar, its panels as tabs across the top when there is more than one, and a close button. Absent in apps that have none. | 280px, resizable to 240px |
-| Mobius panel | Mobius alone, at the far right edge. Same surface as the sidebar. Never has tabs. | 340px, resizable to 280px |
-| Bottom area | Optional strip under the content for notes, comments or detail. It has its own small tab row and a close button. | 150px by default, resizable |
+| Right dock | The app's panels between the content and Mobius (Format, Inspector, Adjust, Outline, Details), as tabs when there is more than one. Same surface as the frame. | 280px, resizable to 240px |
+| Mobius panel | Mobius alone, at the far right edge, docked. Same surface as the docks. Never has tabs. | 340px, resizable to 280px |
+| Bottom dock | The app's wide or long panels under the content only (timelines, devices, terminals, speaker notes), as tabs when there is more than one. | 150px by default, resizable |
 | Hairlines | One line colour separates zones. Zones never use shadows or different fills to separate. | 1px |
 
 ### Controls
@@ -311,7 +320,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
 | Key cap | A small bordered cap with a heavier bottom edge. Used in menus, tooltips, the New button and the hint bar. | 11px text |
 | Chip (label or tag) | An outlined pill with a small colour dot and grey text. Never a solid colour fill. | 12px text |
-| Count | A plain grey number at the trailing edge. Never a black or coloured badge, except a dot on the rail. | 12.5px, tabular |
+| Count | A plain grey number at the trailing edge. Never a black or coloured badge; a waiting app gets one ink dot on the Go button and in the launcher. | 12.5px, tabular |
 | Avatar | A grey circle with initials, or the photo. | 24px in one-line rows, 32px in two-line rows, 40px on a card |
 | Focus ring | A 2px ink outline on keyboard focus only. | 2px |
 
@@ -350,7 +359,7 @@ comfortable first, then compact. Comment on a row to change it.
 
 | Element | How it looks and behaves | Size |
 | --- | --- | --- |
-| Launcher | Centred over a dimmed window. A large search line, grouped results, "Ask Mobius" as the last row, and a footer of keys. | 680px wide, 44px rows |
+| Launcher | Centred over a dimmed window. A large search line; with nothing typed, Ask Mobius, the pinned apps in a row, Recent and the places at the foot; typing groups the results, with Ask Mobius first. A footer of keys. | 680px wide, 44px rows |
 | Sheet and dialog | White with 12 to 14px corners and a soft shadow. A title, one short sentence, and buttons at the trailing end with the primary last. | 480px wide by default |
 | Confirmation | Only for paying, sending, deleting and running commands. The button names the action ("Delete 3 files"). | Same as a sheet |
 | Undo pill | The shared pill at the bottom centre: what happened, Undo, and a close button. It is opaque and never covers content. | 36px tall |
@@ -376,7 +385,7 @@ Sizes for elements need a grid to sit on. These rules give it.
 | Foundation | Rule |
 | --- | --- |
 | Spacing scale | Every gap and padding is one of 4, 8, 12, 16, 24, 32 or 48px. Nothing in between. |
-| Zone padding | Sidebar and panels have 10 to 16px inside. Content lists have 22px at the sides. Reading pages have 56px at the top. |
+| Zone padding | Panels have 10 to 16px inside. Content lists have 22px at the sides. Reading pages have 56px at the top. |
 | Alignment | In a list, every row's text starts on the same line as the toolbar title above it. |
 | Corners | 6px on controls and rows, 8px on panels and cards, 10 to 14px on things that float. Inner corners are the outer radius minus the inset. |
 | Icons | One icon set for the whole app: 1.5px stroke, round joins, drawn on a 24px grid. Shown at 18px in the frame and 16px in rows. Never filled, never two-tone. |
@@ -403,7 +412,7 @@ Every control and row shows the same states in the same way.
 | Drop target | A 2px ink line where the thing will land, or an ink outline around the row or folder that will take it. |
 | Changed by Mobius | A dashed indigo edge until you keep or discard it. |
 | Error | A red dot and one plain sentence next to the thing that failed. |
-| Unread or new | Semibold title. No coloured dot except on the rail. |
+| Unread or new | Semibold title. No coloured dot. |
 
 ## More elements
 
@@ -416,7 +425,7 @@ These were missing from the element tables above.
 | Resize handle | The hairline between zones. On hover it thickens to a 2px ink line and the pointer changes. Double-click resets the width. | 1px, 6px grab area |
 | Settings-style pane | One shared grouped list for Settings, Abilities and Knowledge: a white group with hairlines between rows, the label at the left and its control at the right. | 44px rows |
 | Comment pin | A small ink circle with the commenter's initial, placed on the thing it's about. The thread opens beside it. | 22px |
-| Notification | A row in Activity, plus a dot on the rail. System notifications use one line that names the app and what happened. | Row height |
+| Notification | A row in Activity, plus the waiting dot on the Go button and the app's dot in the launcher. System notifications use one line that names the app and what happened. | Row height |
 | Images and thumbnails | Shown with square 6px corners and a hairline, with no shadow. Missing images show a grey box with a line icon. | 6px corners |
 | Charts | Colours come from the shared content palette. Grid lines are hairlines, labels are grey 12px, and values are tabular. | 12px labels |
 | Little Mobius | The Mobius panel popped out as its own small window, following the pop-out rules above. It has the same header, context line and composer, and stays on top by default. | 360px wide |
@@ -442,9 +451,9 @@ The frame holds and the app shapes its tools. This draws the line, so app thread
 
 | Fixed for every app | The app decides |
 | --- | --- |
-| The five zones and their order | Which views it has and what the content looks like |
+| The frame: top bar, content, docks, Mobius at the right edge | Which views it has and what the content looks like |
 | Sizes, spacing, corners, faces and weights | Which controls go in the toolbar's middle slot |
-| The states table | Which of its own panels it has, and whether each starts in the inspector or the bottom area |
+| The states table | Which panels it has, which dock each starts in, and which start shown |
 | Ink for state and indigo for Mobius | How the user's content colours are used inside the content |
 | Shared controls, menus, the undo pill and the empty state | Its empty-state drawing and one line of text |
 | Comfortable or compact row heights | Which density it starts in |
@@ -453,8 +462,8 @@ The frame holds and the app shapes its tools. This draws the line, so app thread
 
 The build plan's test decides whether something becomes an app or folds into one (docs/reference/build-plan.md, "A new app, or part of one that exists"). For design, both routes are held to the same frame:
 
-- **A new app** starts in Instrument from its first screen. It uses the five zones, the shared toolbar, sidebar and inspector, and controls from the library only. Where the library lacks a control, the Design lead adds it there; the app never draws its own. It answers Mobius with the same dashed marks and Keep bar as every other app.
-- **A folded-in feature** lives in its host as a view (beside the host's other views in the view switch), a mode, or an inspector panel. It doesn't add a second toolbar row or crowd the host's toolbar: its controls go in the middle slot only while its view is open, and lower-priority ones fold into the ⋯ menu.
+- **A new app** starts in Instrument from its first screen. It uses the frame and the shared top bar, declares its own panels and their docks, and uses controls from the library only. Where the library lacks a control, the Design lead adds it there; the app never draws its own. It answers Mobius with the same dashed marks and Keep bar as every other app.
+- **A folded-in feature** lives in its host as a view (beside the host's other views in the view switch), a mode, or one of the host's panels. It doesn't add a second toolbar row or crowd the host's toolbar: its controls go in the middle slot only while its view is open, and lower-priority ones fold into the ⋯ menu.
 - **Signs it should stand alone:** it has its own list of things people open (a person, a conversation, a meeting), its own empty state, and work that people do without the host open. **Signs it should fold in:** it only makes sense next to the host's content, or it would have one screen.
 
 ## The Mobius panel, improved
@@ -895,14 +904,14 @@ Clicking any of these anywhere opens it in its own app, and right-click offers "
 
 | Action | Rule in every app |
 | --- | --- |
-| New | The sidebar's New button, and Ctrl+N |
+| New | The app's New button (in its left panel or the top bar), and Ctrl+N |
 | Search | "/" searches this app. Ctrl+K opens the launcher for everything. |
 | Undo | Ctrl+Z, plus the undo pill after anything destructive |
 | Duplicate, rename, delete | Ctrl+D, F2 and Delete, in that order in menus |
 | Select | Click, Shift-click for a range, Ctrl-click to add. The same in lists, grids and canvases. |
 | Right-click menu | Mobius's actions first, then open, then edit actions, then delete last |
-| Drag between apps | Dragging a thing onto another app in the rail opens that app so you can drop it there: a mail onto Tasks makes a task, a file onto Mail attaches it |
-| Ask Mobius about this | Ctrl+J with something selected opens Mobius already looking at it |
+| Drag between apps | Dragging a thing onto the Go button opens the launcher; hold over a pinned app to open it and drop there: a mail onto Tasks makes a task, a file onto Mail attaches it |
+| Ask Mobius about this | Ctrl+. with something selected opens Mobius already looking at it |
 | Settings for this app | Always the last item in the app's more menu |
 
 ### How the rules actually hold
@@ -940,6 +949,11 @@ the decision.
   inspector beside Mobius or in the bottom area; for Music, Andrew chose the bottom area for devices, with Shift+Tab
   switching between notes and devices.
 
+- **Apps own their panels; no rail or shared sidebar (17 November 2026).** Andrew: the left panel "doesn't really make
+  sense anymore", each app should "have and manage their own pannels" with a default layout, and the rail gives way to
+  a button in the top bar that opens Ctrl+K. This replaces the five zones, the inspector and bottom area as shell zones,
+  and the rail. The Mobius panel stays docked at the right edge. See [Panel layouts](panel-layouts.md).
+
 - **Name.** Call the style "Instrument"?
 
   **Decided:** yes. Other options are "Quiet instrument" or keeping "Timeless".
@@ -949,7 +963,7 @@ the decision.
   stays available for anyone who wants more.
 - **Section labels.** Switch to small all-caps labels as in the mocks, or keep sentence case as today's rule says?
 
-  **Decided:** all-caps only in pro apps' panels ("TUNE", "DECAY") and sentence case in sidebars. That keeps daily apps
+  **Decided:** all-caps only in pro apps' panels ("TUNE", "DECAY") and sentence case in list panels. That keeps daily apps
   friendly and gives pro apps the instrument feel.
 - **Key-hint bar.** Show it by default in list views?
 
@@ -1013,7 +1027,7 @@ reduced motion, contrast of 4.5 to 1, and keyboard reach. They stay as they are.
 
   **Decided:** yes. An in-app components page was set aside earlier. This is a dev-only version for reviews, which could
   become that feature later.
-- **Drag between apps through the rail?**
+- **Drag between apps?** (The rail is gone: through the Go button and the launcher's pinned row now.)
 
   **Decided:** yes as a rule, built after the shared designs exist.
 
@@ -1079,5 +1093,5 @@ reduced motion, contrast of 4.5 to 1, and keyboard reach. They stay as they are.
 2. The Builder makes the shell changes once for every app: sizes and row heights, tabular figures, the mono face, the
    shared empty state, the Mobius working indicator, and key hints in menus and tooltips.
 3. The design reviewer retakes every app's screenshots and sends each app thread only what the shell didn't fix.
-4. App threads that are mid-redesign carry on. None of this changes the five zones or the panel rules they're already
+4. App threads that are mid-redesign carry on. None of this changes the frame or the panel rules they're already
    building to.
