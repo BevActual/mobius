@@ -173,7 +173,12 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
  * panel's header. Home's list is named for what it shows: chats, agents or activity.
  */
 const NO_PANELS: readonly PanelSpec[] = [];
-const OWN_LIST: Partial<Record<AppId, string>> = { agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places' };
+const OWN_LIST: Partial<Record<AppId, string>> = {
+  agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
+  reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
+  skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
+  photo: 'Albums', studio: 'Songs', video: 'Videos',
+};
 
 export function App() {
   const browser = useBrowser();
@@ -662,7 +667,9 @@ export function App() {
     { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
   // The apps still listed here have their list drawn by the shell; an app in OWN_LIST draws its own, as a panel.
-  const hasAppList = inBrowser || inSearch || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inSheets || inSlides;
+  // Design and Slides lay out panels of their own already; the Browser's page is drawn natively beside the list; Search
+  // draws its scopes as chips when the list is away. Their lists move next.
+  const hasAppList = inBrowser || inSearch || inDesign || inSlides;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -1081,6 +1088,36 @@ export function App() {
           return <CalendarSidebar calendar={calendar} pin={null} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />;
         case 'tasks':
           return <TasksSidebar tasks={tasks} pin={null} changed={liveMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />;
+        case 'skills':
+          return <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={null} changed={liveMarks.skills} />
+        case 'video':
+          return <VideoSidebar video={video} pin={null} changed={liveMarks.video} />
+        case 'studio':
+          return <StudioSidebar songs={songs} pin={null} changed={liveMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
+        case 'photo':
+          return <PhotoSidebar photos={photos} pin={null} changed={liveMarks.photos} />
+        case 'review':
+          return <ReviewSidebar review={review} pin={null} />
+        case 'terminal':
+          return <TerminalSidebar term={terminal} pin={null} />
+        case 'database':
+          return <DatabaseSidebar db={databases} pin={null} changed={liveMarks.databases} />
+        case 'projects':
+          return <ProjectsSidebar projects={projects} pin={null} conversations={conversation.list} />
+        case 'wiki':
+          return <WikiSidebar wiki={wiki} place={wikiPlace} onPlace={setWikiPlace} incoming={wikiIncoming} pin={null} />
+        case 'reader':
+          return <ReaderSidebar reading={reading} pin={null} changed={liveMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
+        case 'research':
+          return <ResearchSidebar research={research} pin={null} changed={liveMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
+        case 'views':
+          return <ViewsSidebar views={views} pin={null} changed={viewMarks} starts={startsFor('views')} onStart={startWithMobius} />
+        case 'canvas':
+          return <CanvasSidebar boards={boards} pin={null} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
+        case 'code':
+          return <CodeSidebar code={code} pin={null} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
+        case 'sheets':
+          return <SheetsSidebar sheets={sheets} pin={null} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
         default:
           return null;
       }
@@ -1116,44 +1153,14 @@ export function App() {
 
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
-            {inSkills ? (
-              <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={liveMarks.skills} />
-            ) : inVideo ? (
-              <VideoSidebar video={video} pin={pinNode} changed={liveMarks.video} />
-            ) : inStudio ? (
-              <StudioSidebar songs={songs} pin={pinNode} changed={liveMarks.songs} starts={startsFor('studio')} onStart={startWithMobius} />
-            ) : inPhoto ? (
-              <PhotoSidebar photos={photos} pin={pinNode} changed={liveMarks.photos} />
-            ) : inDesign ? (
+            {inDesign ? (
               <DesignSidebar designs={designs} pin={pinNode} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
-            ) : inReview ? (
-              <ReviewSidebar review={review} pin={pinNode} />
-            ) : inTerminal ? (
-              <TerminalSidebar term={terminal} pin={pinNode} />
-            ) : inDatabase ? (
-              <DatabaseSidebar db={databases} pin={pinNode} changed={liveMarks.databases} />
-            ) : inProjects ? (
-              <ProjectsSidebar projects={projects} pin={pinNode} conversations={conversation.list} />
-            ) : inWiki ? (
-              <WikiSidebar wiki={wiki} place={wikiPlace} onPlace={setWikiPlace} incoming={wikiIncoming} pin={pinNode} />
-            ) : inReader ? (
-              <ReaderSidebar reading={reading} pin={pinNode} changed={liveMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
-            ) : inResearch ? (
-              <ResearchSidebar research={research} pin={pinNode} changed={liveMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
-            ) : inViews ? (
-              <ViewsSidebar views={views} pin={pinNode} changed={viewMarks} starts={startsFor('views')} onStart={startWithMobius} />
-            ) : inCanvas ? (
-              <CanvasSidebar boards={boards} pin={pinNode} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
-            ) : inCode ? (
-              <CodeSidebar code={code} pin={pinNode} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
             ) : inSlides ? (
               <SlidesSidebar slides={slides} pin={pinNode} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
-            ) : inSheets ? (
-              <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
             ) : (
-          <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
+              <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
             <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
           </>
