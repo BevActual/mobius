@@ -138,7 +138,8 @@
 .usage-actions { display: inline-flex; gap: 8px; }
 
 /* The sidebar (the shared AppSidebar), at the same edges as Mail's: plain text rows under quiet headings. */
-.dock.left .app-side-body > .settings-side { padding: 0; }
+.settings-frame { position: absolute; z-index: 2; inset: 0; background: var(--bg); }
+.ui-panel-body > .settings-side { height: 100%; }
 .settings-side { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .settings-side > .ui-side { flex: 1; min-height: 0; }
 .settings-side .settings-nav { display: flex; flex-direction: column; min-height: 0; overflow: auto; }

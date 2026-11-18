@@ -53,23 +53,20 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .strip-middle { position: relative; }
 .strip-middle > .notice { position: absolute; top: calc(100% + 6px); right: 0; z-index: 5; max-width: 100%; margin: 0; padding: 4px 10px; border-radius: var(--radius-group); background: var(--bg); color: var(--ink); box-shadow: var(--shadow-2); }
 
-.body { position: relative; display: grid; grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto var(--col-right, 0px); min-height: 0; padding: 0 var(--pad-right, 8px) 8px var(--pad-left, 8px); }
+.body { position: relative; display: grid; grid-template-columns: 0px minmax(0, 1fr) auto var(--col-right, 0px); min-height: 0; padding: 0 var(--pad-right, 8px) 8px 8px; }
 .stage { grid-column: 2; }
 /* A sidebar sits in a dock: in the window's layout, or floating over it. */
 .dock { position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
-.dock.left { grid-column: 1; }
 .dock.inspector { grid-column: 3; }
 .dock.right { grid-column: 4; }
 .dock > .app-side, .dock > .side, .dock > .chat { flex: 1; min-height: 0; min-width: 0; }
 .dock[data-floating] { position: absolute; z-index: 30; top: 0; bottom: 8px; background: var(--shell); border: 1px solid var(--line); border-radius: var(--radius-panel); box-shadow: 0 14px 44px rgba(0, 0, 0, 0.3); animation: dock-in var(--dur-fast) var(--ease); }
-.dock.left[data-floating] { left: 8px; width: var(--left-w); }
 .dock.right[data-floating] { right: 8px; width: var(--right-w); }
 .dock[data-floating] > .app-side { padding-top: 6px; }
 @keyframes dock-in { from { opacity: 0; transform: translateX(var(--from, -8px)); } to { opacity: 1; transform: none; } }
 .dock.right[data-floating] { --from: 8px; }
 @media (prefers-reduced-motion: reduce) { .dock[data-floating] { animation: none; } }
 .hotzone { position: absolute; top: 0; bottom: 8px; width: 8px; z-index: 25; }
-.hotzone.left { left: 0; }
 .hotzone.right { right: 0; }
 .resizer { position: absolute; top: 0; bottom: 0; width: 8px; cursor: col-resize; z-index: 31; touch-action: none; border-radius: 4px; }
 .resizer.left { right: -4px; }
@@ -98,7 +95,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* A floating sidebar that is put away comes back from an 8px strip at the window's edge. A web page is drawn above the
    window's own content, so the page stops short of that strip, or it would take the pointer and the strip never sees it. */
 .stage[data-edge-right]:not([data-split]) .surface-slot, .stage[data-edge-right] .pane[data-pane="1"] .surface-slot { right: 8px; }
-.stage[data-edge-left]:not([data-split]) .surface-slot, .stage[data-edge-left] .pane[data-pane="0"] .surface-slot { left: 8px; }
 
 /* Launcher: floats on the top layer. */
 .launcher {
@@ -810,11 +806,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 /* The work area is flush with the sidebar and toolbar: no frame, no inset. */
 .body { padding: 0; }
 .stage { border: 0; border-radius: 0; box-shadow: none; }
-.dock.left:not([data-floating]) { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
-.dock.left:not([data-floating]) > .app-side { padding-top: var(--sp-2); }
 .dock.right:not([data-floating]) { background: var(--panel); border-left: 0.5px solid var(--hairline); }
 .dock[data-floating] { top: 8px; border: 0; border-radius: var(--radius-panel); background: var(--panel); box-shadow: 0 18px 50px rgba(0, 0, 0, 0.22), 0 0 0 0.5px var(--hairline); }
-.dock.left[data-floating] { background: var(--sidebar); }
 
 /* The agent panel. */
 .chat-head { height: 44px; margin-bottom: 2px; }
@@ -1833,17 +1826,12 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 :root { interpolate-size: allow-keywords; --side-select: color-mix(in srgb, var(--accent) 14%, transparent); --side-hover: color-mix(in srgb, var(--ink) 5%, transparent); }
 /* The panel is drawn inside the column, so the layout and its widths stay as they were. */
 
-.dock.left:not([data-floating]) > .app-side { border: 0.5px solid var(--hairline); border-radius: 18px; background: var(--sidebar); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06); }
-.dock.left:not([data-floating]) { background: transparent; border-right: 0; padding: 8px 0 8px 8px; }
-.dock.left:not([data-floating]) > .app-side { padding: 6px 6px 8px; overflow: hidden auto; }
-@media (prefers-color-scheme: dark) { .dock.left:not([data-floating]) > .app-side { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
-.dock.left[data-floating] { border-radius: 18px; border: 0.5px solid var(--hairline); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side { font-size: var(--fs-md); padding: 0 2px; }
+.ui-dock[data-dock="left"] .side { font-size: var(--fs-md); padding: 0 2px; }
 
 /* Section headers: 11px semibold grey, with a fold chevron. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head { height: 28px; margin: 8px 0 2px; padding: 0 4px 0 8px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head:first-child { margin-top: 2px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.side-title, .from-mobius-title), .rail-pinned-title { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
+.ui-dock[data-dock="left"] .side-head { height: 28px; margin: 8px 0 2px; padding: 0 4px 0 8px; }
+.ui-dock[data-dock="left"] .side-head:first-child { margin-top: 2px; }
+.ui-dock[data-dock="left"] :is(.side-title, .from-mobius-title), .rail-pinned-title { display: inline-flex; align-items: center; gap: 4px; margin: 0; font-size: var(--fs-xs); font-weight: 600; letter-spacing: 0.01em; color: var(--muted); }
 [data-fold] { cursor: default; border-radius: 6px; user-select: none; }
 [data-fold]::after { content: ""; width: 9px; height: 9px; flex: none; background: currentColor; opacity: 0; transform: rotate(90deg); transition: transform var(--dur-med) var(--ease), opacity var(--dur-med) var(--ease);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 10'%3E%3Cpath d='M3.5 1.5 7 5l-3.5 3.5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
@@ -1859,25 +1847,25 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @media (prefers-reduced-motion: reduce) { [data-fold-body], [data-fold-body][data-folded], [data-fold]::after { transition: none; } }
 
 /* Rows: 30px, 13px, a soft tinted selection rather than a bar, a subtle hover. */
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: var(--row-side); height: auto; padding-block: 0; font-size: var(--fs-md); border-radius: 8px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .note-row { min-height: var(--row-side); padding-block: 5px; font-size: var(--fs-md); border-radius: 8px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],
-:is(.dock.left, .ui-dock[data-dock="left"]) .clist-item:has(> [aria-current="page"]) { background: var(--side-select); color: var(--ink); font-weight: 500; }
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.list-count, .note-count) { margin-left: auto; font-size: var(--fs-sm); font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-new-row { gap: 8px; padding: 0 8px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-starts { padding: 2px 8px 6px 32px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-search { height: 28px; margin: 0 4px 6px; font-size: var(--fs-md); border-radius: 8px; }
+.ui-dock[data-dock="left"] :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: var(--row-side); height: auto; padding-block: 0; font-size: var(--fs-md); border-radius: 8px; }
+.ui-dock[data-dock="left"] .note-row { min-height: var(--row-side); padding-block: 5px; font-size: var(--fs-md); border-radius: 8px; }
+.ui-dock[data-dock="left"] :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
+.ui-dock[data-dock="left"] :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],
+.ui-dock[data-dock="left"] .clist-item:has(> [aria-current="page"]) { background: var(--side-select); color: var(--ink); font-weight: 500; }
+.ui-dock[data-dock="left"] :is(.list-count, .note-count) { margin-left: auto; font-size: var(--fs-sm); font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ui-dock[data-dock="left"] .list-divider { height: 0.5px; margin: 6px 8px; background: var(--hairline); }
+.ui-dock[data-dock="left"] .side-new-row { gap: 8px; padding: 0 8px; }
+.ui-dock[data-dock="left"] .side-starts { padding: 2px 8px 6px 32px; }
+.ui-dock[data-dock="left"] .side-search { height: 28px; margin: 0 4px 6px; font-size: var(--fs-md); border-radius: 8px; }
 
 /* One icon style: 16px line icons, 1.6 stroke. */
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-actions .strip-btn { width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-actions .strip-btn:hover { background: var(--side-hover); color: var(--ink); }
+.ui-dock[data-dock="left"] :is(.side-new-row, .list-row, .note-row, .files-row, .side-actions) svg:not([data-app]) { width: 16px; height: 16px; stroke-width: 1.6; }
+.ui-dock[data-dock="left"] .side-actions .strip-btn { width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
+.ui-dock[data-dock="left"] .side-actions .strip-btn:hover { background: var(--side-hover); color: var(--ink); }
 
 /* From Mobius, after the app's own places. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .from-mobius { margin-top: 8px; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
+.ui-dock[data-dock="left"] .from-mobius { margin-top: 8px; }
+.ui-dock[data-dock="left"] .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
 
 /* Keyboard focus that can be seen, in light and dark. */
 
@@ -1936,9 +1924,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* A row's own menu (right-click): out of the way, for what is easy to regret. */
 
 /* Selection is a soft fill, never a dashed edge; what Mobius changed and is waiting has a small indigo dot. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--mobius); align-self: center; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
+.ui-dock[data-dock="left"] .side :is(.note-row, .list-row, .clist-item, .files-row)[data-proposed] { outline: none; }
+.ui-dock[data-dock="left"] .side :is(.note-row, .list-row)[data-proposed]::after { content: ""; flex: none; width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--mobius); align-self: center; }
+.ui-dock[data-dock="left"] .side :is(.note-row, .list-row, .files-row, .clist-item)[aria-current="page"] { background: var(--side-select); }
 /* From Mobius: ordinary rows, with the dot, and where each is in grey. */
 .from-mobius .note-row { display: flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 8px; }
 .from-mobius .note-row::after { display: none; }
@@ -1946,8 +1934,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .from-mobius .note-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .from-mobius-where { flex: none; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
 /* Order in every sidebar: the head, New, search, then the sections. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side > .side-search { order: -1; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side > .side-new { order: -2; }
+.ui-dock[data-dock="left"] .side > .side-search { order: -1; }
+.ui-dock[data-dock="left"] .side > .side-new { order: -2; }
 /* Tag rows: the label's own colour, with a grey #; the accent is only for selection. */
 
 /* Comments: a speech-bubble button with the count of open threads, a dashed ring in comment mode, pins shaped as
@@ -1987,7 +1975,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #3A3A3C; }
 @media (prefers-color-scheme: dark) { .review-btn[data-kind="keep"] { background: #F5F5F7; color: #1D1D1F; } .review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: #E5E5EA; } }
 /* One dot per meaning: a row that already has its "changed by Mobius" mark does not get a second dot. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
+.ui-dock[data-dock="left"] .side :is(.note-row, .list-row)[data-proposed]:has(.changed-mark, .code-mark)::after { display: none; }
 .changed-mark { background: var(--mobius); }
 /* Comment mode's hover is a solid outline: dashed means made by Mobius and waiting. */
 .comment-ring { border: 0; outline: 1.5px solid var(--mobius); outline-offset: 0; background: color-mix(in srgb, var(--mobius) 6%, transparent); }
@@ -2022,8 +2010,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
   --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
 }
 @media (prefers-color-scheme: dark) { :root { --panel-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35); } }
-.dock.left:not([data-floating]) > .app-side, .dock.right:not([data-floating]) > .chat { border: var(--panel-border); border-radius: var(--panel-radius); background: var(--panel-bg); box-shadow: var(--panel-shadow); }
-.dock.left:not([data-floating]) { padding: var(--panel-inset) 0 var(--panel-inset) var(--panel-inset); }
 /* Mobius beside the page: the same card, inset the same from the top, the bottom and the right, its head level with
    the page's title row. The dock's column holds the inset, so the page beside it never runs under the card. */
 .dock.right:not([data-floating]) { background: transparent; border-left: 0; }
@@ -2180,8 +2166,8 @@ html .doc-editor .doc-toolbar, html .chat.full .composer, html .dock[data-floati
 html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { border: 0; }
 
 /* Concentric corners: selected rows and the search field inside a sidebar or panel card follow the card. */
-:is(.dock.left, .ui-dock[data-dock="left"]) :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row, .note-row, .clist-item, .from-mobius-filter) { border-radius: var(--row-radius); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-search { border-radius: var(--row-radius); }
+.ui-dock[data-dock="left"] :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row, .note-row, .clist-item, .from-mobius-filter) { border-radius: var(--row-radius); }
+.ui-dock[data-dock="left"] .side-search { border-radius: var(--row-radius); }
 .dock.right .chat .composer { border-radius: var(--row-radius); }
 /* Sheets and dialogs are rounder than the controls inside them, and those follow them. */
 html .launcher, html .hub { border-radius: var(--sheet-radius); }
@@ -2246,7 +2232,7 @@ input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):foc
 
 /* One search field for every sidebar (Notes, Docs, Sheets, Mail, Code, Sessions, Settings and the rest): 28px tall,
    a magnifier at its start, the same in every app. `flex: none` keeps a column sidebar from squashing it. Specific
-   enough to win over the older per-place rules above (`:is(.dock.left, .ui-dock[data-dock="left"]) .side-search`). */
+   enough to win over the older per-place rules above (`.ui-dock[data-dock="left"] .side-search`). */
 input.side-search.side-search {
   flex: none; box-sizing: border-box; height: calc(var(--row-side) - 4px); min-height: calc(var(--row-side) - 4px); padding: 0 10px 0 28px; font-size: var(--fs-md);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%238e8e93' stroke-width='1.6' stroke-linecap='round'%3E%3Ccircle cx='7' cy='7' r='4.75'/%3E%3Cpath d='m10.5 10.5 3.25 3.25'/%3E%3C/svg%3E");
@@ -2256,8 +2242,6 @@ input.side-search.side-search {
 
 /* The frame (docs/design/panel-layouts.md): the top bar runs the window's width, the Go button at its start. The app's
    list (its left panel, until the app declares its own in PanelLayout) sits under it, flat on the frame. */
-.app[data-side] .dock.left:not([data-floating]) { z-index: 2; padding: 0; background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
-.dock.left:not([data-floating]) > .app-side { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; overflow: hidden; }
 .app-side { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .app-side-head { flex: none; display: flex; align-items: center; height: var(--context); padding: 0 var(--sp-3) 0 calc(var(--sp-3) + 2px); }
 .app-side-title { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xl); font-weight: var(--fw-semibold); letter-spacing: -0.015em; color: var(--ink); }
@@ -2292,15 +2276,13 @@ input.side-search.side-search {
   --sheet-radius: var(--radius-sheet);
   --row-radius: var(--radius-control);
 }
-html .dock.left:not([data-floating]) > .app-side, html .dock.right:not([data-floating]) > .chat { background: var(--frame); box-shadow: none; border-radius: 0; }
+html .dock.right:not([data-floating]) > .chat { background: var(--frame); box-shadow: none; border-radius: 0; }
 .dock.right:not([data-floating]) { border-left: var(--hairline-w) solid var(--line); }
 /* A floating dock is the attached one laid over the page (Instrument): flush to the rail, the page's full height (under the
    toolbar, so its button and the strip stay reachable), square, a hairline
    on its inner edge and only a light shadow to show it sits on top. */
-html .dock[data-floating], html .dock.left[data-floating], html .dock.right[data-floating] { top: 0; bottom: 0; border: 0; border-radius: 0; background: var(--frame); }
-html .dock.left[data-floating] { left: 0; border-right: var(--hairline-w) solid var(--line); box-shadow: 6px 0 18px -10px rgba(0, 0, 0, 0.18); }
+html .dock[data-floating], html .dock.right[data-floating] { top: 0; bottom: 0; border: 0; border-radius: 0; background: var(--frame); }
 html .dock.right[data-floating] { right: 0; border-left: var(--hairline-w) solid var(--line); box-shadow: -6px 0 18px -10px rgba(0, 0, 0, 0.18); }
-html .dock.left[data-floating] > .app-side { padding-top: 0; }
 html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-menu, .sheet-menu) { background: var(--raised); box-shadow: var(--shadow-2); }
 /* The window's own controls stay on top and opaque when a narrow window squeezes the app's toolbar (Browser's address field) under them. */
 .strip-right { position: relative; z-index: 1; background-color: inherit; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: var(--radius-control); }
@@ -2368,22 +2350,22 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .empty-quiet .starters { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 2px; margin: 0; }
 /* Sidebar pieces as in the timeless mocks. */
 /* Quiet section headers: their tools (float, refresh, +) stay out of sight until the header is hovered or focused. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head .side-actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head:is(:hover, :focus-within) .side-actions { opacity: 1; }
+.ui-dock[data-dock="left"] .side-head .side-actions { opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.ui-dock[data-dock="left"] .side-head:is(:hover, :focus-within) .side-actions { opacity: 1; }
 /* Except what is live or open: Downloads (its progress and its popover) and any tool whose menu is showing. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head .side-actions:has(.dl-wrap, [aria-expanded="true"]) { opacity: 1; }
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-head .side-actions .strip-btn[aria-pressed="true"] { background: none; }
+.ui-dock[data-dock="left"] .side-head .side-actions:has(.dl-wrap, [aria-expanded="true"]) { opacity: 1; }
+.ui-dock[data-dock="left"] .side-head .side-actions .strip-btn[aria-pressed="true"] { background: none; }
 /* Search: a white field with a hairline. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .side-search { background-color: var(--paper); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
+.ui-dock[data-dock="left"] .side-search { background-color: var(--paper); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
 /* New, with its shortcut at the end of the row. */
 .side-keys { margin-left: auto; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); }
 .side-new-row > span:not(.side-keys), .app-side-new > span { flex: 0 1 auto; }
 .app-side-new { width: calc(100% - 2 * var(--sp-2)); }
 /* From Mobius: a quiet heading, then one row with how many are left to review. */
-:is(.dock.left, .ui-dock[data-dock="left"]) .from-mobius > .from-mobius-title { display: flex; height: 28px; padding: 0 8px; }
+.ui-dock[data-dock="left"] .from-mobius > .from-mobius-title { display: flex; height: 28px; padding: 0 8px; }
 .from-mobius-filter { color: var(--ink); font-weight: var(--fw-regular); }
 .from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--mobius); }
-:is(.dock.left, .ui-dock[data-dock="left"]) .from-mobius { border-top: 0; padding-top: 0; }
+.ui-dock[data-dock="left"] .from-mobius { border-top: 0; padding-top: 0; }
 
 /* One Mobius change block in every app (frame review): the dashed indigo edge Docs draws round a change, on the page's
    own paper, with no tint and no dot; who changed it in small indigo words, then Discard, Try another and Keep. */
@@ -2420,7 +2402,7 @@ main.stage:focus { outline: none; }
    turns, never lying over the page: the one brought forward last shows (data-front, PanelTabs.tsx). An app's Show, the
    Panels menu or opening the inspector bring it forward; asking Mobius, or closing the inspector, brings Mobius back. */
 @media (max-width: 1439px) {
-  .body:has(> .dock.inspector[data-front]:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: var(--col-left, 0px) minmax(0, 1fr) auto 0px; }
+  .body:has(> .dock.inspector[data-front]:not([hidden])):has(> .dock.right:not([data-floating])) { grid-template-columns: 0px minmax(0, 1fr) auto 0px; }
   .body:has(> .dock.inspector[data-front]:not([hidden])) > .dock.right:not([data-floating]) { display: none; }
   .body:has(> .dock.right:not([data-floating])) > .dock.inspector:not([data-front]) { display: none; }
 }
@@ -2649,3 +2631,7 @@ body { font-variant-numeric: tabular-nums; }
   padding-bottom: var(--row-side);
   mask-image: linear-gradient(to bottom, #000 calc(100% - var(--row-side)), transparent);
 }
+/* Search: the scope chips stand in for the Scopes panel while it is hidden. */
+.ui-panels:has(> .ui-dock[data-dock="left"] .search-side) .search-filters { display: none; }
+/* Browser: the page is drawn natively over everything beside it, so the tabs panel's edge stays inside the panel. */
+.ui-panels[data-app="browser"] > .ui-dock[data-dock="left"] > .ui-dock-edge { right: 0; }

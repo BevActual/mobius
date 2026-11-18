@@ -22,7 +22,7 @@ fn appearance_starts_with_defaults_and_keeps_valid_changes_across_a_restart() {
     let file = dir.path().join("a.json");
     let mut a = appearance::open(file.clone());
     assert_eq!(a.get(), appearance::defaults());
-    assert!(a.set(&json!({ "theme": "dark", "leftWidth": 300 })));
+    assert!(a.set(&json!({ "theme": "dark", "rightWidth": 400 })));
     assert_eq!(appearance::open(file.clone()).get()["theme"], "dark");
     // Mid grey and Cool dark are themes too.
     assert!(a.set(&json!({ "theme": "cool" })) && a.set(&json!({ "theme": "mid" })));
@@ -35,15 +35,15 @@ fn appearance_refuses_every_bad_value_whole_and_changes_nothing() {
     let mut a = appearance::open(dir.path().join("a.json"));
     for bad in [
         json!({ "theme": "purple" }), json!({ "zoom": 0.74 }), json!({ "zoom": 1.51 }), json!({ "zoom": "1" }), json!({ "zoom": null }),
-        json!({ "chatTextScale": 0.84 }), json!({ "chatTextScale": 1.41 }), json!({ "leftWidth": 199 }), json!({ "leftWidth": 421 }),
-        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "leftSidebar": "hidden" }), json!({ "sidebarApps": [] }), json!({ "sidebarApps": ["agent", "agent"] }), json!({ "sidebarApps": ["code"] }), json!({ "sidebarApps": "agent" }), json!({ "favourites": [{ "kind": "site", "id": "x", "title": "x" }] }), json!({ "clippingsPage": "Work/Reading" }), json!({ "clippingsPage": 3 }), json!({ "favourites": [{ "kind": "note", "id": "", "title": "x" }] }),
-        json!({ "sidebarAtStart": "yes" }), json!({ "density": 1 }), json!([1]), json!("x"), json!(null), json!({}), json!({ "unknown": 1 }),
+        json!({ "chatTextScale": 0.84 }), json!({ "chatTextScale": 1.41 }), json!({ "leftWidth": 300 }),
+        json!({ "rightWidth": 299 }), json!({ "rightWidth": 641 }), json!({ "rightWidth": "400" }), json!({ "rightSidebar": "hidden" }), json!({ "sidebarApps": [] }), json!({ "sidebarApps": ["agent", "agent"] }), json!({ "sidebarApps": ["code"] }), json!({ "sidebarApps": "agent" }), json!({ "favourites": [{ "kind": "site", "id": "x", "title": "x" }] }), json!({ "clippingsPage": "Work/Reading" }), json!({ "clippingsPage": 3 }), json!({ "favourites": [{ "kind": "note", "id": "", "title": "x" }] }),
+        json!({ "keyHints": "yes" }), json!({ "density": 1 }), json!([1]), json!("x"), json!(null), json!({}), json!({ "unknown": 1 }),
         json!({ "theme": "dark", "zoom": 9 }),
     ] {
         assert!(!a.set(&bad), "{bad}");
     }
     assert_eq!(a.get(), appearance::defaults(), "nothing leaked through a refused change");
-    for good in [json!({ "zoom": 0.75 }), json!({ "zoom": 1.5 }), json!({ "leftWidth": 200 }), json!({ "leftWidth": 420 }), json!({ "rightWidth": 300 }), json!({ "rightWidth": 640 })] {
+    for good in [json!({ "zoom": 0.75 }), json!({ "zoom": 1.5 }), json!({ "rightWidth": 300 }), json!({ "rightWidth": 640 })] {
         assert!(a.set(&good), "{good}");
     }
 }
@@ -54,9 +54,9 @@ fn a_damaged_or_hostile_settings_file_falls_back_one_field_at_a_time() {
     let file = dir.path().join("a.json");
     std::fs::write(&file, "not json").unwrap();
     assert_eq!(appearance::open(file.clone()).get(), appearance::defaults());
-    std::fs::write(&file, json!({ "theme": "dark", "zoom": 99, "leftWidth": "x", "density": "compact", "extra": 1 }).to_string()).unwrap();
+    std::fs::write(&file, json!({ "theme": "dark", "zoom": 99, "rightWidth": "x", "density": "compact", "extra": 1 }).to_string()).unwrap();
     let got = appearance::open(file).get();
-    assert_eq!((got["theme"].as_str(), got["zoom"].as_f64(), got["density"].as_str(), got["leftWidth"].as_f64()), (Some("dark"), Some(1.0), Some("compact"), Some(248.0)));
+    assert_eq!((got["theme"].as_str(), got["zoom"].as_f64(), got["density"].as_str(), got["rightWidth"].as_f64()), (Some("dark"), Some(1.0), Some("compact"), Some(340.0)));
     assert!(got.get("extra").is_none());
 }
 

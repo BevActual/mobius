@@ -77,10 +77,10 @@ for (const scheme of ['light', 'dark'] as const) {
       await goTo(shell, 'Browser');
       await shell.waitForTimeout(400);
       await shot('3h-sidebar-browser');
-      await shell.getByRole('button', { name: 'Show tabs' }).click();
+      await shell.keyboard.press('Control+Backslash');
       await shell.waitForTimeout(400);
       await shot('3i-list-browser');
-      await shell.getByRole('button', { name: 'Show tabs' }).click();
+      await shell.keyboard.press('Control+Backslash');
       await shell.keyboard.press('Control+k');
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
       await shell.keyboard.press('Enter');

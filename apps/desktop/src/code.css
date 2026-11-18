@@ -192,7 +192,7 @@
 
 /* Changes: the branch on one quiet line, then each changed file with git's letter, as plain rows. Commit… and Push
    stay in view: they are the section's work, not a hover extra. */
-.dock.left .code-side .code-git .side-head .side-actions { opacity: 1; }
+.ui-dock[data-dock="left"] .code-side .code-git .side-head .side-actions { opacity: 1; }
 .code-side .code-git { display: flex; flex-direction: column; }
 .code-side .code-git .side-actions { display: flex; gap: 0; }
 .code-side .code-git-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); height: var(--row-side); padding: 0 var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }

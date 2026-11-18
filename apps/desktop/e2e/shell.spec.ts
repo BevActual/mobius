@@ -33,7 +33,7 @@ test('opens one window with a single visible page glued to the slot', async () =
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {
   await expectVisibleView(mobius.app);
   await resizeWindow(mobius.app, 1000, 700);
-  await mobius.shell.getByRole('button', { name: 'Show tabs' }).click();
+  await mobius.shell.getByRole('button', { name: 'Hide Tabs' }).click();
   await expect.poll(async () => {
     const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
     const view = (await views(mobius.app)).find((v) => v.visible)!;

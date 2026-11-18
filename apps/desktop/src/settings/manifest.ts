@@ -41,10 +41,8 @@ const SECTIONS: readonly SettingsSection[] = [
       ] },
       { id: 'layout', label: 'Layout', rows: [
         row('sidebar-apps', 'Apps in the sidebar', 'Choose which apps the sidebar lists, and their order. The others stay in All apps.', 'sidebar', 'apps', 'reorder', 'order', 'hide', 'show', 'customise', 'customize', 'rail'),
-        row('sidebar-at-start', 'Show the tab list at start', "Whether the browser's list of tabs is open when Mobius starts.", 'sidebar', 'tabs', 'startup', 'panel'),
-        row('left-sidebar', 'Tab and conversation list', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'left'),
         row('right-sidebar', 'Agent panel', 'Attached keeps it beside the page. Floating shows it over the page when you move to the edge, and hides it again.', 'floating', 'attached', 'auto hide', 'autohide', 'pinned', 'sidebar', 'overlay', 'right', 'chat panel'),
-        row('sidebar-size', 'Sidebar sizes', 'Drag the edge of a sidebar to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
+        row('sidebar-size', 'Agent panel size', 'Drag the edge of the agent panel to resize it, or focus the edge and use the arrow keys. Double-click puts the usual width back.', 'width', 'resize', 'wider', 'narrower', 'reset size'),
         row('density', 'List density', 'How tightly tabs and conversations are packed.', 'compact', 'comfortable', 'spacing', 'sidebar', 'dense'),
         row('key-hints', 'Key hints', 'A small bar under lists with their most useful keys. It hides itself once you use them.', 'keyboard', 'shortcuts', 'keys', 'hints', 'hint bar'),
       ] },

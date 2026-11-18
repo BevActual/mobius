@@ -51,8 +51,8 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   expect(await visibleViews()).toHaveLength(1);
   await openSettings();
   await expect(shell().locator('.strip-title')).toHaveText('General');
-  // One sidebar: Settings' search and sections, not the last app's list beside them.
-  await expect(shell().locator('.app-side').getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
+  // One left panel: Settings' search and sections, not the last app's list beside them.
+  await expect(shell().locator('.ui-dock[data-dock="left"]').getByRole('region', { name: 'Sections' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
   await expect(page().getByRole('button', { name: 'Close settings' })).toHaveCount(0);
   expect(await visibleViews()).toHaveLength(0);

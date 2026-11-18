@@ -104,19 +104,19 @@ test('hiding finished tool steps keeps the ones that still need you', async () =
   await expect(shell().locator('.tool:visible')).toHaveCount(2);
 });
 
-test('the tab list can start closed, and the choice survives a restart', async () => {
+test('the tab list, once hidden, stays hidden after a restart, and Ctrl+\\ brings it back', async () => {
   await start([]);
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
-  await openPage('Appearance', 'Layout');
-  await page().getByRole('switch', { name: 'Show the tab list at start' }).uncheck();
-  await closeSettings();
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  const tabList = () => shell().getByRole('complementary', { name: 'Browser sidebar' });
+  await expect(tabList()).toBeVisible();
+  await shell().getByRole('button', { name: 'Hide Tabs' }).click();
+  await expect(tabList()).toHaveCount(0);
   await mobius!.close({ keepUserData: true });
   await model!.close();
   await start([]);
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toHaveCount(0);
-  await shell().getByRole('button', { name: 'Show tabs' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Browser sidebar' })).toBeVisible();
+  await expect(shell().getByTestId('surface-slot')).toBeVisible();
+  await expect(tabList()).toHaveCount(0);
+  await shell().keyboard.press('Control+Backslash');
+  await expect(tabList()).toBeVisible();
 });
 
 test('turning off "reopen the last conversation" starts blank next time', async () => {
