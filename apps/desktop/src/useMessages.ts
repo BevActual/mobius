@@ -13,6 +13,11 @@ export function useMessages(active = true) {
   const [channels, setChannels] = useState<ChatChannel[]>([]);
   const [open, setOpen] = useState<OpenChannel | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  // The open thread, beside its channel: the message it hangs from and its replies.
+  const [thread, setThread] = useState<string | null>(null);
+  const [replies, setReplies] = useState<ChatMessage[]>([]);
+  const threadNow = useRef(thread);
+  threadNow.current = thread;
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const openNow = useRef(open);
@@ -43,29 +48,50 @@ export function useMessages(active = true) {
     }
   }, [api]);
 
+  const readThread = useCallback(async (to: OpenChannel | null, id: string | null) => {
+    if (!api || !to || !id) { setReplies([]); return; }
+    const got = await api.history(to.account, to.channel, { limit: 200, thread: id });
+    const now = openNow.current;
+    if (!now || now.account !== to.account || now.channel !== to.channel || threadNow.current !== id) return;
+    if (isNotesFailure(got)) { setMessage(got.message); return; }
+    setReplies(got);
+  }, [api]);
+
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
   useEffect(() => { void read(open); }, [open, read]);
+  useEffect(() => { void readThread(openNow.current, thread); }, [open, thread, readThread]);
   useEffect(() => api?.onChanged((change) => {
     void refresh();
     const now = openNow.current;
-    if (now && now.account === change.account && (!change.channel || change.channel === now.channel)) void read(now);
-  }), [api, refresh, read]);
+    if (now && now.account === change.account && (!change.channel || change.channel === now.channel)) { void read(now); void readThread(now, threadNow.current); }
+  }), [api, refresh, read, readThread]);
 
-  const choose = useCallback((to: OpenChannel | null) => { setMessages([]); setOpen(to); }, []);
+  /** Opens a channel; with `thread`, that thread opens beside it. */
+  const choose = useCallback((to: OpenChannel | null) => {
+    const same = to && openNow.current && to.account === openNow.current.account && to.channel === openNow.current.channel;
+    if (!same) { setMessages([]); setOpen(to ? { account: to.account, channel: to.channel } : null); }
+    setReplies([]);
+    setThread(to?.thread ?? null);
+  }, []);
+  const openThread = useCallback((id: string | null) => { setReplies([]); setThread(id); }, []);
 
   /** Sends what the person wrote. Only ever called from the person's own Send. */
-  const send = useCallback(async (text: string): Promise<boolean> => {
+  const send = useCallback(async (text: string, inThread = false): Promise<boolean> => {
     const to = openNow.current;
-    if (!api || !to || !text.trim()) return false;
-    const sent = await api.send(to.account, to.channel, text.trim(), to.thread);
+    const id = inThread ? threadNow.current : null;
+    if (!api || !to || !text.trim() || (inThread && !id)) return false;
+    const sent = await api.send(to.account, to.channel, text.trim(), id ?? undefined);
     if (isNotesFailure(sent)) { setMessage(sent.message); return false; }
-    setMessages((list) => [...list, sent]);
+    if (id) {
+      setReplies((list) => [...list, sent]);
+      setMessages((list) => list.map((m) => (m.id === id ? { ...m, replies: (m.replies ?? 0) + 1 } : m)));
+    } else setMessages((list) => [...list, sent]);
     return true;
   }, [api]);
 
   const account = accounts.find((a) => a.id === open?.account) ?? null;
   const channel = channels.find((c) => c.account === open?.account && c.id === open?.channel) ?? null;
-  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, choose, send, refresh };
+  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, choose, send, refresh, thread, replies, openThread };
 }
 
 export type MessagesState = ReturnType<typeof useMessages>;
