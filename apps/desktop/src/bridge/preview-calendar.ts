@@ -37,6 +37,11 @@ function apply(e: CalendarEvent, draft: CalendarDraft): CalendarEvent {
   if (draft.location !== undefined) out.location = draft.location;
   if (draft.notes !== undefined) out.notes = draft.notes;
   if (draft.repeat !== undefined) { out.repeat = draft.repeat; out.repeats = draft.repeat !== ''; }
+  // As the store keeps them: a status left out stays as it was, or waits for an answer.
+  if (draft.attendees !== undefined) {
+    out.attendees = draft.attendees.map((a) => ({ name: a.name ?? '', email: a.email, status: a.status ?? e.attendees?.find((was) => was.email.toLowerCase() === a.email.toLowerCase())?.status ?? 'needs-action' }));
+  }
+  if (draft.organizer !== undefined) out.organizer = draft.organizer && { name: draft.organizer.name ?? '', email: draft.organizer.email, status: '' };
   return out;
 }
 

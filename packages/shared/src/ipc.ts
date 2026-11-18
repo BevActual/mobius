@@ -160,7 +160,11 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
  * `YYYY-MM-DDTHH:MM` otherwise; `end` is exclusive (an all-day event on the 12th ends on the 13th). A repeating event
  * is listed once for each time it happens, all with the same id. */
 /** `repeat`: daily, weekdays, weekly, biweekly, monthly or yearly; custom for one made elsewhere; empty when it does not repeat. */
-export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; readOnly?: boolean }
+/** What an attendee answered; empty for the organizer, or for an answer Mobius does not name. */
+export type CalendarAnswer = 'needs-action' | 'accepted' | 'declined' | 'tentative' | '';
+/** Someone on an event: an attendee or its organizer, by address. */
+export interface CalendarPerson { name: string; email: string; status: CalendarAnswer }
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; readOnly?: boolean; /** Who is invited, in the file's order. */ attendees?: CalendarPerson[]; /** Who sent the invitation. */ organizer?: CalendarPerson | null }
 /** What Mobius remembers, sorted as How I work in the Wiki shows it: about you, preferences, projects, people, learned skills. */
 export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
@@ -238,7 +242,7 @@ export type CalendarSignIn = { ok: true; account: { id: string; name: string } }
 export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google' | 'microsoft'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
-export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string }
+export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string; /** The whole list of who is invited; left out, it stays as it was. A status left out is kept (or needs-action for someone new). */ attendees?: { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[]; /** Who sends it; null for no one; left out, it stays as it was. */ organizer?: { name?: string; email: string } | null }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
 export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox' | 'onedrive'; name: string; /** For Dropbox, `dropbox:` and the folder in it; for OneDrive and SharePoint, `onedrive:`, the drive's id and the folder. */ url: string; /** For S3, the access key id; for Dropbox, OneDrive and SharePoint, the account that signed in. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
