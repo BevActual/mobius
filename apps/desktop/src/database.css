@@ -93,3 +93,7 @@
 .db-loading { display: flex; flex-direction: column; padding: 0 var(--sp-3); border-top: var(--hairline-w) solid var(--line); }
 .db-loading span { height: var(--row-list); border-bottom: var(--hairline-w) solid var(--line-soft); }
 .db-loading span::before { content: ""; display: block; width: var(--w, 60%); height: var(--sp-2); margin-top: var(--sp-3); border-radius: var(--radius-small); background: var(--field); }
+
+/* Query, the bottom panel: the statement on top and what it gave filling the rest. */
+.db-query { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.db-query .db-editor textarea { min-height: 0; }
