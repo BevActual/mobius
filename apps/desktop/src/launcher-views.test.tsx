@@ -47,3 +47,21 @@ describe('launcher commands only', () => {
     expect(commandsOnly(commands, '>calendar')!.map((c) => c.label)).toEqual(['New event']);
   });
 });
+
+import { noteChoice, rankByChoice } from './Launcher';
+describe('launcher choice memory', () => {
+  const items = [{ id: 'ask', kind: 'ask' }, { id: 'app-notes', kind: 'app' }, { id: 'app-knowledge', kind: 'app' }, { id: 'item-a', kind: 'item' }, { id: 'item-b', kind: 'item' }];
+  it('puts what was picked for the same first letters first within its kind, and leaves the rest in order', () => {
+    let c = noteChoice({}, 'kno', 'app-knowledge');
+    c = noteChoice(c, 'know', 'item-b');
+    expect(rankByChoice(items, c, 'kn').map((i) => i.id)).toEqual(['ask', 'app-notes', 'app-knowledge', 'item-a', 'item-b']);
+    expect(rankByChoice(items, c, 'knowl').map((i) => i.id)).toEqual(['ask', 'app-knowledge', 'app-notes', 'item-b', 'item-a']);
+    expect(rankByChoice(items, {}, 'kno').map((i) => i.id)).toEqual(items.map((i) => i.id));
+  });
+  it('learns nothing from an empty query and keeps 20 per prefix', () => {
+    expect(noteChoice({}, '  ', 'x')).toEqual({});
+    let c = {};
+    for (let i = 0; i < 25; i += 1) c = noteChoice(c, 'abc', `id-${i}`);
+    expect(Object.keys((c as Record<string, object>).abc!)).toHaveLength(20);
+  });
+});

@@ -144,6 +144,39 @@ export function commandsOnly<T extends { label: string; detail?: string }>(comma
   return commands.filter((c) => `${c.label} ${c.detail ?? ''}`.toLowerCase().includes(words)).slice(0, limit);
 }
 
+/**
+ * What was picked for what was typed, so it rises next time (Raycast's and Spotlight's way). Keyed by the first three
+ * letters typed, so "no", "not" and "note" share what they learned. Kept on this device only, never sent anywhere.
+ */
+export type Choices = Record<string, Record<string, number>>;
+const CHOICES_KEY = 'mobius.launcher.choices';
+const choiceKey = (query: string) => query.trim().toLowerCase().slice(0, 3);
+
+/** Count one pick of `id` for `query`. Each prefix keeps its 20 most picked. */
+export function noteChoice(choices: Choices, query: string, id: string): Choices {
+  const key = choiceKey(query);
+  if (!key) return choices;
+  const counts = { ...choices[key], [id]: (choices[key]?.[id] ?? 0) + 1 };
+  const kept = Object.fromEntries(Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20));
+  return { ...choices, [key]: kept };
+}
+
+/** Within each kind, the ones picked most for this query first; the rest keep their order. Ask stays first. */
+export function rankByChoice<T extends { id: string; kind: string }>(items: readonly T[], choices: Choices, query: string): T[] {
+  const counts = choices[choiceKey(query)];
+  if (!counts) return [...items];
+  const kindOrder = [...new Set(items.map((i) => i.kind))];
+  return kindOrder.flatMap((kind) => items.map((item, i) => ({ item, i })).filter(({ item }) => item.kind === kind)
+    .sort((a, b) => (counts[b.item.id] ?? 0) - (counts[a.item.id] ?? 0) || a.i - b.i).map(({ item }) => item));
+}
+
+function readChoices(): Choices {
+  try { const v = JSON.parse(window.localStorage.getItem(CHOICES_KEY) ?? '{}') as unknown; return v && typeof v === 'object' ? v as Choices : {}; } catch { return {}; }
+}
+function writeChoices(choices: Choices) {
+  try { window.localStorage.setItem(CHOICES_KEY, JSON.stringify(choices)); } catch { /* Not kept. */ }
+}
+
 /** "Mail" or "Mail, 3 waiting". */
 const withWaiting = (name: string, waiting = 0) => (waiting > 0 ? `${name}, ${waiting} waiting` : name);
 
@@ -343,7 +376,9 @@ export function Launcher({
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
   }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
-  const items = useMemo(() => listFor(query), [listFor, query]);
+  const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
+  const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
+  const items = useMemo(() => listRanked(query), [listRanked, query]);
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
   // pressing Enter opens Notes, and with nothing typed Enter opens the first pinned app. With nothing found, Enter
@@ -358,6 +393,12 @@ export function Launcher({
     if (!item || item.disabled || dragged.current) return;
     // All apps is a view of the launcher, not somewhere to go: it stays open.
     if (item.id === 'all-apps' || item.id === 'act-scope') { item.run(); return; }
+    const typed = input.current?.value ?? query;
+    if (typed.trim() && item.kind !== 'ask' && !actionsFor) {
+      const next = noteChoice(choices, typed, item.id);
+      setChoices(next);
+      writeChoices(next);
+    }
     onClose();
     item.run();
   };
@@ -421,7 +462,7 @@ export function Launcher({
       // typing opens what was typed, never what was first in the list before.
       const typed = event.currentTarget.value;
       if (typed === query) activate(items[selected]);
-      else { const list = listFor(typed); const first = list.findIndex((item) => item.kind !== 'ask' && !item.disabled); activate(list[first > 0 ? first : 0]); }
+      else { const list = listRanked(typed); const first = list.findIndex((item) => item.kind !== 'ask' && !item.disabled); activate(list[first > 0 ? first : 0]); }
       return;
     } else if (k === 'Escape') { event.preventDefault(); onClose(); }
   };
