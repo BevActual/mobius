@@ -13,7 +13,7 @@ import { emptyHistory, recorded, redone, undone, type History } from './photo-vi
 import { dropIndex, duplicateShot, filmstrip, insertClip, moveShot, nextEdit, parseTimecode, removeShot, rulerLabel, rulerMarks, splitAt, trimShot } from './video-view';
 import { exportFormat, exportName, renderCut, toBase64 } from './video-export';
 import { isNotesFailure } from '@mobius/shared';
-import { AppSidebar, PanelTab, SidebarRow, SidebarSection, ToolbarControls, ToolbarItem, useShowPanelTab } from './ui';
+import { AppSidebar, PanelLayout, PanelTab, SidebarRow, SidebarSection, ToolbarControls, ToolbarItem, useShowPanelTab, type PanelSpec } from './ui';
 import './video.css';
 import { afterPaint } from './ui/frame';
 
@@ -219,10 +219,13 @@ function ShotBlock({ shot, index, width, selected, playing, proposed, frame, onS
 }
 
 /** The cut: a viewer that plays its shots in order, the shots as a timeline to trim, split and arrange, and the chosen shot's details. */
-export function VideoEditor({ video, review }: { video: VideoState; review?: { conversation: string } | null }) {
+export function VideoEditor({ video, review, listPanels = [] }: { video: VideoState; review?: { conversation: string } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const player = useRef<HTMLVideoElement>(null);
   const page = useRef<HTMLElement>(null);
-  const strip = useRef<HTMLDivElement>(null);
+  const strip = useRef<HTMLDivElement | null>(null);
+  // The timeline is a panel that can be hidden and shown again: its width is watched on whichever element is there.
+  const [stripEl, setStripEl] = useState<HTMLDivElement | null>(null);
+  const stripRef = useCallback((el: HTMLDivElement | null) => { strip.current = el; setStripEl(el); }, []);
   const [index, setIndex] = useState(0);
   const [t, setT] = useState(0);
   const [playing, setPlaying] = useState(false);
@@ -389,14 +392,14 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
 
   // The timeline fits the cut until zoomed.
   useEffect(() => {
-    const el = strip.current;
+    const el = stripEl;
     if (!el) return;
     const look = () => setWidth(el.clientWidth);
     look();
     const watch = new ResizeObserver(look);
     watch.observe(el);
     return () => watch.disconnect();
-  }, [video.project, video.available]);
+  }, [stripEl]);
   const fit = total > 0 ? Math.max(14, Math.min(160, (width - 32) / total)) : 40;
   const pxPerSec = zoom ?? fit;
 
@@ -458,8 +461,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     if (files.length) void video.addFiles(files);
   };
 
-  if (!video.available) return <section className="video-page empty" aria-label="Video"><EmptyState app="video" title="Video is not available here" /></section>;
-  if (!video.project) return <section className="video-page empty" aria-label="Video"><EmptyState app="video" label="No project open" title={video.projects.length ? 'No project open' : 'No projects yet'} line="A project is a folder of clips and its cut. The clips are never changed." action={{ label: 'New project', run: () => void video.createProject('Project') }} /></section>;
+  if (!video.available) return <PanelLayout app="video" panels={listPanels}><section className="video-page empty" aria-label="Video"><EmptyState app="video" title="Video is not available here" /></section></PanelLayout>;
+  if (!video.project) return <PanelLayout app="video" panels={listPanels}><section className="video-page empty" aria-label="Video"><EmptyState app="video" label="No project open" title={video.projects.length ? 'No project open' : 'No projects yet'} line="A project is a folder of clips and its cut. The clips are never changed." action={{ label: 'New project', run: () => void video.createProject('Project') }} /></section></PanelLayout>;
   const sel = cut.shots.find((s) => s.id === selected) ?? null;
   const selIndex = sel ? cut.shots.indexOf(sel) : -1;
   const shotLabel = (i: number) => `Shot ${i + 1}`;
@@ -509,6 +512,28 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
     : sel
       ? `${sel.clip} · in ${timecode(sel.in)} · out ${timecode(sel.out)} · ${timecode(shotLength(sel))}. Drag an edge to trim, S splits at the playhead.`
       : `${cut.shots.length} ${cut.shots.length === 1 ? 'shot' : 'shots'} · ${timecode(total)}${video.saved ? '' : ' · Saving…'}`;
+  // The timeline (bottom dock, as in every editor): the ruler, the shots as filmstrips, and the playhead.
+  const timelinePanel: PanelSpec = { id: 'timeline', name: 'Timeline', dock: 'bottom', shown: true, size: 220, render: () => (
+    <div ref={stripRef} className="video-timeline" onDragOver={dragOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt(null); }} onDrop={dropOnTimeline}
+      onPointerMove={(e) => { scrubMove(e); trimMove(e); }} onPointerUp={() => { scrubUp(); trimUp(); }} onPointerCancel={() => { scrubUp(); trimUp(); }}>
+      <div className="video-track-wrap" style={{ width: Math.max(total * pxPerSec, width - 32) + 1 }}>
+        <div className="video-ruler" aria-hidden="true" onPointerDown={scrubDown}>
+          {ruler.marks.map((m) => <span key={m} className="video-mark" style={{ left: m * pxPerSec }}>{rulerLabel(m)}</span>)}
+        </div>
+        <div className="video-track" role="listbox" aria-label="Timeline" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
+          {cut.shots.map((s, i) => (
+            <ShotBlock key={s.id} shot={s} index={i} width={Math.max(12, shotLength(s) * pxPerSec)} selected={selected === s.id} playing={index === i} proposed={changed.has(s.id)} frame={frame}
+              onSelect={() => { setSelected(s.id); seek(shotStart(cut, i)); showTab('shot'); }}
+              onTrim={trimDown(s.id)}
+              onDragStart={(e) => { e.dataTransfer.setData(SHOT_TYPE, s.id); e.dataTransfer.effectAllowed = 'move'; }}
+              onMenu={shotMenu(s, i)} />
+          ))}
+          {dropAt !== null && <span className="video-drop" style={{ left: shotStart(cut, dropAt) * pxPerSec }} aria-hidden="true" />}
+        </div>
+        <span className="video-playhead" style={{ left: t * pxPerSec }} aria-hidden="true" onPointerDown={scrubDown} />
+      </div>
+    </div>
+  ) };
   return (
     <section ref={page} className="video-page" aria-label="Video" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
       <ToolbarControls label="Edit">
@@ -565,6 +590,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
         </div>
         </ToolbarItem>
       </ToolbarControls>
+      <PanelLayout app="video" panels={[...listPanels, timelinePanel]}>
+      <div className="video-main">
       <div ref={viewer} className="video-viewer" data-full={full || undefined}>
         <div className="video-screen">
           {/* The picture's own box, its clip's shape, as large as fits: the title sits on the picture, not the page. */}
@@ -596,25 +623,6 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
         </div>
       )}
       {exportError && <p className="tasks-message" role="alert">{`The film could not be exported: ${exportError}`}</p>}
-      <div ref={strip} className="video-timeline" onDragOver={dragOver} onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDropAt(null); }} onDrop={dropOnTimeline}
-        onPointerMove={(e) => { scrubMove(e); trimMove(e); }} onPointerUp={() => { scrubUp(); trimUp(); }} onPointerCancel={() => { scrubUp(); trimUp(); }}>
-        <div className="video-track-wrap" style={{ width: Math.max(total * pxPerSec, width - 32) + 1 }}>
-          <div className="video-ruler" aria-hidden="true" onPointerDown={scrubDown}>
-            {ruler.marks.map((m) => <span key={m} className="video-mark" style={{ left: m * pxPerSec }}>{rulerLabel(m)}</span>)}
-          </div>
-          <div className="video-track" role="listbox" aria-label="Timeline" onClick={(e) => { if (e.target === e.currentTarget) setSelected(null); }}>
-            {cut.shots.map((s, i) => (
-              <ShotBlock key={s.id} shot={s} index={i} width={Math.max(12, shotLength(s) * pxPerSec)} selected={selected === s.id} playing={index === i} proposed={changed.has(s.id)} frame={frame}
-                onSelect={() => { setSelected(s.id); seek(shotStart(cut, i)); showTab('shot'); }}
-                onTrim={trimDown(s.id)}
-                onDragStart={(e) => { e.dataTransfer.setData(SHOT_TYPE, s.id); e.dataTransfer.effectAllowed = 'move'; }}
-                onMenu={shotMenu(s, i)} />
-            ))}
-            {dropAt !== null && <span className="video-drop" style={{ left: shotStart(cut, dropAt) * pxPerSec }} aria-hidden="true" />}
-          </div>
-          <span className="video-playhead" style={{ left: t * pxPerSec }} aria-hidden="true" onPointerDown={scrubDown} />
-        </div>
-      </div>
       <footer className="video-status">
         {exported ? (
           <span className="video-done" role="status">
@@ -624,6 +632,8 @@ export function VideoEditor({ video, review }: { video: VideoState; review?: { c
           </span>
         ) : <span>{status}</span>}
       </footer>
+      </div>
+      </PanelLayout>
       <Menu menu={menu} onClose={() => setMenu(null)} />
       <PanelTab id="shot" name="Shot">{inspector}</PanelTab>
     </section>
