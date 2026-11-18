@@ -64,7 +64,7 @@ A panel docked "under the top bar" lays out in a row across the content, like th
 
 ## The Go button and Ctrl+K
 
-The Go button opens the launcher (Ctrl+K), which now does everything the rail did.
+The Go button opens the launcher (Ctrl+K), which now does everything the rail did. What it does in full, and the order to build it in, is in [launcher.md](launcher.md).
 
 - **Nothing typed:** Ask Mobius first. Then the pinned apps in one row, each with a dot while it has something
   waiting; drag to reorder, right-click to pin or unpin. Then **Recent**: the things last open in any app (a note, a
