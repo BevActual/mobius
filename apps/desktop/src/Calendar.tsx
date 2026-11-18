@@ -34,7 +34,7 @@ import { ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppSidebar, DateField, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, DateField, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 
 /** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
 const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
@@ -161,6 +161,8 @@ function EventSearch({ calendar, query }: { calendar: CalendarState; query: stri
 type Editing = ({ event: CalendarEvent } | { start: string; end?: string; allDay: boolean }) & {
   /** Where it was opened from: the editor opens beside it, as Calendar's popover does. Without it, a sheet in the middle. */
   at?: DOMRect;
+  /** Moved to the inspector's Event panel, for a longer edit: there it has room, and Save and Cancel. */
+  docked?: boolean;
 };
 /** A new event's place on the grid while its editor is open, so the time it will take is drawn there. */
 type Pending = { start: string; end: string };
@@ -654,7 +656,7 @@ const newStart = (anchor: Date) => {
   return isoTime(n);
 };
 
-function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void }) {
+function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -712,7 +714,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
   useMorphIn(sheet, true);
   // Opened from a place on the grid, it is a popover beside that place, on whichever side has room and never off the
   // window. A press anywhere else closes it, keeping what was typed, as Calendar's popover does.
-  const at = editing.at;
+  const at = editing.docked ? undefined : editing.at;
+  const docked = editing.docked === true;
+  // Moved to the Event panel: bring that panel forward (its tab is added by now, as a child's effects run first).
+  const showTab = useShowPanelTab();
+  useEffect(() => { if (docked) showTab('event'); }, [docked, showTab]);
   // `side` is where the event is, so the arrow points back at it; `arrow` is how far down the popover it sits.
   const [place, setPlace] = useState<{ left: number; top: number; side: 'left' | 'right' | null; arrow: number } | null>(null);
   useLayoutEffect(() => {
@@ -754,7 +760,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
       <form
         ref={sheet} className="cal-editor" data-pop={at ? true : undefined} data-side={place?.side ?? undefined}
         style={at ? { left: place?.left ?? 0, top: place?.top ?? 0, visibility: place ? undefined : 'hidden', ['--arrow' as string]: `${place?.arrow ?? 0}px` } : undefined}
-        role="dialog" aria-modal="true" aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)}
+        role={docked ? 'form' : 'dialog'} aria-modal={docked ? undefined : true} data-docked={docked || undefined} aria-label={locked ? 'Event' : original ? 'Edit event' : 'New event'} onSubmit={(e) => void save(e)}
         onKeyDown={(e) => {
           if (e.key === 'Escape') { e.stopPropagation(); onClose(); return; }
           // The popover has no Save: Enter in a line of text keeps the change, as a click elsewhere does. A day or time
@@ -808,6 +814,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
             no Cancel or Save, only Delete, as plain red words at its foot. */}
+        {at && onDock && <button type="button" className="cal-dock" title="Edit this event in the Event panel, with more room" onClick={onDock}>More options</button>}
         {original && onMeeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting(original); }}>Record meeting</button>}
         {at ? (original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete Event</button>) : (
         <div className="cal-editor-actions">
@@ -820,6 +827,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
       </form>
   );
   if (at) return createPortal(<div className="cal-pop-layer">{form}</div>, document.body);
+  if (docked) return <PanelTab id="event" name="Event" shown>{form}</PanelTab>;
   return (
     <div className="cal-editor-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       {form}
@@ -1140,7 +1148,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} />}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} />}
     </section>
   );
 }
