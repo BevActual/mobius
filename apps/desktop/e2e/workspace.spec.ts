@@ -211,6 +211,10 @@ test('the Mobius button shows and hides Mobius in the right panel, and the sideb
   const beside = shell().locator('.dock.right > .chat');
   await expect(beside).toBeVisible();
   await expect(face).toHaveAttribute('aria-pressed', 'true');
+  // Mobius starts under the top bar, which runs the window's width.
+  const bar = (await shell().locator('.context-strip').boundingBox())!;
+  expect((await beside.boundingBox())!.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
+  expect(bar.x + bar.width).toBeGreaterThanOrEqual((await beside.boundingBox())!.x + (await beside.boundingBox())!.width - 1);
   await face.click();
   await expect(shell().locator('.dock.right')).toHaveCount(0);
   await expect(face).toHaveAttribute('aria-pressed', 'false');

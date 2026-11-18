@@ -1922,10 +1922,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Mobius in the sidebar has one head: the app's tile (the switcher), Mobius and where, then its icons. */
 .chat-head[data-lead] { gap: 8px; }
 
-/* Beside the page, the panel starts at the top: its head level with the page's title row, as a rounded card, and
-   the window's own buttons for it give way while it is open. */
-.app[data-chat="open"] > .context-strip { margin-right: var(--chat-col, 0px); }
-.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: 8px 8px 0 0; z-index: 2; }
+/* Beside the page, the panel starts under the top bar, which runs the window's width (docs/design/panel-layouts.md):
+   every panel, Mobius included, sits below it. */
+.app[data-chat="open"] .dock.right:not([data-floating]) { padding: 8px 8px 0 0; z-index: 2; }
 
 /* Problems are one quiet line with a small warning mark; red text only when a turn really failed. */
 .chat .msg.error { display: flex; align-items: flex-start; gap: 6px; align-self: stretch; padding: 2px 2px; border-radius: 0; background: none; color: var(--muted); font-size: var(--fs-sm); line-height: 1.4; }
@@ -2028,7 +2027,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Mobius beside the page: the same card, inset the same from the top, the bottom and the right, its head level with
    the page's title row. The dock's column holds the inset, so the page beside it never runs under the card. */
 .dock.right:not([data-floating]) { background: transparent; border-left: 0; }
-.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
+.app[data-chat="open"] .dock.right:not([data-floating]) { padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
 .dock.right:not([data-floating]) > .chat { overflow: hidden; }
 .dock[data-floating] { border: var(--panel-border); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); }
 
