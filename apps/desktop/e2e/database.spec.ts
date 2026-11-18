@@ -169,3 +169,20 @@ test('a sheet from Sheets becomes a table, with its worked-out values', async ()
   await side.getByRole('alertdialog', { name: 'Delete the table “Trip costs”?' }).getByRole('button', { name: 'Delete' }).click();
   await expect(shell.getByRole('list', { name: 'Tables in Data' })).toHaveText('No tables yet');
 });
+
+test('Analyse… in the Mobius panel switches to Analyse mode and starts the question, ready to finish', async () => {
+  model = await startModel([]);
+  mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
+  await resizeWindow(mobius.app, 1440, 900);
+  const shell = mobius.shell;
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  await shell.keyboard.press('Control+k');
+  await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Database');
+  await shell.keyboard.press('Enter');
+  await shell.getByRole('complementary', { name: 'Database sidebar' }).locator('input[type="file"]').setInputFiles({ name: 'hotels.csv', mimeType: 'text/csv', buffer: Buffer.from(CSV) });
+  await expect(shell.getByRole('region', { name: 'Database' }).getByLabel('Rows', { exact: true }).getByRole('row')).toHaveCount(4);
+  await shell.getByRole('button', { name: 'Analyse…' }).click();
+  await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toHaveValue('Analyse ');
+  await expect(shell.getByRole('button', { name: 'Mode', exact: true })).toContainText('Analyse');
+  expect(model.requests).toHaveLength(0);
+});

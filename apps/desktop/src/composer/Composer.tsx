@@ -298,6 +298,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     setProblem(null);
     if (isStarter(s)) {
       starter.current = s.box ? { box: s.box, steps: s.prompt } : null;
+      // A starter in an app's mode (Analyse) switches the composer to it, so the question is asked in it.
+      if (s.mode) setMode(s.mode);
       onDraft(s.box ?? s.prompt);
       queueMicrotask(() => fieldRef.current?.focus());
       return;

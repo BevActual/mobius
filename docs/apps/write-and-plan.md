@@ -168,7 +168,7 @@ Spreadsheets with formulas.
 - **Find** with Ctrl+F: matching cells are tinted, and Enter (or Shift+Enter) moves from one to the next.
 - Sheets are tabs below the grid. Insert and remove rows and columns; Ctrl+Z undoes any step.
 - **Select cells** and the top of the Mobius panel shows their sum, average and count.
-- **Analyse** mode (in the composer's Mode menu while you are in Sheets) answers with charts and tables and never
+- **Analyse** mode (**Analyse…** in the Mobius panel, or the composer's Mode menu while you are in Sheets) answers with charts and tables and never
   changes a cell.
 
 **Kept in:** `workspace/sheets/`, each workbook a folder and each sheet a CSV file that any spreadsheet app can open.
@@ -201,7 +201,7 @@ Deleting asks first, as it can't be undone. Database is compact, like the other 
 ![The Database app in Mobius](../readme/apps/database.png)
 
 Mobius reads databases through a read-only connection, so a query it writes cannot change anything. **Analyse** mode
-(in the composer's Mode menu while you are in Database) answers with charts and tables. Changing data is a
+(**Analyse…** in the Mobius panel, or the composer's Mode menu while you are in Database) answers with charts and tables. Changing data is a
 separate tool that asks like any change, and **Keep** or **Discard** applies to the whole file.
 
 **Kept in:** `workspace/databases/`, as SQLite files.

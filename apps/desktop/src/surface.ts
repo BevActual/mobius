@@ -1,3 +1,4 @@
+import type { AppModeId } from './chat-mode';
 import { MAX_CONTEXT_ITEM_CHARS, type ContextItem } from '@mobius/shared';
 import type { AppId } from './apps';
 import type { TasksState } from './useTasks';
@@ -26,6 +27,8 @@ export interface Suggestion {
   tools?: readonly string[];
   /** How hard the model thinks for its turn: a suggestion whose work is fully laid out starts sooner with little. */
   effort?: 'none' | 'low' | 'medium' | 'high';
+  /** The app's mode it runs in (Analyse in Sheets and Database): the composer switches to it, so the next turns stay in it. */
+  mode?: AppModeId;
 }
 
 /** A read done before the model is asked: a tool that only reads, and its arguments. */
@@ -167,6 +170,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
         ? [
             // The demo's Sheets moment: what stands out, with the working left in the sheet as formulas.
             { label: 'What stands out?', prompt: WHAT_STANDS_OUT, attach: 'sheet' },
+            { label: 'Analyse…', box: 'Analyse ', prompt: 'Answer from the attached sheet, with a chart or a table where one helps, and change no cell. The question: ', attach: 'sheet', mode: 'analyse' },
             { label: 'Explain these numbers', prompt: 'Explain what this sheet works out, in plain words, and point at the cells each part comes from.', attach: 'sheet' },
             { label: 'Check the formulas', prompt: 'Check the formulas in this sheet for mistakes, such as a range that misses a row or a total that counts something twice. Say which cells, and ask before changing anything.', attach: 'sheet' },
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
@@ -241,6 +245,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'database':
       return state.note
         ? [
+            { label: 'Analyse…', box: 'Analyse ', prompt: 'Answer from the attached database with db.query, with a chart or a table where one helps, and change nothing. The question: ', attach: 'note', mode: 'analyse' },
             { label: 'Describe the data', prompt: 'Look at the attached database with db.query (a few rows of each table, counts, ranges) and describe what it holds in a short paragraph per table. Change nothing.', attach: 'note' },
             { label: 'Find problems', prompt: 'Check the attached database for problems with db.query: empty values, duplicates, values that look wrong or out of range. List what you find with the query that shows it. Change nothing.', attach: 'note' },
             { label: 'Ask about it…', box: 'In this database, ', prompt: ASK_DATABASE, attach: 'note' },
