@@ -80,7 +80,7 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(page().getByRole('article')).toContainText('hold the terrace for eight');
   await shell().getByRole('toolbar', { name: 'Message' }).getByRole('button', { name: 'Reply', exact: true }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
-  await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
+  await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, please hold it. We are 8.');
   await compose.getByRole('button', { name: 'Send', exact: true }).click();
@@ -130,7 +130,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
-  await expect(compose.getByRole('textbox', { name: 'To' })).toHaveValue('rui@example.com');
+  await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   const body = compose.getByRole('textbox', { name: 'Message' });
   await expect(body).toBeFocused();
   await expect(body).toHaveValue(/Rui Almeida <rui@example.com> wrote:\n> Hi!/);
@@ -141,7 +141,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   const forward = page().getByRole('form', { name: 'New message' });
   await expect(forward.getByRole('textbox', { name: 'Subject' })).toHaveValue('Fwd: Terrace + lunch for the 13th');
   await expect(forward.getByRole('textbox', { name: 'Message' })).toHaveValue(/Begin forwarded message:/);
-  await expect(forward.getByRole('textbox', { name: 'To' })).toBeFocused();
+  await expect(forward.getByRole('combobox', { name: 'To' })).toBeFocused();
   await forward.getByRole('button', { name: 'Close' }).click();
 
   await list.getByRole('option').first().click();
