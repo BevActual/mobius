@@ -221,7 +221,7 @@ test('settings the core refuses are explained and not saved', async () => {
   await mobius.shell.getByLabel('Model', { exact: true }).fill('m');
   await mobius.shell.getByLabel('API key').fill('k');
   await mobius.shell.getByRole('button', { name: 'Save' }).click();
-  await expect(mobius.shell.getByRole('alert')).toContainText('https');
+  await expect(mobius.shell.getByRole('form', { name: 'Model settings' }).getByRole('alert')).toContainText('https');
   await expect(composer()).toHaveCount(0);
   expect(fs.existsSync(path.join(mobius.userData, 'agent-settings.json'))).toBe(false);
 });

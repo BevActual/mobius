@@ -61,7 +61,7 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
   const local = list.filter((p) => !p.needsKey && !connected.includes(p));
   return (
     <div className="providers">
-      <Accounts onChanged={reload} />
+      <Accounts onChanged={reload} hideMissing={open} />
       {open && connected.length === 0 ? null : connected.length > 0 ? (
         <ul className="plist" role="list" aria-label="Connected gateways">
           {connected.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
@@ -203,7 +203,7 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
 }
 
 /** Plans you sign in to: the service's own app keeps the sign-in, Mobius only asks it whether it is signed in. */
-function Accounts({ onChanged }: { onChanged: () => void }) {
+function Accounts({ onChanged, hideMissing = false }: { onChanged: () => void; /** First run: a plan whose app is not on this computer is left out, not shown as a problem. */ hideMissing?: boolean }) {
   const api = window.mobius.providers!;
   const [accounts, setAccounts] = useState<AccountInfo[]>([]);
   const reload = useCallback(() => void api.accounts().then((got) => setAccounts(Array.isArray(got) ? got : [])), [api]);
@@ -213,13 +213,13 @@ function Accounts({ onChanged }: { onChanged: () => void }) {
     <>
       <h4 className="plist-head">With your subscription</h4>
       <ul className="plist" role="list" aria-label="Subscriptions">
-        {accounts.map((a) => <AccountRow key={a.id} account={a} onChanged={() => { reload(); onChanged(); }} />)}
+        {accounts.map((a) => <AccountRow key={a.id} account={a} hideMissing={hideMissing} onChanged={() => { reload(); onChanged(); }} />)}
       </ul>
     </>
   );
 }
 
-function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged: () => void }) {
+function AccountRow({ account: a, onChanged, hideMissing = false }: { account: AccountInfo; onChanged: () => void; hideMissing?: boolean }) {
   const api = window.mobius.providers!;
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [choosing, setChoosing] = useState(false);
@@ -258,6 +258,7 @@ function AccountRow({ account: a, onChanged }: { account: AccountInfo; onChanged
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setChoosing(false); onChanged();
   };
+  if (hideMissing && status !== null && !status.installed) return null;
   const said = status === null ? 'Checking…' : !status.installed ? (a.id === 'copilot' ? 'Copilot CLI is not installed' : 'Claude Code is not installed') : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
     <li className="prow" aria-label={a.name} data-active={a.active || undefined}>
