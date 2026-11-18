@@ -371,7 +371,7 @@ export function PhotoEditor({ photos, review, working = false, changed, listPane
   if (!photos.available) return <PanelLayout app="photo" panels={listPanels}><section className="photo-page empty" aria-label="Photo"><EmptyState app="photo" title="Photo is not available here" /></section></PanelLayout>;
   if (photos.browsing || !photos.open) return <PanelLayout app="photo" panels={listPanels}><PhotoGrid photos={photos} onDrop={onDrop} changed={changed} /></PanelLayout>;
   // Filmstrip (bottom dock, shown): the album's photos in a row under the open one, to step through them.
-  const filmstrip: PanelSpec = { id: 'filmstrip', name: 'Filmstrip', dock: 'bottom', size: 112, render: () => <Filmstrip photos={photos} changed={changed} /> };
+  const filmstrip: PanelSpec = { id: 'filmstrip', name: 'Filmstrip', dock: 'bottom', shown: true, size: 112, render: () => <Filmstrip photos={photos} changed={changed} /> };
   return <PanelLayout app="photo" panels={[...listPanels, filmstrip]}><PhotoView photos={photos} review={review} working={working} onDrop={onDrop} /></PanelLayout>;
 }
 
