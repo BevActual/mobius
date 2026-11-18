@@ -13,7 +13,7 @@ import type { SheetsState } from './useSheets';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { Chart, Menu, PointMenu, ToolbarControls, type MenuEntry } from './ui';
+import { Chart, Menu, PanelTab, PointMenu, ToolbarControls, type MenuEntry } from './ui';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
 import { afterPaint } from './ui/frame';
 
@@ -901,6 +901,25 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
         ? <><span>Sum <b>{statNumber(stats.sum)}</b></span><span>Average <b>{statNumber(stats.average)}</b></span><span>Min <b>{statNumber(stats.min)}</b></span><span>Max <b>{statNumber(stats.max)}</b></span><span>Count <b>{stats.count}</b></span></>
         : <span>Count <b>{stats.count}</b></span>)}
       />
+      {/* Format (the inspector's right panel, hidden until asked for): how the picked columns show their numbers, and
+          whether the first row is a header. The same choices are in a column's menu. */}
+      <PanelTab id="format" name="Format" shown={false}>
+        <div className="sheet-format">
+          <h3 className="sheet-format-head">{sel.c0 === sel.c1 ? `Column ${columnName(sel.c0)}` : `Columns ${columnName(sel.c0)} to ${columnName(sel.c1)}`}</h3>
+          <div role="radiogroup" aria-label="Number format" className="sheet-format-list">
+            {NUMBER_FORMATS.map((f) => (
+              <label key={f.id} className="sheet-format-row">
+                <input type="radio" name="sheet-number-format" checked={(formats[sel.c0] ?? 'auto') === f.id} onChange={() => setFormat(sel.c0, sel.c1, f.id)} />
+                <span>{f.label}</span><span className="sheet-format-example">{f.example}</span>
+              </label>
+            ))}
+          </div>
+          <label className="sheet-format-row sheet-format-header">
+            <input type="checkbox" checked={headerOn} onChange={(e) => setHeaderRow(e.target.checked)} />
+            <span>First row is a header</span>
+          </label>
+        </div>
+      </PanelTab>
     </section>
   );
 }

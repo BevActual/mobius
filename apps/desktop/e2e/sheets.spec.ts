@@ -208,6 +208,14 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(cell('D5')).toHaveText(/5[,. \u00a0\u202f]?420[.,]00/);
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Total,,,=SUM(D2:D4)\n');
   await expect(cell('A1')).toHaveText('Item');
+  // The Format panel on the right shows the same choice for the picked column, and puts it back to Automatic.
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Format' }).click();
+  const format = shell().getByRole('radiogroup', { name: 'Number format' });
+  await cell('D2').click();
+  await expect(format.getByRole('radio', { name: /Currency/ })).toBeChecked();
+  await format.getByRole('radio', { name: /Automatic/ }).check();
+  await expect(cell('D5')).toHaveText('5420');
 });
 
 test('a chart beside the grid never cuts off a column: it narrows, or goes under the grid when there is no room', async () => {

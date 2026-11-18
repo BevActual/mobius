@@ -146,3 +146,11 @@
 .sheet-page .sheet-chart { margin: 0; flex: 1 1 320px; max-width: 560px; padding: var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper); }
 .sheet-page .sheet-chart[data-proposed] { outline: 1px dashed color-mix(in srgb, var(--mobius) 70%, var(--line)); outline-offset: -1px; }
 .sheet-page .sheet-chart figcaption { margin-bottom: var(--sp-2); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+
+/* Format, the right panel: the picked columns' number format and the header row. */
+.sheet-format { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); }
+.sheet-format-head { margin: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--muted); }
+.sheet-format-list { display: flex; flex-direction: column; }
+.sheet-format-row { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-side); font-size: var(--fs-md); cursor: pointer; }
+.sheet-format-example { margin-left: auto; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.sheet-format-header { padding-top: var(--sp-2); border-top: var(--hairline-w) solid var(--line); }
