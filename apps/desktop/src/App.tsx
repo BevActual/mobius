@@ -359,6 +359,7 @@ export function App() {
   const inSlides = app === 'slides';
   const inSheets = app === 'sheets';
   const inMail = app === 'mail';
+  const inMessages = app === 'messages';
   const inCode = app === 'code';
   const inDesign = app === 'design';
   const inCanvas = app === 'canvas';
@@ -670,7 +671,7 @@ export function App() {
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
+  const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
     || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const rightOpen = hasRight && chatOpen && !learnOpen;
