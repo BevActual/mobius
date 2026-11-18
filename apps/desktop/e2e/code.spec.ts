@@ -170,7 +170,9 @@ test('a project that is a git repository is committed from Code, and Mobius comm
 
 test('the console runs the person\'s commands in the project, and Mobius runs one only when asked each time', async () => {
   await start([callsTool('code-run', { project: 'offsite-planner', command: 'node --version' }), says(['Node is installed.'])]);
-  await shell().getByRole('tab', { name: 'Console' }).click();
+  // Console is a bottom panel beside Tests, shown from the Panels menu.
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Console' }).click();
   const console_ = shell().getByRole('region', { name: 'Console' });
   await console_.getByRole('textbox', { name: 'Command' }).fill('node -e "console.log(require(\'fs\').readdirSync(\'src\').join())"');
   await console_.getByRole('button', { name: 'Run' }).click();
@@ -193,7 +195,9 @@ test('a command can keep running, its output shows as it comes, and it stops whe
     callsTool('code-stop', { id: '{{request:Started as command ([0-9]+)}}' }),
     says(['The server printed serving; I stopped it.']),
   ]);
-  await shell().getByRole('tab', { name: 'Console' }).click();
+  // Console is a bottom panel beside Tests, shown from the Panels menu.
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Console' }).click();
   const console_ = shell().getByRole('region', { name: 'Console' });
   await console_.getByRole('checkbox', { name: 'Keep running' }).check();
   await console_.getByRole('textbox', { name: 'Command' }).fill('node -e "setInterval(() => console.log(\'tick\'), 200)"');
