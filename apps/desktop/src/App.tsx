@@ -7,7 +7,7 @@ import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, recentItems, APPS, COMPACT_APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, noteRecentItem, recentItems, APPS, COMPACT_APPS } from './apps';
 import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -97,7 +97,7 @@ import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
-import type { HubTarget } from './search-hub';
+import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
 import { useLiveMarks } from './liveMarks';
@@ -840,7 +840,11 @@ export function App() {
     // A saved web page opens as a Browser tab the agent may read, being the person's own file.
     else if (top === 'pages' && /\.html?$/i.test(path)) { openApp('browser'); void window.mobius.browser.openPage?.(path); }
   };
-  const openTarget = (target: HubTarget) => {
+  const openTarget = (target: HubTarget, label?: string) => {
+    // Kept for the launcher's Recent, which opens it again the same way (targetOfRef).
+    const recentApp = targetApp(target);
+    const name = label ?? (target.app === 'agent' ? conversation.list.find((c) => c.id === target.conversation)?.title ?? '' : targetLabel(target));
+    if (recentApp) noteRecentItem({ app: recentApp, ref: JSON.stringify(target), label: name });
     if (target.app === 'agent') { conversation.select(target.conversation); openApp('agent'); }
     else if (target.app === 'notes') { openApp('notes'); void notes.open(target.path, target.title); }
     else if (target.app === 'docs') { openApp('docs'); void docs.open(target.path, target.title); }
@@ -861,6 +865,12 @@ export function App() {
     else if (target.app === 'open') openApp(target.id);
     else showPage(target.url);
   };
+  /** What the launcher finds in as you type: the same things Search lists, by name. */
+  const launcherSources = (): LauncherSources => ({
+    conversations: conversation.list, notebooks: notes.notebooks, tasks: tasks.all, docFolders: docs.notebooks, deckFolders: slides.notebooks, workbooks: sheets.workbooks,
+    designFolders: designs.notebooks, boardFolders: boards.notebooks, researchFolders: research.notebooks, readingFolders: reading.notebooks, databases: databases.list.map((d) => ({ name: d.name, modified: d.modified })),
+    songFolders: songs.notebooks, albums: photos.albums, videoProjects: video.projects.map((p) => p.name), codeProjects: code.projects.map((p) => ({ name: p.name, modified: (p as { modified?: number }).modified ?? 0 })),
+  });
   // An app opened while the last turn's changes in it wait for Keep opens on them (once for each set of changes).
   const openedOnChanges = useRef(new Set<string>());
   const openTargetNow = useRef(openTarget);
@@ -1894,7 +1904,8 @@ export function App() {
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
         recent={launcherOpen ? recentItems() : []}
-        onOpenRecent={(item) => { opener.current = null; closeSettings(); openApp(item.app); }}
+        onOpenRecent={(item) => { opener.current = null; closeSettings(); const target = targetOfRef(item.ref); if (target) openTarget(target, item.label); else openApp(item.app); }}
+        find={(query) => launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))}
         places={{ home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() }}
         onOpenMobius={() => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); }}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
