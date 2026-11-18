@@ -389,12 +389,17 @@ async function openLauncherFromGo(shell: Page) {
   return launcher;
 }
 
+/** The pointer leaves the launcher's spot once it has closed: left there, it can rest on a panel's resize edge, which
+ *  puts the web page away while hovered (as it should for a person). */
+const pointerAway = (shell: Page) => shell.mouse.move(2, 400);
+
 /** Opens an app as a person would: the Go button, its name typed, then its row. */
 export async function goTo(shell: Page, name: string): Promise<void> {
   const launcher = await openLauncherFromGo(shell);
   await launcher.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
   await launcher.getByRole('group', { name: 'Applications' }).getByRole('option', { name: new RegExp(`^${name}(,|$)`) }).first().click();
   await expect(launcher).toBeHidden();
+  await pointerAway(shell);
 }
 
 /** Opens one of the places at the launcher's foot: Home, Activity, Abilities or Settings. */
@@ -402,6 +407,7 @@ export async function goToPlace(shell: Page, name: 'Home' | 'Activity' | 'Abilit
   const launcher = await openLauncherFromGo(shell);
   await launcher.getByRole('group', { name: 'Places' }).getByRole('option', { name, exact: true }).click();
   await expect(launcher).toBeHidden();
+  await pointerAway(shell);
 }
 
 /** Opens All apps (the app hub), from the launcher's commands. */
