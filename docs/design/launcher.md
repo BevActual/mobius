@@ -28,7 +28,7 @@ Raycast is the bar for a launcher: one box, everything from the keyboard, comman
 | Fallback commands | When nothing matches, the rows are: Ask Mobius, Search the web, then Search in each pinned app |
 | Store and extensions | Abilities. An ability adds a LauncherSource, the same registry the built-in apps use |
 | Window management, system settings | Not in the first version. Mobius manages its own panels and layouts (Panels menu, Reset layout) |
-| A hotkey that works anywhere on the computer | **Yes** (Andrew, 18 November 2026). One key opens the launcher over any app, even when Mobius is in the background: Mobius stays in the tray, and the launcher opens in its own small floating window that closes back to where you were. The key can be changed in Settings › Keyboard. From outside Mobius, "about this" uses what you copied |
+| A hotkey that works anywhere on the computer | **Yes** (Andrew, 18 November 2026). One key opens the launcher over any app, even when Mobius is in the background: Mobius stays in the tray, and the launcher opens in its own small floating window that closes back to where you were. The key is Ctrl+Space (Andrew), changed in Settings › Keyboard. From outside Mobius, "about this" uses what you copied |
 
 What only Mobius can do:
 
