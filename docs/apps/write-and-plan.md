@@ -112,6 +112,9 @@ Your calendars by day, week or month.
   rather than over it; a task due only on a day waits
   in the all-day row. A repeating task shows a small repeat mark, and ticking it moves it on to its next day, as in
   Tasks.
+- **Record meeting** (right-click an event, or in its details) opens the event's page in the **Meetings** notebook,
+  named for its day and title and saying which event it was, and starts listening as Notes' Record a meeting does.
+  The same event opens the same page again.
 - **Make an event** by sweeping across the hours, double-clicking a time, right-clicking empty time, or with **New
   event** at the top of the sidebar (Ctrl+N). **Q**, or **Calendar › Quick event**, takes one said in words, such as
   "Lunch fri 1pm". Drag an event to move it, in any view.

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { MenuBar } from './MenuBar';
 import { buildMenus, type Menu, type MenuContext, type MenuItem, findItem, menusAsData } from './menus';
 import { sendCommand } from './commands';
-import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment } from '@mobius/shared';
+import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type CalendarEvent } from '@mobius/shared';
+import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
 import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, recentItems, APPS, COMPACT_APPS } from './apps';
@@ -1427,6 +1428,17 @@ export function App() {
     void conversation.send(prompt, attach && page ? [noteContext({ path: page.path, title: liveTitle(research.text, page.title), text: research.text, folder: 'research' })] : []);
   };
   /** On-canvas actions: what to do with text selected in a note. */
+  // Calendar's Record meeting: the event's page in the Meetings notebook (made the first time), opened, and listening.
+  const [meetingToken, setMeetingToken] = useState(0);
+  const recordMeeting = async (event: CalendarEvent) => {
+    const page = meetingNote(event);
+    openApp('notes');
+    const book = notes.notebooks.find((n) => n.name === MEETINGS_NOTEBOOK)?.name ?? (await notes.createNotebook(MEETINGS_NOTEBOOK));
+    if (!book) return;
+    const there = notes.notebooks.find((n) => n.name === book)?.pages.find((p) => p.title === page.title);
+    const opened = there ? (await notes.open(there.path, there.title), there.path) : await notes.createPage(book, page.title, page.content);
+    if (opened) setMeetingToken(Date.now());
+  };
   const onNoteSelection = (action: SelectionAction, text: string) => {
     const page = notes.page;
     if (!page) return;
@@ -1459,7 +1471,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} recordToken={meetingToken} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':
@@ -1532,7 +1544,7 @@ export function App() {
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
-        return <CalendarPage calendar={calendar} newToken={eventToken} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
+        return <CalendarPage calendar={calendar} newToken={eventToken} onMeeting={(event) => void recordMeeting(event)} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} working={conversation.state.busy} />; // Calendar app: what Mobius's last turn changed
       case 'search':
         return (
           <SearchPage

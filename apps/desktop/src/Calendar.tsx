@@ -653,7 +653,7 @@ const newStart = (anchor: Date) => {
   return isoTime(n);
 };
 
-function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void }) {
+function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -795,6 +795,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted }: { calendar: Cale
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
             no Cancel or Save, only Delete, as plain red words at its foot. */}
+        {original && onMeeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting(original); }}>Record meeting</button>}
         {at ? (original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete Event</button>) : (
         <div className="cal-editor-actions">
           {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
@@ -941,7 +942,7 @@ function changeSaid(changed: readonly CalendarEvent[], first: CalendarEvent): st
     : `Mobius changed ${changed.length} events in its last turn, from ${when}.`;
 }
 
-export function CalendarPage({ calendar, newToken = 0, review = null, working = false }: { calendar: CalendarState; newToken?: number; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
+export function CalendarPage({ calendar, newToken = 0, review = null, working = false, onMeeting }: { calendar: CalendarState; newToken?: number; /** Record an event's meeting: a note for it, listening. */ onMeeting?: (event: CalendarEvent) => void; /** Mobius's last turn changed these calendars, and it waits to be kept. */ review?: CalendarReview | null; /** Mobius's turn is still running: its changes are drawn as they come, and Keep waits for the end. */ working?: boolean }) {
   const [editing, setEditing] = useState<Editing | null>(null);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
@@ -1016,6 +1017,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       : [
         { action: 'open', label: movable(calendar, event) ? 'Open' : 'Show details', keys: 'Enter', run: () => open(event, rectOf(keyOf(event))) },
         { action: 'duplicate', keys: 'Ctrl+D', run: () => void duplicate(event) },
+        ...(onMeeting ? [{ label: 'Record meeting', run: () => onMeeting(event) }] : []),
         ...(movable(calendar, event) && !event.repeats
           ? writable.filter((c) => c !== event.calendar).map((c, i) => ({ action: 'move' as const, label: `Move to ${c}`, separated: i === 0, run: () => void moveTo(event, c) }))
           : []),
@@ -1125,7 +1127,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} />}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} />}
     </section>
   );
 }
