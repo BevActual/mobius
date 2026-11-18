@@ -9,7 +9,7 @@ import type { DatabasesState, DbView } from './useDatabases';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { EmptyState } from './EmptyState';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { PanelLayout, ToolbarControls, UndoToast, ViewSwitch, type PanelSpec } from './ui';
 import './database.css';
 import { afterPaint } from './ui/frame';
 
@@ -540,21 +540,27 @@ export function databaseSub(db: DatabasesState): string | undefined {
 }
 
 /** The open database: a table's rows or columns, or a statement to run, and what it gave. */
-export function DatabasePage({ db, review }: { db: DatabasesState; review?: { conversation: string } | null }) {
+export function DatabasePage({ db, review, listPanels = [] }: { db: DatabasesState; review?: { conversation: string } | null; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const { show, keep, discard } = useDbReview(review, db.open);
   if (!db.open) {
     return (
+      <PanelLayout app="database" panels={listPanels}>
       <section className="db-page empty" aria-label="Database">
         <EmptyState app="database" label="No database open" title={db.list.length ? 'No database open' : 'No databases yet'}
           line={db.list.length ? 'Choose one on the left, or import a CSV file to make a new one.' : 'Import a CSV file to make a table, then query it in SQL, or ask Mobius in words.'}
           action={{ label: 'Import a CSV file', run: () => window.dispatchEvent(new Event(IMPORT_CSV)) }} />
       </section>
+      </PanelLayout>
     );
   }
   const info = db.list.find((d) => d.name === db.open);
   const table = info?.tables.find((t) => t.name === db.table);
   const view: DbView = table ? db.view : 'sql';
+  const placeholder = info?.tables[0] ? `SELECT * FROM ${info.tables[0].name} LIMIT 100;` : 'CREATE TABLE …';
+  // Query (bottom dock, hidden until asked for): a statement and what it gave, under the table's rows or columns.
+  const queryPanel: PanelSpec = { id: 'query', name: 'Query', dock: 'bottom', shown: false, render: () => <div className="db-query"><SqlView db={db} placeholder={placeholder} /></div> };
   return (
+    <PanelLayout app="database" panels={table && view !== 'sql' ? [...listPanels, queryPanel] : listPanels}>
     <section className="db-page" aria-label="Database">
       {show && (
         <div className="note-review db-review" role="status">
@@ -568,7 +574,8 @@ export function DatabasePage({ db, review }: { db: DatabasesState; review?: { co
       {db.message && <p className="db-message" role="alert">{db.message}</p>}
       {view === 'data' && <DataView db={db} />}
       {view === 'structure' && <StructureView db={db} />}
-      {view === 'sql' && <SqlView db={db} placeholder={info?.tables[0] ? `SELECT * FROM ${info.tables[0].name} LIMIT 100;` : 'CREATE TABLE …'} />}
+      {view === 'sql' && <SqlView db={db} placeholder={placeholder} />}
     </section>
+    </PanelLayout>
   );
 }

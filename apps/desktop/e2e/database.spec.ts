@@ -100,6 +100,14 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await expect(casaPrice()).toContainText('180.5');
   await shell.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
+  // Query, the bottom panel, runs a statement under the table's columns.
+  await shell.getByRole('button', { name: 'Panels' }).click();
+  await shell.getByRole('menuitemcheckbox', { name: 'Query' }).click();
+  const query = shell.getByRole('region', { name: 'Query' });
+  await query.getByRole('textbox', { name: 'SQL' }).fill('SELECT COUNT(*) AS n FROM hotels');
+  await query.getByRole('button', { name: 'Run' }).click();
+  await expect(query.getByRole('status')).toContainText('1 row');
+  await shell.getByRole('button', { name: 'Hide Query' }).click();
 
   // A statement of your own; a mistake says what is wrong.
   await shell.getByRole('radio', { name: 'SQL' }).click();

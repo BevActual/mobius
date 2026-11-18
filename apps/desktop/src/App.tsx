@@ -182,7 +182,7 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
-const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio'];
+const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database'];
 
 export function App() {
   const browser = useBrowser();
@@ -1505,7 +1505,7 @@ export function App() {
       case 'terminal':
         return <TerminalPage term={terminal} focusToken={terminalFocus} onAsk={(title, text) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item: { kind: 'file', title, source: `terminal/${terminal.cwd || '~'}`, text } }); }} />;
       case 'database':
-        return <DatabasePage db={databases} review={databases.open && liveMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
+        return <DatabasePage db={databases} listPanels={listFor('database')} review={databases.open && liveMarks.databases.has(databases.open) ? { conversation: conversation.state.conversation } : null} />;
       case 'projects':
         return (
           <ProjectPage
