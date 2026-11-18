@@ -55,7 +55,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Design');
   await shell().keyboard.press('Enter');
-  await shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])').getByRole('button', { name: 'Home', exact: true }).click();
+  await shell().locator(':is(.dock.left, .ui-panel[data-panel="list"])').getByRole('button', { name: 'Home', exact: true }).click();
   await expect(canvas().getByLabel('Frame Home')).toBeVisible();
 }
 
