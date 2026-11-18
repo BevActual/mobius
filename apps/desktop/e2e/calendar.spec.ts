@@ -355,6 +355,16 @@ test('an event opens in a popover beside it, and the event picked out is duplica
   await expect(review('Budget review Q4')).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('SUMMARY:Budget review Q4');
 
+  // More options moves the edit to the Event panel on the right, keeping what was typed; there it has Save.
+  await review('Budget review Q4').click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('textbox', { name: 'Notes' }).fill('Bring last year’s numbers.');
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'More options' }).click();
+  const docked = shell().getByRole('complementary', { name: 'Inspector' }).getByRole('form', { name: 'Edit event' });
+  await expect(docked.getByRole('textbox', { name: 'Notes' })).toHaveValue('Bring last year’s numbers.');
+  await docked.getByRole('button', { name: 'Save' }).click();
+  await expect(docked).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Work'), 'utf8')).toContain('Bring last year');
+
   // Opened, it stays picked out once closed: Ctrl+D copies it and Delete takes the copy away again, each with Undo.
   await review('Budget review Q4').click();
   await shell().keyboard.press('Escape');
