@@ -23,7 +23,8 @@ import { onCommand } from './commands';
 import { liveTitle } from './notes-state';
 import { changeGroups, diffCounts, diffLines, undoGroup, type DiffLine } from './line-diff';
 import type { NotesState } from './useNotes';
-import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock, tidyMarkdown } from './note-insert';
+import { CHECKLIST, TABLE, clipBlock, insertBlock, meetingAsk, meetingBlock, recordingBlock, tidyMarkdown } from './note-insert';
+import { useMeeting } from './useMeeting';
 import { useDictation } from './composer/useDictation';
 import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
 import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
@@ -253,7 +254,7 @@ export function untitledHeading(editor: Editor): { from: number; to: number } | 
  * `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was.
  * `review`: the agent's last turn changed this page; the editor offers to show what changed and to put it back.
  */
-export function NoteEditor({ notes, autoFocus = true, onSelection, review, working = false }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
+export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, review, working = false }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Puts a message in Mobius's box, ready to send: after a meeting, the summary and actions. */ onAsk?: (prompt: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const section = useRef<HTMLElement>(null);
   const path = notes.page?.path;
@@ -473,6 +474,23 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
   filesIn.current = (files) => void addFiles(files);
   const recording = useDictation((words) => put(recordingBlock(words, recordedFor.current)), NOTE_RECORDING_SECONDS);
   recordedFor.current = recording.seconds;
+  // A meeting: heard in parts for as long as it runs, its words put in the page it started on, then offered to Mobius.
+  const meetingPage = useRef<string | null>(null);
+  const [meetingDone, setMeetingDone] = useState<{ path: string; title: string } | null>(null);
+  const meeting = useMeeting((said, seconds, started) => {
+    const page = meetingPage.current;
+    meetingPage.current = null;
+    const block = meetingBlock(said, seconds, started);
+    if (!page || pathNow.current !== page) {
+      void navigator.clipboard?.writeText(block).catch(() => undefined);
+      setInsertProblem('Another page was open when the meeting ended, so its words were copied instead. Paste them where they belong.');
+      return;
+    }
+    if (sourceNow.current || !editor || editor.isDestroyed) notes.edit(insertBlock(notes.text, notes.text.length, block).page);
+    else editor.chain().focus('end').insertContent(block, { contentType: 'markdown' }).run();
+    setMeetingDone({ path: page, title: liveTitle(notes.text, page.split('/').pop()?.replace(/\.md$/, '') ?? 'Note') });
+  });
+  useEffect(() => { setMeetingDone((m) => (m && m.path !== path ? null : m)); }, [path]);
   const clip = async (url: string) => {
     const address = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
     const got = await window.mobius.reading?.fetch(address);
@@ -684,7 +702,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
     <Menu label="Insert" entries={[
       { label: 'Table', icon: TABLE_ICON, run: () => { if (source || !editor) put(TABLE); else editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); } },
       ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
-      { label: 'Dictate', disabled: recording.state !== 'idle', run: recording.toggle },
+      { label: 'Dictate', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: recording.toggle },
+      { label: 'Record a meeting', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: () => { meetingPage.current = path ?? null; setMeetingDone(null); meeting.start(); } },
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
     ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );
@@ -717,6 +736,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
               {recording.state === 'recording' ? `Stop · ${Math.floor(recording.seconds / 60)}:${String(recording.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
             </button>
           )}
+          {meeting.state !== 'idle' && (
+            <button type="button" className="note-insert-btn" data-recording={meeting.state === 'recording' || undefined} disabled={meeting.state === 'finishing'} title="End the meeting and put what was said in this page" onPointerDown={keep} onClick={meeting.stop}>
+              {meeting.state === 'recording' ? `End meeting · ${Math.floor(meeting.seconds / 60)}:${String(meeting.seconds % 60).padStart(2, '0')}` : 'Writing it down…'}
+            </button>
+          )}
           {window.mobius.notes?.attach && <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />}
           <span className="spacer" />
           <Menu label="Share" align="end" entries={[
@@ -736,7 +760,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
         </div>
         </ToolbarControls>
       )}
-      {diff === null && !history && (clipping !== null || linking !== null || (insertProblem ?? recording.problem)) && (
+      {diff === null && !history && (clipping !== null || linking !== null || meetingDone || (insertProblem ?? recording.problem ?? meeting.problem)) && (
         <div className="note-forms">
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
@@ -765,7 +789,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
               )}
             </form>
           )}
-          {(insertProblem ?? recording.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem}</span>}
+          {meetingDone && (
+            <div className="note-clip note-meeting" role="status">
+              <span>The meeting is in this page.</span>
+              {onAsk && <button type="button" className="btn primary" onClick={() => { onAsk(meetingAsk(meetingDone.title, meetingDone.path)); setMeetingDone(null); }}>Summarise and make tasks</button>}
+              <button type="button" className="btn" onClick={() => setMeetingDone(null)}>Done</button>
+            </div>
+          )}
+          {(insertProblem ?? recording.problem ?? meeting.problem) && <span className="review-problem" role="alert">{insertProblem ?? recording.problem ?? meeting.problem}</span>}
         </div>
       )}
       {shared && !history && <div className="note-restored note-shared" role="status"><span>{shared}</span><button type="button" className="review-btn" onClick={() => setShared(null)}>OK</button></div>}

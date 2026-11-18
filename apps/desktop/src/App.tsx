@@ -1459,7 +1459,7 @@ export function App() {
           </>
         );
       case 'notes':
-        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
+        return <NoteEditor notes={notes} autoFocus={app === 'notes'} onSelection={onNoteSelection} onAsk={startWithMobius} review={notes.page && liveMarks.notes.has(notes.page.path) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'tasks':
         return <TasksPage tasks={tasks} focusToken={taskFocus} onAsk={startWithMobius} review={tasks.view.kind === 'list' && liveMarks.lists.has(tasks.view.name) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'docs':

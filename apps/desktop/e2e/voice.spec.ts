@@ -137,3 +137,30 @@ test('Voice, This computer says whether a speech server answers at the saved add
   await expect(status).toContainText('Not running at');
   await expect(status).toContainText('faster-whisper');
 });
+
+test('a meeting recorded in a note is written down in the page, and Summarise and make tasks is put to Mobius, not sent', async () => {
+  await start({});
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Notes');
+  await shell().keyboard.press('Enter');
+  const side = shell().getByRole('complementary', { name: 'Notes sidebar' });
+  await side.getByRole('button', { name: 'New notebook' }).first().click();
+  await side.getByRole('textbox', { name: 'Notebook name' }).fill('Work');
+  await side.getByRole('button', { name: 'Create' }).click();
+  const format = shell().getByRole('toolbar', { name: 'Format' });
+  await format.getByRole('button', { name: 'Insert' }).click();
+  await shell().getByRole('menu', { name: 'Insert' }).getByRole('menuitem', { name: 'Record a meeting' }).click();
+  const end = format.getByRole('button', { name: /^End meeting/ });
+  await expect(end).toBeVisible();
+  await shell().waitForTimeout(1200);
+  await end.click();
+  const page = shell().getByRole('textbox', { name: 'Note text' });
+  await expect(page.getByRole('heading', { level: 2 })).toContainText('Meeting');
+  await expect(page.getByRole('heading', { name: 'Transcript' })).toBeVisible();
+  await expect(page).toContainText('book the terrace for Friday');
+  expect(speech!.heard.filter((h) => h.path === '/v1/audio/transcriptions')).toHaveLength(1);
+  // The summary and actions are asked of Mobius in its box, ready to send; nothing went to the model yet.
+  await shell().getByRole('button', { name: 'Summarise and make tasks' }).click();
+  await expect(composer()).toHaveValue(/Add each action to Tasks/);
+  expect(model!.requests).toHaveLength(0);
+});

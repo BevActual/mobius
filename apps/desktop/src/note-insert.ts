@@ -26,6 +26,21 @@ export function recordingBlock(words: string, seconds: number, when: Date = new 
   return `### Recording · ${clock} · ${time}\n\n${words.trim() || '(nothing was heard)'}`;
 }
 
+/** A meeting's transcript as a section of the page: a heading with how long it ran and when it started, then what was said. */
+export function meetingBlock(parts: string[], seconds: number, started: Date = new Date()): string {
+  const clock = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+  const time = `${String(started.getHours()).padStart(2, '0')}:${String(started.getMinutes()).padStart(2, '0')}`;
+  const said = parts.map((p) => p.trim()).filter(Boolean);
+  return `## Meeting · ${time} · ${clock}\n\n### Transcript\n\n${said.length ? said.join('\n\n') : '(nothing was heard)'}`;
+}
+
+/** What Mobius is asked after a meeting: a summary in the note, and the actions as tasks. */
+export function meetingAsk(title: string, path: string): string {
+  return `I just recorded a meeting into my note "${title}" (${path}); its transcript is under the last "## Meeting" heading. `
+    + 'Above "### Transcript" in that section, add "### Summary" with a few lines on what was discussed and decided, then "### Actions" listing each action with who owns it. '
+    + 'Add each action to Tasks as well. Change nothing else in the note.';
+}
+
 /** A web page kept in a note: its first paragraphs quoted, then where it came from. */
 export function clipBlock(page: { url: string; title: string; text: string }, paragraphs = 3): string {
   const parts = page.text.split(/\n{2,}/).map((p) => p.trim()).filter((p) => p && !/^#{1,3}\s/.test(p)).slice(0, paragraphs);
