@@ -41,9 +41,12 @@ const MAX_PEOPLE: usize = 5000;
 pub const NOT_SET_UP: &str = "Slack isn't set up in this build of Mobius yet. Mobius has to be registered with Slack first.";
 pub const EXPIRED: &str = "The Slack sign-in has ended. Choose Sign in again.";
 
-/// Mobius as registered with Slack (`MOBIUS_SLACK_CLIENT_ID` when building). A PKCE app has no secret.
+/// Mobius as registered with Slack (Andrew's "Mobius" app, PKCE on). A PKCE app has no secret, so its client ID is
+/// public and kept here; `MOBIUS_SLACK_CLIENT_ID` when building points a build at another registration.
+pub const CLIENT_ID: &str = "12667206116160.12633560458981";
+
 pub fn built_in_client_id() -> Option<String> {
-    option_env!("MOBIUS_SLACK_CLIENT_ID").filter(|k| !k.is_empty()).map(str::to_owned)
+    Some(option_env!("MOBIUS_SLACK_CLIENT_ID").filter(|k| !k.is_empty()).unwrap_or(CLIENT_ID).to_owned())
 }
 
 /// Where requests go: Slack, or a pretend Slack in tests (which also listens on any free port).
