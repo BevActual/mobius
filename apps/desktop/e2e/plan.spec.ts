@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
+import { launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel, type ModelFixture } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'The plan and questions are built in the Tauri shell');
@@ -202,7 +202,7 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('navigation', { name: 'Apps' }).locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   await expect(activity.getByRole('list', { name: 'Done today' })).toContainText('tidy my inbox');

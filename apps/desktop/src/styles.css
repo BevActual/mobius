@@ -1,5 +1,5 @@
 :root {
-  --strip: 28px; --context: var(--toolbar-h); --rail: 52px; --side: 248px; --chat-width: clamp(300px, 27vw, 400px);
+  --strip: 28px; --context: var(--toolbar-h); --side: 248px; --chat-width: clamp(300px, 27vw, 400px);
   --font: "Inter Variable", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
 }
 
@@ -18,8 +18,8 @@ button:disabled { opacity: 0.4; cursor: default; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
-.app { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); grid-template-rows: var(--context) minmax(0, 1fr); height: 100%; background: var(--shell); }
-.app > .context-strip, .app > .body { grid-column: 2; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--context) minmax(0, 1fr); height: 100%; background: var(--shell); }
+.app > .context-strip, .app > .body { grid-column: 1; }
 
 /* The strip: as thin as possible. The operating system draws the window buttons into the space reserved on the right. */
 .strip {
@@ -629,20 +629,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .tasks-done-head .notebook-toggle[aria-expanded="true"] .chev { transform: rotate(90deg); }
 @media (prefers-reduced-motion: reduce) { .task { transition: none; } }
 
-/* The app rail: the apps side by side, with the agent's work visible on them. */
-.rail { grid-column: 1; grid-row: 1 / 3; display: flex; flex-direction: column; align-items: center; min-height: 0; padding: var(--sp-1) 0 var(--sp-3); }
-.rail ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
-.rail-end { margin-top: auto; display: grid; gap: var(--sp-1); }
-.rail-btn { position: relative; display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--muted); border-radius: var(--radius-group); }
-.rail-btn:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--soft) 70%, transparent); }
-.rail-btn[aria-current="page"] { color: var(--ink); }
-.rail-btn svg { position: relative; z-index: 1; width: 19px; height: 19px; }
-.rail-here { position: absolute; inset: 0; border-radius: var(--radius-group); background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); }
-.rail-btn[data-working] { color: var(--accent); }
-.rail-btn[data-working]::after { content: ""; position: absolute; inset: 2px; border-radius: var(--radius-group); box-shadow: 0 0 0 1.5px var(--accent); animation: rail-pulse var(--dur-loop) var(--ease) infinite; pointer-events: none; }
-.rail-btn[data-changed]::before { content: ""; position: absolute; z-index: 2; top: 5px; right: 5px; width: 7px; height: 7px; border-radius: 50%; background: var(--mobius); box-shadow: 0 0 0 2px var(--shell); }
-.rail-badge { position: absolute; z-index: 2; right: 1px; bottom: 1px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: var(--radius-small); background: var(--danger); color: var(--on-accent); font-size: var(--fs-floor); font-weight: var(--fw-semibold); line-height: 16px; }
-@keyframes rail-pulse { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
 
 /* Moving between apps: the new one settles in rather than snapping. */
 .stage > .tasks-page, .stage > .note-editor, .stage > .search-page, .stage > .chat.full { animation: app-in var(--dur-med) var(--ease); }
@@ -668,7 +654,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 @keyframes working-ring { from { transform: scale(0.6); opacity: 0.9; } to { transform: scale(1.4); opacity: 0; } }
 @keyframes label-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) {
-  .rail-btn[data-working]::after, .working-dot::after, .working-label, .composer[data-working], .stage > * { animation: none; }
+  .working-dot::after, .working-label, .composer[data-working], .stage > * { animation: none; }
   .working-label { -webkit-text-fill-color: var(--ink); background: none; }
 }
 
@@ -698,8 +684,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .search-empty { margin-top: var(--sp-6); text-align: center; color: var(--muted); }
 .search-row[data-done] .search-title { color: var(--muted); text-decoration: line-through; }
 
-/* The app hub: opens from the rail, on the top layer. */
-.hub { position: fixed; inset: auto auto 12px calc(var(--rail) + 6px); margin: 0; width: min(560px, calc(100vw - var(--rail) - 24px)); max-height: min(720px, calc(100vh - 60px)); overflow: auto; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sheet); color: var(--ink);
+/* The app hub (All apps): on the top layer, under the top bar. */
+.hub { position: fixed; inset: calc(var(--context) + 6px) auto auto 6px; margin: 0; width: min(560px, calc(100vw - 24px)); max-height: min(720px, calc(100vh - 60px)); overflow: auto; padding: var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-sheet); color: var(--ink);
   background: color-mix(in srgb, var(--bg) 82%, transparent); box-shadow: 0 24px 64px rgba(0, 0, 0, 0.32); }
 .hub[open] { animation: none; }
 .hub::backdrop { background: rgba(0, 0, 0, 0.12); }
@@ -800,10 +786,6 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .app { background: var(--bg); --context: var(--toolbar-h); font-size: var(--fs-md); }
 
 /* Sidebar */
-.rail { background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
-.rail-btn { border-radius: var(--radius-group); }
-.rail-here { border-radius: var(--radius-group); background: color-mix(in srgb, var(--accent) 14%, transparent); box-shadow: none; }
-.rail-btn[aria-current="page"] { color: var(--accent); }
 /* Mobius's own apps: the same tiles, in Mobius's indigo. */
 
 .tab, .tab-main, .note-row, .list-row, .clist-item, .clist-main { border-radius: var(--radius-control); }
@@ -849,7 +831,7 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .tool { border: 0; box-shadow: inset 0 0 0 0.5px var(--hairline); }
 .tool[data-status="waiting"] { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--warning) 55%, transparent); background: color-mix(in srgb, var(--warning-wash) 60%, var(--panel)); }
 .approval { border-top-color: var(--hairline); }
-.chip, .pill, .suggest-chip, .badge, .prow-badge, .attention, .rail-badge { border-radius: var(--radius-pill); }
+.chip, .pill, .suggest-chip, .badge, .prow-badge, .attention { border-radius: var(--radius-pill); }
 .suggest-chip { border: 0; background: var(--field); color: var(--ink); }
 .suggest-chip:hover { border: 0; background: var(--soft); }
 
@@ -1898,7 +1880,6 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .dock.left .from-mobius > .from-mobius-title { height: 28px; padding: 0 8px; }
 
 /* Keyboard focus that can be seen, in light and dark. */
-.rail :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: -2px; }
 
 /* A new chat: a calm greeting in the middle, and three starters as plain text under it. */
 .chat .empty { display: flex; flex-direction: column; align-items: center; gap: 4px; }
@@ -1941,10 +1922,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Mobius in the sidebar has one head: the app's tile (the switcher), Mobius and where, then its icons. */
 .chat-head[data-lead] { gap: 8px; }
 
-/* Beside the page, the panel starts at the top: its head level with the page's title row, as a rounded card, and
-   the window's own buttons for it give way while it is open. */
-.app[data-chat="open"] > .context-strip { margin-right: var(--chat-col, 0px); }
-.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: 8px 8px 0 0; z-index: 2; }
+/* Beside the page, the panel starts under the top bar, which runs the window's width (docs/design/panel-layouts.md):
+   every panel, Mobius included, sits below it. */
+.app[data-chat="open"] .dock.right:not([data-floating]) { padding: 8px 8px 0 0; z-index: 2; }
 
 /* Problems are one quiet line with a small warning mark; red text only when a turn really failed. */
 .chat .msg.error { display: flex; align-items: flex-start; gap: 6px; align-self: stretch; padding: 2px 2px; border-radius: 0; background: none; color: var(--muted); font-size: var(--fs-sm); line-height: 1.4; }
@@ -2023,7 +2003,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .chat-place:hover { color: var(--ink); }
 .chat-place svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 /* One focus ring on the composer: the capsule's, soft; the field inside draws none of its own. */
-.composer textarea:focus, .composer textarea:focus-visible, .rail .composer textarea:focus-visible { outline: none; }
+.composer textarea:focus, .composer textarea:focus-visible { outline: none; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), 0 1px 2px rgba(0, 0, 0, 0.04); }
 /* Row marks: one per row. Indigo, changed by Mobius; blue, unread; a small pin, a comment. */
 .row-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--mobius); }
@@ -2047,7 +2027,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Mobius beside the page: the same card, inset the same from the top, the bottom and the right, its head level with
    the page's title row. The dock's column holds the inset, so the page beside it never runs under the card. */
 .dock.right:not([data-floating]) { background: transparent; border-left: 0; }
-.app[data-chat="open"] .dock.right:not([data-floating]) { margin-top: calc(-1 * var(--context)); padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
+.app[data-chat="open"] .dock.right:not([data-floating]) { padding: var(--panel-inset) var(--panel-inset) var(--panel-inset) 0; }
 .dock.right:not([data-floating]) > .chat { overflow: hidden; }
 .dock[data-floating] { border: var(--panel-border); border-radius: var(--panel-radius); box-shadow: var(--panel-shadow); }
 
@@ -2140,7 +2120,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* The app hub, wider and wrapping: no group runs past the right edge, the Start actions show their whole words, and the
    groups are headed grids rather than cards, so a group of one (Agent) does not sit alone in a box. */
-.hub { width: min(760px, calc(100vw - var(--rail) - 24px)); overflow-x: hidden; }
+.hub { width: min(760px, calc(100vw - 24px)); overflow-x: hidden; }
 .hub-starts { grid-template-columns: repeat(auto-fill, minmax(176px, 1fr)); }
 .hub-start > span:last-child { overflow: visible; white-space: normal; text-overflow: clip; line-height: 1.25; }
 .hub-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(100%, 1fr)); gap: var(--sp-3); }
@@ -2274,16 +2254,9 @@ input.side-search.side-search {
 }
 .side-search::-webkit-search-cancel-button { margin-right: -4px; }
 
-/* The five zones (docs/design/panel-layouts.md). Zone 1, the rail: icons only, one column that never moves, the
-   person's apps at the top and Mobius's own apps at the foot. Zone 2, the app sidebar: its own column, from the top
-   of the window to the bottom, flat on the frame, its head level with the toolbar. The toolbar sits over the content
-   only. */
-.rail { gap: var(--sp-1); padding-top: var(--sp-2); }
-.rail-apps { display: grid; gap: var(--sp-1); }
-.rail [data-app-library] { margin-top: var(--sp-1); }
-.rail-end .rail-btn svg { width: 18px; height: 18px; }
-.app[data-side] > .context-strip { margin-left: var(--side-col, 0px); }
-.app[data-side] .dock.left:not([data-floating]) { margin-top: calc(-1 * var(--context)); z-index: 2; padding: 0; background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
+/* The frame (docs/design/panel-layouts.md): the top bar runs the window's width, the Go button at its start. The app's
+   list (its left panel, until the app declares its own in PanelLayout) sits under it, flat on the frame. */
+.app[data-side] .dock.left:not([data-floating]) { z-index: 2; padding: 0; background: var(--sidebar); border-right: 0.5px solid var(--hairline); }
 .dock.left:not([data-floating]) > .app-side { border: 0; border-radius: 0; background: transparent; box-shadow: none; padding: 0; overflow: hidden; }
 .app-side { display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; }
 .app-side-head { flex: none; display: flex; align-items: center; height: var(--context); padding: 0 var(--sp-3) 0 calc(var(--sp-3) + 2px); }
@@ -2336,11 +2309,6 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 :is(.btn, .tool-btn):hover:not(:disabled) { background: var(--sel); }
 .btn.primary, .btn.mobius { box-shadow: none; }
 .dock.right:not([data-floating]) .chat .composer { border-radius: var(--radius-panel); margin: 0 var(--sp-3) var(--sp-3); background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
-/* Rail as in the timeless mocks: Home and Search, a hairline, the apps; Mobius (indigo) and Settings at the foot. */
-.rail-rule { width: 20px; height: 0; margin: var(--sp-1) auto; border: 0; border-top: var(--hairline-w) solid var(--line); }
-.rail-mobius svg { color: var(--mobius); }
-.rail-mobius[aria-pressed="true"] { background: color-mix(in srgb, var(--mobius) 12%, transparent); }
-.rail-apps.rail-lead + .rail-apps:empty { display: none; }
 /* The Mobius button is the one place indigo belongs in the toolbar: a pale indigo fill when its panel is open. */
 .context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 14%, transparent); color: var(--mobius); }
 

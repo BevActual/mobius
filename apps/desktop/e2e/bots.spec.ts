@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { expectOnApp, goToPlace, launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -48,11 +48,15 @@ const say = async (text: string) => {
     await expect(log().locator('.msg.user').filter({ hasText: text })).toHaveCount(1, { timeout: 2000 });
   }).toPass({ timeout: 15_000 });
 };
-/** Agents opens from All apps and the Agent app's sessions from Home in the rail, not from tabs in the sidebar. */
-const railApps = (): Locator => shell().getByRole('navigation', { name: 'Apps' });
-const tab = (name: 'Agents' | 'Sessions') => railApps().getByRole('button', { name: name === 'Agents' ? 'Agents' : 'Home', exact: true });
+/** Agents opens from All apps and the Agent app's sessions from Home in the launcher, not from tabs in the sidebar. */
+/** The Agent app shows its sessions (Home) or its agents. */
+const shows = async (what: 'Agents' | 'Sessions') => {
+  await expectOnApp(shell(), 'Home');
+  if (what === 'Agents') await expect(list().getByRole('region', { name: 'Agents' })).toBeVisible();
+  else await expect(list().getByRole('region', { name: 'Agents' })).toHaveCount(0);
+};
 const openAgents = async () => {
-  await railApps().locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Agents', exact: true }).click();
 };
 /** An agent's action, from its row's More menu. */
@@ -64,7 +68,7 @@ const fromMenu = async (agent: string, item: string) => {
   // A menu item runs once the menu has closed: wait for that, and for a new session to open empty.
   await expect(shell().getByRole('menu')).toHaveCount(0);
   if (item === 'New session') {
-    await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
+    await shows('Sessions');
     await expect(log().locator('.msg')).toHaveCount(0);
   }
 };
@@ -78,15 +82,15 @@ async function newBot(name: string, instructions = '', modelName = ''): Promise<
   await form.getByRole('button', { name: 'Create' }).click();
   // The bot's first session opens a moment later, empty: wait for it, so what is said next goes to the bot.
   await expect(form).toHaveCount(0);
-  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
+  await shows('Sessions');
   await expect(log().locator('.msg')).toHaveCount(0);
 }
 
 test('the side list switches between sessions and bots, and starts with Mobius alone', async () => {
   await start();
-  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
+  await shows('Sessions');
   await openAgents();
-  await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
+  await shows('Agents');
   const rows = list().getByRole('region', { name: 'Agents' }).getByRole('listitem');
   await expect(rows).toHaveCount(1);
   await expect(rows.first()).toContainText('Mobius');
@@ -101,7 +105,7 @@ test('a bot is made, its sessions use its instructions and model, and other sess
   await start([says(['bot answer']), says(['plain answer'])], 'Be brief.');
   await newBot('Researcher', 'Always cite sources.', 'research-model');
   // Creating the bot puts you in a new session with it.
-  await expect(tab('Sessions')).toHaveAttribute('aria-current', 'page');
+  await shows('Sessions');
   await say('hello bot');
   await expect(log().locator('.msg.assistant')).toHaveText('bot answer');
   const first = model!.requests.at(-1)!;
@@ -190,7 +194,7 @@ test('removing a bot asks first, takes its sessions with it, and leaves the othe
   await fromMenu('Temp', 'Remove…');
   await list().getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(list().getByRole('region', { name: 'Agents' })).not.toContainText('Temp');
-  await tab('Sessions').click();
+  await goToPlace(shell(), 'Home');
   await expect(list()).not.toContainText('to the bot');
   await expect(list()).toContainText('to mobius');
 });
@@ -209,7 +213,7 @@ test('bots and their sessions are still there after a restart', async () => {
   // Its model is on its page.
   await list().getByRole('button', { name: 'Keeper', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Keeper' }).filter({ hasText: 'What it does' })).toContainText('keeper-model');
-  await tab('Sessions').click();
+  await goToPlace(shell(), 'Home');
   await expect(list().getByRole('region', { name: 'Keeper' })).toContainText('persist this');
 });
 
@@ -291,13 +295,13 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await openApp('Agent');
   await say('Look at my tasks and calendar and plan the week');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here is your week.');
-  await tab('Sessions').click();
+  await goToPlace(shell(), 'Home');
   // The row's own buttons show on hover, as Archive and Delete do.
   const row = list().getByRole('listitem').filter({ hasText: 'Look at my tasks and calendar' }).first();
   await row.hover();
   await row.getByRole('button', { name: /^Make .* an agent$/ }).click();
   const form = shell().getByRole('form', { name: 'New agent' });
-  await expect(tab('Agents')).toHaveAttribute('aria-current', 'page');
+  await shows('Agents');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);
   await expect(form).toContainText('What it may touch');
   await form.getByRole('textbox').first().fill('Week planner');

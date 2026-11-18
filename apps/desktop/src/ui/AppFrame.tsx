@@ -7,15 +7,14 @@ import type { MenuEntry } from './Menu';
 import { fitToolbar, menuRowsOf, type ToolbarPriority } from './toolbarFit';
 
 /**
- * The frame every app sits in: the five zones of docs/design/panel-layouts.md.
- *
- *   1 rail · 2 app sidebar · 3 toolbar · 4 content (with an optional bottom dock) · 5 right dock (Mobius)
+ * The frame every app sits in (docs/design/panel-layouts.md): the top bar, the content, and Mobius at the right edge.
+ * There is no rail: the Go button at the top bar's start opens the launcher, which is how to get to another app.
  *
  * The shell owns the frame; an app fills its parts from its own files with `ToolbarControls` (its controls in the
- * toolbar's middle), `ViewSwitch` (when it has more than one view) and the `AppSidebar` pieces (its sidebar's places).
+ * top bar's middle), `ViewSwitch` (when it has more than one view) and `PanelLayout` (its panels, in its own docks).
  */
 export interface ToolbarParts {
-  /** At the toolbar's start: the button that shows and hides the sidebar. */
+  /** At the top bar's start: the Go button, then the button that shows and hides the app's list. */
   lead?: ReactNode;
   /** What is open ("Q3 plan"), never the app's name alone unless nothing is open. */
   title?: ReactNode;
@@ -37,11 +36,9 @@ export interface ToolbarParts {
 }
 
 interface FrameProps {
-  /** Zone 1. */
-  rail: ReactNode;
-  /** Zone 3. */
+  /** The top bar. */
   toolbar: ToolbarParts;
-  /** Zones 2, 4 and 5, as the shell lays them out today (stage 1 of panels keeps the docks where they are). */
+  /** The app's list (until the app declares its own left panel), the content and Mobius. */
   children: ReactNode;
   style?: CSSProperties;
   /** data-* attributes the shell's styles and tests read. */
@@ -54,7 +51,7 @@ interface FrameProps {
 
 const ToolbarSlot = createContext<HTMLElement | null>(null);
 
-export function AppFrame({ rail, toolbar, children, style, data, openRight, mobiusAsked }: FrameProps) {
+export function AppFrame({ toolbar, children, style, data, openRight, mobiusAsked }: FrameProps) {
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   const [appMenu, setAppMenu] = useAppMenuHost();
@@ -71,7 +68,6 @@ export function AppFrame({ rail, toolbar, children, style, data, openRight, mobi
     <ToolbarSlot.Provider value={slot}>
     <PanelTabsProvider open={openRight} mobiusAsked={mobiusAsked}>
       <div className="app" style={style} {...data}>
-        {rail}
         <header className="context-strip">
           <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
           <div className="toolbar-place" data-browser={toolbar.wideMiddle || undefined}>

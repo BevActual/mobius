@@ -166,9 +166,9 @@ test('workflow: an email becomes a task, a meeting and a reply, kept and sent fr
     const page = shell().locator('.mail-page');
     await page.getByRole('listbox', { name: 'Messages' }).getByRole('option', { name: /brake kit/ }).first().click();
     await expect(page.getByRole('article')).toContainText('updated parts list');
-    // Is Mobius still in the sidebar, and what does it offer for this email?
-    const offered = await shell().locator('.rail').getByRole('button').allInnerTexts().catch(() => []);
-    note(`sidebar buttons: ${offered.filter(Boolean).slice(0, 20).join(' | ')}`);
+    // What does the top bar offer for this email?
+    const offered = await shell().locator('.context-strip').getByRole('button').allInnerTexts().catch(() => []);
+    note(`top bar buttons: ${offered.filter(Boolean).slice(0, 20).join(' | ')}`);
   });
 
   await step('mobius-opened', async (note) => {

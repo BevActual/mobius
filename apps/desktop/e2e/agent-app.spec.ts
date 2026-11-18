@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, views, type Fixture, type Launched } from './harness';
+import { expectOnApp, goButton, launch, startFixture, views, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -49,7 +49,7 @@ test('the launcher opens the Agent as a full app: the page is hidden and the sid
   await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveCount(0);
   await expect.poll(async () => (await visibleViews()).length).toBe(0);
-  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Home', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expectOnApp(shell(), 'Home');
 });
 
 test('going back to the Browser restores the page, the tabs and the side panel with the same conversation', async () => {
@@ -115,18 +115,18 @@ test('settings opens over the Agent app and closes back to it', async () => {
 test('apps that are not built cannot be opened', async () => {
   await start([]);
   await openApp('Documents');
-  await expect(shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expectOnApp(shell(), 'Browser');
 });
 
-test('a conversation waiting for you is flagged in the list and on the app button even from the Browser', async () => {
+test('a conversation waiting for you is flagged in the list and on the Go button even from the Browser', async () => {
   await start([callsTool('clock-now'), says(['Done.'])]);
   await say('what time');
   await expect(shell().getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
-  await expect(shell().getByRole('status', { name: '1 waiting for you' })).toBeVisible();
+  await expect(goButton(shell())).toHaveAccessibleName(/\. 1 waiting$/);
   await openApp('Agent');
   await expect(list().getByText('Needs you')).toBeVisible();
   await list().getByRole('listitem').first().click();
   await shell().getByRole('group', { name: 'Approval needed: clock.now' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');
-  await expect(shell().getByRole('status', { name: /waiting for you/ })).toHaveCount(0);
+  await expect(goButton(shell())).not.toHaveAccessibleName(/waiting/);
 });

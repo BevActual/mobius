@@ -86,7 +86,7 @@ fn shortcuts_saved_before_new_ones_were_added_are_kept() {
     std::fs::write(&file, json!({ "keybindings": { "launcher": "alt+j", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "" } }).to_string()).unwrap();
     let p = preferences::open(file);
     assert_eq!(p.get()["keybindings"]["launcher"], "alt+j", "the chosen key stays");
-    assert_eq!(p.get()["keybindings"]["splitView"], "mod+\\");
+    assert_eq!(p.get()["keybindings"]["splitView"], "mod+shift+\\");
     assert_eq!(p.get()["keybindings"]["littleMobius"], "mod+shift+m");
 }
 

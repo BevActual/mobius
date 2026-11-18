@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { expectOnApp, launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 const SKILL = '---\nname: compare-stays\ndescription: When choosing where to stay, compare places side by side\n---\n\n1. List the places with price and walk to the venue\n2. Put them in a table in Sheets\n';
@@ -109,8 +109,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
-  const rail = shell().getByRole('navigation', { name: 'Apps' });
-  await rail.locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
   const side = shell().getByRole('complementary', { name: 'Abilities sidebar' });
   await expect(side.getByRole('region', { name: 'Apps' }).locator('button.list-row')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
@@ -140,7 +139,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await shell().getByRole('searchbox', { name: 'Search abilities' }).fill('');
   // An installed app opens from its row.
   await installed.getByRole('button', { name: 'Open Sheets' }).click();
-  await expect(rail.getByRole('button', { name: 'Sheets', exact: true })).toHaveAttribute('aria-current', 'page');
+  await expectOnApp(shell(), 'Sheets');
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
   await shell().keyboard.press('Enter');

@@ -6,7 +6,7 @@ import { sendCommand } from './commands';
 import { MAIN_BOT_ID, withSteps, conversationIdFor, MAX_CONTEXT_ITEM_CHARS, MAX_FAVOURITES, type Favourite, actionForPress, describeCombo, botOfConversation, type ContextItem, type KeyPress, type MailContent, type NoteComment, type SidebarMode } from '@mobius/shared';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, APPS, COMPACT_APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, recentItems, APPS, COMPACT_APPS } from './apps';
 import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -18,7 +18,7 @@ import { useBookmarks } from './useBookmarks';
 import { useArchive } from './useArchive';
 import { useBots } from './useBots';
 import { useDownloads } from './useDownloads';
-import { Launcher } from './Launcher';
+import { GoButton, Launcher, pinnedApps } from './Launcher';
 import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { useSideFolds } from './side-fold';
@@ -83,7 +83,7 @@ import { Desk } from './Desk';
 import { fitDocks } from './dock-fit';
 import { deskAppRows } from './desk-apps';
 import { agoLabel } from './desk-view';
-import { APP_ICONS, Rail, type OwnApp } from './Rail';
+import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
@@ -366,7 +366,7 @@ export function App() {
   const [searchFilter, setSearchFilter] = useState<HubFilter>('all');
   /** Shown in either pane, focused or not. */
   const shows = (id: AppId) => app === id || other === id;
-  // Apps the agent (or another app) changed while you were elsewhere: their rail button carries a dot until opened.
+  // Apps the agent (or another app) changed while you were elsewhere: a dot on them in the launcher until opened.
   const [changed, setChanged] = useState<ReadonlySet<AppId>>(new Set());
   const here = useRef({ app, other, narrow });
   here.current = { app, other, narrow };
@@ -692,7 +692,11 @@ export function App() {
             { id: 'extensions', name: 'Abilities', current: !settingsOpen && app === 'skills', run: () => { closeSettings(); openApp('skills'); } },
             { id: 'settings', name: 'Settings', current: settingsOpen, run: () => (settingsOpen ? closeSettings() : openSettings()) },
   ];
-  // The Mobius button (toolbar and rail foot): show or hide Mobius beside the work.
+  const ownApp = (id: OwnApp['id']) => () => ownApps.find((o) => o.id === id)?.run();
+  // What waits, per app, for the launcher's dots and the Go button's: answers Mobius needs, and apps it changed.
+  const waiting: Partial<Record<AppId, number>> = { ...Object.fromEntries([...changed].map((id) => [id, 1])), ...(needsYou > 0 ? { agent: needsYou } : {}) };
+  const waitingTotal = Object.values(waiting).reduce((sum, n) => sum + (n ?? 0), 0);
+  // The Mobius button (toolbar): show or hide Mobius beside the work.
   // An app bringing one of its panel tabs forward (useShowPanelTab) opens the right panel without moving focus.
   const openRight = useCallback(() => { hides.current += 1; setLearnOpen(false); setChatOpen(true); }, []);
   // A step waiting for the person's answer brings Mobius in front of an app's panel tab too (kept until the next one,
@@ -940,6 +944,13 @@ export function App() {
   useEffect(() => {
     if (!keysReady) return;
     const answer = (press: KeyPress, claim: () => void) => {
+      const plainMod = (press.ctrl || press.meta) && !press.alt && !press.shift;
+      // Ctrl+\ shows or hides the app's list (an app with its own left panels answers it first, in PanelLayout).
+      if (plainMod && press.code === 'Backslash' && hasLeft) { claim(); setLeftOpen((open) => !open); return; }
+      // Ctrl+1 to Ctrl+9 open the pinned apps, in the launcher's order.
+      const digit = plainMod && /^Digit[1-9]$/.test(press.code) ? Number(press.code.slice(5)) : 0;
+      const pinnedApp = digit ? pinnedApps(appearance.value.sidebarApps)[digit - 1] : undefined;
+      if (pinnedApp) { claim(); closeSettings(); openApp(pinnedApp); return; }
       const action = actionForPress(bindings, press);
       if (action === 'launcher') { claim(); openLauncher(); }
       else if (action === 'address') { claim(); address.current?.focus(); address.current?.select(); }
@@ -957,11 +968,11 @@ export function App() {
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
     };
-    const onKey = (event: KeyboardEvent) => { if (!shellStandsDown(event)) answer(pressOf(event), () => event.preventDefault()); };
+    const onKey = (event: KeyboardEvent) => { if (!event.defaultPrevented && !shellStandsDown(event)) answer(pressOf(event), () => event.preventDefault()); };
     window.addEventListener('keydown', onKey);
     for (const press of takeEarlyKeys(performance.now())) answer(press, () => undefined);
     return () => window.removeEventListener('keydown', onKey);
-  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation]);
+  }, [keysReady, bindings, openLauncher, openSettings, openFind, app, newTab, active, toggleSplit, toggleMini, conversation, hasLeft, setLeftOpen, appearance.value.sidebarApps, closeSettings, openApp]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -1287,6 +1298,7 @@ export function App() {
   // Activity: Mobius's own app, found by name.
   // Agents app (marked): it is a side of the Agent app, so it is found here by name.
   launcherCommands.push({ id: 'open-agents', label: 'Agents', detail: 'Your named agents', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } });
+  launcherCommands.push({ id: 'all-apps', label: 'All apps', detail: 'Every app, with what is happening in it', run: openHub });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
@@ -1689,30 +1701,14 @@ export function App() {
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
-      style={{ '--chat-col': (rightOpen && !rightFloating) || learnOpen ? `${rightWidth}px` : '0px', '--side-col': leftAttached ? `${leftWidth}px` : '0px' } as React.CSSProperties}
       data={{ 'data-keys-ready': keysReady || undefined, 'data-side': leftAttached || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-panel': leftOpen ? 'open' : 'closed', 'data-chat': rightOpen ? 'open' : 'closed' }}
-      rail={
-        <Rail
-          mobius={{ open: (rightOpen || !hasRight) && !settingsOpen, toggle: () => { if (settingsOpen) { closeSettings(); if (hasRight && !rightOpen) toggleMobius(); return; } if (hasRight) toggleMobius(); else openApp('agent'); } }}
-          app={app}
-          onOpen={(id) => { closeSettings(); if (id === 'search') setSearchFocus((n) => n + 1); if (id === 'agent') setSideMode('sessions'); fromSidebar.current = true; try { openApp(id); } finally { fromSidebar.current = false; } }}
-          ownApps={ownApps}
-          activity={activity}
-          changed={changed}
-          needsYou={needsYou}
-          onLauncher={openHub}
-          {...(keysReady ? { launcherKeys: bindings.launcher, settingsKeys: bindings.settings } : {})}
-          settingsOpen={settingsOpen}
-          apps={appearance.value.sidebarApps}
-          onApps={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
-          onEditApps={() => { setSettingsSection('layout'); openSettings(); }}
-        />
-      }
       toolbar={{
         // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
         wideMiddle: inBrowser && !settingsOpen,
         appControls: !settingsOpen,
         lead: <>
+          {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
+          <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
           {hasLeft && <button type="button" className="strip-btn" data-dock-toggle aria-pressed={leftOpen} aria-label={settingsOpen ? 'Show sections' : inAgent ? 'Show conversations' : inNotes ? 'Show notebooks' : inTasks ? 'Show lists' : inCalendar ? 'Show calendars' : inSearch ? 'Show scopes' : 'Show tabs'} title={settingsOpen ? 'Show or hide the sections' : inAgent ? 'Show or hide conversations' : inNotes ? 'Show or hide notebooks' : inTasks ? 'Show or hide lists' : inCalendar ? 'Show or hide calendars' : 'Show or hide tabs'} onClick={() => setLeftOpen((open) => !open)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3" y="4" width="14" height="12" rx="2.5" /><path d="M8 4v12" /></svg>
           </button>}
@@ -1746,7 +1742,7 @@ export function App() {
           <PanelsMenu
             app={own}
             shell={[
-              { name: 'Sidebar', shown: hasLeft && leftOpen, toggle: () => setLeftOpen((open) => !open) },
+              { name: 'Sidebar', shown: hasLeft && leftOpen, keys: 'mod+\\', toggle: () => setLeftOpen((open) => !open) },
               ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
             ]}
             describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
@@ -1867,7 +1863,14 @@ export function App() {
           return true;
         }}
       />
-      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={openApp}
+      <Launcher open={launcherOpen} onClose={closeLauncher} tabs={browser.tabs} onNewTab={newTab} onActivateTab={(id) => { openApp('browser'); window.mobius.browser.activate(id); }} onOpenApp={(id) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); }}
+        pinned={appearance.value.sidebarApps}
+        onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
+        waiting={waiting}
+        recent={launcherOpen ? recentItems() : []}
+        onOpenRecent={(item) => { opener.current = null; closeSettings(); openApp(item.app); }}
+        places={{ home: () => { closeSettings(); setSideMode('sessions'); openApp('agent'); }, activity: ownApp('activity'), abilities: ownApp('extensions'), settings: () => openSettings() }}
+        onOpenMobius={() => { closeSettings(); if (hasRight) openRight(); else openApp('agent'); setFocusToken((n) => n + 1); }}
         onAsk={settings?.configured ? (question) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined}
         commands={launcherCommands} />
       <TooltipLayer />

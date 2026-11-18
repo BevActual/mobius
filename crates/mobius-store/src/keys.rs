@@ -6,7 +6,7 @@ pub const ACTIONS: [&str; 10] = ["launcher", "address", "newTab", "closeTab", "s
 pub const LATER_ACTIONS: [&str; 1] = ["holdToTalk"];
 
 pub fn defaults() -> Value {
-    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m", "holdToTalk": "mod+space" })
+    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+shift+\\", "littleMobius": "mod+shift+m", "holdToTalk": "mod+space" })
 }
 
 /// Bindings saved before an action was added, with it at its default (or none, if another action took that key).

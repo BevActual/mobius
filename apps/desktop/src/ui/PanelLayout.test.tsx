@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { DOCK_SIZE, PanelLayout, clampDock, parseLayout, pressIs } from './PanelLayout';
+import { DOCK_KEYS, DOCK_SIZE, PanelLayout, clampDock, parseLayout, pressIs } from './PanelLayout';
 
 const press = (key: string, over: Partial<{ ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }> = {}) => ({ key, ctrlKey: false, metaKey: false, shiftKey: false, altKey: false, ...over });
 
@@ -23,7 +23,27 @@ describe('panels', () => {
     expect(html).not.toContain('data-dock="right"');
   });
 
+  it('draw a left dock before the content, its edge after its panels', () => {
+    const html = renderToStaticMarkup(
+      <PanelLayout app="test" panels={[{ id: 'places', name: 'Places', dock: 'left', shown: true, render: () => <p>Inbox</p> }]}>
+        <p>Content</p>
+      </PanelLayout>,
+    );
+    expect(html.indexOf('data-dock="left"')).toBeLessThan(html.indexOf('ui-panels-content'));
+    expect(html).toContain(`width:${DOCK_SIZE.left.initial}px`);
+    expect(html).toContain('aria-label="Resize the panels on the left"');
+  });
+
+  it('show or hide a whole dock with its key: Ctrl+\\ the left, Ctrl+Alt+\\ the right, Ctrl+J the bottom', () => {
+    expect(pressIs(DOCK_KEYS.left, press('\\', { ctrlKey: true }), false)).toBe(true);
+    expect(pressIs(DOCK_KEYS.left, press('\\', { ctrlKey: true, altKey: true }), false)).toBe(false);
+    expect(pressIs(DOCK_KEYS.right, press('\\', { ctrlKey: true, altKey: true }), false)).toBe(true);
+    expect(pressIs(DOCK_KEYS.bottom, press('j', { metaKey: true }), true)).toBe(true);
+  });
+
   it('keep each dock within its range: the right 280 to 560, the bottom at least 120 and at most 70% of the content', () => {
+    expect(clampDock('left', 100)).toBe(DOCK_SIZE.left.min);
+    expect(clampDock('left', 900)).toBe(DOCK_SIZE.left.max);
     expect(clampDock('right', 100)).toBe(280);
     expect(clampDock('right', 900)).toBe(560);
     expect(clampDock('bottom', 50, 1000)).toBe(120);
@@ -32,6 +52,7 @@ describe('panels', () => {
 
   it('read a kept layout, and treat anything unreadable as nothing kept', () => {
     expect(parseLayout('{"shown":{"a":true,"b":"x"},"size":{"right":400,"bottom":"tall"}}')).toEqual({ shown: { a: true }, size: { right: 400 } });
+    expect(parseLayout('{"shown":{},"size":{"left":300}}')).toEqual({ shown: {}, size: { left: 300 } });
     expect(parseLayout('not json')).toEqual({ shown: {}, size: {} });
     expect(parseLayout(null)).toEqual({ shown: {}, size: {} });
   });
