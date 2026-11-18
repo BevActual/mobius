@@ -26,6 +26,11 @@ interface Props {
   onOpenSchedules?: () => void;
   /** Where the message box puts its suggestions, under the greeting. */
   starters?: ReactNode;
+  /**
+   * First run: which of Mail and Calendar have no account yet, and where to connect each. While one is missing, the
+   * desk offers it first, so the first answers can be about the person's own mail and days.
+   */
+  connect?: { mail: boolean; calendar: boolean; onMail: () => void; onCalendar: () => void };
   now?: Date;
 }
 
@@ -66,7 +71,7 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
  * place; then the conversations to pick up again; then what is open in your apps (an app Mobius changed carries its
  * dashed edge until you look); then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -89,6 +94,20 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
         <p className="desk-title">{title.map((part, i) => <span key={part}>{i > 0 && <span aria-hidden="true"> · </span>}{part}</span>)}{quiet && <span><span aria-hidden="true"> · </span>{deskQuiet(rows)}</span>}</p>
         {starters}
       </header>
+      {connect && (connect.mail || connect.calendar) && (
+        <div className="desk-group" role="group" aria-label="Get started">
+          <h3 className="desk-head">Get started</h3>
+          <ul className="desk-rows">
+            <li className="desk-row" data-connect>
+              <Icon app={connect.mail ? 'mail' : 'calendar'} />
+              <span className="desk-name">{connect.mail && connect.calendar ? 'Connect your mail and calendar' : connect.mail ? 'Connect your mail' : 'Connect your calendar'}</span>
+              <span className="desk-text">So Mobius can work on your own messages and days</span>
+              {connect.mail && <button type="button" className="desk-act" data-primary onClick={connect.onMail}>Add mail</button>}
+              {connect.calendar && <button type="button" className="desk-act" {...(connect.mail ? {} : { 'data-primary': true })} onClick={connect.onCalendar}>Add calendar</button>}
+            </li>
+          </ul>
+        </div>
+      )}
       {(waiting.length > 0 || working.length > 0) && (
         <div className="desk-group" role="group" aria-label="Now">
           <h3 className="desk-head">Now</h3>

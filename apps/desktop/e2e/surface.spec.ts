@@ -59,6 +59,19 @@ test('an empty Agent app is the desk: one greeting, suggestions under it, which 
   await expect(region.getByRole('group', { name: 'Suggestions' })).toHaveCount(0);
 });
 
+test('on first run, once a model answers, the desk offers mail and calendar first, each opening its accounts in Settings', async () => {
+  await start([]);
+  await openApp('Agent');
+  const getStarted = shell().getByRole('region', { name: 'Desk' }).getByRole('group', { name: 'Get started' });
+  await expect(getStarted.getByText('Connect your mail and calendar')).toBeVisible();
+  await getStarted.getByRole('button', { name: 'Add mail' }).click();
+  const page = shell().getByRole('region', { name: 'Settings' });
+  await expect(page.getByText('Mail accounts', { exact: true }).first()).toBeVisible();
+  await shell().keyboard.press('Escape');
+  await getStarted.getByRole('button', { name: 'Add calendar' }).click();
+  await expect(page.getByText('Calendar accounts', { exact: true }).first()).toBeVisible();
+});
+
 test('the desk is the Agent app’s home: what waits is allowed in place, and what is scheduled comes next', async () => {
   await start([callsTool('files-write', { path: 'notes/Work/Ideas.md', content: '# Ideas\n' }), says(['Made it.'])]);
   await shell().evaluate(() => window.mobius.schedules?.add({ title: 'Morning brief', prompt: 'What is on today?', time: '08:00', days: [1, 2, 3, 4, 5, 6, 7], enabled: true }));
