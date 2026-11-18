@@ -68,6 +68,12 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   const plan = page.getByRole('row', { name: 'Plan.md', exact: true });
   await plan.click();
   await expect(plan).toContainText('Note');
+  // Info, on the right, says what the picked file is and where it lives.
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Info' }).click();
+  const info = shell().getByLabel('About Plan.md');
+  await expect(info).toContainText('Note');
+  await expect(info).toContainText('notes/Work');
   await plan.press('Enter');
   await expect(shell().getByRole('region', { name: 'Note: Plan' })).toBeVisible();
 });
