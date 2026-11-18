@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHECKLIST, TABLE, clipBlock, insertBlock, recordingBlock, tidyMarkdown } from './note-insert';
+import { CHECKLIST, TABLE, clipBlock, insertBlock, meetingAsk, meetingBlock, recordingBlock, tidyMarkdown } from './note-insert';
 
 describe('note insert', () => {
   it('puts a block on lines of its own at the cursor', () => {
@@ -13,6 +13,14 @@ describe('note insert', () => {
   it('writes a recording and a clipping', () => {
     expect(recordingBlock(' Rui says the terrace fits twelve. ', 252, new Date(2026, 10, 8, 9, 5))).toBe('### Recording · 4:12 · 09:05\n\nRui says the terrace fits twelve.');
     expect(clipBlock({ url: 'https://a.example/x', title: 'Casa [Amora]', text: '## Casa Amora\n\nNine rooms.\n\nBreakfast.\n\nPool.\n\nMore.' })).toBe('> Nine rooms.\n>\n> Breakfast.\n>\n> Pool.\n\n— [Casa Amora](https://a.example/x)');
+  });
+
+  it('writes a meeting and what Mobius is asked after it', () => {
+    expect(meetingBlock([' First part. ', '', 'Second part.'], 3725, new Date(2026, 10, 18, 14, 3))).toBe('## Meeting · 14:03 · 62:05\n\n### Transcript\n\nFirst part.\n\nSecond part.');
+    expect(meetingBlock([], 4, new Date(2026, 10, 18, 9, 0))).toBe('## Meeting · 09:00 · 0:04\n\n### Transcript\n\n(nothing was heard)');
+    const ask = meetingAsk('Standup', 'Work/Standup.md');
+    expect(ask).toContain('"Standup" (Work/Standup.md)');
+    expect(ask).toContain('Add each action to Tasks');
   });
 });
 

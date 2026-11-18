@@ -11,8 +11,12 @@ Quick pages, saved as you type.
 - **Formatted as you write**: headings, lists, checklists you tick, tables, pictures, links between notes, and
   recordings (up to ten minutes). As in Apple Notes, **Aa** opens the text styles (Title, Heading, Subheading, Body),
   bold, italic, strikethrough, code, lists and quote. These sit in the window's toolbar beside Checklist, Link and
-  **+** (Insert: a table, a picture or file, Dictate, or a clipped web page), with Share at the end, as in Docs, so
-  nothing sits between you and the page. While you dictate, Stop stays in the toolbar. The **Notes** menu (**⋯** in the toolbar)
+  **+** (Insert: a table, a picture or file, Dictate, Record a meeting, or a clipped web page), with Share at the end, as in Docs, so
+  nothing sits between you and the page. While you dictate, Stop stays in the toolbar.
+- **Record a meeting** listens for as long as the meeting runs (up to three hours), writing it down two minutes at a
+  time while it listens. **End meeting** puts a *Meeting* section with the transcript at the end of the page, then
+  **Summarise and make tasks** puts the ask in Mobius's box: a summary and the actions in the note, and each action in
+  Tasks, waiting for your Keep like any change. Only the words are kept, never the sound. The **Notes** menu (**⋯** in the toolbar)
   opens Version history, clips a web page into the note and shows the Markdown file itself.
 - **History** (Notes menu › Version history…) lists earlier versions by day, compares one with the page now, and **Restore** puts it back (and can be
   undone the same way).
