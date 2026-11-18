@@ -732,7 +732,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting }: { cal
   const live = useRef({ save, busy, changed: () => false as boolean });
   live.current = {
     save, busy,
-    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
+    changed: () => !locked && title.trim() !== '' && (title !== (original?.title ?? '') || where !== (original?.location ?? '') || notes !== (original?.notes ?? '') || allDay !== initialAllDay || repeat !== initialRepeat || invite !== inviteText(original?.attendees) || startDay !== startText.slice(0, 10) || endDay !== endText.slice(0, 10) || (!allDay && (startTime !== startText.slice(11, 16) || endTime !== endText.slice(11, 16))) || !original),
   };
   useEffect(() => {
     if (!at) return undefined;
