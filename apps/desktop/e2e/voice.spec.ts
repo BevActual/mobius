@@ -81,14 +81,16 @@ test('dictation listens with the speech server chosen in Voice and puts the word
   expect(model!.requests).toHaveLength(0);
 });
 
-test('holding Ctrl+Space in the Mobius panel listens until let go, and puts the words in the box', async () => {
+test('holding Ctrl+Shift+Space in the Mobius panel listens until let go, and puts the words in the box', async () => {
   await start({});
   await composer().focus();
   await shell().keyboard.down('Control');
+  await shell().keyboard.down('Shift');
   await shell().keyboard.down('Space');
   await expect(shell().getByRole('status', { name: /Listening/ })).toBeVisible();
   await shell().waitForTimeout(700);
   await shell().keyboard.up('Space');
+  await shell().keyboard.up('Shift');
   await shell().keyboard.up('Control');
   await expect(composer()).toHaveValue('book the terrace for Friday');
   expect(speech!.heard.map((h) => h.path)).toEqual(['/v1/audio/transcriptions']);

@@ -1,6 +1,6 @@
 import { actionForPress, type KeyBindings, type KeyPress } from '@mobius/shared';
 
-/** This press is the hold-to-talk shortcut (Ctrl+Space unless changed in Settings, Keyboard), and it is set. */
+/** This press is the hold-to-talk shortcut (Ctrl+Shift+Space unless changed in Settings, Keyboard), and it is set. */
 export function isHoldToTalk(bindings: KeyBindings, press: KeyPress): boolean {
   return Boolean(bindings.holdToTalk) && actionForPress(bindings, press) === 'holdToTalk';
 }

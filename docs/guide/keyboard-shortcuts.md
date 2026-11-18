@@ -6,11 +6,11 @@ The small x clears a shortcut, and **Reset** puts back the usual keys.
 | Keys | What it does |
 | --- | --- |
 | Ctrl+K | Find apps, pages and commands (the launcher) |
+| Ctrl+Space | The launcher from any app, even when Mobius is in the background |
 | Ctrl+, | Open Settings |
 | Ctrl+\ | Show two apps side by side, or one |
 | Ctrl+Shift+M | Open or close Little Mobius |
-| Ctrl+Space (hold) | Dictate in the message box; release to stop |
-| Ctrl+Shift+Space | Start or stop dictation |
+| Ctrl+Shift+Space | Dictate in the message box: hold and let go to stop, or tap to start and tap again to stop |
 | Shift+Tab (in the message box) | Next mode: Agent, Ask, Plan, then the app's own mode |
 | 1 to 4 (in the Mobius panel) | Pick one of the Actions, or answer a question by its number |
 | Ctrl+L | Go to the address bar (Browser) |
@@ -19,6 +19,10 @@ The small x clears a shortcut, and **Reset** puts back the usual keys.
 | Ctrl+F | Find on the page |
 | C | Comment mode: comment on anything in the app |
 | Esc | Stop reading a reply aloud; close a menu or dialog |
+
+**Launcher from anywhere** (Ctrl+Space) opens the launcher in its own small window over whatever app you are in. Pick
+something and Mobius comes forward with it open; press Esc or click elsewhere and you are back where you were. In Mobius,
+Ctrl+Space opens the launcher there, like Ctrl+K. Change or turn off its key in **Settings › Keyboard**.
 
 **Quick entry from anywhere** brings Mobius up and starts a message even when Mobius is in the background. It has no
 key until you set one.

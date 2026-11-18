@@ -233,6 +233,16 @@ pub trait Dialogs: Send + Sync {
     fn shortcut_registrar(&self) -> Box<dyn Registrar>;
     /// Show the window and give it the keyboard (unless a test has asked for it to stay hidden).
     fn bring_forward(&self);
+    /// Open the launcher in its own small window over whatever app is in front. Without one, Mobius comes forward.
+    fn show_launcher(&self) {
+        self.bring_forward();
+    }
+}
+
+/// The launcher's key in these preferences: its default when they were saved before it existed.
+fn launcher_binding_in(preferences: &Value) -> String {
+    let bindings = preferences.get("keybindings").cloned().unwrap_or(Value::Null);
+    mobius_store::keys::renew(&bindings).get("launcherAnywhere").and_then(Value::as_str).unwrap_or("").to_owned()
 }
 
 pub struct Bridge {
@@ -242,6 +252,8 @@ pub struct Bridge {
     last_notice: Mutex<Option<(String, std::time::Instant)>>,
     models: OnceLock<Arc<crate::models::Models>>,
     quick: Mutex<Option<QuickEntry>>,
+    /// The launcher's key that works from anywhere on the computer (Ctrl+Space unless changed).
+    launcher_key: Mutex<Option<QuickEntry>>,
     probe: OnceLock<ProbeFn>,
     keep_awake: Mutex<Option<KeepAwake>>,
     notices: Mutex<Vec<Value>>,
@@ -445,6 +457,7 @@ impl Bridge {
             last_notice: Mutex::new(None),
             models: OnceLock::new(),
             quick: Mutex::new(None),
+            launcher_key: Mutex::new(None),
             probe: OnceLock::new(),
             keep_awake: Mutex::new(None),
             notices: Mutex::new(Vec::new()),
@@ -564,6 +577,7 @@ impl Bridge {
         match (namespace, method) {
             ("core", "getStatus") => Ok(json!(self.core.status().word())),
             ("window", "quickEntryActive") => Ok(json!(lock(&self.quick).as_ref().is_some_and(QuickEntry::active))),
+            ("window", "launcherKeyActive") => Ok(json!(lock(&self.launcher_key).as_ref().is_some_and(QuickEntry::active))),
             ("app", "about") => Ok(self.about()),
             // The computer's regional format ("en-GB"), which dates and times follow; the web view only knows its language.
             ("app", "locale") => Ok(system_locale().map_or(Value::Null, Value::String)),
@@ -1110,6 +1124,13 @@ impl Bridge {
                 })
             }
             "quickActive" => Ok(json!(lock(&self.quick).as_ref().is_some_and(QuickEntry::active))),
+            "launcherKeyActive" => Ok(json!(lock(&self.launcher_key).as_ref().is_some_and(QuickEntry::active))),
+            "launcherKeyPress" => {
+                if let Some(key) = lock(&self.launcher_key).as_ref() {
+                    key.press();
+                }
+                Ok(Value::Null)
+            }
             "quickPress" => {
                 if let Some(q) = lock(&self.quick).as_ref() {
                     q.press();
@@ -1289,9 +1310,26 @@ impl Bridge {
         let wanted_keys = lock(&self.preferences).get().pointer("/keybindings/quickEntry").and_then(Value::as_str).unwrap_or("").to_owned();
         quick.set(&wanted_keys);
         *lock(&self.quick) = Some(quick);
+        // In Mobius the key opens the launcher in the window, as Ctrl+K does; over another app, in its own small window.
+        let (emit, shown) = (self.emit.clone(), Arc::clone(&dialogs));
+        let on_launcher: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+            if shown.window_focused() {
+                emit("mobius:shortcut", json!("launcher"));
+            } else {
+                shown.show_launcher();
+            }
+        });
+        let mut launcher_key = QuickEntry::new(dialogs.shortcut_registrar(), on_launcher);
+        launcher_key.set(&self.launcher_binding());
+        *lock(&self.launcher_key) = Some(launcher_key);
         let _ = self.dialogs.set(dialogs);
         let wanted = lock(&self.preferences).get().get("keepAwake").and_then(Value::as_bool).unwrap_or(false);
         *lock(&self.keep_awake) = Some(KeepAwake::new(blocker, wanted));
+    }
+
+    /// The launcher's key from the preferences: its default when the preferences predate it.
+    fn launcher_binding(&self) -> String {
+        launcher_binding_in(&lock(&self.preferences).get())
     }
 
     fn browser_call(&self, method: &str, args: &[Value]) -> Out {
@@ -4492,6 +4530,12 @@ impl Bridge {
                     && let Some(quick) = lock(&self.quick).as_mut()
                 {
                     quick.set(value.pointer("/keybindings/quickEntry").and_then(Value::as_str).unwrap_or(""));
+                }
+                let launcher = launcher_binding_in(&value);
+                if launcher_binding_in(&before) != launcher
+                    && let Some(key) = lock(&self.launcher_key).as_mut()
+                {
+                    key.set(&launcher);
                 }
                 if before["reasoningEffort"] != value["reasoningEffort"] {
                     let _ = self.core.call("agent.set_effort", json!({ "effort": value["reasoningEffort"] }), Duration::from_secs(5));

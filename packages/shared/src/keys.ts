@@ -6,7 +6,7 @@
  * from the character it types, so Alt on a Mac or a different keyboard layout does not change it.
  */
 
-export const SHORTCUT_ACTIONS = ['launcher', 'address', 'newTab', 'closeTab', 'settings', 'find', 'splitView', 'littleMobius', 'quickEntry', 'holdToTalk'] as const;
+export const SHORTCUT_ACTIONS = ['launcher', 'address', 'newTab', 'closeTab', 'settings', 'find', 'splitView', 'littleMobius', 'quickEntry', 'holdToTalk', 'launcherAnywhere'] as const;
 export type ShortcutAction = (typeof SHORTCUT_ACTIONS)[number];
 /** An action's binding: a combination, or '' for none. */
 export type KeyBindings = Record<ShortcutAction, string>;
@@ -23,6 +23,7 @@ export const SHORTCUT_INFO: Record<ShortcutAction, { label: string; global: bool
   littleMobius: { label: 'Open or close Little Mobius', global: false },
   quickEntry: { label: 'Bring Mobius up and start a message, from anywhere', global: true },
   holdToTalk: { label: 'Hold to dictate in the message box (release to stop)', global: false },
+  launcherAnywhere: { label: 'Open the launcher over any app', global: true },
 };
 
 export const DEFAULT_KEYBINDINGS: KeyBindings = {
@@ -35,7 +36,8 @@ export const DEFAULT_KEYBINDINGS: KeyBindings = {
   splitView: 'mod+shift+\\',
   littleMobius: 'mod+shift+m',
   quickEntry: '',
-  holdToTalk: 'mod+space',
+  holdToTalk: 'mod+shift+space',
+  launcherAnywhere: 'mod+space',
 };
 
 const LETTERS = 'abcdefghijklmnopqrstuvwxyz'.split('');

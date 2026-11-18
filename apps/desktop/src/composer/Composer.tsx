@@ -17,6 +17,8 @@ import { useDictation } from './useDictation';
 import { holdsHere, isHoldToTalk } from './hold-to-talk';
 import { APPLY_EVENT, CHAT_MODES, PERMISSIONS, modesFor, bestFitQuick, loadBestFit, saveBestFit, chatModeOf, loadApply, nextChatMode, permissionOf, saveApply, sendOptionsOf, useChatMode, type ChatMode, type PermissionInfo } from '../chat-mode';
 
+/** A press of the hold-to-talk key shorter than this is a tap: listening goes on until the next one. */
+const TAP_MS = 300;
 const DICTATE_KEYS = typeof window !== 'undefined' && window.mobius?.platform === 'darwin' ? 'Cmd+Shift+Space' : 'Ctrl+Shift+Space';
 const EFFORTS: Array<{ id: EffortChoice; label: string }> = [
   { id: '', label: 'Default' },
@@ -156,24 +158,31 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     return () => watch.disconnect();
   }, [draft, fieldRef]);
 
-  // Hold to talk: while the shortcut (Ctrl+Space unless changed in Settings, Keyboard) is held with the keyboard in this
-  // panel, listen; on letting go, the words go into the box, not sent.
+  // Hold to talk: while the shortcut (Ctrl+Shift+Space unless changed in Settings, Keyboard) is held with the keyboard in this
+  // panel, listen; on letting go, the words go into the box, not sent. A quick tap instead keeps listening until the next
+  // tap, as the dictation key always did.
   const formRef = useRef<HTMLFormElement>(null);
   const holding = useRef(false);
+  const pressedAt = useRef(0);
   const holdKeys = preferences.value.keybindings;
-  const { hold, letGo } = dictation;
+  const { hold, letGo, toggle: toggleDictation, state: dictationState } = dictation;
   useEffect(() => {
     const down = (event: globalThis.KeyboardEvent) => {
       if (!isHoldToTalk(holdKeys, { code: event.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey })) return;
       if (!holding.current && !holdsHere(document.activeElement, formRef.current)) return;
       event.preventDefault();
       if (event.repeat || holding.current || !canType || busy) return;
+      // Listening after a tap: this press stops it.
+      if (dictationState === 'recording') { toggleDictation(); return; }
+      if (dictationState !== 'idle') return;
       holding.current = true;
+      pressedAt.current = Date.now();
       hold();
     };
     const up = () => {
       if (!holding.current) return;
       holding.current = false;
+      if (Date.now() - pressedAt.current < TAP_MS) return;
       letGo();
     };
     window.addEventListener('keydown', down);
@@ -184,7 +193,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       window.removeEventListener('keyup', up);
       window.removeEventListener('blur', up);
     };
-  }, [holdKeys, hold, letGo, canType, busy]);
+  }, [holdKeys, hold, letGo, toggleDictation, dictationState, canType, busy]);
 
   useEffect(() => {
     if (!busy) return;
@@ -246,8 +255,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
       event.preventDefault();
       setMode(nextChatMode(mode, surface?.app));
     }
-    // Ctrl+Shift+Space (Cmd on a Mac) starts or stops dictation, wherever the mic is shown.
-    if (event.key === ' ' && event.shiftKey && (event.ctrlKey || event.metaKey) && !event.altKey && canType && !busy && dictation.state !== 'transcribing') {
+    // Ctrl+Shift+Space (Cmd on a Mac) starts or stops dictation, wherever the mic is shown. While it is also the hold-to-talk
+    // key, holding and tapping it are answered there.
+    if (event.key === ' ' && event.shiftKey && (event.ctrlKey || event.metaKey) && !event.altKey && canType && !busy && dictation.state !== 'transcribing'
+      && !isHoldToTalk(holdKeys, { code: event.nativeEvent.code, ctrl: event.ctrlKey, meta: event.metaKey, alt: event.altKey, shift: event.shiftKey })) {
       event.preventDefault();
       dictation.toggle();
     }

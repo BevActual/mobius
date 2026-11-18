@@ -362,6 +362,33 @@ export interface UsageRow {
   costUsd: number | null;
 }
 
+/** What was chosen in the launcher's own window, for the main window to open. */
+export type LaunchChoice =
+  | { kind: 'app'; app: string }
+  | { kind: 'recent'; app: string; ref: string; label: string }
+  | { kind: 'place'; place: 'home' | 'activity' | 'abilities' | 'settings' }
+  | { kind: 'tab'; id: string }
+  | { kind: 'new-tab' }
+  | { kind: 'mobius' }
+  | { kind: 'ask'; text: string };
+
+/** A choice as it arrives from the other window, checked: anything else is ignored. */
+export function parseLaunchChoice(value: unknown): LaunchChoice | null {
+  if (!value || typeof value !== 'object') return null;
+  const v = value as Record<string, unknown>;
+  const text = (key: string, max = 2000) => (typeof v[key] === 'string' && (v[key] as string).length <= max ? (v[key] as string) : null);
+  switch (v.kind) {
+    case 'app': { const app = text('app', 40); return app ? { kind: 'app', app } : null; }
+    case 'recent': { const app = text('app', 40); const ref = text('ref'); const label = text('label', 400); return app && ref !== null && label !== null ? { kind: 'recent', app, ref, label } : null; }
+    case 'place': return v.place === 'home' || v.place === 'activity' || v.place === 'abilities' || v.place === 'settings' ? { kind: 'place', place: v.place } : null;
+    case 'tab': { const id = text('id', 200); return id ? { kind: 'tab', id } : null; }
+    case 'new-tab': return { kind: 'new-tab' };
+    case 'mobius': return { kind: 'mobius' };
+    case 'ask': { const t = text('text', 20000); return t !== null ? { kind: 'ask', text: t } : null; }
+    default: return null;
+  }
+}
+
 export interface MobiusBridge {
   platform: string;
   window: {
@@ -369,6 +396,8 @@ export interface MobiusBridge {
     onShortcut(listener: (shortcut: Shortcut) => void): () => void;
     /** Whether the global quick-entry shortcut is working: false when none is chosen or another program has it. */
     quickEntryActive(): Promise<boolean>;
+    /** Whether the launcher's key from anywhere is working: false when none is chosen or another program has it. */
+    launcherKeyActive?(): Promise<boolean>;
   };
   surface: {
     setBounds(bounds: Bounds | null): void;
@@ -406,6 +435,18 @@ export interface MobiusBridge {
     setOnTop(onTop: boolean): Promise<void>;
     /** Says when Little Mobius opens or closes. */
     onChange(listener: (open: boolean) => void): () => void;
+  };
+  /**
+   * The launcher from anywhere, in its own small window over other apps. That window hides itself or hands what was
+   * chosen to the main window (`run`), which comes forward and hears it through `onLaunch`.
+   */
+  launcherWindow?: {
+    hide(): Promise<void>;
+    run(chosen: LaunchChoice): Promise<void>;
+    /** In the launcher's window: it has just been shown again. */
+    onShown(listener: () => void): () => void;
+    /** In the main window: something was chosen in the launcher's window. */
+    onLaunch(listener: (chosen: unknown) => void): () => void;
   };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {

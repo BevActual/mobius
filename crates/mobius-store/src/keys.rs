@@ -1,12 +1,14 @@
 //! Keyboard shortcut bindings, checked the same way as `keys.ts` in the shared package.
 use serde_json::{Map, Value, json};
 
-pub const ACTIONS: [&str; 10] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry", "splitView", "littleMobius", "holdToTalk"];
+pub const ACTIONS: [&str; 11] = ["launcher", "address", "newTab", "closeTab", "settings", "find", "quickEntry", "splitView", "littleMobius", "holdToTalk", "launcherAnywhere"];
 /// Actions added later: bindings saved before them leave them out, and they get their default.
-pub const LATER_ACTIONS: [&str; 1] = ["holdToTalk"];
+pub const LATER_ACTIONS: [&str; 2] = ["holdToTalk", "launcherAnywhere"];
+/// Hold to talk's key before the launcher took Ctrl+Space for the whole computer.
+const OLD_HOLD_TO_TALK: &str = "mod+space";
 
 pub fn defaults() -> Value {
-    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+shift+\\", "littleMobius": "mod+shift+m", "holdToTalk": "mod+space" })
+    json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+shift+\\", "littleMobius": "mod+shift+m", "holdToTalk": "mod+shift+space", "launcherAnywhere": "mod+space" })
 }
 
 /// Bindings saved before an action was added, with it at its default (or none, if another action took that key).
@@ -14,6 +16,14 @@ pub fn renew(v: &Value) -> Value {
     let Some(map) = v.as_object() else { return v.clone() };
     let mut out = map.clone();
     let fallback = defaults();
+    // The launcher from anywhere arrives on Ctrl+Space, which hold to talk had: hold to talk moves to its new key, unless
+    // the person chose its old one themselves or the new one is taken.
+    if !out.contains_key("launcherAnywhere") && out.get("holdToTalk").and_then(Value::as_str) == Some(OLD_HOLD_TO_TALK) {
+        let moved = fallback["holdToTalk"].clone();
+        if !out.values().any(|b| *b == moved) {
+            out.insert("holdToTalk".to_owned(), moved);
+        }
+    }
     for action in LATER_ACTIONS {
         if !out.contains_key(action) {
             let wanted = fallback[action].clone();
@@ -248,11 +258,32 @@ mod press_tests {
         let mut old = defaults();
         old.as_object_mut().unwrap().remove("holdToTalk");
         assert!(is_key_bindings(&old), "bindings saved before hold to talk are still read");
-        assert_eq!(renew(&old)["holdToTalk"], "mod+space");
+        assert_eq!(renew(&old)["holdToTalk"], "mod+shift+space");
         let mut taken = old.clone();
-        taken["launcher"] = json!("mod+space");
+        taken["launcher"] = json!("mod+shift+space");
         assert_eq!(renew(&taken)["holdToTalk"], "", "a key the person already gave away is not taken back");
         assert_eq!(renew(&defaults()), defaults());
-        assert_eq!(window_action_for(&defaults(), "mod+space"), None, "hold to talk is the panel's, not forwarded from pages");
+        assert_eq!(window_action_for(&defaults(), "mod+shift+space"), None, "hold to talk is the panel's, not forwarded from pages");
+    }
+
+    #[test]
+    fn the_launcher_from_anywhere_takes_ctrl_space_and_hold_to_talk_moves_over() {
+        let mut old = defaults();
+        old.as_object_mut().unwrap().remove("launcherAnywhere");
+        old["holdToTalk"] = json!("mod+space");
+        assert!(is_key_bindings(&old), "bindings saved before the launcher key are still read");
+        let renewed = renew(&old);
+        assert_eq!((renewed["launcherAnywhere"].as_str(), renewed["holdToTalk"].as_str()), (Some("mod+space"), Some("mod+shift+space")));
+        assert!(is_key_bindings(&renewed));
+        let mut chosen = old.clone();
+        chosen["holdToTalk"] = json!("mod+alt+h");
+        let renewed = renew(&chosen);
+        assert_eq!((renewed["launcherAnywhere"].as_str(), renewed["holdToTalk"].as_str()), (Some("mod+space"), Some("mod+alt+h")), "keys the person chose stay");
+        let mut busy = old.clone();
+        busy["find"] = json!("mod+shift+space");
+        let renewed = renew(&busy);
+        assert_eq!((renewed["launcherAnywhere"].as_str(), renewed["holdToTalk"].as_str()), (Some(""), Some("mod+space")), "nothing is taken from another action");
+        assert_eq!(to_accelerator("mod+space").as_deref(), Some("CommandOrControl+Space"));
+        assert_eq!(window_action_for(&defaults(), "mod+space"), None, "the launcher from anywhere is global, not a window action");
     }
 }
