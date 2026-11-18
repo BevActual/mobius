@@ -49,6 +49,9 @@ Frames on a canvas, as in Sketch and Figma.
   purple, and a copy takes their place. Insert more copies from the component's inspector. Change the component and
   every copy follows; a copy can still have its own text and colours. **Go to main** selects the component, and
   **Detach** turns a copy back into plain layers.
+- **Assets** (from the **Panels** menu, on the left) shows the design's components and colour styles. Choose a
+  component to place a copy in the first frame, or a colour style to put it on what is picked: a shape's or frame's
+  fill, or text's colour.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
