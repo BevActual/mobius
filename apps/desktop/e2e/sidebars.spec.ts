@@ -168,7 +168,7 @@ test('a section header folds what follows it, by click or key, and the fold is k
   await header.click();
   await expect(header).toHaveAttribute('aria-expanded', 'false');
   await expect(body).toBeHidden();
-  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Browser sidebar/Tabs');
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Tabs/Tabs');
   await header.press('Enter');
   await expect(header).toHaveAttribute('aria-expanded', 'true');
   await expect(body).toBeVisible();

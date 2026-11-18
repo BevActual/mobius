@@ -46,7 +46,7 @@ test('the Go button opens every app through the launcher, says where you are, an
   await start();
   await expect(shell().getByRole('navigation', { name: 'Apps' })).toHaveCount(0);
   await onApp('Browser');
-  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', '[aria-label="Notebooks"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
+  for (const [name, view] of [['Tasks', '.tasks-page'], ['Notes', 'aside[aria-label="Notebooks"]'], ['Search', '.search-page'], ['Home', '.chat.full']] as const) {
     await open(name);
     await expect(shell().locator(view)).toBeVisible();
     await onApp(name);
