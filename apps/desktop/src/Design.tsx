@@ -763,6 +763,46 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
     </div>
   ) }];
 
+  // Layers (left, under the list of designs): the frames and their layers as a tree, as Figma and Sketch keep them.
+  const layersPanel: PanelSpec = { id: 'layers', name: 'Layers', dock: 'left', shown: true, render: () => (
+    <nav className="design-layers" aria-label="Layers">
+      {doc.frames.length === 0 && (
+        <div className="design-layers-empty">
+          <p>No frames yet.</p>
+          <button type="button" className="btn" title="New frame (F)" onClick={() => add('frame')}>New frame</button>
+        </div>
+      )}
+      <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
+        {doc.frames.map((f) => (
+          <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
+            {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
+              <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
+                <span className="design-layer-kind" aria-hidden="true" data-component={f.component || undefined}><Icon d={f.component ? ICON.component : ICON.frame} /></span>{f.name}
+              </button>
+            )}
+            <ul role="group">
+              {[...f.children].reverse().map((n) => (
+                <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
+                  draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
+                  onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
+                  {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
+                    <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
+                      <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
+                        <span className="design-layer-kind" aria-hidden="true" data-component={n.type === 'instance' || undefined}><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
+                      </button>
+                      <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
+                      <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  ) };
   return (
     <section className="design-page" aria-label="Design">
       <ToolbarControls label="Design">
@@ -784,46 +824,8 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
           </span>
         </div>
       </ToolbarControls>
-      <PanelLayout app="design" panels={[...listPanels, assets, ...panels]}>
+      <PanelLayout app="design" panels={[...listPanels, layersPanel, assets, ...panels]}>
       <div className="design-body">
-        <nav className="design-layers" aria-label="Layers">
-          <div className="design-panel-title">Layers</div>
-          {doc.frames.length === 0 && (
-            <div className="design-layers-empty">
-              <p>No frames yet.</p>
-              <button type="button" className="btn" title="New frame (F)" onClick={() => add('frame')}>New frame</button>
-            </div>
-          )}
-          <ul role="tree" aria-label="Frames and layers" aria-multiselectable>
-            {doc.frames.map((f) => (
-              <li key={f.id} role="treeitem" aria-selected={isPicked(f.id)} aria-expanded data-drop={moving?.target === f.id || undefined} onDragOver={(e) => { if (!moving) return; e.preventDefault(); if (moving.target !== f.id) setMoving({ id: moving.id, target: f.id, place: 'above' }); }} onDrop={(e) => { e.preventDefault(); dropLayer(); }}>
-                {renaming === f.id ? <RenameField name={f.name} onDone={(name) => { setRenaming(null); if (name && name !== f.name) change((d) => { const x = d.frames.find((y) => y.id === f.id); if (x) x.name = name; }); }} /> : (
-                  <button type="button" className="design-layer" data-frame aria-current={isPicked(f.id) || undefined} data-changed={changed.has(f.id) || undefined} onClick={(e) => pick(f.id, e.shiftKey)} onDoubleClick={() => setRenaming(f.id)} onContextMenu={(e) => openMenu(e, f.id)}>
-                    <span className="design-layer-kind" aria-hidden="true" data-component={f.component || undefined}><Icon d={f.component ? ICON.component : ICON.frame} /></span>{f.name}
-                  </button>
-                )}
-                <ul role="group">
-                  {[...f.children].reverse().map((n) => (
-                    <li key={n.id} role="treeitem" aria-selected={isPicked(n.id)} data-drop={moving?.target === n.id ? moving.place : undefined}
-                      draggable={renaming !== n.id} onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', n.name); setMoving({ id: n.id }); }} onDragEnd={() => setMoving(null)}
-                      onDragOver={(e) => { if (!moving) return; e.preventDefault(); e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const place = e.clientY < r.top + r.height / 2 ? 'above' : 'below'; if (moving.target !== n.id || moving.place !== place) setMoving({ id: moving.id, target: n.id, place }); }}
-                      onDrop={(e) => { e.preventDefault(); e.stopPropagation(); dropLayer(); }}>
-                      {renaming === n.id ? <RenameField name={n.name} onDone={(name) => { setRenaming(null); if (name && name !== n.name) change((d) => { const x = findNode(d, n.id)?.node; if (x) x.name = name; }); }} /> : (
-                        <div className="design-layer-row" aria-current={isPicked(n.id) || undefined} data-hidden={n.hidden || undefined}>
-                          <button type="button" className="design-layer" aria-current={isPicked(n.id) || undefined} data-changed={changed.has(n.id) || undefined} onClick={(e) => pick(n.id, e.shiftKey)} onDoubleClick={() => setRenaming(n.id)} onContextMenu={(e) => openMenu(e, n.id)}>
-                            <span className="design-layer-kind" aria-hidden="true" data-component={n.type === 'instance' || undefined}><Icon d={ICON[n.type]} /></span><span className="design-layer-name">{n.name}</span>
-                          </button>
-                          <button type="button" className="design-layer-flag" data-on={n.locked || undefined} aria-label={`${n.locked ? 'Unlock' : 'Lock'} ${n.name}`} title={n.locked ? 'Unlock (Ctrl+Shift+L)' : 'Lock (Ctrl+Shift+L)'} onClick={() => toggle('locked', [n.id])}><Icon d={n.locked ? ICON.locked : ICON.unlocked} /></button>
-                          <button type="button" className="design-layer-flag" data-on={n.hidden || undefined} aria-label={`${n.hidden ? 'Show' : 'Hide'} ${n.name}`} title={n.hidden ? 'Show (Ctrl+Shift+H)' : 'Hide (Ctrl+Shift+H)'} onClick={() => toggle('hidden', [n.id])}><Icon d={n.hidden ? ICON.hidden : ICON.shown} /></button>
-                        </div>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </li>
-            ))}
-          </ul>
-        </nav>
         <div
           className="design-view"
           ref={view}
