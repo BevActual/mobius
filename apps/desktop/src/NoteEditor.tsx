@@ -254,7 +254,7 @@ export function untitledHeading(editor: Editor): { from: number; to: number } | 
  * `autoFocus` is off when the page opens in the pane beside the one you are working in, so typing stays where it was.
  * `review`: the agent's last turn changed this page; the editor offers to show what changed and to put it back.
  */
-export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, review, working = false }: { notes: NotesState; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Puts a message in Mobius's box, ready to send: after a meeting, the summary and actions. */ onAsk?: (prompt: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
+export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, recordToken = 0, review, working = false }: { notes: NotesState; /** Changed to start recording a meeting into the open page (Calendar's Record meeting). */ recordToken?: number; autoFocus?: boolean; onSelection?: (action: SelectionAction, text: string) => void; /** Puts a message in Mobius's box, ready to send: after a meeting, the summary and actions. */ onAsk?: (prompt: string) => void; /** Mobius's turn is still running: its changes show as they come, and their answers wait for the end. */ working?: boolean; review?: { conversation: string } | null }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const section = useRef<HTMLElement>(null);
   const path = notes.page?.path;
@@ -491,6 +491,10 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, review
     setMeetingDone({ path: page, title: liveTitle(notes.text, page.split('/').pop()?.replace(/\.md$/, '') ?? 'Note') });
   });
   useEffect(() => { setMeetingDone((m) => (m && m.path !== path ? null : m)); }, [path]);
+  const startMeeting = () => { meetingPage.current = pathNow.current ?? null; setMeetingDone(null); meeting.start(); };
+  const startLatest = useRef(startMeeting);
+  startLatest.current = startMeeting;
+  useEffect(() => { if (recordToken && pathNow.current && meeting.state === 'idle' && recording.state === 'idle') startLatest.current(); }, [recordToken]); // eslint-disable-line react-hooks/exhaustive-deps
   const clip = async (url: string) => {
     const address = /^https?:\/\//i.test(url.trim()) ? url.trim() : `https://${url.trim()}`;
     const got = await window.mobius.reading?.fetch(address);
@@ -703,7 +707,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, review
       { label: 'Table', icon: TABLE_ICON, run: () => { if (source || !editor) put(TABLE); else editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); } },
       ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
       { label: 'Dictate', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: recording.toggle },
-      { label: 'Record a meeting', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: () => { meetingPage.current = path ?? null; setMeetingDone(null); meeting.start(); } },
+      { label: 'Record a meeting', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: startMeeting },
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
     ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CHECKLIST, TABLE, clipBlock, insertBlock, meetingAsk, meetingBlock, recordingBlock, tidyMarkdown } from './note-insert';
+import { CHECKLIST, TABLE, clipBlock, insertBlock, meetingAsk, meetingBlock, meetingNote, recordingBlock, tidyMarkdown } from './note-insert';
 
 describe('note insert', () => {
   it('puts a block on lines of its own at the cursor', () => {
@@ -21,6 +21,13 @@ describe('note insert', () => {
     const ask = meetingAsk('Standup', 'Work/Standup.md');
     expect(ask).toContain('"Standup" (Work/Standup.md)');
     expect(ask).toContain('Add each action to Tasks');
+  });
+
+  it('names a calendar event meeting page for its day and title, and says which event it was', () => {
+    const page = meetingNote({ title: 'Plan: Q1 / budget', start: '2026-11-18T14:00', end: '2026-11-18T15:00', allDay: false, calendar: 'Work', location: 'Room 4' });
+    expect(page.title).toBe('2026-11-18 Plan Q1 budget');
+    expect(page.content).toBe('# 2026-11-18 Plan Q1 budget\n\nEvent: Plan: Q1 / budget  \nWhen: 2026-11-18, 14:00–15:00  \nCalendar: Work  \nWhere: Room 4\n');
+    expect(meetingNote({ title: '', start: '2026-11-19', end: '2026-11-20', allDay: true, calendar: 'Home', location: '' }).content).toBe('# 2026-11-19 Meeting\n\nEvent: Meeting  \nWhen: 2026-11-19  \nCalendar: Home\n');
   });
 });
 
