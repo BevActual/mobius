@@ -19,7 +19,11 @@ in [Theme tokens](theme-tokens.md); [Design rules](rules.md) gives the rules.
 +---------+------------------------------------------+------+--------+
 ```
 
-The shell draws only the **top bar**, the **content** area and **Mobius** at the right edge. Everything else is the
+The shell draws only the **top bar**, the **content** area and **Mobius** at the right edge. The top bar spans the
+whole window, and every panel, Mobius included, starts below it (Andrew, 17 November 2026: it unifies the look and
+keeps the apps modular; Ableton Live is the model: its control bar runs across the top and the browser, detail
+view and devices sit below it). The Go button and title stay in the same place in every app, whatever panels it has, and on
+Windows the window controls share the bar's row. Everything else is the
 app's: which panels it has, which dock each sits in (left, right of the content, bottom), and which show the first
 time it is opened. There is no app rail and no shared sidebar.
 
