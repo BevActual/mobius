@@ -38,20 +38,12 @@ export function meetingBlock(parts: string[], seconds: number, started: Date = n
 export const MEETINGS_NOTEBOOK = 'Meetings';
 
 /** The page a calendar event's meeting is written in: named for its day and title, and saying which event it was. */
-<<<<<<< HEAD
 export function meetingNote(event: { title: string; start: string; end: string; allDay: boolean; calendar: string; location: string; attendees?: { name: string; email: string }[] }): { title: string; content: string } {
-=======
-export function meetingNote(event: { title: string; start: string; end: string; allDay: boolean; calendar: string; location: string }): { title: string; content: string } {
->>>>>>> origin/main
   const day = event.start.slice(0, 10);
   const name = (event.title.trim() || 'Meeting').replace(/[\\/:*?"<>|#[\]]/g, ' ').replace(/\s+/g, ' ').trim();
   const title = `${day} ${name}`.slice(0, 100);
   const when = event.allDay ? day : `${day}, ${event.start.slice(11, 16)}–${event.end.slice(11, 16)}`;
-<<<<<<< HEAD
   const facts = [`Event: ${event.title.trim() || 'Meeting'}`, `When: ${when}`, `Calendar: ${event.calendar}`, ...(event.location.trim() ? [`Where: ${event.location.trim()}`] : []), ...(event.attendees?.length ? [`With: ${event.attendees.map((p) => p.name || p.email).join(', ')}`] : [])];
-=======
-  const facts = [`Event: ${event.title.trim() || 'Meeting'}`, `When: ${when}`, `Calendar: ${event.calendar}`, ...(event.location.trim() ? [`Where: ${event.location.trim()}`] : [])];
->>>>>>> origin/main
   return { title, content: `# ${title}\n\n${facts.join('  \n')}\n` };
 }
 
