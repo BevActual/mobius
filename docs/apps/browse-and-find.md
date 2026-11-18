@@ -76,6 +76,9 @@ keep.
 
 ![The Research app in Mobius](../readme/apps/research.png)
 
+- **Reports** are on the left, and **Sources**, numbered as the report cites them, are on the right. Each is a panel you can hide or resize.
+- **The toolbar** shows how many sources the report has and how many facts are marked as coming from the web. It also has **Edit**, which shows the report's text so you can change it.
+
 **Kept in:** `workspace/research/`, each report a Markdown file.
 
 ## Reader

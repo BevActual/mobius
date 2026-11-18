@@ -69,7 +69,8 @@ test('a question becomes a report with its sources, written by Mobius from the w
   await expect(sources.getByRole('link')).toHaveCount(1);
   await expect(sources.getByRole('link')).toContainText('Casa Amora');
   await expect(sources.getByRole('link')).toContainText('rooms and breakfast');
-  await expect(report1).toContainText('1 source · 1 fact marked from the web');
+  // The count of sources sits in the window's toolbar, with Edit.
+  await expect(shell.getByRole('group', { name: 'Report' })).toContainText('1 source · 1 fact marked from the web');
   await expect(report1).toContainText('Mobius wrote this report in its last turn.');
   await report1.getByRole('button', { name: 'Keep' }).click();
   await expect(report1).not.toContainText('in its last turn');
