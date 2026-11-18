@@ -44,7 +44,7 @@ export function ReviewSidebar({ review, pin }: { review: ReviewState; pin: React
     </li>
   );
   return (
-    <aside className="side review-side" aria-label="Review sidebar">
+    <aside className="side review-side" aria-label="Changes">
       <div className="side-head"><span className="side-title">Review</span><span className="side-actions">{pin}</span></div>
       <ul className="review-filters" aria-label="Show">
         {row('all', 'Everything Mobius changed', total)}

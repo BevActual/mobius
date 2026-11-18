@@ -71,7 +71,7 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; s
   const box = (b: MailBox, count?: number) => <SidebarRow label={BOX_NAMES[b]} {...(count ? { count } : {})} current={inBox(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
   const suggested = mail.drafts.filter((d) => d.by === 'mobius').length;
   return (
-    <AppSidebar label="Mail sidebar">
+    <AppSidebar label="Mailboxes">
       <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} />
       <SidebarSearch label="Search mail" value={mail.query} onChange={mail.setQuery} />
       <SidebarSection title="Mailboxes" action={<>

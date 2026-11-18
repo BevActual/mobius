@@ -7,7 +7,7 @@ export function TerminalSidebar({ term, pin }: { term: TerminalState; pin: React
   const running = term.processes.filter((p) => p.running);
   const [open, setOpen] = useState<number | null>(null);
   return (
-    <aside className="side term-side" aria-label="Terminal sidebar">
+    <aside className="side term-side" aria-label="Sessions">
       <div className="side-head">
         <span className="side-title">Places</span>
         <span className="side-actions">{pin}</span>

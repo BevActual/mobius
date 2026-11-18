@@ -124,7 +124,7 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
   const shownSkills = skills.list.filter((s) => matches(q, s.name, s.description));
   const row = (p: ExtensionPlace, count: number) => <SidebarRow label={PLACE_NAMES[p]} {...(count ? { count } : {})} current={place === p && !(p === 'skills' && skills.open)} onSelect={() => { onPlace(p); if (p === 'skills') skills.close(); }} />;
   return (
-    <AppSidebar label="Abilities sidebar">
+    <AppSidebar label="Kinds">
       <SidebarSearch label="Search abilities" value={q} onChange={setQ} />
       <SidebarSection title="Apps" action={pin}>
         {row('installed', installed.length)}

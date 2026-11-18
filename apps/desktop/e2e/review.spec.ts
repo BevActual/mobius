@@ -54,7 +54,7 @@ test('Review lists what Mobius changed in every app, by turn, to open or put bac
   await expect(page.getByRole('article').nth(1)).toContainText('“Say who is coming”');
 
   // By app: only Canvas's change.
-  const side = shell.getByRole('complementary', { name: 'Review sidebar' });
+  const side = shell.getByRole('complementary', { name: 'Changes' });
   await side.getByRole('button', { name: /^Canvas/ }).click();
   await expect(page.getByRole('article')).toHaveCount(1);
   await expect(page).toContainText('Offsite / Ideas');

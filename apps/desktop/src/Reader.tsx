@@ -35,7 +35,7 @@ export function ReaderSidebar({ reading, pin, changed }: { reading: NotesState; 
   const proposed = [...(changed ?? [])];
   const remove = async (path: string) => { await reading.remove(path); };
   return (
-    <AppSidebar label="Reader sidebar">
+    <AppSidebar label="Library">
       <SideNew item="article" onNew={() => sendCommand('save-link')} title={`Save a link (${newKeys()})`} />
       <SidebarSearch label="Search articles" value={query} onChange={setQuery} />
       {lists.map((nb, i) => {

@@ -65,7 +65,7 @@ test('channels by account, a channel read and its thread, Send only from the per
     };
   });
   await openMessages();
-  const side = shell().getByRole('complementary', { name: 'Messages sidebar' });
+  const side = shell().getByRole('complementary', { name: 'Channels' });
   await expect(side.getByRole('region', { name: 'Northway · Slack' })).toBeVisible();
   await side.getByRole('button', { name: /^#general/ }).click();
   const log = shell().getByRole('log', { name: '#general', exact: true });

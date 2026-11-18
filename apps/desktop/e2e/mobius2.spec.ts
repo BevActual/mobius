@@ -53,7 +53,7 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   // Clicking a pane makes it the one the toolbar and sidebar follow.
   // Its name, not the middle of the header, where (by window size) one of the app buttons can sit.
   await right.locator('.pane-name').click();
-  await expect(shell().getByRole('complementary', { name: 'Notes sidebar' })).toBeVisible();
+  await expect(shell().getByRole('complementary', { name: 'Notebooks' })).toBeVisible();
   await right.getByRole('button', { name: 'Swap panes' }).click();
   await expect(shell().getByRole('region', { name: 'Left pane: Notes' })).toBeVisible();
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
@@ -82,7 +82,7 @@ test('text selected in a note becomes a task in one click', async () => {
   fs.writeFileSync(workspace('tasks', 'Inbox.md'), '# Inbox\n\n- [ ] Existing\n');
   await start();
   await openApp('Notes');
-  await shell().getByRole('complementary', { name: 'Notes sidebar' }).getByRole('button', { name: 'Plan', exact: true }).click();
+  await shell().getByRole('complementary', { name: 'Notebooks' }).getByRole('button', { name: 'Plan', exact: true }).click();
   const text = shell().getByRole('textbox', { name: 'Note text' });
   await expect(text).toContainText('Call the printer');
   // The whole sentence, chosen with three clicks.

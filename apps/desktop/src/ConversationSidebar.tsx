@@ -314,7 +314,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   // Agents' runs (not Mobius's own sessions) that are waiting for you.
   const waiting = conversations.filter((c) => botOfConversation(c.id, known) !== MAIN_BOT_ID && c.activity === 'needs_you').length;
   return (
-    <AppSidebar label="Agent sidebar" className="agent-side">
+    <AppSidebar label="Chats" className="agent-side">
       {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
       {/* Search on its own row, as in Mail; the pin goes on the first section's quiet heading. */}
       {searchable && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
