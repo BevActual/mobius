@@ -128,3 +128,11 @@
 .kn-diff-line[data-block="done"] .kn-diff-text::before { content: '●'; color: var(--ink); }
 .kn-diff-line[data-block="quote"] .kn-diff-text { padding-left: var(--sp-3); box-shadow: inset 3px 0 0 var(--line-strong); color: var(--muted); }
 .kn-version-bar .btn { flex: none; white-space: nowrap; }
+
+/* Links here, the right panel: pages that link to this one, a row each. */
+.wiki-links { display: grid; margin: 0; padding: var(--sp-2); list-style: none; }
+.wiki-links button { display: grid; align-content: center; width: 100%; height: var(--row-reading); padding: 0 var(--sp-2); border-radius: var(--radius-control); text-align: left; line-height: var(--lh-tight); }
+.wiki-links button > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wiki-links button:hover { background: var(--sel); }
+.wiki-link-book { color: var(--muted); font-size: var(--fs-sm); }
+.wiki-links-empty { margin: 0; padding: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { MemoryCategory, MemoryItem, WikiChange, WikiVersion } from '@mobius/shared';
 import type { NotesState } from './useNotes';
 import type { Item } from './conversation';
@@ -6,7 +6,8 @@ import { createPortal } from 'react-dom';
 import { ContextMenu } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { SideNew } from './SideNew';
-import { UndoToast } from './ui';
+import { PanelTab, UndoToast } from './ui';
+import { linkedFrom } from './note-links';
 import { relativeTime } from './relative-time';
 import { DocEditor } from './Docs';
 import { dayLabel, nearDayLabel, timeLabel } from './dates';
@@ -360,8 +361,27 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
       {putBack && !open && (
         <UndoToast text={`Put back the version from ${putBack.label}.`} onUndo={() => { wiki.edit(putBack.was); setPutBack(null); }} onDismiss={() => setPutBack(null)} />
       )}
+      <PanelTab id="links" name="Links here"><LinksHere wiki={wiki} path={path} /></PanelTab>
       {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
+  );
+}
+
+/** Links here (right, hidden until asked for): the pages that link to this one, newest first; a click opens one. */
+function LinksHere({ wiki, path }: { wiki: NotesState; path: string | null }) {
+  const pages = useMemo(() => (path ? linkedFrom(wiki.notebooks, path) : []), [wiki.notebooks, path]);
+  if (pages.length === 0) return <p className="wiki-links-empty">No other page links here yet.</p>;
+  return (
+    <ul className="wiki-links" aria-label="Pages that link here">
+      {pages.map((pg) => (
+        <li key={pg.path}>
+          <button type="button" onClick={() => void wiki.open(pg.path, pg.title)}>
+            <span className="wiki-link-title">{pg.title}</span>
+            <span className="wiki-link-book">{pg.notebook}{pg.preview ? ` · ${pg.preview}` : ''}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
