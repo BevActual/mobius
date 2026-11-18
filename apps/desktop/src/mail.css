@@ -118,3 +118,25 @@
 .mail-sources { list-style: none; margin: 0 0 var(--sp-2); padding: 0; display: grid; gap: 2px; }
 .mail-source { display: flex; gap: var(--sp-2); width: 100%; padding: var(--sp-1) var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: none; color: inherit; font: inherit; font-size: var(--fs-sm); text-align: left; cursor: pointer; }
 .mail-source span { color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Mail's Contact panel (ContactPanel): the sender as the address book has them, and their recent mail. */
+.contact-card { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); }
+.contact-empty { margin: 0; padding: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+.contact-head { display: flex; align-items: center; gap: var(--sp-3); }
+.contact-initial { flex: none; display: inline-grid; place-items: center; width: 40px; height: 40px; border-radius: 50%; background: var(--soft); color: var(--ink); font-weight: var(--fw-semibold); }
+.contact-who { display: flex; flex-direction: column; min-width: 0; }
+.contact-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-org { color: var(--muted); font-size: var(--fs-sm); }
+.contact-fields { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; }
+.contact-fields > div { display: flex; flex-direction: column; }
+.contact-fields dt { color: var(--muted); font-size: var(--fs-xs); text-transform: capitalize; }
+.contact-fields dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.contact-note { margin: 0; color: var(--muted); font-size: var(--fs-sm); white-space: pre-wrap; }
+.contact-add { align-self: flex-start; }
+.contact-problem { margin: 0; color: var(--danger, var(--ink)); font-size: var(--fs-sm); }
+.contact-recent { display: flex; flex-direction: column; gap: var(--sp-1); }
+.contact-recent-title { margin: 0 0 var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.contact-recent-row { display: flex; align-items: baseline; gap: var(--sp-2); min-height: var(--row-side, 30px); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; text-align: left; }
+.contact-recent-row:hover { background: var(--soft); }
+.contact-recent-subject { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contact-recent-when { flex: none; color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
