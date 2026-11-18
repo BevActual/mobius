@@ -9,6 +9,8 @@
   --film-shadow: rgba(0, 0, 0, 0.6);
   display: flex; flex-direction: column; min-height: 0; background: var(--bg); color: var(--ink); font-size: var(--fs-md);
 }
+.video-page > .ui-panels { flex: 1; min-height: 0; height: auto; }
+.video-main { display: flex; flex-direction: column; min-height: 0; }
 .video-page.empty { align-items: center; justify-content: center; padding: var(--sp-6); }
 .video-page svg, .ui-toolbar-group .video-zoom svg { width: var(--sp-5); height: var(--sp-5); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .video-page svg[data-fill] { fill: currentColor; stroke: none; }
@@ -65,7 +67,8 @@
 .video-link { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 
 /* The timeline: a ruler to scrub, the shots as filmstrips, and the playhead over both. */
-.video-timeline { flex-shrink: 0; height: calc(var(--row-list) * 4); overflow-x: auto; overflow-y: hidden; padding: 0 var(--sp-4) var(--sp-3); background: var(--panel); border-top: var(--hairline-w) solid var(--line); }
+/* It is the Timeline panel in the bottom dock, which draws its edge and header. */
+.video-timeline { height: 100%; min-height: calc(var(--row-list) * 3); overflow-x: auto; overflow-y: hidden; padding: 0 var(--sp-4) var(--sp-3); }
 .video-track-wrap { position: relative; height: 100%; }
 .video-ruler { position: relative; height: var(--panel-head-h); cursor: ew-resize; user-select: none; }
 .video-mark { position: absolute; top: 0; bottom: var(--sp-1); padding: var(--sp-1) 0 0 var(--sp-1); border-left: var(--hairline-w) solid var(--line-strong); color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-floor); font-variant-numeric: tabular-nums; }
