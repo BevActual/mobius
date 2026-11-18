@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, views, type Fixture, type Launched, openSettings, resizeWindow } from './harness';
+import { goTo, goToPlace, launch, startFixture, views, type Fixture, type Launched, openSettings, resizeWindow } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -8,7 +8,7 @@ test.beforeEach(async () => {
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
   // These tests are about the app's own list beside the page, at the window's left edge (no rail).
-  await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 15_000 });
+  await expect(shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])')).toHaveCount(1, { timeout: 15_000 });
 });
 test.afterEach(async () => {
   await mobius?.close();
@@ -19,7 +19,7 @@ test.afterEach(async () => {
 const shell = () => mobius!.shell;
 const tabs = (): Locator => shell().getByRole('complementary', { name: 'Browser sidebar' });
 const agentPanel = (): Locator => shell().getByRole('complementary', { name: 'Agent', exact: true });
-const left = (): Locator => shell().locator('.dock.left');
+const left = (): Locator => shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])');
 const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
 const setAppearance = (change: object) => shell().evaluate((c) => window.mobius.appearance.set(c), change);
@@ -112,17 +112,20 @@ test('a floating agent panel appears from the right edge and hides again', async
   await expect.poll(pageVisible).toBe(true);
 });
 
-test('the conversation list in the Agent app floats and resizes the same way', async () => {
-  await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
-  await shell().keyboard.press('Enter');
-  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
-  await shell().getByRole('complementary', { name: 'Agent sidebar' }).getByRole('button', { name: 'Float the list' }).click();
-  await shell().keyboard.press('Escape');
-  await shell().locator('.context-strip').click({ position: { x: 4, y: 4 } });
-  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toHaveCount(0);
-  await shell().getByRole('button', { name: 'Show conversations' }).click();
-  await expect(shell().getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+test('Home keeps its chats in a panel of its own: on the left, hidden and shown again with Ctrl+\\, and kept that way', async () => {
+  await goToPlace(shell(), 'Home');
+  const chats = shell().getByRole('region', { name: 'Chats' });
+  await expect(chats.getByRole('complementary', { name: 'Agent sidebar' })).toBeVisible();
+  await expect(shell().locator('.dock.left')).toHaveCount(0);
+  await shell().keyboard.press('Control+Backslash');
+  await expect(chats).toHaveCount(0);
+  await shell().keyboard.press('Control+Backslash');
+  await expect(chats).toBeVisible();
+  await chats.getByRole('button', { name: 'Hide Chats' }).click();
+  await expect(chats).toHaveCount(0);
+  await goTo(shell(), 'Notes');
+  await goToPlace(shell(), 'Home');
+  await expect(chats).toHaveCount(0);
 });
 
 test('a sidebar can be dragged wider and narrower, within limits, and the width is kept', async () => {

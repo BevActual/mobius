@@ -87,7 +87,8 @@ import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
-import { AppFrame, InspectorDock, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState } from './ui';
+import { parseLayout } from './ui/PanelLayout';
+import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { nest, smartName, smartView } from './tasks-view';
@@ -165,6 +166,14 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
   const got = await Promise.all(list.slice(0, 20).map((p) => Promise.resolve(read(p.path)).catch(() => null)));
   return contactSheet(got.flatMap((g) => (g && typeof g === 'object' && 'dataUrl' in g && typeof g.dataUrl === 'string' ? [g.dataUrl] : [])));
 }
+
+/**
+ * Apps that own their list as a left panel of their own (docs/design/panel-layouts.md, "Default layout per app"): the
+ * shell draws no list for them, and the panel is shown, hidden and sized per app like any other. The name is the
+ * panel's header. Home's list is named for what it shows: chats, agents or activity.
+ */
+const NO_PANELS: readonly PanelSpec[] = [];
+const OWN_LIST: Partial<Record<AppId, string>> = { agent: 'Chats', mail: 'Mailboxes', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places' };
 
 export function App() {
   const browser = useBrowser();
@@ -645,7 +654,14 @@ export function App() {
   const opener = useRef<HTMLElement | null>(null);
 
   // Where the sidebars sit and how wide they are. A floating one hides until asked for, and draws over the window.
-  const hasAppList = inBrowser || inSearch || inAgent || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar;
+  // Each own-list app's panel, made once: its body is drawn from the latest render through the ref.
+  const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
+  const homeListName = sideMode === 'activity' ? 'Activity' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
+  // The apps still listed here have their list drawn by the shell; an app in OWN_LIST draws its own, as a panel.
+  const hasAppList = inBrowser || inSearch || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inSheets || inSlides;
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -1019,41 +1035,87 @@ export function App() {
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   // These apps' own sidebar lists start with their New row, so the head's New is left out.
   const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets'];
+  // An app's own list (OWN_LIST): the same list as before, under the panel's header, with New and the pinned items.
+  const ownListBody = (id: AppId): ReactNode => {
+    const list = (() => {
+      switch (id) {
+        case 'agent':
+          return inActivity ? <ActivitySidebar feed={activityFeed} conversations={conversation.list} pin={null} /> : (
+            <ConversationSidebar
+              conversations={conversation.list}
+              active={conversation.id}
+              canStartNew={conversation.state.items.length > 0 || conversation.state.busy}
+              onNew={() => conversation.newConversation()}
+              bots={bots.bots}
+              archived={archive.archived}
+              {...(archive.archive ? { onArchive: archive.archive } : {})}
+              mode={sideMode}
+              onMode={setSideMode}
+              agentView={agentView}
+              onShowAgent={setAgentView}
+              onNewWithBot={(bot) => conversation.newConversation(bot)}
+              onMoveBot={bots.move}
+              onRemoveBot={async (bot) => {
+                const wasHere = botOfConversation(conversation.id, botIds) === bot;
+                const result = await bots.remove(bot);
+                if (result.ok && wasHere) conversation.startFresh(MAIN_BOT_ID);
+                if (result.ok && agentView?.kind === 'show' && agentView.id === bot) setAgentView(null);
+                void conversation.refresh();
+                return result;
+              }}
+              onSelect={conversation.select}
+              onOpenSchedules={() => openSettingsAt('schedules')}
+              onDelete={conversation.remove}
+            />
+          );
+        case 'notes':
+          return <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={null} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />;
+        case 'files':
+          return <FilesSidebar files={files} pin={null} />;
+        case 'mail':
+          return <MailSidebar mail={mail} pin={null} starts={startsFor('mail')} onStart={startWithMobius} />;
+        case 'docs':
+          return <DocsSidebar synced={syncedIn('docs')} docs={docs} pin={null} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />;
+        case 'calendar':
+          return <CalendarSidebar calendar={calendar} pin={null} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />;
+        case 'tasks':
+          return <TasksSidebar tasks={tasks} pin={null} changed={liveMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />;
+        default:
+          return null;
+      }
+    })();
+    return (
+      <SidebarHead
+        create={id === 'agent' || createInList.includes(id) ? undefined : createFor(id)}
+        favourites={favourites}
+        onOpenFavourite={openFavourite}
+        onUnpin={togglePin}
+        onReorderFavourites={(next) => void appearance.set({ favourites: next })}
+        currentFavourite={currentFavourite}
+      >
+        {list}
+        <CommentsGroup threads={openComments} onOpen={(t) => { if (t.doc === commentDoc) setCommentFocus(t.id); }} />
+      </SidebarHead>
+    );
+  };
+  ownListRef.current = ownListBody;
+  const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
+    const panels = ownListPanels[id];
+    return panels ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
+  };
+  // Whether the open app's own list is showing, as it was kept (for the View menu's tick).
+  const ownListShown = (() => {
+    try { return parseLayout(window.localStorage.getItem(`mobius.layout.${app}`)).shown.list ?? true; } catch { return true; }
+  })();
+  // The View menu's Sidebar, in an app with its own list: the same as its key, which the app's layout answers.
+  const toggleOwnList = () => {
+    const mac = window.mobius.platform === 'darwin';
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', code: 'Backslash', ctrlKey: !mac, metaKey: mac, bubbles: true, cancelable: true }));
+  };
+
   const appSidebar = (pinNode: ReactNode) => settingsOpen ? <div ref={setSettingsSlot} className="settings-side" /> : (
           <>
-            {inActivity ? (
-              <ActivitySidebar feed={activityFeed} conversations={conversation.list} pin={pinNode} />
-            ) : inAgent ? (
-              <ConversationSidebar
-                conversations={conversation.list}
-                active={conversation.id}
-                canStartNew={conversation.state.items.length > 0 || conversation.state.busy}
-                onNew={() => conversation.newConversation()}
-                bots={bots.bots}
-                archived={archive.archived}
-                {...(archive.archive ? { onArchive: archive.archive } : {})}
-                mode={sideMode}
-                onMode={setSideMode}
-                agentView={agentView}
-                onShowAgent={setAgentView}
-                onNewWithBot={(id) => conversation.newConversation(id)}
-                onMoveBot={bots.move}
-                onRemoveBot={async (id) => {
-                  const wasHere = botOfConversation(conversation.id, botIds) === id;
-                  const result = await bots.remove(id);
-                  if (result.ok && wasHere) conversation.startFresh(MAIN_BOT_ID);
-                  if (result.ok && agentView?.kind === 'show' && agentView.id === id) setAgentView(null);
-                  void conversation.refresh();
-                  return result;
-                }}
-                onSelect={conversation.select}
-                onOpenSchedules={() => openSettingsAt('schedules')}
-                onDelete={conversation.remove}
-                pin={pinNode}
-              />
-            ) : inNotes ? (
-              <NotesSidebar synced={syncedIn('notes')} notes={notes} tags pin={pinNode} changed={liveMarks.notes} pinned={pinnedNotes} onPin={(path, title) => togglePin({ kind: 'note', id: path, title })} starts={startsFor('notes')} onStart={startWithMobius} />
-            ) : inSkills ? (
+            {inSkills ? (
               <ExtensionsSidebar place={extPlace} onPlace={setExtPlace} skills={skills} pin={pinNode} changed={liveMarks.skills} />
             ) : inVideo ? (
               <VideoSidebar video={video} pin={pinNode} changed={liveMarks.video} />
@@ -1063,8 +1125,6 @@ export function App() {
               <PhotoSidebar photos={photos} pin={pinNode} changed={liveMarks.photos} />
             ) : inDesign ? (
               <DesignSidebar designs={designs} pin={pinNode} changed={liveMarks.designs} starts={startsFor('design')} onStart={startWithMobius} />
-            ) : inFiles ? (
-              <FilesSidebar files={files} pin={pinNode} />
             ) : inReview ? (
               <ReviewSidebar review={review} pin={pinNode} />
             ) : inTerminal ? (
@@ -1085,20 +1145,12 @@ export function App() {
               <CanvasSidebar boards={boards} pin={pinNode} changed={liveMarks.boards} starts={startsFor('canvas')} onStart={startWithMobius} />
             ) : inCode ? (
               <CodeSidebar code={code} pin={pinNode} changed={liveMarks.code} starts={startsFor('code')} onStart={startWithMobius} />
-            ) : inMail ? (
-              <MailSidebar mail={mail} pin={pinNode} starts={startsFor('mail')} onStart={startWithMobius} />
             ) : inSlides ? (
               <SlidesSidebar slides={slides} pin={pinNode} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
             ) : inSheets ? (
               <SheetsSidebar sheets={sheets} pin={pinNode} changed={liveMarks.sheets} starts={startsFor('sheets')} onStart={startWithMobius} />
-            ) : inDocs ? (
-              <DocsSidebar synced={syncedIn('docs')} docs={docs} pin={pinNode} changed={liveMarks.docs} starts={startsFor('docs')} onStart={startWithMobius} />
-            ) : inCalendar ? (
-              <CalendarSidebar calendar={calendar} pin={pinNode} changed={liveMarks.calendars} review={liveMarks.calendars.size > 0 ? { conversation: conversation.state.conversation, calendars: [...liveMarks.calendars] } : null} onNew={createFor('calendar')!.run} starts={startsFor('calendar')} onStart={startWithMobius} />
             ) : inSearch ? (
               <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={pinNode} />
-            ) : inTasks ? (
-              <TasksSidebar tasks={tasks} pin={pinNode} changed={liveMarks.lists} pinned={pinnedLists} onPin={(name) => togglePin({ kind: 'list', id: name, title: name })} starts={startsFor('tasks')} onStart={startWithMobius} />
             ) : (
           <BrowserSidebar tabs={browser.tabs} pin={pinNode} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />
             )}
@@ -1167,7 +1219,7 @@ export function App() {
     keys: bindings,
     state: {
       // The sidebar is the app list with the open app's own list under it; with a separate list panel (hasLeft), that panel.
-      sidebarShown: hasLeft && leftOpen, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
+      sidebarShown: hasLeft ? leftOpen : ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
@@ -1185,7 +1237,7 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: () => setLeftOpen((open) => !open),
+      toggleSidebar: () => (hasLeft ? setLeftOpen((open) => !open) : toggleOwnList()),
       toggleAgent: () => setChatOpen((open) => !open),
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
@@ -1742,7 +1794,7 @@ export function App() {
           <PanelsMenu
             app={own}
             shell={[
-              { name: 'Sidebar', shown: hasLeft && leftOpen, keys: 'mod+\\', toggle: () => setLeftOpen((open) => !open) },
+              ...(hasLeft ? [{ name: 'Sidebar', shown: leftOpen, keys: 'mod+\\', toggle: () => setLeftOpen((open) => !open) }] : []),
               ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
             ]}
             describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
@@ -1810,7 +1862,7 @@ export function App() {
                 onFocus={() => { if (split && focused !== index) setFocused(index); }}
                 onChoose={(next) => choosePane(index, next)} onSwap={swapPanes} onClose={() => closePane(index)}>
                 {/* The apps show the current conversation's changes as they land; their Keep waits for its turn to end. */}
-                <TurnRunningContext.Provider value={conversation.state.busy}>{paneContent(id)}</TurnRunningContext.Provider>
+                <TurnRunningContext.Provider value={conversation.state.busy}>{withOwnList(id, paneContent(id))}</TurnRunningContext.Provider>
               </Pane>
             );
             return at === 1
