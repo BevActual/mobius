@@ -378,9 +378,48 @@ export function removeTestData(folder: string): void {
   try { fs.rmSync(folder, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 }); } catch { /* left behind */ }
 }
 
-/** Opens Settings as a person would: from its button at the foot of the rail. */
+/** The Go button at the top bar's start: the open app's name, and the way to every other (the launcher). */
+export const goButton = (shell: Page) => shell.locator('.context-strip .go-button');
+
+/** The launcher, opened from the Go button as a person would. */
+async function openLauncherFromGo(shell: Page) {
+  await goButton(shell).click();
+  const launcher = shell.getByRole('dialog', { name: 'Launcher' });
+  await expect(launcher).toBeVisible();
+  return launcher;
+}
+
+/** Opens an app as a person would: the Go button, its name typed, then its row. */
+export async function goTo(shell: Page, name: string): Promise<void> {
+  const launcher = await openLauncherFromGo(shell);
+  await launcher.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+  await launcher.getByRole('group', { name: 'Applications' }).getByRole('option', { name: new RegExp(`^${name}(,|$)`) }).first().click();
+  await expect(launcher).toBeHidden();
+}
+
+/** Opens one of the places at the launcher's foot: Home, Activity, Abilities or Settings. */
+export async function goToPlace(shell: Page, name: 'Home' | 'Activity' | 'Abilities' | 'Settings'): Promise<void> {
+  const launcher = await openLauncherFromGo(shell);
+  await launcher.getByRole('group', { name: 'Places' }).getByRole('option', { name, exact: true }).click();
+  await expect(launcher).toBeHidden();
+}
+
+/** Opens All apps (the app hub), from the launcher's commands. */
+export async function openAllApps(shell: Page): Promise<void> {
+  const launcher = await openLauncherFromGo(shell);
+  await launcher.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('All apps');
+  await launcher.getByRole('group', { name: 'Commands' }).getByRole('option', { name: /^All apps/ }).first().click();
+  await expect(shell.getByRole('dialog', { name: 'Applications' })).toBeVisible();
+}
+
+/** The app on screen is `name`: the Go button carries its name. */
+export async function expectOnApp(shell: Page, name: string): Promise<void> {
+  await expect(goButton(shell)).toHaveAccessibleName(new RegExp(`^${name}\\.`));
+}
+
+/** Opens Settings as a person would: from the launcher's foot. */
 export async function openSettings(shell: Page): Promise<void> {
-  await shell.getByRole('navigation', { name: 'Apps' }).locator('.rail-end').getByRole('button', { name: 'Settings', exact: true }).click();
+  await goToPlace(shell, 'Settings');
 }
 
 /** Waits for the turn that is running to end, as a person must before the next message: while Mobius works the

@@ -3,14 +3,15 @@ import { Menu, type MenuEntry } from './Menu';
 import { useInspector } from './PanelTabs';
 
 /**
- * Panels (docs/design/panel-layouts.md, stage 1: show, hide, resize). A panel is a named, self-contained piece of an
- * app that sits in a dock beside its content: the bottom dock under the content (across the content's width only), or
- * the right dock beside it. The app sidebar and Mobius are panels too; the shell owns those two.
+ * Panels (docs/design/panel-layouts.md: show, hide, resize). A panel is a named, self-contained piece of an app that
+ * sits in a dock beside its content: the left dock before it, the right dock after it, or the bottom dock under it
+ * (across the content's width only). Mobius is the shell's, at the window's right edge, and never one of these.
  *
  * An app wraps its page in `PanelLayout` and declares its panels. The frame lists them in the toolbar's Panels menu
  * (and View › Panels), with their keys, and keeps what is shown and each dock's size per app, on this device.
  */
-export type PanelDock = 'right' | 'bottom';
+export type PanelDock = 'left' | 'right' | 'bottom';
+const DOCKS = ['left', 'right', 'bottom'] as const;
 
 export interface PanelSpec {
   id: string;
@@ -30,6 +31,7 @@ export interface PanelSpec {
 
 /** Each dock's size: the default, and the range a drag keeps to. The bottom dock is at most 70% of the content. */
 export const DOCK_SIZE = {
+  left: { min: 180, max: 480, initial: 248 },
   right: { min: 280, max: 560, initial: 320 },
   bottom: { min: 120, maxShare: 0.7, initial: 260 },
 } as const;
@@ -46,7 +48,7 @@ export function parseLayout(text: string | null): SavedLayout {
     const v = JSON.parse(text) as Partial<SavedLayout>;
     const shown = Object.fromEntries(Object.entries(v.shown ?? {}).filter(([, on]) => typeof on === 'boolean')) as Record<string, boolean>;
     const size: SavedLayout['size'] = {};
-    for (const dock of ['right', 'bottom'] as const) {
+    for (const dock of DOCKS) {
       const n = v.size?.[dock];
       if (typeof n === 'number' && Number.isFinite(n)) size[dock] = n;
     }
@@ -61,17 +63,20 @@ function readLayout(app: string): SavedLayout {
 }
 function writeLayout(app: string, layout: SavedLayout) {
   try {
-    if (layout.size.right === undefined && layout.size.bottom === undefined && Object.keys(layout.shown).length === 0) window.localStorage.removeItem(storeKey(app));
+    if (DOCKS.every((d) => layout.size[d] === undefined) && Object.keys(layout.shown).length === 0) window.localStorage.removeItem(storeKey(app));
     else window.localStorage.setItem(storeKey(app), JSON.stringify(layout));
   } catch { /* Kept only until Mobius closes. */ }
 }
 
 /** A dock's size within its range. `room` is the content's height, for the bottom dock. */
 export function clampDock(dock: PanelDock, size: number, room = Infinity): number {
-  if (dock === 'right') return Math.round(Math.min(DOCK_SIZE.right.max, Math.max(DOCK_SIZE.right.min, size)));
+  if (dock !== 'bottom') return Math.round(Math.min(DOCK_SIZE[dock].max, Math.max(DOCK_SIZE[dock].min, size)));
   const max = Math.max(DOCK_SIZE.bottom.min, Math.floor(room * DOCK_SIZE.bottom.maxShare));
   return Math.round(Math.min(max, Math.max(DOCK_SIZE.bottom.min, size)));
 }
+
+/** The keys that show or hide a whole dock of the open app's panels (docs/design/panel-layouts.md). */
+export const DOCK_KEYS: Record<PanelDock, string> = { left: 'mod+\\', right: 'mod+alt+\\', bottom: 'mod+j' };
 
 /** Whether a key press is `keys` ("mod+shift+o": mod is Command on a Mac, Control elsewhere). */
 export function pressIs(keys: string, e: { key: string; ctrlKey: boolean; metaKey: boolean; shiftKey: boolean; altKey: boolean }, mac: boolean): boolean {
@@ -120,26 +125,32 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   useEffect(() => { register?.(listed); }, [register, listed]);
   useEffect(() => () => register?.(null), [register]);
 
-  // Each panel's key, and mod+J for the whole bottom dock.
+  // Each panel's key, and a key for each whole dock (DOCK_KEYS). The dock keys are taken before the shell sees them
+  // (capture), so an app with its own left panels answers Ctrl+\ rather than the shell's list.
   useEffect(() => {
+    const onDock = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      const dock = DOCKS.find((d) => pressIs(DOCK_KEYS[d], e, mac()));
+      const inDock = dock ? panels.filter((p) => p.dock === dock) : [];
+      if (inDock.length === 0) return;
+      e.preventDefault();
+      const anyShown = inDock.some(isShown);
+      update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(inDock.map((p) => [p.id, !anyShown])) } }));
+    };
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      const bottom = panels.filter((p) => p.dock === 'bottom');
-      if (bottom.length > 0 && pressIs('mod+j', e, mac())) {
-        e.preventDefault();
-        const anyShown = bottom.some(isShown);
-        update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(bottom.map((p) => [p.id, !anyShown])) } }));
-        return;
-      }
       const hit = panels.find((p) => p.keys && pressIs(p.keys, e, mac()));
       if (hit) { e.preventDefault(); toggle(hit.id); }
     };
+    window.addEventListener('keydown', onDock, true);
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    return () => { window.removeEventListener('keydown', onDock, true); window.removeEventListener('keydown', onKey); };
   }, [panels, isShown, toggle, update]);
 
   const main = useRef<HTMLDivElement>(null);
+  const left = panels.filter((p) => p.dock === 'left' && isShown(p));
   const right = panels.filter((p) => p.dock === 'right' && isShown(p));
+  const leftSize = clampDock('left', saved.size.left ?? left.find((p) => p.size)?.size ?? DOCK_SIZE.left.initial);
   const bottom = panels.filter((p) => p.dock === 'bottom' && isShown(p));
   const rightSize = clampDock('right', saved.size.right ?? right.find((p) => p.size)?.size ?? DOCK_SIZE.right.initial);
   const bottomSize = clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, main.current?.clientHeight ?? Infinity);
@@ -152,6 +163,12 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
 
   return (
     <div className="ui-panels" data-app={app}>
+      {left.length > 0 && (
+        <div className="ui-dock" data-dock="left" style={{ width: leftSize }}>
+          {left.map((p) => <Panel key={p.id} spec={p} onHide={() => hide(p.id)} />)}
+          <DockEdge dock="left" size={leftSize} onSize={(n) => resize('left', n)} />
+        </div>
+      )}
       <div ref={main} className="ui-panels-main">
         <div className="ui-panels-content">{children}</div>
         {bottom.length > 0 && (
@@ -189,7 +206,7 @@ function Panel({ spec, onHide }: { spec: PanelSpec; onHide: () => void }) {
 /** The edge between a dock and the content: drag to resize, double-click for the default size, arrows by 16px. */
 function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSize: (size: number | undefined) => void }) {
   const drag = useRef<{ from: number; size: number } | null>(null);
-  const at = (e: { clientX: number; clientY: number }) => (dock === 'right' ? -e.clientX : -e.clientY);
+  const at = (e: { clientX: number; clientY: number }) => (dock === 'left' ? e.clientX : dock === 'right' ? -e.clientX : -e.clientY);
   const down = (e: ReactPointerEvent<HTMLDivElement>) => {
     e.currentTarget.setPointerCapture(e.pointerId);
     drag.current = { from: at(e), size };
@@ -198,7 +215,7 @@ function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSiz
     if (drag.current) onSize(drag.current.size + at(e) - drag.current.from);
   };
   const key = (e: ReactKeyboardEvent<HTMLDivElement>) => {
-    const grow: Record<string, number> = dock === 'right' ? { ArrowLeft: 16, ArrowRight: -16 } : { ArrowUp: 16, ArrowDown: -16 };
+    const grow: Record<string, number> = dock === 'left' ? { ArrowRight: 16, ArrowLeft: -16 } : dock === 'right' ? { ArrowLeft: 16, ArrowRight: -16 } : { ArrowUp: 16, ArrowDown: -16 };
     const by = grow[e.key];
     if (by) { e.preventDefault(); onSize(size + by); }
   };
@@ -207,8 +224,8 @@ function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSiz
       className="ui-dock-edge"
       role="separator"
       tabIndex={0}
-      aria-orientation={dock === 'right' ? 'vertical' : 'horizontal'}
-      aria-label={dock === 'right' ? 'Resize the panels on the right' : 'Resize the panels at the bottom'}
+      aria-orientation={dock === 'bottom' ? 'horizontal' : 'vertical'}
+      aria-label={dock === 'bottom' ? 'Resize the panels at the bottom' : `Resize the panels on the ${dock}`}
       aria-valuenow={size}
       onPointerDown={down}
       onPointerMove={move}

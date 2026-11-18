@@ -7,10 +7,8 @@ test.beforeEach(async () => {
   fixture = await startFixture();
   mobius = await launch(fixture.origin + '/');
   await expect(shell().getByText('Core ready')).toBeVisible();
-  // These tests are about the app's own list beside the page (zone 2), next to the rail.
+  // These tests are about the app's own list beside the page, at the window's left edge (no rail).
   await expect(shell().locator('.dock.left')).toHaveCount(1, { timeout: 15_000 });
-  // The sidebar folds with a short animation: measure only once it has settled.
-  await expect.poll(async () => Math.round((await shell().locator('.rail').boundingBox())!.width)).toBe(52);
 });
 test.afterEach(async () => {
   await mobius?.close();
@@ -26,9 +24,9 @@ const right = (): Locator => shell().locator('.dock.right');
 const appearance = () => shell().evaluate(() => window.mobius.appearance.get());
 const setAppearance = (change: object) => shell().evaluate((c) => window.mobius.appearance.set(c), change);
 const pageVisible = async () => (await views(mobius!.app)).some((v) => v.visible);
-// Where the page starts, measured from the app rail (which is always there). An attached list keeps at least 180px,
-// even on a narrow window, and a floating one none.
-const leftEdge = async () => (await shell().locator('.stage').boundingBox())!.x - (await shell().locator('.rail').boundingBox())!.width;
+// Where the page starts, measured from the window's left edge. An attached list keeps at least 180px, even on a narrow
+// window, and a floating one none.
+const leftEdge = async () => (await shell().locator('.stage').boundingBox())!.x;
 const toggleTabs = () => shell().getByRole('button', { name: 'Show tabs' });
 
 test('attached is how it starts: both sidebars are part of the layout', async () => {

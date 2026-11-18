@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, views, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
+import { goTo, launch, openAllApps, startFixture, views, type Fixture, type Launched, removeTestData, turnEnded } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 // The Mobius 2 shell: split view, on-canvas actions in notes, and review and undo of the agent's last turn.
@@ -43,8 +43,8 @@ const openApp = async (name: string) => {
 
 test('split view shows two apps, follows the focused pane, swaps and closes', async () => {
   await start();
-  // Split view is in the Window menu, and on Ctrl+\.
-  await shell().keyboard.press('Control+\\');
+  // Split view is in the Window menu, and on Ctrl+Shift+\ (Ctrl+\ is the app's left panels).
+  await shell().keyboard.press('Control+Shift+Backslash');
   const left = shell().getByRole('region', { name: 'Left pane: Browser' });
   const right = shell().getByRole('region', { name: 'Right pane: Notes' });
   await expect(left).toBeVisible();
@@ -59,7 +59,7 @@ test('split view shows two apps, follows the focused pane, swaps and closes', as
   await shell().getByRole('separator', { name: 'Resize the panes' }).focus();
   await shell().keyboard.press('ArrowRight');
   await expect(shell().getByRole('separator', { name: 'Resize the panes' })).toHaveAttribute('aria-valuenow', '55');
-  await shell().keyboard.press('Control+\\');
+  await shell().keyboard.press('Control+Shift+Backslash');
   await expect(shell().locator('.pane')).toHaveCount(1);
 });
 
@@ -67,11 +67,11 @@ test('leaving the browser for another app hides the page, and coming back shows 
   await start();
   const shown = async () => (await views(mobius!.app)).filter((v) => v.visible).length;
   await expect.poll(shown).toBe(1);
-  // The apps are in the rail, always one press away.
-  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Notes', exact: true }).click();
+  // Every app is a Go button and its name away.
+  await goTo(shell(), 'Notes');
   await expect(shell().locator('.note-editor')).toBeVisible();
   await expect.poll(shown).toBe(0);
-  await shell().getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
+  await goTo(shell(), 'Browser');
   await expect.poll(shown).toBe(1);
 });
 
@@ -192,7 +192,7 @@ test('the Activity tab lists a turn’s changes to review, and Discard there put
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('navigation', { name: 'Apps' }).locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   const changes = activity.getByRole('list', { name: 'Changes to review' });
@@ -242,7 +242,7 @@ test('one Rewind to here puts six apps back at once: notes, docs, sheets, tasks,
   for (const [file, text] of Object.entries(after)) expect(fs.readFileSync(workspace(file), 'utf8')).toBe(text);
 
   await openApp('Agent');
-  await shell().getByRole('navigation', { name: 'Apps' }).locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });
   const turns = activity.getByRole('list', { name: 'Turns of this conversation' });
@@ -275,7 +275,7 @@ test('Rewind to here in Activity puts the apps back as they were after that turn
     await expect(log().locator('.msg.assistant').last()).toHaveText(reply);
   }
   await openApp('Agent');
-  await shell().getByRole('navigation', { name: 'Apps' }).locator('[data-app-library]').click();
+  await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Activity', exact: true }).click();
   // The Activity app's page lists the open conversation's turns.
   const activity = shell().getByRole('region', { name: 'Activity', exact: true });

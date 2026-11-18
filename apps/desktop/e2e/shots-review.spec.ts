@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, resizeWindow, startFixture, removeTestData, openSettings } from './harness';
+import { goTo, launch, resizeWindow, startFixture, removeTestData, openSettings } from './harness';
 import { callsTool, says, startModel } from './model-fixture';
 
 // Not a test: pictures of the current app for design review. Run with MOBIUS_SHOTS=1 and MOBIUS_SHOTS_DIR=<folder>.
@@ -42,10 +42,10 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('button', { name: /Show details:/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
-      await shell.getByRole('button', { name: /^Applications/ }).click();
+      await shell.locator('.context-strip .go-button').click();
       await shell.waitForTimeout(300);
       await shot('2-launcher');
-      await shell.getByRole('dialog').getByText('Agent', { exact: true }).first().click();
+      await shell.getByRole('dialog', { name: 'Launcher' }).getByRole('group', { name: 'Places' }).getByRole('option', { name: 'Home', exact: true }).click();
       await shell.waitForTimeout(400);
       await shot('3-assistant');
       // Tasks, with a few tasks in two lists.
@@ -65,21 +65,21 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('navigation', { name: 'Lists' }).getByRole('button', { name: /^Today/ }).click();
       await shell.waitForTimeout(400);
       await shot('3d-tasks-today');
-      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Search', exact: true }).click();
+      await goTo(shell, 'Search');
       await shell.waitForTimeout(400);
       await shot('3e-search');
       await shell.getByRole('searchbox', { name: 'Search everything' }).fill('the');
       await shell.waitForTimeout(500);
       await shot('3f-search-results');
-      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Tasks', exact: true }).click();
+      await goTo(shell, 'Tasks');
       await shell.waitForTimeout(500);
       await shot('3g-sidebar-tasks');
-      await shell.getByRole('navigation', { name: 'Apps' }).getByRole('button', { name: 'Browser', exact: true }).click();
+      await goTo(shell, 'Browser');
       await shell.waitForTimeout(400);
       await shot('3h-sidebar-browser');
       await shell.getByRole('button', { name: 'Show tabs' }).click();
       await shell.waitForTimeout(400);
-      await shot('3i-rail-browser');
+      await shot('3i-list-browser');
       await shell.getByRole('button', { name: 'Show tabs' }).click();
       await shell.keyboard.press('Control+k');
       await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Agent');

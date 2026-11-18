@@ -36,7 +36,7 @@ test('corners are small and plain: a selected sidebar row has the control radius
   await shell.keyboard.press('Enter');
   const radii = await shell.evaluate(() => {
     const expected = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--radius-control'));
-    const row = document.querySelector('.rail-app [aria-current="page"].list-row, .dock.left [aria-current="page"].list-row');
+    const row = document.querySelector('.dock.left [aria-current="page"].list-row');
     return { expected, row: row ? parseFloat(getComputedStyle(row).borderTopLeftRadius) : -1 };
   });
   expect(radii.expected).toBe(6);

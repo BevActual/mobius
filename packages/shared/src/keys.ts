@@ -32,7 +32,7 @@ export const DEFAULT_KEYBINDINGS: KeyBindings = {
   closeTab: 'mod+w',
   settings: 'mod+,',
   find: 'mod+f',
-  splitView: 'mod+\\',
+  splitView: 'mod+shift+\\',
   littleMobius: 'mod+shift+m',
   quickEntry: '',
   holdToTalk: 'mod+space',

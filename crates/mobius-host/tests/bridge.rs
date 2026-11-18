@@ -880,7 +880,7 @@ mod browser {
     }
 
     fn defaults_keys() -> serde_json::Value {
-        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+\\", "littleMobius": "mod+shift+m" })
+        json!({ "launcher": "mod+k", "address": "mod+l", "newTab": "mod+t", "closeTab": "mod+w", "settings": "mod+,", "find": "mod+f", "quickEntry": "", "splitView": "mod+shift+\\", "littleMobius": "mod+shift+m" })
     }
 
     #[test]
