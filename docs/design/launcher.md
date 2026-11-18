@@ -75,6 +75,27 @@ Starting the text with `>` shows commands only.
 - **IME:** text from an input method is not searched until it is committed.
 - **Stale entries:** Recent and pinned entries for an app that was removed from Abilities are skipped, not shown broken.
 
+## Look and feel
+
+This section comes from reviewing the reference sheet's launcher, light and dark, at 1440×900.
+
+| What it does now | Change |
+|---|---|
+| Its height jumps: tall with nothing typed, then it shrinks to two rows as you type | Keep one height while it is open, the height it has with nothing typed. Results scroll inside it, and the field never moves |
+| It opens on its own, apart from the button | It grows from the Go button: same left edge, just under the top bar, 120 ms (none with reduced motion). Ctrl+K opens it in the same place |
+| Section labels are in capitals ("PINNED", "APPLICATIONS") | Sentence case, as in every other list: "Pinned", "Recent", "Apps" (not "Applications") |
+| An app row's detail says "Pinned" | Show its key ("Ctrl+3"), or nothing |
+| Typing doesn't show why a row matched | The matched letters are drawn in ink at medium weight, and the rest in the row's own colour |
+| Two footers: the places row, and the key hints under it | One footer. The places sit on the left, and on the right one hint for the selected row ("↵ Open", or "↵ Ask" on the Ask row). The full key list moves to the actions menu (Shift+Enter) |
+| "Right-click an app to pin or unpin it" stays in the footer | Gone. Pinning lives in the actions menu and the right-click menu |
+| Pinned tiles are 18 px marks in 72 px tiles, and up to 7 fit | 24 px marks. Up to 9 fit, matching Ctrl+1 to 9. A tile shows its key on hover |
+| Rows are 40 px in every density | Rows follow the density: 36 px comfortable, 30 px compact, like every other list (instrument.md) |
+| Nothing found | One quiet line under Ask: "Nothing in your apps matches. Press Enter to ask Mobius." |
+| Slow sources | A thin progress line under the field while they load. No spinner, and nothing jumps when they arrive |
+| A Recent row shows its kind's icon | It shows its app's icon, so the column of icons tells you where each item lives |
+
+Later, if it earns its place: a preview of the selected item to the right of the list, as wide as the list (a note's first lines, a mail's sender and first line, an event's time).
+
 ## How apps take part
 
 Each app registers what the launcher can find and do in it, the same way it declares its panels (`PanelLayout`). This works whether or not the app is open:
@@ -94,7 +115,7 @@ The Apps lead's apps view uses the same registry: it lets you jump to any item i
 ## Build order
 
 1. **Recent and Find** (Builder). Record a Recent item inside `openTarget`, and open Recent rows through it. Pass `find`, built from `hubResults`, and open its results through `openTarget`. This fixes gaps 1 to 3 with code that already exists.
-2. **Selection by item, sections, Top hit, "Show all in Search", Settings rows** (Design lead, in Launcher.tsx).
+2. **Look and feel** (above), **selection by item, sections, Top hit, "Show all in Search", Settings rows** (Design lead, in Launcher.tsx and launcher.css).
 3. **The source registry** (Builder), then each app's `find` and `commands` (Apps lead).
 4. **Narrowing to an app with Tab, `>`, and the actions menu** (Design lead).
 5. **Choice memory in ranking** (Design lead).
