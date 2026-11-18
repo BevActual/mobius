@@ -5,7 +5,9 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, ToolbarControls, UndoToast } from './ui';
+import { Menu, PanelTab, ToolbarControls, UndoToast } from './ui';
+import { publishOutline } from './docs-outline';
+import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
 import { Extension, generateHTML } from '@tiptap/core';
@@ -643,6 +645,29 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
 
+  // The page's headings, for the Outline panel beside it (the same panel as Docs'), read once the page is in the editor.
+  useEffect(() => {
+    if (!path || !editor) return undefined;
+    const t = window.setTimeout(() => {
+      if (editor.isDestroyed) return;
+      const heads: { level: number; text: string; pos: number }[] = [];
+      editor.state.doc.descendants((node, pos) => {
+        if (node.type.name === 'heading') heads.push({ level: Number(node.attrs.level) || 1, text: node.textContent, pos });
+        return node.type.name !== 'heading';
+      });
+      // A first heading that is the page's own title is the title, not part of the outline.
+      const from = heads[0]?.level === 1 && heads[0].pos === 0 ? 1 : 0;
+      publishOutline({
+        path,
+        items: heads.slice(from).map((h) => ({ level: h.level, text: h.text })),
+        current: -1,
+        go: (i) => { const h = heads[i + from]; if (h && !editor.isDestroyed) editor.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); },
+      });
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [path, editor, notes.text]);
+  useEffect(() => () => publishOutline(null), []);
+
   if (!notes.page) {
     // The editor stays mounted (hidden), so it is ready the moment a page opens.
     return (
@@ -666,6 +691,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, review, worki
   const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
   return (
     <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}>
+      <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>The assistant changed this page while you were editing it.</span>
