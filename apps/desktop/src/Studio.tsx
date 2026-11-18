@@ -1240,7 +1240,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   ) : <>
   {/* How to draw, while there is nothing drawn yet; the bar keeps to controls so none of them is cut short. */}
   {notes.length === 0 && <p className="studio-dev-note studio-roll-hint">{draw ? 'Drag along a row to write a note in each grid step, or start on a note to take notes out. B leaves draw mode.' : 'Click to draw a note, drag to move it, drag its end to stretch it. B draws a run of notes.'}</p>}
-  <div className="studio-roll" ref={roll} role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
+  <div className="studio-roll" ref={roll} data-own-keys="mod+j" role="grid" aria-label={`Notes of ${track.name}`} aria-multiselectable="true" tabIndex={0} onKeyDown={onRollKey} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
     <div
       className="studio-roll-inner" data-draw={draw || undefined}
       ref={inner}
