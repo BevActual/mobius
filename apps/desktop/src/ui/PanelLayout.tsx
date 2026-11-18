@@ -26,6 +26,9 @@ export interface PanelSpec {
   /** The dock's size in pixels while this panel is in it, until the person resizes the dock (Slides' notes: shorter
    *  than the default, so the stage keeps its room). Kept within the dock's range. */
   size?: number;
+  /** For a panel that is there only while something is open (Tasks' Details): hiding it closes that thing instead,
+   *  so it is not kept hidden for the next one. */
+  onHide?: () => void;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;
 }
@@ -112,8 +115,9 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   const isShown = useCallback((p: PanelSpec) => saved.shown[p.id] ?? p.shown ?? false, [saved.shown]);
   const toggle = useCallback((id: string) => {
     const p = panels.find((x) => x.id === id);
+    if (p?.onHide && isShown(p)) { p.onHide(); return; }
     if (p) update((was) => ({ ...was, shown: { ...was.shown, [id]: !(was.shown[id] ?? p.shown ?? false) } }));
-  }, [panels, update]);
+  }, [panels, isShown, update]);
   const reset = useCallback(() => update(() => EMPTY), [update]);
 
   // The frame lists this app's panels in its Panels menu while the app is on screen.
@@ -136,7 +140,8 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
       if (inDock.length === 0) return;
       e.preventDefault();
       const anyShown = inDock.some(isShown);
-      update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(inDock.map((p) => [p.id, !anyShown])) } }));
+      if (anyShown) inDock.filter((p) => p.onHide && isShown(p)).forEach((p) => p.onHide!());
+      update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(inDock.filter((p) => !(anyShown && p.onHide)).map((p) => [p.id, !anyShown])) } }));
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
@@ -163,7 +168,10 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
     if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, main.current?.clientHeight ?? Infinity);
     return { ...was, size: next };
   });
-  const hide = (id: string) => update((was) => ({ ...was, shown: { ...was.shown, [id]: false } }));
+  const hide = (id: string) => {
+    const p = panels.find((x) => x.id === id);
+    if (p?.onHide) p.onHide(); else update((was) => ({ ...was, shown: { ...was.shown, [id]: false } }));
+  };
 
   return (
     <div className="ui-panels" data-app={app}>

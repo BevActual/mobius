@@ -30,6 +30,8 @@ async function choose(scope: Locator, label: string, choice: string): Promise<vo
   await shell().getByRole('option', { name: choice, exact: true }).click();
 }
 const lists = (): Locator => shell().getByRole('navigation', { name: 'Lists' });
+/** Details: the right panel while a task is picked. */
+const details = (): Locator => shell().getByRole('complementary', { name: 'Details' });
 const todo = (): Locator => page().getByRole('list', { name: 'To do' });
 const file = (list: string) => path.join(userData, 'workspace', 'tasks', `${list}.md`);
 const isoToday = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
@@ -156,7 +158,11 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   await start();
   await lists().getByRole('button', { name: /^Home/ }).click();
   await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
-  const details = page().getByRole('complementary', { name: 'Details' });
+  // Hiding the panel puts the task down; picking it again brings Details back.
+  await shell().getByRole('button', { name: 'Hide Details' }).click();
+  await expect(shell().getByRole('complementary', { name: 'Details' })).toHaveCount(0);
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  const details = shell().getByRole('complementary', { name: 'Details' });
   await details.getByRole('textbox', { name: 'Notes' }).fill('White, not grey.');
   await details.getByRole('switch', { name: 'Flagged' }).click();
   await expect(details.getByRole('switch', { name: 'Flagged' })).toBeChecked();
@@ -196,7 +202,7 @@ test('a date said in words becomes the due date, and a deleted task or list come
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Read Friday\n');
 
   await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
-  await page().getByRole('button', { name: 'Delete task' }).click();
+  await details().getByRole('button', { name: 'Delete task' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Paint the door');
   await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Paint the door\n  White, not grey.\n- [ ] Fix the tap\n');
@@ -250,7 +256,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   const door = todo().locator('.task-line', { hasText: 'Paint the door' });
   await expect(door).toBeFocused();
   await shell().keyboard.press('Control+i');
-  await expect(page().getByRole('complementary', { name: 'Details' }).getByRole('textbox', { name: 'Task', exact: true })).toHaveValue('Paint the door');
+  await expect(details().getByRole('textbox', { name: 'Task', exact: true })).toHaveValue('Paint the door');
   await door.focus();
   await shell().keyboard.press('Space');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [x] Paint the door');
@@ -281,7 +287,7 @@ test('a task can have a time and repeat: typed in words, set in Details, and tic
 
   // Details: a date, then a time and a repeat; no date clears the time too.
   await page().getByRole('button', { name: 'Details for Fix the tap' }).click({ force: true });
-  const details = page().getByRole('complementary', { name: 'Details' });
+  const details = shell().getByRole('complementary', { name: 'Details' });
   await details.getByRole('button', { name: 'Tomorrow', exact: true }).click();
   // Time is the shared time field: type it, and leaving the field keeps it.
   await details.getByRole('combobox', { name: 'Time', exact: true }).fill('09:30');

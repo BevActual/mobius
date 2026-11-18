@@ -10,7 +10,7 @@ import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast } from './ui';
+import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
 
@@ -434,7 +434,6 @@ function TaskInspector({ tasks, list, task, onAsk }: { tasks: TasksState; list: 
     <aside className="task-inspector" aria-label="Details" data-color={listColor(list)}>
       <header className="task-inspector-head">
         <span className="task-inspector-where">{parent ? `${list} · under “${parent.text}”` : list}</span>
-        <button type="button" className="btn" onClick={() => tasks.pick(null)}>Done</button>
       </header>
       <textarea className="task-inspector-title" aria-label="Task" rows={2} value={title} maxLength={500} onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))} onBlur={keepTitle} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }} />
       <textarea className="task-inspector-notes" aria-label="Notes" placeholder="Add notes" rows={2} value={notes} maxLength={4000} onChange={(e) => setNotes(e.target.value)} onBlur={keepNotes} />
@@ -564,7 +563,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
 }
 
 /** The open list or view: a field to add to it at the top, the open tasks, and the completed ones folded away. */
-export function TasksPage({ tasks, focusToken = 0, review = null, working = false, onAsk }: { tasks: TasksState; focusToken?: number; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean; onAsk?: (prompt: string) => void }) {
+export function TasksPage({ tasks, focusToken = 0, review = null, working = false, onAsk, listPanels = [] }: { tasks: TasksState; focusToken?: number; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean; onAsk?: (prompt: string) => void }) {
   const [showDone, setShowDone] = useState(false);
   const [dropEnd, setDropEnd] = useState(false);
   const now = new Date();
@@ -677,30 +676,35 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     );
   }
   const title = view.kind === 'list' ? view.name : smartName(view.id);
+  // Details (right dock): there while a task is picked. Hiding it puts the task down, so the next one opens it again.
+  const panels: readonly PanelSpec[] = picked ? [...listPanels, { id: 'details', name: 'Details', dock: 'right', shown: true, onHide: () => tasks.pick(null), render: () => (
+    <TaskInspector key={`${picked.list}:${picked.task.text}`} tasks={tasks} list={picked.list} task={picked.task} onAsk={ask} />
+  ) }] : listPanels;
   return (
-    <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
-      <div className="tasks-main">
-        {review && !working && view.kind === 'list' && !changeShown && (
-          <div className="note-review" role="status">
-            <span className="review-dot" aria-hidden="true" />
-            <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>
-            <ReviewActions onKeep={proposal.keep} onDiscard={proposal.discard} discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
-            {proposal.problem && <span className="review-problem" role="alert">{proposal.problem}</span>}
-          </div>
+    <PanelLayout app="tasks" panels={panels}>
+      <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
+        <div className="tasks-main">
+          {review && !working && view.kind === 'list' && !changeShown && (
+            <div className="note-review" role="status">
+              <span className="review-dot" aria-hidden="true" />
+              <span className="note-review-text">Mobius changed this list in its last turn.<WhyThis conversation={review.conversation} /></span>
+              <ReviewActions onKeep={proposal.keep} onDiscard={proposal.discard} discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
+              {proposal.problem && <span className="review-problem" role="alert">{proposal.problem}</span>}
+            </div>
+          )}
+          {query && <p className="tasks-searching">Results for “{query}” <button type="button" className="btn" onClick={() => tasks.setQuery('')}>Clear</button></p>}
+          {!query && view.kind === 'smart' && view.id === 'completed' ? null : !query && (
+            <NewTask tasks={tasks} target={target} focusToken={focusToken} defaultDue={view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null}
+              placeholder={view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
+          )}
+          {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}
+          {body}
+          {empty && <p className="tasks-empty">{empty}</p>}
+        </div>
+        {tasks.deleted && (
+          <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
         )}
-        {query && <p className="tasks-searching">Results for “{query}” <button type="button" className="btn" onClick={() => tasks.setQuery('')}>Clear</button></p>}
-        {!query && view.kind === 'smart' && view.id === 'completed' ? null : !query && (
-          <NewTask tasks={tasks} target={target} focusToken={focusToken} defaultDue={view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null}
-            placeholder={view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
-        )}
-        {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}
-        {body}
-        {empty && <p className="tasks-empty">{empty}</p>}
-      </div>
-      {picked && <TaskInspector key={`${picked.list}:${picked.task.text}`} tasks={tasks} list={picked.list} task={picked.task} onAsk={ask} />}
-      {tasks.deleted && (
-        <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
-      )}
-    </section>
+      </section>
+    </PanelLayout>
   );
 }
