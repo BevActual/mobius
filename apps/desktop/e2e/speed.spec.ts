@@ -1,6 +1,9 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+<<<<<<< HEAD
 import { SourceMapConsumer, type RawSourceMap } from 'source-map-js';
+=======
+>>>>>>> origin/main
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -97,6 +100,7 @@ async function pageMemory(shell: Page): Promise<{ heapMB: number; nodes: number 
   return { heapMB: metric('JSHeapUsedSize') / 1024 / 1024, nodes: metric('Nodes') };
 }
 
+<<<<<<< HEAD
 /**
  * Where the interface spends its time while switching apps: a CPU profile of `run`, its self time added up by source
  * file and by function (through the build's source maps), printed as `[speed profile]` lines. A guide for fixing the
@@ -154,6 +158,8 @@ async function profile(shell: Page, run: () => Promise<void>): Promise<void> {
   for (const [fn, ms] of top(byFunction, 30)) console.log(`[speed profile] fn ${Math.round(ms)} ms ${fn}`);
 }
 
+=======
+>>>>>>> origin/main
 let userData: string;
 let mobius: Launched | undefined;
 test.beforeEach(() => {
@@ -218,8 +224,11 @@ test('start, switching apps, a long list and memory after long use stay within t
   // Which app a slow switch goes to, in the log, so the slowest one is plain.
   for (const [i, [name]] of APPS.entries()) console.log(`[speed] switch to ${name}: median ${Math.round(median(again.filter((_, j) => j % APPS.length === i)))} ms`);
   measured('switch apps', median(again), 'ms');
+<<<<<<< HEAD
   // Two more rounds under the profiler, to show where switching spends its time.
   await profile(shell, async () => { for (let round = 0; round < 2; round++) for (const [name, panel] of APPS) await switchTo(shell, name, panel); });
+=======
+>>>>>>> origin/main
   measured('switch apps, slowest tenth', p90(again), 'ms');
 
   const after = await pageMemory(shell);

@@ -332,6 +332,8 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .slist-item:last-child { border-bottom: 0; }
 .slist-item[data-tone="warning"] .slist-main > span:first-child { color: var(--danger); }
 .slist-main { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mail-signature { display: grid; gap: 4px; margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.mail-signature textarea { width: 100%; max-width: 420px; min-height: calc(3lh + 12px); padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); resize: none; field-sizing: content; }
 .slist-sub { font-size: var(--fs-sm); color: var(--muted); }
 .slist-time { flex: none; font-size: var(--fs-sm); color: var(--muted); }
 .badge { flex: none; margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-small); background: var(--soft); font-size: var(--fs-xs); }

@@ -160,13 +160,19 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   const tools = shell().getByRole('toolbar', { name: 'Message' });
   const boxes = shell().getByRole('region', { name: 'Folders' });
   await list.getByRole('option').first().click();
+  // The account's signature (Settings › Mail) goes under where you write, above the quoted message.
+  await shell().evaluate(async () => {
+    const accounts = await window.mobius.mail!.accounts();
+    if (!Array.isArray(accounts)) throw new Error('no accounts');
+    await window.mobius.preferences.set({ mailSignatures: { [accounts[0]!.id]: 'Ana\nNorthway' } });
+  });
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
   await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   const body = compose.getByRole('textbox', { name: 'Message' });
   await expect(body).toBeFocused();
-  await expect(body).toHaveValue(/Rui Almeida <rui@example.com> wrote:\n> Hi!/);
+  await expect(body).toHaveValue(/^\n\n-- \nAna\nNorthway\n\nOn .*Rui Almeida <rui@example.com> wrote:\n> Hi!/);
   await compose.getByRole('button', { name: 'Close' }).click();
   await list.getByRole('option').first().click();
   // Forward carries the message, with no one to send it to yet.

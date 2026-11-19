@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MailContent, MailMessage } from '@mobius/shared';
-import { forwarded, inBox, quoted, replyAllTo } from './useMail';
+import { forwarded, inBox, quoted, replyAllTo, withSignature } from './useMail';
 
 const person = (name: string, email: string) => ({ name, email });
 const RUI: MailContent = {
@@ -39,5 +39,16 @@ describe('mailboxes', () => {
   });
   it('Archive holds archived inbox mail only', () => {
     expect(inBox('archive', all).map((x) => x.id)).toEqual(['archived']);
+  });
+});
+
+describe('a signature', () => {
+  it('goes under where the person writes and above a quoted message', () => {
+    expect(withSignature('', 'Ana')).toBe('\n\n-- \nAna');
+    expect(withSignature('\n\nOn Mon, Sam wrote:\n> hi', ' Ana\nNorthway \n')).toBe('\n\n-- \nAna\nNorthway\n\nOn Mon, Sam wrote:\n> hi');
+  });
+  it('adds nothing when the account has none', () => {
+    expect(withSignature('\n\nquoted', '')).toBe('\n\nquoted');
+    expect(withSignature('', undefined)).toBe('');
   });
 });
