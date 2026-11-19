@@ -407,19 +407,25 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
   const [adding, setAdding] = useState(false);
   const [rowMenu, setRowMenu] = useState<{ m: MailMessage; x: number; y: number } | null>(null);
   const drafts = v.kind === 'drafts' && v.only ? mail.drafts.filter((d) => d.by === v.only) : mail.drafts;
-  // E archives, R replies (Shift+R to all), F forwards, U marks unread, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
+  // J and K (or the arrows) move through the list. E archives, R replies (Shift+R to all), F forwards, U marks unread, H puts the open message off until tomorrow at 8:00. Not while typing, and not with Ctrl or Alt.
   const keys = useRef(mail);
   keys.current = mail;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const m = keys.current;
       const t = e.target instanceof HTMLElement ? e.target : null;
-      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role=menu]') || m.editing) return;
-      // The up and down arrows open the message before or after the one open, as in Apple Mail's list.
-      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && m.view.kind === 'box' && m.messages.length > 0 && (!t || t === document.body || t.closest('.mail-page'))) {
+      const typing = t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role=menu]');
+      // Ctrl+Z (or Z, as in Gmail) takes back the archive, put-off or send the toast offers to undo.
+      if (m.undo && !typing && !m.editing && !e.defaultPrevented && !e.altKey && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); void m.undo.run(); return; }
+      if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented || typing || m.editing) return;
+      // The up and down arrows (or J and K, as in Gmail) open the message before or after the one open, as in Apple
+      // Mail's list. Also from the stage itself, which has the keys once Mail is opened from Ctrl+K.
+      const down = e.key === 'ArrowDown' || (e.key === 'j' && !e.shiftKey);
+      const up = e.key === 'ArrowUp' || (e.key === 'k' && !e.shiftKey);
+      if ((down || up) && m.view.kind === 'box' && m.messages.length > 0 && (!t || t === document.body || t.matches('main.stage') || t.closest('.mail-page'))) {
         e.preventDefault();
         const i = m.open ? m.messages.findIndex((x) => x.id === m.open!.id) : -1;
-        const next = m.messages[i < 0 ? 0 : Math.max(0, Math.min(m.messages.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)))]!;
+        const next = m.messages[i < 0 ? 0 : Math.max(0, Math.min(m.messages.length - 1, i + (down ? 1 : -1)))]!;
         if (next.id !== m.open?.id) void m.read(next.id).then(() => document.querySelector(`.mail-row[data-id="${CSS.escape(next.id)}"]`)?.scrollIntoView({ block: 'nearest' }));
         return;
       }
@@ -476,7 +482,8 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
               : <EmptyState icon={MAIL_ICONS.inbox} label="No message open" title="No message open" line="Choose one in the list. ↑ ↓ to move, Enter to open." />}
         {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
         {/* The keys act on the open message, so their bar sits at the foot of the pane that shows it, and only then. */}
-        {mail.open && !mail.editing && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
+        {/* Not under the Undo toast: both sit at the foot of the message. */}
+        {mail.open && !mail.editing && !mail.undo && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
       </div>
       {rowMenu && <PointMenu x={rowMenu.x} y={rowMenu.y} label={`${rowMenu.m.subject || 'Message'} menu`} onClose={() => setRowMenu(null)} entries={rowItems(mail, rowMenu.m)} />}
       {mail.undo && <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />}
