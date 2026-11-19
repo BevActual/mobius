@@ -150,7 +150,7 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
   const tools = shell().getByRole('toolbar', { name: 'Message' });
-  const boxes = shell().getByRole('region', { name: 'Mailboxes' });
+  const boxes = shell().getByRole('region', { name: 'Folders' });
   await list.getByRole('option').first().click();
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();

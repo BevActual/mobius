@@ -85,10 +85,11 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
   await expect(zero).toHaveCount(0);
 });
 
-test('the keys are told in the list tooltip, not a footer; E archives and H puts off the open message', async () => {
+test('the keys are told in the hint bar at the list\'s foot, not a tooltip over it; E archives and H puts off the open message', async () => {
   await start();
   await expect(page().getByLabel('Keyboard')).toHaveCount(0);
-  await expect(inbox()).toHaveAttribute('title', 'E archives, R replies, F forwards, U marks unread, H reminds you later');
+  await expect(inbox()).not.toHaveAttribute('title', /.+/);
+  await expect(inbox()).toHaveAttribute('aria-keyshortcuts', 'E R Shift+R F U H');
   // Opening a message gives it the keyboard: E and H act on it at once.
   await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
   await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();

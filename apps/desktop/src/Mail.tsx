@@ -64,24 +64,30 @@ export function mailPlace(v: MailState['view']): string {
   return BOX_NAMES[v.box];
 }
 
+/** A folder's mark in the Mailboxes panel, drawn like Tasks' smart lists. */
+function FolderIcon({ of }: { of: MailBox | 'drafts' | 'label' }) {
+  const glyph = of === 'label' ? <><path d="M3.5 4.5v5l7 7 6-6-7-7z" /><circle cx="7" cy="8" r="1" /></> : of === 'flagged' ? MAIL_ICONS.flag : of === 'archive' ? MAIL_ICONS.archive : of === 'sent' ? MAIL_ICONS.sent : of === 'drafts' ? MAIL_ICONS.drafts : MAIL_ICONS.inbox;
+  return <span className="mail-folder-icon" aria-hidden="true"><svg viewBox="0 0 20 20">{glyph}</svg></span>;
+}
+
 /** Mailboxes, labels and what Mobius wrote, as plain rows. Accounts are in Settings › Mail. */
 export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; starts?: readonly Start[]; onStart?: (prompt: string) => void }) {
   const v = mail.view;
   const inBox = (b: MailBox, category: MailCategory | 'all' = 'all') => v.kind === 'box' && v.box === b && (b !== 'inbox' || v.category === category);
-  const box = (b: MailBox, count?: number) => <SidebarRow label={BOX_NAMES[b]} {...(count ? { count } : {})} current={inBox(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
+  const box = (b: MailBox, count?: number) => <SidebarRow icon={<FolderIcon of={b} />} label={BOX_NAMES[b]} {...(count ? { count } : {})} current={inBox(b)} onSelect={() => mail.setView({ kind: 'box', box: b, category: 'all' })} />;
   const suggested = mail.drafts.filter((d) => d.by === 'mobius').length;
   return (
     <AppSidebar label="Mailboxes">
       <SideNew item="message" onNew={mail.compose} disabled={mail.accounts.length === 0} title={mail.accounts.length === 0 ? 'Add a mail account first' : 'New message'} />
       <SidebarSearch label="Search mail" value={mail.query} onChange={mail.setQuery} />
-      <SidebarSection title="Mailboxes" action={<>
+      <SidebarSection title="Folders" action={<>
         {pin}
         <button type="button" className="strip-btn" aria-label="Get mail" title="Get mail now" disabled={mail.syncing || mail.accounts.length === 0} onClick={() => void mail.sync()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
         </button>
       </>}>
         {box('inbox', mail.counts.all)}
-        <SidebarRow label="Drafts" {...(mail.counts.drafts ? { count: mail.counts.drafts } : {})} current={v.kind === 'drafts' && !v.only} onSelect={() => mail.setView({ kind: 'drafts' })} />
+        <SidebarRow icon={<FolderIcon of="drafts" />} label="Drafts" {...(mail.counts.drafts ? { count: mail.counts.drafts } : {})} current={v.kind === 'drafts' && !v.only} onSelect={() => mail.setView({ kind: 'drafts' })} />
         {box('flagged')}
         {box('sent')}
         {box('archive')}
@@ -89,11 +95,11 @@ export function MailSidebar({ mail, pin }: { mail: MailState; pin?: ReactNode; s
       {/* Mobius sorts the Inbox into these; a message moves to another from its toolbar or right-click menu. */}
       <SidebarSection title="Labels">
         {CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
-          <SidebarRow key={c.id} label={c.label} {...(mail.counts[c.id as MailCategory] ? { count: mail.counts[c.id as MailCategory] } : {})} current={inBox('inbox', c.id)} onSelect={() => mail.setView({ kind: 'box', box: 'inbox', category: c.id })} />
+          <SidebarRow key={c.id} icon={<FolderIcon of="label" />} label={c.label} {...(mail.counts[c.id as MailCategory] ? { count: mail.counts[c.id as MailCategory] } : {})} current={inBox('inbox', c.id)} onSelect={() => mail.setView({ kind: 'box', box: 'inbox', category: c.id })} />
         ))}
       </SidebarSection>
       <SidebarSection title="From Mobius">
-        <SidebarRow label="Suggested replies" {...(suggested ? { count: suggested } : {})} title={suggested ? `${suggested} to review` : 'Suggested replies'} current={v.kind === 'drafts' && v.only === 'mobius'} onSelect={() => mail.setView({ kind: 'drafts', only: 'mobius' })} />
+        <SidebarRow icon={<FolderIcon of="drafts" />} label="Suggested replies" {...(suggested ? { count: suggested } : {})} title={suggested ? `${suggested} to review` : 'Suggested replies'} current={v.kind === 'drafts' && v.only === 'mobius'} onSelect={() => mail.setView({ kind: 'drafts', only: 'mobius' })} />
       </SidebarSection>
     </AppSidebar>
   );
@@ -420,7 +426,7 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             ))}
           </div>
         ) : (
-          <div role="listbox" aria-label="Messages" className="mail-list" title="E archives, R replies, F forwards, U marks unread, H reminds you later" aria-keyshortcuts="E R Shift+R F U H">
+          <div role="listbox" aria-label="Messages" className="mail-list" aria-keyshortcuts="E R Shift+R F U H">
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
           </div>
         )}
