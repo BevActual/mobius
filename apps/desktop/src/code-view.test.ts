@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { applyGroups, changeGroups, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind, testsGlance } from './code-view';
+import { applyGroups, changeGroups, codeOutline, gitMark, gitMarks, highlight, langOf, lineDiff, parentsOf, testLineKind, testsGlance } from './code-view';
 
 const OLD = `import { Share } from './types'
 
@@ -93,5 +93,25 @@ describe('Code in Glance', () => {
   });
   it('says a run that ran out of time took too long', () => {
     expect(testsGlance({ passed: false, output: '', seconds: 120, timedOut: true }, 'cargo test')?.[0]).toEqual({ label: 'Failed', value: 'Took too long' });
+  });
+});
+
+describe('codeOutline', () => {
+  it('lists TypeScript functions, classes and types with their lines', () => {
+    const src = ['import x from "y";', 'export function add(a: number) {', '  return a;', '}', 'export const run = async (n: number) => n;', 'class Box {', '  // function nope() {}', '}', 'export type Id = string;', 'interface Shape {}'].join('\n');
+    expect(codeOutline(src, 'ts').map((e) => [e.name, e.kind, e.line])).toEqual([
+      ['add', 'function', 2], ['run', 'function', 5], ['Box', 'class', 6], ['Id', 'type', 9], ['Shape', 'interface', 10],
+    ]);
+  });
+  it('nests Python methods under their class', () => {
+    const out = codeOutline('class A:\n    def go(self):\n        pass\ndef main():\n    pass', 'py');
+    expect(out.map((e) => [e.name, e.depth])).toEqual([['A', 0], ['go', 1], ['main', 0]]);
+  });
+  it('reads Markdown headings, not ones inside code fences', () => {
+    const out = codeOutline('# Title\n```\n# not a heading\n```\n## Part', 'md');
+    expect(out.map((e) => [e.name, e.depth, e.line])).toEqual([['Title', 0, 1], ['Part', 1, 5]]);
+  });
+  it('gives nothing for files it cannot read', () => {
+    expect(codeOutline('{"a": 1}', 'json')).toEqual([]);
   });
 });

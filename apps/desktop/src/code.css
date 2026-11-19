@@ -203,3 +203,12 @@
 .code-side .code-git-letter[data-letter="D"], .code-side .code-git-letter[data-letter="C"] { color: var(--danger); }
 /* Code shows the characters typed: no ligatures (=> stays two characters), so columns and find's marks line up. */
 .code-page :is(.code-under, .code-area, .code-lines, .code-gutter) { font-variant-ligatures: none; font-feature-settings: "liga" 0, "calt" 0; }
+
+/* Outline panel: what the open file defines */
+.code-outline { list-style: none; margin: 0; padding: var(--sp-1) 0; }
+.code-outline button { display: flex; align-items: baseline; gap: var(--sp-2); width: 100%; padding: 4px var(--sp-2); border: 0; background: none; color: var(--ink); font: inherit; text-align: left; border-radius: 4px; cursor: pointer; }
+.code-outline button:hover { background: var(--soft); }
+.code-outline-kind { color: var(--muted); font-size: var(--fs-xs); min-width: 56px; }
+.code-outline-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); }
+.code-outline-line { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.code-outline-empty { padding: var(--sp-3); margin: 0; }

@@ -261,3 +261,12 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
   await expect(tabs.getByRole('tab')).toHaveText(['budget.test.js']);
   expect(budget()).toBe(BUDGET);
 });
+
+test('Outline, on the right, lists what the open file defines and goes to its line', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Outline' }).click();
+  const outline = shell().getByRole('list', { name: 'What this file defines' });
+  await outline.getByRole('button', { name: /splitTotal/ }).click();
+  await expect(shell().getByText('Ln 2, Col 1')).toBeVisible();
+});
