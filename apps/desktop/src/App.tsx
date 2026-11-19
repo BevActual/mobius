@@ -1348,7 +1348,7 @@ export function App() {
         // Apps lead: a new document starts as a copy of the template, in the folder open now (never Templates itself).
         fromTemplate: (path, title) => { closeSettings(); openApp('docs'); void (async () => {
           const read = await window.mobius.docs?.read(path).catch(() => null);
-          if (!read || 'ok' in read) { setNotice('The template could not be read.'); return; }
+          if (!read || 'ok' in read) { setToast('The template could not be read.'); return; }
           const here = docs.page && !isTemplate(docs.page.path) ? docs.page.path.split('/')[0] : undefined;
           const folder = here ?? docs.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(DEFAULT_FOLDER));
           if (folder) await docs.createPage(folder, title, fillTemplate(read.content, new Date()));
@@ -1357,7 +1357,7 @@ export function App() {
         saveAsTemplate: () => { const page = docs.page; if (!page || isTemplate(page.path)) return; void (async () => {
           const text = docs.text;
           const folder = docs.notebooks.find((n) => isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(TEMPLATES_FOLDER));
-          if (folder && await docs.createPage(folder, page.title, text)) setNotice(`Saved as a template. New from ${page.title} is in the Docs menu`);
+          if (folder && await docs.createPage(folder, page.title, text)) setToast(`Saved as a template. New from ${page.title} is in the Docs menu`);
         })(); },
       },
       calendar: {
