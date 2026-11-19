@@ -130,8 +130,10 @@
   background: var(--mobius-wash); border: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 50%, transparent);
   font-size: var(--fs-md); color: var(--ink); line-height: 1.5;
 }
-.launcher-ans-text { margin: 0; white-space: pre-wrap; max-height: calc(var(--sp-8) * 6); overflow: auto; }
+.launcher-ans-text { margin: 0; max-height: calc(var(--sp-8) * 6); overflow: auto; }
 .launcher-ans-wait { color: var(--muted); }
 .launcher-ans[data-state="failed"] .launcher-ans-text { color: var(--muted); }
 .launcher-ans-src { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
 .launcher-ans-src span { padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--raised); font-size: var(--fs-xs); color: var(--muted); }
+.launcher-ans-text > :first-child { margin-top: 0; }
+.launcher-ans-text > :last-child { margin-bottom: 0; }

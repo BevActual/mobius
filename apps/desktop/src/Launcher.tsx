@@ -7,6 +7,8 @@ import { relativeTime } from './relative-time';
 import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
 import { isQuestion, type InlineAnswer } from './launcher-ask';
+import { RichText } from './RichText';
+import { withoutMarks, withoutToolTags } from './markdown';
 import './launcher.css';
 
 /**
@@ -385,7 +387,7 @@ export function Launcher({
       ...(inlineAnswer && inlineAnswer.question === typed
         ? [
           { id: 'ask-continue', kind: 'ask' as const, label: 'Continue in Mobius', detail: inlineAnswer.answer.state === 'asking' ? 'Answering…' : undefined, run: () => onContinue?.(inlineAnswer.answer.conversation) },
-          ...(inlineAnswer.answer.state === 'done' && inlineAnswer.answer.text ? [{ id: 'ask-copy', kind: 'answer' as const, label: 'Copy the answer', run: () => { void navigator.clipboard?.writeText(inlineAnswer.answer.text).catch(() => undefined); } }] : []),
+          ...(inlineAnswer.answer.state === 'done' && inlineAnswer.answer.text ? [{ id: 'ask-copy', kind: 'answer' as const, label: 'Copy the answer', run: () => { void navigator.clipboard?.writeText(withoutMarks(inlineAnswer.answer.text)).catch(() => undefined); } }] : []),
         ]
         : onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, detail: askInline && isQuestion(typed) ? 'Answer here' : undefined, run: () => onAsk(typed) }] : []),
       // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
@@ -773,7 +775,7 @@ function AnswerCard({ answer }: { answer: InlineAnswer }) {
   return (
     <div className="launcher-ans" data-state={answer.state} role="status" aria-live="polite">
       {answer.state === 'failed' ? <p className="launcher-ans-text">{answer.error || 'No answer came.'}</p>
-        : answer.text ? <p className="launcher-ans-text">{answer.text}</p>
+        : answer.text ? <div className="launcher-ans-text"><RichText text={withoutToolTags(answer.text)} /></div>
           : <p className="launcher-ans-text launcher-ans-wait">{answer.sources.length ? `Reading ${answer.sources.join(' and ')}…` : 'Thinking…'}</p>}
       {answer.sources.length > 0 && answer.state !== 'asking' && (
         <div className="launcher-ans-src">{answer.sources.map((s) => <span key={s}>{s}</span>)}</div>
