@@ -15,7 +15,7 @@ export interface Provider {
  */
 export const PROVIDERS: readonly Provider[] = [
   { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', note: 'GPT models.', needsKey: true, keyUrl: 'https://platform.openai.com/api-keys' },
-  { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1/', note: 'Claude models, through their OpenAI-compatible layer.', needsKey: true, keyUrl: 'https://console.anthropic.com/settings/keys' },
+  { id: 'anthropic', name: 'Anthropic', baseUrl: 'https://api.anthropic.com/v1/', note: 'Claude models.', needsKey: true, keyUrl: 'https://console.anthropic.com/settings/keys' },
   { id: 'gemini', name: 'Google Gemini', baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai/', note: 'Gemini models from Google AI Studio.', needsKey: true, keyUrl: 'https://aistudio.google.com/app/apikey' },
   { id: 'openrouter', name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', note: 'One key for hundreds of models.', needsKey: true, keyUrl: 'https://openrouter.ai/keys' },
   { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', note: 'DeepSeek chat and reasoning models.', needsKey: true, keyUrl: 'https://platform.deepseek.com/api_keys' },
@@ -27,7 +27,7 @@ export const PROVIDERS: readonly Provider[] = [
   { id: 'huggingface', name: 'Hugging Face', baseUrl: 'https://router.huggingface.co/v1', note: 'Inference providers behind one address.', needsKey: true, keyUrl: 'https://huggingface.co/settings/tokens' },
   { id: 'cerebras', name: 'Cerebras', baseUrl: 'https://api.cerebras.ai/v1', note: 'Very fast hosted open models.', needsKey: true, keyUrl: 'https://cloud.cerebras.ai/' },
   { id: 'perplexity', name: 'Perplexity', baseUrl: 'https://api.perplexity.ai', note: 'Sonar models that search the web as they answer.', needsKey: true, keyUrl: 'https://www.perplexity.ai/account/api/keys' },
-  { id: 'cohere', name: 'Cohere', baseUrl: 'https://api.cohere.ai/compatibility/v1', note: 'Command models, through their OpenAI-compatible layer.', needsKey: true, keyUrl: 'https://dashboard.cohere.com/api-keys' },
+  { id: 'cohere', name: 'Cohere', baseUrl: 'https://api.cohere.ai/compatibility/v1', note: 'Command models.', needsKey: true, keyUrl: 'https://dashboard.cohere.com/api-keys' },
   { id: 'moonshot', name: 'Moonshot AI (Kimi)', baseUrl: 'https://api.moonshot.ai/v1', note: 'Kimi models.', needsKey: true, keyUrl: 'https://platform.moonshot.ai/console/api-keys' },
   { id: 'qwen', name: 'Alibaba Cloud (Qwen)', baseUrl: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1', note: 'Qwen models from Model Studio.', needsKey: true, keyUrl: 'https://modelstudio.console.alibabacloud.com/' },
   { id: 'zai', name: 'Z.ai (GLM)', baseUrl: 'https://api.z.ai/api/paas/v4', note: 'GLM models.', needsKey: true, keyUrl: 'https://z.ai/manage-apikey/apikey-list' },

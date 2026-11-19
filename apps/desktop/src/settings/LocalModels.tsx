@@ -233,6 +233,37 @@ function useQuickSetup(models: ReturnType<typeof useModels>, engine: ReturnType<
   return { step, problem, run, busy: step !== null && step !== 'done' };
 }
 
+/**
+ * First run: a free model on this computer, one press from the welcome. Shown only where Mobius can run one (an engine
+ * for this system, and a graphics card a model fits on); the rest is under Settings › Models.
+ */
+export function LocalQuickSetup() {
+  const models = useModels();
+  const engine = useEngine(models.refreshStatus);
+  const preferences = usePreferences();
+  const setup = useQuickSetup(models, engine, preferences.value.localContext);
+  const gpu = !!models.hardware?.gpu_name && (models.hardware?.vram_total ?? 0) > 0;
+  if (engine.status === null || !engine.status.supported || (!gpu && setup.step === null)) return null;
+  const d = models.download;
+  return (
+    <>
+    <h4 className="plist-head">Free, on this computer</h4>
+    <div className="quick-setup first-run-local" role="group" aria-label="Free, on this computer">
+      <p className="srow-desc">Mobius picks a model that runs well on your graphics card, downloads it and starts it. Nothing you type leaves this computer.</p>
+      {setup.step === null ? (
+        <button type="button" className="btn" disabled={d?.running === true} onClick={() => void setup.run()}>Set up a free model</button>
+      ) : (
+        <p className="srow-text" role="status" aria-label="Setup progress">
+          {SETUP_TEXT[setup.step]}{setup.step === 'downloading' && d?.running && d.total > 0 ? ` ${percent(d.done, d.total)}% of ${formatBytes(d.total)}` : ''}
+        </p>
+      )}
+      {setup.step === 'downloading' && d?.running && <button type="button" className="btn" onClick={models.cancel}>Cancel</button>}
+      {setup.problem && <p className="field-error" role="alert">{setup.problem}</p>}
+    </div>
+    </>
+  );
+}
+
 function FitBadge({ fit }: { fit: Recommendation['assessment']['fit'] }) {
   const { label, tone } = fitText(fit);
   return <span className="badge" data-tone={tone}>{label}</span>;
