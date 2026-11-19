@@ -24,7 +24,7 @@ export interface Conversation {
   stop(): void;
   /** Take over the running task, and hand it back. Resolve with what went wrong, or null. */
   takeOver(): Promise<string | null>;
-  handBack(): Promise<string | null>;
+  handBack(note?: string): Promise<string | null>;
   /** Resolves with an explanation when the answer could not be used, otherwise null. */
   answer(requestId: number, approve: boolean, duration: AnswerFor): Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent, otherwise null. */
@@ -148,8 +148,8 @@ export function useConversation(coreStatus: CoreStatus, knownBots: readonly stri
     const result = await window.mobius.agent.takeOver?.(active.current).catch(() => null);
     return result?.ok ? null : result && !result.ok ? result.error : 'Taking over is not available here.';
   }, []);
-  const handBack = useCallback(async () => {
-    const result = await window.mobius.agent.handBack?.(active.current).catch(() => null);
+  const handBack = useCallback(async (note?: string) => {
+    const result = await window.mobius.agent.handBack?.(active.current, note?.trim() || undefined).catch(() => null);
     return result?.ok ? null : result && !result.ok ? result.error : 'Handing back is not available here.';
   }, []);
 

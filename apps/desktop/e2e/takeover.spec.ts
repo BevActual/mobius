@@ -46,11 +46,14 @@ test('Take over pauses Mobius at the next safe point; Hand back makes it read ag
   await shell.waitForTimeout(800);
   expect(model.requests).toHaveLength(1);
 
+  // What they write as they hand back reaches Mobius as their words.
+  await bar.getByRole('textbox', { name: 'Tell Mobius as you hand back' }).fill('I fixed the dates myself; only tidy the headings');
   await bar.getByRole('button', { name: 'Hand back' }).click();
   await expect(bar).toBeHidden();
   await expect(log.locator('.msg.assistant')).toContainText('Carried on.');
   const system = (model.requests[1]!.messages as Array<{ role: string; content: string }>)[0]!.content;
   expect(system).toContain('The person took over for a while');
+  expect(system).toContain('I fixed the dates myself; only tidy the headings');
 });
 
 test('Stop on the control bar ends the task', async () => {

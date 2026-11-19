@@ -283,6 +283,9 @@ pub const MAX_READS: usize = 6;
 /// For a model that ended a turn of changes without a word: the next answer tells the person what was done.
 const SAY_WHAT_YOU_DID: &str = "You finished without writing anything to the person. Now tell them, in a sentence or two, what you did and anything they should check. Do not call any more tools.";
 
+/// The most of a hand-back note the model is told.
+pub const MAX_HANDED_NOTE: usize = 2000;
+
 pub const HANDED_BACK: &str = "The person took over for a while and used the apps themself, then handed back. What you read before may have changed: read the current state again (the page, document or list you were working on) before your next step, and carry on from what is there now.";
 
 /// Added to the instructions of a plan-only turn.
@@ -316,6 +319,8 @@ pub struct Turn {
     plan: Option<(u32, u32)>,
     /// The person had control for a while: the next request tells the model to read what is there again.
     reread: bool,
+    /// What the person said when handing back: what they changed, or what to do next.
+    handed_note: Option<String>,
     /// Calls of the model call in flight that ran as soon as the model finished writing each one.
     early: Early,
     /// Reads still to do before the model is first asked, and what those done gave.
@@ -531,7 +536,7 @@ impl Engine {
         } else {
             setup.reads.iter().take(MAX_READS).enumerate().map(|(i, (name, arguments))| ToolCall { id: format!("read-{id}-{i}"), name: name.clone(), arguments: arguments.clone() }).collect()
         };
-        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, early: Early::default(), reads: None, round: Round::default(), said: false, nudged: false, web_for_turn: false, ran: HashMap::new() };
+        let mut turn = Turn { id, setup, messages: history, steps: 0, parked: None, dispatched: None, asking: None, events: Vec::new(), finished: false, compaction, summarizing: None, overflow_retried: false, plan: None, reread: false, handed_note: None, early: Early::default(), reads: None, round: Round::default(), said: false, nudged: false, web_for_turn: false, ran: HashMap::new() };
         if !reads.is_empty() {
             // The reads need the core to run them: the caller goes on with `read_first`.
             turn.reads = Some(Reads { waiting: reads, ..Reads::default() });
@@ -816,8 +821,14 @@ impl Engine {
     /// The person handed back after taking over. `held` is the step that was waiting when they took over: a model
     /// request is asked again, telling the model to read what is there now; a tool call is not run (what it was
     /// decided on may have changed), and the model is asked again instead.
-    pub fn hand_back(&self, turn: &mut Turn, core: &Core, held: Option<Step>) -> Step {
+    ///
+    /// `note` is what the person wrote as they handed back ("I booked it myself; just send the summary"): the model
+    /// is told it as the person's words, for the rest of the turn.
+    pub fn hand_back(&self, turn: &mut Turn, core: &Core, held: Option<Step>, note: Option<&str>) -> Step {
         turn.reread = true;
+        if let Some(note) = note.map(str::trim).filter(|n| !n.is_empty()) {
+            turn.handed_note = Some(note.chars().take(MAX_HANDED_NOTE).collect());
+        }
         match held {
             Some(Step::CallModel(_)) => Step::CallModel(self.request(core, turn)),
             Some(Step::RunTool { .. }) => {
@@ -926,6 +937,10 @@ impl Engine {
         };
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
+        let system = match &turn.handed_note {
+            Some(note) => format!("{system}\n\nJust now, as they handed back, the person wrote (their own words, to follow as an instruction from them; say so as \"as you said when you handed back\", not \"earlier\"): {note}"),
+            None => system,
+        };
         let system = if turn.nudged { format!("{system}\n\n{SAY_WHAT_YOU_DID}") } else { system };
         let system = if turn.setup.finish_on_changes { format!("{system}\n\n{FINISH_ON_CHANGES}") } else { system };
         ChatRequest {

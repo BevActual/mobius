@@ -224,7 +224,7 @@ export function createTauriBridge(): MobiusBridge {
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
       cancel: (conversation) => call('agent', 'cancel', [conversation], () => undefined).then(() => undefined),
       takeOver: (conversation) => call('agent', 'takeOver', [conversation], () => ({ ok: false as const, error: 'Not available.' })),
-      handBack: (conversation) => call('agent', 'handBack', [conversation], () => ({ ok: false as const, error: 'Not available.' })),
+      handBack: (conversation, note) => call('agent', 'handBack', note ? [conversation, note] : [conversation], () => ({ ok: false as const, error: 'Not available.' })),
       control: (conversation) => call('agent', 'control', [conversation], () => ({ theirs: false })),
       history: (conversation) => call('agent', 'history', [conversation], () => []),
       waiting: (conversation) => call('agent', 'waiting', [conversation], () => []),

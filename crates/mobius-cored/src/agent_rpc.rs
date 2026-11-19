@@ -140,6 +140,15 @@ struct ConversationParams {
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
+struct HandBackParams {
+    conversation: String,
+    /// What the person wrote as they handed back, if anything.
+    #[serde(default)]
+    note: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct JobParams {
     job: String,
 }
@@ -681,8 +690,8 @@ impl Extension for Agent {
                 self.queued.extend(outs);
                 Ok(json!({}))
             }),
-            "agent.hand_back" => params_as::<ConversationParams>(params).and_then(|p| {
-                let outs = self.host.hand_back(core, &p.conversation).map_err(|e| host_error(&e))?;
+            "agent.hand_back" => params_as::<HandBackParams>(params).and_then(|p| {
+                let outs = self.host.hand_back(core, &p.conversation, p.note.as_deref()).map_err(|e| host_error(&e))?;
                 self.queued.extend(outs);
                 Ok(json!({}))
             }),
