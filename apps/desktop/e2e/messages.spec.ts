@@ -112,6 +112,7 @@ test('a Matrix room this device cannot read yet shows one line instead of its me
       channels: async () => [
         { id: '!dm:example.org', account: 'm', name: 'Lee Park', kind: 'direct', unread: 0, mentions: 0, last: 2000, encrypted: true },
         { id: '!ops:example.org', account: 'm', name: 'Ops', kind: 'channel', unread: 0, mentions: 0, last: 1000 },
+        { id: '!wa:example.org', account: 'm', name: 'Sam Lee', kind: 'direct', unread: 0, mentions: 0, last: 500, bridge: 'WhatsApp' },
       ],
       history: async () => [],
       send: async () => ({ ok: false, message: 'not here' }),
@@ -127,4 +128,6 @@ test('a Matrix room this device cannot read yet shows one line instead of its me
   await expect(shell().getByRole('textbox', { name: 'Message Lee Park' })).toHaveCount(0);
   await side.getByRole('button', { name: /^#Ops/ }).click();
   await expect(shell().getByRole('textbox', { name: 'Message #Ops' })).toBeVisible();
+  // A bridged chat says which network it comes from.
+  await expect(side.getByRole('button', { name: /^Sam Lee/ })).toContainText('WhatsApp');
 });

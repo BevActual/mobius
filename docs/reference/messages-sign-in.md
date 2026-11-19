@@ -80,7 +80,10 @@ Nothing to register. Matrix is open: any homeserver lets a client sign in to it,
   They accept it on one, both show the same seven emoji, and the person says whether they match. If they do, the
   devices trust each other, the other app sends Mobius the person's cross-signing keys and key backup key, and the
   backup's message keys are restored as with the recovery key. If they don't, the verification is cancelled.
+- Bridged rooms (WhatsApp, Telegram, Signal and others carried into Matrix by a bridge, as Beeper does) show their
+  network under the room's name, read from the bridge's own `m.bridge` room state. A bridge's management room, where
+  only its bot is, is left out of the list.
 
 What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
-in Messages, read markers shared with the person's other devices, and Matrix bridges they already run (bridge labels
-come in the third Matrix PR).
+in Messages, read markers shared with the person's other devices, and Matrix bridges they already run, each
+room labelled with its network.

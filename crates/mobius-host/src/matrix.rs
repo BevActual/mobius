@@ -41,10 +41,40 @@ const CLIENT_URI: &str = "https://mobiusworkspace.com/";
 const DEVICE_NAME: &str = "Mobius";
 
 /// The parts of each room a first look reads; everything else (presence, typing, receipts) is left out.
-const SYNC_FILTER: &str = r#"{"presence":{"not_types":["*"]},"account_data":{"types":["m.direct"]},"room":{"state":{"lazy_load_members":true,"types":["m.room.name","m.room.canonical_alias","m.room.encryption","m.room.member"]},"timeline":{"limit":1,"lazy_load_members":true},"ephemeral":{"not_types":["*"]},"account_data":{"not_types":["*"]}}}"#;
+const SYNC_FILTER: &str = r#"{"presence":{"not_types":["*"]},"account_data":{"types":["m.direct"]},"room":{"state":{"lazy_load_members":true,"types":["m.room.name","m.room.canonical_alias","m.room.encryption","m.room.member","m.bridge","uk.half-shot.bridge"]},"timeline":{"limit":1,"lazy_load_members":true},"ephemeral":{"not_types":["*"]},"account_data":{"not_types":["*"]}}}"#;
 const HISTORY_FILTER: &str = r#"{"lazy_load_members":true,"types":["m.room.message","m.room.encrypted"]}"#;
 /// What a message this device can't decrypt says instead.
 const NO_KEY: &str = "Encrypted message: this device doesn't have its key yet.";
+
+/// The bots of the common bridges (mautrix and Beeper's), by their usual Matrix IDs: `@whatsappbot:server`.
+const BRIDGE_BOTS: &[&str] = &[
+    "whatsappbot", "telegrambot", "signalbot", "discordbot", "slackbot", "metabot", "facebookbot", "instagrambot", "gmessagesbot", "googlechatbot", "twitterbot", "linkedinbot", "imessagebot", "gvoicebot", "bluebubblesbot", "heisenbridge",
+];
+
+fn is_bridge_bot(user: &str) -> bool {
+    let local = user.trim_start_matches('@').split(':').next().unwrap_or("");
+    BRIDGE_BOTS.contains(&local)
+}
+
+/// A network's name from a bridge's protocol id, when the bridge gives no display name.
+fn network_name(id: &str) -> &str {
+    match id {
+        "whatsapp" => "WhatsApp",
+        "telegram" => "Telegram",
+        "signal" => "Signal",
+        "discord" => "Discord",
+        "slack" => "Slack",
+        "facebook" | "messenger" => "Messenger",
+        "instagram" => "Instagram",
+        "gmessages" => "Google Messages",
+        "googlechat" => "Google Chat",
+        "twitter" => "X",
+        "linkedin" => "LinkedIn",
+        "imessage" | "imessagego" => "iMessage",
+        "irc" => "IRC",
+        other => other,
+    }
+}
 
 /// A sign-in to one account on one server.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -102,6 +132,8 @@ struct Room {
     /// People's display names, from the membership events seen.
     names: HashMap<String, String>,
     encrypted: bool,
+    /// The network a bridge carries this room from (WhatsApp, Telegram…), as the bridge names it.
+    bridge: Option<String>,
     unread: u64,
     mentions: u64,
     last: u64,
@@ -113,6 +145,8 @@ struct Synced {
     next: Option<String>,
     rooms: HashMap<String, Room>,
     direct: HashSet<String>,
+    /// Bridge bots named by the bridges' own room state.
+    bots: HashSet<String>,
 }
 
 pub struct Matrix {
@@ -313,6 +347,16 @@ impl Synced {
                     Some("m.room.name") => room.name = content.get("name").and_then(Value::as_str).map(str::to_owned),
                     Some("m.room.canonical_alias") => room.alias = content.get("alias").and_then(Value::as_str).map(str::to_owned),
                     Some("m.room.encryption") => room.encrypted = true,
+                    Some("m.bridge" | "uk.half-shot.bridge") => {
+                        let protocol = content.get("protocol");
+                        let named = protocol.and_then(|p| p.get("displayname")).and_then(Value::as_str).or_else(|| protocol.and_then(|p| p.get("id")).and_then(Value::as_str).map(network_name));
+                        if let Some(n) = named.filter(|n| !n.trim().is_empty()) {
+                            room.bridge = Some(n.chars().take(40).collect());
+                        }
+                        if let Some(bot) = content.get("bridgebot").and_then(Value::as_str) {
+                            self.bots.insert(bot.to_owned());
+                        }
+                    }
                     Some("m.room.member") => {
                         if let Some(user) = str_at(e, "/state_key") {
                             match content.get("displayname").and_then(Value::as_str) {
@@ -338,6 +382,12 @@ impl Synced {
         }
     }
 
+    /// A room with no one in it but the person and bridge bots: a bridge's management room.
+    fn is_bot_room(&self, room: &Room, me: &str) -> bool {
+        let others: Vec<&String> = room.heroes.iter().filter(|h| *h != me).collect();
+        room.bridge.is_none() && room.joined <= 3 && !others.is_empty() && others.iter().all(|h| self.bots.contains(*h) || is_bridge_bot(h))
+    }
+
     /// Every room as the app shows it (`ChatChannel`), the latest first.
     /// `readable`: this device can read encrypted rooms (it is verified), so they aren't marked.
     fn channels(&self, account: &str, me: &str, readable: bool) -> Vec<Value> {
@@ -345,6 +395,8 @@ impl Synced {
         rooms.sort_by(|a, b| b.1.last.cmp(&a.1.last).then_with(|| a.0.cmp(b.0)));
         rooms
             .into_iter()
+            // A bridge's own room, where its bot takes commands, is the bridge's business, not a conversation.
+            .filter(|(_, room)| !self.is_bot_room(room, me))
             .map(|(id, room)| {
                 let named = room.name.as_deref().is_some_and(|n| !n.trim().is_empty()) || room.alias.is_some();
                 let kind = if self.direct.contains(id) || (!named && room.joined <= 2) {
@@ -360,6 +412,9 @@ impl Synced {
                 }
                 if room.encrypted && !readable {
                     c["encrypted"] = json!(true);
+                }
+                if let Some(b) = &room.bridge {
+                    c["bridge"] = json!(b);
                 }
                 c
             })
@@ -917,6 +972,29 @@ pub(crate) mod tests {
         assert!(server_of("@ana").is_err());
         assert!(server_of("").is_err());
         assert!(server_of("a b").is_err());
+    }
+
+    #[test]
+    fn bridged_rooms_say_their_network_and_bridge_bot_rooms_are_hidden() {
+        let mut synced = Synced::default();
+        let bridge = |protocol: Value, bot: &str| json!({ "type": "m.bridge", "state_key": "x", "content": { "bridgebot": bot, "protocol": protocol } });
+        synced.apply(&json!({ "rooms": { "join": {
+            // A WhatsApp chat carried by a bridge that names its network.
+            "!wa:x": { "summary": { "m.heroes": ["@whatsapp_1555:x"], "m.joined_member_count": 3 }, "state": { "events": [bridge(json!({ "id": "whatsapp", "displayname": "WhatsApp" }), "@whatsappbot:x")] } },
+            // An older bridge's event, with only the protocol id.
+            "!tg:x": { "summary": { "m.joined_member_count": 5 }, "state": { "events": [{ "type": "m.room.name", "state_key": "", "content": { "name": "Climbing" } }, { "type": "uk.half-shot.bridge", "state_key": "y", "content": { "protocol": { "id": "telegram" } } }] } },
+            // The bridges' own rooms: one bot named by a bridge, one known by its usual ID.
+            "!wabot:x": { "summary": { "m.heroes": ["@whatsappbot:x"], "m.joined_member_count": 2 } },
+            "!sigbot:x": { "summary": { "m.heroes": ["@signalbot:beeper.local"], "m.joined_member_count": 2 } },
+            // A person whose name only looks like a bot's stays.
+            "!abbot:x": { "summary": { "m.heroes": ["@abbot:x"], "m.joined_member_count": 2 } },
+        } } }));
+        let rooms = synced.channels("acc", "@me:x", true);
+        let by: HashMap<&str, &Value> = rooms.iter().map(|r| (r["id"].as_str().unwrap(), r)).collect();
+        assert_eq!(by.len(), 3);
+        assert_eq!(by["!wa:x"]["bridge"], "WhatsApp");
+        assert_eq!(by["!tg:x"]["bridge"], "Telegram");
+        assert!(by["!abbot:x"].get("bridge").is_none());
     }
 
     #[test]

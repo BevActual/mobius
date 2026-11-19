@@ -26,7 +26,7 @@ export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pi
             {shown.map((c) => {
               const count = c.mentions || c.unread;
               return (
-                <SidebarRow key={c.id} label={channelLabel(c)} {...(count ? { count } : {})} title={unreadLabel(c) || channelLabel(c)}
+                <SidebarRow key={c.id} label={channelLabel(c)} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
                   current={messages.open?.account === account.id && messages.open.channel === c.id}
                   onSelect={() => messages.choose({ account: account.id, channel: c.id })} />
               );
