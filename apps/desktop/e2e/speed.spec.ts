@@ -140,6 +140,8 @@ test('start, switching apps, a long list and memory after long use stay within t
   for (let round = 0; round < 20; round++) {
     for (const [name, panel] of APPS) again.push(await switchTo(shell, name, panel));
   }
+  // Which app a slow switch goes to, in the log, so the slowest one is plain.
+  for (const [i, [name]] of APPS.entries()) console.log(`[speed] switch to ${name}: median ${Math.round(median(again.filter((_, j) => j % APPS.length === i)))} ms`);
   measured('switch apps', median(again), 'ms');
   measured('switch apps, slowest tenth', p90(again), 'ms');
 
