@@ -90,3 +90,7 @@
 .launcher[data-anchored="go"][open] { animation: launcher-grow var(--dur-fast) var(--ease); }
 @keyframes launcher-grow { from { opacity: 0; transform: scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { .launcher[data-anchored="go"][open] { animation: none; } }
+
+/* A quick answer: the result large, what it answers beside it in grey. */
+.launcher-option[data-kind="answer"] .launcher-label { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }
+.launcher-icon svg[data-answer] { background: var(--field); color: var(--muted); }
