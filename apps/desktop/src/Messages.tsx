@@ -118,18 +118,18 @@ function Compose({ label, reset, onSend }: { label: string; reset: string; onSen
 }
 
 /** The open channel: its messages by sender, threads to open beside it, and a box to write in. Only the person sends. */
-export function MessagesPage({ messages, onAsk, listPanels = [] }: { messages: MessagesState; /** Puts a message in Mobius's box with the channel attached, ready to send. */ onAsk?: (prompt: string, item: ContextItem) => void; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
+export function MessagesPage({ messages, onAsk, onAddAccount, listPanels = [] }: { messages: MessagesState; /** Opens Settings at Messages' accounts. */ onAddAccount?: () => void; /** Puts a message in Mobius's box with the channel attached, ready to send. */ onAsk?: (prompt: string, item: ContextItem) => void; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const { account, channel, open, thread } = messages;
   // Person (right, while someone is picked): who wrote a message, from the address book when they are in it.
   const [person, setPerson] = useState<ChatMessage['author'] | null>(null);
   useEffect(() => setPerson(null), [open?.account, open?.channel]);
-  const empty = (title: string, line: string) => (
+  const empty = (title: string, line: string, action?: { label: string; run: () => void }) => (
     <PanelLayout app="messages" panels={listPanels}>
-      <section className="messages-page empty" aria-label="Messages"><EmptyState app="messages" title={title} line={line} /></section>
+      <section className="messages-page empty" aria-label="Messages"><EmptyState app="messages" title={title} line={line} action={action} /></section>
     </PanelLayout>
   );
   if (!messages.loaded) return <PanelLayout app="messages" panels={listPanels}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
-  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack or Matrix account in Settings to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.');
+  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
   if (!account || !channel) return empty('No channel open', 'Choose a channel or a person on the left.');
   const unread = channel.unread;
   const name = channelLabel(channel);

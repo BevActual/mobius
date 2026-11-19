@@ -811,7 +811,7 @@ export function App() {
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -1229,7 +1229,7 @@ export function App() {
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => isAvailable(a.id)),
@@ -1660,7 +1660,7 @@ export function App() {
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':
-        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
+        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAddAccount={() => openSettingsAt('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
