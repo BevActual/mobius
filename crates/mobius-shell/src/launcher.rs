@@ -10,6 +10,9 @@ use tauri::{AppHandle, Emitter, Manager, WebviewUrl, WebviewWindow};
 pub const LABEL: &str = "launcher";
 const WIDTH: f64 = 640.0;
 const HEIGHT: f64 = 440.0;
+/// The most a question from the launcher's window may hold, and the most an answer to it may.
+const MAX_QUERY: usize = 2000;
+const MAX_ANSWER: usize = 256 * 1024;
 
 /// Open the launcher window over the app in front, or put it away when it is already open.
 pub fn toggle(app: &AppHandle) {
@@ -105,6 +108,26 @@ pub fn call(app: &AppHandle, method: &str, args: &[Value]) -> Result<Value, Valu
                 let _ = main.set_focus();
             }
             let _ = app.emit("mobius:launch", chosen);
+            Ok(Value::Null)
+        }
+        // The launcher's window asks the main window what it finds for the words typed; the main window answers.
+        // Rust only passes each on, checked for shape and size.
+        "find" => {
+            let (Some(query), Some(seq)) = (args.first().and_then(Value::as_str), args.get(1).and_then(Value::as_u64)) else {
+                return Err(serde_json::json!({ "kind": "invalid", "message": "A question needs its words and a number." }));
+            };
+            if query.len() > MAX_QUERY {
+                return Err(serde_json::json!({ "kind": "invalid", "message": "Those words are too long." }));
+            }
+            let _ = app.emit_to("main", "mobius:launcher-find", serde_json::json!({ "query": query, "seq": seq }));
+            Ok(Value::Null)
+        }
+        "answer" => {
+            let answer = args.first().cloned().unwrap_or(Value::Null);
+            if !answer.is_object() || answer.to_string().len() > MAX_ANSWER {
+                return Err(serde_json::json!({ "kind": "invalid", "message": "Not an answer." }));
+            }
+            let _ = app.emit_to(LABEL, "mobius:launcher-found", answer);
             Ok(Value::Null)
         }
         _ => Err(serde_json::json!({ "kind": "not_available", "message": "Not a launcher call." })),

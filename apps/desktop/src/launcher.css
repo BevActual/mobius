@@ -90,3 +90,10 @@
 .launcher[data-anchored="go"][open] { animation: launcher-grow var(--dur-fast) var(--ease); }
 @keyframes launcher-grow { from { opacity: 0; transform: scale(0.97); } }
 @media (prefers-reduced-motion: reduce) { .launcher[data-anchored="go"][open] { animation: none; } }
+
+/* Sources that answer later: a thin line along the foot of the field while they do. No spinner. */
+.launcher-search { position: relative; }
+.launcher-finding { position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; overflow: hidden; pointer-events: none; }
+.launcher-finding::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--muted); animation: launcher-finding var(--dur-loop) var(--ease) infinite; }
+@keyframes launcher-finding { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
+@media (prefers-reduced-motion: reduce) { .launcher-finding::after { animation: none; width: 100%; opacity: 0.5; } }

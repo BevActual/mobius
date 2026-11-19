@@ -97,6 +97,7 @@ import { nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
+import { findInSources, sourceCommands } from './launcher-sources';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -1343,8 +1344,13 @@ export function App() {
   launcherCommands.push({ id: 'open-agents', label: 'Agents', detail: 'Your named agents', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } });
   launcherCommands.push({ id: 'all-apps', label: 'All apps', detail: 'Every app, with what is happening in it', run: openHub });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
+  // And what each app registered with the launcher (launcher-sources.ts).
+  const allCommands = sourceCommands(launcherCommands);
   // What the launcher does, the same from Ctrl+K and from the launcher's own window over other apps.
   const launch = {
+    // Everything found in your apps: what Mobius already holds, then what each app's own source finds.
+    find: (query: string) => findInSources(query, launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))),
+    commands: allCommands,
     openApp: (id: AppId) => { opener.current = null; closeSettings(); if (id === 'agent') setSideMode('sessions'); openApp(id); /* after the launcher's dialog has closed and given focus back */ if (id === 'search') window.setTimeout(() => setSearchFocus((n) => n + 1), 0); },
     activateTab: (id: string) => { openApp('browser'); window.mobius.browser.activate(id); },
     newTab,
@@ -1363,6 +1369,7 @@ export function App() {
     ask: settings?.configured ? (question: string) => { setChatOpen(true); setFocusToken((n) => n + 1); void conversation.send(question, []); } : undefined,
   };
   const launchNow = useRef(launch);
+  const foundForWindow = useRef(new Map<string, () => void>());
   launchNow.current = launch;
   // Chosen in the launcher's own window: Mobius has come forward, and opens it here.
   useEffect(() => window.mobius.launcherWindow?.onLaunch((value) => {
@@ -1377,6 +1384,18 @@ export function App() {
     else if (chosen.kind === 'mobius') l.openMobius();
     else if (chosen.kind === 'ask-about') l.askAbout({ ...(findApp(chosen.app) ? { app: chosen.app as AppId } : {}), label: chosen.label, ...(chosen.detail ? { detail: chosen.detail } : {}) });
     else if (chosen.kind === 'ask') { if (chosen.text.trim() && l.ask) l.ask(chosen.text); else l.openMobius(); }
+    else if (chosen.kind === 'found') foundForWindow.current.get(chosen.id)?.();
+    else if (chosen.kind === 'command') l.commands.find((c) => c.id === chosen.id)?.run();
+  }), []);
+  // The launcher's own window asks what is found for its words; it gets them as plain rows, and opens one by its id.
+  useEffect(() => window.mobius.launcherWindow?.onFind?.(async (query) => {
+    const l = launchNow.current;
+    const items = query.trim() ? await l.find(query.trim()) : [];
+    foundForWindow.current = new Map(items.map((item) => [`${item.app}:${item.id}`, item.run]));
+    return {
+      items: items.map((item) => ({ id: `${item.app}:${item.id}`, app: item.app, label: item.label, ...(item.detail ? { detail: item.detail } : {}) })),
+      commands: l.commands.map((c) => ({ id: c.id, label: c.label, ...(c.detail ? { detail: c.detail } : {}) })),
+    };
   }), []);
   // On macOS the menus go in the system menu bar; elsewhere they are drawn in the toolbar.
   const nativeMenus = window.mobius.platform === 'darwin' && window.mobius.menu !== undefined;
@@ -1945,12 +1964,12 @@ export function App() {
         waiting={waiting}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
-        find={(query) => launcherFind(launcherSources(), query).slice(0, 8).map((r) => ({ id: r.key, app: targetApp(r.target) ?? 'search', label: r.title, detail: r.where, run: () => { opener.current = null; closeSettings(); openTarget(r.target, r.title); } }))}
+        find={launch.find}
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}
         onAskAbout={launch.askAbout}
-        commands={launcherCommands} />
+        commands={allCommands} />
       <TooltipLayer />
     </AppFrame>
     </TryAnotherContext.Provider>

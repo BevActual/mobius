@@ -371,7 +371,31 @@ export type LaunchChoice =
   | { kind: 'new-tab' }
   | { kind: 'mobius' }
   | { kind: 'ask'; text: string }
-  | { kind: 'ask-about'; app: string; label: string; detail?: string };
+  | { kind: 'ask-about'; app: string; label: string; detail?: string }
+  /** Something the main window found for the launcher's window (`LauncherAnswer`), or one of its commands, by id. */
+  | { kind: 'found'; id: string }
+  | { kind: 'command'; id: string };
+
+/** What the main window found for the words typed in the launcher's own window, and every command it offers now. */
+export interface LauncherAnswer {
+  items: { id: string; app: string; label: string; detail?: string }[];
+  commands: { id: string; label: string; detail?: string }[];
+}
+
+/** An answer as it arrives from the main window, checked: what is malformed is left out. */
+export function parseLauncherAnswer(value: unknown): LauncherAnswer {
+  const v = (value && typeof value === 'object' ? value : {}) as Record<string, unknown>;
+  const str = (x: unknown, max: number) => (typeof x === 'string' && x.length <= max ? x : null);
+  const rows = (list: unknown, limit: number) => (Array.isArray(list) ? list.slice(0, limit) : []).flatMap((row) => {
+    const r = (row && typeof row === 'object' ? row : {}) as Record<string, unknown>;
+    const id = str(r.id, 400); const label = str(r.label, 400); const detail = str(r.detail, 400); const app = str(r.app, 40);
+    return id && label ? [{ id, label, ...(detail ? { detail } : {}), ...(app ? { app } : {}) }] : [];
+  });
+  return {
+    items: rows(v.items, 40).flatMap((r) => (r.app ? [{ ...r, app: r.app }] : [])),
+    commands: rows(v.commands, 400).map(({ app: _app, ...r }) => r),
+  };
+}
 
 /** A choice as it arrives from the other window, checked: anything else is ignored. */
 export function parseLaunchChoice(value: unknown): LaunchChoice | null {
@@ -390,6 +414,7 @@ export function parseLaunchChoice(value: unknown): LaunchChoice | null {
       const app = text('app', 40) ?? ''; const label = text('label', 400); const detail = text('detail', 2000);
       return label ? { kind: 'ask-about', app, label, ...(detail ? { detail } : {}) } : null;
     }
+    case 'found': case 'command': { const id = text('id', 400); return id ? (v.kind === 'found' ? { kind: 'found', id } : { kind: 'command', id }) : null; }
     default: return null;
   }
 }
@@ -452,6 +477,10 @@ export interface MobiusBridge {
     onShown(listener: () => void): () => void;
     /** In the main window: something was chosen in the launcher's window. */
     onLaunch(listener: (chosen: unknown) => void): () => void;
+    /** In the launcher's window: ask the main window what it finds for the words (nothing typed: its commands). */
+    find?(query: string): Promise<LauncherAnswer>;
+    /** In the main window: answer the launcher's window. */
+    onFind?(answer: (query: string) => Promise<LauncherAnswer> | LauncherAnswer): () => void;
   };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {

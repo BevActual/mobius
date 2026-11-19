@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { UpdateInfo } from '@mobius/shared';
+import type { LauncherAnswer, UpdateInfo } from '@mobius/shared';
+import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
   DEFAULT_PREFERENCES,
@@ -88,6 +89,29 @@ function on<T>(event: string, listener: (payload: T) => void, catchUp?: () => Pr
   };
 }
 
+/**
+ * The launcher's window asks the main window what it finds, and the answer comes back as an event with the same
+ * number. One listener for all answers, in place before the first question; no answer in two seconds is nothing found.
+ */
+const NOTHING: LauncherAnswer = { items: [], commands: [] };
+const launcherWaiting = new Map<number, (answer: LauncherAnswer) => void>();
+let launcherListening: Promise<unknown> | null = null;
+let launcherAsked = 0;
+async function askMainWindow(query: string): Promise<LauncherAnswer> {
+  launcherListening ??= listen<{ seq?: unknown }>('mobius:launcher-found', (e) => {
+    const seq = typeof e.payload?.seq === 'number' ? e.payload.seq : -1;
+    launcherWaiting.get(seq)?.(parseLauncherAnswer(e.payload));
+  });
+  await launcherListening;
+  const seq = ++launcherAsked;
+  return new Promise<LauncherAnswer>((resolve) => {
+    const finish = (answer: LauncherAnswer) => { window.clearTimeout(timer); launcherWaiting.delete(seq); resolve(answer); };
+    const timer = window.setTimeout(() => finish(NOTHING), 2000);
+    launcherWaiting.set(seq, finish);
+    call('launcher', 'find', [query, seq], () => null).catch(() => finish(NOTHING));
+  });
+}
+
 const never = () => () => undefined;
 const refused = { ok: false as const, error: 'This is not available in the Tauri preview yet.' };
 const NO_AGENT: AgentSettings = { baseUrl: '', model: '', system: '', configured: false, hasKey: false, maxSteps: 25, keyStorage: 'none', fallbackBaseUrl: '', fallbackModel: '', hasFallbackKey: false };
@@ -139,6 +163,12 @@ export function createTauriBridge(): MobiusBridge {
       run: (chosen) => call('launcher', 'run', [chosen], () => null).then(() => undefined),
       onShown: (listener) => on<null>('mobius:launcher-shown', () => listener()),
       onLaunch: (listener) => on<unknown>('mobius:launch', listener),
+      find: askMainWindow,
+      onFind: (answer) => on<{ query?: unknown; seq?: unknown }>('mobius:launcher-find', (asked) => {
+        const seq = typeof asked?.seq === 'number' ? asked.seq : -1;
+        void Promise.resolve().then(() => answer(typeof asked?.query === 'string' ? asked.query : '')).catch(() => NOTHING)
+          .then((found) => fire('launcher', 'answer', [{ ...found, seq }]));
+      }),
     },
     profiles: {
       list: () => call('profiles', 'list', [], () => ({ current: 'default', list: [{ id: 'default', name: 'Personal' }] })),
