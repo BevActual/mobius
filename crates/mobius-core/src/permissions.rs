@@ -207,11 +207,11 @@ impl Policy {
 /// What Propose lets the agent do without asking: read the workspace and change it in ways a turn's checkpoint puts
 /// back, read the person's mail and suggest a reply (reading changes nothing, and a suggested draft waits for the
 /// person to keep, change and send it; what always asks is paying, sending, deleting and running commands), and read
-/// what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
+/// the person's chats (Messages only reads; the person sends), and read what only says something about this computer (the time, the schedules, which browser tabs are open). Deleting files
 /// is a floor, and sending, browsing and running commands are not here, so they still ask.
-const REVERSIBLE: [&str; 20] = [
+const REVERSIBLE: [&str; 21] = [
     "clock.read", "schedules.read", "files.read", "files.list", "files.write", "tasks.read", "tasks.write", "sheets.read", "sheets.write", "db.read", "db.write",
-    "calendar.read", "calendar.write", "contacts.read", "contacts.write", "skills.read", "document.write", "mail.read", "mail.draft", "browser.list",
+    "calendar.read", "calendar.write", "contacts.read", "contacts.write", "skills.read", "document.write", "mail.read", "mail.draft", "messages.read", "browser.list",
 ];
 
 #[must_use]
@@ -455,6 +455,8 @@ mod tests {
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.read"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.draft"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("mail.send"), None), Verdict::Ask);
+        // Reading chats is like reading mail; Mobius has no tool that sends one.
+        assert_eq!(p.evaluate(&[], NOW, &a, &cap("messages.read"), None), Verdict::Allow { consume: None });
         // Which tabs are open is said without asking; reading a page still asks (the person's own pages are files).
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.list"), None), Verdict::Allow { consume: None });
         assert_eq!(p.evaluate(&[], NOW, &a, &cap("browser.read"), None), Verdict::Ask);
