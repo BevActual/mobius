@@ -107,7 +107,7 @@ import { contactSheet } from './picture';
 
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
-import { liveTitle, statusText } from './notes-state';
+import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -1020,6 +1020,13 @@ export function App() {
   const createActions: HubAction[] = [
     { id: 'conversation', label: 'New chat', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
     { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
+    // Notes: today's dated page in the Journal notebook, opened if it was made already, otherwise made.
+    { id: 'today-note', label: 'Today’s note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => {
+      const made = findTodayNote(notes.notebooks);
+      if (made) { await notes.open(made.path, made.title); return; }
+      const book = notes.notebooks.some((nb) => nb.name === JOURNAL) ? JOURNAL : await notes.createNotebook(JOURNAL);
+      if (book) await notes.createPage(book, todayNoteTitle(), `# ${todayNoteTitle()}\n\n`);
+    })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
@@ -1235,7 +1242,7 @@ export function App() {
       agent: { busy: conversation.state.busy },
     },
     do: {
-      create: { conversation: createActions[0]!.run, note: createActions[1]!.run, task: createActions[2]!.run, tab: createActions[3]!.run },
+      create: { conversation: createActions[0]!.run, note: createActions[1]!.run, task: createActions.find((a) => a.id === 'task')!.run, tab: createActions.find((a) => a.id === 'tab')!.run },
       closeTab: () => { if (active) window.mobius.browser.close(active.id); },
       settings: openSettings,
       shortcuts: () => openSettingsAt('keyboard'),
@@ -1276,6 +1283,7 @@ export function App() {
       },
       notes: {
         newNotebook: () => sendCommand('new-notebook'),
+        today: () => createActions.find((a) => a.id === 'today-note')!.run(),
         pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
         changes: () => sendCommand('show-changes'),
         // Notes: the page's less-used controls live here, not in a second ⋯ in the toolbar.
