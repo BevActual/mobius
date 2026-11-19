@@ -20,6 +20,7 @@ pub mod web;
 pub mod pages;
 pub mod database;
 pub mod teams;
+pub mod telegram;
 pub mod terminal;
 pub mod workspace_guide;
 pub mod turn_history;

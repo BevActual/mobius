@@ -58,9 +58,25 @@ must include `Chat.ReadWrite` (see [Drives sign-in](drive-sign-in.md), step 4).
 - A chat is unread when someone else wrote last after the person last read it. Opening a chat marks it read in Teams too.
   Chats hidden in Teams stay hidden. Teams chats have no threads; replies in Mobius go to the chat.
 
+## Telegram
 
-Not built yet. It will sign in as the person's own account, with a phone number and code, through TDLib. It needs an
-`api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), under **API development tools**.
+Telegram signs in as the person's own account and speaks Telegram's protocol (MTProto) through
+[grammers](https://codeberg.org/Lonami/grammers), a pure-Rust client (MIT or Apache-2.0), so no native library ships
+with Mobius.
+
+- Settings › Messages › **Telegram phone number**, then the code Telegram sends to the person's other Telegram apps (or
+  by SMS), then their two-step verification password if they set one. The password goes only to Telegram and is not
+  kept. Telegram doesn't let other apps make new accounts.
+- What the sign-in leaves (the account's home data centre and its authorisation key) is kept in the system secret
+  store. Removing the account signs this device out of Telegram.
+- Chats, groups and channels list with Telegram's own unread and mention counts. Opening one marks it read everywhere.
+  Messages with only a photo, file or sticker show a line saying so.
+
+**Registration (once, by the maintainer):** sign in at [my.telegram.org](https://my.telegram.org) with a phone number,
+open **API development tools**, and create an application (any title and short name; platform Desktop). It shows an
+**api_id** (a number) and an **api_hash**. They are built into release builds as `MOBIUS_TELEGRAM_API_ID` and
+`MOBIUS_TELEGRAM_API_HASH`: the id as an Actions variable and the hash as an Actions secret, read by the release workflow. Until they
+are, Telegram shows as not set up in this build. Forks and other builds of Mobius should register and use their own.
 
 ## Matrix, Discord and Signal
 
