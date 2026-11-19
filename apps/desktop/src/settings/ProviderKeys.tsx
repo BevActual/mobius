@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AccountInfo, AccountStatus, AgentSettings, ProviderInfo } from '@mobius/shared';
 import { Empty, Placeholder, Row } from './primitives';
 import { settingPath } from './manifest';
 import type { SectionProps } from './sections';
 import { SettingsForm } from './ModelForm';
+import { LocalQuickSetup } from './LocalModels';
+import { chatModels } from './first-run';
 
 /**
  * Settings > Gateways: the services Mobius is connected to, each with its key (kept in the system's secret store, never
@@ -39,7 +41,7 @@ export function FirstRunModels({ settings, onSave }: { settings: AgentSettings; 
   const [custom, setCustom] = useState(false);
   return (
     <div className="first-run-models" role="group" aria-label="Choose a model">
-      <p className="srow-desc">Sign in to a plan you already have, connect a service with its key, or use a model on this computer.</p>
+      <p className="srow-desc">Sign in to a plan you already have, run a free model on this computer, or connect a service with its key.</p>
       <ProviderList open />
       {!custom
         ? <button type="button" className="btn link" onClick={() => setCustom(true)}>Custom server…</button>
@@ -62,6 +64,7 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
   return (
     <div className="providers">
       <Accounts onChanged={reload} hideMissing={open} />
+      {open && connected.length === 0 && <><h4 className="plist-head">Free, on this computer</h4><LocalQuickSetup /></>}
       {open && connected.length === 0 ? null : connected.length > 0 ? (
         <ul className="plist" role="list" aria-label="Connected gateways">
           {connected.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
@@ -76,11 +79,11 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
       {adding && <>
       <h4 className="plist-head">With an API key</h4>
       <ul className="plist" role="list" aria-label="Online services">
-        {hosted.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
+        {hosted.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} firstRun={open} />)}
       </ul>
       <h4 className="plist-head">On this computer</h4>
       <ul className="plist" role="list" aria-label="Servers on this computer">
-        {local.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
+        {local.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} firstRun={open} />)}
       </ul>
       </>}
     </div>
@@ -89,7 +92,7 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
 
 type Open = 'none' | 'key' | 'use';
 
-function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onChanged: () => void }) {
+function ProviderRow({ provider: p, onChanged, firstRun = false }: { provider: ProviderInfo; onChanged: () => void; /** First run: once connected, the model choice opens by itself, with chat models only. */ firstRun?: boolean }) {
   const api = window.mobius.providers!;
   const [open, setOpen] = useState<Open>('none');
   const [key, setKey] = useState('');
@@ -110,10 +113,10 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
       if (s.pending) return;
       setSigningIn(null);
       setProblem(s.error);
-      if (!s.error) onChanged();
+      if (!s.error) { onChanged(); if (firstRun) void startUseRef.current(); }
     }), 1500);
     return () => clearInterval(timer);
-  }, [api, p.id, signingIn, onChanged]);
+  }, [api, p.id, signingIn, onChanged, firstRun]);
   const signIn = async () => {
     setProblem(null);
     const r = await api.keySignIn!(p.id);
@@ -131,13 +134,17 @@ function ProviderRow({ provider: p, onChanged }: { provider: ProviderInfo; onCha
     setBusy(false);
     if (!r.ok) { setProblem(r.error); return; }
     setKey(''); setPlace(''); setProblem(null); setOpen('none'); onChanged();
+    if (firstRun) void startUse();
   };
   const startUse = async () => {
     setOpen('use'); setProblem(null); setModels(null);
     const r = await api.models(p.id);
-    if (r.ok) { setModels(r.models); setModel((m) => m || r.models[0] || ''); }
+    const offered = r.ok ? (firstRun ? chatModels(r.models) : r.models) : [];
+    if (r.ok) { setModels(offered); setModel((m) => m || offered[0] || ''); }
     else { setModels([]); setProblem(`${r.error} You can still type a model name.`); }
   };
+  const startUseRef = useRef(startUse);
+  startUseRef.current = startUse;
   const use = async () => {
     setBusy(true);
     const r = await api.use(p.id, model.trim());
@@ -213,13 +220,13 @@ function Accounts({ onChanged, hideMissing = false }: { onChanged: () => void; /
     <>
       <h4 className="plist-head">With your subscription</h4>
       <ul className="plist" role="list" aria-label="Subscriptions">
-        {accounts.map((a) => <AccountRow key={a.id} account={a} hideMissing={hideMissing} onChanged={() => { reload(); onChanged(); }} />)}
+        {accounts.map((a) => <AccountRow key={a.id} account={a} hideMissing={hideMissing} firstRun={hideMissing} onChanged={() => { reload(); onChanged(); }} />)}
       </ul>
     </>
   );
 }
 
-function AccountRow({ account: a, onChanged, hideMissing = false }: { account: AccountInfo; onChanged: () => void; hideMissing?: boolean }) {
+function AccountRow({ account: a, onChanged, hideMissing = false, firstRun = false }: { account: AccountInfo; onChanged: () => void; hideMissing?: boolean; /** First run: signing in here uses the plan's newest model straight away. */ firstRun?: boolean }) {
   const api = window.mobius.providers!;
   const [status, setStatus] = useState<AccountStatus | null>(null);
   const [choosing, setChoosing] = useState(false);
@@ -237,7 +244,10 @@ function AccountRow({ account: a, onChanged, hideMissing = false }: { account: A
     return () => clearInterval(timer);
   }, [api, a.id, waiting]);
   useEffect(() => api.onChanged(() => void api.accountStatus(a.id).then(setStatus)), [api, a.id]);
+  // First run: once a sign-in started here finishes, the plan's newest model is put to use without another choice.
+  const signingHere = useRef(false);
   const signIn = async () => {
+    signingHere.current = true;
     const r = await api.signIn(a.id);
     setProblem(r.ok ? null : r.error);
     if (r.ok && browser) {
@@ -258,6 +268,13 @@ function AccountRow({ account: a, onChanged, hideMissing = false }: { account: A
     if (!r.ok) { setProblem(r.error); return; }
     setProblem(null); setChoosing(false); onChanged();
   };
+  const signedIn = status?.signedIn === true;
+  const newest = a.models[0]?.id ?? '';
+  useEffect(() => {
+    if (!firstRun || !signedIn || !signingHere.current || a.active || !newest) return;
+    signingHere.current = false;
+    void api.use(a.id, newest).then((r) => { if (r.ok) onChanged(); else setProblem(r.error); });
+  }, [firstRun, signedIn, a.active, a.id, newest, api, onChanged]);
   if (hideMissing && status !== null && !status.installed) return null;
   const said = status === null ? 'Checking…' : !status.installed ? (a.id === 'copilot' ? 'Copilot CLI is not installed' : 'Claude Code is not installed') : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
