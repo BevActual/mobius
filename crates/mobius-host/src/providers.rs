@@ -46,7 +46,7 @@ const fn local(id: &'static str, name: &'static str, base_url: &'static str, not
 /// The addresses are the ones each service documents for the OpenAI chat format.
 pub const CATALOG: &[Provider] = &[
     hosted("openai", "OpenAI", "https://api.openai.com/v1", "GPT models.", "https://platform.openai.com/api-keys"),
-    hosted("anthropic", "Anthropic", "https://api.anthropic.com/v1", "Claude models, through their OpenAI-compatible layer.", "https://console.anthropic.com/settings/keys"),
+    hosted("anthropic", "Anthropic", "https://api.anthropic.com/v1", "Claude models.", "https://console.anthropic.com/settings/keys"),
     hosted("gemini", "Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai", "Gemini models from Google AI Studio.", "https://aistudio.google.com/app/apikey"),
     hosted("openrouter", "OpenRouter", "https://openrouter.ai/api/v1", "One key for hundreds of models.", "https://openrouter.ai/keys"),
     hosted("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "DeepSeek chat and reasoning models.", "https://platform.deepseek.com/api_keys"),
@@ -58,7 +58,7 @@ pub const CATALOG: &[Provider] = &[
     hosted("huggingface", "Hugging Face", "https://router.huggingface.co/v1", "Inference providers behind one address.", "https://huggingface.co/settings/tokens"),
     hosted("cerebras", "Cerebras", "https://api.cerebras.ai/v1", "Very fast hosted open models.", "https://cloud.cerebras.ai/"),
     hosted("perplexity", "Perplexity", "https://api.perplexity.ai", "Sonar models that search the web as they answer.", "https://www.perplexity.ai/account/api/keys"),
-    hosted("cohere", "Cohere", "https://api.cohere.ai/compatibility/v1", "Command models, through their OpenAI-compatible layer.", "https://dashboard.cohere.com/api-keys"),
+    hosted("cohere", "Cohere", "https://api.cohere.ai/compatibility/v1", "Command models.", "https://dashboard.cohere.com/api-keys"),
     hosted("moonshot", "Moonshot AI (Kimi)", "https://api.moonshot.ai/v1", "Kimi models.", "https://platform.moonshot.ai/console/api-keys"),
     hosted("qwen", "Alibaba Cloud (Qwen)", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", "Qwen models from Model Studio.", "https://modelstudio.console.alibabacloud.com/"),
     hosted("zai", "Z.ai (GLM)", "https://api.z.ai/api/paas/v4", "GLM models.", "https://z.ai/manage-apikey/apikey-list"),

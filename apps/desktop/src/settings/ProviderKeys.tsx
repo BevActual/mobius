@@ -59,7 +59,8 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
   if (!api) return <Empty>Gateways are available in the desktop app.</Empty>;
   const list = Array.isArray(providers) ? providers : [];
   const connected = list.filter((p) => p.hasKey || p.active);
-  const hosted = list.filter((p) => p.needsKey && !connected.includes(p));
+  // First run is for a model to talk to: a voice-only service (ElevenLabs) waits in Settings › Voice.
+  const hosted = list.filter((p) => p.needsKey && !connected.includes(p) && !(open && p.voiceOnly));
   const local = list.filter((p) => !p.needsKey && !connected.includes(p));
   return (
     <div className="providers">
@@ -289,7 +290,7 @@ function AccountRow({ account: a, onChanged, hideMissing = false, firstRun = fal
         {waiting && <button type="button" className="btn" onClick={() => void api.cancelSignIn(a.id).then(check)}>Cancel</button>}
         {browser && status?.signedIn && status.manageUsage && <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(status.manageUsage!)}>Manage usage</button>}
         {browser && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
-        {!browser && status !== null && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
+        {!browser && status !== null && !(firstRun && status.signedIn) && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
         {status?.signedIn && !choosing && <button type="button" className="btn" aria-label={`Use ${a.name}`} onClick={() => setChoosing(true)}>Use…</button>}
       </span>
       {status && !status.installed && status.hint && <span className="prow-note prow-problem">{status.hint}</span>}
