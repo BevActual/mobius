@@ -59,6 +59,8 @@ Slack, Discord and Telegram in one place, with a catch-up when you come back. Ad
 - **Write** at the bottom. Enter sends and Shift+Enter starts a new line. Only you send: Mobius never sends a message.
 - **Catch me up** (in the toolbar) attaches the open channel as someone else's words, which Mobius treats as data, as it does an email. It puts the ask in Mobius's box: at most five lines on what was said and decided, and a reply drafted to anything that waits on you, for you to send.
 
+- **Ask Mobius about your chats** from anywhere ("anything urgent in Ops?"). It lists your chats and reads the ones it needs, as someone else's words. It has no way to send: a reply it suggests is yours to send.
+
 **Kept in:** nothing beyond what the service gives back. Messages are read from the service as you open them.
 
 ## Search

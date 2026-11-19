@@ -97,6 +97,7 @@ const DID: Record<string, (on: string) => string> = {
   'browser.list': () => 'Looked at your tabs',
   'net.http_get': (on) => `Fetched ${on || 'a page'}`,
   'mail.read': () => 'Read your mail',
+  'messages.read': () => 'Read your chats',
   'mail.draft': (on) => (on ? `Drafted an email to ${on}` : 'Drafted an email'),
   'mail.send': (on) => (on ? `Sent an email to ${on}` : 'Sent an email'),
   'calendar.read': () => 'Looked at your calendar',
@@ -155,6 +156,7 @@ const DID_TOOL: Record<string, (on: string) => string> = {
 const ASKED: Record<string, string> = {
   'browser.navigate': 'open pages', 'browser.open': 'open pages', 'browser.read': 'read pages', 'browser.click': 'click on pages',
   'browser.type': 'type on pages', 'browser.interact': 'use pages', 'net.http_get': 'fetch pages', 'mail.read': 'read your mail',
+  'messages.read': 'read your chats', 'messages.list': 'read your chats',
   'mail.draft': 'draft email', 'mail.send': 'send email', 'calendar.add': 'add events', 'calendar.write': 'change your calendar',
   'calendar.update': 'change your calendar', 'files.read': 'read files', 'files.write': 'change files', 'files.edit': 'change files', 'files.move': 'move files',
   'files.delete': 'delete files', 'fs.delete': 'delete files', 'code.run': 'run commands', 'code.push': 'push code',

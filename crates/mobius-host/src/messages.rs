@@ -3,7 +3,7 @@
 //! (`messages-accounts.json` in the data folder) and, in the system secret store, each account's sign-in.
 //!
 //! Slack (`slack`), Matrix (`matrix`), Microsoft Teams chats (`teams`) and Telegram (`telegram`). Only the person sends: the app calls `send` from their own Send, and the
-//! agent has no tool that does.
+//! agent has no tool that does: it only reads, through `messages_tools`.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
