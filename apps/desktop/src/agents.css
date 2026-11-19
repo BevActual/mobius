@@ -54,3 +54,8 @@
 .agent-loading span:nth-child(3n + 1) { width: 30%; }
 .agent-loading span:nth-child(3n + 2) { width: 90%; }
 .agent-loading span:nth-child(3n) { width: 60%; }
+/* The agent as a dot character (ui/DotCharacter): its face while it rests, the work moving through it while it runs. */
+.agent-hero { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-4) 0 var(--sp-2); }
+.agent-hero-state { font-size: var(--fs-sm); color: var(--muted); }
+.agent-hero-state[data-state="waiting"] { color: var(--ink); font-weight: var(--fw-medium); }
+.agent-hero-state[data-state="failed"] { color: var(--red); }
