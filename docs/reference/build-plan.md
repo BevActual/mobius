@@ -82,7 +82,7 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 | --- | --- | --- |
 | Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request, then the next app. Order: Home, Mail, Calendar, Tasks, Notes, Docs, Files, Browser, Messages, then the rest | Design lead, Apps lead | Starting with Home |
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
-| The Builder's queue below: updates while in the tray, then agents that run from the tray | Builder | Next |
+| The Builder's queue below: speed, then accessibility | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
 | Design and Research weak points, Database's Analyse mode | Apps lead | Next |
 | Sign-in for Google, Microsoft (with Teams chats) and Dropbox; Telegram keys | Builder | Built; waits on Andrew ([drive sign-in](drive-sign-in.md), [messages sign-in](messages-sign-in.md)) |
@@ -91,13 +91,14 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 ## Shell queue
 
 The Builder's order. Everything in earlier versions of this table (turn speed, tools for Photo and Design, drives
-and sync, contacts, CalDAV task lists, the cloud drives) is on `main`.
+and sync, contacts, CalDAV task lists, the cloud drives, updates in the app and from the tray, scheduled agents
+from the tray, Take over beside Stop) is on `main`.
 
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | Updates in the app: Mobius checks, downloads and verifies signed updates itself, and Settings › About has Check for Updates (`updater.rs`). Left: since closing the window keeps Mobius in the tray, a waiting update installs at the next start with Windows, and the tray menu says Restart to update | Everyone who installs Mobius | Have; the tray gap is next |
-| 2 | Agents that run on their schedule from the tray while the window is closed, with a notice when a result waits to review | Agents, Home's desk | After 1 |
-| 3 | Take over beside Stop: the person steps into a running turn, edits the next step or finishes it by hand | Every app | After 2 |
+| 1 | Speed: a budget for a cold start, switching apps, opening a long list and memory after an hour, measured in CI on every pull request, then the slowest fixed | Everyone | Next |
+| 2 | Accessibility in the shell and library: every control reachable by keyboard with a visible focus, names a screen reader reads (no tool ids), contrast in all four themes, and an axe check in the e2e run | Everyone; each app's polish pass builds on it | After 1 |
+| 3 | Shell fixes from Andrew's daily use | Andrew | Ongoing, ahead of 1 and 2 |
 | 4 | Video: a first cut | Video's moment | Waits on footage |
 | 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
