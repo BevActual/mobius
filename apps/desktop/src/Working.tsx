@@ -1,10 +1,12 @@
 import type { ConversationState, Item } from './conversation';
 import { appName } from './apps';
 import { appOfTool, toolLabel } from './activity';
+import { DotMatrix, modeOfTool, type MatrixMode } from './ui';
 
 /**
  * The working indicator (Instrument, "The Mobius panel, improved"): while Mobius works, the panel shows a dot-matrix
- * pattern, "Working" with a step count such as 02/04, the numbered steps of this turn, each naming the app it touches,
+ * pattern that moves with the kind of work (ui/DotMatrix: reading scans, writing fills, searching pings), "Working"
+ * with a step count such as 02/04, the numbered steps of this turn, each naming the app it touches,
  * and Stop. The pattern is the only motion, and it holds still when the system asks for reduced motion.
  */
 
@@ -40,18 +42,14 @@ export function stepCount(w: Working): string {
   return w.of ? `${pad(w.at)}/${pad(w.of)}` : pad(w.at);
 }
 
-const COLS = 24;
-const ROWS = 6;
-
-/** The 24 by 6 dot matrix. Each dot's place sets its delay, so a soft wave runs across it. */
-export function DotMatrix({ className }: { className?: string }) {
-  const dots = [];
-  for (let y = 0; y < ROWS; y += 1) {
-    for (let x = 0; x < COLS; x += 1) {
-      dots.push(<circle key={`${x}.${y}`} cx={x * 4 + 2} cy={y * 4 + 2} r={1} style={{ '--d': `${(x + y * 2) * 45}ms` } as React.CSSProperties} />);
-    }
-  }
-  return <svg className={className ? `dot-matrix ${className}` : 'dot-matrix'} viewBox={`0 0 ${COLS * 4} ${ROWS * 4}`} aria-hidden="true">{dots}</svg>;
+/** What the matrix shows: the running tool's kind of work, writing while a reply streams, thinking before any tool. */
+export function matrixModeOf(state: ConversationState): MatrixMode {
+  const from = state.items.findLastIndex((i) => i.kind === 'user') + 1;
+  const last = state.items.slice(from).findLast((i) => (i.kind === 'tool' && i.name !== 'todo.write') || i.kind === 'assistant');
+  if (!last) return 'thinking';
+  if (last.kind === 'assistant') return last.streaming ? 'writing' : 'thinking';
+  if (last.kind === 'tool' && (last.status === 'running' || last.status === 'waiting')) return modeOfTool(last.name, last.status);
+  return 'thinking';
 }
 
 /** Up to this many steps show; earlier ones fold into "and N before". */
@@ -63,7 +61,7 @@ export function WorkingIndicator({ state, onStop }: { state: ConversationState; 
   return (
     <div className="work-now" role="status" aria-label="Mobius is working">
       <div className="work-now-head">
-        <DotMatrix />
+        <DotMatrix mode={matrixModeOf(state)} {...(w.of ? { progress: w.steps.filter((x) => x.done).length / w.of } : {})} />
         <span className="work-now-word">Working</span>
         <span className="work-now-count" aria-label={w.of ? `Step ${w.at} of ${w.of}` : `Step ${w.at}`}>{stepCount(w)}</span>
         {/* The same Stop as the composer's, for the pointer: hidden from the keyboard and screen readers, which have that one. */}

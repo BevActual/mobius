@@ -54,3 +54,5 @@ export {
 export { DateField, TimeField, TimeRange, MonthPicker, dateWords, type DateFieldProps, type TimeFieldProps, type QuickPick } from './DateField';
 export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';
 export { Chart, Sparkline, CHART_ORDER, chartTicks, chartNumber, type ChartSeries } from './Chart';
+export { DotMatrix, DotCharacter, type DotMatrixProps, type DotCharacterProps } from './DotMatrix';
+export { modeOfTool, dotLevel, showsFace, bodyOf, colourOf, faceDots, type MatrixMode, type CharacterState, type CharacterColour } from './dotMatrix';

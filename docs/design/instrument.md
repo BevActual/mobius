@@ -154,12 +154,13 @@ keep sentence case.
 
 ## Personality
 
-Character is allowed in exactly four places. Everywhere else the instrument stays quiet.
+Character is allowed in exactly five places. Everywhere else the instrument stays quiet.
 
 | Place | What it looks like | Limit |
 | --- | --- | --- |
 | Empty states | A small single-weight line drawing, one short line of text, and the New action | One drawing style for all apps, drawn in grey ink |
-| Mobius working | A small dot-matrix pattern in indigo that moves while Mobius works, with numbered steps and Stop | Only while live. It stops the moment the work ends. |
+| Mobius working | A 24 × 6 indigo dot matrix that moves with the kind of work: breathing while thinking, a scan while reading, a ping while searching, type filling while writing, a level meter while working, two blinking dots while waiting, a tick when done, an X when stopped. The bottom row fills with progress. Numbered steps and Stop sit beside it | Only while live, and the mode comes from the real tool running. It stops the moment the work ends |
+| Agents | Each agent is a small dot character: body shape and colour from its name. At rest it shows two eye dots (idle, waiting for you, done, failed, paused). While it works it has no face, and its body shows the same pattern as the matrix | Two eye dots and at most a mouth line. Faces come only from real state. Mobius itself never gets a face |
 | Finishing something | A brief tick or strike-through when a task is completed or a change is kept | Under 200ms, and off when reduced motion is on |
 | Readouts in pro apps | Large mono values, step dots and meters in Music and Video | Shows real state only, never ornament |
 
@@ -167,7 +168,8 @@ Rules that go with it:
 
 1. Motion is only for live state, as the adopted theme says. A screen at rest is still.
 2. Wording is plain and warm, never cute. "That's everything for today." is right. Jokes and exclamation marks are not.
-3. No mascots, no illustrations with faces, and no sparkle icon.
+3. No mascots, no illustrations with faces, and no sparkle icon. The one exception is agent characters (Andrew, 19 November
+   2026): dot faces only, only while the agent is still, so "busy" and "needs you" never look alike.
 
 ## Panels and launcher
 
