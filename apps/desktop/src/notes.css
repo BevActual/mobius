@@ -231,3 +231,5 @@
   .note-paper .note-page { padding: 0; color: var(--ink); }
   .note-paper .note-tag, .note-paper .note-commented { border: 0; background: none; color: inherit; }
 }
+/* Mobius's changed-page dot sits under the date, on the grey line, so it never covers the time. */
+.ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; right: calc(var(--sp-2) + 2px); bottom: calc(var(--sp-2) + 4px); margin: 0; }
