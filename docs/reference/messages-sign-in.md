@@ -53,3 +53,22 @@ Not built yet. It will sign in as the person's own account, with a phone number 
   and it can't read direct messages.
 - **Signal** needs no registration. Mobius links as a device with a QR code, through a separate helper program, because
   Signal's library is AGPL.
+
+## Matrix
+
+Nothing to register. Matrix is open: any homeserver lets a client sign in to it, so Andrew has no step here.
+
+- The person types their Matrix ID (`@you:matrix.org`) or their server in Settings › Messages. Mobius finds the server
+  through its `/.well-known/matrix/client`, then asks it how it signs in.
+- A server with the Matrix Authentication Service (matrix.org, and most new servers) signs in on its own page. Mobius
+  registers itself with that server as it starts (OAuth dynamic client registration, as "Mobius" with
+  `https://mobiusworkspace.com/`), then uses PKCE with a one-time page on `127.0.0.1`. There is no client secret.
+- An older server signs in on its single sign-on page, or with a username and password typed into Mobius. The password
+  goes only to that server and is not kept.
+- Each sign-in is its own device on the account, named "Mobius". Removing the account signs that device out.
+- Encrypted rooms are listed, but read as one line until this device is verified, which is the next Matrix PR
+  (end-to-end encryption, device verification in Settings › Messages, and key backup).
+
+What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
+in Messages, read markers shared with the person's other devices, and Matrix bridges they already run (bridge labels
+come in the third Matrix PR).

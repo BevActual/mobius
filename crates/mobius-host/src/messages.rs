@@ -2,7 +2,7 @@
 //! read from the service as they are shown and nothing of them is kept here; this keeps only the list of accounts
 //! (`messages-accounts.json` in the data folder) and, in the system secret store, each account's sign-in.
 //!
-//! Slack is the first service (`slack`). Only the person sends: the app calls `send` from their own Send, and the
+//! Slack (`slack`) and Matrix (`matrix`). Only the person sends: the app calls `send` from their own Send, and the
 //! agent has no tool that does.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 
 use crate::calendar_accounts::new_id;
 use crate::secrets::Secrets;
+use crate::matrix::{self, Matrix, Session};
 use crate::slack::{EXPIRED, Endpoints, Page, Slack, Tokens};
 
 type Res<T> = Result<T, String>;
@@ -29,10 +30,11 @@ type People = HashMap<String, (Instant, Arc<HashMap<String, String>>)>;
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: String,
-    /// `slack`.
+    /// `slack` or `matrix`.
     pub service: String,
     pub name: String,
-    /// The workspace's id on the service, so signing in to it twice keeps one account.
+    /// The workspace's id on the service (on Matrix, the person's Matrix ID), so signing in to it twice keeps one
+    /// account.
     #[serde(default)]
     pub team: String,
     /// Why it can't be read now: `EXPIRED` when the person has to sign in again.
@@ -45,6 +47,7 @@ pub struct Accounts {
     secrets: Arc<dyn Secrets>,
     state: Mutex<Vec<Account>>,
     slack: Mutex<Arc<Slack>>,
+    matrix: Arc<Matrix>,
     people: Mutex<People>,
 }
 
@@ -61,7 +64,7 @@ impl Accounts {
         let file = data_dir.join("messages-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let slack = Arc::new(Slack::new(crate::slack::built_in_client_id(), Endpoints::default()));
-        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), people: Mutex::default() }
+        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), people: Mutex::default() }
     }
 
     /// A pretend Slack, in tests.
@@ -88,7 +91,7 @@ impl Accounts {
                 .map(|a| {
                     let status = match a.problem.as_deref() {
                         None => "ready",
-                        Some(EXPIRED) => "signed-out",
+                        Some(EXPIRED | matrix::EXPIRED) => "signed-out",
                         Some(_) => "error",
                     };
                     let mut account = json!({ "id": a.id, "service": a.service, "name": a.name, "status": status });
@@ -152,6 +155,9 @@ impl Accounts {
     }
 
     pub fn channels(&self, id: &str) -> Res<Value> {
+        if self.is_matrix(id) {
+            return self.with_matrix(id, |m, s| m.channels(id, s)).map(Value::Array);
+        }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
             slack.channels(&tokens.access, id, &people).map(Value::Array)
@@ -159,6 +165,9 @@ impl Accounts {
     }
 
     pub fn history(&self, id: &str, channel: &str, before: Option<&str>, thread: Option<&str>, limit: usize) -> Res<Value> {
+        if self.is_matrix(id) {
+            return self.with_matrix(id, |m, s| m.history(id, s, channel, before, thread, limit)).map(Value::Array);
+        }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
             slack.history(&tokens.access, channel, &Page { before, thread, limit }, &tokens.user, &people).map(Value::Array)
@@ -171,8 +180,12 @@ impl Accounts {
         if text.is_empty() {
             return Err("There is nothing to send.".into());
         }
+        let matrix = self.is_matrix(id);
         if text.chars().count() > 40_000 {
-            return Err("That message is too long for Slack.".into());
+            return Err(if matrix { "That message is too long to send." } else { "That message is too long for Slack." }.into());
+        }
+        if matrix {
+            return self.with_matrix(id, |m, s| m.send(id, s, channel, text, thread));
         }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
@@ -181,6 +194,9 @@ impl Accounts {
     }
 
     pub fn mark_read(&self, id: &str, channel: &str, up_to: &str) -> Res<()> {
+        if self.is_matrix(id) {
+            return self.with_matrix(id, |m, s| m.mark_read(id, s, channel, up_to));
+        }
         self.with(id, |slack, tokens| slack.mark_read(&tokens.access, channel, up_to))
     }
 
@@ -225,6 +241,109 @@ impl Accounts {
         Ok(json!({ "id": id, "service": "slack", "name": name }))
     }
 
+    fn is_matrix(&self, id: &str) -> bool {
+        lock(&self.state).iter().any(|a| a.id == id && a.service == "matrix")
+    }
+
+    fn keep_session(&self, id: &str, session: &Session) {
+        if let Ok(text) = serde_json::to_string(session) {
+            self.secrets.put(&secret_name(id), &text);
+        }
+    }
+
+    /// The Matrix account's sign-in, refreshed when it is about to run out.
+    fn matrix_session(&self, id: &str) -> Res<Session> {
+        if !lock(&self.state).iter().any(|a| a.id == id) {
+            return Err("That account is gone.".into());
+        }
+        let session: Session = self.secrets.get(&secret_name(id)).and_then(|t| serde_json::from_str(&t).ok()).ok_or(matrix::EXPIRED)?;
+        if session.fresh() {
+            return Ok(session);
+        }
+        let fresh = self.matrix.refresh(&session)?;
+        self.keep_session(id, &fresh);
+        Ok(fresh)
+    }
+
+    /// Runs `f` with the Matrix account's sign-in. A token the server no longer takes is refreshed once; an ended
+    /// sign-in marks the account signed out, and a good answer clears what was wrong before.
+    fn with_matrix<T>(&self, id: &str, f: impl Fn(&Matrix, &Session) -> Res<T>) -> Res<T> {
+        let result = self.matrix_session(id).and_then(|session| match f(&self.matrix, &session) {
+            Err(e) if Matrix::unknown_token(&e) => {
+                let fresh = self.matrix.refresh(&session)?;
+                self.keep_session(id, &fresh);
+                f(&self.matrix, &fresh)
+            }
+            other => other,
+        });
+        let result = result.map_err(|e| if Matrix::unknown_token(&e) { matrix::EXPIRED.to_owned() } else { e });
+        match &result {
+            Ok(_) => self.set_problem(id, None),
+            Err(e) if e == matrix::EXPIRED => self.set_problem(id, Some(matrix::EXPIRED.into())),
+            Err(_) => {}
+        }
+        result
+    }
+
+    /// How a Matrix server lets the person sign in: `{ homeserver, password, browser }`.
+    pub fn matrix_methods(&self, server: &str) -> Res<Value> {
+        self.matrix.methods(server).map(|m| m.to_json())
+    }
+
+    /// Signs in to Matrix with a username and password, which go only to the server and are not kept.
+    pub fn matrix_sign_in(&self, server: &str, user: &str, password: &str) -> Res<Value> {
+        let homeserver = self.matrix.homeserver(server)?;
+        let session = self.matrix.password_sign_in(&homeserver, user, password)?;
+        self.keep_matrix(&session)
+    }
+
+    pub fn matrix_status(&self) -> Value {
+        self.matrix.status()
+    }
+
+    pub fn matrix_cancel(&self) {
+        self.matrix.cancel();
+    }
+
+    /// Starts signing in on the Matrix server's own page and returns the page to open; `done` hears how it ended.
+    pub fn matrix_browser_sign_in(self: &Arc<Self>, server: &str, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        let methods = self.matrix.methods(server)?;
+        let me = Arc::clone(self);
+        let url = self.matrix.start(&methods, Arc::new(move |signed: Res<Session>| done(signed.and_then(|s| me.keep_matrix(&s)))))?;
+        Ok(json!({ "url": url }))
+    }
+
+    fn keep_matrix(&self, session: &Session) -> Res<Value> {
+        let text = serde_json::to_string(session).map_err(|e| e.to_string())?;
+        let mut all = lock(&self.state);
+        let existing = all.iter().position(|a| a.service == "matrix" && a.team == session.user);
+        if existing.is_none() && all.len() >= MAX_ACCOUNTS {
+            return Err(format!("There can be at most {MAX_ACCOUNTS} message accounts."));
+        }
+        let id = existing.map_or_else(new_id, |i| all[i].id.clone());
+        // Signing in again replaces the device signed in before: end that one on the server.
+        let before = self.secrets.get(&secret_name(&id)).and_then(|t| serde_json::from_str::<Session>(&t).ok()).filter(|b| b.device != session.device);
+        if !self.secrets.put(&secret_name(&id), &text) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let name = session.user.chars().take(80).collect::<String>();
+        match existing {
+            Some(i) => {
+                all[i].problem = None;
+                all[i].name = name.clone();
+            }
+            None => all.push(Account { id: id.clone(), service: "matrix".into(), name: name.clone(), team: session.user.clone(), problem: None }),
+        }
+        self.save(&all);
+        drop(all);
+        self.matrix.forget(&id);
+        if let Some(before) = before {
+            let m = Arc::clone(&self.matrix);
+            std::thread::spawn(move || m.sign_out_device(&before));
+        }
+        Ok(json!({ "id": id, "service": "matrix", "name": name }))
+    }
+
     /// Forgets the account and its sign-in. Its messages stay on the service.
     pub fn remove(&self, id: &str) -> Res<Value> {
         let mut all = lock(&self.state);
@@ -235,6 +354,11 @@ impl Accounts {
         }
         self.save(&all);
         drop(all);
+        // A Matrix sign-in is its own device on the account: it is signed out there too, without waiting.
+        if let Some(session) = self.secrets.get(&secret_name(id)).and_then(|t| serde_json::from_str::<Session>(&t).ok()).filter(|s| !s.homeserver.is_empty()) {
+            let (m, id) = (Arc::clone(&self.matrix), id.to_owned());
+            std::thread::spawn(move || m.sign_out(&id, &session));
+        }
         self.secrets.delete(&secret_name(id));
         lock(&self.people).remove(id);
         Ok(json!({ "ok": true }))
@@ -310,6 +434,42 @@ mod tests {
         secrets.put(&secret_name(&id), &serde_json::to_string(&Tokens { expires: 1, ..tokens }).unwrap());
         assert!(accounts.channels(&id).is_ok());
         assert!(serde_json::from_str::<Tokens>(&secrets.get(&secret_name(&id)).unwrap()).unwrap().fresh());
+    }
+
+    #[test]
+    fn a_matrix_account_is_kept_once_read_and_signed_out_when_its_sign_in_ends() {
+        let (url, log) = crate::matrix::tests::server(false);
+        let (accounts, dir, secrets) = accounts(&url);
+        assert_eq!(accounts.matrix_methods(&url).unwrap()["password"], true);
+        assert_eq!(accounts.matrix_sign_in(&url, "ana", "nope").unwrap_err(), "That username or password isn't right.");
+        let kept = accounts.matrix_sign_in(&url, "ana", "pw").unwrap();
+        let id = kept["id"].as_str().unwrap().to_owned();
+        assert_eq!(kept, json!({ "id": id, "service": "matrix", "name": "@ana:x" }));
+        // Signing in again keeps one account, and ends the device signed in before.
+        assert_eq!(accounts.matrix_sign_in(&url, "ana", "pw").unwrap()["id"], id.as_str());
+        assert_eq!(accounts.list().as_array().unwrap().len(), 1);
+        // Neither the password nor the token is in the list kept on disk.
+        let file = std::fs::read_to_string(dir.path().join("messages-accounts.json")).unwrap();
+        assert!(!file.contains("pw") && !file.contains("access-"));
+        assert_eq!(accounts.channels(&id).unwrap().as_array().unwrap().len(), 2);
+        assert_eq!(accounts.history(&id, "!ops:x", None, None, 50).unwrap().as_array().unwrap().len(), 2);
+        assert_eq!(accounts.send(&id, "!ops:x", " Done ", None).unwrap()["text"], "Done");
+        accounts.mark_read(&id, "!ops:x", "$b").unwrap();
+        // A token the server no longer takes is refreshed without the person noticing.
+        let session: Session = serde_json::from_str(&secrets.get(&secret_name(&id)).unwrap()).unwrap();
+        secrets.put(&secret_name(&id), &serde_json::to_string(&Session { access: "access-expired".into(), ..session.clone() }).unwrap());
+        assert!(accounts.channels(&id).is_ok());
+        // One that can't be refreshed shows the account signed out.
+        secrets.put(&secret_name(&id), &serde_json::to_string(&Session { access: "access-expired".into(), refresh: "gone".into(), ..session }).unwrap());
+        assert_eq!(accounts.channels(&id).unwrap_err(), crate::matrix::EXPIRED);
+        assert_eq!(accounts.list()[0]["status"], "signed-out");
+        accounts.remove(&id).unwrap();
+        assert!(secrets.get(&secret_name(&id)).is_none());
+        let started = Instant::now();
+        while log.lock().unwrap().iter().filter(|l| l.starts_with("POST /_matrix/client/v3/logout")).count() < 2 && started.elapsed() < Duration::from_secs(5) {
+            std::thread::yield_now();
+        }
+        assert_eq!(log.lock().unwrap().iter().filter(|l| l.starts_with("POST /_matrix/client/v3/logout")).count(), 2);
     }
 
     #[test]

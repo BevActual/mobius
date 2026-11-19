@@ -3700,6 +3700,32 @@ impl Bridge {
                 });
                 accounts.slack_sign_in(done)
             }
+            // Matrix: how the person's server signs in, then a password typed here or a sign-in on the server's page.
+            "matrixMethods" => text(0).ok_or_else(|| "a Matrix server is needed".to_owned()).and_then(|server| accounts.matrix_methods(server)),
+            "matrixSignIn" => match (text(0), text(1), text(2)) {
+                (Some(server), Some(user), Some(password)) => accounts.matrix_sign_in(server, user, password).inspect(|account| {
+                    (self.emit)("mobius:messages-changed", json!({ "account": account["id"], "channel": null }));
+                }),
+                _ => Err("a server, a username and a password are needed".to_owned()),
+            },
+            "matrixStatus" => Ok(accounts.matrix_status()),
+            "matrixCancel" => {
+                accounts.matrix_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "matrixBrowserSignIn" => {
+                let Some(server) = text(0) else { return json!({ "ok": false, "message": "a Matrix server is needed" }) };
+                let emit = self.emit.clone();
+                let done: Arc<dyn Fn(Result<Value, String>) + Send + Sync> = Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(account) => {
+                        emit("mobius:messages-sign-in", json!({ "ok": true, "account": account }));
+                        emit("mobius:messages-changed", json!({ "account": account["id"], "channel": null }));
+                    }
+                    Err(message) if message == "cancelled" => {}
+                    Err(message) => emit("mobius:messages-sign-in", json!({ "ok": false, "message": message })),
+                });
+                accounts.matrix_browser_sign_in(server, done)
+            }
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         result.unwrap_or_else(|message| json!({ "ok": false, "message": message }))

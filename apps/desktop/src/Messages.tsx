@@ -129,7 +129,7 @@ export function MessagesPage({ messages, onAsk, listPanels = [] }: { messages: M
     </PanelLayout>
   );
   if (!messages.loaded) return <PanelLayout app="messages" panels={listPanels}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
-  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack account in Settings to see your channels here.' : 'Slack, Discord and Telegram accounts are on their way. Your channels will show here.');
+  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack or Matrix account in Settings to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.');
   if (!account || !channel) return empty('No channel open', 'Choose a channel or a person on the left.');
   const unread = channel.unread;
   const name = channelLabel(channel);
@@ -154,9 +154,16 @@ export function MessagesPage({ messages, onAsk, listPanels = [] }: { messages: M
             onClick={() => onAsk(catchUpAsk(channel, unread), chatItem(account, channel, messages.messages))}>Catch me up</button>
         )}
       </ToolbarControls>
-      <MessageLog label={name} list={messages.messages} onThread={messages.openThread} onPerson={setPerson} />
-      {messages.message && <p className="tasks-message" role="alert">{messages.message}</p>}
-      <Compose label={`Message ${name}`} reset={where} onSend={(text) => messages.send(text)} />
+      {channel.encrypted
+        // A Matrix room this device can't read yet: one line, not a placeholder for each message.
+        ? <p className="messages-encrypted" role="status">Encrypted: verify this device in Settings &gt; Messages to read</p>
+        : (
+          <>
+            <MessageLog label={name} list={messages.messages} onThread={messages.openThread} onPerson={setPerson} />
+            {messages.message && <p className="tasks-message" role="alert">{messages.message}</p>}
+            <Compose label={`Message ${name}`} reset={where} onSend={(text) => messages.send(text)} />
+          </>
+        )}
     </section>
     </PanelLayout>
   );

@@ -103,3 +103,28 @@ test('channels by account, a channel read and its thread, Send only from the per
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/^Catch me up on #general/);
   expect(model!.requests).toHaveLength(0);
 });
+
+test('a Matrix room this device cannot read yet shows one line instead of its messages', async () => {
+  await start();
+  await shell().evaluate(() => {
+    window.mobius.messages = {
+      accounts: async () => [{ id: 'm', service: 'matrix', name: '@ana:example.org', status: 'ready' }],
+      channels: async () => [
+        { id: '!dm:example.org', account: 'm', name: 'Lee Park', kind: 'direct', unread: 0, mentions: 0, last: 2000, encrypted: true },
+        { id: '!ops:example.org', account: 'm', name: 'Ops', kind: 'channel', unread: 0, mentions: 0, last: 1000 },
+      ],
+      history: async () => [],
+      send: async () => ({ ok: false, message: 'not here' }),
+      markRead: async () => undefined,
+      onChanged: () => () => undefined,
+    };
+  });
+  await openMessages();
+  const side = shell().getByRole('complementary', { name: 'Channels' });
+  await expect(side.getByRole('region', { name: '@ana:example.org · Matrix' })).toBeVisible();
+  await side.getByRole('button', { name: /^Lee Park/ }).click();
+  await expect(shell().getByRole('status').filter({ hasText: 'Encrypted: verify this device in Settings > Messages to read' })).toHaveCount(1);
+  await expect(shell().getByRole('textbox', { name: 'Message Lee Park' })).toHaveCount(0);
+  await side.getByRole('button', { name: /^#Ops/ }).click();
+  await expect(shell().getByRole('textbox', { name: 'Message #Ops' })).toBeVisible();
+});

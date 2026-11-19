@@ -184,3 +184,6 @@
 .first-run-models .prow-status { flex: 1 1 auto; white-space: normal; }
 .first-run-models .prow-actions { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
 .first-run-models .prow-actions .btn { white-space: nowrap; }
+
+/* Settings › Messages: signing in to Matrix. */
+.messages-matrix { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2); margin-top: var(--sp-3); }
