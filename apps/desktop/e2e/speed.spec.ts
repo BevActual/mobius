@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
+import { SourceMapConsumer, type RawSourceMap } from 'source-map-js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -96,6 +97,63 @@ async function pageMemory(shell: Page): Promise<{ heapMB: number; nodes: number 
   return { heapMB: metric('JSHeapUsedSize') / 1024 / 1024, nodes: metric('Nodes') };
 }
 
+/**
+ * Where the interface spends its time while switching apps: a CPU profile of `run`, its self time added up by source
+ * file and by function (through the build's source maps), printed as `[speed profile]` lines. A guide for fixing the
+ * slowest, not a budget.
+ */
+async function profile(shell: Page, run: () => Promise<void>): Promise<void> {
+  const cdp = await shell.context().newCDPSession(shell);
+  await cdp.send('Profiler.enable');
+  await cdp.send('Profiler.setSamplingInterval', { interval: 200 });
+  await cdp.send('Profiler.start');
+  await run();
+  const { profile: taken } = await cdp.send('Profiler.stop');
+  await cdp.detach();
+  const dist = path.resolve(import.meta.dirname, '../dist/tauri/assets');
+  const maps = new Map<string, SourceMapConsumer | null>();
+  const mapFor = (url: string) => {
+    const file = url.split('/').pop() ?? '';
+    if (!maps.has(file)) {
+      const map = path.join(dist, `${file}.map`);
+      maps.set(file, fs.existsSync(map) ? new SourceMapConsumer(JSON.parse(fs.readFileSync(map, 'utf8')) as RawSourceMap) : null);
+    }
+    return maps.get(file) ?? null;
+  };
+  // Each sample's time goes to the node it landed in (self time).
+  const self = new Map<number, number>();
+  const deltas = taken.timeDeltas ?? [];
+  (taken.samples ?? []).forEach((id, i) => self.set(id, (self.get(id) ?? 0) + (deltas[i] ?? 0) / 1000));
+  const byFile = new Map<string, number>();
+  const byFunction = new Map<string, number>();
+  let total = 0;
+  for (const node of taken.nodes) {
+    const ms = self.get(node.id) ?? 0;
+    if (ms === 0) continue;
+    total += ms;
+    const { url, functionName, lineNumber, columnNumber } = node.callFrame;
+    let file = url ? (url.split('/').pop() ?? url) : `(${functionName || 'native'})`;
+    let fn = functionName || '(anonymous)';
+    const map = url ? mapFor(url) : null;
+    if (map) {
+      const at = map.originalPositionFor({ line: lineNumber + 1, column: columnNumber });
+      if (at.source) {
+        const source = at.source.replace(/^(\.\.\/)+/, '');
+        const pkg = /node_modules\/((?:@[^/]+\/)?[^/]+)/.exec(source)?.[1];
+        // A library counts as one file, by its package; the app's own code by its path.
+        file = pkg ?? source;
+        fn = `${at.name ?? fn} (${source.replace(/^.*node_modules\//, '')}:${at.line})`;
+      }
+    }
+    byFile.set(file, (byFile.get(file) ?? 0) + ms);
+    byFunction.set(fn, (byFunction.get(fn) ?? 0) + ms);
+  }
+  const top = (m: Map<string, number>, n: number) => [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, n);
+  console.log(`[speed profile] ${Math.round(total)} ms of samples`);
+  for (const [file, ms] of top(byFile, 15)) console.log(`[speed profile] file ${Math.round(ms)} ms ${file}`);
+  for (const [fn, ms] of top(byFunction, 30)) console.log(`[speed profile] fn ${Math.round(ms)} ms ${fn}`);
+}
+
 let userData: string;
 let mobius: Launched | undefined;
 test.beforeEach(() => {
@@ -160,6 +218,8 @@ test('start, switching apps, a long list and memory after long use stay within t
   // Which app a slow switch goes to, in the log, so the slowest one is plain.
   for (const [i, [name]] of APPS.entries()) console.log(`[speed] switch to ${name}: median ${Math.round(median(again.filter((_, j) => j % APPS.length === i)))} ms`);
   measured('switch apps', median(again), 'ms');
+  // Two more rounds under the profiler, to show where switching spends its time.
+  await profile(shell, async () => { for (let round = 0; round < 2; round++) for (const [name, panel] of APPS) await switchTo(shell, name, panel); });
   measured('switch apps, slowest tenth', p90(again), 'ms');
 
   const after = await pageMemory(shell);
