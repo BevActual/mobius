@@ -55,33 +55,34 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
-As of 18 November 2026. Building comes first; demo runs are stopped until recording.
+As of 19 November 2026. Building comes first; demo runs are stopped until recording.
+
+On `main` since 18 November: apps own their panels and the rail is gone (#520, #526 to #531), the launcher from
+anywhere with each app's finds and commands (#566 to #574, #581, #582), first run (#577), Meetings (#533, #535),
+contacts in Mail and Calendar (#530, #565), the Messages app with Slack, Matrix (encrypted rooms and bridges),
+Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an installer that waits for Mobius to close
+(#579) and the prompt-injection guard (#592, #593).
 
 | Item | Owner | Status |
 | --- | --- | --- |
-| Apps own their panels: the app switcher, a left dock, per-app defaults, Mobius docked ([#514](https://github.com/BevActual/mobius/pull/514)) | Design lead for the spec, Apps lead for the apps | Building |
-| Plan my day and Files Tidy worked out in code (#512, #511); Music's bass in code (#519) | Apps lead, Music | Land on their tests |
-| First run: a fresh install to a useful first answer in five minutes, with no terminal and no doc | Builder | Next |
-| Contacts in Mail and Calendar over CardDAV, then Meetings in Calendar and Notes | Apps lead, Builder for the store | Store on `main`; the app pieces next |
-| The Messages app (Slack, Matrix with its bridges, Teams chats, Telegram (grammers)) | Builder for the accounts, Apps lead for the app | After Contacts |
-| Calendar and drive sign-in for Google, Microsoft and Dropbox | Builder | Built; waits on Andrew registering Mobius ([drive sign-in](drive-sign-in.md)) |
-| Design and Research weak points, Database's Analyse mode | Apps lead | After the panels |
+| Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing |
+| The Builder's queue below: updates while in the tray, then agents that run from the tray | Builder | Next |
+| Launcher step 7, and the first-run screens' look | Design lead | Building |
+| Design and Research weak points, Database's Analyse mode | Apps lead | Next |
+| Sign-in for Google, Microsoft (with Teams chats) and Dropbox; Telegram keys | Builder | Built; waits on Andrew ([drive sign-in](drive-sign-in.md), [messages sign-in](messages-sign-in.md)) |
 | Clips and the reel | Launch | At launch, after one real-model run of each moment |
 
 ## Shell queue
 
-The Builder's order. Earlier rows (app modes, row sizes, the slots, failed runs, live connectors, the demo profile,
-`files.move`, finding a time) are on `main`.
+The Builder's order. Everything in earlier versions of this table (turn speed, tools for Photo and Design, drives
+and sync, contacts, CalDAV task lists, the cloud drives) is on `main`.
 
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | Turn speed, in the demo plan's order: Triage's first change next | Every demo moment | Building |
-| 2 | Tools for Photo and Design | Their demo moments | Building |
-| 3 | Drives: two-way sync, then S3-style storage ([Drives](#drives)) | Files, and every app that keeps plain files | Have: WebDAV, sync and S3 on `main`. Sync soaks against Nextcloud and wsgidav nightly (#478) |
-| 3a | The contacts store: one `.vcf` per contact, an index, CardDAV on the sync code, and bridge calls for Mail and Calendar | Contacts in Mail and Calendar | Building |
-| 3b | Task lists over CalDAV | Tasks on the same servers as Calendar | Building: a CalDAV account's task lists show in Tasks and every change goes to the server first |
-| 3c | Cloud drives (Dropbox, OneDrive, Google Drive) and Google and Microsoft sign-in for Mail and Calendar | Those services | Waiting on Andrew registering Mobius: the steps are in [Drive and calendar sign-in](drive-sign-in.md) |
-| 4 | Video: clip lengths and a clip list, then a first cut | Video's demo moment | Building; the cut waits on footage |
+| 1 | Updates in the app: Mobius checks, downloads and verifies signed updates itself, and Settings › About has Check for Updates (`updater.rs`). Left: since closing the window keeps Mobius in the tray, a waiting update installs at the next start with Windows, and the tray menu says Restart to update | Everyone who installs Mobius | Have; the tray gap is next |
+| 2 | Agents that run on their schedule from the tray while the window is closed, with a notice when a result waits to review | Agents, Home's desk | After 1 |
+| 3 | Take over beside Stop: the person steps into a running turn, edits the next step or finishes it by hand | Every app | After 2 |
+| 4 | Video: a first cut | Video's moment | Waits on footage |
 | 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
 ## Library queue
