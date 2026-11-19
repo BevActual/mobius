@@ -284,7 +284,7 @@ export interface CalendarChanged { calendar: string | null; by: 'person' | 'assi
 /** Messages (Apps lead; accounts by the Builder): chat on Slack, Discord and Telegram through their official APIs. */
 export type ChatService = 'slack' | 'matrix' | 'discord' | 'telegram';
 export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
-export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean }
+export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean; /** Matrix: the network a bridge carries it from, such as WhatsApp. */ bridge?: string }
 export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
 export interface ChatChanged { account: string; channel?: string | null }
 export type ChatSignIn = { ok: true; account: { id: string; service: ChatService; name: string } } | { ok: false; message: string };

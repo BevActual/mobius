@@ -76,6 +76,9 @@ Nothing to register. Matrix is open: any homeserver lets a client sign in to it,
 - A verified device writes in encrypted rooms too. Each message is encrypted for every device of everyone in the room;
   devices that don't have this device's room key yet get it first, over a one-to-one encrypted channel. New room keys
   go to the key backup, so the person's other apps can read what Mobius wrote.
+- Bridged rooms (WhatsApp, Telegram, Signal and others carried into Matrix by a bridge, as Beeper does) show their
+  network under the room's name, read from the bridge's own `m.bridge` room state. A bridge's management room, where
+  only its bot is, is left out of the list.
 - Not yet: verifying with emoji against another device.
 
 What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
