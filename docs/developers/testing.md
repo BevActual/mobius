@@ -45,6 +45,9 @@ The suite refuses to run against a shell built before the interface, since it wo
 
 Pass `--trace off` unless you need traces; turn them on to debug a failure (`--trace on`).
 
+`e2e/speed.spec.ts` measures start, switching apps, a long list and memory after long use against budgets; see
+[Speed](speed.md).
+
 ## Continuous integration
 
 | Workflow | When | What |

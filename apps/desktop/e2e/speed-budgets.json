@@ -1,0 +1,14 @@
+{
+  "first start": 6500,
+  "start": 5500,
+  "open a long list": 550,
+  "switch to an app, first visit": 350,
+  "switch apps": 220,
+  "switch apps, slowest tenth": 600,
+  "interface memory after long use": 40,
+  "interface memory growth over long use": 20,
+  "DOM nodes after long use": 6000,
+  "DOM node growth over long use": 1500,
+  "core memory after long use": 40,
+  "core memory growth over long use": 10
+}

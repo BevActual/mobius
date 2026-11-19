@@ -17,6 +17,8 @@ try {
 
 const failed = [];
 const unstable = [];
+// The speed figures from e2e/speed.spec.ts, kept with its test as annotations (its last try's, when it had two).
+let speed = [];
 // What axe found in e2e/a11y.spec.ts, kept with its test as annotations (its last try's).
 let a11y = [];
 const walk = (suite) => {
@@ -26,6 +28,9 @@ const walk = (suite) => {
       const firstError = test.results?.find((r) => r.status !== 'passed')?.error?.message?.split('\n')[0]?.replace(/\u001b\[[0-9;]*m/g, '').slice(0, 160) ?? '';
       if (test.status === 'unexpected') failed.push([name, firstError]);
       if (test.status === 'flaky') unstable.push([name, firstError]);
+      const last = test.results?.at(-1)?.annotations ?? test.annotations ?? [];
+      const figures = last.filter((a) => a.type === 'speed').map((a) => JSON.parse(a.description));
+      if (figures.length > 0) speed = figures;
       const found = (test.results?.at(-1)?.annotations ?? test.annotations ?? []).filter((a) => a.type === 'a11y');
       if (found.length > 0) a11y = found.map((a) => JSON.parse(a.description));
     }
@@ -35,7 +40,7 @@ const walk = (suite) => {
 for (const suite of report.suites ?? []) walk(suite);
 
 const lines = [`### e2e shard ${shard ?? ''}`, ''];
-if (failed.length === 0 && unstable.length === 0) lines.push('Every test passed on its first try.');
+if (failed.length === 0 && unstable.length === 0) lines.push('Every test passed on its first try.', '');
 const list = (title, rows) => {
   if (rows.length === 0) return;
   lines.push(`**${title}**`, '', '| Test | First error |', '| --- | --- |');
@@ -44,6 +49,14 @@ const list = (title, rows) => {
 };
 list('Failed on both tries', failed);
 list('Passed only on the second try: add a sighting to the unstable table', unstable);
+if (speed.length > 0) {
+  lines.push('**Speed** (budgets in apps/desktop/e2e/speed-budgets.json; see docs/developers/speed.md)', '', '| Measure | This run | Budget |', '| --- | ---: | ---: |');
+  for (const { name, value, unit, budget } of speed) {
+    const over = budget > 0 && value > budget;
+    lines.push(`| ${name} | ${over ? '**' : ''}${value} ${unit}${over ? '** (over)' : ''} | ${budget > 0 ? `${budget} ${unit}` : 'not set'} |`);
+  }
+  lines.push('');
+}
 if (a11y.length > 0) {
   lines.push('**Accessibility** (axe; known findings in apps/desktop/e2e/a11y-baseline.json; see docs/developers/accessibility.md)', '', '| Where | Finding | Elements | Known | Example |', '| --- | --- | ---: | ---: | --- |');
   for (const { place, key, nodes, known, help, example } of a11y) {

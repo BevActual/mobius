@@ -1458,6 +1458,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .db-none { padding: var(--sp-1) var(--sp-2); }
 .side-empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start; }
 .side-empty p { margin: 0; }
+/* The end of a list drawn in part (NotesSidebar): one pixel, so it can scroll into view and draw more. */
+.side-more { height: 1px; list-style: none; }
 .stage .db-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .db-page.empty { align-items: center; justify-content: center; }
 .db-review { margin: var(--sp-2) var(--sp-3) 0; }
