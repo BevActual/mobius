@@ -10,6 +10,7 @@ import {
 } from './board-format';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
+import { PanelTab } from './ui';
 
 export const CANVAS_WORDS: SidebarWords = { app: 'Canvas', group: 'folder', groups: 'Folders', item: 'board', items: 'boards', about: 'Boards are kept as JSON files in your workspace, one item per line, so the agent can read and change them too.', defaultGroup: 'Boards' };
 
@@ -434,6 +435,67 @@ export function CanvasBoard({ boards, review }: { boards: NotesState; review?: {
         )}
         <div className="canvas-hint" aria-hidden="true">{tool === 'arrow' ? 'Drag from one item to another.' : tool === 'pen' ? 'Draw on the board.' : tool === 'select' ? 'Drag to move around · Shift-drag to select · Double-click to add' : 'Click to place.'}</div>
       </div>
+      <PanelTab id="inspector" name="Inspector" shown={false}>
+        <CanvasInspector board={board} selected={selected} onText={setText} onBox={(id, key, v) => change((b) => { const it = b.items.find((x) => x.id === id); if (it && isBoxed(it)) it[key] = key === 'w' || key === 'h' ? Math.max(16, v) : v; })} />
+      </PanelTab>
     </section>
+  );
+}
+
+const label = (item: BoardItem) => (item.type === 'ink' || !item.text.trim() ? NAMES[item.type] : item.text.trim().split('\n')[0]!.slice(0, 40));
+
+/** The Inspector panel: what the one selected item is and where it sits, or what the board holds. */
+export function CanvasInspector({ board, selected, onText, onBox }: {
+  board: Board;
+  selected: readonly string[];
+  onText: (id: string, text: string) => void;
+  onBox: (id: string, key: 'x' | 'y' | 'w' | 'h', value: number) => void;
+}) {
+  const one = selected.length === 1 ? board.items.find((x) => x.id === selected[0]) ?? null : null;
+  if (!one) {
+    const counts = (Object.keys(NAMES) as BoardItem['type'][]).map((t) => [t, board.items.filter((x) => x.type === t).length] as const).filter(([, n]) => n > 0);
+    return (
+      <div className="canvas-inspector" aria-label={selected.length ? `${selected.length} items` : 'This board'}>
+        <strong>{selected.length ? `${selected.length} items selected` : 'This board'}</strong>
+        {counts.length ? <dl className="canvas-inspector-facts">{counts.map(([t, n]) => <div key={t}><dt>{NAMES[t]}</dt><dd>{n}</dd></div>)}</dl> : <p className="muted">Nothing on the board yet.</p>}
+        {!selected.length && counts.length > 0 && <p className="muted">Select an item to see and change it here.</p>}
+      </div>
+    );
+  }
+  const name = (id: string) => { const it = board.items.find((x) => x.id === id); return it ? label(it) : 'Missing'; };
+  const links = board.items.filter((x) => x.type === 'arrow' && (x.from === one.id || x.to === one.id)).length;
+  return (
+    <div className="canvas-inspector" aria-label={`About ${NAMES[one.type]}`}>
+      <strong>{NAMES[one.type]}</strong>
+      {one.type !== 'ink' && (
+        <label className="canvas-inspector-field">
+          <span>{one.type === 'arrow' ? 'Label' : 'Text'}</span>
+          <textarea rows={one.type === 'arrow' ? 1 : 3} value={one.text} maxLength={4000} onChange={(e) => onText(one.id, e.target.value)} />
+        </label>
+      )}
+      {isBoxed(one) && (
+        <div className="canvas-inspector-box">
+          {(['x', 'y', 'w', 'h'] as const).map((k) => (
+            <label key={k} className="canvas-inspector-field">
+              <span>{k === 'x' ? 'X' : k === 'y' ? 'Y' : k === 'w' ? 'Width' : 'Height'}</span>
+              <input type="number" value={one[k]} onChange={(e) => { const v = Number(e.target.value); if (e.target.value !== '' && Number.isFinite(v)) onBox(one.id, k, Math.round(v)); }} />
+            </label>
+          ))}
+        </div>
+      )}
+      <dl className="canvas-inspector-facts">
+        {one.type === 'arrow' ? (
+          <>
+            <div><dt>From</dt><dd>{name(one.from)}</dd></div>
+            <div><dt>To</dt><dd>{name(one.to)}</dd></div>
+          </>
+        ) : (
+          <>
+            {one.type !== 'text' && <div><dt>Colour</dt><dd>{one.color}</dd></div>}
+            {one.type === 'ink' ? <div><dt>Points</dt><dd>{one.points.length}</dd></div> : <div><dt>Arrows</dt><dd>{links}</dd></div>}
+          </>
+        )}
+      </dl>
+    </div>
   );
 }

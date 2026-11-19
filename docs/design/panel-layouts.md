@@ -187,9 +187,8 @@ Notes:
 
 ## Where each app is now
 
-Checked against the code on 18 November 2026. Every app's list is already its left panel (#526 to #531). What is
-left is mostly the right and bottom docks: several apps still draw a side column or a lower area inside their page,
-which can't be hidden, resized or moved like a panel.
+Checked against the code on 19 November 2026. Every app's list is its left panel (#526 to #531), and the right
+and bottom docks are now panels too (#542 onward), so each can be hidden, resized, moved and tabbed.
 
 **The rule of thumb for each dock:**
 
@@ -199,37 +198,31 @@ which can't be hidden, resized or moved like a panel.
 - **Bottom** is a second view of the work that needs the window's width: a timeline, devices, presenter notes, a
   query and its rows, a terminal.
 
-| App | Matches the table above | Still inside the page | Next |
-|---|---|---|---|
-| Home, Projects, Terminal, Search, Settings | Yes | | |
-| Mail | Mailboxes; Contact (right) | | |
-| Messages (new) | Channels | Threads open in place of the channel | (Thread) and (Person) on the right, as Slack does |
-| Calendar | Calendars | The event editor is a popover | (Event) on the right for long edits; the popover stays for quick ones |
-| Tasks | Lists | Details is a fixed column | Details becomes the right panel |
-| Notes | Notebooks; Outline (right) | | (Comments) on the right |
-| Docs | Documents; Outline (right) | Comments are a margin in the page | Comments become a right panel |
-| Research | Reports; Sources (right) | | |
-| Reader | Library; Highlights (right) | | |
-| Knowledge | Pages | | (Links here) on the right |
-| Files | Places | | (Info) on the right |
-| Slides | Decks; Format (right); Presenter notes (bottom) | | Slide thumbnails as the left panel |
-| Design | Designs; (Assets) (left); Inspector (right) | Layers is a column in the page | Layers becomes a left panel, tabbed with Assets |
-| Canvas | Boards | | (Inspector) on the right |
-| Photo | Albums; Adjust (right) | | Filmstrip at the bottom |
-| Video | Videos; Shot (right) | The timeline is in the page | Timeline becomes the bottom panel |
-| Music | Songs | Notes and Devices share an area in the page | Clip notes and Devices become bottom panels |
-| Sheets | Sheets | | (Format) on the right |
-| Database | Tables | SQL and its results share the page with the rows | (Query) at the bottom, (Record) on the right |
-| Code | Explorer | Tests is in the page | Terminal, Tests and Problems as bottom tabs; (Outline) on the right |
+| App | Panels now | Next |
+|---|---|---|
+| Home, Projects, Terminal, Search, Settings | As the table above | |
+| Mail | Mailboxes; (Contact) right | |
+| Messages | Channels; (Thread) and (Person) right, as tabs | |
+| Calendar | Calendars; (Event) and (Person) right | |
+| Tasks | Lists; (Details) right | |
+| Notes | Notebooks; (Outline) right | Comments stay under the page for now; a right panel if they grow |
+| Docs | Documents; (Outline) and (Comments) right | |
+| Research | Reports; Sources right | |
+| Reader | Library; (Highlights) right | |
+| Knowledge | Pages; (Links here) right | |
+| Files | Places; (Info) right | |
+| Slides | Decks; Format right; Presenter notes bottom | Slide thumbnails as a left panel |
+| Design | Designs; Layers and (Assets) left, as tabs; Inspector right | |
+| Canvas | Boards; (Inspector) right | |
+| Photo | Albums; Adjust right; Filmstrip bottom | |
+| Video | Videos; Shot right; Timeline bottom | |
+| Music | Songs; Clip and Devices bottom | (Mixer), (Groove) |
+| Sheets | Sheets; Format right | |
+| Database | Tables; (Record) right; (Query) bottom | |
+| Code | Explorer; (Outline) right; Tests and (Console) bottom, as tabs | |
+| Abilities, Activity, Views | Their lists | (Details) or (Card settings) right |
 
 Bracketed panels start hidden.
-
-**Order** (Apps lead), each round run with the app's tests:
-
-1. Daily apps first: Tasks Details, Docs Comments, then Calendar Event.
-2. Make apps, where a panel changes how you work: Design Layers, Video Timeline, Music bottom panels.
-3. Data and code: Database Query, Code bottom tabs, Sheets Format.
-4. Then the hidden-by-default extras: Info, Links here, Inspector, Filmstrip, Thread and Person.
 
 ## Build order
 

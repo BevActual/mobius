@@ -197,3 +197,54 @@ export function testsGlance(last: { passed: boolean; output: string; seconds: nu
     { label: 'Took', value: `${Math.round(last.seconds * 10) / 10} s` },
   ];
 }
+
+/** One entry in a file's Outline: a function, class, type or heading, and the line it starts on. */
+export interface OutlineEntry { name: string; kind: string; line: number; depth: number }
+
+const OUTLINE_RULES: Partial<Record<Lang, [RegExp, string][]>> = {
+  ts: [
+    [/^\s*(?:export\s+)?(?:default\s+)?(?:async\s+)?function\*?\s+([A-Za-z_$][\w$]*)/, 'function'],
+    [/^\s*(?:export\s+)?(?:default\s+)?(?:abstract\s+)?class\s+([A-Za-z_$][\w$]*)/, 'class'],
+    [/^\s*(?:export\s+)?interface\s+([A-Za-z_$][\w$]*)/, 'interface'],
+    [/^\s*(?:export\s+)?type\s+([A-Za-z_$][\w$]*)\s*(?:<[^=]*>)?\s*=/, 'type'],
+    [/^\s*(?:export\s+)?(?:const\s+)?enum\s+([A-Za-z_$][\w$]*)/, 'enum'],
+    [/^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*(?::[^=]+)?=\s*(?:async\s+)?(?:\([^)]*\)|[A-Za-z_$][\w$]*)\s*(?::[^=]+)?=>/, 'function'],
+  ],
+  py: [[/^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)/, 'function'], [/^\s*class\s+([A-Za-z_]\w*)/, 'class']],
+  rust: [
+    [/^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?(?:unsafe\s+)?fn\s+([A-Za-z_]\w*)/, 'function'],
+    [/^\s*(?:pub(?:\([^)]*\))?\s+)?struct\s+([A-Za-z_]\w*)/, 'struct'],
+    [/^\s*(?:pub(?:\([^)]*\))?\s+)?enum\s+([A-Za-z_]\w*)/, 'enum'],
+    [/^\s*(?:pub(?:\([^)]*\))?\s+)?trait\s+([A-Za-z_]\w*)/, 'trait'],
+    [/^\s*impl(?:<[^>]*>)?\s+([A-Za-z_][\w:<>, ]*?)\s*(?:\{|where|$)/, 'impl'],
+  ],
+  go: [[/^func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)/, 'function'], [/^type\s+([A-Za-z_]\w*)/, 'type']],
+  sh: [[/^\s*(?:function\s+)?([A-Za-z_][\w-]*)\s*\(\)\s*\{?/, 'function']],
+};
+
+/** What a file holds, for the Outline panel: headings in Markdown, top-level and nested definitions elsewhere. */
+export function codeOutline(text: string, lang: Lang, limit = 400): OutlineEntry[] {
+  const out: OutlineEntry[] = [];
+  const lines = text.split('\n');
+  if (lang === 'md') {
+    let fence = false;
+    lines.forEach((l, i) => {
+      if (/^\s*(```|~~~)/.test(l)) fence = !fence;
+      const m = !fence && /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(l);
+      if (m && out.length < limit) out.push({ name: m[2]!, kind: 'heading', line: i + 1, depth: m[1]!.length - 1 });
+    });
+    return out;
+  }
+  const rules = OUTLINE_RULES[lang];
+  if (!rules) return out;
+  for (let i = 0; i < lines.length && out.length < limit; i++) {
+    const l = lines[i]!;
+    if (/^\s*(\/\/|#(?!\[)|\*|\/\*)/.test(l) && lang !== 'sh') continue;
+    if (lang === 'sh' && /^\s*#/.test(l)) continue;
+    for (const [re, kind] of rules) {
+      const m = re.exec(l);
+      if (m) { out.push({ name: m[1]!.trim(), kind, line: i + 1, depth: Math.min(3, Math.floor((l.match(/^\s*/)![0].replace(/\t/g, '    ').length) / (lang === 'py' || lang === 'rust' ? 4 : 2))) }); break; }
+    }
+  }
+  return out;
+}

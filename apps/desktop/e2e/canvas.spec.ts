@@ -5,7 +5,7 @@ import path from 'node:path';
 import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
-type Item = { id: string; type: string; x?: number; y?: number; text?: string; color?: string; from?: string; to?: string };
+type Item = { id: string; type: string; x?: number; y?: number; w?: number; text?: string; color?: string; from?: string; to?: string };
 const IDEAS: { version: 1; items: Item[] } = {
   version: 1,
   items: [
@@ -154,4 +154,18 @@ test('Mobius sorting the board shows dashed, and is kept or discarded', async ()
   await change.getByRole('button', { name: 'Discard' }).click();
   await expect.poll(() => saved().items.map((x) => x.id)).toEqual(['t1', 's1', 's2', 'b1', 'a1']);
   await expect(board().getByLabel('Text: Must haves')).toBeVisible();
+});
+
+test('the Inspector shows the picked item and changes its text and size', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Inspector' }).click();
+  const whole = shell().getByLabel('This board');
+  await expect(whole).toContainText('Sticky');
+  await board().getByLabel('Sticky: Walkable').click();
+  const about = shell().getByLabel('About Sticky');
+  await about.getByRole('textbox', { name: 'Text' }).fill('Walkable and quiet');
+  await expect.poll(() => saved().items.find((x) => x.id === 's1')?.text).toBe('Walkable and quiet');
+  await about.getByRole('spinbutton', { name: 'Width' }).fill('240');
+  await expect.poll(() => saved().items.find((x) => x.id === 's1')?.w).toBe(240);
 });

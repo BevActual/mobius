@@ -3,12 +3,12 @@ import { AppGlance, useGlanceSlot } from './PanelSlots';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { EmptyState } from './EmptyState';
 import { FromMobius } from './FromMobius';
-import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, type MutableRefObject, useCallback, useContext, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from 'react';
 import { onCommand, sendCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { IS_MAC, cursorAt, deletePair, findAll, indentLines, keyLabel, langName, lineStart, newLine, rankFiles, toggleComment, typePair, type Edit } from './code-edit';
-import { applyGroups, changeGroups, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
+import { applyGroups, changeGroups, codeOutline, gitMarks, highlight, langOf, lineDiff, testLineKind, testsGlance, type DiffRow, type GitMark, type Lang } from './code-view';
 import { RowMark } from './RowMark';
 import type { CodeState, CodeTests } from './useCode';
 import { ReviewActions, TurnRunningContext, WhyThis } from './ReviewBar';
@@ -306,7 +306,7 @@ function EditorBar({ mode, text, onClose, onFind, onLine }: { mode: 'find' | 'li
  * lines picked, Ctrl+/ comments them, Ctrl+F finds and Ctrl+G goes to a line. Every change goes in as typing, so
  * Ctrl+Z takes it back.
  */
-function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void }) {
+function Editor({ code, lang, bar, setBar, jump }: { code: CodeState; lang: Lang; bar: 'find' | 'line' | null; setBar: (bar: 'find' | 'line' | null) => void; /** Set to Go to line, for the Outline panel. */ jump?: MutableRefObject<((line: number) => void) | null> }) {
   const area = useRef<HTMLTextAreaElement>(null);
   const under = useRef<HTMLDivElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
@@ -361,6 +361,7 @@ function Editor({ code, lang, bar, setBar }: { code: CodeState; lang: Lang; bar:
     sync(el);
     track();
   };
+  if (jump) jump.current = goLine;
   const sync = (t: HTMLTextAreaElement) => {
     if (under.current) { under.current.scrollTop = t.scrollTop; under.current.scrollLeft = t.scrollLeft; }
     if (gutter.current) gutter.current.scrollTop = t.scrollTop;
@@ -567,6 +568,24 @@ function ConsolePanel({ code }: { code: CodeState }) {
  * What shows while no file is open, as Xcode's and Nova's start pages: the project, the files opened lately, and the
  * few things to do next with their shortcuts.
  */
+function OutlinePanel({ text, lang, onGo }: { text: string; lang: Lang; onGo: (line: number) => void }) {
+  const entries = useMemo(() => codeOutline(text, lang), [text, lang]);
+  if (!entries.length) return <p className="code-outline-empty muted">Nothing to outline in this file.</p>;
+  return (
+    <ul className="code-outline" aria-label="What this file defines">
+      {entries.map((e) => (
+        <li key={`${e.line}:${e.name}`} style={{ paddingLeft: `calc(var(--sp-2) + ${e.depth * 12}px)` }}>
+          <button type="button" onClick={() => onGo(e.line)} title={`Line ${e.line}`}>
+            <span className="code-outline-kind">{e.kind}</span>
+            <span className="code-outline-name">{e.name}</span>
+            <span className="code-outline-line">{e.line}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function NoFileOpen({ code, onQuick }: { code: CodeState; onQuick: () => void }) {
   const files = code.entries.filter((e) => !e.folder);
   const changed = code.git.repo ? code.git.changes.length : 0;
@@ -664,6 +683,7 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
   // ⌘⏎ keeps and ⌘⌫ discards while a suggestion is shown, as in the rest of Mobius.
   // Not while Mobius's turn still runs: its change is shown as it lands, and kept or put back once it is whole.
   const running = useContext(TurnRunningContext);
+  const jump = useRef<((line: number) => void) | null>(null);
   useEffect(() => {
     if (!showSuggestion || running) return;
     const onKey = (e: globalThis.KeyboardEvent) => {
@@ -685,8 +705,10 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
     { id: 'console', name: 'Console', dock: 'bottom', group: 'run', shown: false, reveal: assistantRuns, render: () => <ConsolePanel code={code} /> },
   ];
   const lang = code.open ? langOf(code.open.path) : 'plain';
+  // Outline (right, hidden until asked for): what the open file defines; a click goes to its line.
+  const outlinePanel: PanelSpec | null = code.open ? { id: 'outline', name: 'Outline', dock: 'right', shown: false, render: () => <OutlinePanel text={code.draft} lang={lang} onGo={(line) => jump.current?.(line)} /> } : null;
   return (
-    <PanelLayout app="code" panels={[...listPanels, ...bottomPanels]}>
+    <PanelLayout app="code" panels={[...listPanels, ...(outlinePanel ? [outlinePanel] : []), ...bottomPanels]}>
     <section className="code-page" aria-label="Code">
       <div className="code-main">
         {code.open ? (
@@ -714,7 +736,7 @@ export function CodeEditor({ code, review, listPanels = [] }: { code: CodeState;
             ) : showSuggestion && rows ? (
               <Suggestion rows={rows} lang={lang} endsWithNewline={code.open.text.endsWith('\n')} onWrite={(t) => void code.write(t)} onKeepAll={() => void keepAll()} onDiscardAll={() => void discardAll()} {...(review ? { conversation: review.conversation } : {})} />
             ) : (
-              <Editor code={code} lang={lang} bar={bar} setBar={setBar} />
+              <Editor code={code} lang={lang} bar={bar} setBar={setBar} jump={jump} />
             )}
           </>
         ) : (

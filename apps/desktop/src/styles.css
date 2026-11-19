@@ -2632,3 +2632,14 @@ body { font-variant-numeric: tabular-nums; }
 .ui-panels:has(> .ui-dock[data-dock="left"] .search-side) .search-filters { display: none; }
 /* Browser: the page is drawn natively over everything beside it, so the tabs panel's edge stays inside the panel. */
 .ui-panels[data-app="browser"] > .ui-dock[data-dock="left"] > .ui-dock-edge { right: 0; }
+
+/* Canvas: the Inspector panel */
+.canvas-inspector { display: flex; flex-direction: column; gap: var(--sp-3); padding: var(--sp-3); }
+.canvas-inspector-field { display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); }
+.canvas-inspector-field textarea, .canvas-inspector-field input { font: inherit; font-size: var(--fs-sm); color: var(--ink); resize: vertical; }
+.canvas-inspector-box { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
+.canvas-inspector-box input { font-variant-numeric: tabular-nums; width: 100%; }
+.canvas-inspector-facts { display: flex; flex-direction: column; gap: var(--sp-2); margin: 0; }
+.canvas-inspector-facts > div { display: flex; justify-content: space-between; gap: var(--sp-2); }
+.canvas-inspector-facts dt { color: var(--muted); font-size: var(--fs-xs); }
+.canvas-inspector-facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
