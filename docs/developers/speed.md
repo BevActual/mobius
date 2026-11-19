@@ -38,4 +38,6 @@ only with a reason in the pull request.
 The first budgets (19 November 2026) are about one and a half times the first CI run: start 2.3 s, first start 3.0 s,
 a 2,000-page notebook 0.84 s, a switch 47 ms at the median but 0.84 s at the slowest tenth (going back to Notes draws
 every page of the long notebook again), interface heap 25 MB growing 10 MB over the 120 switches, 3,900 DOM nodes
-growing 860, core 12 MB. The slowest, Notes' long list, is the first to fix.
+growing 860, core 12 MB. The slowest, Notes' long list, was fixed first: a notebook now draws its first 100 pages
+and more as it is scrolled, which brought the long list to 0.10 s and the slowest tenth of switches to 68 ms, and their
+budgets down to 250 ms and 200 ms.
