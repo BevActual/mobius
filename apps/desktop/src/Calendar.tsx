@@ -846,13 +846,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
           <div className="cal-editor-row">
             <span>Starts</span>
-            <DateField label="Start day" hideLabel quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
+            <DateField label="Start day" hideLabel short quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
             {!allDay && <TimeField label="Start time" hideLabel placeholder="Time" value={minutesOf(startTime)} onChange={(m) => { if (m === null) return; const v = fromMinutes(m % 1440); const length = minutesOf(endTime) - minutesOf(startTime); setStartTime(v); if (startDay === endDay && length > 0) setEndTime(fromMinutes(Math.min(23 * 60 + 59, minutesOf(v) + length))); }} />}
           </div>
           <div className="cal-editor-row">
             <span>Ends</span>
-            <DateField label="End day" hideLabel quick={DAY_PICKS} value={localDate(endDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); setEndDay(v < startDay ? startDay : v); }} />
-            {!allDay && <TimeField label="End time" hideLabel placeholder="Time" value={minutesOf(endTime)} from={startDay === endDay ? minutesOf(startTime) : null} onChange={(m) => {
+            <DateField label="End day" hideLabel short quick={DAY_PICKS} value={localDate(endDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); setEndDay(v < startDay ? startDay : v); }} />
+            {!allDay && <TimeField label="End time" hideLabel placeholder="Time" value={minutesOf(endTime)} from={startDay === endDay ? minutesOf(startTime) : null} boxLength={false} onChange={(m) => {
               if (m === null) return;
               // Past midnight from the start: the event ends the next day.
               if (m >= 1440) { setEndDay(isoDay(addDays(localDate(startDay), 1))); setEndTime(fromMinutes(m - 1440)); } else setEndTime(fromMinutes(m));
