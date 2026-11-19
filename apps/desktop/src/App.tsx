@@ -1219,8 +1219,9 @@ export function App() {
       return;
     }
     // Canvas, Design, Slides and Photo keep their own history: what the menu's Undo means there, outside a text field.
+    // Tasks: Undo puts back the task just deleted or ticked off.
     const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || (document.activeElement as HTMLElement | null)?.isContentEditable;
-    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto) && !typing) { sendCommand(command); return; }
+    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto || (inTasks && command === 'undo')) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
   // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
