@@ -1375,7 +1375,7 @@ export function App() {
     calendarToday: () => { opener.current = null; closeSettings(); calendar.setAnchor(new Date()); openApp('calendar'); },
     filesTrash: () => { opener.current = null; closeSettings(); files.setPlace({ kind: 'trash' }); openApp('files'); },
     taskList: () => tasks.lists.find((l) => l.name === DEFAULT_LIST_NAME && !l.account)?.name ?? tasks.lists.find((l) => !l.account)?.name ?? tasks.lists[0]?.name ?? DEFAULT_LIST_NAME,
-    addTask: (list, text, due, time) => { void tasks.add(list, text, due, time ? { time } : undefined).then((ok) => setNotice(ok ? `Added to ${list}` : 'The task could not be added.')); },
+    addTask: (list, text, due, time) => { void tasks.add(list, text, due, time ? { time } : undefined).then((ok) => setToast(ok ? `Added to ${list}` : 'The task could not be added.')); },
   });
   // Apps lead: Messages and Knowledge take part too (app-launcher.ts).
   useMoreLauncherSources({
