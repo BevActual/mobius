@@ -146,7 +146,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('reload', 'Reload', d.browser.reload, { keys: 'mod+r', disabled: !s.browser.hasPage }),
         item('address', 'Go to the address bar', d.browser.address, { keys: keys.address }),
         separator,
-        item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { disabled: !s.browser.hasPage }),
+        item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { keys: 'mod+d', disabled: !s.browser.hasPage }),
         item('pin-page', s.browser.pinned ? 'Unpin' : 'Pin', d.browser.pin, { disabled: !s.browser.hasPage }),
         item('reopen', 'Reopen closed tab', d.browser.reopen, { keys: 'mod+shift+t' }),
         separator,
