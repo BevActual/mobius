@@ -99,6 +99,9 @@ fn menu<R: Runtime>(app: &AppHandle<R>, shown: &Shown) -> tauri::Result<Menu<R>>
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if app.try_state::<crate::updater::Updates>().is_some_and(|u| u.is_ready()) {
+        menu.append(&MenuItem::with_id(app, "update", "Restart to Update", true, None::<&str>)?)?;
+    }
     if crate::autostart::AVAILABLE {
         menu.append(&CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, crate::autostart::enabled(), None::<&str>)?)?;
     }
@@ -154,12 +157,13 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                         eprintln!("[tray] {e}");
                     }
                     // The check mark shows what Windows now has, whatever the click did to it.
-                    if let (Some(tray), Some(shell)) = (app.tray_by_id(ID), app.try_state::<crate::Shell>()) {
-                        let now = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-                        let shown = now.unwrap_or(Shown { state: State::Idle, tooltip: "Mobius".into(), items: Vec::new() });
-                        if let Ok(m) = menu(app, &shown) {
-                            let _ = tray.set_menu(Some(m));
-                        }
+                    refresh(app);
+                }
+                "update" => {
+                    if let Some(updates) = app.try_state::<crate::updater::Updates>() {
+                        let answer = updates.install_and_restart(app);
+                        eprintln!("[tray] update not installed: {answer}");
+                        refresh(app);
                     }
                 }
                 "stop-all" => {
@@ -185,6 +189,18 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
         Err(error) => {
             eprintln!("[tray] could not be shown: {error}");
             None
+        }
+    }
+}
+
+/// Build the menu again from what it shows now, for a change the interface did not ask for (Start with Windows
+/// ticked, an update downloaded).
+pub fn refresh<R: Runtime>(app: &AppHandle<R>) {
+    if let (Some(tray), Some(shell)) = (app.tray_by_id(ID), app.try_state::<crate::Shell>()) {
+        let now = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        let shown = now.unwrap_or(Shown { state: State::Idle, tooltip: "Mobius".into(), items: Vec::new() });
+        if let Ok(m) = menu(app, &shown) {
+            let _ = tray.set_menu(Some(m));
         }
     }
 }

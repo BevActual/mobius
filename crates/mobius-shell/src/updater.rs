@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use mobius_host::updates::{CHECK_EVERY_SECS, Event, State};
 use serde_json::Value;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
 pub struct Updates {
@@ -45,18 +45,28 @@ impl Updates {
         Updates { state: Mutex::new(state), ready: Mutex::new(None) }
     }
 
-    pub fn snapshot(&self, app: &AppHandle) -> Value {
+    pub fn snapshot<R: Runtime>(&self, app: &AppHandle<R>) -> Value {
         lock(&self.state).to_json(&app.package_info().version.to_string())
     }
 
-    fn apply(&self, app: &AppHandle, event: &Event) {
+    fn apply<R: Runtime>(&self, app: &AppHandle<R>, event: &Event) {
         let next = lock(&self.state).next(event);
         *lock(&self.state) = next;
         let _ = app.emit("mobius:updates", self.snapshot(app));
+        // With the window closed Mobius keeps running in the tray, so quitting may be days away: the tray's menu
+        // offers the restart too.
+        if matches!(event, Event::Downloaded) {
+            crate::tray::refresh(app);
+        }
+    }
+
+    /// A downloaded update is waiting to be installed.
+    pub fn is_ready(&self) -> bool {
+        lock(&self.ready).is_some()
     }
 
     /// Look for a newer version and download it, unless one is being checked, downloaded or already waiting.
-    pub async fn check(&self, app: &AppHandle) {
+    pub async fn check<R: Runtime>(&self, app: &AppHandle<R>) {
         if !lock(&self.state).may_check() {
             return;
         }
@@ -91,7 +101,7 @@ impl Updates {
     }
 
     /// Install the downloaded version and start it. On Windows the installer closes Mobius itself.
-    pub fn install_and_restart(&self, app: &AppHandle) -> Value {
+    pub fn install_and_restart<R: Runtime>(&self, app: &AppHandle<R>) -> Value {
         let Some((update, bytes)) = lock(&self.ready).take() else {
             return serde_json::json!({ "ok": false, "error": "No update is waiting." });
         };
