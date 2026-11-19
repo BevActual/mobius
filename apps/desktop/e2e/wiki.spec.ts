@@ -61,6 +61,13 @@ test('How I work is what Mobius remembers: what it learned is dashed until Keep,
   await page.getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect(learned).toBeVisible();
   await expect.poll(() => fs.readFileSync(memory(), 'utf8')).toContain('- Answers mail in the morning <!-- prefs · Mail -->');
+
+  // From the keyboard: Enter keeps it and the keyboard goes on to the next line; the arrows move between lines.
+  await learned.focus();
+  await shell().keyboard.press('Enter');
+  await expect(page.getByRole('listitem', { name: 'Vegetarian', exact: true })).toBeFocused();
+  await shell().keyboard.press('ArrowDown');
+  await expect(page.getByRole('listitem', { name: 'Answers mail in the morning', exact: true })).toBeFocused();
 });
 
 test('a line shared from How I work waits in Shared with this wiki: Edit first, Keep, Decline, and Undo', async () => {
