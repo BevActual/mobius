@@ -5,6 +5,7 @@ import { APPS, DEFAULT_APPS, appName, isAvailable, isInstalled, recentApps, rece
 import { APP_ICONS, OWN_ICONS } from './Rail';
 import { relativeTime } from './relative-time';
 import { quickAnswer } from './quick-answers';
+import { afterPaint } from './ui/frame';
 import './launcher.css';
 
 /**
@@ -426,6 +427,11 @@ export function Launcher({
     }
     onClose();
     item.run();
+    // Opening an app hands it the keyboard. The closing dialog gives focus back to where it was (often Message Mobius),
+    // which is right for a command but left an app's list keys typing into the composer.
+    if (item.app && (item.kind === 'app' || item.kind === 'grid' || item.kind === 'pinned') && !inline) {
+      afterPaint(() => landInStage(document.querySelector<HTMLElement>('main.stage'), document.activeElement));
+    }
   };
 
   const keys = (event: KeyboardEvent<HTMLInputElement>) => {
@@ -697,4 +703,11 @@ export function GoButton({ app, name, waiting = 0, keys, onOpen, open }: {
       <svg className="go-button-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 8.5 10 12l3.5-3.5" /></svg>
     </button>
   );
+}
+
+/** After an app opens: unless the app already took the keyboard itself, the work area takes it. True when it moved. */
+export function landInStage(stage: Pick<HTMLElement, 'contains' | 'focus'> | null, active: Element | null): boolean {
+  if (!stage || (active && stage.contains(active))) return false;
+  stage.focus({ preventScroll: true });
+  return true;
 }
