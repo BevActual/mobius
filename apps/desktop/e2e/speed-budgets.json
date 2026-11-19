@@ -1,0 +1,14 @@
+{
+  "first start": 0,
+  "start": 0,
+  "open a long list": 0,
+  "switch to an app, first visit": 0,
+  "switch apps": 0,
+  "switch apps, slowest tenth": 0,
+  "interface memory after long use": 0,
+  "interface memory growth over long use": 0,
+  "DOM nodes after long use": 0,
+  "DOM node growth over long use": 0,
+  "core memory after long use": 0,
+  "core memory growth over long use": 0
+}
