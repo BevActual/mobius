@@ -175,3 +175,14 @@ test('Journey is gone from the apps: looking for it finds How I work in Knowledg
   await shell().keyboard.press('Enter');
   await expect(shell().getByRole('region', { name: 'How I work' })).toBeVisible();
 });
+
+test('the launcher finds a Knowledge page by its title from another app, and opens it', async () => {
+  const dir = path.join(userData, 'workspace', 'wiki', 'Pages');
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'Team rules.md'), '# Team rules\n\nBuilds start on Mondays.\n');
+  await start();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('team rules');
+  await shell().getByRole('option', { name: /Team rules/ }).first().click();
+  await expect(shell().getByRole('textbox', { name: 'Document text' })).toContainText('Builds start on Mondays.');
+});

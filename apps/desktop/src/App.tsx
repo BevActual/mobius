@@ -98,7 +98,7 @@ import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
-import { useDailyLauncherSources } from './app-launcher';
+import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -1352,6 +1352,13 @@ export function App() {
     tasksView: (id) => { opener.current = null; closeSettings(); tasks.setView({ kind: 'smart', id }); openApp('tasks'); },
     calendarToday: () => { opener.current = null; closeSettings(); calendar.setAnchor(new Date()); openApp('calendar'); },
     filesTrash: () => { opener.current = null; closeSettings(); files.setPlace({ kind: 'trash' }); openApp('files'); },
+  });
+  // Apps lead: Messages and Knowledge take part too (app-launcher.ts).
+  useMoreLauncherSources({
+    openChannel: (account, channel) => { opener.current = null; closeSettings(); openApp('messages'); chat.choose({ account, channel }); },
+    knowledge: () => wiki.notebooks,
+    openPage: (path, title) => { opener.current = null; closeSettings(); setWikiPlace({ kind: 'page' }); openApp('wiki'); void wiki.open(path, title); },
+    howIWork: () => { opener.current = null; closeSettings(); setWikiPlace({ kind: 'mine' }); openApp('wiki'); },
   });
   // And what each app registered with the launcher (launcher-sources.ts).
   const allCommands = sourceCommands(launcherCommands);

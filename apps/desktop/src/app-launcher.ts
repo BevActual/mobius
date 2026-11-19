@@ -1,4 +1,4 @@
-import { isNotesFailure, type CalendarEvent, type Contact, type MailMessage, type NoteHit } from '@mobius/shared';
+import { isNotesFailure, type CalendarEvent, type ChatChannel, type Contact, type MailMessage, type NoteHit, type Notebook } from '@mobius/shared';
 import type { FoundItem } from './Launcher';
 import { useLauncherSource } from './launcher-sources';
 import type { HubTarget } from './search-hub';
@@ -125,4 +125,50 @@ export function useDailyLauncherSources(d: Daily): void {
   useLauncherSource(wordsInside('notes', d));
   useLauncherSource(wordsInside('docs', d));
   useLauncherSource({ app: 'files', commands: () => [{ id: 'trash', label: 'Trash', detail: 'Files', run: d.filesTrash }] });
+}
+
+/** Channels and direct messages whose name has every word, the busiest first. */
+export function channelsMatching(channels: readonly ChatChannel[], query: string, limit = 5): ChatChannel[] {
+  const ws = words(query.replace(/^#/, ''));
+  if (!ws.length) return [];
+  return channels.filter((c) => has(c.name, ws)).sort((a, b) => (b.mentions - a.mentions) || (b.unread - a.unread) || ((b.last ?? 0) - (a.last ?? 0))).slice(0, limit);
+}
+
+/** Knowledge pages whose title has every word. */
+export function pagesMatching(notebooks: readonly Notebook[], query: string, limit = 5): { path: string; title: string; notebook: string }[] {
+  const ws = words(query);
+  if (!ws.length) return [];
+  const out: { path: string; title: string; notebook: string }[] = [];
+  for (const nb of notebooks) for (const p of nb.pages) if (out.length < limit && has(p.title, ws)) out.push({ path: p.path, title: p.title, notebook: nb.name });
+  return out;
+}
+
+interface More {
+  /** Messages at this channel. */
+  openChannel: (account: string, channel: string) => void;
+  /** Knowledge's pages, as loaded. */
+  knowledge: () => readonly Notebook[];
+  openPage: (path: string, title: string) => void;
+  howIWork: () => void;
+}
+
+/** Registers Messages and Knowledge with the launcher. */
+export function useMoreLauncherSources(m: More): void {
+  useLauncherSource({
+    app: 'messages',
+    find: async (query, signal) => {
+      const api = window.mobius.messages;
+      if (!api || !(await after(signal, 150))) return [];
+      const accounts = await api.accounts().catch(() => []);
+      if (isNotesFailure(accounts) || signal.aborted) return [];
+      const lists = await Promise.all(accounts.map((a) => api.channels(a.id).catch(() => [])));
+      const all = lists.flatMap((l) => (isNotesFailure(l) ? [] : l));
+      return channelsMatching(all, query).map((c) => ({ id: `${c.account}:${c.id}`, app: 'messages' as const, label: c.kind === 'channel' ? `#${c.name}` : c.name, detail: ['Messages', c.mentions ? `${c.mentions} mentioning you` : c.unread ? `${c.unread} unread` : ''].filter(Boolean).join(' · '), run: () => m.openChannel(c.account, c.id) }));
+    },
+  });
+  useLauncherSource({
+    app: 'wiki',
+    find: (query) => pagesMatching(m.knowledge(), query).map((p) => ({ id: p.path, app: 'wiki' as const, label: p.title, detail: `Knowledge, ${p.notebook}`, run: () => m.openPage(p.path, p.title) })),
+    commands: () => [{ id: 'how-i-work', label: 'How I work', detail: 'Knowledge', run: m.howIWork }],
+  });
 }
