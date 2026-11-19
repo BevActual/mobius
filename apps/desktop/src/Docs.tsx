@@ -28,6 +28,8 @@ import { fileMarkdown, noteImage, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
+import { FindMarks } from './doc-find';
+import { DocFind, findKeyOf } from './DocFind';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
@@ -442,6 +444,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   // History, comments, files and export are kept for Docs' own documents; the wiki keeps its own history.
   const own = docs.kind === 'docs' ? window.mobius.docs : undefined;
   const section = useRef<HTMLElement>(null);
+  // Find (Ctrl+F) and Replace (Ctrl+H): open while set; the token puts the cursor back in the bar on a second press.
+  const [finding, setFinding] = useState<{ replacing: boolean; token: number } | null>(null);
   const pathNow = useRef(path);
   pathNow.current = path;
   // The Markdown the editor last gave or was given, so a change from elsewhere is told from the person's typing.
@@ -484,6 +488,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       image,
       commentMarks,
       changeMarks,
+      FindMarks,
       ...(inFrame ? [metaMarks] : []),
     ],
     content: '',
@@ -830,7 +835,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
-    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
+    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}
+      onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
+      {finding && editor && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This document was changed somewhere else while you were editing it.</span>
