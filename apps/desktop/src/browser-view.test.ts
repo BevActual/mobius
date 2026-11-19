@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BrowserTabState } from '@mobius/shared';
-import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColour, tileLetter } from './browser-view';
+import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileColour, tileLetter } from './browser-view';
 
 const tab = (id: string, url: string, title: string, extra: Partial<BrowserTabState> = {}): BrowserTabState => ({ id, url, title, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra });
 
@@ -78,5 +78,19 @@ describe('sidebarMatch', () => {
     expect(sidebarMatch('WIKIPEDIA', 'Electric vehicle battery', 'https://en.wikipedia.org/wiki/EV')).toBe(true);
     expect(sidebarMatch('axion pack', 'Axion 150 kW traction motor', 'https://axion.example/')).toBe(false);
     expect(sidebarMatch('https', 'Page', 'https://www.page.example/')).toBe(false);
+  });
+});
+
+describe('nextTabId', () => {
+  const t = (id: string, extra: Partial<BrowserTabState> = {}) => ({ id, url: `https://${id}.example/`, title: id, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra }) as BrowserTabState;
+  // As the core keeps them: pinned first. The sidebar lists the open tabs first, so Ctrl+Tab goes in that order.
+  const tabs = [t('p', { pinned: true }), t('a', { active: true }), t('b')];
+  it('steps through the tabs in the order the sidebar shows, going round', () => {
+    expect(nextTabId(tabs, 1)).toBe('b');
+    expect(nextTabId(tabs, -1)).toBe('p');
+    expect(nextTabId(tabs.map((x) => ({ ...x, active: x.id === 'p' })), 1)).toBe('a');
+  });
+  it('has nowhere to go with one tab', () => {
+    expect(nextTabId([t('a', { active: true })], 1)).toBeNull();
   });
 });

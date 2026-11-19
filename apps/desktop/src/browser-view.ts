@@ -88,3 +88,15 @@ export function sidebarMatch(query: string, title: string, url: string): boolean
   const text = `${title} ${url.replace(/^https?:\/\/(www\.)?/, '')}`.toLowerCase();
   return words.every((w) => text.includes(w));
 }
+
+/**
+ * The tab Ctrl+Tab (step 1) or Ctrl+Shift+Tab (step -1) goes to: the next or previous in the order the sidebar lists
+ * them (the open tabs, then the pinned ones), going round at either end.
+ */
+export function nextTabId(tabs: readonly BrowserTabState[], step: 1 | -1): string | null {
+  const order = [...tabs.filter((t) => !t.pinned), ...tabs.filter((t) => t.pinned)];
+  if (order.length < 2) return null;
+  const at = order.findIndex((t) => t.active);
+  const next = order[(Math.max(at, 0) + step + order.length) % order.length];
+  return next && next.id !== order[at]?.id ? next.id : null;
+}

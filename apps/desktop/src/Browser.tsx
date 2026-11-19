@@ -9,7 +9,7 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColour, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileColour, tileLetter, type Suggestion } from './browser-view';
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
 import './browser.css';
@@ -143,7 +143,7 @@ function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: Br
     { label: 'Reload', keys: tab.active ? 'Ctrl+R' : undefined, run: () => api.reload(tab.id), disabled: !tab.url },
     ...(api.reopenClosed ? [{ label: 'Reopen closed tab', keys: 'Ctrl+Shift+T', run: () => void api.reopenClosed?.() }] : []),
     { label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
-    { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
+    { label: 'Bookmark…', keys: tab.active ? 'Ctrl+D' : undefined, run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
     // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
     { label: pinnedPages.has(tab.url) ? 'Unpin page' : 'Pin page', run: () => onPinPage(tab), disabled: !web },
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
@@ -273,7 +273,8 @@ export interface BrowserChromeProps {
 
 /**
  * The Browser's own keys, as in every browser: Alt+Left and Alt+Right go back and forward, Ctrl+R reloads (instead of
- * reloading Mobius itself) and Ctrl+Shift+T reopens the tab closed last. Only while the Browser shows.
+ * reloading Mobius itself), Ctrl+Shift+T reopens the tab closed last, Ctrl+D bookmarks the page and Ctrl+Tab (or
+ * Ctrl+Page Down) and Ctrl+Shift+Tab (or Ctrl+Page Up) step through the tabs. Only while the Browser shows.
  */
 function useBrowserKeys(active: BrowserTabState | undefined) {
   useEffect(() => {
@@ -292,6 +293,16 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
       } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
         e.preventDefault();
         void api.reopenClosed?.();
+      } else if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyD') {
+        e.preventDefault();
+        if (active && /^https?:/.test(active.url)) void window.mobius.bookmarks.toggle();
+      } else if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'Tab' || ((e.key === 'PageDown' || e.key === 'PageUp') && !e.shiftKey))) {
+        e.preventDefault();
+        const step = e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
+        void api.getState().then((s) => {
+          const id = nextTabId(s?.tabs ?? [], step);
+          if (id) api.activate(id);
+        }).catch(() => {});
       }
     };
     window.addEventListener('keydown', onKey);
