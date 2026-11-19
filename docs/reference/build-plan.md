@@ -28,10 +28,25 @@ this one disagree about order or ownership, this page wins and the other page ge
 | Lead | Owns | Does not do |
 | --- | --- | --- |
 | Builder | The shell, the core, CI, releases and every merge. | App rounds; library controls. |
-| Design lead | Design review of every pull request with a screen, `docs/design/`, and the shared library in `apps/desktop/src/ui/`. | App code; shell state. |
-| Apps lead | Every app except Music: the Apps roadmap and one pull request per app round. | Library controls; shell or core changes beyond small marked edits. |
-| Music | The Music app and the Music roadmap. Finds what the library lacks by using it. | Library controls of its own. |
-| Launch | The README, user docs, the demo, the launch checklist and release notes. | Product code. |
+| Design lead | Design review of every pull request with a screen, `docs/design/`, the shared library in `apps/desktop/src/ui/`, and the findings that start each app's polish pass. | App code; shell state. |
+| Apps lead | Every app, Music included (folded in by Andrew, 17 November 2026): the Apps roadmap and one pull request per app round. | Library controls; shell or core changes beyond small marked edits. |
+| Launch | Andrew's PC (installs, checks a change to what is sent to the model), signing, the site, the demo at launch and release notes. | Product code. |
+| Docs lead | The README and `docs/` outside the plans: clear, current and tidy. | Product code. |
+
+### How work flows between threads
+
+Set 19 November 2026, to keep the threads lean.
+
+- **Leads talk to each other directly** about the work between them: the author tells the Builder a pull request is
+  up; the Builder tells Launch which commit to install; the Design lead sends its findings straight to the Apps lead.
+  Nothing goes through the orchestrator unless it changes the plan or needs a decision.
+- **The orchestrator hears results and decisions only:** a piece of the Now list done, a blocker, or a choice that
+  changes the plan. Progress belongs in each thread's own checklist.
+- **Andrew hears only real decisions** and the daily summary, through the coordinator.
+- **The daily CI count is one line when every aim is met,** and a table only when one is missed.
+- **Every lead keeps its next item queued.** When one item lands, the next starts without asking, from this plan.
+- **A thread whose work is done or folded is resolved,** not left idle: Music (folded into the Apps lead) and Azure
+  setup (waiting on Microsoft, now Launch's to watch).
 
 Only the Builder merges. App, shell, CI and docs pull requests merge without asking once they are green and, where
 they show a screen, have passed design review. A release waits for Andrew.
@@ -65,7 +80,8 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 
 | Item | Owner | Status |
 | --- | --- | --- |
-| Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing |
+| Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request, then the next app. Order: Home, Mail, Calendar, Tasks, Notes, Docs, Files, Browser, Messages, then the rest | Design lead, Apps lead | Starting with Home |
+| Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
 | The Builder's queue below: updates while in the tray, then agents that run from the tray | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
 | Design and Research weak points, Database's Analyse mode | Apps lead | Next |
