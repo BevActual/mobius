@@ -5,7 +5,7 @@
 
 use serde_json::{Value, json};
 use tauri::image::Image;
-use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -99,11 +99,14 @@ fn menu<R: Runtime>(app: &AppHandle<R>, shown: &Shown) -> tauri::Result<Menu<R>>
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if crate::autostart::AVAILABLE {
+        menu.append(&CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, crate::autostart::enabled(), None::<&str>)?)?;
+    }
     menu.append(&MenuItem::with_id(app, "quit", "Quit Mobius", true, None::<&str>)?)?;
     Ok(menu)
 }
 
-fn show_main<R: Runtime>(app: &AppHandle<R>) {
+pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(main) = app.get_window("main") {
         let _ = main.unminimize();
         let _ = main.show();
@@ -146,6 +149,19 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                     let _ = app.emit("mobius:shortcut", json!("quick-entry"));
                 }
                 "quit" => app.exit(0),
+                "autostart" => {
+                    if let Err(e) = crate::autostart::set(!crate::autostart::enabled()) {
+                        eprintln!("[tray] {e}");
+                    }
+                    // The check mark shows what Windows now has, whatever the click did to it.
+                    if let (Some(tray), Some(shell)) = (app.tray_by_id(ID), app.try_state::<crate::Shell>()) {
+                        let now = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+                        let shown = now.unwrap_or(Shown { state: State::Idle, tooltip: "Mobius".into(), items: Vec::new() });
+                        if let Ok(m) = menu(app, &shown) {
+                            let _ = tray.set_menu(Some(m));
+                        }
+                    }
+                }
                 "stop-all" => {
                     let _ = app.emit("mobius:tray-stop-all", Value::Null);
                 }

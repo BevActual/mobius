@@ -4,6 +4,7 @@
 mod awake;
 mod secrets;
 mod tray;
+mod autostart;
 mod launcher;
 mod menu;
 mod profiles;
@@ -489,7 +490,13 @@ fn main() {
     // A delete Windows refuses in the workspace says which program holds the files.
     #[cfg(windows)]
     let _ = mobius_workspace::notes::FILE_HOLDERS.set(file_holders);
-    let app = tauri::Builder::default()
+    let mut app = tauri::Builder::default();
+    // One Mobius: starting it again while it waits in the tray brings its window back, never a second copy on the same
+    // data. Tests start many copies at once, each with its own data.
+    if !std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") {
+        app = app.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)));
+    }
+    let app = app
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -611,10 +618,9 @@ fn main() {
             // The print in the menu bar or notification area; the app keeps it, found again by its id. Tests start and
             // kill the app hundreds of times, and each kill leaves a dead icon in the notification area: they go
             // without one unless they ask for it.
-            if !test_mode || std::env::var("MOBIUS_TEST_TRAY").is_ok_and(|v| v == "1") {
-                let _ = tray::create(&handle);
-            }
-            let hidden = test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1");
+            let has_tray = (!test_mode || std::env::var("MOBIUS_TEST_TRAY").is_ok_and(|v| v == "1")) && tray::create(&handle).is_some();
+            // Started when the person signed in, Mobius waits in the tray; without a tray it opens as usual.
+            let hidden = (test_mode && std::env::var("MOBIUS_HIDE_WINDOW").is_ok_and(|v| v == "1")) || (has_tray && autostart::started_hidden());
             // The window holds the interface as one web view that fills it, and the browser's pages as more views above it.
             // Tests need one known size; a person gets a window that fits the screen they have and opens in the middle of it.
             let (width, height) = if test_mode {
@@ -695,6 +701,13 @@ fn main() {
             let focus_bridge = bridge.clone();
             let mini_handle = handle.clone();
             window.on_window_event(move |event| {
+                // Closing the window hides it: Mobius keeps running in the tray, so the launcher's shortcut works from
+                // anywhere and finished work can say so. Quit Mobius in the tray (or the app menu) ends it.
+                if has_tray && let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = resize_window.hide();
+                    return;
+                }
                 // Little Mobius belongs to the main window: it goes when the main window does.
                 if let WindowEvent::Destroyed = event && let Some(mini) = mini_handle.get_webview_window(MINI) {
                     let _ = mini.close();
