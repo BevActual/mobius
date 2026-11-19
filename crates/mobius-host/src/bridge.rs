@@ -3703,6 +3703,20 @@ impl Bridge {
                 });
                 accounts.slack_sign_in(done)
             }
+            // Telegram: phone number, then the code Telegram sends, then the two-step password if there is one.
+            "telegramStatus" => Ok(accounts.telegram_status()),
+            "telegramCancel" => {
+                accounts.telegram_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "telegramSignIn" => match (text(0), text(1)) {
+                (Some(step), Some(value)) => accounts.telegram_sign_in(step, value).inspect(|r| {
+                    if r.get("id").is_some() {
+                        (self.emit)("mobius:messages-changed", json!({ "account": r["id"], "channel": null }));
+                    }
+                }),
+                _ => Err("a step and what was typed are needed".to_owned()),
+            },
             // Microsoft Teams chats: the Microsoft sign-in, asking for chats.
             "teamsStatus" => Ok(accounts.teams_status()),
             "teamsCancel" => {

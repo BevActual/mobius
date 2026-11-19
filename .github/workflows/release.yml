@@ -52,6 +52,8 @@ jobs:
           MOBIUS_GOOGLE_CLIENT_ID: ${{ vars.MOBIUS_GOOGLE_CLIENT_ID }}
           MOBIUS_GOOGLE_CLIENT_SECRET: ${{ secrets.MOBIUS_GOOGLE_CLIENT_SECRET }}
           MOBIUS_GOOGLE_PICKER_KEY: ${{ vars.MOBIUS_GOOGLE_PICKER_KEY }}
+          MOBIUS_TELEGRAM_API_ID: ${{ vars.MOBIUS_TELEGRAM_API_ID }}
+          MOBIUS_TELEGRAM_API_HASH: ${{ secrets.MOBIUS_TELEGRAM_API_HASH }}
         run: npm run package -- --version ${{ steps.version.outputs.value }}
 
       - name: Find the installer

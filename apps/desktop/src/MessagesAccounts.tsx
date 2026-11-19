@@ -114,7 +114,7 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
                     </>
                   ) : (
                     <>
-                      {a.status === 'signed-out' && <button type="button" className="btn" aria-label={`Sign in to ${a.name} again`} disabled={waiting !== null || (a.service === 'slack' && notSetUp) || (a.service === 'teams' && teamsNotSetUp)} onClick={() => again(a)}>Sign in again</button>}
+                      {a.status === 'signed-out' && a.service !== 'telegram' && <button type="button" className="btn" aria-label={`Sign in to ${a.name} again`} disabled={waiting !== null || (a.service === 'slack' && notSetUp) || (a.service === 'teams' && teamsNotSetUp)} onClick={() => again(a)}>Sign in again</button>}
                       <button type="button" className="btn" aria-label={`Remove ${a.name}`} onClick={() => setRemoving(a.id)}>Remove…</button>
                     </>
                   )}
@@ -158,9 +158,69 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
               )}
             </form>
           )}
+          {!waiting && api.telegramSignIn && <TelegramSignIn onDone={() => void load()} />}
         </>
       )}
     </Row>
+  );
+}
+
+/**
+ * Signing in to Telegram as the person's own account: their phone number, then the code Telegram sends to their other
+ * Telegram apps (or by SMS), then their two-step verification password if they set one. The password goes only to
+ * Telegram and is not kept.
+ */
+function TelegramSignIn({ onDone }: { onDone: () => void }) {
+  const api = window.mobius.messages;
+  const [status, setStatus] = useState<{ setUp: boolean; hint: string | null } | null>(null);
+  const [step, setStep] = useState<'phone' | 'code' | 'password'>('phone');
+  const [value, setValue] = useState('');
+  const [hint, setHint] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  useEffect(() => {
+    void api?.telegramStatus?.().then((r) => { if (!isNotesFailure(r)) setStatus({ setUp: r.setUp, hint: r.hint }); }).catch(() => {});
+  }, [api]);
+  if (!status) return null;
+  if (!status.setUp) return <Empty>{status.hint ?? 'Telegram is not set up in this build.'}</Empty>;
+  const send = async () => {
+    setProblem(null);
+    setBusy(true);
+    const r = await api?.telegramSignIn?.(step, value).catch(() => null);
+    setBusy(false);
+    if (!r) { setProblem('Signing in to Telegram is not available here.'); return; }
+    if (isNotesFailure(r)) { setProblem(r.message); if (step === 'password') setValue(''); return; }
+    setValue('');
+    if ('next' in r) {
+      setStep(r.next);
+      setHint(r.next === 'password' ? r.hint : null);
+      return;
+    }
+    setStep('phone');
+    onDone();
+  };
+  const restart = () => { void api?.telegramCancel?.(); setStep('phone'); setValue(''); setProblem(null); };
+  const label = step === 'phone' ? 'Telegram phone number' : step === 'code' ? 'Code from Telegram' : 'Two-step verification password';
+  return (
+    <form className="messages-matrix" aria-label="Sign in to Telegram" onSubmit={(event) => { event.preventDefault(); if (value.trim()) void send(); }}>
+      {step === 'code' && <span className="slist-sub">Telegram sent a code to your other Telegram apps (or by text message).</span>}
+      {step === 'password' && <span className="slist-sub">This account has two-step verification.{hint ? ` Hint: ${hint}` : ''}</span>}
+      <label className="field compact wide">
+        <span>{label}</span>
+        <input
+          type={step === 'password' ? 'password' : 'text'}
+          inputMode={step === 'password' ? undefined : 'tel'}
+          value={value}
+          placeholder={step === 'phone' ? '+44 7700 900123' : undefined}
+          autoComplete={step === 'password' ? 'current-password' : step === 'code' ? 'one-time-code' : 'tel'}
+          spellCheck={false}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </label>
+      <button type="submit" className="btn" disabled={busy || !value.trim()}>{step === 'phone' ? 'Send code' : 'Sign in to Telegram'}</button>
+      {step !== 'phone' && <button type="button" className="btn link" onClick={restart}>Start again</button>}
+      {problem && <p className="field-error" role="alert">{problem}</p>}
+    </form>
   );
 }
 
