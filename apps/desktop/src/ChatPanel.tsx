@@ -372,7 +372,7 @@ export interface ChatPanelProps {
   onStop: () => void;
   /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
   onTakeOver?: () => Promise<string | null>;
-  onHandBack?: () => Promise<string | null>;
+  onHandBack?: (note?: string) => Promise<string | null>;
   onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
@@ -514,13 +514,27 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-/** While you have control of a running task: where Mobius paused, Hand back and Stop. */
-function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: () => Promise<string | null>; onStop: () => void }) {
+/** While you have control of a running task: where Mobius paused, a line for what to tell it, Hand back and Stop. */
+function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: (note?: string) => Promise<string | null>; onStop: () => void }) {
   const [problem, setProblem] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const handBack = () => onHandBack && void onHandBack(note).then((p) => { setProblem(p); if (!p) setNote(''); });
   return (
     <div className="control-bar" role="status" aria-label="You have control">
       <span className="control-text">You have control · Mobius paused at step {control.step}{control.of ? ` of ${control.of}` : ''}</span>
-      {onHandBack && <button type="button" className="btn primary" onClick={() => void onHandBack().then(setProblem)}>Hand back</button>}
+      {onHandBack && (
+        <input
+          className="control-note"
+          type="text"
+          aria-label="Tell Mobius as you hand back"
+          placeholder="What you changed, or what to do next (optional)"
+          maxLength={2000}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handBack(); } }}
+        />
+      )}
+      {onHandBack && <button type="button" className="btn primary" onClick={handBack}>Hand back</button>}
       <button type="button" className="btn" onClick={onStop}>Stop</button>
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </div>

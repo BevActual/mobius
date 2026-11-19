@@ -576,8 +576,8 @@ export interface MobiusBridge {
     cancel(conversation: string): Promise<void>;
     /** Take over the running task: Mobius pauses at the next safe point and the apps are yours. */
     takeOver?(conversation: string): Promise<AgentResult>;
-    /** Hand the task back: Mobius reads what is there again, then goes on. */
-    handBack?(conversation: string): Promise<AgentResult>;
+    /** Hand the task back: Mobius reads what is there again, then goes on. `note` is what the person tells it as they do (what they changed, or what to do next). */
+    handBack?(conversation: string, note?: string): Promise<AgentResult>;
     /** Whether you have control of the conversation's task, and the step Mobius paused at. */
     control?(conversation: string): Promise<{ theirs: boolean; step?: number; of?: number | null }>;
     history(conversation: string): Promise<Message[]>;

@@ -416,12 +416,12 @@ impl Host {
     }
 
     /// The person hands back: Mobius reads what is there again, then goes on from where it stopped.
-    pub fn hand_back(&mut self, core: &mut Core, conversation: &str) -> Result<Vec<Out>, HostError> {
+    pub fn hand_back(&mut self, core: &mut Core, conversation: &str, note: Option<&str>) -> Result<Vec<Out>, HostError> {
         let turn_id = self.active.iter().find(|(_, a)| a.conversation == conversation && a.theirs).map(|(id, _)| *id).ok_or(HostError::NotWaiting)?;
         let (Some(engine), Some(mut active)) = (self.engine.as_ref(), self.active.remove(&turn_id)) else { return Err(HostError::NotWaiting) };
         active.theirs = false;
         active.turn.note_control(false);
-        let step = engine.hand_back(&mut active.turn, core, active.held.take());
+        let step = engine.hand_back(&mut active.turn, core, active.held.take(), note);
         let mut outs = Vec::new();
         self.settle(active, step, &mut outs);
         Ok(outs)
