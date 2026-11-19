@@ -10,6 +10,8 @@ import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
+import { FindMarks } from './doc-find';
+import { DocFind, findKeyOf } from './DocFind';
 import { Extension, generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
@@ -261,6 +263,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   const focusOnOpen = useRef(autoFocus);
   focusOnOpen.current = autoFocus;
   const [source, setSource] = useState(readSource);
+  // Find (Ctrl+F) and Replace (Ctrl+H) in the page; not in the Markdown source, which is a plain text area.
+  const [finding, setFinding] = useState<{ replacing: boolean; token: number } | null>(null);
   const sourceNow = useRef(source);
   sourceNow.current = source;
   // The selection bar sits just above the selection.
@@ -302,6 +306,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       image,
       commentMarks,
       changeMarks,
+      FindMarks,
     ],
     content: '',
     editorProps: {
@@ -713,7 +718,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   );
   const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
   return (
-    <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}>
+    <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}
+      onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor || source) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
+      {finding && editor && !source && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">

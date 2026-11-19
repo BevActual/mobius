@@ -186,6 +186,17 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
 const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database', 'messages', 'photo'];
 
+/** Whether the window is at least this wide, kept up to date as it is resized. */
+function useWideWindow(min: number): boolean {
+  const [wide, setWide] = useState(() => window.innerWidth >= min);
+  useEffect(() => {
+    const on = () => setWide(window.innerWidth >= min);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [min]);
+  return wide;
+}
+
 export function App() {
   const browser = useBrowser();
   const coreStatus = useCoreStatus();
@@ -612,7 +623,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -668,9 +679,12 @@ export function App() {
   const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
   // Activity's list filters its page (which is the region named Activity), so the panel is named for that.
   const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
+  // Panels menu (or the top bar) brings it back, and a choice made there is kept.
+  const roomy = useWideWindow(1200);
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' || id === 'calendar' ? roomy : true, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -1004,7 +1018,7 @@ export function App() {
   };
 
   const createActions: HubAction[] = [
-    { id: 'conversation', label: 'New conversation', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
+    { id: 'conversation', label: 'New chat', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
     { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
     { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
@@ -1692,6 +1706,8 @@ export function App() {
                 onOpenApp={openApp}
                 onOpenConversation={conversation.select}
                 onOpenSchedules={() => openSettingsAt('schedules')}
+                opened={recentItems(12)}
+                onOpenRecent={launch.openRecent}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
                 {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
@@ -1837,8 +1853,9 @@ export function App() {
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
           <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
-        // The open document's name, or the app's when nothing is open, so the title bar is never blank.
-        title: place || (!settingsOpen && appName(app)) || undefined,
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
+        // start page, where the Go button already says Home.
+        title: place || (!settingsOpen && !inAgent && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
@@ -1851,7 +1868,8 @@ export function App() {
           : inSheets && sheets.data ? sheets.data.sheet
           // Calendar: the week number in Week view (short, so it fits beside the controls), otherwise what today holds.
           : inCalendar ? (calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)}` : eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
-          : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
+          // Tasks: what is left to do, or in Completed, how many are done.
+          : inTasks ? (tasks.view.kind === 'smart' && tasks.view.id === 'completed' ? `${tasksDone} done` : tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
           : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved

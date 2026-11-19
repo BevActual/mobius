@@ -1,0 +1,12 @@
+/* Find and replace over a page (Docs, Notes): a small glass bar at the top right of the page, as Code's find bar. */
+.doc-find { position: absolute; top: var(--sp-2); right: var(--sp-4); z-index: 6; display: flex; flex-direction: column; gap: var(--sp-1); padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-3); border-radius: var(--radius-sheet); box-shadow: var(--shadow-2); }
+.doc-find-line { display: flex; align-items: center; gap: var(--sp-1); }
+.doc-find input { width: 200px; height: var(--control-h); border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: var(--fs-sm); }
+.doc-find .strip-btn { min-width: var(--control-h); height: var(--control-h); border-radius: var(--radius-control); }
+.doc-find .btn { height: var(--control-h); font-size: var(--fs-sm); }
+.doc-find-count { min-width: 64px; text-align: right; padding-right: var(--sp-1); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; }
+.doc-find-case { height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.doc-find-case[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+/* Every match lit; the current one lit more strongly. */
+.find-hit { background: color-mix(in srgb, #f5c400 30%, transparent); border-radius: 2px; }
+.find-hit.find-now { background: color-mix(in srgb, #f5a000 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, #f5a000 70%, transparent); }

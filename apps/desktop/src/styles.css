@@ -2376,7 +2376,8 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 /* From Mobius: a quiet heading, then one row with how many are left to review. */
 .ui-dock[data-dock="left"] .from-mobius > .from-mobius-title { display: flex; height: 28px; padding: 0 8px; }
 .from-mobius-filter { color: var(--ink); font-weight: var(--fw-regular); }
-.from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--mobius); }
+.from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.from-mobius-filter .from-mobius-mark { flex: none; display: inline-grid; place-items: center; color: var(--mobius); }
 .ui-dock[data-dock="left"] .from-mobius { border-top: 0; padding-top: 0; }
 
 /* One Mobius change block in every app (frame review): the dashed indigo edge Docs draws round a change, on the page's
