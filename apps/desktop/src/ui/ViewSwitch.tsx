@@ -1,7 +1,8 @@
 import { useRef, type KeyboardEvent } from 'react';
 import { afterPaint } from './frame';
 
-export interface ViewChoice<T extends string> { id: T; name: string }
+/** `keys` is the view's shortcut, shown in its tooltip: "Week (W)". */
+export interface ViewChoice<T extends string> { id: T; name: string; keys?: string }
 
 /**
  * The view switch: the views of one app as a segmented control in the toolbar's middle, the current one ink-inverted.
@@ -22,7 +23,7 @@ export function ViewSwitch<T extends string>({ label, views, value, onChange }: 
   return (
     <div ref={group} className="ui-views" role="radiogroup" aria-label={label} data-priority="keep" onKeyDown={key}>
       {views.map((v) => (
-        <button key={v.id} type="button" role="radio" className="ui-view" aria-checked={v.id === value} tabIndex={v.id === value ? 0 : -1} onClick={() => onChange(v.id)}>
+        <button key={v.id} type="button" role="radio" className="ui-view" aria-checked={v.id === value} tabIndex={v.id === value ? 0 : -1} title={v.keys ? `${v.name} (${v.keys})` : undefined} onClick={() => onChange(v.id)}>
           {v.name}
         </button>
       ))}

@@ -12,6 +12,7 @@ import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
+import { MobiusMark } from './MobiusMark';
 
 /** Calendar's Glance (Instrument, "The Mobius panel: slots"): the rest of today, whatever day the grid shows. It reads
  * today's events itself, again when the calendar changes and each minute, and leaves out hidden calendars. */
@@ -54,7 +55,7 @@ const GUTTER = 68;
 const CELL_ROWS = 4;
 /** How many all-day events and tasks a day shows above the hours before "+N more". */
 const ALL_DAY_ROWS = 2;
-const MODES: { id: CalendarMode; name: string }[] = [{ id: 'day', name: 'Day' }, { id: 'week', name: 'Week' }, { id: 'month', name: 'Month' }, { id: 'year', name: 'Year' }];
+const MODES: { id: CalendarMode; name: string; keys: string }[] = [{ id: 'day', name: 'Day', keys: 'D' }, { id: 'week', name: 'Week', keys: 'W' }, { id: 'month', name: 'Month', keys: 'M' }, { id: 'year', name: 'Year', keys: 'Y' }];
 
 /** A calendar in the sidebar: its colour as a dot, its name; pressed, it is hidden from the grid and pressed again, shown. */
 function CalendarRow({ calendar, name, proposed = false }: { calendar: CalendarState; name: string; proposed?: boolean }) {
@@ -122,9 +123,9 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
             </SidebarSection>
           ))}
           <SidebarSection title="From Mobius">
-            <SidebarRow label="Suggested events" title={waiting.length > 0 ? 'Go to the first one' : 'Nothing from Mobius waits for you'}
-              onSelect={() => { const first = waiting[0]; if (first) calendar.setAnchor(localDate(first.start)); }}
-              trail={waiting.length > 0 ? <span className="cal-to-review">{waiting.length} to review</span> : undefined} />
+            <SidebarRow icon={<span className="cal-from-mobius"><MobiusMark size={16} /></span>} label="Suggested events" {...(waiting.length > 0 ? { count: waiting.length } : {})}
+              title={waiting.length > 0 ? `${waiting.length} to review. Go to the first one` : 'Nothing from Mobius waits for you'}
+              onSelect={() => { const first = waiting[0]; if (first) calendar.setAnchor(localDate(first.start)); }} />
           </SidebarSection>
         </div>
       )}
@@ -243,11 +244,20 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       onClick={(e) => { e.stopPropagation(); setTip(false); onOpen(event, e.currentTarget.getBoundingClientRect()); }}
     >
       <b>{task && <svg className="cal-from-tasks" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="m6.8 10.2 2.2 2.2 4.2-4.6" /></svg>}{event.title}</b>
-      {!event.allDay && !compact && <span>{clock(event.start)}{event.location ? ` · ${event.location}` : ''}</span>}
+      {!event.allDay && !compact && <span className="cal-event-when">{clock(event.start)}{event.location && <Place text={event.location} />}</span>}
       {event.repeats && !compact && <svg className="cal-repeat" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9a5 5 0 0 1 9-3h-3M16 11a5 5 0 0 1-9 3h3" /></svg>}
       {onResize && <span className="cal-resize" aria-hidden="true" onPointerDown={onResize} />}
     </button>
   );
+}
+
+/**
+ * An event's place after its time: its first word never breaks, so when even that does not fit beside the time the
+ * place wraps onto a line that is clipped, and only the time shows, never "8:40 AM · D…".
+ */
+function Place({ text }: { text: string }) {
+  const [first, ...rest] = text.split(' ');
+  return <span className="cal-place"><span>{` · ${first}`}</span>{rest.length > 0 && <span className="cal-place-rest">{` ${rest.join(' ')}`}</span>}</span>;
 }
 
 /** A small month at the top of the Calendars panel: the days on screen are marked, and a click goes to that day. */
@@ -479,7 +489,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
         <span />
         {days.map((d) => (
           <button key={isoDay(d)} type="button" className="cal-day-head" data-today={sameDay(d, now) || undefined} data-weekend={[0, 6].includes(d.getDay()) || undefined} title="Open this day" onClick={() => { calendar.setAnchor(d); calendar.setMode('day'); }} disabled={days.length === 1}>
-            <span>{formatWith(d, { weekday: 'short' })}</span> <b>{d.getDate()}</b>
+            <span className="cal-wd">{formatWith(d, { weekday: 'short' })}</span><span className="cal-wd-one" aria-hidden="true">{formatWith(d, { weekday: 'narrow' })}</span> <b>{d.getDate()}</b>
           </button>
         ))}
       </div>
@@ -487,7 +497,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
         <div className="cal-all-day" style={columns}>
           {allDayOpen && allDay.some((list, i) => list.length + due[i]!.length > ALL_DAY_ROWS)
             ? <button type="button" className="cal-hour cal-fewer" title="Show two a day again" onClick={() => setAllDayOpen(false)}>Fewer</button>
-            : <span className="cal-hour">all-day</span>}
+            : <span className="cal-hour">All day</span>}
           {allDay.map((list, i) => {
             // Two a day, events first, so the row stays short and each item reads whole; "+N more" opens the rest.
             const events = allDayOpen ? list : list.slice(0, ALL_DAY_ROWS);
@@ -766,10 +776,18 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     if (!at || !sheet.current) return;
     const { width, height } = sheet.current.getBoundingClientRect();
     const gap = 12;
+    // It stays inside the calendar, so it never covers the Mobius panel or another panel beside it.
+    const page = document.querySelector('.calendar-page')?.getBoundingClientRect();
+    const minX = Math.max(0, page?.left ?? 0) + gap;
+    const maxX = Math.min(window.innerWidth, page?.right ?? window.innerWidth) - gap;
     const right = at.right + gap;
-    const side = right + width <= window.innerWidth - gap ? 'left' : at.left - gap - width >= gap ? 'right' : null;
-    const left = side === 'left' ? right : side === 'right' ? at.left - gap - width : Math.max(gap, Math.min(window.innerWidth - width - gap, at.left + at.width / 2 - width / 2));
-    const top = Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24));
+    const side = right + width <= maxX ? 'left' : at.left - gap - width >= minX ? 'right' : null;
+    const left = side === 'left' ? right : side === 'right' ? at.left - gap - width : Math.max(minX, Math.min(maxX - width, at.left + at.width / 2 - width / 2));
+    // With no room either side it goes below the event, or above it, so the event itself stays in sight.
+    const below = at.bottom + gap + height <= window.innerHeight - gap;
+    const above = at.top - gap - height >= gap;
+    const top = side !== null ? Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24))
+      : below ? at.bottom + gap : above ? at.top - gap - height : Math.max(gap, Math.min(window.innerHeight - height - gap, at.top - 24));
     // Level with the top of the event (or the middle of a short one), kept off the popover's rounded corners.
     const arrow = Math.max(18, Math.min(height - 18, at.top + Math.min(at.height, 36) / 2 - top));
     setPlace({ left, top, side, arrow });
@@ -797,6 +815,8 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
+  // Record meeting is for a meeting: a timed event with people invited or a place to be.
+  const meeting = original != null && onMeeting !== undefined && !original.allDay && ((original.attendees?.length ?? 0) > 0 || (original.location ?? '').trim() !== '');
   const form = (
       <form
         ref={sheet} className="cal-editor" data-pop={at ? true : undefined} data-side={place?.side ?? undefined}
@@ -826,13 +846,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <Switch className="cal-editor-row cal-editor-check" label="All day" checked={allDay} onChange={setAllDay} />
           <div className="cal-editor-row">
             <span>Starts</span>
-            <DateField label="Start day" hideLabel quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
+            <DateField label="Start day" hideLabel short quick={DAY_PICKS} value={localDate(startDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); const was = localDate(startDay).getTime(); setStartDay(v); setEndDay(isoDay(new Date(localDate(endDay).getTime() + localDate(v).getTime() - was))); }} />
             {!allDay && <TimeField label="Start time" hideLabel placeholder="Time" value={minutesOf(startTime)} onChange={(m) => { if (m === null) return; const v = fromMinutes(m % 1440); const length = minutesOf(endTime) - minutesOf(startTime); setStartTime(v); if (startDay === endDay && length > 0) setEndTime(fromMinutes(Math.min(23 * 60 + 59, minutesOf(v) + length))); }} />}
           </div>
           <div className="cal-editor-row">
             <span>Ends</span>
-            <DateField label="End day" hideLabel quick={DAY_PICKS} value={localDate(endDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); setEndDay(v < startDay ? startDay : v); }} />
-            {!allDay && <TimeField label="End time" hideLabel placeholder="Time" value={minutesOf(endTime)} from={startDay === endDay ? minutesOf(startTime) : null} onChange={(m) => {
+            <DateField label="End day" hideLabel short quick={DAY_PICKS} value={localDate(endDay)} onChange={(d) => { if (!d) return; const v = isoDay(d); setEndDay(v < startDay ? startDay : v); }} />
+            {!allDay && <TimeField label="End time" hideLabel placeholder="Time" value={minutesOf(endTime)} from={startDay === endDay ? minutesOf(startTime) : null} boxLength={false} onChange={(m) => {
               if (m === null) return;
               // Past midnight from the start: the event ends the next day.
               if (m >= 1440) { setEndDay(isoDay(addDays(localDate(startDay), 1))); setEndTime(fromMinutes(m - 1440)); } else setEndTime(fromMinutes(m));
@@ -855,10 +875,16 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
             no Cancel or Save, only Delete, as plain red words at its foot. */}
-        {at && onDock && <button type="button" className="cal-dock" title="Edit this event in the Event panel, with more room" onClick={onDock}>More options</button>}
-        {original && onMeeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting(original); }}>Record meeting</button>}
-        {at ? (original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete Event</button>) : (
+        {at ? (
+        <div className="cal-pop-foot">
+          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete event</button>}
+          <span className="spacer" />
+          {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
+          {onDock && <button type="button" className="cal-dock" title="Edit this event in the Event panel, with more room" onClick={onDock}>More options<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>}
+        </div>
+        ) : (
         <div className="cal-editor-actions">
+          {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
