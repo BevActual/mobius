@@ -154,7 +154,7 @@ The Apps lead's apps view uses the same registry: it lets you jump to any item i
 3. **The source registry** (Builder, built: `apps/desktop/src/launcher-sources.ts`, with `useLauncherSource` for an app to register while it is mounted), then each app's `find` and `commands` (Apps lead).
 4. **Narrowing to an app with Tab, `>`, and the actions menu** (Design lead).
 5. **Choice memory in ranking** (Design lead).
-6. **System-wide key** (Builder): the global shortcut and the launcher in its own floating window are built. Hold to talk moved to Ctrl+Shift+Space (hold to talk, tap to toggle) so Ctrl+Space is free. Find and Commands work in the floating window too: it asks the main window as you type, and what is chosen goes back by id. Still to do: Mobius staying in the tray after its window is closed.
+6. **System-wide key** (Builder): the global shortcut and the launcher in its own floating window are built. Hold to talk moved to Ctrl+Shift+Space (hold to talk, tap to toggle) so Ctrl+Space is free. Find and Commands work in the floating window too: it asks the main window as you type, and what is chosen goes back by id. Closing the window now leaves Mobius running in the tray (Quit Mobius in the tray ends it), opening Mobius again brings the same copy back, and the tray's **Start with Windows** (off until the person turns it on) starts it in the tray when they sign in.
 7. **Raycast set:** commands with arguments and quick answers (Design lead, plus each app's `args`), then inline Ask, Clipboard, Snippets and Quicklinks, aliases and per-command keys (Builder and Design lead).
 
 Each step lands with unit tests for ranking and selection, and with an e2e test: Ctrl+K, type part of a note's name, press Enter, and the note is open.
