@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { isNotesFailure, type ChatAccount } from '@mobius/shared';
+import { isNotesFailure, type ChatAccount, type MatrixVerification } from '@mobius/shared';
 import { Row, Empty } from './settings/primitives';
 import { SERVICE_NAMES } from './messages-view';
 
@@ -158,6 +158,7 @@ function MatrixDevice({ account }: { account: ChatAccount }) {
   }, [api, account.id]);
   if (verified === null || !api?.matrixRecover) return null;
   if (verified) return <span className="slist-sub">Encrypted rooms: this device is verified.{said?.ok ? ` ${said.text}` : ''}</span>;
+  const restored = (keys: number) => (keys === 1 ? '1 message key restored from your backup.' : `${keys} message keys restored from your backup.`);
   const verify = async () => {
     setBusy(true);
     setSaid(null);
@@ -167,7 +168,7 @@ function MatrixDevice({ account }: { account: ChatAccount }) {
     if (!r) { setSaid({ ok: false, text: 'Verifying is not available here.' }); return; }
     if (isNotesFailure(r)) { setSaid({ ok: false, text: r.message }); return; }
     setVerified(r.verified);
-    setSaid({ ok: true, text: r.keys === 1 ? '1 message key restored from your backup.' : `${r.keys} message keys restored from your backup.` });
+    setSaid({ ok: true, text: restored(r.keys) });
   };
   return (
     <form className="messages-matrix" aria-label={`Verify this device for ${account.name}`} onSubmit={(event) => { event.preventDefault(); if (key.trim()) void verify(); }}>
@@ -178,6 +179,73 @@ function MatrixDevice({ account }: { account: ChatAccount }) {
       </label>
       <button type="submit" className="btn" disabled={busy || !key.trim()}>{busy ? 'Verifying…' : 'Verify this device'}</button>
       {said && !said.ok && <p className="field-error" role="alert">{said.text}</p>}
+      {api.matrixVerify && (
+        <MatrixEmojiVerify
+          account={account}
+          onVerified={(keys) => { setVerified(true); setSaid({ ok: true, text: restored(keys) }); }}
+        />
+      )}
     </form>
+  );
+}
+
+/** The steps that wait on the other device or the server: checked again every couple of seconds. */
+const VERIFY_WAITING: MatrixVerification['state'][] = ['waiting', 'starting', 'confirmed', 'finishing'];
+
+/**
+ * Verifying with another of the person's devices (Element on their phone, say): it shows a prompt there, then both
+ * show the same seven emoji, and the person says whether they match. The other device then sends this one the
+ * person's keys.
+ */
+function MatrixEmojiVerify({ account, onVerified }: { account: ChatAccount; onVerified: (keys: number) => void }) {
+  const api = window.mobius.messages;
+  const [now, setNow] = useState<MatrixVerification | null>(null);
+  const [failed, setFailed] = useState<string | null>(null);
+  const step = useCallback(async (s: 'start' | 'check' | 'match' | 'differ' | 'cancel') => {
+    const r = await api?.matrixVerify?.(account.id, s).catch(() => null);
+    if (!r) { setFailed('Verifying is not available here.'); setNow(null); return; }
+    if (isNotesFailure(r)) { setFailed(r.message); setNow(null); return; }
+    setFailed(null);
+    setNow(r);
+    if (r.state === 'done') onVerified(r.keys ?? 0);
+  }, [api, account.id, onVerified]);
+  const waiting = now !== null && VERIFY_WAITING.includes(now.state);
+  useEffect(() => {
+    if (!waiting) return;
+    const timer = window.setTimeout(() => { void step('check'); }, 2000);
+    return () => window.clearTimeout(timer);
+  }, [waiting, now, step]);
+  const said: Partial<Record<MatrixVerification['state'], string>> = {
+    waiting: 'Accept the request on your other device.',
+    starting: 'Starting…',
+    confirmed: 'Waiting for your other device to say they match too.',
+    finishing: 'Verified. Bringing your keys over…',
+  };
+  return (
+    <div className="messages-verify" aria-label={`Verify ${account.name} with another device`}>
+      {now === null || now.state === 'idle' || now.state === 'done' || now.state === 'cancelled' ? (
+        <>
+          <span className="slist-sub">{now?.state === 'cancelled' ? now.reason : 'Or verify with another device where you use this account.'}</span>
+          <button type="button" className="btn" onClick={() => { void step('start'); }}>Verify with another device</button>
+        </>
+      ) : now.state === 'compare' ? (
+        <>
+          <span className="slist-sub">Do these emoji match the ones on your other device, in the same order?</span>
+          <ol className="messages-verify-emoji" aria-label="Emoji to compare">
+            {(now.emoji ?? []).map((e, i) => (
+              <li key={i}><span aria-hidden="true">{e.symbol}</span><span>{e.name}</span></li>
+            ))}
+          </ol>
+          <button type="button" className="btn primary" onClick={() => { void step('match'); }}>They match</button>
+          <button type="button" className="btn" onClick={() => { void step('differ'); }}>They don't match</button>
+        </>
+      ) : (
+        <>
+          <span className="slist-sub" role="status">{said[now.state]}</span>
+          <button type="button" className="btn link" onClick={() => { void step('cancel'); }}>Cancel</button>
+        </>
+      )}
+      {failed && <p className="field-error" role="alert">{failed}</p>}
+    </div>
   );
 }

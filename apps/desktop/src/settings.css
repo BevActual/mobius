@@ -187,3 +187,8 @@
 
 /* Settings › Messages: signing in to Matrix. */
 .messages-matrix { display: flex; flex-wrap: wrap; align-items: end; gap: var(--sp-2); margin-top: var(--sp-3); }
+.messages-verify { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); flex-basis: 100%; }
+.messages-verify > .slist-sub { flex-basis: 100%; }
+.messages-verify-emoji { display: flex; flex-wrap: wrap; gap: var(--sp-3); flex-basis: 100%; margin: 0; padding: 0; list-style: none; }
+.messages-verify-emoji li { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); min-width: 56px; font-size: var(--fs-xs); color: var(--muted); }
+.messages-verify-emoji li > span:first-child { font-size: 28px; line-height: 1; }
