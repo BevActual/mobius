@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { CalendarEvent, CalendarPerson, Contact, MailMessage, NoteHit } from '@mobius/shared';
-import { bodyHits, eventsMatching, mailRows, peopleRows } from './app-launcher';
+import type { CalendarEvent, CalendarPerson, ChatChannel, Contact, MailMessage, NoteHit } from '@mobius/shared';
+import { bodyHits, channelsMatching, eventsMatching, mailRows, pagesMatching, peopleRows } from './app-launcher';
 
 const ev = (id: string, title: string, start: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({ id, calendar: 'Work', title, start, end: start, allDay: false, location: '', notes: '', repeats: false, ...extra });
 
@@ -35,5 +35,17 @@ describe('launcher rows', () => {
   it('leaves out pages the launcher already finds by title', () => {
     const hits: NoteHit[] = [{ path: 'a', title: 'Offsite plan', notebook: 'Work', line: 'offsite in May' }, { path: 'b', title: 'Budget', notebook: 'Work', line: 'offsite costs' }];
     expect(bodyHits(hits, 'offsite').map((h) => h.path)).toEqual(['b']);
+  });
+});
+
+describe('Messages and Knowledge', () => {
+  const ch = (id: string, name: string, extra: Partial<ChatChannel> = {}): ChatChannel => ({ id, account: 'slack', name, kind: 'channel', unread: 0, mentions: 0, ...extra });
+  it('finds channels by name, with or without #, those mentioning you first', () => {
+    const all = [ch('a', 'design-crit'), ch('b', 'design', { mentions: 2 }), ch('c', 'general')];
+    expect(channelsMatching(all, '#design').map((c) => c.id)).toEqual(['b', 'a']);
+  });
+  it('finds Knowledge pages by title', () => {
+    const books = [{ name: 'Team', pages: [{ path: 'Team/Onboarding.md', title: 'Onboarding', modified: 0 }, { path: 'Team/Hiring.md', title: 'Hiring', modified: 0 }] }];
+    expect(pagesMatching(books as never, 'onboard')).toEqual([{ path: 'Team/Onboarding.md', title: 'Onboarding', notebook: 'Team' }]);
   });
 });
