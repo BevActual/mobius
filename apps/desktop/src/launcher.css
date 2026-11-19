@@ -123,3 +123,15 @@
 }
 .launcher-field small { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
 .launcher-field[data-empty] { color: var(--faint); }
+
+/* Ask inline: Mobius's answer, in its wash with the dashed edge, above the rows that carry it on. */
+.launcher-ans {
+  margin: var(--sp-1) var(--sp-1) var(--sp-2); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-control);
+  background: var(--mobius-wash); border: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 50%, transparent);
+  font-size: var(--fs-md); color: var(--ink); line-height: 1.5;
+}
+.launcher-ans-text { margin: 0; white-space: pre-wrap; max-height: calc(var(--sp-8) * 6); overflow: auto; }
+.launcher-ans-wait { color: var(--muted); }
+.launcher-ans[data-state="failed"] .launcher-ans-text { color: var(--muted); }
+.launcher-ans-src { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
+.launcher-ans-src span { padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--raised); font-size: var(--fs-xs); color: var(--muted); }

@@ -6,6 +6,7 @@ import { APP_ICONS, OWN_ICONS } from './Rail';
 import { relativeTime } from './relative-time';
 import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
+import { isQuestion, type InlineAnswer } from './launcher-ask';
 import './launcher.css';
 
 /**
@@ -89,6 +90,12 @@ interface Props {
   again?: number;
   /** For the reference sheet: start in All apps. */
   startIn?: LauncherView;
+  /** Ask a question here and show the answer as it comes (launcher-ask.ts). Returns a function that stops listening. */
+  askInline?: (question: string, update: (answer: InlineAnswer) => void) => () => void;
+  /** Continue in Mobius: open the conversation the inline answer was asked in. */
+  onContinue?: (conversation: string) => void;
+  /** For the reference sheet: an answer already given to what is typed. */
+  answered?: { question: string; answer: InlineAnswer };
 }
 
 /** The start (Ask, Pinned, Recent, places), or every app as a grid. */
@@ -204,11 +211,15 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(answered?.question ?? '');
+  // The answer to a question asked here, while the words asked are still what is typed.
+  const [inlineAnswer, setInlineAnswer] = useState<{ question: string; answer: InlineAnswer } | null>(answered ?? null);
+  const stopListening = useRef<(() => void) | null>(null);
+  useEffect(() => () => stopListening.current?.(), []);
   // null: the default row (what was found, or Ask when nothing was). An item's id once the arrows or pointer chose,
   // so results that arrive later never move what is chosen.
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -251,6 +262,9 @@ export function Launcher({
     setChosenId(null);
     setScope(null);
     setActionsFor(null);
+    setInlineAnswer(null);
+    stopListening.current?.();
+    stopListening.current = null;
     setStatus('');
     setDragOrder(null);
   }, [open]);
@@ -368,7 +382,12 @@ export function Launcher({
       ];
     }
     return [
-      ...(onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
+      ...(inlineAnswer && inlineAnswer.question === typed
+        ? [
+          { id: 'ask-continue', kind: 'ask' as const, label: 'Continue in Mobius', detail: inlineAnswer.answer.state === 'asking' ? 'Answering…' : undefined, run: () => onContinue?.(inlineAnswer.answer.conversation) },
+          ...(inlineAnswer.answer.state === 'done' && inlineAnswer.answer.text ? [{ id: 'ask-copy', kind: 'answer' as const, label: 'Copy the answer', run: () => { void navigator.clipboard?.writeText(inlineAnswer.answer.text).catch(() => undefined); } }] : []),
+        ]
+        : onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, detail: askInline && isQuestion(typed) ? 'Answer here' : undefined, run: () => onAsk(typed) }] : []),
       // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
       ...((answer) => (answer ? [{ id: 'answer', kind: 'answer' as const, label: answer.value, detail: answer.question, run: () => { void navigator.clipboard?.writeText(answer.copy).catch(() => undefined); } }] : []))(quickAnswer(typed)),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
@@ -400,7 +419,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -410,7 +429,9 @@ export function Launcher({
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
   // pressing Enter opens Notes, and with nothing typed Enter opens the first pinned app. With nothing found, Enter
   // asks. Worked out as the list is drawn, so a quick Enter right after typing gets the same row.
-  const found = items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
+  // A question is asked, not looked up: Enter answers it, even when something matched its words.
+  const asksHere = Boolean(askInline) && isQuestion(query) && !scope && !actionsFor && view === 'start';
+  const found = asksHere ? 0 : items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
   const picked = chosenId === null ? -1 : items.findIndex((item) => item.id === chosenId);
   const selected = picked >= 0 ? picked : Math.max(0, found > 0 ? found : 0);
   const current = items[selected];
@@ -420,6 +441,15 @@ export function Launcher({
     if (!item || item.disabled || dragged.current) return;
     // All apps is a view of the launcher, not somewhere to go: it stays open.
     if (item.id === 'all-apps' || item.id === 'act-scope') { item.run(); return; }
+    // A question is answered here: the launcher stays open while the answer comes.
+    if (item.id === 'ask' && askInline && isQuestion(query)) {
+      const question = query;
+      stopListening.current?.();
+      stopListening.current = askInline(question, (answer) => setInlineAnswer({ question, answer }));
+      setChosenId('ask-continue');
+      return;
+    }
+    if (item.id === 'ask-copy') { item.run(); setStatus('Answer copied'); return; }
     const typed = input.current?.value ?? query;
     if (typed.trim() && item.kind !== 'ask' && !actionsFor) {
       const next = noteChoice(choices, typed, item.id);
@@ -563,6 +593,7 @@ export function Launcher({
       )}
       <div className="launcher-body">
       <div id="launcher-list" role="listbox" aria-label="Results" className="launcher-list">
+        {inlineAnswer && inlineAnswer.question === query && <AnswerCard answer={inlineAnswer.answer} />}
         {sections.map((kind) => {
           const members = items.map((item, index) => ({ item, index })).filter(({ item }) => item.kind === kind);
           if (kind === 'pinned') {
@@ -661,7 +692,7 @@ export function Launcher({
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
+          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
           {!actionsFor && current.kind !== 'ask' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
@@ -734,5 +765,19 @@ function Preview({ preview }: { preview: LauncherPreview }) {
         <dl className="launcher-preview-rows">{preview.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
       )}
     </aside>
+  );
+}
+
+/** The answer to a question asked here: Mobius's words, and the apps they came from. Mobius's, so indigo and dashed. */
+function AnswerCard({ answer }: { answer: InlineAnswer }) {
+  return (
+    <div className="launcher-ans" data-state={answer.state} role="status" aria-live="polite">
+      {answer.state === 'failed' ? <p className="launcher-ans-text">{answer.error || 'No answer came.'}</p>
+        : answer.text ? <p className="launcher-ans-text">{answer.text}</p>
+          : <p className="launcher-ans-text launcher-ans-wait">{answer.sources.length ? `Reading ${answer.sources.join(' and ')}…` : 'Thinking…'}</p>}
+      {answer.sources.length > 0 && answer.state !== 'asking' && (
+        <div className="launcher-ans-src">{answer.sources.map((s) => <span key={s}>{s}</span>)}</div>
+      )}
+    </div>
   );
 }

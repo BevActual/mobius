@@ -139,7 +139,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 - **A preview beside the list.** A found item can carry `preview` (`title`, `meta`, `body`, `rows`), shown to the right of the list for the chosen row; hidden below 900 px. Mail and Calendar results have one.
 - **Commands that read the rest of the line.** A found item can carry `fields` (`label`, `value`): what it read, shown as named parts under the field so a wrong reading shows before Enter, and it comes before anything else found. "task call Maya tomorrow 3pm" and "event lunch with Sam fri 1pm" work this way.
 
-Next, in order: inline Ask with its sources, the empty launcher as a dashboard (waiting items and agents at work), About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **Ask inline.** A question (ending in "?", or starting with what, when, how and the like) is answered in the launcher when you press Enter on Ask: read-only, with the quick model, in a conversation of its own, with the apps it read under the answer. Continue in Mobius opens that conversation in the panel; Copy the answer copies it. If Mobius wants to change something or ask you back, the answer says so and Continue takes it to the panel. Anything that isn't a question still goes straight to the panel. (`launcher-ask.ts`)
+
+Next, in order: the empty launcher as a dashboard (waiting items and agents at work), About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 

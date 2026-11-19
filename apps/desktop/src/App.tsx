@@ -100,6 +100,7 @@ import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
+import { askInline } from './launcher-ask';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -2036,6 +2037,8 @@ export function App() {
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}
+        askInline={settings?.configured ? askInline : undefined}
+        onContinue={(id) => { conversation.select(id); launch.openMobius(); }}
         onAskAbout={launch.askAbout}
         commands={allCommands} />
       <TooltipLayer />
