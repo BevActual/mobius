@@ -3,7 +3,7 @@
   "start": 5500,
   "open a long list": 550,
   "switch to an app, first visit": 350,
-  "switch apps": 150,
+  "switch apps": 200,
   "switch apps, slowest tenth": 600,
   "interface memory after long use": 40,
   "interface memory growth over long use": 20,

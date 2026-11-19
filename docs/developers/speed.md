@@ -63,6 +63,8 @@ So switching is mostly the price of drawing a whole new app.
 mounted but hidden (for example with `content-visibility: hidden`), so going back skips most of the style and layout
 work. That would change every app's lifecycle: hidden apps keep their effects running, focus and keys need care, and
 memory goes up. All that for a few tens of milliseconds, when about 100 ms is already at the edge of feeling instant.
-It stays an option, to revisit if Andrew or a polish pass feels the switch. The switch budget is 150 ms. That is
-tighter than the first one, yet above the slowest median CI has shown at this size (144 ms), so a real regression
-fails while a slow runner does not.
+It stays an option, to revisit if Andrew or a polish pass feels the switch.
+
+The switch budget is 200 ms. The runners vary about twofold: on 19 November 2026 the same code measured a 74 ms
+median on one runner and 163 ms on another, which failed a budget of 150 ms. 200 ms sits above the slowest runner yet
+below what a real regression (twice the work) gives on it.
