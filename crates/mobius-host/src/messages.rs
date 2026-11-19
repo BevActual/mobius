@@ -2,7 +2,7 @@
 //! read from the service as they are shown and nothing of them is kept here; this keeps only the list of accounts
 //! (`messages-accounts.json` in the data folder) and, in the system secret store, each account's sign-in.
 //!
-//! Slack (`slack`) and Matrix (`matrix`). Only the person sends: the app calls `send` from their own Send, and the
+//! Slack (`slack`), Matrix (`matrix`) and Microsoft Teams chats (`teams`). Only the person sends: the app calls `send` from their own Send, and the
 //! agent has no tool that does.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -17,6 +17,7 @@ use crate::secrets::Secrets;
 use crate::matrix::{self, Matrix, Session};
 use crate::matrix_crypto::Crypto;
 use crate::slack::{EXPIRED, Endpoints, Page, Slack, Tokens};
+use crate::teams::{self, Me, Teams};
 
 type Res<T> = Result<T, String>;
 
@@ -31,11 +32,11 @@ type People = HashMap<String, (Instant, Arc<HashMap<String, String>>)>;
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: String,
-    /// `slack` or `matrix`.
+    /// `slack`, `matrix` or `teams`.
     pub service: String,
     pub name: String,
-    /// The workspace's id on the service (on Matrix, the person's Matrix ID), so signing in to it twice keeps one
-    /// account.
+    /// The workspace's id on the service (on Matrix, the person's Matrix ID; on Teams, their user and organisation
+    /// ids), so signing in to it twice keeps one account.
     #[serde(default)]
     pub team: String,
     /// Why it can't be read now: `EXPIRED` when the person has to sign in again.
@@ -52,6 +53,8 @@ pub struct Accounts {
     /// Each Matrix account's encryption, opened the first time it is needed.
     crypto: Mutex<HashMap<String, Arc<Crypto>>>,
     people: Mutex<People>,
+    /// The Microsoft sign-in, asking for Teams chats.
+    microsoft: Mutex<Arc<crate::onedrive::Service>>,
 }
 
 fn secret_name(id: &str) -> String {
@@ -67,7 +70,17 @@ impl Accounts {
         let file = data_dir.join("messages-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let slack = Arc::new(Slack::new(crate::slack::built_in_client_id(), Endpoints::default()));
-        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), crypto: Mutex::default(), people: Mutex::default() }
+        let microsoft = Arc::new(crate::onedrive::Service::new(crate::onedrive::built_in_client_id(), crate::onedrive::Endpoints::default(), crate::graph_calendar::agent()).with_scopes(teams::SCOPES));
+        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), crypto: Mutex::default(), people: Mutex::default(), microsoft: Mutex::new(microsoft) }
+    }
+
+    /// A pretend Microsoft, in tests.
+    pub fn use_microsoft(&self, client_id: Option<String>, at: crate::onedrive::Endpoints) {
+        *lock(&self.microsoft) = Arc::new(crate::onedrive::Service::new(client_id, at, crate::graph_calendar::agent()).with_scopes(teams::SCOPES));
+    }
+
+    fn microsoft(&self) -> Arc<crate::onedrive::Service> {
+        Arc::clone(&lock(&self.microsoft))
     }
 
     /// A pretend Slack, in tests.
@@ -94,7 +107,7 @@ impl Accounts {
                 .map(|a| {
                     let status = match a.problem.as_deref() {
                         None => "ready",
-                        Some(EXPIRED | matrix::EXPIRED) => "signed-out",
+                        Some(EXPIRED | matrix::EXPIRED | teams::EXPIRED) => "signed-out",
                         Some(_) => "error",
                     };
                     let mut account = json!({ "id": a.id, "service": a.service, "name": a.name, "status": status });
@@ -158,6 +171,9 @@ impl Accounts {
     }
 
     pub fn channels(&self, id: &str) -> Res<Value> {
+        if self.is_teams(id) {
+            return self.with_teams(id, |t, a, me| t.channels(a, id, me)).map(Value::Array);
+        }
         if self.is_matrix(id) {
             return self.with_matrix(id, |m, s| m.channels(id, s, self.crypto_for(id, s).as_deref())).map(Value::Array);
         }
@@ -168,6 +184,10 @@ impl Accounts {
     }
 
     pub fn history(&self, id: &str, channel: &str, before: Option<&str>, thread: Option<&str>, limit: usize) -> Res<Value> {
+        if self.is_teams(id) {
+            // Teams chats have no threads.
+            return if thread.is_some() { Ok(json!([])) } else { self.with_teams(id, |t, a, me| t.history(a, channel, before, limit, me)).map(Value::Array) };
+        }
         if self.is_matrix(id) {
             return self.with_matrix(id, |m, s| m.history(id, s, channel, before, thread, limit, self.crypto_for(id, s).as_deref())).map(Value::Array);
         }
@@ -190,6 +210,9 @@ impl Accounts {
         if matrix {
             return self.with_matrix(id, |m, s| m.send(id, s, channel, text, thread, self.crypto_for(id, s).as_deref()));
         }
+        if self.is_teams(id) {
+            return self.with_teams(id, |t, a, me| t.send(a, channel, text, me));
+        }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
             slack.send(&tokens.access, channel, text, thread, &tokens.user, &people)
@@ -197,6 +220,9 @@ impl Accounts {
     }
 
     pub fn mark_read(&self, id: &str, channel: &str, up_to: &str) -> Res<()> {
+        if self.is_teams(id) {
+            return self.with_teams(id, |t, a, me| t.mark_read(a, channel, me));
+        }
         if self.is_matrix(id) {
             return self.with_matrix(id, |m, s| m.mark_read(id, s, channel, up_to));
         }
@@ -242,6 +268,84 @@ impl Accounts {
         drop(all);
         lock(&self.people).remove(&id);
         Ok(json!({ "id": id, "service": "slack", "name": name }))
+    }
+
+    fn is_teams(&self, id: &str) -> bool {
+        lock(&self.state).iter().any(|a| a.id == id && a.service == "teams")
+    }
+
+    fn teams(&self) -> Teams {
+        Teams::new(&self.microsoft().at.graph, crate::graph_calendar::agent())
+    }
+
+    /// Runs `f` with the Teams account's sign-in (refreshed as Graph needs); an ended sign-in marks the account
+    /// signed out, and a good answer clears what was wrong before.
+    fn with_teams<T>(&self, id: &str, f: impl FnOnce(&Teams, &crate::onedrive::Account, &Me) -> Res<T>) -> Res<T> {
+        let me = lock(&self.state).iter().find(|a| a.id == id).and_then(|a| Me::from_team(&a.team)).ok_or("That account is gone.")?;
+        let result = self.microsoft().account(Arc::clone(&self.secrets), &secret_name(id)).map_err(|_| teams::NOT_SET_UP.to_owned()).and_then(|account| f(&self.teams(), &account, &me));
+        match &result {
+            Ok(_) => self.set_problem(id, None),
+            Err(e) if e == teams::EXPIRED => self.set_problem(id, Some(teams::EXPIRED.into())),
+            Err(_) => {}
+        }
+        result
+    }
+
+    /// Whether Teams can be signed in to in this build, and the sign-in page while one is under way.
+    pub fn teams_status(&self) -> Value {
+        let mut status = self.microsoft().status();
+        if status["setUp"] != true {
+            status["hint"] = json!(teams::NOT_SET_UP);
+        }
+        status
+    }
+
+    pub fn teams_cancel(&self) {
+        self.microsoft().cancel();
+    }
+
+    /// Start signing in to Microsoft for Teams chats and return the page to open. Once the person agrees the account
+    /// is kept (signing in to one already here gives it the new sign-in) and `done` hears it, or why not.
+    pub fn teams_sign_in(self: &Arc<Self>, done: Arc<dyn Fn(Res<Value>) + Send + Sync>) -> Res<Value> {
+        if self.microsoft().client_id.is_none() {
+            return Err(teams::NOT_SET_UP.into());
+        }
+        let me = Arc::clone(self);
+        let pending = self.microsoft().start(Arc::new(move |signed: Res<crate::onedrive::SignedIn>| done(signed.and_then(|signed| me.keep_teams(&signed)))))?;
+        Ok(json!({ "url": pending.url }))
+    }
+
+    fn keep_teams(&self, signed: &crate::onedrive::SignedIn) -> Res<Value> {
+        let text = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
+        // Who it is comes from Graph, with the new tokens kept under a name of their own until the account is known.
+        let trial = format!("messages-teams-new:{}", new_id());
+        if !self.secrets.put(&trial, &text) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let who = self.microsoft().account(Arc::clone(&self.secrets), &trial).and_then(|a| self.teams().me(&a));
+        let text = self.secrets.get(&trial).unwrap_or(text);
+        self.secrets.delete(&trial);
+        let who = who?;
+        let team = who.to_team();
+        let mut all = lock(&self.state);
+        let existing = all.iter().position(|a| a.service == "teams" && a.team == team);
+        if existing.is_none() && all.len() >= MAX_ACCOUNTS {
+            return Err(format!("There can be at most {MAX_ACCOUNTS} message accounts."));
+        }
+        let id = existing.map_or_else(new_id, |i| all[i].id.clone());
+        if !self.secrets.put(&secret_name(&id), &text) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        let name = if signed.email.is_empty() { "Teams".to_owned() } else { signed.email.chars().take(60).collect() };
+        match existing {
+            Some(i) => {
+                all[i].problem = None;
+                all[i].name = name.clone();
+            }
+            None => all.push(Account { id: id.clone(), service: "teams".into(), name: name.clone(), team, problem: None }),
+        }
+        self.save(&all);
+        Ok(json!({ "id": id, "service": "teams", "name": name }))
     }
 
     fn is_matrix(&self, id: &str) -> bool {

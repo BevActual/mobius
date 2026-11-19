@@ -73,8 +73,9 @@ accounts.
    - choose **Add a platform → Mobile and desktop applications**, and add `http://localhost`;
    - under **Advanced settings**, set **Allow public client flows** to **Yes**, then **Save**.
 4. Under **Manage → API permissions → Add a permission → Microsoft Graph → Delegated permissions**, add:
-   `offline_access`, `User.Read`, `Files.ReadWrite.All`, `Calendars.ReadWrite`, `IMAP.AccessAsUser.All` and
-   `SMTP.Send` (Mobius's Mail speaks IMAP and SMTP, so it needs those, not Graph's mail permissions).
+   `offline_access`, `User.Read`, `Files.ReadWrite.All`, `Calendars.ReadWrite`, `Chat.ReadWrite` (Teams chats in
+   Messages), `IMAP.AccessAsUser.All` and `SMTP.Send` (Mobius's Mail speaks IMAP and SMTP, so it needs those, not
+   Graph's mail permissions).
    Don't grant admin consent: each person consents for themselves.
 5. **Hand back** the **Application (client) ID** from the Overview page. No secret is needed.
 

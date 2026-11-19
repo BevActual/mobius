@@ -282,7 +282,7 @@ export interface CalendarChanged { calendar: string | null; by: 'person' | 'assi
 
 /** An email address or a phone number, with its kind (`work`, `home`, `cell`) when the card gives one. */
 /** Messages (Apps lead; accounts by the Builder): chat on Slack, Discord and Telegram through their official APIs. */
-export type ChatService = 'slack' | 'matrix' | 'discord' | 'telegram';
+export type ChatService = 'slack' | 'matrix' | 'teams' | 'discord' | 'telegram';
 export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
 /**
  * Where an emoji verification with another of the person's Matrix devices is. `waiting`: for the other device to
@@ -829,6 +829,11 @@ export interface MobiusBridge {
     /** Starts signing in to Slack (again, for a workspace already here) and answers the page to open; how it ends comes to `onSignIn`. */
     slackSignIn?(): Promise<{ url: string } | NotesFailure>;
     slackCancel?(): Promise<{ ok: true } | NotesFailure>;
+    /** Microsoft Teams chats: whether this build can sign in, and a sign-in page still open. */
+    teamsStatus?(): Promise<{ setUp: boolean; pending: string | null; hint: string | null } | NotesFailure>;
+    /** Starts the Microsoft sign-in for Teams chats and answers the page to open; how it ends comes to `onSignIn`. */
+    teamsSignIn?(): Promise<{ url: string } | NotesFailure>;
+    teamsCancel?(): Promise<{ ok: true } | NotesFailure>;
     onSignIn?(listener: (done: ChatSignIn) => void): () => void;
     /** Matrix: how the server for a Matrix ID or server name lets the person sign in. */
     matrixMethods?(server: string): Promise<{ homeserver: string; password: boolean; browser: boolean } | NotesFailure>;
