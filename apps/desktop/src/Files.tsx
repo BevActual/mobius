@@ -388,6 +388,21 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     const join = (name: string) => (here ? `${here}/${name}` : name);
     return sortEntries(files.entries.filter((e) => !q || e.name.toLowerCase().includes(q)), files.sort, here).map((e) => ({ ...e, path: join(e.name) }));
   }, [files.entries, files.query, files.sort, here]);
+  // Opening Files, or going into or out of a folder, leaves the keyboard on the list (as in Explorer and Finder), so
+  // the arrows, Enter and Backspace work at once; never taken from something else that has it.
+  const cameFrom = useRef<string | null>(null);
+  // Before any early return below: a hook after one would break the other places (Trash, a drive, Made by Mobius).
+  const listShown = files.available && files.place.kind === 'folder' && !files.problem && !files.loading && rows.length > 0;
+  useEffect(() => {
+    // Nothing has it: the page itself, or the stage an app opened from Ctrl+K hands the keyboard to.
+    const on = document.activeElement;
+    if (!listShown || (on && on !== document.body && !on.matches('main.stage'))) return;
+    // Back out of a folder, the keyboard is on that folder again.
+    const back = cameFrom.current && rows.find((r) => r.path === cameFrom.current);
+    cameFrom.current = null;
+    if (back) { setSelected(back.path); listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(back.path)}"]`)?.focus({ preventScroll: true }); return; }
+    listRef.current?.querySelector<HTMLElement>('[role=row][tabindex="0"]')?.focus({ preventScroll: true });
+  }, [listShown, here, rows[0]?.path]);
   if (!files.available) return <section className="skills-page empty" aria-label="Files"><p className="note-empty">Files are not available here.</p></section>;
   const proposed = new Set(files.made.files);
   const open = (path: string, type: FileEntry['type']) => (type === 'folder' ? files.setPlace({ kind: 'folder', path }) : onOpenFile(path));
@@ -522,20 +537,6 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     setSelected(next.path);
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
   };
-  // Opening Files, or going into or out of a folder, leaves the keyboard on the list (as in Explorer and Finder), so
-  // the arrows, Enter and Backspace work at once; never taken from something else that has it.
-  const cameFrom = useRef<string | null>(null);
-  const listShown = !files.problem && !files.loading && rows.length > 0;
-  useEffect(() => {
-    // Nothing has it: the page itself, or the stage an app opened from Ctrl+K hands the keyboard to.
-    const on = document.activeElement;
-    if (!listShown || (on && on !== document.body && !on.matches('main.stage'))) return;
-    // Back out of a folder, the keyboard is on that folder again.
-    const back = cameFrom.current && rows.find((r) => r.path === cameFrom.current);
-    cameFrom.current = null;
-    if (back) { setSelected(back.path); listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(back.path)}"]`)?.focus({ preventScroll: true }); return; }
-    listRef.current?.querySelector<HTMLElement>('[role=row][tabindex="0"]')?.focus({ preventScroll: true });
-  }, [listShown, here, rows[0]?.path]);
   const onListKey = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
