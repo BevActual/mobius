@@ -81,8 +81,10 @@ test('a document starts from a template in the Templates folder, and any documen
   await expect(page()).toContainText(String(new Date().getFullYear()));
   await expect(shell().locator('.toast')).toHaveCount(0);
   // A copy, in a folder other than Templates (whichever was open, else the first).
-  const copy = () => fs.readdirSync(file('')).filter((d) => d !== 'Templates').map((d) => path.join(d, 'Weekly update.md')).find((p) => fs.existsSync(file(p)));
-  await expect.poll(copy).toBeTruthy();
+  // Every document, as folder/name.md (the failure message lists them all).
+  const all = () => fs.readdirSync(file(''), { recursive: true }).map(String).map((p) => p.replace(/\\/g, '/')).filter((p) => p.endsWith('.md'));
+  await expect.poll(all).toContainEqual(expect.stringMatching(/^(?!Templates\/).*Weekly update\.md$/));
+  const copy = () => all().find((p) => !p.startsWith('Templates/') && p.endsWith('Weekly update.md'));
   const made = fs.readFileSync(file(copy()!), 'utf8');
   expect(made).toContain('## Done\n\n## Next');
   expect(made).not.toContain('{{date}}');
