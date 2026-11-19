@@ -109,6 +109,15 @@ fn menu<R: Runtime>(app: &AppHandle<R>, shown: &Shown) -> tauri::Result<Menu<R>>
     Ok(menu)
 }
 
+/// What the installer passes to ask a running Mobius to quit as the tray's Quit does (drafts saved, the core stopped),
+/// before it replaces Mobius's files. Started with it while no Mobius runs, Mobius starts nothing and leaves.
+pub const QUIT_ARG: &str = "--quit";
+
+/// Whether these arguments (the program's own first) ask Mobius to quit.
+pub fn asks_to_quit<S: AsRef<str>>(args: &[S]) -> bool {
+    args.iter().skip(1).any(|a| a.as_ref() == QUIT_ARG)
+}
+
 pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(main) = app.get_window("main") {
         let _ = main.unminimize();
@@ -231,6 +240,16 @@ pub fn set<R: Runtime>(app: &AppHandle<R>, before: &mut Option<Shown>, args: &[V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_quit_argument_asks_to_quit() {
+        assert!(asks_to_quit(&["mobius-shell.exe", "--quit"]));
+        assert!(asks_to_quit(&["mobius-shell.exe", "--hidden", "--quit"]));
+        assert!(!asks_to_quit(&["mobius-shell.exe"]));
+        assert!(!asks_to_quit(&["mobius-shell.exe", "--hidden"]));
+        // The program's own path is not an argument, whatever it is called.
+        assert!(!asks_to_quit(&["--quit"]));
+    }
 
     #[test]
     fn what_the_tray_shows_is_checked_and_shortened() {

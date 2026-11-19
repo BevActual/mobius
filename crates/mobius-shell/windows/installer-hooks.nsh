@@ -1,17 +1,19 @@
 ; Mobius's additions to the Windows installer (Tauri's NSIS template calls these macros).
 ;
 ; Before copying: Mobius and its helpers (the core, the inert MCP server, the page engine's helper processes, which run
-; as more copies of the main program) must have exited, or their files cannot be replaced. A copy already on its way
-; out (Restart to Update quits Mobius, then starts this) gets three seconds to finish. Mobius stays running in the tray
-; with its window closed, so a copy that is simply open would never go by itself: it is then stopped, and the install
-; stops if it still will not go after ten more seconds.
+; as more copies of the main program) must have exited, or their files cannot be replaced. A running Mobius is first
+; asked to quit as the tray's Quit does (`--quit`, through its single-instance channel), which saves what is open and
+; stops the core, and gets five seconds to finish. Only then is it stopped, and the install stops if it still will not
+; go after ten more seconds. Mobius before 0.1.19 does not know `--quit` (it shows its window instead), so an install
+; over one of those stops it after the five seconds.
 ;
 ; After copying: the installed program must be the version this installer carries. A file that could not be replaced
 ; leaves the old one behind; that is reported as a failed install (exit code 2), never as a success.
 ;
 ; Running programs are found with Tauri's own NSIS plugin (nsis_tauri_utils, which its template already loads), which
 ; answers at once. Asking tasklist could take a second or more each time, for up to forty times, and an open copy was
-; given ten seconds to close by itself first: a silent install over a running Mobius took 89 s (19 November 2026).
+; given ten seconds to close by itself, which it never does (it stays in the tray): a silent install over a running
+; Mobius took 89 s (19 November 2026).
 
 !macro MOBIUS_FIND NAME RESULT
   !if "${INSTALLMODE}" == "currentUser"
@@ -35,19 +37,24 @@
 
 !macro NSIS_HOOK_PREINSTALL
   StrCpy $R7 0
+  ; Ask a running Mobius to quit cleanly. The copy started here hands --quit to the running one and leaves at once.
+  !insertmacro MOBIUS_FIND "${MAINBINARYNAME}.exe" $R8
+  StrCmp $R8 0 0 mobius_wait_close
+  IfFileExists "$INSTDIR\${MAINBINARYNAME}.exe" 0 mobius_wait_close
+    Exec '"$INSTDIR\${MAINBINARYNAME}.exe" --quit'
   mobius_wait_close:
     !insertmacro MOBIUS_RUNNING $R8
     StrCmp $R8 0 0 mobius_closed
     IntOp $R7 $R7 + 1
-    ; Three seconds to close by themselves, then they are stopped.
-    IntCmp $R7 6 0 mobius_wait_more 0
+    ; Five seconds to quit cleanly, then they are stopped.
+    IntCmp $R7 10 0 mobius_wait_more 0
       nsExec::Exec 'taskkill /F /T /IM "${MAINBINARYNAME}.exe"'
       Pop $R9
       nsExec::Exec 'taskkill /F /T /IM "mobius-cored.exe"'
       Pop $R9
       nsExec::Exec 'taskkill /F /T /IM "mobius-inert-mcp.exe"'
       Pop $R9
-    IntCmp $R7 26 mobius_still_running 0 mobius_still_running
+    IntCmp $R7 30 mobius_still_running 0 mobius_still_running
     mobius_wait_more:
     Sleep 500
     Goto mobius_wait_close

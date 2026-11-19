@@ -492,9 +492,16 @@ fn main() {
     let _ = mobius_workspace::notes::FILE_HOLDERS.set(file_holders);
     let mut app = tauri::Builder::default();
     // One Mobius: starting it again while it waits in the tray brings its window back, never a second copy on the same
-    // data. Tests start many copies at once, each with its own data.
+    // data; started again with --quit (the installer, before it replaces the files), it quits as the tray's Quit does.
+    // Tests start many copies at once, each with its own data.
     if !std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") {
-        app = app.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)));
+        app = app.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if tray::asks_to_quit(&args) {
+                app.exit(0);
+            } else {
+                tray::show_main(app);
+            }
+        }));
     }
     let app = app
         .plugin(tauri_plugin_notification::init())
@@ -508,6 +515,11 @@ fn main() {
             std::thread::spawn(move || responder.respond(media_response(shell.as_deref(), &request)));
         })
         .setup(|app| {
+            // Asked to quit with no Mobius running: there is nothing to quit, so start nothing.
+            if tray::asks_to_quit(&std::env::args().collect::<Vec<_>>()) {
+                app.handle().exit(0);
+                return Ok(());
+            }
             let test_mode = std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1");
             let base_dir = match std::env::var("MOBIUS_USER_DATA") {
                 Ok(dir) if test_mode => PathBuf::from(dir),
