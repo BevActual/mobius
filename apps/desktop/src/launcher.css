@@ -82,14 +82,10 @@
 .launcher-scope .launcher-icon svg { width: var(--sp-5); height: var(--sp-5); padding: 0; background: none; color: var(--muted); }
 .launcher-scope > svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .launcher-foot { gap: var(--sp-4); }
-/* Opened from Go: just under it, left edges lined up, kept on screen; it grows from that corner. */
-.launcher[data-anchored="go"] {
-  top: var(--launcher-top); left: clamp(var(--sp-4), var(--launcher-left), calc(100vw - min(640px, 100vw - 32px) - var(--sp-4)));
-  transform: none; transform-origin: top left; max-height: min(560px, calc(100vh - var(--launcher-top) - var(--sp-4)));
-}
-.launcher[data-anchored="go"][open] { animation: launcher-grow var(--dur-fast) var(--ease); }
-@keyframes launcher-grow { from { opacity: 0; transform: scale(0.97); } }
-@media (prefers-reduced-motion: reduce) { .launcher[data-anchored="go"][open] { animation: none; } }
+/* Centred in the window, whatever opened it (Andrew, 19 November 2026); it grows in from the middle. */
+.launcher:not([data-inline])[open] { animation: launcher-grow var(--dur-fast) var(--ease); }
+@keyframes launcher-grow { from { opacity: 0; transform: translateX(-50%) scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { .launcher:not([data-inline])[open] { animation: none; } }
 
 /* A quick answer: the result large, what it answers beside it in grey. */
 .launcher-option[data-kind="answer"] .launcher-label { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }

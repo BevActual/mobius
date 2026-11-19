@@ -117,7 +117,7 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 | What it does now | Change |
 |---|---|
 | Its height jumps: tall with nothing typed, then it shrinks to two rows as you type | Keep one height while it is open, the height it has with nothing typed. Results scroll inside it, and the field never moves |
-| It opens on its own, apart from the button | It grows from the Go button: same left edge, just under the top bar, 120 ms (none with reduced motion). Ctrl+K opens it in the same place |
+| It opens on its own, apart from the button | It opens centred in the window, whether from Go or Ctrl+K (Andrew, 19 November 2026), growing in from the middle in 120 ms (none with reduced motion) |
 | Section labels are in capitals ("PINNED", "APPLICATIONS") | Sentence case, as in every other list: "Pinned", "Recent", "Apps" (not "Applications") |
 | An app row's detail says "Pinned" | Show its key ("Ctrl+3"), or nothing |
 | Typing doesn't show why a row matched | The matched letters are drawn in ink at medium weight, and the rest in the row's own colour |

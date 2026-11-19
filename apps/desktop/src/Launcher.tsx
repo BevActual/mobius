@@ -230,13 +230,6 @@ export function Launcher({
       // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
       // land after the first letters typed into it, and the same words typed again went unseen (the field already held
       // them), so Enter opened whatever was first for an empty field.
-      // It opens from the Go button, just under it, when that is on screen; otherwise across the middle.
-      const go = document.querySelector('.go-button')?.getBoundingClientRect();
-      if (go && go.width > 0) {
-        element.style.setProperty('--launcher-left', `${Math.round(go.left)}px`);
-        element.style.setProperty('--launcher-top', `${Math.round(go.bottom + 4)}px`);
-        element.dataset.anchored = 'go';
-      } else delete element.dataset.anchored;
       element.showModal();
       input.current?.focus();
     } else if (!open && element.open) {
