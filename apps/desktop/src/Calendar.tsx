@@ -93,7 +93,8 @@ export function CalendarSidebar({ calendar, pin, changed, review = null }: { cal
       <SidebarSearch label="Search events" value={query} onChange={setQuery} />
       {query.trim() ? <EventSearch calendar={calendar} query={query} /> : (
         <div className="calendar-groups">
-          <SidebarSection title="Calendars" action={<>{pin}<button type="button" className="strip-btn" aria-label="New calendar" title="New calendar" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
+          <MiniMonth calendar={calendar} />
+          <SidebarSection title="My calendars" action={<>{pin}<button type="button" className="strip-btn" aria-label="New calendar" title="New calendar" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
             {local.map(row)}
             {window.mobius.tasks && (
               <li>
@@ -220,6 +221,7 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       data-fresh={calendar.fresh.has(event.id) || undefined}
       data-proposed={picking.proposed.has(event.id) || undefined}
       data-compact={compact || undefined}
+      data-tall={(!compact && typeof style?.height === 'number' && style.height >= 52) || undefined}
       data-span={span ? true : undefined}
       data-joins-before={(span && !span.from) || undefined}
       data-joins-after={(span && !span.to) || undefined}
@@ -245,6 +247,45 @@ function EventBlock({ calendar, event, style, onOpen, compact, from, onPointerDo
       {event.repeats && !compact && <svg className="cal-repeat" viewBox="0 0 20 20" aria-hidden="true"><path d="M4 9a5 5 0 0 1 9-3h-3M16 11a5 5 0 0 1-9 3h3" /></svg>}
       {onResize && <span className="cal-resize" aria-hidden="true" onPointerDown={onResize} />}
     </button>
+  );
+}
+
+/** A small month at the top of the Calendars panel: the days on screen are marked, and a click goes to that day. */
+export function MiniMonth({ calendar, today = new Date() }: { calendar: Pick<CalendarState, 'anchor' | 'setAnchor' | 'mode'>; today?: Date }) {
+  const year = calendar.anchor.getFullYear();
+  const month = calendar.anchor.getMonth();
+  const [shown, setShown] = useState(() => new Date(year, month, 1));
+  // It follows the calendar when the calendar moves to another month.
+  useEffect(() => { setShown(new Date(year, month, 1)); }, [year, month]);
+  const days = daysFor('month', shown);
+  const onScreen = new Set(calendar.mode === 'day' || calendar.mode === 'week' ? daysFor(calendar.mode, calendar.anchor).map(isoDay) : []);
+  const title = formatWith(shown, { month: 'long', year: 'numeric' });
+  const move = (by: number) => setShown((d) => new Date(d.getFullYear(), d.getMonth() + by, 1));
+  return (
+    <div className="cal-mini" role="group" aria-label="Month">
+      <div className="cal-mini-head">
+        <strong aria-live="polite">{title}</strong>
+        <button type="button" className="strip-btn" aria-label="Previous month" onClick={() => move(-1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m12 5-5 5 5 5" /></svg></button>
+        <button type="button" className="strip-btn" aria-label="Next month" onClick={() => move(1)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>
+      </div>
+      <div className="cal-mini-grid">
+        {days.slice(0, 7).map((d) => <span key={`h${d.getDay()}`} className="cal-mini-weekday" aria-hidden="true">{formatWith(d, { weekday: 'narrow' })}</span>)}
+        {days.map((d) => {
+          const iso = isoDay(d);
+          return (
+            <button key={iso} type="button" className="cal-mini-day"
+              data-other={d.getMonth() !== shown.getMonth() || undefined}
+              data-today={sameDay(d, today) || undefined}
+              data-shown={onScreen.has(iso) || undefined}
+              aria-current={sameDay(d, calendar.anchor) ? 'date' : undefined}
+              aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })}
+              onClick={() => calendar.setAnchor(d)}>
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

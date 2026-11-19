@@ -77,7 +77,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   await start();
   await tools().getByRole('radio', { name: 'Week' }).click();
   await expect(page().getByRole('button', { name: new RegExp(`^Standup, ${span('9:00', '9:30')}, Work`) }).first()).toBeVisible();
-  await expect(shell().getByRole('region', { name: 'Calendars' }).getByText('Work')).toBeVisible();
+  await expect(shell().getByRole('region', { name: 'My calendars' }).getByText('Work')).toBeVisible();
   // The Mobius panel's Glance sums up the rest of today (its numbers depend on the hour the test runs).
   await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText('Still to come');
 
@@ -115,7 +115,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
   // Pressing a calendar's row hides its events, and pressing it again shows them; the month shows them too.
-  const workRow = shell().getByRole('region', { name: 'Calendars' }).getByRole('button', { name: 'Work', exact: true });
+  const workRow = shell().getByRole('region', { name: 'My calendars' }).getByRole('button', { name: 'Work', exact: true });
   await workRow.click();
   await expect(workRow).toHaveAttribute('aria-pressed', 'false');
   await expect(page().getByRole('button', { name: /^Team standup/ })).toHaveCount(0);
@@ -440,4 +440,15 @@ test('the launcher finds an event weeks away by where it is, and opens Calendar 
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('veltro');
   await shell().getByRole('option', { name: /Supplier audit/ }).click();
   await expect(page().getByRole('button', { name: new RegExp(`^Supplier audit, ${span('14:00', '15:00')}, Veltro plant, Work`) })).toBeVisible();
+});
+
+test('the small month in the Calendars panel goes to the day picked, and marks the week on screen', async () => {
+  await start();
+  await tools().getByRole('radio', { name: 'Week' }).click();
+  const month = shell().getByRole('group', { name: 'Month' });
+  await month.getByRole('button', { name: 'Next month' }).click();
+  const day = month.locator('.cal-mini-day:not([data-other])', { hasText: /^15$/ });
+  await day.click();
+  await expect(day).toHaveAttribute('aria-current', 'date');
+  await expect(day).toHaveAttribute('data-shown', 'true');
 });
