@@ -195,6 +195,24 @@ test('the format bar makes a checklist you tick, and More clips a web page where
   await expect.poll(() => onDisk('Trip', 'Untitled.md')).toMatch(/- \[ \] Pack\n\n> Nine rooms in Príncipe Real\.\n>\n> Breakfast included\.\n\n— \[Casa Amora\]\(/);
 });
 
+test('typing "[ ] " at the start of a bullet makes that bullet a checklist item, as in other notes apps', async () => {
+  await start();
+  await newNotebook('Home');
+  await retitle('Shop');
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('- Milk');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('[ ] Call the bakery');
+  await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call the bakery' })).toBeVisible();
+  // The bullet before it stays a bullet.
+  await expect.poll(() => onDisk('Home', 'Untitled.md')).toBe('# Shop\n\n- Milk\n\n- [ ] Call the bakery\n');
+  // Ctrl+N, from the page, starts another one (it presses New page in the Notebooks panel).
+  await shell().keyboard.press('Control+n');
+  await expect(text().locator('h1')).toHaveText('Untitled');
+  await expect(side().getByRole('button', { name: /^Shop/ })).toBeVisible();
+});
+
 test('#tags in pages show under Tags, and a tag lists the pages that carry it', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.mkdirSync(file('Home'), { recursive: true });
