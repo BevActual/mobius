@@ -42,7 +42,7 @@ export function SidebarHead({ title, create, favourites = [], onOpenFavourite, o
         </div>
       )}
       {create && (
-        <button type="button" className="app-side-new" aria-label="Create" title={create.label} onClick={create.run}>
+        <button type="button" className="app-side-new" title={create.label} onClick={create.run}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
           <span>{create.label}</span>
           <kbd className="side-keys" aria-hidden="true">{newKeys()}</kbd>

@@ -26,18 +26,20 @@ const PLACES: Array<[string, (shell: Page) => Promise<void>]> = [
   ['Settings', (shell) => goToPlace(shell, 'Settings')],
 ];
 
-interface Finding { rule: string; impact: string; nodes: number; help: string; example: string }
+interface Finding { rule: string; impact: string; nodes: number; help: string; example: string; all: string }
 
 /** Runs axe on the window as it is now. `contrastOnly` runs colour contrast alone. */
 async function check(shell: Page, contrastOnly: boolean): Promise<Finding[]> {
   if (!(await shell.evaluate(() => 'axe' in window))) await shell.evaluate(AXE);
   return shell.evaluate(async (contrastOnly) => {
-    const axe = (window as unknown as { axe: { run(context: Document, options: object): Promise<{ violations: Array<{ id: string; impact: string | null; help: string; nodes: Array<{ target: unknown[] }> }> }> } }).axe;
+    const axe = (window as unknown as { axe: { run(context: Document, options: object): Promise<{ violations: Array<{ id: string; impact: string | null; help: string; nodes: Array<{ target: unknown[]; any: Array<{ data?: { fgColor?: string; bgColor?: string; contrastRatio?: number } | null }> }> }> }> } }).axe;
     const options = contrastOnly
       ? { runOnly: { type: 'rule', values: ['color-contrast'] }, resultTypes: ['violations'] }
       : { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] }, resultTypes: ['violations'] };
     const { violations } = await axe.run(document, options);
-    return violations.map((v) => ({ rule: v.id, impact: v.impact ?? '', nodes: v.nodes.length, help: v.help, example: JSON.stringify(v.nodes[0]?.target ?? '').slice(0, 120) }));
+    return violations.map((v) => ({ rule: v.id, impact: v.impact ?? '', nodes: v.nodes.length, help: v.help, example: JSON.stringify(v.nodes[0]?.target ?? '').slice(0, 120),
+      // Every element, for fixing: its selector, and for contrast the colours and ratio axe measured.
+      all: v.nodes.slice(0, 12).map((n) => { const d = n.any[0]?.data; return `${JSON.stringify(n.target)}${d?.contrastRatio ? ` ${d.fgColor} on ${d.bgColor} = ${d.contrastRatio}` : ''}`; }).join(' | ') }));
   }, contrastOnly);
 }
 
@@ -86,8 +88,9 @@ test('the default apps, Home and Settings have no new accessibility findings, in
       for (const f of await check(shell, theme !== 'light')) {
         const key = f.rule === 'color-contrast' ? `color-contrast@${theme}` : f.rule;
         here[key] = f.nodes;
-        test.info().annotations.push({ type: 'a11y', description: JSON.stringify({ place: name, key, ...f, known: baseline.known[name]?.[key] ?? 0 }) });
-        console.log(`[a11y] ${name} ${key}: ${f.nodes} (${f.impact}) ${f.help} e.g. ${f.example}`);
+        const { all, ...kept } = f;
+        test.info().annotations.push({ type: 'a11y', description: JSON.stringify({ place: name, key, ...kept, known: baseline.known[name]?.[key] ?? 0 }) });
+        console.log(`[a11y] ${name} ${key}: ${f.nodes} (${f.impact}) ${f.help}: ${all}`);
       }
     }
     await setTheme(shell, 'light');
