@@ -92,7 +92,8 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   await edit.fill('Clean the gutters');
   await edit.press('Enter');
   await expect(todo().getByRole('checkbox', { name: 'Clean the gutters' })).toBeVisible();
-  await page().getByRole('button', { name: 'Clear the due date for Fix the tap' }).click({ force: true });
+  await page().getByRole('button', { name: 'Fix the tap', exact: true }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'No due date' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe(`# Home\nThoughts stay.\n- [ ] Paint the door (due ${isoToday()})\n- [ ] Fix the tap\n- [ ] Clean the gutters\n`);
 
   // A change another editor makes to the file shows when the list is opened again.

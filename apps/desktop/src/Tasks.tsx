@@ -1,4 +1,3 @@
-import { RowMark } from './RowMark';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
@@ -10,6 +9,7 @@ import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { MobiusMark } from './MobiusMark';
 import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
@@ -121,8 +121,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu({ name: l.name, x: e.clientX, y: e.clientY }); } }}>
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
-                    <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                    {!changed?.has(l.name) && <span className="list-count">{l.open || ''}</span>}
+                    <span className="list-count" title={changed?.has(l.name) ? 'Mobius changed this list. Open it to keep or discard the change' : undefined}>{l.open || ''}</span>
                   </button>
                   {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name}`} title={pinned?.has(l.name) ? 'Unpin' : 'Pin to the top'} onClick={() => onPin(l.name)}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
@@ -240,6 +239,12 @@ interface RowProps {
   hideDue?: boolean;
 }
 
+/** A task's note after its words: its first word never breaks, so when even that does not fit, the note drops out. */
+function TaskNote({ text }: { text: string }) {
+  const [first, ...rest] = text.split(' ');
+  return <span className="task-note" title={text}><span>{first}</span>{rest.length > 0 && <span className="task-note-rest">{` ${rest.join(' ')}`}</span>}</span>;
+}
+
 function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
@@ -312,7 +317,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
           ) : (
             <button type="button" className="task-text" title="Click to change" onClick={() => { setWords(task.text); setEditing(true); }}>{task.text}</button>
           )}
-          {note && <span className="task-note">{note}</span>}
+          {note && <TaskNote text={note} />}
         </div>
         {/* The trailing edge, as in Linear: the subtask count, the list (in views across lists), the flag, then the
             due date in tabular figures, grey unless overdue. */}
@@ -329,13 +334,8 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <input type="date" className="task-date" aria-label={`Due date for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
               onChange={(e) => { setDating(false); void tasks.change(list, task, { due: e.target.value || null }); }} onBlur={() => setDating(false)} onKeyDown={(e) => { if (e.key === 'Escape') setDating(false); }} />
           ) : (
-            <button type="button" className="strip-btn" aria-label={`Set a due date for ${task.text}`} title="Due date" onClick={() => setDating(true)}>
+            <button type="button" className="strip-btn" aria-label={`Set a due date for ${task.text}`} title={task.due ? "Change the due date" : "Due date"} onClick={() => setDating(true)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 3v3M13 3v3" /></svg>
-            </button>
-          )}
-          {task.due && !dating && (
-            <button type="button" className="strip-btn" aria-label={`Clear the due date for ${task.text}`} title="Clear due date" onClick={() => void tasks.change(list, task, { due: null })}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
             </button>
           )}
           <button type="button" className="strip-btn" aria-pressed={task.flagged ?? false} aria-label={task.flagged ? `Unflag ${task.text}` : `Flag ${task.text}`} title={task.flagged ? 'Unflag' : 'Flag'} onClick={() => void tasks.change(list, task, { flagged: !task.flagged })}>
@@ -614,7 +614,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
             row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
             task === lastNew && review && !working && (
               <li key="mobius-change" className="task-change">
-                <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                <ChangeBar who={<><MobiusMark size={14} />Mobius changed this list</>} onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
               </li>
             ),
