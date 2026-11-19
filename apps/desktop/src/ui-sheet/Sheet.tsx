@@ -719,6 +719,11 @@ export function Sheet() {
               <div key={n} className="sheet-dot"><DotCharacter name={n} state={st} at={1.3} /><span>{n} · {st}</span></div>
             ))}
           </div>
+          <div className="sheet-dots">
+            {(['Weekly P2 summary', 'Morning brief', 'File receipts', 'Supplier watch', 'Trip planner'] as const).map((n) => (
+              <span key={n} className="sheet-dot-row"><DotCharacter name={n} state="idle" size="small" at={1.3} />{n}</span>
+            ))}
+          </div>
         </Card>
       </div>
     </main>

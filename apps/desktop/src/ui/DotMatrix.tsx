@@ -104,12 +104,13 @@ export function DotCharacter({ name, state, colour, size = 'medium', at, classNa
     const w = el.clientWidth;
     const n = CHARACTER_SIZE;
     const step = w / n;
-    const r = step * 0.36;
+    // At row size the dots nearly touch, so the shape reads as one silhouette rather than a faint grid.
+    const r = step * (size === 'small' ? 0.5 : 0.36);
     const styles = getComputedStyle(el);
     const fill = styles.color;
     const ink = styles.getPropertyValue('--ink').trim() || fill;
     const face = showsFace(state) ? new Set(faceDots(state, t).map(([x, y]) => `${x},${y}`)) : null;
-    const lit = state === 'idle' || state === 'paused' ? 0.55 : 0.75;
+    const lit = (state === 'idle' || state === 'paused' ? 0.55 : 0.75) + (size === 'small' ? 0.2 : 0);
     ctx.clearRect(0, 0, w, w);
     for (let y = 0; y < n; y += 1) {
       for (let x = 0; x < n; x += 1) {
@@ -121,7 +122,7 @@ export function DotCharacter({ name, state, colour, size = 'medium', at, classNa
       }
     }
     ctx.globalAlpha = 1;
-  }, at, [name, state, body]);
+  }, at, [name, state, body, size]);
   return (
     <span className={className ? `ui-dot-character ${className}` : 'ui-dot-character'} data-size={size} data-state={state} style={{ '--character': `var(--c-${tone})` } as React.CSSProperties} aria-hidden="true">
       <canvas ref={ref} />
