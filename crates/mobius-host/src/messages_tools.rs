@@ -53,7 +53,8 @@ impl Accounts {
         let accounts = self.list();
         let accounts = accounts.as_array().cloned().unwrap_or_default();
         if accounts.is_empty() {
-            return Err("No chat accounts are added in Messages yet.".into());
+            // A plain answer, not a failure: there is nothing to read yet.
+            return Ok(json!({ "accounts": [], "note": "No chat accounts are added in Messages yet." }));
         }
         match tool {
             "messages.list" => {
@@ -125,7 +126,7 @@ mod tests {
         let (url, _log) = crate::matrix::tests::server(false);
         let dir = tempfile::tempdir().unwrap();
         let accounts = Accounts::new(dir.path(), Arc::new(MemorySecrets::new(true)));
-        assert_eq!(accounts.run_tool("messages.list", &json!({})).unwrap_err(), "No chat accounts are added in Messages yet.");
+        assert_eq!(accounts.run_tool("messages.list", &json!({})).unwrap()["note"], "No chat accounts are added in Messages yet.");
         let id = accounts.matrix_sign_in(&url, "ana", "pw").unwrap()["id"].as_str().unwrap().to_owned();
         let list = accounts.run_tool("messages.list", &json!({})).unwrap();
         assert_eq!(list[0]["account"], id.as_str());
