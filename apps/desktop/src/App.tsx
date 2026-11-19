@@ -186,6 +186,17 @@ const OWN_LIST: Partial<Record<AppId, string>> = {
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
 const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database', 'messages', 'photo'];
 
+/** Whether the window is at least this wide, kept up to date as it is resized. */
+function useWideWindow(min: number): boolean {
+  const [wide, setWide] = useState(() => window.innerWidth >= min);
+  useEffect(() => {
+    const on = () => setWide(window.innerWidth >= min);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [min]);
+  return wide;
+}
+
 export function App() {
   const browser = useBrowser();
   const coreStatus = useCoreStatus();
@@ -668,9 +679,12 @@ export function App() {
   const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
   // Activity's list filters its page (which is the region named Activity), so the panel is named for that.
   const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
+  // Panels menu (or the top bar) brings it back, and a choice made there is kept.
+  const roomy = useWideWindow(1200);
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' ? roomy : true, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
