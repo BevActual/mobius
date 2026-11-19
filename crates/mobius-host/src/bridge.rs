@@ -3714,6 +3714,14 @@ impl Bridge {
                 (Some(a), Some(key)) => accounts.matrix_recover(a, key).inspect(|_| changed(a, None)),
                 _ => Err("an account and a recovery key are needed".to_owned()),
             },
+            "matrixVerify" => match (text(0), text(1)) {
+                (Some(a), Some(step)) => accounts.matrix_verify(a, step).inspect(|r| {
+                    if r["state"] == "done" {
+                        changed(a, None);
+                    }
+                }),
+                _ => Err("an account and a step are needed".to_owned()),
+            },
             "matrixStatus" => Ok(accounts.matrix_status()),
             "matrixCancel" => {
                 accounts.matrix_cancel();

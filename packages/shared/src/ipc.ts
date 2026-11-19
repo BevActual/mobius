@@ -284,6 +284,19 @@ export interface CalendarChanged { calendar: string | null; by: 'person' | 'assi
 /** Messages (Apps lead; accounts by the Builder): chat on Slack, Discord and Telegram through their official APIs. */
 export type ChatService = 'slack' | 'matrix' | 'discord' | 'telegram';
 export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
+/**
+ * Where an emoji verification with another of the person's Matrix devices is. `waiting`: for the other device to
+ * accept. `compare`: both show `emoji`. `confirmed`: this side said they match. `finishing`: the person's secrets are on
+ * their way. `done`: `verified`, with `keys` restored from the backup. `cancelled`: with `reason`.
+ */
+export interface MatrixVerification {
+  state: 'idle' | 'waiting' | 'starting' | 'compare' | 'confirmed' | 'finishing' | 'done' | 'cancelled';
+  emoji?: { symbol: string; name: string }[];
+  verified?: boolean;
+  keys?: number;
+  reason?: string;
+}
+
 export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean }
 export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
 export interface ChatChanged { account: string; channel?: string | null }
@@ -828,6 +841,8 @@ export interface MobiusBridge {
     matrixDevice?(account: string): Promise<{ verified: boolean } | NotesFailure>;
     /** Matrix: verify this device with the account's recovery key (or passphrase) and restore its key backup. */
     matrixRecover?(account: string, recoveryKey: string): Promise<{ verified: boolean; keys: number } | NotesFailure>;
+    /** Emoji verification with another of the person's devices: start it, check on it, say whether the emoji match, or cancel. */
+    matrixVerify?(account: string, step: 'start' | 'check' | 'match' | 'differ' | 'cancel'): Promise<MatrixVerification | NotesFailure>;
   };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {

@@ -338,6 +338,23 @@ impl Accounts {
         })
     }
 
+    /// Emoji verification with another of the person's devices. `step` is `start`, `check`, `match`, `differ` or
+    /// `cancel`; it answers where the verification is (see `Matrix::verify_check`).
+    pub fn matrix_verify(&self, id: &str, step: &str) -> Res<Value> {
+        self.with_matrix(id, |m, s| {
+            let crypto = self.crypto_for(id, s).ok_or("Encrypted rooms need this computer's secret store, which isn't available.")?;
+            match step {
+                "start" => m.verify_start(s, &crypto)?,
+                "match" => m.verify_confirm(s, &crypto, true)?,
+                "differ" => m.verify_confirm(s, &crypto, false)?,
+                "cancel" => m.verify_cancel(s, &crypto),
+                "check" => {}
+                _ => return Err("That verification step isn't known.".into()),
+            }
+            m.verify_check(id, s, &crypto)
+        })
+    }
+
     /// How a Matrix server lets the person sign in: `{ homeserver, password, browser }`.
     pub fn matrix_methods(&self, server: &str) -> Res<Value> {
         self.matrix.methods(server).map(|m| m.to_json())
