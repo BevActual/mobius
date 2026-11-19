@@ -43,23 +43,33 @@ async function switchTo(shell: Page, name: string, panel: string): Promise<numbe
   const field = shell.getByRole('combobox', { name: 'Find apps, pages and commands' });
   await field.fill(name);
   await expect(shell.getByRole('dialog', { name: 'Launcher' }).getByRole('group', { name: 'Apps' }).getByRole('option', { name: new RegExp(`^${name}(,|$)`) }).first()).toBeVisible();
-  const done = shell.evaluate(
+  // The listener is in place before Enter is pressed (an evaluate still on its way when the key arrives would miss it).
+  await shell.evaluate(() => {
+    const w = window as unknown as { speedPressed: number; speedListening?: boolean };
+    w.speedPressed = -1;
+    if (!w.speedListening) window.addEventListener('keydown', (event) => { if (event.key === 'Enter' && w.speedPressed < 0) w.speedPressed = event.timeStamp; }, { capture: true });
+    w.speedListening = true;
+  });
+  await field.press('Enter');
+  return shell.evaluate(
     ({ name, panel }) =>
-      new Promise<number>((resolve) => {
-        let pressed = -1;
-        window.addEventListener('keydown', (event) => { if (event.key === 'Enter') pressed = event.timeStamp; }, { capture: true, once: true });
+      new Promise<number>((resolve, reject) => {
+        const w = window as unknown as { speedPressed: number };
         const shown = () => {
           const side = document.querySelector<HTMLElement>(`aside[aria-label="${panel}"]`);
           const go = document.querySelector('.context-strip .go-button')?.getAttribute('aria-label') ?? '';
-          return pressed >= 0 && !!side?.checkVisibility() && go.startsWith(`${name}.`) && !document.querySelector('[role="dialog"][aria-label="Launcher"]');
+          return w.speedPressed >= 0 && !!side?.checkVisibility() && go.startsWith(`${name}.`);
         };
-        const look = () => (shown() ? requestAnimationFrame(() => resolve(performance.now() - pressed)) : requestAnimationFrame(look));
+        const given = performance.now();
+        const look = () => {
+          if (shown()) requestAnimationFrame(() => resolve(performance.now() - w.speedPressed));
+          else if (performance.now() - given > 15_000) reject(new Error(`${name} did not show its ${panel} panel (Enter seen: ${w.speedPressed >= 0})`));
+          else requestAnimationFrame(look);
+        };
         look();
       }),
     { name, panel },
   );
-  await field.press('Enter');
-  return done;
 }
 
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
