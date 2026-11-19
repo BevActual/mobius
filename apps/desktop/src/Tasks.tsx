@@ -40,6 +40,29 @@ function stepRow(from: HTMLElement, by: 1 | -1) {
   else if (by === -1) page.querySelector<HTMLInputElement>('.task-new input[aria-label="New task"]')?.focus();
 }
 
+/**
+ * Before a focused row leaves (ticked off or deleted), hands the keyboard to the row after it, or the one before at the end.
+ * Rows are keyed by their line, so the save can remount the rows below: once `saved` settles, the same task gets it back.
+ */
+function stepAway(from: HTMLElement | null, saved: () => Promise<unknown>) {
+  if (!from || !from.contains(document.activeElement)) return saved();
+  const page = from.closest('.tasks-main');
+  const leaving = from.closest('li.task') ?? from;
+  // Its subtasks leave with it, so the next row is the first one outside it.
+  const rows = page ? [...page.querySelectorAll<HTMLElement>('.task-line[tabindex]')] : [];
+  const at = rows.indexOf(from);
+  const to = rows.slice(at + 1).find((r) => !leaving.contains(r)) ?? rows.slice(0, Math.max(at, 0)).reverse().find((r) => !leaving.contains(r))
+    ?? page?.querySelector<HTMLInputElement>('.task-new input[aria-label="New task"]') ?? null;
+  to?.focus();
+  to?.scrollIntoView({ block: 'nearest' });
+  const label = to?.getAttribute('aria-label');
+  // After the save's render, which lands a frame after it settles.
+  return saved().finally(() => window.requestAnimationFrame(() => {
+    if (!page || !label || (document.activeElement && document.activeElement !== document.body)) return;
+    [...page.querySelectorAll<HTMLElement>('.task-line[tabindex], .task-new input')].find((el) => el.getAttribute('aria-label') === label)?.focus();
+  }));
+}
+
 /** The smart lists' marks: a white glyph on a coloured circle, as in Apple's Reminders. */
 function SmartIcon({ id }: { id: SmartView }) {
   const glyph: Record<SmartView, ReactNode> = {
@@ -253,7 +276,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const line = useRef<HTMLDivElement>(null);
-  const completing = useCompleting(() => tasks.change(list, task, { done: true }));
+  const completing = useCompleting(() => stepAway(line.current, () => tasks.complete(list, task)));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
   const finish = (keep: boolean) => {
     setEditing(false);
@@ -265,7 +288,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const tick = () => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); };
   const details = () => tasks.pick(isPicked ? null : { list, text: task.text });
   const setDue = (due: string | null) => void tasks.change(list, task, { due });
-  const remove = () => { stepRow(line.current!, 1); void tasks.remove(list, task); };
+  const remove = () => void stepAway(line.current, () => tasks.remove(list, task));
   // The row's own keys, as in Reminders: arrows between tasks, Space ticks, Enter renames, ⌘I details, Delete deletes.
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
@@ -569,8 +592,20 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   const now = new Date();
   const view = tasks.view;
   const query = tasks.query.trim();
-  // Undo from the menus puts back the task just deleted.
-  useEffect(() => onCommand('undo', () => { if (tasks.deleted) void tasks.undoDelete(); }), [tasks]);
+  // Undo, from the menus or Ctrl+Z outside a text field, puts back the task just deleted or ticked off.
+  useEffect(() => onCommand('undo', () => void tasks.undoLast()), [tasks]);
+  useEffect(() => {
+    if (!tasks.deleted && !tasks.finished) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.defaultPrevented || e.key.toLowerCase() !== 'z') return;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+      e.preventDefault();
+      void tasks.undoLast();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tasks]);
   useEffect(() => { setShowDone(false); }, [view]);
   const ask = onAsk ?? tasks.ask.current ?? undefined;
   // A task typed in Today is due today; anything typed outside a list lands in the Inbox.
@@ -701,6 +736,9 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
           {body}
           {empty && <p className="tasks-empty">{empty}</p>}
         </div>
+        {tasks.finished && !tasks.deleted && (
+          <UndoToast text={`Completed “${tasks.finished.text}”`} onUndo={() => void tasks.undoComplete()} onDismiss={tasks.dismissFinished} />
+        )}
         {tasks.deleted && (
           <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
         )}

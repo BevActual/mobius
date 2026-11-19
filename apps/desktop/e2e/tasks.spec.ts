@@ -269,7 +269,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toContain('Fix the tap');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Fix the tap');
 
-  // Keyboard: down from the add field, down again, ⌘/Ctrl+I opens details, Space ticks, Delete deletes.
+  // Keyboard: down from the add field, down again, ⌘/Ctrl+I opens details, Space ticks (Ctrl+Z unticks), Delete deletes.
   await page().getByRole('textbox', { name: 'New task', exact: true }).press('ArrowDown');
   await expect(todo().locator('.task-line', { hasText: 'Pay the gas bill' })).toBeFocused();
   await shell().keyboard.press('ArrowDown');
@@ -280,6 +280,11 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   await door.focus();
   await shell().keyboard.press('Space');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [x] Paint the door');
+  // The keyboard stays in the list, on the task before the one that left; Ctrl+Z takes the tick back.
+  await expect(todo().locator('.task-line', { hasText: 'Pay the gas bill' })).toBeFocused();
+  await expect(page().getByRole('status')).toContainText('Completed “Paint the door”');
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Paint the door');
   await todo().locator('.task-line', { hasText: 'Pay the gas bill' }).focus();
   await shell().keyboard.press('Delete');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Pay the gas bill');

@@ -41,6 +41,8 @@ export function useTasks() {
   const [query, setQuery] = useState('');
   const [picked, setPicked] = useState<Picked | null>(null);
   const [deleted, setDeleted] = useState<Deleted | null>(null);
+  // The task just ticked off, for Undo: it leaves the list, so the toast is the one way back short of Completed.
+  const [finished, setFinished] = useState<Picked | null>(null);
   // Tasks the agent just added or changed, marked for a moment so its work is visible without moving focus.
   const [fresh, setFresh] = useState<Set<string>>(new Set());
   const live = useRef(all);
@@ -125,6 +127,11 @@ export function useTasks() {
     const t = window.setTimeout(() => setDeleted(null), UNDO_MS);
     return () => window.clearTimeout(t);
   }, [deleted]);
+  useEffect(() => {
+    if (!finished) return undefined;
+    const t = window.setTimeout(() => setFinished(null), UNDO_MS);
+    return () => window.clearTimeout(t);
+  }, [finished]);
 
   /** Apply what the window got back for one list, or say what went wrong and reload. */
   const settle = useCallback(async (result: TaskList | { ok: false; message: string; conflict?: boolean } | undefined) => {
@@ -162,9 +169,23 @@ export function useTasks() {
     setPicked((p) => (p && p.list === list && p.text === task.text ? null : p));
     const result = await api?.remove(list, task.line, task.text);
     const ok = await settle(result);
-    if (ok && result && !isNotesFailure(result) && result.removed) setDeleted({ kind: 'task', list, text: task.text, line: result.removed.line, block: result.removed.text });
+    if (ok && result && !isNotesFailure(result) && result.removed) { setFinished(null); setDeleted({ kind: 'task', list, text: task.text, line: result.removed.line, block: result.removed.text }); }
     return ok;
   }, [api, settle]);
+
+  /** Ticks a task off and offers Undo. A repeating task only moves on to its next date, so it stays and needs none. */
+  const complete = useCallback(async (list: string, task: TaskItem) => {
+    const ok = await change(list, task, { done: true });
+    if (ok && !task.repeat) { setDeleted(null); setFinished({ list, text: task.text }); }
+    return ok;
+  }, [change]);
+  const undoComplete = useCallback(async () => {
+    const f = finished;
+    if (!f) return false;
+    setFinished(null);
+    const task = (live.current[f.list] ?? []).find((t) => t.text === f.text && t.done);
+    return task ? change(f.list, task, { done: false }) : false;
+  }, [change, finished]);
 
   const undoDelete = useCallback(async () => {
     const d = deleted;
@@ -225,7 +246,10 @@ export function useTasks() {
   return {
     available: api !== undefined, loaded: loaded || api === undefined, lists, all, view, setView, message, query, setQuery, picked: pickedTask ? { list: picked!.list, task: pickedTask } : null, pick: setPicked,
     deleted, undoDelete, dismissDeleted: () => setDeleted(null), ask,
-    add, change, remove, move, clearDone, createList, renameList, deleteList, isFresh, refresh,
+    finished, undoComplete, dismissFinished: () => setFinished(null),
+    /** Undo for whatever was last done that offers it: a delete or a tick. */
+    undoLast: () => (deleted ? undoDelete() : finished ? undoComplete() : Promise.resolve(false)),
+    add, change, complete, remove, move, clearDone, createList, renameList, deleteList, isFresh, refresh,
   };
 }
 
