@@ -165,10 +165,12 @@ export interface DateFieldProps {
   now?: Date;
   /** Quick picks in place of Today, Tomorrow, Next week and No date. */
   quick?: readonly QuickPick[];
+  /** The field shows the day without its weekday ("19 Nov"), for a narrow row; the picker still shows it. */
+  short?: boolean;
   className?: string;
 }
 
-export function DateField({ label, hideLabel, value, onChange, showTime, proposed, placeholder = 'No date', disabled, now: given, quick = QUICK, className }: DateFieldProps) {
+export function DateField({ label, hideLabel, value, onChange, showTime, proposed, placeholder = 'No date', disabled, now: given, quick = QUICK, short = false, className }: DateFieldProps) {
   const now = useMemo(() => given ?? new Date(), [given]);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
@@ -209,7 +211,7 @@ export function DateField({ label, hideLabel, value, onChange, showTime, propose
           data-proposed={proposed || undefined}
           data-empty={value === null || undefined}
         >
-          <span className="ui-date-value">{value ? dateWords(value, showTime ? minutesOf(value) : null, now) : placeholder}</span>
+          <span className="ui-date-value">{value ? (short && !showTime ? dayLabel(value, { now }) : dateWords(value, showTime ? minutesOf(value) : null, now)) : placeholder}</span>
           <span className="ui-date-icon" aria-hidden="true">{CALENDAR}</span>
         </BasePopover.Trigger>
         <BasePopover.Portal>

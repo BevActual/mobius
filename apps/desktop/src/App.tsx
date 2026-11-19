@@ -683,7 +683,7 @@ export function App() {
   // Panels menu (or the top bar) brings it back, and a choice made there is kept.
   const roomy = useWideWindow(1200);
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' ? roomy : true, render: () => ownListRef.current(id as AppId) },
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' || id === 'calendar' ? roomy : true, render: () => ownListRef.current(id as AppId) },
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
