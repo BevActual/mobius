@@ -1723,6 +1723,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Take over: while you have control of a running task. */
 .control-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-3) var(--sp-2); padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
 .control-text { flex: 1; font-weight: 500; }
+.control-note { flex: 1 1 100%; order: 1; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); font: inherit; }
 .composer-actions .take-over { height: 28px; padding: 0 10px; font-size: var(--fs-sm); }
 
 /* Who is using a tab while a task runs. */

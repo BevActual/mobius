@@ -372,7 +372,7 @@ export interface ChatPanelProps {
   onStop: () => void;
   /** Take over the running task, and hand it back; each resolves with what went wrong, or null. */
   onTakeOver?: () => Promise<string | null>;
-  onHandBack?: () => Promise<string | null>;
+  onHandBack?: (note?: string) => Promise<string | null>;
   onAnswer: (requestId: number, approve: boolean, duration: AnswerFor) => Promise<string | null>;
   /** Answer a question the model asked. Resolves with an explanation when it could not be sent. */
   onReply: (callId: string, text: string) => Promise<string | null>;
@@ -439,7 +439,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const title = conversations.find((c) => c.id === active)?.title ?? 'New conversation';
+  const title = conversations.find((c) => c.id === active)?.title ?? 'New chat';
   // The list opens under its button, moved left as far as it takes to stay inside the window (the panel is on the right).
   const [shift, setShift] = useState(0);
   useLayoutEffect(() => {
@@ -489,7 +489,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move} style={shift ? { left: shift } : undefined}>
-          <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New conversation</button>
+          <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New chat</button>
           <div className="convo-sep" role="separator" />
           {conversations.length === 0 && <p className="convo-empty">Nothing saved yet</p>}
           {conversations.map((conversation) => (
@@ -514,13 +514,27 @@ function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty:
   );
 }
 
-/** While you have control of a running task: where Mobius paused, Hand back and Stop. */
-function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: () => Promise<string | null>; onStop: () => void }) {
+/** While you have control of a running task: where Mobius paused, a line for what to tell it, Hand back and Stop. */
+function ControlBar({ control, onHandBack, onStop }: { control: { step: number; of?: number }; onHandBack?: (note?: string) => Promise<string | null>; onStop: () => void }) {
   const [problem, setProblem] = useState<string | null>(null);
+  const [note, setNote] = useState('');
+  const handBack = () => onHandBack && void onHandBack(note).then((p) => { setProblem(p); if (!p) setNote(''); });
   return (
     <div className="control-bar" role="status" aria-label="You have control">
       <span className="control-text">You have control · Mobius paused at step {control.step}{control.of ? ` of ${control.of}` : ''}</span>
-      {onHandBack && <button type="button" className="btn primary" onClick={() => void onHandBack().then(setProblem)}>Hand back</button>}
+      {onHandBack && (
+        <input
+          className="control-note"
+          type="text"
+          aria-label="Tell Mobius as you hand back"
+          placeholder="What you changed, or what to do next (optional)"
+          maxLength={2000}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handBack(); } }}
+        />
+      )}
+      {onHandBack && <button type="button" className="btn primary" onClick={handBack}>Hand back</button>}
       <button type="button" className="btn" onClick={onStop}>Stop</button>
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </div>
@@ -712,7 +726,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         {lead}
         {variant === 'full' && !needsSetup ? (
           <span className="chat-titles">
-            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
+            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New chat'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
         ) : (
@@ -870,7 +884,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
-          <TurnHistory conversation={state.conversation} busy={state.busy} />
+          {/* Not on the start page: earlier changes belong to a chat that is open. */}
+          {state.items.length > 0 && <TurnHistory conversation={state.conversation} busy={state.busy} />}
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           {queue.items.length > 0 && (
             <QueuePanel

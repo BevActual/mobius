@@ -127,7 +127,9 @@ checkpoints live in their own store and never touch a folder's own git history.
 - **Questions.** When Mobius needs something from you, it asks with a few choices or room for your own words. The
   turn waits, and the question survives a reload.
 - **Queue.** Messages you send while Mobius is working wait in a queue. Each can be edited or removed.
-- **Take over.** While a task is running you can take control, then **Hand back** or **Stop**.
+- **Take over** (beside Stop). While a task is running you can take control: Mobius pauses at the next safe step and the
+  apps are yours. Then **Hand back**, optionally telling it what you changed or what to do next ("I booked it myself;
+  just send the summary"), or **Stop**.
 
 ## Signing in to websites
 

@@ -4354,7 +4354,7 @@ impl Bridge {
                 || json!({ "ok": false, "error": "No such conversation." }),
                 |c| {
                     let theirs = method == "takeOver";
-                    let result = self.agent.control(c, theirs);
+                    let result = self.agent.control(c, theirs, arg(1).as_str());
                     if result["ok"] == true {
                         self.hand_tabs(c, if theirs { TabChange::TakeOver } else { TabChange::HandBack });
                     }
