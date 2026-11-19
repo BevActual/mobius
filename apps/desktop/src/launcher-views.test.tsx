@@ -65,3 +65,23 @@ describe('launcher choice memory', () => {
     expect(Object.keys((c as Record<string, object>).abc!)).toHaveLength(20);
   });
 });
+
+import { landInStage } from './Launcher';
+
+describe('opening an app from the launcher', () => {
+  const stage = (inside: unknown[]) => {
+    let focused = false;
+    return { contains: (n: unknown) => inside.includes(n), focus: () => { focused = true; }, get focused() { return focused; } };
+  };
+  it('gives the keyboard to the work area when focus went back to the composer', () => {
+    const s = stage([]);
+    expect(landInStage(s as never, {} as Element)).toBe(true);
+    expect(s.focused).toBe(true);
+  });
+  it('leaves it where the app put it', () => {
+    const list = {} as Element;
+    const s = stage([list]);
+    expect(landInStage(s as never, list)).toBe(false);
+    expect(s.focused).toBe(false);
+  });
+});
