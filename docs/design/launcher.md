@@ -143,7 +143,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **The empty launcher as a home.** With nothing typed it lists, under Ask, up to three things Waiting for you (chats that need your answer, apps with changes not kept yet) and up to three Agents at work (each named agent working now, with its character). Enter on an empty launcher still opens the first pinned app; these rows are a glance, picked with the arrows or the mouse. (`home` prop, filled in `App.tsx`)
 
-Next, in order: About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **About this, with AI commands.** Text selected in the open app (or in a field) when the launcher opens shows as a chip under the field. With nothing typed, About the selection lists Summarize, Explain, Fix spelling and grammar, Make it shorter, Draft a reply and Translate to…; "translate to French" is read as one command. Anything else typed is asked about the selection. Each is answered inline, with Copy the answer and Continue in Mobius. The chip's x, or Backspace with nothing typed, leaves the selection out. (`selectionNow`, `AI_COMMANDS` in `launcher-ask.ts`)
+
+Next, in order: commands you save yourself, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 
