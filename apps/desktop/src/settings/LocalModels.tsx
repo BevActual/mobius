@@ -246,6 +246,8 @@ export function LocalQuickSetup() {
   if (engine.status === null || !engine.status.supported || (!gpu && setup.step === null)) return null;
   const d = models.download;
   return (
+    <>
+    <h4 className="plist-head">Free, on this computer</h4>
     <div className="quick-setup first-run-local" role="group" aria-label="Free, on this computer">
       <p className="srow-desc">Mobius picks a model that runs well on your graphics card, downloads it and starts it. Nothing you type leaves this computer.</p>
       {setup.step === null ? (
@@ -258,6 +260,7 @@ export function LocalQuickSetup() {
       {setup.step === 'downloading' && d?.running && <button type="button" className="btn" onClick={models.cancel}>Cancel</button>}
       {setup.problem && <p className="field-error" role="alert">{setup.problem}</p>}
     </div>
+    </>
   );
 }
 

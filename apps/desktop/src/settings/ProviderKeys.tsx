@@ -66,7 +66,7 @@ function ProviderList({ open = false }: { /** Start with every gateway listed (f
   return (
     <div className="providers">
       <Accounts onChanged={reload} hideMissing={open} />
-      {open && <><h4 className="plist-head">Free, on this computer</h4><LocalQuickSetup /></>}
+      {open && <LocalQuickSetup />}
       {open ? null : connected.length > 0 ? (
         <ul className="plist" role="list" aria-label="Connected gateways">
           {connected.map((p) => <ProviderRow key={p.id} provider={p} onChanged={reload} />)}
