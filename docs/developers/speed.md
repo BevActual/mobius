@@ -44,3 +44,25 @@ slowest tenth (Notes and Calendar are the slowest to switch to, at 0.23 and 0.19
 Notes drew every page of a long notebook each time it opened, which took 0.84 s for 2,000 pages in a smaller window.
 It now draws the first 100 and more as the list scrolls. Next is switching itself, which costs over 100 ms even
 between simple apps at this size.
+
+## Where switching spends its time
+
+The test also profiles two rounds of switching (12 switches) and prints where the time went, as `[speed profile]`
+lines in the log. It maps the time back to source files through the build's source maps. The first profile
+(19 November 2026, about 100 ms per switch at 1440 × 900) showed:
+
+- **React and the app's own code** take about 11 ms a switch.
+- **The browser's own work** (style, layout and paint, shown as "(program)") takes about 60 ms a switch.
+- **Notes** adds about 25 ms to mount its editor (ProseMirror).
+- **Playwright's injected script** (`visitNode`, `query`, `getBoundingClientRect` from its locators) makes up much of
+  the rest. That is the test's cost, and it falls outside the measured window.
+
+So switching is mostly the price of drawing a whole new app.
+
+**An option, not taken (19 November 2026).** The way to cut switching further is to keep apps the person has visited
+mounted but hidden (for example with `content-visibility: hidden`), so going back skips most of the style and layout
+work. That would change every app's lifecycle: hidden apps keep their effects running, focus and keys need care, and
+memory goes up. All that for a few tens of milliseconds, when about 100 ms is already at the edge of feeling instant.
+It stays an option, to revisit if Andrew or a polish pass feels the switch. The switch budget is 150 ms. That is
+tighter than the first one, yet above the slowest median CI has shown at this size (144 ms), so a real regression
+fails while a slow runner does not.
