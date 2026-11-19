@@ -77,8 +77,10 @@ test('a document starts from a template in the Templates folder, and any documen
     await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: item }).click();
   };
   await docsMenu('New from Weekly update');
-  await expect.poll(() => fs.existsSync(file('Work/Weekly update.md'))).toBe(true);
-  const made = fs.readFileSync(file('Work/Weekly update.md'), 'utf8');
+  // A copy, in a folder other than Templates (whichever was open, else the first).
+  const copy = () => fs.readdirSync(file('')).filter((d) => d !== 'Templates').map((d) => path.join(d, 'Weekly update.md')).find((p) => fs.existsSync(file(p)));
+  await expect.poll(copy).toBeTruthy();
+  const made = fs.readFileSync(file(copy()!), 'utf8');
   expect(made).toContain('## Done\n\n## Next');
   expect(made).not.toContain('{{date}}');
   expect(made).toContain(String(new Date().getFullYear()));
