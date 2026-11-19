@@ -188,7 +188,7 @@ impl Accounts {
             return Err(if matrix { "That message is too long to send." } else { "That message is too long for Slack." }.into());
         }
         if matrix {
-            return self.with_matrix(id, |m, s| m.send(id, s, channel, text, thread));
+            return self.with_matrix(id, |m, s| m.send(id, s, channel, text, thread, self.crypto_for(id, s).as_deref()));
         }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;

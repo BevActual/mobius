@@ -677,16 +677,30 @@ impl Matrix {
     }
 
     /// Sends what the person wrote, in the room or in a thread. Only ever called from the person's own Send.
-    pub fn send(&self, account: &str, s: &Session, room: &str, text: &str, thread: Option<&str>) -> Res<Value> {
-        if lock(&self.synced).get(account).and_then(|x| x.rooms.get(room)).is_some_and(|r| r.encrypted) {
-            return Err("This room is encrypted. Writing in encrypted rooms comes to Mobius soon.".into());
-        }
+    /// In an encrypted room it is encrypted for every device of everyone in the room, which needs this device
+    /// verified (`crypto`).
+    pub fn send(&self, account: &str, s: &Session, room: &str, text: &str, thread: Option<&str>, crypto: Option<&Crypto>) -> Res<Value> {
+        let encrypted = lock(&self.synced).get(account).and_then(|x| x.rooms.get(room)).is_some_and(|r| r.encrypted);
+        let crypto = match crypto {
+            Some(c) if encrypted && c.verified() => Some(c),
+            _ if encrypted => return Err("This room is encrypted. Verify this computer in Settings, Messages to write in it.".into()),
+            _ => None,
+        };
         let mut content = json!({ "msgtype": "m.text", "body": text });
         if let Some(root) = thread {
             content["m.relates_to"] = json!({ "rel_type": "m.thread", "event_id": root, "is_falling_back": true, "m.in_reply_to": { "event_id": root } });
         }
         let txn = random_text(12)?;
-        let answer = self.call("PUT", &self.api(s, &["v3", "rooms", room, "send", "m.room.message", &txn], &[])?, Some(&s.access), Some(&content))?;
+        let (kind, content) = match crypto {
+            Some(c) => ("m.room.encrypted", self.encrypt_for_room(s, c, room, &content)?),
+            None => ("m.room.message", content),
+        };
+        let answer = self.call("PUT", &self.api(s, &["v3", "rooms", room, "send", kind, &txn], &[])?, Some(&s.access), Some(&content))?;
+        if let Some(c) = crypto {
+            // The room key is new or was given to more devices: it goes to the key backup too. A failure here
+            // leaves it for the next message; what was written is already sent.
+            let _ = self.back_up(s, c);
+        }
         let id = str_at(&answer, "/event_id").ok_or("The Matrix server did not say it was sent.")?;
         let names = self.known_names(account, room);
         let mut sent = json!({ "id": id, "channel": room, "author": { "id": s.user, "name": person(&s.user, &names), "me": true }, "text": text, "at": now() * 1000 });
@@ -777,6 +791,41 @@ impl Matrix {
                     c.sent(&id, &self.ruma(s, q)?)?;
                 }
             }
+        }
+        Ok(())
+    }
+
+    /// Encrypts a message for a room: first making sure every device of everyone in the room has this device's room
+    /// key, opening a one-to-one channel to each device that has none yet.
+    fn encrypt_for_room(&self, s: &Session, c: &Crypto, room: &str, content: &Value) -> Res<Value> {
+        use matrix_sdk_crypto::EncryptionSettings;
+        use ruma::api::client::to_device::send_event_to_device;
+        let room_id = ruma::RoomId::parse(room).map_err(|_| "That room can't be read.".to_owned())?;
+        let joined = self.call("GET", &self.api(s, &["v3", "rooms", room, "joined_members"], &[])?, Some(&s.access), None)?;
+        let members: Vec<ruma::OwnedUserId> = joined.get("joined").and_then(Value::as_object).into_iter().flatten().filter_map(|(u, _)| ruma::UserId::parse(u).ok()).collect();
+        c.block(c.machine().update_tracked_users(members.iter().map(|u| u.as_ref()))).map_err(|e| e.to_string())?;
+        // Asks which devices the members have.
+        self.send_outgoing(s, c)?;
+        if let Some((txn, claim)) = c.block(c.machine().get_missing_sessions(members.iter().map(|u| u.as_ref()))).map_err(|e| e.to_string())? {
+            c.sent(&txn, &self.ruma(s, claim)?)?;
+        }
+        let shares = c.block(c.machine().share_room_key(&room_id, members.iter().map(|u| u.as_ref()), EncryptionSettings::default())).map_err(|e| format!("This room's key could not be shared: {e}"))?;
+        for r in shares {
+            let q = send_event_to_device::v3::Request::new_raw(r.event_type.clone(), r.txn_id.clone(), r.messages.clone());
+            c.sent(&r.txn_id, &self.ruma(s, q)?)?;
+        }
+        c.encrypt(room, "m.room.message", content)
+    }
+
+    /// Sends room keys this device has that the key backup doesn't, when it has a key backup.
+    fn back_up(&self, s: &Session, c: &Crypto) -> Res<()> {
+        use ruma::api::client::backup::add_backup_keys;
+        // Each round sends a batch; the loop stops when nothing is left, or after enough rounds for a long while
+        // without a backup.
+        for _ in 0..32 {
+            let Some((txn, request)) = c.block(c.machine().backup_machine().backup()).map_err(|e| e.to_string())? else { return Ok(()) };
+            let q = add_backup_keys::v3::Request::new(request.version.clone(), request.rooms.clone());
+            c.sent(&txn, &self.ruma(s, q)?)?;
         }
         Ok(())
     }
@@ -1042,7 +1091,7 @@ pub(crate) mod tests {
         assert_eq!(matrix.history("acc", &s, "!ops:x", Some("$b"), None, 50, None).unwrap().len(), 2);
         let thread = matrix.history("acc", &s, "!ops:x", None, Some("$a"), 50, None).unwrap();
         assert_eq!(thread.iter().map(|m| m["text"].as_str().unwrap()).collect::<Vec<_>>(), ["The build is red", "Looking"]);
-        let sent = matrix.send("acc", &s, "!ops:x", "Fixed & green", Some("$a")).unwrap();
+        let sent = matrix.send("acc", &s, "!ops:x", "Fixed & green", Some("$a"), None).unwrap();
         assert_eq!((sent["id"].as_str(), sent["thread"].as_str(), sent["author"]["me"].as_bool()), (Some("$sent"), Some("$a"), Some(true)));
         matrix.mark_read("acc", &s, "!ops:x", "$b").unwrap();
         let log = log.lock().unwrap();
@@ -1057,7 +1106,7 @@ pub(crate) mod tests {
         let matrix = Arc::new(Matrix::new());
         let s = matrix.password_sign_in(&url, "ana", "pw").unwrap();
         matrix.channels("acc", &s, None).unwrap();
-        assert!(matrix.send("acc", &s, "!dm:x", "hi", None).unwrap_err().starts_with("This room is encrypted."));
+        assert!(matrix.send("acc", &s, "!dm:x", "hi", None, None).unwrap_err().starts_with("This room is encrypted."));
     }
 
     #[test]

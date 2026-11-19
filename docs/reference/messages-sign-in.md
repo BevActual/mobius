@@ -73,7 +73,10 @@ Nothing to register. Matrix is open: any homeserver lets a client sign in to it,
   "Encrypted: verify this device in Settings > Messages to read".
 - The encryption (`matrix-sdk-crypto`) keeps its state in a SQLite file per account, encrypted with a random key kept
   in the system secret store. The recovery key itself is never kept.
-- Not yet: verifying with emoji against another device, writing in encrypted rooms, and backing up new keys.
+- A verified device writes in encrypted rooms too. Each message is encrypted for every device of everyone in the room;
+  devices that don't have this device's room key yet get it first, over a one-to-one encrypted channel. New room keys
+  go to the key backup, so the person's other apps can read what Mobius wrote.
+- Not yet: verifying with emoji against another device.
 
 What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
 in Messages, read markers shared with the person's other devices, and Matrix bridges they already run (bridge labels
