@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { NoteHit, NotePage } from '@mobius/shared';
 import { hasTag, onShowTag, tagCounts } from './note-tags';
@@ -14,6 +14,24 @@ import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
 /** The words for Notes; Docs passes its own, since it keeps documents in folders the same way. */
 export interface SidebarWords { app: string; group: string; groups: string; item: string; items: string; about: string; /** Made when something is created before any group exists. */ defaultGroup?: string }
+/** How many of a notebook's pages are drawn at first, and how many more each time the list is scrolled near its end.
+ *  A notebook of thousands of pages then opens as fast as a short one (docs/developers/speed.md). */
+export const FIRST_ROWS = 100;
+const MORE_ROWS = 200;
+
+/** The end of a list drawn in part: when it scrolls into view, more rows are drawn. */
+function MoreRows({ onMore }: { onMore: () => void }) {
+  const end = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    const el = end.current;
+    if (!el || typeof IntersectionObserver === 'undefined') return;
+    const seen = new IntersectionObserver((entries) => { if (entries.some((e) => e.isIntersecting)) onMore(); }, { rootMargin: '400px 0px' });
+    seen.observe(el);
+    return () => seen.disconnect();
+  }, [onMore]);
+  return <li ref={end} className="side-more" aria-hidden="true" />;
+}
+
 /** A new page in `group`, or the first folder, or a folder made with the default name when there is none. */
 export function newItemIn(notes: NotesState, group: string | null | undefined, fallback?: string): void {
   const into = group || notes.notebooks[0]?.name;
@@ -69,6 +87,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [confirming, setConfirming] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage } | null>(null);
   const openNotebook = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
+  // Long notebooks are drawn in part, and more as the list is scrolled; the open page is always drawn.
+  const [rows, setRows] = useState(FIRST_ROWS);
+  const more = useCallback(() => setRows((n) => n + MORE_ROWS), []);
+  const drawn = (pages: NotePage[]) => {
+    const open = notes.page ? pages.findIndex((pg) => pg.path === notes.page?.path) : -1;
+    return pages.slice(0, Math.max(rows, open + 1));
+  };
 
   useEffect(() => {
     if (!query.trim()) { setHits(null); return; }
@@ -170,7 +195,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
               </button>
             </>}>
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
-              {nb.pages.map((pg) => pageRow(pg))}
+              {drawn(nb.pages).map((pg) => pageRow(pg))}
+              {nb.pages.length > drawn(nb.pages).length && <MoreRows onMore={more} />}
             </SidebarSection>
           ))}
           {!naming && (

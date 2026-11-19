@@ -124,7 +124,11 @@ test('start, switching apps, a long list and memory after long use stay within t
 
   // A long list: Notes opens with the 2,000-page notebook in its panel.
   measured('open a long list', await switchTo(shell, 'Notes', 'Notebooks'), 'ms');
-  await expect(shell.getByRole('complementary', { name: 'Notebooks' }).getByRole('button', { name: 'Page 0001', exact: true })).toBeVisible();
+  // It draws the first pages, and more as the list is scrolled to its end.
+  const archive = shell.getByRole('complementary', { name: 'Notebooks' }).getByRole('region', { name: 'Archive' });
+  await expect(archive.getByRole('listitem')).toHaveCount(100);
+  await archive.getByRole('listitem').last().scrollIntoViewIfNeeded();
+  await expect.poll(() => archive.getByRole('listitem').count()).toBeGreaterThan(100);
 
   // Switching apps: the first visit to each, then visits to apps already open.
   const first: number[] = [];
