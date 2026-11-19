@@ -30,6 +30,7 @@ pub mod matrix;
 pub mod matrix_crypto;
 pub mod matrix_verify;
 pub mod messages;
+pub mod messages_tools;
 pub mod slack;
 pub mod contact_accounts;
 pub mod drives;
