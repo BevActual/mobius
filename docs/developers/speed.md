@@ -57,6 +57,12 @@ lines in the log. It maps the time back to source files through the build's sour
 - **Playwright's injected script** (`visitNode`, `query`, `getBoundingClientRect` from its locators) makes up much of
   the rest. That is the test's cost, and it falls outside the measured window.
 
-So switching is mostly the price of drawing a whole new app. The way to cut it further is to keep apps the person has
-visited drawn but hidden (for example with `content-visibility: hidden`), so going back skips most of the style and
-layout work.
+So switching is mostly the price of drawing a whole new app.
+
+**An option, not taken (19 November 2026).** The way to cut switching further is to keep apps the person has visited
+mounted but hidden (for example with `content-visibility: hidden`), so going back skips most of the style and layout
+work. That would change every app's lifecycle: hidden apps keep their effects running, focus and keys need care, and
+memory goes up. All that for a few tens of milliseconds, when about 100 ms is already at the edge of feeling instant.
+It stays an option, to revisit if Andrew or a polish pass feels the switch. The switch budget is 150 ms. That is
+tighter than the first one, yet above the slowest median CI has shown at this size (144 ms), so a real regression
+fails while a slow runner does not.
