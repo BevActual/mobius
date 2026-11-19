@@ -1230,7 +1230,7 @@ export interface MobiusBridge {
 }
 
 /** A tool call that is waiting for a person to allow or decline it. */
-export interface AgentWaiting { requestId: number; callId: string; tool: string; arguments: unknown; onceOnly: boolean; /** The request came from something Mobius read, not from the person. */ origin?: string | null }
+export interface AgentWaiting { requestId: number; callId: string; tool: string; arguments: unknown; onceOnly: boolean; /** The request came from something Mobius read, not from the person. */ origin?: string | null; /** `origin` was only read before the call, which sends, deletes or shares; its arguments did not come from there. */ earlier?: boolean }
 
 export type AgentResult<T extends object = object> = ({ ok: true } & T) | { ok: false; error: string };
 
@@ -1594,7 +1594,7 @@ function validEvent(event: unknown): event is AgentEvent {
     case 'message': return isString(event.text);
     case 'tool_call': return isString(event.call_id) && isString(event.name);
     case 'tool_result': return isString(event.call_id) && isString(event.name) && typeof event.is_error === 'boolean';
-    case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean') && (event.origin === undefined || event.origin === null || typeof event.origin === 'string');
+    case 'needs_approval': return isCount(event.request_id) && isString(event.call_id) && isString(event.tool) && 'arguments' in event && (event.once_only === undefined || typeof event.once_only === 'boolean') && (event.origin === undefined || event.origin === null || typeof event.origin === 'string') && (event.earlier === undefined || typeof event.earlier === 'boolean');
     case 'failed': return isString(event.message);
     case 'compacted': return isCount(event.messages);
     case 'context': return isCount(event.used) && isCount(event.limit) && event.limit > 0;

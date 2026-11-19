@@ -5,6 +5,11 @@
 //! When a call that sends, pays, deletes, runs or opens a new site carries an argument that appears in something read
 //! (an address in an invite, a path in a page) and not in anything the person wrote, the call stops for the person in
 //! every mode, saying where the request came from.
+//!
+//! And once the conversation holds anything read from outside (an email, a page, a chat message, a file), a call that
+//! sends, deletes or shares stops for the person too, whatever its arguments and whatever the Permission setting,
+//! naming what was read. The read text is still in front of the model in later turns, so this holds for the whole
+//! conversation the model sees, not only the turn that read it.
 use serde_json::Value;
 
 use crate::message::Message;
@@ -62,7 +67,7 @@ pub fn unwrap(content: &str) -> Option<(&str, &str)> {
 /// Where a tool's result comes from, in a few words: the tool, and what it was asked for.
 fn source_of(tool: &str, arguments: &Value) -> String {
     let arg = |k: &str| arguments.get(k).and_then(Value::as_str).filter(|s| !s.is_empty());
-    match arg("url").or_else(|| arg("path")).or_else(|| arg("id")).or_else(|| arg("query")) {
+    match arg("url").or_else(|| arg("path")).or_else(|| arg("channel")).or_else(|| arg("id")).or_else(|| arg("query")) {
         Some(what) => format!("{tool} {}", what.chars().take(120).collect::<String>()),
         None => tool.to_owned(),
     }
@@ -79,6 +84,7 @@ fn kind_of(tool: &str) -> &'static str {
         "files" | "notes" | "docs" | "sheets" | "skills" => "a file",
         "bots" => "another agent's answer",
         "comments" => "a comment on a page",
+        "messages" | "chat" => "a chat message",
         "code" | "db" | "tasks" | "memory" | "schedules" => "a tool's answer",
         _ => "another app's answer",
     }
@@ -99,6 +105,64 @@ pub fn is_consequential(tool: &str, capability: &str, arguments: &Value) -> bool
     }
     ["action", "op", "operation", "change"].iter().any(|k| arguments.get(*k).and_then(Value::as_str).is_some_and(|v| ["delete", "remove", "send", "cancel"].contains(&v.to_ascii_lowercase().as_str())))
         || arguments.get("delete").and_then(Value::as_bool) == Some(true)
+}
+
+/// Whether a call sends, deletes or shares: what may never follow outside text without the person, even with arguments
+/// the person wrote. Narrower than `is_consequential`: making a draft, opening a page or running a test is not here.
+#[must_use]
+pub fn sends_deletes_or_shares(tool: &str, capability: &str, arguments: &Value) -> bool {
+    const CAPS: [&str; 3] = ["fs.delete", "mail.send", "code.push"];
+    if CAPS.contains(&capability) || capability.starts_with("payments.") || capability.ends_with(".send") || capability.ends_with(".share") || capability.ends_with(".delete") {
+        return true;
+    }
+    let name = tool.to_ascii_lowercase();
+    let verbs = ["send", "forward", "reply", "share", "invite", "post", "publish", "delete", "remove", "trash", "pay", "transfer"];
+    if name.rsplit('.').next().is_some_and(|last| verbs.iter().any(|v| last.contains(v))) {
+        return true;
+    }
+    ["action", "op", "operation", "change"].iter().any(|k| arguments.get(*k).and_then(Value::as_str).is_some_and(|v| ["delete", "remove", "send", "share", "forward"].contains(&v.to_ascii_lowercase().as_str())))
+        || arguments.get("delete").and_then(Value::as_bool) == Some(true)
+}
+
+/// Tools that read only what the person and Mobius keep for themselves: their tasks, memory, schedules, skills and
+/// address book. What these return is not outside text. Everything else read (mail, pages, chats, invites, files,
+/// drives, other agents and connectors) is.
+const OWN: [&str; 8] = ["tasks", "memory", "schedules", "skills", "contacts", "clock", "todo", "ask"];
+
+/// The newest thing read from outside that the model still has in front of it, in a few words: "Priya's email
+/// “Hello”", "a web page (example.com)", "a chat message (#general)".
+#[must_use]
+pub fn last_read(messages: &[Message]) -> Option<String> {
+    messages.iter().rev().find_map(|m| {
+        let Message::Tool { name, content, is_error: false, .. } = m else { return None };
+        if OWN.contains(&name.split('.').next().unwrap_or("")) {
+            return None;
+        }
+        let (source, inner) = unwrap(content)?;
+        if let Ok(Value::Object(map)) = serde_json::from_str::<Value>(inner)
+            && let Some(label) = label_of(&map, name)
+        {
+            return Some(label);
+        }
+        let what = source.split_once(' ').map(|(_, w)| w).filter(|w| !w.is_empty());
+        Some(what.map_or_else(|| kind_of(name).to_owned(), |w| format!("{} ({w})", kind_of(name))))
+    })
+}
+
+/// Why a call must stop for the person, if it must: what it came from, and whether only reading came first (the call's
+/// arguments are not in what was read, but it sends, deletes or shares after outside text) rather than its arguments
+/// being copied from what was read.
+#[must_use]
+pub fn asked_by(messages: &[Message], tool: &str, capability: &str, arguments: &Value) -> Option<(String, bool)> {
+    if is_consequential(tool, capability, arguments)
+        && let Some(from) = came_from(messages, arguments)
+    {
+        return Some((from, false));
+    }
+    if sends_deletes_or_shares(tool, capability, arguments) {
+        return last_read(messages).map(|read| (read, true));
+    }
+    None
 }
 
 /// The pieces of a call's arguments that could have been copied from read text: whole short values, and addresses,

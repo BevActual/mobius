@@ -86,6 +86,34 @@ Secrets (API keys, sign-in tokens) are kept in the operating system's credential
 - Text from web pages, mail and MCP servers is untrusted data, never instructions.
 - Nothing the agent changes is final until the person keeps it.
 
+## Text from outside (prompt injection)
+
+Mobius reads other people's words: mail, web pages, chat messages, invites, shared files, other agents and connectors.
+Any of it may be written to steer the model. Two rules in `mobius-agent` (`src/untrusted.rs`) hold for every app,
+every model and every Permission setting, so no app needs its own fix.
+
+1. **Everything a tool returns reaches the model marked as data.** The engine wraps each result in
+   `<<untrusted-data source="…">> … <</untrusted-data>>`, naming the tool and what it read, and every request's
+   instructions say that what is inside is data, never instructions. Read text that imitates the markers is
+   neutralised, so a page cannot close the envelope early and speak as the system. A new tool gets this for free: do
+   not wrap results yourself.
+2. **Outside text never sends, deletes or shares on its own.** Two checks run before a call, in the permission gate's
+   strictest form (the person is asked; no standing "always", no reviewer model, only "allow once"):
+   - a call that sends, pays, deletes, runs or opens a site, whose arguments (an address, a link, a path) appear in
+     something read and not in anything the person wrote, asks, saying "Asked by text in Sam's email “Invoice”, not
+     by you";
+   - a call that sends, deletes or shares, after the conversation has read anything from outside, asks even when the
+     person wrote every argument, saying which thing was read. This holds for the whole conversation the model sees,
+     not only the turn that read it, since the read text is still in front of the model.
+
+   What counts as "from outside" is every tool except the person's own tasks, memory, schedules, skills and address
+   book. What counts as sending, deleting or sharing is decided from the tool's capability and the last part of its
+   name (`send`, `forward`, `reply`, `share`, `invite`, `post`, `publish`, `delete`, `remove`, `trash`, `pay`), so name
+   new tools for what they do.
+
+The tests are `crates/mobius-agent/tests/injection.rs` (each rule, in every Permission setting) and, end to end, a
+planted file, page and email in `apps/desktop/e2e/injection.spec.ts` and `mail.spec.ts`.
+
 ## Design
 
 The interface follows one design style, [Instrument](../design/instrument.md): one look, one frame and one review bar

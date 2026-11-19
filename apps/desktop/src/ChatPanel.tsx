@@ -318,7 +318,9 @@ function ToolRow({ item, onAnswer, onDetails, onOpenItem }: { item: Extract<Item
       {item.status === 'waiting' && item.requestId !== undefined && (
         <div className="approval" role="group" aria-label={`Approval needed: ${item.name}`} data-final={finalNote(item.name) ? 'true' : undefined}>
           <p className="approval-head">Needs you</p>
-          {item.origin && <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>}
+          {item.origin && (item.earlier
+            ? <p className="approval-origin" role="note">Mobius read {item.origin} in this conversation. <span className="approval-why">Why: after reading text from outside, Mobius never sends, deletes or shares without you.</span></p>
+            : <p className="approval-origin" role="note">Asked by text in {item.origin}, not by you. <span className="approval-why">Why: this came from {item.origin}.</span></p>)}
           <p className="approval-text" title={item.name}>Mobius wants to {plainUse(item.name, item.args)}.{item.onceOnly ? ' You are asked every time for this.' : ''}</p>
           {(() => {
             // In plain words first, as the Approvals board asks: the text it would write, the statement it would run.

@@ -73,6 +73,10 @@ pub enum AgentEvent {
         #[serde(skip_serializing_if = "Option::is_none")]
         #[ts(optional)]
         origin: Option<String>,
+        /// The call's arguments were not taken from `origin`: it only sends, deletes or shares after Mobius read it.
+        #[serde(skip_serializing_if = "std::ops::Not::not")]
+        #[ts(as = "Option<bool>", optional)]
+        earlier: bool,
     },
     /// The model's plan for this task, the whole list each time it changes.
     Todo { items: Vec<TodoItem> },
@@ -171,6 +175,8 @@ struct Parked {
     reviewing: bool,
     /// Where the call's arguments came from, when it was something read.
     origin: Option<String>,
+    /// `origin` was only read before the call, which sends, deletes or shares: its arguments did not come from there.
+    earlier: bool,
     call: ToolCall,
     remaining: VecDeque<ToolCall>,
 }
@@ -443,6 +449,11 @@ impl Turn {
         self.parked.as_ref().and_then(|p| p.origin.as_deref())
     }
 
+    /// The parked call's origin was only read before it (it sends, deletes or shares), not where its arguments came from.
+    pub fn parked_earlier(&self) -> bool {
+        self.parked.as_ref().is_some_and(|p| p.earlier)
+    }
+
     /// The tool call that is waiting for a person's answer, if any.
     pub fn parked_call(&self) -> Option<&ToolCall> {
         self.parked.as_ref().map(|p| &p.call)
@@ -664,7 +675,7 @@ impl Engine {
         if turn.setup.read_only && !is_reading(capability.as_str()) {
             return false;
         }
-        if untrusted::is_consequential(&call.name, capability.as_str(), &call.arguments) && untrusted::came_from(&turn.messages, &call.arguments).is_some() {
+        if untrusted::asked_by(&turn.messages, &call.name, capability.as_str(), &call.arguments).is_some() {
             return false;
         }
         core.would_run_in(&self.config.principal, &call.name, &call.arguments, turn.setup.project.as_deref())
@@ -1029,7 +1040,9 @@ impl Engine {
             }
             // Arguments that came from something read, for a call that sends, pays, deletes, runs or opens a site:
             // the person decides, every time and in every mode, told where the request came from.
-            let origin = core.capability_of(&call.name).filter(|c| untrusted::is_consequential(&call.name, c.as_str(), &call.arguments)).and_then(|_| untrusted::came_from(&turn.messages, &call.arguments));
+            // And one that sends, deletes or shares after the conversation read anything from outside, whoever chose
+            // its arguments.
+            let origin = core.capability_of(&call.name).and_then(|c| untrusted::asked_by(&turn.messages, &call.name, c.as_str(), &call.arguments));
             match self.execute(core, &call, origin.is_some(), turn.setup.project.as_deref()) {
                 Executed::Result { content, is_error } => self.push_result(turn, &call, content, is_error),
                 Executed::Dispatch => {
@@ -1054,7 +1067,7 @@ impl Engine {
                     // stop as Needs you, every time.
                     if origin.is_none() && core.approval_mode() == ApprovalMode::Smart && !core.is_person_only(request_id) && !core.is_once_only(request_id) {
                         let request = review_request(turn.setup.model.as_deref().unwrap_or(&self.config.model), &call);
-                        turn.parked = Some(Parked { request_id, once_only: core.is_once_only(request_id), reviewing: true, origin: None, call, remaining: queue });
+                        turn.parked = Some(Parked { request_id, once_only: core.is_once_only(request_id), reviewing: true, origin: None, earlier: false, call, remaining: queue });
                         return Step::Review { request_id, request };
                     }
                     return self.ask(turn, core, request_id, call, queue, origin);
@@ -1076,10 +1089,11 @@ impl Engine {
     }
 
     /// Put the question to the person.
-    fn ask(&self, turn: &mut Turn, core: &Core, request_id: u64, call: ToolCall, remaining: VecDeque<ToolCall>, origin: Option<String>) -> Step {
+    fn ask(&self, turn: &mut Turn, core: &Core, request_id: u64, call: ToolCall, remaining: VecDeque<ToolCall>, origin: Option<(String, bool)>) -> Step {
         let once_only = core.is_once_only(request_id);
-        turn.events.push(AgentEvent::NeedsApproval { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only, origin: origin.clone() });
-        turn.parked = Some(Parked { request_id, once_only, reviewing: false, origin, call, remaining });
+        let (origin, earlier) = origin.map_or((None, false), |(o, e)| (Some(o), e));
+        turn.events.push(AgentEvent::NeedsApproval { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only, origin: origin.clone(), earlier });
+        turn.parked = Some(Parked { request_id, once_only, reviewing: false, origin, earlier, call, remaining });
         Step::AwaitApproval { request_id }
     }
 

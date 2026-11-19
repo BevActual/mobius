@@ -9,4 +9,8 @@ once_only: boolean,
 /**
  * The request came from something Mobius read, not from the person: "Priya's invite “Dinner”".
  */
-origin?: string, } | { "kind": "todo", items: Array<TodoItem>, } | { "kind": "paused", step: number, of?: number, } | { "kind": "resumed" } | { "kind": "question", call_id: string, question: string, choices: Array<string>, } | { "kind": "compacted", messages: number, } | { "kind": "context", used: number, limit: number, } | { "kind": "done" } | { "kind": "failed", message: string, } | { "kind": "cancelled" };
+origin?: string, 
+/**
+ * The call's arguments were not taken from `origin`: it only sends, deletes or shares after Mobius read it.
+ */
+earlier?: boolean, } | { "kind": "todo", items: Array<TodoItem>, } | { "kind": "paused", step: number, of?: number, } | { "kind": "resumed" } | { "kind": "question", call_id: string, question: string, choices: Array<string>, } | { "kind": "compacted", messages: number, } | { "kind": "context", used: number, limit: number, } | { "kind": "done" } | { "kind": "failed", message: string, } | { "kind": "cancelled" };

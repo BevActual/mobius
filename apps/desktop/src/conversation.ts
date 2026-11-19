@@ -14,7 +14,7 @@ export type ToolStatus = 'running' | 'waiting' | 'done' | 'failed' | 'declined' 
 export type Item =
   | { kind: 'user'; id: string; text: string; attachments?: ContextItem[]; images?: string[]; /** When it was sent, in milliseconds; older conversations have none. */ at?: number; /** The model it was sent to, named under the reply; older conversations have none. */ model?: string }
   | { kind: 'assistant'; id: string; text: string; streaming: boolean }
-  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean; /** What it was read in, when the request came from there and not from the person. */ origin?: string }
+  | { kind: 'tool'; id: string; callId: string; name: string; status: ToolStatus; requestId?: number; args?: unknown; onceOnly?: boolean; /** What it was read in, when the request came from there and not from the person. */ origin?: string; /** `origin` was only read before the call (it sends, deletes or shares), not where its arguments came from. */ earlier?: boolean }
   | { kind: 'error'; id: string; text: string; /** The turn itself failed (the model or the core), not just a message that could not go. */ failed?: boolean }
   /** Something the person should know that is not part of the conversation itself. */
   | { kind: 'notice'; id: string; text: string }
@@ -182,7 +182,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
       for (const request of action.requests) {
         const known = next.items.some((item) => item.kind === 'tool' && item.callId === request.callId);
         if (!known) next = withItem(next, (id) => ({ kind: 'tool', id, callId: request.callId, name: request.tool, status: 'running' }));
-        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly, ...(request.origin ? { origin: request.origin } : {}) }));
+        next = updateTool(next, (item) => item.callId === request.callId, (item) => ({ ...item, status: 'waiting', requestId: request.requestId, args: request.arguments, onceOnly: request.onceOnly, ...(request.origin ? { origin: request.origin, earlier: request.earlier === true } : {}) }));
         next = { ...next, busy: true };
       }
       return next;
@@ -234,7 +234,7 @@ export function reduce(state: ConversationState, action: ConversationAction): Co
         case 'needs_approval': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
           const withTool = known ? base : withItem(base, (id) => ({ kind: 'tool', id, callId: event.call_id, name: event.tool, status: 'running' }));
-          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true, ...(event.origin ? { origin: event.origin } : {}) }));
+          return updateTool(withTool, (item) => item.callId === event.call_id, (item) => ({ ...item, status: 'waiting', requestId: event.request_id, args: event.arguments, onceOnly: event.once_only === true, ...(event.origin ? { origin: event.origin, earlier: event.earlier === true } : {}) }));
         }
         case 'tool_result': {
           const known = base.items.some((item) => item.kind === 'tool' && item.callId === event.call_id);
