@@ -98,6 +98,7 @@ import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
+import { useDailyLauncherSources } from './app-launcher';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -1344,6 +1345,14 @@ export function App() {
   launcherCommands.push({ id: 'open-agents', label: 'Agents', detail: 'Your named agents', run: () => { closeSettings(); setSideMode('bots'); openApp('agent'); } });
   launcherCommands.push({ id: 'all-apps', label: 'All apps', detail: 'Every app, with what is happening in it', run: openHub });
   launcherCommands.push({ id: 'open-activity', label: 'Activity', detail: 'What Mobius did, and what needs you', run: () => { closeSettings(); setSideMode('activity'); openApp('agent'); } });
+  // Apps lead: Mail, Calendar, Tasks, Notes, Docs and Files take part in the launcher (app-launcher.ts).
+  useDailyLauncherSources({
+    openTarget: (target, label) => { opener.current = null; closeSettings(); openTarget(target, label); },
+    composeTo: (email) => { opener.current = null; closeSettings(); openApp('mail'); mail.compose(); mail.setEditing((e) => (e ? { ...e, to: email } : e)); },
+    tasksView: (id) => { opener.current = null; closeSettings(); tasks.setView({ kind: 'smart', id }); openApp('tasks'); },
+    calendarToday: () => { opener.current = null; closeSettings(); calendar.setAnchor(new Date()); openApp('calendar'); },
+    filesTrash: () => { opener.current = null; closeSettings(); files.setPlace({ kind: 'trash' }); openApp('files'); },
+  });
   // And what each app registered with the launcher (launcher-sources.ts).
   const allCommands = sourceCommands(launcherCommands);
   // What the launcher does, the same from Ctrl+K and from the launcher's own window over other apps.
