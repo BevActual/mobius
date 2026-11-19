@@ -65,6 +65,42 @@ test('a new document is written on the page with formatting and kept as Markdown
   await expect(editor().locator('.doc-status')).toHaveCount(0);
 });
 
+test('Ctrl+F finds in the page and Ctrl+H replaces one or all, kept in the file and undone in one step', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start();
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await page().click();
+  await shell().keyboard.press('Control+f');
+  const bar = editor().getByRole('search', { name: 'Find in page' });
+  await bar.getByRole('textbox', { name: 'Find in page' }).fill('the');
+  await expect(bar.getByRole('status')).toHaveText(/of 5$/);
+  await expect(editor().locator('.find-hit')).toHaveCount(5);
+  await bar.getByRole('button', { name: 'Match case' }).click();
+  await bar.getByRole('textbox', { name: 'Find in page' }).fill('ferry');
+  await expect(bar.getByRole('status')).toHaveText('No matches');
+  // Ctrl+H adds the Replace line to the same bar.
+  await shell().keyboard.press('Control+h');
+  const both = editor().getByRole('search', { name: 'Find and replace' });
+  await both.getByRole('textbox', { name: 'Find in page' }).fill('13th');
+  await both.getByRole('textbox', { name: 'Replace with' }).fill('14th');
+  await both.getByRole('button', { name: 'Replace', exact: true }).click();
+  await expect(page()).toContainText('Plan on the 14th');
+  await both.getByRole('textbox', { name: 'Find in page' }).fill('the ');
+  await both.getByRole('textbox', { name: 'Replace with' }).fill('our ');
+  await both.getByRole('button', { name: 'Replace all' }).click();
+  await expect(both.getByRole('status')).toHaveText('Replaced 4');
+  await expect.poll(() => fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toContain('Arrive on our 12th');
+  // Esc closes the bar and clears the highlights; one Undo puts every replacement back.
+  await both.getByRole('textbox', { name: 'Replace with' }).press('Escape');
+  await expect(editor().getByRole('search')).toHaveCount(0);
+  await expect(editor().locator('.find-hit')).toHaveCount(0);
+  await shell().keyboard.press('Control+z');
+  await expect(page()).toContainText('Arrive on the 12th');
+  await expect(page()).toContainText('Plan on the 14th');
+});
+
 test('a writing tool asks Mobius, and its changes are marked in the page, each kept or discarded on its own', async () => {
   fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
