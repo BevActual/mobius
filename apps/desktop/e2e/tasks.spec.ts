@@ -158,11 +158,15 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   fs.writeFileSync(file('Garden'), '# Garden\n\n');
   await start();
   await lists().getByRole('button', { name: /^Home/ }).click();
-  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  // The row's tools show on hover, after its date and flag.
+  await page().getByRole('button', { name: 'Paint the door', exact: true }).hover();
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click();
   // Hiding the panel puts the task down; picking it again brings Details back.
   await shell().getByRole('button', { name: 'Hide Details' }).click();
   await expect(shell().getByRole('complementary', { name: 'Details' })).toHaveCount(0);
-  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  // The row's tools show on hover, after its date and flag.
+  await page().getByRole('button', { name: 'Paint the door', exact: true }).hover();
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click();
   const details = shell().getByRole('complementary', { name: 'Details' });
   await details.getByRole('textbox', { name: 'Notes' }).fill('White, not grey.');
   await details.getByRole('switch', { name: 'Flagged' }).click();
@@ -202,7 +206,9 @@ test('a date said in words becomes the due date, and a deleted task or list come
   await field.press('Enter');
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain('- [ ] Read Friday\n');
 
-  await page().getByRole('button', { name: 'Details for Paint the door' }).click({ force: true });
+  // The row's tools show on hover, after its date and flag.
+  await page().getByRole('button', { name: 'Paint the door', exact: true }).hover();
+  await page().getByRole('button', { name: 'Details for Paint the door' }).click();
   await details().getByRole('button', { name: 'Delete task' }).click();
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).not.toContain('Paint the door');
   await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
@@ -287,7 +293,9 @@ test('a task can have a time and repeat: typed in words, set in Details, and tic
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toContain(`- [ ] Call the plumber (due ${day(1)} 15:00)`);
 
   // Details: a date, then a time and a repeat; no date clears the time too.
-  await page().getByRole('button', { name: 'Details for Fix the tap' }).click({ force: true });
+  // The row's tools show on hover, after its date and flag.
+  await page().getByRole('button', { name: 'Fix the tap', exact: true }).hover();
+  await page().getByRole('button', { name: 'Details for Fix the tap' }).click();
   const details = shell().getByRole('complementary', { name: 'Details' });
   await details.getByRole('button', { name: 'Tomorrow', exact: true }).click();
   // Time is the shared time field: type it, and leaving the field keeps it.
