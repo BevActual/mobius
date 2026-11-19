@@ -108,7 +108,8 @@ export function nest(tasks: readonly TaskItem[]): { task: TaskItem; subtasks: Ta
 
 /** Each list keeps a colour, as in Apple's Reminders: Inbox is blue, the rest take one from their name. */
 // Each a hue of its own, apart from Inbox's blue: no second blue (indigo drew as blue) and no grey (brown read as no colour).
-export const LIST_COLORS = ['orange', 'green', 'purple', 'pink', 'teal', 'red', 'yellow'] as const;
+// Violet comes last, so a list is seldom drawn beside Mobius's own indigo.
+export const LIST_COLORS = ['orange', 'green', 'pink', 'teal', 'red', 'yellow', 'purple'] as const;
 export type ListColor = 'blue' | (typeof LIST_COLORS)[number];
 export function listColor(name: string): ListColor {
   if (name === DEFAULT_LIST_NAME) return 'blue';
