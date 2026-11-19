@@ -19,7 +19,7 @@
 .bot-row .clist-main { min-width: 0; }
 .bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bot-row .clist-sub { display: block; }
-.bot-mark { display: inline-grid; place-items: center; flex: none; width: 32px; height: 32px; color: var(--mobius); }
+.bot-mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; color: var(--mobius); }
 .bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .bot-more svg { width: 16px; height: 16px; fill: currentColor; }
 .ui-side-row-trail:hover > .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
