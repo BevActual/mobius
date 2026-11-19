@@ -364,3 +364,23 @@ test('Share exports the page as Markdown, with its pictures, and as one web page
   expect(html).toContain('<title>Battery</title>');
   expect(html).toContain('src="data:image/png;base64,');
 });
+
+test("Today's note makes a dated page in Journal once, and opens that same page after", async () => {
+  await start();
+  const d = new Date();
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  await notesMenu('Today’s note');
+  await expect(text().locator('h1')).toHaveText(day);
+  await expect.poll(() => (fs.existsSync(file('Journal')) ? fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md')) : [])).toEqual([`${day}.md`]);
+  await text().locator('h1').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('Called Veltro.');
+  await expect.poll(() => onDisk('Journal', `${day}.md`)).toContain('Called Veltro.');
+  // From anywhere, Ctrl+K "Today's note" opens the same page rather than making another.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Today’s note');
+  await shell().getByRole('option', { name: /Today’s note/ }).first().click();
+  await expect(text()).toContainText('Called Veltro.');
+  expect(fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md'))).toEqual([`${day}.md`]);
+});

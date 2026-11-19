@@ -30,3 +30,18 @@ export function liveTitle(content: string, fallback: string): string {
   }
   return fallback;
 }
+
+/** The notebook that holds the dated notes Today's note makes. */
+export const JOURNAL = 'Journal';
+
+/** Today's note's title: the day as 2026-11-19, which sorts by date and reads the same everywhere. */
+export function todayNoteTitle(now: Date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/** Today's note in the Journal, if it was made already. */
+export function findTodayNote<P extends { title: string; path: string }>(notebooks: readonly { name: string; pages: readonly P[] }[], now: Date = new Date()): P | undefined {
+  const title = todayNoteTitle(now);
+  return notebooks.find((nb) => nb.name === JOURNAL)?.pages.find((pg) => pg.title === title);
+}
