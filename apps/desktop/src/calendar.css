@@ -241,3 +241,19 @@
 /* Someone invited: a link-like name that opens the Person panel. */
 .cal-invitee { padding: 0; border: 0; background: none; color: var(--ink); font: inherit; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 2px; cursor: pointer; }
 .cal-invitee:hover { text-decoration-color: currentColor; }
+
+/* The small month at the top of the Calendars panel. */
+.cal-mini { padding: var(--sp-2) var(--sp-2) var(--sp-3); }
+.cal-mini-head { display: flex; align-items: center; gap: var(--sp-1); padding: 0 var(--sp-1) var(--sp-1); }
+.cal-mini-head strong { flex: 1; font-size: var(--fs-sm); font-weight: var(--fw-semibold); }
+.cal-mini-grid { display: grid; grid-template-columns: repeat(7, 1fr); row-gap: 1px; text-align: center; }
+.cal-mini-weekday { font-size: var(--fs-xs); color: var(--muted); padding-bottom: 2px; }
+.cal-mini-day { height: 26px; border: 0; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; cursor: default; }
+.cal-mini-day:hover { background: var(--soft); }
+.cal-mini-day[data-other] { color: var(--muted); }
+.cal-mini-day[data-shown] { background: var(--sel); border-radius: 0; }
+.cal-mini-day[data-today] { color: var(--paper); background: var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
+.cal-mini-day:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+
+/* A timed event an hour or longer has room for its title on two lines. */
+.calendar-page .cal-column > .cal-event[data-tall] b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
