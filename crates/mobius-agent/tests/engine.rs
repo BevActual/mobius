@@ -160,7 +160,7 @@ fn a_tool_that_needs_approval_parks_the_turn_and_resumes_when_approved() {
     assert_eq!(turn.parked_request(), Some(request_id));
     assert_eq!(w.core.pending().len(), 1);
     assert_eq!(w.runs.load(Ordering::SeqCst), 0, "nothing ran before approval");
-    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }));
+    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None, earlier: false }));
 
     w.core.resolve(request_id, true, Duration::Once).unwrap();
     let step = w.engine.on_approval(&mut turn, &mut w.core, request_id, true);
@@ -513,7 +513,7 @@ fn a_deny_from_the_reviewer_asks_the_person_who_can_allow_it_once_but_never_alwa
     assert_eq!(step, Step::AwaitApproval { request_id });
     assert!(!turn.is_reviewing());
     assert!(turn.parked_once_only());
-    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None }));
+    assert!(turn.drain_events().contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None, earlier: false }));
     assert_eq!(w.runs.load(Ordering::SeqCst), 0, "a deny does not run anything");
     assert!(w.core.resolve(request_id, true, Duration::Always).is_err());
     w.core.resolve(request_id, true, Duration::Once).unwrap();
@@ -537,7 +537,7 @@ fn unsure_wordy_empty_or_failed_reviews_all_ask_the_person_normally() {
         assert_eq!(step, Step::AwaitApproval { request_id }, "{answer:?}");
         assert!(!turn.parked_once_only(), "an unsure review does not narrow the answer");
         let events = turn.drain_events();
-        assert!(events.contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }));
+        assert!(events.contains(&AgentEvent::NeedsApproval { request_id, call_id: "c1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None, earlier: false }));
         assert_eq!(w.runs.load(Ordering::SeqCst), 0);
         assert!(!format!("{events:?}").contains("SECRET-DETAIL"));
     }

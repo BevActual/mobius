@@ -334,7 +334,7 @@ fn the_history_includes_the_turn_in_progress_and_the_parked_call_can_be_found() 
     let request_id = notices(&outs).iter().find_map(|n| n["params"]["event"]["request_id"].as_u64()).unwrap();
     let history = host.history("c1");
     assert!(matches!(history.last(), Some(Message::Assistant { tool_calls, .. }) if tool_calls[0].id == "call1"));
-    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None }]);
+    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: false, origin: None, earlier: false }]);
     assert!(host.waiting("other").is_empty());
 
     core.resolve(request_id, true, Duration::Once).unwrap();
@@ -683,7 +683,7 @@ fn a_review_that_says_deny_leaves_a_once_only_question_for_the_person() {
     let (_, request_id, _) = review_of(&outs).unwrap();
     let outs = host.review_result(&mut core, turn_id, request_id, text("DENY"));
     assert!(kinds(&outs).iter().any(|k| k == "needs_approval"));
-    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None }]);
+    assert_eq!(host.waiting("c1"), [Waiting { request_id, call_id: "call1".into(), tool: "demo.echo".into(), arguments: json!({ "text": "hi" }), once_only: true, origin: None, earlier: false }]);
     assert_eq!(host.conversations()[0].activity, Activity::NeedsYou);
 }
 
