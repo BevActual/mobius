@@ -178,3 +178,9 @@
 /* First run: the model choice under the welcome (ChatPanel). */
 .first-run-models { display: grid; gap: var(--sp-3); width: 100%; max-width: 420px; margin: 0 auto; padding: 0 var(--sp-4) var(--sp-4); box-sizing: border-box; }
 .first-run-models > .btn.link { justify-self: start; }
+/* In the Mobius panel's width each service is two lines: its name and what it is, then where it stands and its buttons. */
+.first-run-models .prow { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.first-run-models .prow-main, .first-run-models .prow-form, .first-run-models .prow-problem { flex: 1 0 100%; }
+.first-run-models .prow-status { flex: 1 1 auto; white-space: normal; }
+.first-run-models .prow-actions { flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+.first-run-models .prow-actions .btn { white-space: nowrap; }
