@@ -10,8 +10,10 @@ export interface DeskRow {
   app: AppId;
   /** The thing itself: an event, a task, a page, who wrote. Rows without one show only the detail. */
   item?: string;
-  /** A few words about it ("10:00 · 3 today", "12 unread"). */
+  /** A few words about it ("10:00", "12 unread"). */
   text: string;
+  /** A quiet second line under those words ("+2 more today"). */
+  more?: string;
   /** Where a press goes; without one the app opens as it was left. */
   target?: HubTarget;
 }
@@ -68,7 +70,7 @@ export function deskAppRows(s: DeskSources, now: Date): DeskRow[] {
     const next = today[0]!;
     const begun = !next.allDay && localDate(next.start).getTime() <= now.getTime();
     const when = next.allDay ? 'All day' : begun ? 'Now' : timeLabel(localDate(next.start));
-    rows.push({ app: 'calendar', item: next.title || 'Event', text: today.length > 1 ? `${when} · ${today.length} today` : when, target: { app: 'calendar', date: next.start.slice(0, 10) } });
+    rows.push({ app: 'calendar', item: next.title || 'Event', text: when, ...(today.length > 1 ? { more: `+${today.length - 1} more today` } : {}), target: { app: 'calendar', date: next.start.slice(0, 10) } });
   }
   if (s.dueToday.length > 0) {
     const first = s.dueToday[0]!;

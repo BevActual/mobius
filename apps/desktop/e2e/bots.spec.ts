@@ -246,12 +246,12 @@ test('searching the sessions shows only matches, even inside a folded group', as
   await say('pears are green');
   await expect(log().locator('.msg.assistant')).toHaveText('two');
   await list().getByRole('button', { name: /^Writer/ }).first().click();
-  const search = list().getByRole('searchbox', { name: 'Search sessions' });
+  const search = list().getByRole('searchbox', { name: 'Search chats' });
   await search.fill('PEARS');
   await expect(list()).toContainText('pears are green');
   await expect(list()).not.toContainText('apples are red');
   await search.fill('nothing like this');
-  await expect(list()).toContainText('No session matches');
+  await expect(list()).toContainText('No chat matches');
   await search.fill('');
   await expect(list()).toContainText('apples are red');
 });
@@ -296,10 +296,11 @@ test('a conversation can be made a bot: its form is filled in from it, says what
   await say('Look at my tasks and calendar and plan the week');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Here is your week.');
   await goToPlace(shell(), 'Home');
-  // The row's own buttons show on hover, as Archive and Delete do.
+  // The row's More menu, shown on hover beside Archive, has Make into an agent and Delete.
   const row = list().getByRole('listitem').filter({ hasText: 'Look at my tasks and calendar' }).first();
   await row.hover();
-  await row.getByRole('button', { name: /^Make .* an agent$/ }).click();
+  await row.getByRole('button', { name: /^More for / }).click();
+  await shell().getByRole('menuitem', { name: 'Make into an agent' }).click();
   const form = shell().getByRole('form', { name: 'New agent' });
   await shows('Agents');
   await expect(form.getByRole('textbox').nth(1)).toHaveValue(/Look at my tasks and calendar and plan the week/);

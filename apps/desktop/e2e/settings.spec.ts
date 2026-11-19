@@ -209,7 +209,7 @@ test('browser: sites you allowed are listed by site and can be removed', async (
 /** A new conversation, from the panel's All chats list. */
 async function newConversation(): Promise<void> {
   await shell().getByRole('button', { name: 'All chats' }).click();
-  await shell().getByRole('menu', { name: 'Conversations' }).getByRole('menuitem', { name: 'New conversation' }).click();
+  await shell().getByRole('menu', { name: 'Conversations' }).getByRole('menuitem', { name: 'New chat' }).click();
 }
 
 test('conversations are saved across restarts, listed, reopened and deleted', async () => {
@@ -254,7 +254,7 @@ test('the conversation menu in the panel switches between conversations and star
   await expect(log().locator('.msg.assistant')).toHaveText('Beta reply.');
   await shell().getByRole('button', { name: 'All chats' }).click();
   const menu = shell().getByRole('menu', { name: 'Conversations' });
-  await expect(menu.getByRole('menuitem')).toContainText(['New conversation', 'Beta topic', 'Alpha topic']);
+  await expect(menu.getByRole('menuitem')).toContainText(['New chat', 'Beta topic', 'Alpha topic']);
   await menu.getByRole('menuitem', { name: /Alpha topic/ }).click();
   await expect(menu).toHaveCount(0);
   await expect(log().locator('.msg.user')).toHaveText('Alpha topic');

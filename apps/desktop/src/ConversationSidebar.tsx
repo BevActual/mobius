@@ -53,11 +53,19 @@ function readCollapsed(): string[] {
 const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you', failed: 'Failed' } as const;
 const ACTIVITY_TONE = { working: 'good', needs_you: 'warn', failed: 'bad' } as const;
 
-function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => Promise<string | null>; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
-  const [confirming, setConfirming] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
+function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => void; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
+  // The row's hover button first, then the rest; Delete last, in red, and undone from the bar it leaves.
+  const items: ContextMenuItem[] = [
+    ...(onArchive ? [{ label: isArchived ? 'Bring back' : 'Archive', run: () => onArchive(!isArchived) }] : []),
+    ...(onMakeBot ? [{ label: 'Make into an agent', run: onMakeBot }] : []),
+    { action: 'delete' as const, danger: true, separated: !!(onArchive || onMakeBot), run: onDelete },
+  ];
+  const openAt = (r: DOMRect) => setMenu({ x: r.left, y: r.bottom + 4 });
   return (
-    <li className="clist-item" data-current={current || undefined}>
+    <li className="clist-item" data-current={current || undefined}
+      onContextMenu={(e) => { e.preventDefault(); setMenu(e.clientX === 0 && e.clientY === 0 ? (() => { const r = e.currentTarget.getBoundingClientRect(); return { x: r.left + 12, y: r.bottom }; })() : { x: e.clientX, y: e.clientY }); }}
+      onKeyDown={(e) => { if (e.key === 'ContextMenu' || (e.shiftKey && e.key === 'F10')) { e.preventDefault(); openAt(e.currentTarget.getBoundingClientRect()); } }}>
       <button type="button" className="clist-main" aria-current={current ? 'true' : undefined} onClick={onSelect}>
         <span className="clist-title">{conversation.title}</span>
         <span className="clist-sub">
@@ -65,31 +73,61 @@ function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived,
           {relativeTime(conversation.updated_ms, Date.now())}
         </span>
       </button>
-      {confirming ? (
-        <span className="clist-confirm">
-          <button type="button" className="btn danger" onClick={() => void onDelete().then((error) => { setProblem(error); setConfirming(false); })}>Confirm delete</button>
-          <button type="button" className="btn" onClick={() => setConfirming(false)}>Cancel</button>
-        </span>
-      ) : (
-        <>
-          {onMakeBot && (
-            <button type="button" className="clist-delete" aria-label={`Make ${conversation.title} an agent`} title="Make this an agent" onClick={onMakeBot}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></svg>
-            </button>
-          )}
-          {onArchive && (
-            <button type="button" className="clist-delete" aria-label={`${isArchived ? 'Unarchive' : 'Archive'} ${conversation.title}`} title={isArchived ? 'Bring back' : 'Put away'} onClick={() => onArchive(!isArchived)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v3H3zM4 8v8h12V8M8 11h4" /></svg>
-            </button>
-          )}
-        <button type="button" className="clist-delete" aria-label={`Delete ${conversation.title}`} title="Delete" onClick={() => setConfirming(true)}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6h10M8 6V4h4v2M7 6l.5 10h5L13 6" /></svg>
+      {onArchive && (
+        <button type="button" className="clist-delete" aria-label={`${isArchived ? 'Unarchive' : 'Archive'} ${conversation.title}`} title={isArchived ? 'Bring back' : 'Put away'} onClick={() => onArchive(!isArchived)}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5h14v3H3zM4 8v8h12V8M8 11h4" /></svg>
         </button>
-        </>
       )}
-      {problem && <span className="field-error" role="alert">{problem}</span>}
+      <button type="button" className="clist-delete" aria-label={`More for ${conversation.title}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More (Shift+F10)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
+        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.2" /><circle cx="10" cy="10" r="1.2" /><circle cx="15" cy="10" r="1.2" /></svg>
+      </button>
+      {menu && createPortal(<ContextMenu x={menu.x} y={menu.y} label={conversation.title} items={items} onClose={() => setMenu(null)} />, document.body)}
     </li>
   );
+}
+
+/**
+ * Delete with Undo: the chat leaves the list at once, and is deleted only once the bar has gone (or another is deleted,
+ * or the list closes). Undo puts it back as it was.
+ */
+function useUndoableDelete(onDelete: (id: string) => Promise<string | null>) {
+  const [gone, setGone] = useState<{ id: string; title: string } | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+  const pending = useRef<{ id: string; timer: number } | null>(null);
+  const run = useRef(onDelete);
+  run.current = onDelete;
+  const flush = () => {
+    const p = pending.current;
+    if (!p) return;
+    window.clearTimeout(p.timer);
+    pending.current = null;
+    void run.current(p.id).then((error) => { if (error) setProblem(error); });
+  };
+  useEffect(() => flush, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const remove = (c: ConversationInfo) => {
+    flush();
+    setProblem(null);
+    const timer = window.setTimeout(() => { flush(); setGone(null); }, 6000);
+    pending.current = { id: c.id, timer };
+    setGone({ id: c.id, title: c.title });
+  };
+  const undo = () => {
+    if (pending.current) window.clearTimeout(pending.current.timer);
+    pending.current = null;
+    setGone(null);
+  };
+  const bar = (
+    <>
+      {gone && (
+        <p className="clist-undo" role="status">
+          <span>Deleted “{gone.title}”</span>
+          <button type="button" className="review-btn" onClick={undo}>Undo</button>
+        </p>
+      )}
+      {problem && <p className="field-error clist-undo" role="alert">{problem}</p>}
+    </>
+  );
+  return { hidden: gone?.id ?? null, remove, bar };
 }
 
 /** How many sessions, in words: "No sessions", "1 session", "4 sessions". */
@@ -260,13 +298,13 @@ export function ChangesWaiting({ conversations, onSelect, onRows, glyph }: {
 }
 
 /** The Activity tab: what needs you, what is running, what is scheduled, and what finished today. */
-function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedules }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onDelete: (id: string) => Promise<string | null>; onOpenSchedules?: () => void }) {
+function ActivityBoard({ conversations, active, onSelect, onDelete, onOpenSchedules }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onDelete: (conversation: ConversationInfo) => void; onOpenSchedules?: () => void }) {
   const board = activityBoard(conversations, new Date());
   const group = (label: string, list: ConversationInfo[]) => list.length > 0 && (
     <section aria-label={label}>
       <h3 className="clist-group"><span className="group-toggle"><span>{label}</span><span className="group-count">{list.length}</span></span></h3>
       <ul className="clist" role="list" aria-label={label}>
-        {list.map((conversation) => <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation.id)} />)}
+        {list.map((conversation) => <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation)} />)}
       </ul>
     </section>
   );
@@ -305,9 +343,12 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const activeBot = botOfConversation(active, known);
   // The agent whose page is open: the one chosen, or else the one you are talking to.
   const shownBot = agentView === null ? activeBot : agentView.kind === 'show' ? agentView.id : null;
-  const grouped = bots.length > 1;
-  const conversations = everything.filter((c) => !archived.includes(c.id));
-  const putAway = everything.filter((c) => archived.includes(c.id));
+  const del = useUndoableDelete(onDelete);
+  const shown = everything.filter((c) => c.id !== del.hidden);
+  const conversations = shown.filter((c) => !archived.includes(c.id));
+  const putAway = shown.filter((c) => archived.includes(c.id));
+  // Agents' groups only once more than one agent has chats: with one, its heading only repeats the panel's.
+  const grouped = bots.filter((bot) => conversations.some((c) => botOfConversation(c.id, known) === bot.id)).length > 1;
   const [showArchived, setShowArchived] = useState(false);
   const searchable = mode !== 'bots' && everything.length > 0;
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
@@ -317,10 +358,10 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
     <AppSidebar label="Chats" className="agent-side">
       {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
       {/* Search on its own row, as in Mail; the pin goes on the first section's quiet heading. */}
-      {searchable && <SidebarSearch label="Search sessions" placeholder="Search sessions" value={query} onChange={setQuery} />}
+      {searchable && <SidebarSearch label="Search chats" placeholder="Search chats" value={query} onChange={setQuery} />}
       {mode === 'activity' && pin && <div className="side-head"><span className="side-title">Activity</span><span className="side-actions">{pin}</span></div>}
       {mode === 'activity' ? (
-        <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={onDelete} onOpenSchedules={onOpenSchedules} />
+        <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={del.remove} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
           <SidebarSection title="Agents" action={<>{pin}<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
@@ -334,13 +375,11 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               trail={waiting > 0 ? <span className="agent-to-review">{waiting} to review</span> : undefined} />
           </SidebarSection>
         </>
-      ) : everything.length === 0 ? (
-        <SidebarSection title="Conversations" action={pin}>
-          <li className="srow-empty side-empty">Nothing saved yet. Conversations appear here once you send a message.</li>
-        </SidebarSection>
+      ) : shown.length === 0 ? (
+        <p className="srow-empty side-empty">Nothing yet. Chats appear here once you send a message.</p>
       ) : (
         <>
-          <div className="side-head"><h3 className="side-title">Conversations</h3>{pin && <span className="side-actions">{pin}</span>}</div>
+          {pin && <div className="side-head"><span className="side-actions">{pin}</span></div>}
           {bots.map((bot) => {
             const all = sessionsOf(bot.id);
             const rows = needle ? all.filter((c) => c.title.toLowerCase().includes(needle)) : all;
@@ -364,7 +403,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
                 {!shut && (
                   <ul className="clist" role="list">
                     {rows.map((conversation) => (
-                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation.id)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
+                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => del.remove(conversation)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
                     ))}
                   </ul>
                 )}
@@ -384,15 +423,16 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               {showArchived && (
                 <ul className="clist" role="list" aria-label="Archived sessions">
                   {putAway.map((conversation) => (
-                    <Row key={conversation.id} conversation={conversation} current={conversation.id === active} isArchived onSelect={() => onSelect(conversation.id)} onDelete={() => onDelete(conversation.id)} onArchive={(on) => onArchive(conversation.id, on)} />
+                    <Row key={conversation.id} conversation={conversation} current={conversation.id === active} isArchived onSelect={() => onSelect(conversation.id)} onDelete={() => del.remove(conversation)} onArchive={(on) => onArchive(conversation.id, on)} />
                   ))}
                 </ul>
               )}
             </section>
           )}
-          {needle && bots.every((bot) => !sessionsOf(bot.id).some((c) => c.title.toLowerCase().includes(needle))) && <p className="srow-empty side-empty">No session matches “{query.trim()}”.</p>}
+          {needle && bots.every((bot) => !sessionsOf(bot.id).some((c) => c.title.toLowerCase().includes(needle))) && <p className="srow-empty side-empty">No chat matches “{query.trim()}”.</p>}
         </>
       )}
+      {del.bar}
     </AppSidebar>
   );
 }

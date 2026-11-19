@@ -439,7 +439,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
-  const title = conversations.find((c) => c.id === active)?.title ?? 'New conversation';
+  const title = conversations.find((c) => c.id === active)?.title ?? 'New chat';
   // The list opens under its button, moved left as far as it takes to stay inside the window (the panel is on the right).
   const [shift, setShift] = useState(0);
   useLayoutEffect(() => {
@@ -489,7 +489,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move} style={shift ? { left: shift } : undefined}>
-          <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New conversation</button>
+          <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New chat</button>
           <div className="convo-sep" role="separator" />
           {conversations.length === 0 && <p className="convo-empty">Nothing saved yet</p>}
           {conversations.map((conversation) => (
@@ -712,7 +712,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
         {lead}
         {variant === 'full' && !needsSetup ? (
           <span className="chat-titles">
-            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New conversation'}</span>
+            <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New chat'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
         ) : (
@@ -870,7 +870,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             )}
           </div>
           <SignInForTask conversation={state.conversation} onShowPage={(tab) => (onShowTab ? onShowTab(tab) : window.mobius.browser.activate(tab))} onSay={(text) => onSend(text, [])} />
-          <TurnHistory conversation={state.conversation} busy={state.busy} />
+          {/* Not on the start page: earlier changes belong to a chat that is open. */}
+          {state.items.length > 0 && <TurnHistory conversation={state.conversation} busy={state.busy} />}
           {state.control && <ControlBar control={state.control} onHandBack={onHandBack} onStop={onStop} />}
           {queue.items.length > 0 && (
             <QueuePanel

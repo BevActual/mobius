@@ -2,10 +2,10 @@ import { useEffect, useState, type ReactNode } from 'react';
 import type { AgentWaiting, ConversationInfo, ScheduleInfo } from '@mobius/shared';
 import type { Activity } from './activity';
 import { describeAction } from './actions';
-import { appName, type AppId } from './apps';
+import { appName, type AppId, type RecentItem } from './apps';
 import type { DeskRow } from './desk-apps';
 import type { HubTarget } from './search-hub';
-import { agoLabel, deskGreeting, deskQuiet, deskTitle, recent, upcoming, whenLabel } from './desk-view';
+import { agoLabel, deskGreeting, deskQuiet, deskTitle, upcoming, whenLabel } from './desk-view';
 import { APP_ICONS } from './Rail';
 import './desk.css';
 
@@ -31,6 +31,9 @@ interface Props {
    * desk offers it first, so the first answers can be about the person's own mail and days.
    */
   connect?: { mail: boolean; calendar: boolean; onMail: () => void; onCalendar: () => void };
+  /** The last things opened in any app (a note, a message, a document), newest first, for Continue. */
+  opened?: readonly RecentItem[];
+  onOpenRecent?: (item: RecentItem) => void;
   now?: Date;
 }
 
@@ -68,10 +71,10 @@ const Icon = ({ app }: { app: AppId }) => <svg viewBox="0 0 20 20" aria-hidden="
 /**
  * The desk: the Agent app's home, where an empty conversation used to show nothing. One greeting with the date and what
  * is in flight, and the suggestions under it. What waits for you and what Mobius is doing come first, each answerable in
- * place; then the conversations to pick up again; then what is open in your apps (an app Mobius changed carries its
- * dashed edge until you look); then what is scheduled next.
+ * place; then what is open in your apps (an app Mobius changed carries its
+ * dashed edge until you look); then the last things opened, to continue; then what is scheduled next.
  */
-export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, now = new Date() }: Props) {
+export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpenTarget, onOpenConversation, onOpenSchedules, starters, connect, opened = [], onOpenRecent, now = new Date() }: Props) {
   const waiting = conversations.filter((c) => c.waiting > 0);
   const working = conversations.filter((c) => c.activity === 'working' && c.waiting === 0);
   const approvals = useFirstApprovals(waiting);
@@ -80,13 +83,16 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
   const apps = [...rows];
   for (const app of changed) if (!apps.some((row) => row.app === app)) apps.push({ app, text: 'Changed by Mobius' });
   const title = deskTitle(now, { waiting: waiting.length, working: working.length, changed: changed.size });
-  const earlier = recent(conversations, new Set([...waiting, ...working].map((c) => c.id)));
+  // Chats are in the Chats panel; Continue is what was open in the other apps.
+  const resume = onOpenRecent ? opened.filter((r) => r.app !== 'agent').slice(0, 5) : [];
   const quiet = waiting.length === 0 && working.length === 0 && changed.size === 0;
   const hold = (id: string, run: () => Promise<unknown>) => {
     setBusy((cur) => new Set(cur).add(id));
     void run().finally(() => setBusy((cur) => { const left = new Set(cur); left.delete(id); return left; }));
   };
-  const name = (c: ConversationInfo) => c.title.trim() || 'New conversation';
+  const name = (c: ConversationInfo) => c.title.trim() || 'New chat';
+  // A quiet word at the row's end on hover says what a press does.
+  const go = (word: string) => <span className="desk-go" aria-hidden="true">{word}</span>;
   return (
     <section className="desk" aria-label="Desk">
       <header className="desk-hello">
@@ -100,8 +106,10 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
           <ul className="desk-rows">
             <li className="desk-row" data-connect>
               <Icon app={connect.mail ? 'mail' : 'calendar'} />
-              <span className="desk-name">{connect.mail && connect.calendar ? 'Connect your mail and calendar' : connect.mail ? 'Connect your mail' : 'Connect your calendar'}</span>
-              <span className="desk-text">So Mobius can work on your own messages and days</span>
+              <span className="desk-stack">
+                <span className="desk-name">{connect.mail && connect.calendar ? 'Connect your mail and calendar' : connect.mail ? 'Connect your mail' : 'Connect your calendar'}</span>
+                <span className="desk-sub">Mobius can then plan around your real days.</span>
+              </span>
               {connect.mail && <button type="button" className="desk-act" data-primary onClick={connect.onMail}>Add mail</button>}
               {connect.calendar && <button type="button" className="desk-act" {...(connect.mail ? {} : { 'data-primary': true })} onClick={connect.onCalendar}>Add calendar</button>}
             </li>
@@ -117,37 +125,25 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
               const plain = ask ? describeAction(ask.tool, ask.arguments) : null;
               return (
                 <li key={c.id} className="desk-row" data-needs aria-label={`${name(c)}: needs you`}>
-                  <Icon app="agent" />
-                  <span className="desk-name">{name(c)}</span>
-                  <span className="desk-text">{ask ? `Wants to ${plain ?? `use ${ask.tool}`}` : 'Has a question for you'}</span>
+                  <button type="button" className="desk-open" aria-label={`Answer ${name(c)}`} onClick={() => onOpenConversation(c.id)}>
+                    <Icon app="agent" />
+                    <span className="desk-name">{name(c)}</span>
+                    <span className="desk-text">{ask ? `Wants to ${plain ?? `use ${ask.tool}`}` : 'Has a question for you'}</span>
+                    {go('Answer')}
+                  </button>
                   {ask && <button type="button" className="desk-act" data-primary disabled={busy.has(c.id)} aria-label={`Allow ${name(c)} once`} onClick={() => hold(c.id, () => window.mobius.agent.resolve(ask.requestId, true, 'once'))}>Allow</button>}
-                  <button type="button" className="desk-act" aria-label={`Open ${name(c)}`} onClick={() => onOpenConversation(c.id)}>Open</button>
                 </li>
               );
             })}
             {working.map((c, i) => (
               <li key={c.id} className="desk-row" data-working aria-label={`${name(c)}: Mobius is working`}>
-                <Icon app="agent" />
-                <span className="desk-name">{name(c)}</span>
-                <span className="desk-text" role="status">{i === 0 && activity && !activity.needsYou ? `${activity.label}${activity.step ? ` · step ${activity.step.done + 1} of ${activity.step.total}` : ''}` : 'Working'}</span>
-                <button type="button" className="desk-act" disabled={busy.has(c.id)} aria-label={`Stop ${name(c)}`} onClick={() => hold(c.id, () => window.mobius.agent.cancel(c.id))}>Stop</button>
-                <button type="button" className="desk-act" aria-label={`Open ${name(c)}`} onClick={() => onOpenConversation(c.id)}>Open</button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {earlier.length > 0 && (
-        <div className="desk-group" role="group" aria-label="Recent">
-          <h3 className="desk-head">Recent</h3>
-          <ul className="desk-rows">
-            {earlier.map((c) => (
-              <li key={c.id}>
-                <button type="button" className="desk-row" aria-label={`${name(c)}, ${agoLabel(c.updated_ms, now)}`} onClick={() => onOpenConversation(c.id)}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph"><path d="M4 5.5A2 2 0 0 1 6 3.5h8a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-3.5 3v-3H6a2 2 0 0 1-2-2z" /></svg>
+                <button type="button" className="desk-open" aria-label={`Open ${name(c)}`} onClick={() => onOpenConversation(c.id)}>
+                  <Icon app="agent" />
                   <span className="desk-name">{name(c)}</span>
-                  <span className="desk-text">{agoLabel(c.updated_ms, now)}</span>
+                  <span className="desk-text" role="status">{i === 0 && activity && !activity.needsYou ? `${activity.label}${activity.step ? ` · step ${activity.step.done + 1} of ${activity.step.total}` : ''}` : 'Working'}</span>
+                  {go('Open')}
                 </button>
+                <button type="button" className="desk-act" disabled={busy.has(c.id)} aria-label={`Stop ${name(c)}`} onClick={() => hold(c.id, () => window.mobius.agent.cancel(c.id))}>Stop</button>
               </li>
             ))}
           </ul>
@@ -157,13 +153,34 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
         <div className="desk-group" role="group" aria-label="In your apps">
           <h3 className="desk-head">In your apps</h3>
           <ul className="desk-rows">
-            {apps.map(({ app, item, text, target }) => (
+            {apps.map(({ app, item, text, more, target }) => (
               <li key={app}>
-                <button type="button" className="desk-row" data-changed={changed.has(app) || undefined} onClick={() => (target && onOpenTarget ? onOpenTarget(target) : onOpenApp(app))}>
+                <button type="button" className="desk-row" data-changed={changed.has(app) || undefined} data-more={more ? true : undefined} onClick={() => (target && onOpenTarget ? onOpenTarget(target) : onOpenApp(app))}>
                   <Icon app={app} />
                   <span className="desk-name">{appName(app)}</span>
                   {item && <span className="desk-item" title={item}>{item}</span>}
-                  <span className="desk-text">{changed.has(app) && text !== 'Changed by Mobius' ? `${text} · changed by Mobius` : text}</span>
+                  <span className="desk-text">
+                    {changed.has(app) && text !== 'Changed by Mobius' ? `${text} · changed by Mobius` : text}
+                    {more && <span className="desk-more">{more}</span>}
+                  </span>
+                  {go('Open')}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {resume.length > 0 && (
+        <div className="desk-group" role="group" aria-label="Continue">
+          <h3 className="desk-head">Continue</h3>
+          <ul className="desk-rows">
+            {resume.map((r) => (
+              <li key={`${r.app}:${r.ref}`}>
+                <button type="button" className="desk-row" aria-label={`${r.label}, ${appName(r.app)}, ${agoLabel(r.at, now)}`} onClick={() => onOpenRecent?.(r)}>
+                  <Icon app={r.app} />
+                  <span className="desk-name">{r.label}</span>
+                  <span className="desk-text">{agoLabel(r.at, now)}</span>
+                  {go('Open')}
                 </button>
               </li>
             ))}
@@ -180,6 +197,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   <svg viewBox="0 0 20 20" aria-hidden="true" className="desk-glyph"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>
                   <span className="desk-name">{schedule.title}</span>
                   <span className="desk-text">{whenLabel(at, now)}</span>
+                  {go('Edit')}
                 </button>
               </li>
             ))}
@@ -187,7 +205,8 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
         </div>
       )}
       {/* A short day still ends composed: one plain line, not leftover grey. */}
-      {waiting.length === 0 && working.length === 0 && <p className="desk-end">That's everything for today.</p>}
+      {/* With nothing at all to show (no chats, nothing connected), only the greeting, the suggestions and Get started. */}
+      {waiting.length === 0 && working.length === 0 && (apps.length > 0 || resume.length > 0 || next.length > 0) && <p className="desk-end">That's everything for today.</p>}
     </section>
   );
 }
