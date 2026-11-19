@@ -29,6 +29,11 @@ webpki-roots = "1"
 mail-parser = "0.11.9"
 lettre = { version = "0.11.23", default-features = false, features = ["smtp-transport", "builder", "hostname", "rustls", "ring", "webpki-roots"] }
 sys-locale = "0.3"
+# Matrix end-to-end encryption: the Olm/Megolm state machine on our own client, its store encrypted at rest.
+matrix-sdk-crypto = "0.19.1"
+matrix-sdk-sqlite = { version = "0.19.1", default-features = false, features = ["crypto-store"] }
+ruma = { version = "0.17", features = ["client-api-c"] }
+tokio = { version = "1", default-features = false, features = ["rt"] }
 
 [dev-dependencies]
 tempfile = "3"

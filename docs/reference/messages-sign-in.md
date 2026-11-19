@@ -66,8 +66,14 @@ Nothing to register. Matrix is open: any homeserver lets a client sign in to it,
 - An older server signs in on its single sign-on page, or with a username and password typed into Mobius. The password
   goes only to that server and is not kept.
 - Each sign-in is its own device on the account, named "Mobius". Removing the account signs that device out.
-- Encrypted rooms are listed, but read as one line until this device is verified, which is the next Matrix PR
-  (end-to-end encryption, device verification in Settings › Messages, and key backup).
+- Encrypted rooms read once this device is verified. In Settings › Messages, the person types the recovery key (or
+  passphrase) they saved when they set up recovery in another Matrix app, such as Element. Mobius opens their secret
+  storage with it, takes in their cross-signing keys, signs this device, and restores every message key from their
+  key backup. Keys that arrive later come to this device directly. Until then an encrypted room shows one line:
+  "Encrypted: verify this device in Settings > Messages to read".
+- The encryption (`matrix-sdk-crypto`) keeps its state in a SQLite file per account, encrypted with a random key kept
+  in the system secret store. The recovery key itself is never kept.
+- Not yet: verifying with emoji against another device, writing in encrypted rooms, and backing up new keys.
 
 What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
 in Messages, read markers shared with the person's other devices, and Matrix bridges they already run (bridge labels

@@ -26,6 +26,7 @@ pub mod schedules;
 pub mod calendar_accounts;
 pub mod calendar_sign_in;
 pub mod matrix;
+pub mod matrix_crypto;
 pub mod messages;
 pub mod slack;
 pub mod contact_accounts;

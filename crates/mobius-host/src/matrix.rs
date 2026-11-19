@@ -21,6 +21,7 @@ use serde_json::{Value, json};
 
 use crate::dropbox::{form, lock, now};
 use crate::loopback::{Callback, challenge, random_text};
+use crate::matrix_crypto::Crypto;
 
 type Res<T> = Result<T, String>;
 /// What turns the browser's return to the one-time page into a sign-in.
@@ -41,7 +42,9 @@ const DEVICE_NAME: &str = "Mobius";
 
 /// The parts of each room a first look reads; everything else (presence, typing, receipts) is left out.
 const SYNC_FILTER: &str = r#"{"presence":{"not_types":["*"]},"account_data":{"types":["m.direct"]},"room":{"state":{"lazy_load_members":true,"types":["m.room.name","m.room.canonical_alias","m.room.encryption","m.room.member"]},"timeline":{"limit":1,"lazy_load_members":true},"ephemeral":{"not_types":["*"]},"account_data":{"not_types":["*"]}}}"#;
-const HISTORY_FILTER: &str = r#"{"lazy_load_members":true,"types":["m.room.message"]}"#;
+const HISTORY_FILTER: &str = r#"{"lazy_load_members":true,"types":["m.room.message","m.room.encrypted"]}"#;
+/// What a message this device can't decrypt says instead.
+const NO_KEY: &str = "Encrypted message: this device doesn't have its key yet.";
 
 /// A sign-in to one account on one server.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -336,7 +339,8 @@ impl Synced {
     }
 
     /// Every room as the app shows it (`ChatChannel`), the latest first.
-    fn channels(&self, account: &str, me: &str) -> Vec<Value> {
+    /// `readable`: this device can read encrypted rooms (it is verified), so they aren't marked.
+    fn channels(&self, account: &str, me: &str, readable: bool) -> Vec<Value> {
         let mut rooms: Vec<(&String, &Room)> = self.rooms.iter().collect();
         rooms.sort_by(|a, b| b.1.last.cmp(&a.1.last).then_with(|| a.0.cmp(b.0)));
         rooms
@@ -354,7 +358,7 @@ impl Synced {
                 if room.last > 0 {
                     c["last"] = json!(room.last);
                 }
-                if room.encrypted {
+                if room.encrypted && !readable {
                     c["encrypted"] = json!(true);
                 }
                 c
@@ -386,7 +390,7 @@ impl Matrix {
     }
 
     /// A JSON request; answers the JSON when the server says yes.
-    fn call(&self, method: &str, url: &str, token: Option<&str>, body: Option<&Value>) -> Res<Value> {
+    pub(crate) fn call(&self, method: &str, url: &str, token: Option<&str>, body: Option<&Value>) -> Res<Value> {
         self.call_with(&self.http, method, url, token, body, MAX_JSON)
     }
 
@@ -588,17 +592,20 @@ impl Matrix {
     }
 
     /// The account's rooms (`ChatChannel`s), after asking the server what changed since the last look.
-    pub fn channels(&self, account: &str, s: &Session) -> Res<Vec<Value>> {
+    pub fn channels(&self, account: &str, s: &Session, crypto: Option<&Crypto>) -> Res<Vec<Value>> {
         let since = lock(&self.synced).get(account).and_then(|x| x.next.clone());
         let mut query = vec![("filter", SYNC_FILTER), ("timeout", "0"), ("set_presence", "offline")];
         if let Some(since) = since.as_deref() {
             query.push(("since", since));
         }
         let answer = self.call_with(&self.slow, "GET", &self.api(s, &["v3", "sync"], &query)?, Some(&s.access), None, MAX_SYNC)?;
-        let mut all = lock(&self.synced);
-        let synced = all.entry(account.to_owned()).or_default();
-        synced.apply(&answer);
-        Ok(synced.channels(account, &s.user))
+        lock(&self.synced).entry(account.to_owned()).or_default().apply(&answer);
+        // Encryption that fails (a server without key upload, say) never stops the rooms being read.
+        let readable = crypto.is_some_and(|c| {
+            let _ = c.receive(&answer).and_then(|()| self.send_outgoing(s, c));
+            c.verified()
+        });
+        Ok(lock(&self.synced).get(account).map(|x| x.channels(account, &s.user, readable)).unwrap_or_default())
     }
 
     fn known_names(&self, account: &str, room: &str) -> HashMap<String, String> {
@@ -606,7 +613,7 @@ impl Matrix {
     }
 
     /// A room's messages, newest last: the latest, the ones before `before`, or one thread's.
-    pub fn history(&self, account: &str, s: &Session, room: &str, before: Option<&str>, thread: Option<&str>, limit: usize) -> Res<Vec<Value>> {
+    pub fn history(&self, account: &str, s: &Session, room: &str, before: Option<&str>, thread: Option<&str>, limit: usize, crypto: Option<&Crypto>) -> Res<Vec<Value>> {
         let limit = limit.clamp(1, 200).to_string();
         let mut names = self.known_names(account, room);
         let learn = |names: &mut HashMap<String, String>, state: Option<&Value>| {
@@ -650,13 +657,29 @@ impl Matrix {
             answer.get("chunk").and_then(Value::as_array).cloned().unwrap_or_default()
         };
         events.reverse();
-        Ok(events.iter().filter_map(|e| message_of(e, room, &s.user, &names, thread)).collect())
+        // Encrypted messages are decrypted where this device has their key, and say so where it doesn't.
+        let readable = crypto.is_some_and(Crypto::verified);
+        let events = events.into_iter().filter_map(|e| {
+            if str_at(&e, "/type") != Some("m.room.encrypted") {
+                return Some(e);
+            }
+            if !readable {
+                return None;
+            }
+            crypto.and_then(|c| c.decrypt(room, &e)).or_else(|| {
+                let mut stand_in = e.clone();
+                stand_in["type"] = json!("m.room.message");
+                stand_in["content"] = json!({ "msgtype": "m.notice", "body": NO_KEY, "m.relates_to": e.pointer("/content/m.relates_to").cloned().unwrap_or(Value::Null) });
+                Some(stand_in)
+            })
+        });
+        Ok(events.filter_map(|e| message_of(&e, room, &s.user, &names, thread)).collect())
     }
 
     /// Sends what the person wrote, in the room or in a thread. Only ever called from the person's own Send.
     pub fn send(&self, account: &str, s: &Session, room: &str, text: &str, thread: Option<&str>) -> Res<Value> {
         if lock(&self.synced).get(account).and_then(|x| x.rooms.get(room)).is_some_and(|r| r.encrypted) {
-            return Err("This room is encrypted. Verify this device in Settings > Messages to write in it.".into());
+            return Err("This room is encrypted. Writing in encrypted rooms comes to Mobius soon.".into());
         }
         let mut content = json!({ "msgtype": "m.text", "body": text });
         if let Some(root) = thread {
@@ -699,6 +722,128 @@ impl Matrix {
     /// Forgets what was read for an account (it was signed in again).
     pub fn forget(&self, account: &str) {
         lock(&self.synced).remove(account);
+    }
+}
+
+/// The encryption machine's requests, sent through this client.
+impl Matrix {
+    /// Sends one request the way ruma describes it, with the account's token, and reads the answer back as ruma's.
+    pub(crate) fn ruma<R>(&self, s: &Session, request: R) -> Res<R::IncomingResponse>
+    where
+        R: ruma::api::OutgoingRequest<Authentication = ruma::api::auth_scheme::AccessToken, PathBuilder = ruma::api::path_builder::VersionHistory>,
+    {
+        use ruma::api::{IncomingResponseExt, OutgoingRequestExt};
+        let versions = ruma::api::SupportedVersions::from_parts(&["v1.11".to_owned()], &std::collections::BTreeMap::new());
+        let request: ureq::http::Request<Vec<u8>> = request
+            .try_into_http_request(&s.homeserver, ruma::api::auth_scheme::SendAccessToken::IfRequired(&s.access), std::borrow::Cow::Owned(versions))
+            .map_err(|e| format!("Could not ask the Matrix server: {e}"))?;
+        let (status, body) = {
+            let response = self.http.run(request).map_err(|e| format!("Could not reach the Matrix server: {e}"))?;
+            let status = response.status().as_u16();
+            let mut body = Vec::new();
+            std::io::Read::read_to_end(&mut std::io::Read::take(response.into_body().into_reader(), MAX_SYNC + 1), &mut body).map_err(|e| format!("The Matrix server's answer did not arrive whole: {e}"))?;
+            (status, body)
+        };
+        if !(200..300).contains(&status) {
+            return Err(failed(status, &serde_json::from_slice(&body).unwrap_or(Value::Null)));
+        }
+        let response = ureq::http::Response::builder().status(status).body(body.as_slice()).map_err(|e| e.to_string())?;
+        R::IncomingResponse::try_from_http_response(response).map_err(|e| format!("The Matrix server's answer could not be read: {e}"))
+    }
+
+    /// Sends everything the encryption machine is waiting to send: this device's keys, questions about other
+    /// devices, messages to devices, and signatures.
+    pub fn send_outgoing(&self, s: &Session, c: &Crypto) -> Res<()> {
+        use matrix_sdk_crypto::types::requests::AnyOutgoingRequest as Out;
+        use ruma::api::client::{keys, message, to_device};
+        for request in c.outgoing()? {
+            let id = request.request_id().to_owned();
+            match request.request() {
+                Out::KeysUpload(r) => c.sent(&id, &self.ruma(s, r.clone())?)?,
+                Out::KeysQuery(r) => {
+                    let mut q = keys::get_keys::v3::Request::new();
+                    q.device_keys = r.device_keys.clone();
+                    q.timeout = r.timeout;
+                    c.sent(&id, &self.ruma(s, q)?)?;
+                }
+                Out::KeysClaim(r) => c.sent(&id, &self.ruma(s, r.clone())?)?,
+                Out::ToDeviceRequest(r) => {
+                    let q = to_device::send_event_to_device::v3::Request::new_raw(r.event_type.clone(), r.txn_id.clone(), r.messages.clone());
+                    c.sent(&id, &self.ruma(s, q)?)?;
+                }
+                Out::SignatureUpload(r) => c.sent(&id, &self.ruma(s, r.clone())?)?,
+                Out::RoomMessage(r) => {
+                    let q = message::send_message_event::v3::Request::new(r.room_id.clone(), r.txn_id.clone(), &*r.content).map_err(|e| e.to_string())?;
+                    c.sent(&id, &self.ruma(s, q)?)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn account_data(&self, s: &Session, kind: &str) -> Res<Option<Value>> {
+        match self.call("GET", &self.api(s, &["v3", "user", &s.user, "account_data", kind], &[])?, Some(&s.access), None) {
+            Ok(v) => Ok(Some(v)),
+            Err(e) if e.starts_with("That isn't there") => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    /// Verifies this device with the person's recovery key (or passphrase): it unlocks their secret storage, takes
+    /// in their cross-signing keys and signs this device with them, then reads every room key from their key backup.
+    /// Answers how many room keys came from the backup.
+    pub fn recover(&self, s: &Session, c: &Crypto, input: &str) -> Res<usize> {
+        use matrix_sdk_crypto::secret_storage::{AesHmacSha2EncryptedData, SecretStorageKey};
+        use ruma::events::GlobalAccountDataEvent;
+        use ruma::events::secret::request::SecretName;
+        use ruma::events::secret_storage::key::SecretStorageKeyEventContent;
+        let input = input.trim();
+        if input.is_empty() {
+            return Err("Type your recovery key.".into());
+        }
+        // This device's keys are on the server, and its own identity known, before anything is signed.
+        self.send_outgoing(s, c)?;
+        let default = self.account_data(s, "m.secret_storage.default_key")?.ok_or("This account has no recovery set up. Set it up in another Matrix app (such as Element) first.")?;
+        let key_id = str_at(&default, "/key").ok_or("This account's recovery can't be read.")?.to_owned();
+        let kind = format!("m.secret_storage.key.{key_id}");
+        let description = self.account_data(s, &kind)?.ok_or("This account's recovery can't be read.")?;
+        let event: GlobalAccountDataEvent<SecretStorageKeyEventContent> = serde_json::from_value(json!({ "type": kind, "content": description })).map_err(|_| "This account's recovery can't be read.".to_owned())?;
+        let key = SecretStorageKey::from_account_data(input, event.content).map_err(|_| "That recovery key isn't right.".to_owned())?;
+        let secret = |name: SecretName| -> Res<Option<String>> {
+            let Some(stored) = self.account_data(s, name.as_str())? else { return Ok(None) };
+            let Some(data) = stored.pointer(&format!("/encrypted/{key_id}")) else { return Ok(None) };
+            let data: AesHmacSha2EncryptedData = serde_json::from_value(data.clone()).map_err(|_| "A secret in your recovery can't be read.".to_owned())?;
+            let plain = key.decrypt(&data, &name).map_err(|_| "That recovery key isn't right.".to_owned())?;
+            Ok(Some(String::from_utf8(plain).map_err(|_| "A secret in your recovery can't be read.".to_owned())?))
+        };
+        let export = matrix_sdk_crypto::CrossSigningKeyExport {
+            master_key: secret(SecretName::CrossSigningMasterKey)?,
+            self_signing_key: secret(SecretName::CrossSigningSelfSigningKey)?,
+            user_signing_key: secret(SecretName::CrossSigningUserSigningKey)?,
+        };
+        if export.self_signing_key.is_none() {
+            return Err("This account's recovery has no cross-signing keys. Set up recovery again in another Matrix app.".into());
+        }
+        c.import_cross_signing(export)?;
+        let device = c.block(c.machine().get_device(c.machine().user_id(), c.machine().device_id(), None)).map_err(|e| e.to_string())?.ok_or("This device isn't known to the server yet. Try again in a minute.")?;
+        let signatures = c.block(device.verify()).map_err(|e| format!("This device could not be signed: {e}"))?;
+        self.ruma(s, signatures)?;
+        // Read this device's keys back, now with the signature, so the machine knows it is verified.
+        let (txn, query) = c.machine().query_keys_for_users([c.machine().user_id()]);
+        let mut q = ruma::api::client::keys::get_keys::v3::Request::new();
+        q.device_keys = query.device_keys;
+        c.sent(&txn, &self.ruma(s, q)?)?;
+        // The key backup: every room key kept on the server, readable with the backup key from secret storage.
+        let Some(backup_key) = secret(SecretName::RecoveryKey).ok().flatten().or(secret(SecretName::from("m.megolm_backup.v1"))?) else { return Ok(0) };
+        let version = match self.call("GET", &self.api(s, &["v3", "room_keys", "version"], &[])?, Some(&s.access), None) {
+            Ok(v) => v,
+            Err(e) if e.starts_with("That isn't there") => return Ok(0),
+            Err(e) => return Err(e),
+        };
+        let (Some(number), Some(public)) = (str_at(&version, "/version"), str_at(&version, "/auth_data/public_key")) else { return Ok(0) };
+        let decryption = c.use_backup_key(&backup_key, number, public)?;
+        let keys = self.call_with(&self.slow, "GET", &self.api(s, &["v3", "room_keys", "keys"], &[("version", number)])?, Some(&s.access), None, MAX_SYNC)?;
+        c.import_backup(&decryption, keys.get("rooms").unwrap_or(&Value::Null))
     }
 }
 
@@ -883,19 +1028,19 @@ pub(crate) mod tests {
         let s = matrix.password_sign_in(&url, "ana", "pw").unwrap();
         assert_eq!((s.user.as_str(), s.device.as_str(), s.refresh.as_str()), ("@ana:x", "DEV1", "refresh-1"));
         assert!(s.fresh() && s.oauth.is_none());
-        let rooms = matrix.channels("acc", &s).unwrap();
+        let rooms = matrix.channels("acc", &s, None).unwrap();
         assert_eq!(rooms[0], json!({ "id": "!dm:x", "account": "acc", "name": "Lee Park", "kind": "direct", "unread": 0, "mentions": 0, "last": 3000, "encrypted": true }));
         assert_eq!(rooms[1], json!({ "id": "!ops:x", "account": "acc", "name": "Ops", "kind": "channel", "unread": 3, "mentions": 1, "last": 2000 }));
         // The next look asks only for what changed.
-        let rooms = matrix.channels("acc", &s).unwrap();
+        let rooms = matrix.channels("acc", &s, None).unwrap();
         assert_eq!(rooms.len(), 1);
         assert_eq!((rooms[0]["unread"].as_u64(), rooms[0]["last"].as_u64()), (Some(4), Some(4000)));
-        let history = matrix.history("acc", &s, "!ops:x", None, None, 50).unwrap();
+        let history = matrix.history("acc", &s, "!ops:x", None, None, 50, None).unwrap();
         assert_eq!(history.iter().map(|m| m["text"].as_str().unwrap()).collect::<Vec<_>>(), ["The build is red", "On it"]);
         assert_eq!(history[0]["author"], json!({ "id": "@sam:x", "name": "Sam" }));
         assert_eq!(history[1]["author"]["me"], true);
-        assert_eq!(matrix.history("acc", &s, "!ops:x", Some("$b"), None, 50).unwrap().len(), 2);
-        let thread = matrix.history("acc", &s, "!ops:x", None, Some("$a"), 50).unwrap();
+        assert_eq!(matrix.history("acc", &s, "!ops:x", Some("$b"), None, 50, None).unwrap().len(), 2);
+        let thread = matrix.history("acc", &s, "!ops:x", None, Some("$a"), 50, None).unwrap();
         assert_eq!(thread.iter().map(|m| m["text"].as_str().unwrap()).collect::<Vec<_>>(), ["The build is red", "Looking"]);
         let sent = matrix.send("acc", &s, "!ops:x", "Fixed & green", Some("$a")).unwrap();
         assert_eq!((sent["id"].as_str(), sent["thread"].as_str(), sent["author"]["me"].as_bool()), (Some("$sent"), Some("$a"), Some(true)));
@@ -911,7 +1056,7 @@ pub(crate) mod tests {
         let (url, _) = server(false);
         let matrix = Arc::new(Matrix::new());
         let s = matrix.password_sign_in(&url, "ana", "pw").unwrap();
-        matrix.channels("acc", &s).unwrap();
+        matrix.channels("acc", &s, None).unwrap();
         assert!(matrix.send("acc", &s, "!dm:x", "hi", None).unwrap_err().starts_with("This room is encrypted."));
     }
 
@@ -942,8 +1087,8 @@ pub(crate) mod tests {
         let matrix = Arc::new(Matrix::new());
         let s = matrix.password_sign_in(&url, "ana", "pw").unwrap();
         let stale = Session { access: "access-expired".into(), ..s };
-        assert!(Matrix::unknown_token(&matrix.channels("acc", &stale).unwrap_err()));
+        assert!(Matrix::unknown_token(&matrix.channels("acc", &stale, None).unwrap_err()));
         let fresh = matrix.refresh(&stale).unwrap();
-        assert!(matrix.channels("acc", &fresh).is_ok());
+        assert!(matrix.channels("acc", &fresh, None).is_ok());
     }
 }

@@ -167,7 +167,7 @@ impl Databases {
         if sql.is_empty() || sql.len() > MAX_SQL {
             return Err("write one SQL statement".into());
         }
-        let mut conn = self.open(name, write)?;
+        let conn = self.open(name, write)?;
         let started = Instant::now();
         conn.progress_handler(10_000, Some(move || started.elapsed() > time)).map_err(|e| e.to_string())?;
         let mut stmt = conn.prepare(sql).map_err(|e| match e {
@@ -177,7 +177,7 @@ impl Databases {
         if !write && !stmt.readonly() {
             return Err("that statement changes the database, and this can only read it".into());
         }
-        let columns: Vec<String> = stmt.column_names().map(str::to_owned).collect();
+        let columns: Vec<String> = stmt.column_names().into_iter().map(str::to_owned).collect();
         if columns.is_empty() {
             let changed = stmt.execute([]).map_err(|e| interrupted(&e, time))?;
             return Ok(json!({ "ok": true, "columns": [], "rows": [], "changed": changed, "truncated": false, "ms": started.elapsed().as_millis() as u64 }));

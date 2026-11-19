@@ -15,6 +15,7 @@ use serde_json::{Value, json};
 use crate::calendar_accounts::new_id;
 use crate::secrets::Secrets;
 use crate::matrix::{self, Matrix, Session};
+use crate::matrix_crypto::Crypto;
 use crate::slack::{EXPIRED, Endpoints, Page, Slack, Tokens};
 
 type Res<T> = Result<T, String>;
@@ -48,6 +49,8 @@ pub struct Accounts {
     state: Mutex<Vec<Account>>,
     slack: Mutex<Arc<Slack>>,
     matrix: Arc<Matrix>,
+    /// Each Matrix account's encryption, opened the first time it is needed.
+    crypto: Mutex<HashMap<String, Arc<Crypto>>>,
     people: Mutex<People>,
 }
 
@@ -64,7 +67,7 @@ impl Accounts {
         let file = data_dir.join("messages-accounts.json");
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let slack = Arc::new(Slack::new(crate::slack::built_in_client_id(), Endpoints::default()));
-        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), people: Mutex::default() }
+        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), crypto: Mutex::default(), people: Mutex::default() }
     }
 
     /// A pretend Slack, in tests.
@@ -156,7 +159,7 @@ impl Accounts {
 
     pub fn channels(&self, id: &str) -> Res<Value> {
         if self.is_matrix(id) {
-            return self.with_matrix(id, |m, s| m.channels(id, s)).map(Value::Array);
+            return self.with_matrix(id, |m, s| m.channels(id, s, self.crypto_for(id, s).as_deref())).map(Value::Array);
         }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
@@ -166,7 +169,7 @@ impl Accounts {
 
     pub fn history(&self, id: &str, channel: &str, before: Option<&str>, thread: Option<&str>, limit: usize) -> Res<Value> {
         if self.is_matrix(id) {
-            return self.with_matrix(id, |m, s| m.history(id, s, channel, before, thread, limit)).map(Value::Array);
+            return self.with_matrix(id, |m, s| m.history(id, s, channel, before, thread, limit, self.crypto_for(id, s).as_deref())).map(Value::Array);
         }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
@@ -285,6 +288,56 @@ impl Accounts {
         result
     }
 
+    fn crypto_dir(&self, id: &str) -> PathBuf {
+        self.file.parent().unwrap_or(Path::new(".")).join("matrix").join(id)
+    }
+
+    /// The account's encryption, opened with its store's key from the secret store (made the first time). `None`
+    /// when there is no secret store to keep that key in: then encrypted rooms stay unread.
+    fn crypto_for(&self, id: &str, s: &Session) -> Option<Arc<Crypto>> {
+        if let Some(c) = lock(&self.crypto).get(id) {
+            return Some(Arc::clone(c));
+        }
+        let name = format!("messages-matrix-store:{id}");
+        let key = match self.secrets.get(&name).and_then(|k| base64::Engine::decode(&base64::engine::general_purpose::STANDARD, k).ok()).filter(|k| k.len() == 32) {
+            Some(key) => key,
+            None => {
+                let mut key = vec![0u8; 32];
+                getrandom::fill(&mut key).ok()?;
+                if !self.secrets.put(&name, &base64::Engine::encode(&base64::engine::general_purpose::STANDARD, &key)) {
+                    return None;
+                }
+                // A store whose key is gone can't be opened: start it again.
+                let _ = std::fs::remove_dir_all(self.crypto_dir(id));
+                key
+            }
+        };
+        let crypto = Arc::new(Crypto::open(&self.crypto_dir(id), &s.user, &s.device, &key).ok()?);
+        lock(&self.crypto).insert(id.to_owned(), Arc::clone(&crypto));
+        Some(crypto)
+    }
+
+    /// Forgets the account's encryption: its store, and the store's key.
+    fn drop_crypto(&self, id: &str) {
+        lock(&self.crypto).remove(id);
+        self.secrets.delete(&format!("messages-matrix-store:{id}"));
+        let _ = std::fs::remove_dir_all(self.crypto_dir(id));
+    }
+
+    /// Whether this device can read the account's encrypted rooms: `{ verified }`.
+    pub fn matrix_device(&self, id: &str) -> Res<Value> {
+        self.with_matrix(id, |_, s| Ok(json!({ "verified": self.crypto_for(id, s).is_some_and(|c| c.verified()) })))
+    }
+
+    /// Verifies this device with the person's recovery key, and reads their key backup: `{ verified, keys }`.
+    pub fn matrix_recover(&self, id: &str, recovery: &str) -> Res<Value> {
+        self.with_matrix(id, |m, s| {
+            let crypto = self.crypto_for(id, s).ok_or("Encrypted rooms need this computer's secret store, which isn't available.")?;
+            let keys = m.recover(s, &crypto, recovery)?;
+            Ok(json!({ "verified": crypto.verified(), "keys": keys }))
+        })
+    }
+
     /// How a Matrix server lets the person sign in: `{ homeserver, password, browser }`.
     pub fn matrix_methods(&self, server: &str) -> Res<Value> {
         self.matrix.methods(server).map(|m| m.to_json())
@@ -337,6 +390,10 @@ impl Accounts {
         self.save(&all);
         drop(all);
         self.matrix.forget(&id);
+        // A new device is a new encryption identity.
+        if before.is_some() {
+            self.drop_crypto(&id);
+        }
         if let Some(before) = before {
             let m = Arc::clone(&self.matrix);
             std::thread::spawn(move || m.sign_out_device(&before));
@@ -360,6 +417,7 @@ impl Accounts {
             std::thread::spawn(move || m.sign_out(&id, &session));
         }
         self.secrets.delete(&secret_name(id));
+        self.drop_crypto(id);
         lock(&self.people).remove(id);
         Ok(json!({ "ok": true }))
     }
