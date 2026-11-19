@@ -72,6 +72,19 @@ test('a task typed into a list is a line in a real file, and ticking it off fold
   await expect.poll(() => fs.readFileSync(file('Inbox'), 'utf8')).toBe('# Inbox\n\n');
 });
 
+test('"task …" in Ctrl+K adds a task to Inbox, with the day said at the end, without leaving the app', async () => {
+  await start();
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('task Water the plants tomorrow');
+  const row = shell().getByRole('option', { name: /Add task “Water the plants”/ });
+  await expect(row).toContainText('to Inbox, due');
+  await row.click();
+  await expect(shell().getByText('Added to Inbox')).toBeVisible();
+  await expect.poll(() => fs.existsSync(file('Inbox')) ? fs.readFileSync(file('Inbox'), 'utf8') : '').toContain('- [ ] Water the plants');
+  await lists().getByRole('button', { name: /^Inbox/ }).click();
+  await expect(todo().getByRole('checkbox', { name: 'Water the plants' })).toBeVisible();
+});
+
 test('rewording, dates in plain words, new lists, and Today gathering from every list', async () => {
   fs.mkdirSync(path.dirname(file('Home')), { recursive: true });
   fs.writeFileSync(file('Home'), `# Home\nThoughts stay.\n- [ ] Paint the door (due ${isoToday()})\n- [ ] Fix the tap (due 2001-01-01)\n- [ ] Someday\n`);

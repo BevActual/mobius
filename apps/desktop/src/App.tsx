@@ -93,7 +93,7 @@ import { parseLayout } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
-import { nest, smartName, smartView } from './tasks-view';
+import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
@@ -1374,6 +1374,8 @@ export function App() {
     tasksView: (id) => { opener.current = null; closeSettings(); tasks.setView({ kind: 'smart', id }); openApp('tasks'); },
     calendarToday: () => { opener.current = null; closeSettings(); calendar.setAnchor(new Date()); openApp('calendar'); },
     filesTrash: () => { opener.current = null; closeSettings(); files.setPlace({ kind: 'trash' }); openApp('files'); },
+    taskList: () => tasks.lists.find((l) => l.name === DEFAULT_LIST_NAME && !l.account)?.name ?? tasks.lists.find((l) => !l.account)?.name ?? tasks.lists[0]?.name ?? DEFAULT_LIST_NAME,
+    addTask: (list, text, due, time) => { void tasks.add(list, text, due, time ? { time } : undefined).then((ok) => setNotice(ok ? `Added to ${list}` : 'The task could not be added.')); },
   });
   // Apps lead: Messages and Knowledge take part too (app-launcher.ts).
   useMoreLauncherSources({

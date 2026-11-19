@@ -2,7 +2,7 @@ import { isNotesFailure, type CalendarEvent, type ChatChannel, type Contact, typ
 import type { FoundItem } from './Launcher';
 import { useLauncherSource } from './launcher-sources';
 import type { HubTarget } from './search-hub';
-import type { SmartView } from './tasks-view';
+import { parseWhenAndTime, timeWords, type SmartView } from './tasks-view';
 
 /**
  * What the everyday apps add to the launcher (docs/design/launcher.md, "How apps take part"): what the launcher can't
@@ -54,6 +54,25 @@ export function bodyHits(hits: readonly NoteHit[], query: string, limit = 4): No
   return hits.filter((h) => !has(h.title, ws)).slice(0, limit);
 }
 
+/**
+ * "task Call Sam fri 3pm" (or "todo …", "add task …", "new task …"): the task's words, and the day and time said at
+ * the end, for adding it from the launcher without opening Tasks. Null when the words don't start that way.
+ */
+export function quickTask(query: string, now: Date): { text: string; due: string | null; time?: string } | null {
+  const m = /^\s*(?:(?:add|new)\s+task|task|todo)\s+(.+)$/i.exec(query);
+  const rest = m?.[1]?.trim().slice(0, 500);
+  if (!rest) return null;
+  const said = parseWhenAndTime(rest, now);
+  if (said && said.text.trim()) return { text: said.text.trim(), due: said.due, ...(said.time ? { time: said.time } : {}) };
+  return { text: rest, due: null };
+}
+
+/** "Tasks, to Inbox, due Fri 20 Nov at 15:00" under the quick add row. */
+export function quickTaskDetail(task: { due: string | null; time?: string }, list: string): string {
+  if (!task.due) return `Tasks, to ${list}`;
+  return `Tasks, to ${list}, due ${shortDay(task.due)}${task.time ? ` at ${timeWords(task.time)}` : ''}`;
+}
+
 interface Daily {
   openTarget: (target: HubTarget, label?: string) => void;
   /** A new message to this address. */
@@ -63,6 +82,10 @@ interface Daily {
   calendarToday: () => void;
   /** Files at Trash. */
   filesTrash: () => void;
+  /** Where a task added from the launcher goes. */
+  taskList: () => string;
+  /** Adds a task (from "task …" in the launcher) and says so. */
+  addTask: (list: string, text: string, due: string | null, time?: string) => void;
 }
 
 const after = (signal: AbortSignal, ms: number) => new Promise<boolean>((done) => {
@@ -86,6 +109,21 @@ function wordsInside(app: 'notes' | 'docs', d: Daily) {
 
 /** Registers Mail, Calendar, Tasks, Notes, Docs and Files with the launcher, for as long as the shell is up. */
 export function useDailyLauncherSources(d: Daily): void {
+  // Tasks first, so "task …" puts Add task at the top of what the apps found.
+  useLauncherSource({
+    app: 'tasks',
+    find: (query) => {
+      const task = quickTask(query, new Date());
+      if (!task) return [];
+      const list = d.taskList();
+      return [{ id: 'quick-add', app: 'tasks', label: `Add task “${task.text.length > 60 ? `${task.text.slice(0, 59)}…` : task.text}”`, detail: quickTaskDetail(task, list), run: () => d.addTask(list, task.text, task.due, task.time) }];
+    },
+    commands: () => [
+      { id: 'today', label: 'Due today', detail: 'Tasks', run: () => d.tasksView('today') },
+      { id: 'scheduled', label: 'Scheduled tasks', detail: 'Tasks', run: () => d.tasksView('scheduled') },
+      { id: 'flagged', label: 'Flagged tasks', detail: 'Tasks', run: () => d.tasksView('flagged') },
+    ],
+  });
   useLauncherSource({
     app: 'mail',
     find: async (query, signal) => {
@@ -113,14 +151,6 @@ export function useDailyLauncherSources(d: Daily): void {
       return eventsMatching(events, query, now).map((e) => ({ id: e.id, app: 'calendar' as const, label: e.title || '(no title)', detail: eventDetail(e), run: () => d.openTarget({ app: 'calendar', date: e.start.slice(0, 10) }, e.title) }));
     },
     commands: () => [{ id: 'today', label: 'Today in Calendar', detail: 'Calendar', run: d.calendarToday }],
-  });
-  useLauncherSource({
-    app: 'tasks',
-    commands: () => [
-      { id: 'today', label: 'Due today', detail: 'Tasks', run: () => d.tasksView('today') },
-      { id: 'scheduled', label: 'Scheduled tasks', detail: 'Tasks', run: () => d.tasksView('scheduled') },
-      { id: 'flagged', label: 'Flagged tasks', detail: 'Tasks', run: () => d.tasksView('flagged') },
-    ],
   });
   useLauncherSource(wordsInside('notes', d));
   useLauncherSource(wordsInside('docs', d));
