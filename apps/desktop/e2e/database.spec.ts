@@ -200,6 +200,6 @@ test('Analyse… in the Mobius panel switches to Analyse mode and starts the que
   await expect(shell.getByRole('region', { name: 'Database' }).getByLabel('Rows', { exact: true }).getByRole('row')).toHaveCount(4);
   await shell.getByRole('button', { name: 'Analyse…' }).click();
   await expect(shell.getByRole('textbox', { name: 'Message Mobius' })).toHaveValue('Analyse ');
-  await expect(shell.getByRole('button', { name: 'Mode', exact: true })).toContainText('Analyse');
+  await expect(shell.getByRole('button', { name: /^Mode: / })).toContainText('Analyse');
   expect(model.requests).toHaveLength(0);
 });

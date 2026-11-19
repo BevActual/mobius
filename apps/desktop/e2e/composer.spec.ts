@@ -283,7 +283,7 @@ test('permission and mode are changed from the message box, and the permission m
   await expect(permission).toContainText('Review');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
   // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan.
-  const mode = shell().getByRole('button', { name: 'Mode', exact: true });
+  const mode = shell().getByRole('button', { name: /^Mode: / });
   await expect(mode).toContainText('Agent');
   await composer().press('Shift+Tab');
   await expect(mode).toContainText('Ask');
@@ -295,7 +295,7 @@ test('permission and mode are changed from the message box, and the permission m
 
 test('in Ask mode the model is offered only what reads', async () => {
   await start([says(['Here is what it says.'])]);
-  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('button', { name: /^Mode: / }).click();
   await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Ask/ }).click();
   await say('what is in my notes?');
   await expect(log().locator('.msg.assistant')).toHaveText('Here is what it says.');
@@ -324,7 +324,7 @@ test('an app adds its own mode after the shared three, sent by name with the hos
     await shell().keyboard.press('Enter');
   };
   await openApp('Mail');
-  const mode = shell().getByRole('button', { name: 'Mode', exact: true });
+  const mode = shell().getByRole('button', { name: /^Mode: / });
   await mode.click();
   const modes = menu('Mode').getByRole('menuitemradio');
   await expect(modes).toHaveText([/^Agent/, /^Ask/, /^Plan/, /^Triage/]);

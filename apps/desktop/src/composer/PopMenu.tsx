@@ -2,8 +2,11 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import { morphOut, useMorphIn } from '../motion';
 
 interface Props {
-  /** Names the button for people using a screen reader. */
+  /** Names the menu, and the button too unless `buttonLabel` is given. */
   label: string;
+  /** Names the button when it shows more than `label` (its choice): the name holds what it shows, so people using a
+   *  screen reader or voice control hear and say what they see. */
+  buttonLabel?: string;
   /** What the button shows. */
   trigger: ReactNode;
   className?: string;
@@ -16,7 +19,7 @@ interface Props {
 }
 
 /** A small menu that opens above its button. Escape and clicking elsewhere close it; the arrow keys move between items. */
-export function PopMenu({ label, trigger, className = 'pill', disabled, title, onOpen, children }: Props) {
+export function PopMenu({ label, buttonLabel, trigger, className = 'pill', disabled, title, onOpen, children }: Props) {
   const [open, setOpen] = useState(false);
   // The menu grows out of the button that opened it, and goes back into it when it closes.
   const list = useRef<HTMLDivElement>(null);
@@ -80,7 +83,7 @@ export function PopMenu({ label, trigger, className = 'pill', disabled, title, o
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        aria-label={label}
+        aria-label={buttonLabel ?? label}
         title={title ?? label}
         disabled={disabled}
         onClick={() => {

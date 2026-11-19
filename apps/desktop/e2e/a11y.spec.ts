@@ -48,10 +48,14 @@ async function settle(shell: Page): Promise<void> {
   await shell.waitForTimeout(300);
 }
 
-const setTheme = (shell: Page, theme: Theme) =>
-  shell.evaluate(async (theme) => {
+/** Chooses a theme as Settings does. Dark reaches the page through the system's dark mode, which the window takes from
+ *  its native theme; the hidden test window does not pass that on, so the page is told directly, as screens.spec does. */
+async function setTheme(shell: Page, theme: Theme): Promise<void> {
+  await shell.emulateMedia({ colorScheme: theme === 'dark' || theme === 'cool' ? 'dark' : 'light' });
+  await shell.evaluate(async (theme) => {
     await (window as unknown as { mobius: { appearance: { set(change: object): Promise<unknown> } } }).mobius.appearance.set({ theme });
   }, theme);
+}
 
 let fixture: Fixture;
 let model: ModelFixture;
