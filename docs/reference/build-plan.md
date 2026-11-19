@@ -66,7 +66,7 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 | Item | Owner | Status |
 | --- | --- | --- |
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing |
-| The Builder's queue below: updates in the app, then agents that run from the tray | Builder | Next |
+| The Builder's queue below: updates while in the tray, then agents that run from the tray | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
 | Design and Research weak points, Database's Analyse mode | Apps lead | Next |
 | Sign-in for Google, Microsoft (with Teams chats) and Dropbox; Telegram keys | Builder | Built; waits on Andrew ([drive sign-in](drive-sign-in.md), [messages sign-in](messages-sign-in.md)) |
@@ -79,7 +79,7 @@ and sync, contacts, CalDAV task lists, the cloud drives) is on `main`.
 
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | Updates in the app: check the release feed, download, verify the update's signature, install on quit; Settings › About shows the version and Check for updates | Everyone who installs Mobius, before it is shared | Next. The update signing key's private half goes in a repository secret, which Andrew adds |
+| 1 | Updates in the app: Mobius checks, downloads and verifies signed updates itself, and Settings › About has Check for Updates (`updater.rs`). Left: since closing the window keeps Mobius in the tray, a waiting update installs at the next start with Windows, and the tray menu says Restart to update | Everyone who installs Mobius | Have; the tray gap is next |
 | 2 | Agents that run on their schedule from the tray while the window is closed, with a notice when a result waits to review | Agents, Home's desk | After 1 |
 | 3 | Take over beside Stop: the person steps into a running turn, edits the next step or finishes it by hand | Every app | After 2 |
 | 4 | Video: a first cut | Video's moment | Waits on footage |
