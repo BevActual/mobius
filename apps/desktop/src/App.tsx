@@ -1351,7 +1351,8 @@ export function App() {
           if (!read || 'ok' in read) { setToast('The template could not be read.'); return; }
           const here = docs.page && !isTemplate(docs.page.path) ? docs.page.path.split('/')[0] : undefined;
           const folder = here ?? docs.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(DEFAULT_FOLDER));
-          if (folder) await docs.createPage(folder, title, fillTemplate(read.content, new Date()));
+          const made = folder ? await docs.createPage(folder, title, fillTemplate(read.content, new Date())) : null;
+          if (!made) setToast(`${title} could not be started${folder ? ` in ${folder}` : ''}.`);
         })(); },
         // Opens the copy in Templates: what is changed there is what new documents start with.
         saveAsTemplate: () => { const page = docs.page; if (!page || isTemplate(page.path)) return; void (async () => {
