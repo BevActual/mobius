@@ -347,6 +347,11 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const shown = everything.filter((c) => c.id !== del.hidden);
   const conversations = shown.filter((c) => !archived.includes(c.id));
   const putAway = shown.filter((c) => archived.includes(c.id));
+  // Deleting the open chat moves to the next one straight away (or a new chat), as deleting it outright did.
+  const removeChat = (c: ConversationInfo) => {
+    if (c.id === active) { const next = conversations.find((x) => x.id !== c.id); if (next) onSelect(next.id); else onNew(); }
+    del.remove(c);
+  };
   // Agents' groups only once more than one agent has chats: with one, its heading only repeats the panel's.
   const grouped = bots.filter((bot) => conversations.some((c) => botOfConversation(c.id, known) === bot.id)).length > 1;
   const [showArchived, setShowArchived] = useState(false);
@@ -361,7 +366,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
       {searchable && <SidebarSearch label="Search chats" placeholder="Search chats" value={query} onChange={setQuery} />}
       {mode === 'activity' && pin && <div className="side-head"><span className="side-title">Activity</span><span className="side-actions">{pin}</span></div>}
       {mode === 'activity' ? (
-        <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={del.remove} onOpenSchedules={onOpenSchedules} />
+        <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={removeChat} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
           <SidebarSection title="Agents" action={<>{pin}<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
@@ -403,7 +408,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
                 {!shut && (
                   <ul className="clist" role="list">
                     {rows.map((conversation) => (
-                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => del.remove(conversation)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
+                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => removeChat(conversation)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
                     ))}
                   </ul>
                 )}
@@ -423,7 +428,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
               {showArchived && (
                 <ul className="clist" role="list" aria-label="Archived sessions">
                   {putAway.map((conversation) => (
-                    <Row key={conversation.id} conversation={conversation} current={conversation.id === active} isArchived onSelect={() => onSelect(conversation.id)} onDelete={() => del.remove(conversation)} onArchive={(on) => onArchive(conversation.id, on)} />
+                    <Row key={conversation.id} conversation={conversation} current={conversation.id === active} isArchived onSelect={() => onSelect(conversation.id)} onDelete={() => removeChat(conversation)} onArchive={(on) => onArchive(conversation.id, on)} />
                   ))}
                 </ul>
               )}

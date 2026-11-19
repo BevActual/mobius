@@ -214,7 +214,8 @@ test('bots and their sessions are still there after a restart', async () => {
   await list().getByRole('button', { name: 'Keeper', exact: true }).click();
   await expect(shell().getByRole('region', { name: 'Keeper' }).filter({ hasText: 'What it does' })).toContainText('keeper-model');
   await goToPlace(shell(), 'Home');
-  await expect(list().getByRole('region', { name: 'Keeper' })).toContainText('persist this');
+  // One agent with chats: no group heading, the chat is in the list.
+  await expect(list()).toContainText('persist this');
 });
 
 test('a bot\'s group can be folded away, and stays folded after a restart', async () => {
