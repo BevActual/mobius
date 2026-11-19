@@ -830,7 +830,7 @@ impl Matrix {
         Ok(())
     }
 
-    fn account_data(&self, s: &Session, kind: &str) -> Res<Option<Value>> {
+    pub(crate) fn account_data(&self, s: &Session, kind: &str) -> Res<Option<Value>> {
         match self.call("GET", &self.api(s, &["v3", "user", &s.user, "account_data", kind], &[])?, Some(&s.access), None) {
             Ok(v) => Ok(Some(v)),
             Err(e) if e.starts_with("That isn't there") => Ok(None),
@@ -884,13 +884,19 @@ impl Matrix {
         c.sent(&txn, &self.ruma(s, q)?)?;
         // The key backup: every room key kept on the server, readable with the backup key from secret storage.
         let Some(backup_key) = secret(SecretName::RecoveryKey).ok().flatten().or(secret(SecretName::from("m.megolm_backup.v1"))?) else { return Ok(0) };
+        self.restore_backup(s, c, &backup_key)
+    }
+
+    /// Reads every room key from the key backup with its key (base64), after checking it is the server's backup's.
+    /// Answers how many keys were new; no backup on the server is none.
+    pub(crate) fn restore_backup(&self, s: &Session, c: &Crypto, backup_key: &str) -> Res<usize> {
         let version = match self.call("GET", &self.api(s, &["v3", "room_keys", "version"], &[])?, Some(&s.access), None) {
             Ok(v) => v,
             Err(e) if e.starts_with("That isn't there") => return Ok(0),
             Err(e) => return Err(e),
         };
         let (Some(number), Some(public)) = (str_at(&version, "/version"), str_at(&version, "/auth_data/public_key")) else { return Ok(0) };
-        let decryption = c.use_backup_key(&backup_key, number, public)?;
+        let decryption = c.use_backup_key(backup_key, number, public)?;
         let keys = self.call_with(&self.slow, "GET", &self.api(s, &["v3", "room_keys", "keys"], &[("version", number)])?, Some(&s.access), None, MAX_SYNC)?;
         c.import_backup(&decryption, keys.get("rooms").unwrap_or(&Value::Null))
     }

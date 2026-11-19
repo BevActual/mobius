@@ -26,6 +26,9 @@ pub struct Crypto {
     rt: tokio::runtime::Runtime,
     /// Always there until the account's encryption is put away (`Drop`).
     machine: Option<OlmMachine>,
+    /// The emoji verification under way with another of the person's devices: its flow id, and how many checks
+    /// since the secrets were asked for (0: not yet).
+    pub(crate) verifying: std::sync::Mutex<Option<(String, u8)>>,
 }
 
 impl Drop for Crypto {
@@ -59,7 +62,7 @@ impl Crypto {
             }
             Ok::<_, String>(machine)
         })?;
-        Ok(Crypto { rt, machine: Some(machine) })
+        Ok(Crypto { rt, machine: Some(machine), verifying: std::sync::Mutex::new(None) })
     }
 
     pub fn block<F: std::future::Future>(&self, f: F) -> F::Output {
@@ -261,7 +264,11 @@ mod tests {
             }
             ("PUT", [.., "sendToDevice", kind, _]) => {
                 for (dev, content) in body.pointer(&format!("/messages/{ME}")).and_then(Value::as_object).into_iter().flatten() {
-                    home.inbox.entry(dev.clone()).or_default().push(json!({ "type": kind, "sender": ME, "content": content }));
+                    // `*` is every device of the person's but the sender.
+                    let to: Vec<String> = if dev == "*" { home.devices.keys().filter(|d| *d != device).cloned().collect() } else { vec![dev.clone()] };
+                    for d in to {
+                        home.inbox.entry(d).or_default().push(json!({ "type": kind, "sender": ME, "content": content }));
+                    }
                 }
                 (200, json!({}))
             }
@@ -385,6 +392,7 @@ mod tests {
         matrix.call("POST", &format!("{url}/_matrix/client/v3/room_keys/version"), Some(&s.access), Some(&json!({ "algorithm": "m.megolm_backup.v1.curve25519-aes-sha2", "auth_data": { "public_key": public.to_base64() } }))).unwrap();
         public.set_version("1".into());
         c.block(c.machine().backup_machine().enable_backup_v1(public)).unwrap();
+        c.block(c.machine().backup_machine().save_decryption_key(Some(backup.clone()), Some("1".into()))).unwrap();
         let data = storage.encrypt(backup.to_base64().into_bytes(), &SecretName::from("m.megolm_backup.v1"));
         put("m.megolm_backup.v1", json!({ "encrypted": { id.clone(): data } }));
         (s, c, storage.to_base58())
@@ -473,5 +481,108 @@ mod tests {
         // Opened again with its key, it still knows the key backup and backs up new room keys.
         let c = Crypto::open(&dir.path().join("MOBIUS"), ME, "MOBIUS", &[7u8; 32]).unwrap();
         assert_eq!(c.block(c.machine().backup_machine().backup_version()), Some("1".to_owned()));
+    }
+
+    #[test]
+    fn emoji_verification_with_the_other_app_verifies_this_device_and_brings_the_key_backup() {
+        use matrix_sdk_crypto::Verification;
+        use ruma::events::key::verification::VerificationMethod;
+        let (url, home) = homeserver();
+        let dir = tempfile::tempdir().unwrap();
+        let matrix = Matrix::new();
+        let (phone_s, phone, _) = set_up_other_app(&matrix, &url, dir.path());
+        write(&matrix, &home, &phone_s, &phone, "!old:x", "$old", "Before you came");
+        back_up(&matrix, &phone_s, &phone);
+        let (s, c) = device(&url, "MOBIUS", dir.path());
+        matrix.channels("acc", &s, Some(&c)).unwrap();
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "idle");
+
+        // The other app already knows this device (its sync said the person's devices changed).
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        // Mobius asks; the other app shows the request and the person accepts it there.
+        matrix.verify_start(&s, &c).unwrap();
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "waiting");
+        let me = UserId::parse(ME).unwrap();
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let request = phone.machine().get_verification_requests(&me).into_iter().next().unwrap();
+        let flow = request.flow_id().as_str().to_owned();
+        matrix.send_verification(&phone_s, &phone, request.accept_with_methods(vec![VerificationMethod::SasV1]).unwrap()).unwrap();
+        // Mobius starts the emoji comparison; the other app accepts it, and the two swap keys.
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "starting");
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let Some(Verification::SasV1(theirs)) = phone.machine().get_verification(&me, &flow) else { panic!("the other app has no emoji verification") };
+        matrix.send_verification(&phone_s, &phone, theirs.accept().unwrap()).unwrap();
+        let mut shown = Value::Null;
+        for _ in 0..4 {
+            shown = matrix.verify_check("acc", &s, &c).unwrap();
+            if shown["state"] == "compare" {
+                break;
+            }
+            matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        }
+        assert_eq!(shown["state"], "compare");
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let symbols: Vec<&str> = theirs.emoji().unwrap().iter().map(|e| e.symbol).collect();
+        let ours: Vec<&str> = shown["emoji"].as_array().unwrap().iter().map(|e| e["symbol"].as_str().unwrap()).collect();
+        assert_eq!(ours, symbols);
+        assert!(shown["emoji"][0]["name"].as_str().is_some_and(|n| !n.is_empty()));
+
+        // The person says they match, on both.
+        matrix.verify_confirm(&s, &c, true).unwrap();
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "confirmed");
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let (outgoing, signatures) = phone.block(theirs.confirm()).unwrap();
+        for o in outgoing {
+            matrix.send_verification(&phone_s, &phone, o).unwrap();
+        }
+        if let Some(sig) = signatures {
+            matrix.ruma(&phone_s, sig).unwrap();
+        }
+        // Then the other app sends the person's secrets, and Mobius reads the backup.
+        let mut state = Value::Null;
+        for _ in 0..8 {
+            state = matrix.verify_check("acc", &s, &c).unwrap();
+            if state["state"] == "done" {
+                break;
+            }
+            matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        }
+        assert_eq!(state, json!({ "state": "done", "verified": true, "keys": 1 }));
+        assert!(c.verified());
+        let text: Vec<String> = matrix.history("acc", &s, "!old:x", None, None, 50, Some(&c)).unwrap().iter().map(|m| m["text"].as_str().unwrap().to_owned()).collect();
+        assert_eq!(text, ["Before you came"]);
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "idle");
+    }
+
+    #[test]
+    fn emoji_that_dont_match_cancel_the_verification() {
+        use ruma::events::key::verification::VerificationMethod;
+        let (url, _home) = homeserver();
+        let dir = tempfile::tempdir().unwrap();
+        let matrix = Matrix::new();
+        let (phone_s, phone, _) = set_up_other_app(&matrix, &url, dir.path());
+        let (s, c) = device(&url, "MOBIUS", dir.path());
+        matrix.channels("acc", &s, Some(&c)).unwrap();
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        matrix.verify_start(&s, &c).unwrap();
+        let me = UserId::parse(ME).unwrap();
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let request = phone.machine().get_verification_requests(&me).into_iter().next().unwrap();
+        matrix.send_verification(&phone_s, &phone, request.accept_with_methods(vec![VerificationMethod::SasV1]).unwrap()).unwrap();
+        matrix.verify_check("acc", &s, &c).unwrap();
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let Some(matrix_sdk_crypto::Verification::SasV1(theirs)) = phone.machine().get_verification(&me, request.flow_id().as_str()) else { panic!("no emoji verification") };
+        matrix.send_verification(&phone_s, &phone, theirs.accept().unwrap()).unwrap();
+        for _ in 0..4 {
+            if matrix.verify_check("acc", &s, &c).unwrap()["state"] == "compare" {
+                break;
+            }
+            matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        }
+        matrix.verify_confirm(&s, &c, false).unwrap();
+        assert_eq!(matrix.verify_check("acc", &s, &c).unwrap()["state"], "idle");
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        assert!(theirs.is_cancelled());
+        assert!(!c.verified());
     }
 }
