@@ -33,6 +33,7 @@ pub fn decide_notice(notification: &Value, prefs: &Value, focused: bool) -> Opti
     let conversation = params.get("conversation").and_then(Value::as_str).map(str::to_owned);
     let event = params.get("event")?;
     let silent = flag(prefs, "muteSounds");
+    let scheduled = conversation.as_deref().is_some_and(crate::schedules::is_scheduled_run);
     match event.get("kind").and_then(Value::as_str)? {
         "needs_approval" if flag(prefs, "notifyNeedsYou") => {
             let tool = event.get("tool").and_then(Value::as_str)?;
@@ -40,6 +41,14 @@ pub fn decide_notice(notification: &Value, prefs: &Value, focused: bool) -> Opti
         }
         // A question waits for you as an approval does. Only that there is one is said, never the question itself.
         "question" if flag(prefs, "notifyNeedsYou") => Some(Notice { kind: "needs-you", title: "Mobius needs you".into(), body: "It has a question for you.".into(), conversation, silent }),
+        // A scheduled request ran on its own, maybe with the window closed and Mobius in the tray: its result waits
+        // to be looked at, and any changes to be kept or discarded.
+        "done" if flag(prefs, "notifyFinished") && scheduled => {
+            Some(Notice { kind: "finished", title: "A scheduled request is ready".into(), body: "Open Mobius to review what it did.".into(), conversation, silent })
+        }
+        "failed" if flag(prefs, "notifyFinished") && scheduled => {
+            Some(Notice { kind: "finished", title: "A scheduled request stopped".into(), body: "Something went wrong. Open Mobius to see what.".into(), conversation, silent })
+        }
         "done" if flag(prefs, "notifyFinished") => Some(Notice { kind: "finished", title: "Mobius finished".into(), body: "Your request is done.".into(), conversation, silent }),
         "failed" if flag(prefs, "notifyFinished") => {
             Some(Notice { kind: "finished", title: "Mobius stopped".into(), body: "Something went wrong. Open Mobius to see what.".into(), conversation, silent })
@@ -106,6 +115,18 @@ mod tests {
         let failed = decide_notice(&event("failed", json!({ "message": "the key sk-123 was rejected" })), &prefs(), false).unwrap();
         assert_eq!(failed.title, "Mobius stopped");
         assert!(!failed.to_json().to_string().contains("sk-123"));
+    }
+
+    #[test]
+    fn a_scheduled_run_that_finished_says_it_is_ready_to_review() {
+        let mut n = event("done", json!({}));
+        n["params"]["conversation"] = json!(crate::schedules::conversation_for_run(None));
+        let done = decide_notice(&n, &prefs(), false).unwrap();
+        assert_eq!((done.title.as_str(), done.body.as_str()), ("A scheduled request is ready", "Open Mobius to review what it did."));
+        assert_eq!(done.conversation, n["params"]["conversation"].as_str().map(str::to_owned));
+        n["params"]["conversation"] = json!(crate::schedules::conversation_for_run(Some("ab12cd")));
+        n["params"]["event"] = json!({ "kind": "failed", "message": "m" });
+        assert_eq!(decide_notice(&n, &prefs(), false).unwrap().title, "A scheduled request stopped");
     }
 
     #[test]
