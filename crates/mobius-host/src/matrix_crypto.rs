@@ -13,7 +13,7 @@ use matrix_sdk_crypto::types::requests::{AnyIncomingResponse, OutgoingRequest};
 use matrix_sdk_crypto::{CrossSigningKeyExport, DecryptionSettings, EncryptionSyncChanges, OlmMachine, OlmMachineBuilder, TrustRequirement};
 use matrix_sdk_sqlite::SqliteCryptoStore;
 use ruma::api::client::sync::sync_events::DeviceLists;
-use ruma::events::AnyToDeviceEvent;
+use ruma::events::{AnyMessageLikeEventContent, AnyToDeviceEvent};
 use ruma::serde::Raw;
 use ruma::{OneTimeKeyAlgorithm, OwnedRoomId, RoomId, TransactionId, UInt, UserId};
 use serde_json::Value;
@@ -49,7 +49,15 @@ impl Crypto {
         std::fs::create_dir_all(dir).map_err(said)?;
         let machine = rt.block_on(async {
             let store = SqliteCryptoStore::open_with_key(dir, Some(key)).await.map_err(said)?;
-            OlmMachineBuilder::new(&user, &device).with_crypto_store(store).build().await.map_err(said)
+            let machine = OlmMachineBuilder::new(&user, &device).with_crypto_store(store).build().await.map_err(said)?;
+            // Keys this device makes go on to the key backup it was given before.
+            let kept = machine.backup_machine().get_backup_keys().await.map_err(said)?;
+            if let (Some(key), Some(version)) = (kept.decryption_key, kept.backup_version) {
+                let public = key.megolm_v1_public_key();
+                public.set_version(version);
+                machine.backup_machine().enable_backup_v1(public).await.map_err(said)?;
+            }
+            Ok::<_, String>(machine)
         })?;
         Ok(Crypto { rt, machine: Some(machine) })
     }
@@ -113,6 +121,14 @@ impl Crypto {
         Some(out)
     }
 
+    /// Encrypts a message for `room`, whose room key `share` has given to every member's devices.
+    pub fn encrypt(&self, room: &str, kind: &str, content: &Value) -> Res<Value> {
+        let room = RoomId::parse(room).map_err(said)?;
+        let content: Raw<AnyMessageLikeEventContent> = serde_json::from_value(content.clone()).map_err(said)?;
+        let encrypted = self.block(self.machine().encrypt_room_event_raw(&room, kind, &content)).map_err(said)?;
+        serde_json::from_str(encrypted.content.json().get()).map_err(said)
+    }
+
     /// Whether this device is verified: cross-signed by the person's own identity.
     pub fn verified(&self) -> bool {
         let (user, device) = (self.machine().user_id().to_owned(), self.machine().device_id().to_owned());
@@ -132,6 +148,8 @@ impl Crypto {
             return Err("The key backup on the server was made with another key.".into());
         }
         self.block(self.machine().backup_machine().save_decryption_key(Some(key.clone()), Some(version.to_owned()))).map_err(said)?;
+        theirs.set_version(version.to_owned());
+        self.block(self.machine().backup_machine().enable_backup_v1(theirs)).map_err(said)?;
         Ok(key)
     }
 
@@ -283,6 +301,12 @@ mod tests {
                 (200, json!({ "count": home.backed_up.len(), "etag": "1" }))
             }
             ("GET", [.., "room_keys", "keys"]) if query.get("version").map(String::as_str) == Some("1") => (200, json!({ "rooms": home.backed_up })),
+            ("GET", [.., "rooms", _, "joined_members"]) => (200, json!({ "joined": { ME: {} } })),
+            ("PUT", [.., "rooms", room, "send", kind, txn]) => {
+                let id = format!("$sent-{txn}");
+                home.rooms.entry((*room).to_owned()).or_default().push(json!({ "type": kind, "event_id": id, "sender": ME, "origin_server_ts": 2000, "content": body }));
+                (200, json!({ "event_id": id }))
+            }
             ("GET", [.., "rooms", room, "messages"]) => (200, json!({ "chunk": home.rooms.get(*room).cloned().unwrap_or_default().into_iter().rev().collect::<Vec<_>>(), "state": [] })),
             _ => (404, json!({ "errcode": "M_UNRECOGNIZED", "error": path })),
         }
@@ -424,9 +448,30 @@ mod tests {
         let text = |room: &str| matrix.history("acc", &s, room, None, None, 50, Some(&c)).unwrap().iter().map(|m| m["text"].as_str().unwrap().to_owned()).collect::<Vec<_>>();
         assert_eq!(text("!old:x"), ["Before you came"]);
         assert_eq!(text("!new:x"), ["Now you are here"]);
+
+        // Now verified, it writes in an encrypted room, in a thread: the other app reads it, and its key is backed up.
+        let backed_up = |room: &str| home.lock().unwrap().backed_up.get(room).and_then(|r| r["sessions"].as_object().map(|s| s.len())).unwrap_or(0);
+        assert_eq!(backed_up("!new:x"), 0);
+        let sent = matrix.send("acc", &s, "!new:x", "Hello from Mobius", Some("$new"), Some(&c)).unwrap();
+        assert_eq!(sent["text"], "Hello from Mobius");
+        let raw = home.lock().unwrap().rooms["!new:x"].last().cloned().unwrap();
+        assert_eq!(raw["type"], "m.room.encrypted");
+        assert!(!raw.to_string().contains("Hello from Mobius"));
+        assert_eq!(raw.pointer("/content/m.relates_to/rel_type"), Some(&json!("m.thread")));
+        matrix.channels("phone", &phone_s, Some(&phone)).unwrap();
+        let theirs = phone.decrypt("!new:x", &raw).unwrap();
+        assert_eq!(theirs["content"]["body"], "Hello from Mobius");
+        // Both keys this device holds for the room: its own, and the one the other app sent it (not backed up yet).
+        assert_eq!(backed_up("!new:x"), 2);
+        // A second message uses the same room key: nothing new to share or back up.
+        matrix.send("acc", &s, "!new:x", "And again", None, Some(&c)).unwrap();
+        assert_eq!(backed_up("!new:x"), 2);
+
         // The store is encrypted: opened with another key, it refuses.
         drop(c);
         assert!(Crypto::open(&dir.path().join("MOBIUS"), ME, "MOBIUS", &[8u8; 32]).is_err());
-        let _ = home;
+        // Opened again with its key, it still knows the key backup and backs up new room keys.
+        let c = Crypto::open(&dir.path().join("MOBIUS"), ME, "MOBIUS", &[7u8; 32]).unwrap();
+        assert_eq!(c.block(c.machine().backup_machine().backup_version()), Some("1".to_owned()));
     }
 }
