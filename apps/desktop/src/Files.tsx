@@ -259,7 +259,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
   return (
     <AppSidebar label="Places">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
-      <SidebarSection title="Places" {...(pin ? { action: pin } : {})}>
+      <SidebarSection title="This computer" {...(pin ? { action: pin } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} drop={files.can.move ? files.drop('') : undefined} />
         {files.can.trash && <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />}
       </SidebarSection>
