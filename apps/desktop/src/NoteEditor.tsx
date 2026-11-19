@@ -17,6 +17,7 @@ import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
+import { BulletToTask } from './task-shortcut';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
@@ -298,6 +299,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       TableKit,
       TaskList,
       TaskItem.configure({ nested: true }),
+      BulletToTask,
       Markdown,
       // The hints are for a page still to be written: an empty title, and the first line under it. A page with words
       // in it shows none, so the empty line kept at its end does not read as a prompt.
@@ -437,6 +439,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   useEffect(() => { caret.current = null; }, [path]);
   const [clipping, setClipping] = useState<string | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
+  // Where [[ was typed (in the window), for the note picker to open there rather than above the page.
+  const [linkAt, setLinkAt] = useState<{ left: number; top: number } | null>(null);
+  useEffect(() => { if (linking === null) setLinkAt(null); }, [linking]);
+  // A click anywhere else closes it, as it would a menu.
+  useEffect(() => {
+    if (!linkAt) return undefined;
+    const away = (e: PointerEvent) => { if (!(e.target instanceof Element && e.target.closest('.note-link-float'))) setLinking(null); };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [linkAt]);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
   /** A block of Markdown put in where the cursor is. */
@@ -543,7 +555,32 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     else chain.extendMarkRange('link').setLink({ href }).run();
   };
   openPage.current = (page) => { const found = notes.notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === page); void notes.open(page, found?.title ?? ''); };
-  askForPage.current = () => setLinking('');
+  askForPage.current = () => {
+    const at = editor?.view.coordsAtPos(editor.state.selection.from);
+    setLinkAt(at ? { left: Math.max(8, Math.min(at.left, window.innerWidth - 340)), top: at.bottom + 6 } : null);
+    setLinking('');
+  };
+  const linkForm = linking === null ? null : (
+            <form className={`note-clip note-link-form${linkAt ? ' note-link-float' : ''}`} style={linkAt ? { left: linkAt.left, top: linkAt.top } : undefined} onSubmit={(e) => { const pick = linkPages[linkChoice]; if (pick) { e.preventDefault(); linkPage(pick); } else addLink(e); }}>
+              <input autoFocus aria-label="Link to" placeholder="A note's name, or paste a link" value={linking} role="combobox" aria-expanded={linkPages.length > 0} aria-controls="note-link-pages" aria-activedescendant={linkPages[linkChoice] ? `note-link-${linkChoice}` : undefined}
+                onChange={(e) => setLinking(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { setLinking(null); setLinkAt(null); editor?.commands.focus(); }
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setLinkChoice((c) => (linkPages.length ? (c + (e.key === 'ArrowDown' ? 1 : linkPages.length - 1)) % linkPages.length : 0)); }
+                }} />
+              <button type="submit" className="btn" disabled={!linking.trim() && !linkPages.length}>Link</button>
+              {linkPages.length > 0 && (
+                <ul id="note-link-pages" className="note-link-pages" role="listbox" aria-label="Notes to link">
+                  {linkPages.map((pg, i) => (
+                    <li key={pg.path} id={`note-link-${i}`} role="option" aria-selected={i === linkChoice} onPointerDown={(e) => e.preventDefault()} onClick={() => linkPage(pg)}>
+                      <span className="note-link-title">{pg.title}</span>
+                      <span className="note-link-book">{pg.notebook}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </form>
+  );
   const backlinks = useMemo(() => (path ? linkedFrom(notes.notebooks, path) : []), [notes.notebooks, path]);
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
@@ -771,7 +808,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         </div>
         </ToolbarControls>
       )}
-      {diff === null && !history && (clipping !== null || linking !== null || meetingDone || (insertProblem ?? recording.problem ?? meeting.problem)) && (
+      {diff === null && !history && (clipping !== null || (linking !== null && !linkAt) || meetingDone || (insertProblem ?? recording.problem ?? meeting.problem)) && (
         <div className="note-forms">
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
@@ -779,27 +816,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
               <button type="submit" className="btn" disabled={!clipping.trim()}>Clip</button>
             </form>
           )}
-          {linking !== null && (
-            <form className="note-clip note-link-form" onSubmit={(e) => { const pick = linkPages[linkChoice]; if (pick) { e.preventDefault(); linkPage(pick); } else addLink(e); }}>
-              <input autoFocus aria-label="Link to" placeholder="A note's name, or paste a link" value={linking} role="combobox" aria-expanded={linkPages.length > 0} aria-controls="note-link-pages" aria-activedescendant={linkPages[linkChoice] ? `note-link-${linkChoice}` : undefined}
-                onChange={(e) => setLinking(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') { setLinking(null); editor?.commands.focus(); }
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setLinkChoice((c) => (linkPages.length ? (c + (e.key === 'ArrowDown' ? 1 : linkPages.length - 1)) % linkPages.length : 0)); }
-                }} />
-              <button type="submit" className="btn" disabled={!linking.trim() && !linkPages.length}>Link</button>
-              {linkPages.length > 0 && (
-                <ul id="note-link-pages" className="note-link-pages" role="listbox" aria-label="Notes to link">
-                  {linkPages.map((pg, i) => (
-                    <li key={pg.path} id={`note-link-${i}`} role="option" aria-selected={i === linkChoice} onPointerDown={(e) => e.preventDefault()} onClick={() => linkPage(pg)}>
-                      <span className="note-link-title">{pg.title}</span>
-                      <span className="note-link-book">{pg.notebook}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </form>
-          )}
+          {linking !== null && !linkAt && linkForm}
           {meetingDone && (
             <div className="note-clip note-meeting" role="status">
               <span>The meeting is in this page.</span>
@@ -841,6 +858,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           })()}
         </ol>
       )}
+      {linkAt && linkForm && diff === null && !history && createPortal(linkForm, document.body)}
       <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
         <p className="note-meta">
           {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}

@@ -108,6 +108,8 @@
 .note-clip input { width: 240px; height: var(--control-h); padding: 0 var(--sp-3); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; font-size: var(--fs-sm); }
 .note-clip input:focus { outline: none; border-color: var(--ink); }
 .note-link-form { position: relative; }
+/* Opened by typing [[: under the words, like a menu. */
+.note-link-float { position: fixed; z-index: var(--z-menu); padding: var(--sp-1); background: var(--raised); border-radius: var(--radius-sheet); box-shadow: var(--shadow-menu); }
 .note-link-pages { position: absolute; top: calc(100% + var(--sp-1)); left: 0; z-index: var(--z-menu); min-width: var(--menu-min-w); max-width: 420px; margin: 0; padding: var(--menu-pad); list-style: none; background: var(--raised); border-radius: var(--radius-sheet); box-shadow: var(--shadow-menu); }
 .note-link-pages li { display: flex; align-items: center; gap: var(--sp-2); height: var(--menu-row-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); cursor: default; }
 .note-link-pages li[aria-selected="true"] { background: var(--sel); }
