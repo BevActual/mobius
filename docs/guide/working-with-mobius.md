@@ -142,4 +142,7 @@ Mobius. A page cannot tell Mobius to do something on your behalf.
 ## Schedules
 
 **Settings › Schedules** asks Mobius something at a time of day, on the days you choose (a morning brief, say). Each
-run is a new conversation, and it asks before acting as usual.
+run is a new conversation, and it asks before acting as usual. Schedules run while Mobius is open, including with its window closed
+and only its icon in the tray. When a run finishes, a notice says it is ready to review (if **When a request finishes**
+is on in Settings › Notifications), and clicking it opens that conversation. A run missed while Mobius was not running
+happens once when it next starts, on the same day.
