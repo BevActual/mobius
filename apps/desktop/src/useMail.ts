@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { formatWith } from './dates';
+import { usePreferences } from './usePreferences';
 import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, type MailCounts, type MailDraft, type MailMessage } from '@mobius/shared';
 
 /** How long Send waits, with Undo, before the message goes. */
@@ -23,6 +24,12 @@ const who = (p: { name: string; email: string }) => (p.name ? `${p.name} <${p.em
 export function quoted(m: MailContent): string {
   const lines = m.text.replace(/\s+$/, '').split('\n').map((l) => (l ? `> ${l}` : '>'));
   return `\n\nOn ${quoteDate(m.dateMs)}, ${who(m.from)} wrote:\n${lines.join('\n')}`;
+}
+
+/** A body with the account's signature under where the person writes, above any quoted or forwarded message. */
+export function withSignature(body: string, signature: string | undefined): string {
+  const sig = signature?.trim();
+  return sig ? `\n\n-- \n${sig}${body}` : body;
 }
 
 /** A forward's body: room to write, then the message with who it was from and to. */
@@ -218,17 +225,21 @@ export function useMail() {
     return true;
   }, [api]);
 
+  // Each account's signature, from Settings › Mail; a reply goes from the first account unless the host picks another.
+  const { value: preferences } = usePreferences();
+  const signatures = preferences.mailSignatures;
+  const signatureOf = useCallback((account: string) => signatures?.[account || accounts[0]?.id || ''] ?? '', [signatures, accounts]);
   const reply = useCallback((to: MailContent, all = false) => {
     const people = all ? replyAllTo(to, accounts.map((a) => a.email)) : { to: to.from.email, cc: '' };
-    setEditing({ id: '', account: '', ...people, subject: reSubject(to.subject), body: quoted(to), replyTo: to.id, by: 'you', why: '', updatedMs: 0 });
-  }, [accounts]);
+    setEditing({ id: '', account: '', ...people, subject: reSubject(to.subject), body: withSignature(quoted(to), signatureOf('')), replyTo: to.id, by: 'you', why: '', updatedMs: 0 });
+  }, [accounts, signatureOf]);
   const forward = useCallback((m: MailContent) => {
-    setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: fwdSubject(m.subject), body: forwarded(m), replyTo: null, by: 'you', why: '', updatedMs: 0 });
-  }, [accounts]);
+    setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: fwdSubject(m.subject), body: withSignature(forwarded(m), signatureOf(accounts[0]?.id ?? '')), replyTo: null, by: 'you', why: '', updatedMs: 0 });
+  }, [accounts, signatureOf]);
   const compose = useCallback(() => {
     setOpen(null);
-    setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: '', body: '', replyTo: null, by: 'you', why: '', updatedMs: 0 });
-  }, [accounts]);
+    setEditing({ id: '', account: accounts[0]?.id ?? '', to: '', cc: '', subject: '', body: withSignature('', signatureOf(accounts[0]?.id ?? '')), replyTo: null, by: 'you', why: '', updatedMs: 0 });
+  }, [accounts, signatureOf]);
 
   // A message waiting out its Undo seconds is not shown as a draft.
   const shownDrafts = useMemo(() => (holding.size === 0 ? drafts : drafts.filter((d) => !holding.has(d.id))), [drafts, holding]);

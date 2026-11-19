@@ -1745,6 +1745,8 @@ export interface PreferencesSettings {
   imageModel: string;
   /** The apps added from Abilities, beside Home and Mobius's own; null is every app (an install from before Abilities). */
   installedApps: string[] | null;
+  /** Mail: each account's signature by account id, added under what is written. */
+  mailSignatures: Record<string, string>;
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
@@ -1778,7 +1780,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1805,6 +1807,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   appAccess: isAppAccess,
   quickModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
   installedApps: (v): v is string[] | null => v === null || (Array.isArray(v) && v.length <= 40 && v.every((x) => typeof x === 'string' && /^[a-z]{1,20}$/.test(x))),
+  mailSignatures: (v): v is Record<string, string> => typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length <= 20 && Object.entries(v).every(([k, s]) => k.length > 0 && k.length <= 200 && typeof s === 'string' && [...s].length <= 2000 && !s.includes('\0')),
   imageModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {
