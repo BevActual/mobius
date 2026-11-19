@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyOf, colourOf, dotLevel, faceDots, modeOfTool, showsFace, MOVING, type MatrixMode } from './dotMatrix';
+import { bodyOf, colourOf, dotLevel, faceDots, modeOfTool, showsFace, MOVING, type MatrixMode } from './dotPatterns';
 
 const frame = (mode: MatrixMode, t: number, cols = 24, rows = 6) =>
   Array.from({ length: rows }, (_, y) => Array.from({ length: cols }, (_, x) => dotLevel(mode, x, y, t, cols, rows)));

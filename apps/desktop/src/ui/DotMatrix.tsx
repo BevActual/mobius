@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { CHARACTER_SIZE, bodyOf, colourOf, dotLevel, faceDots, showsFace, type CharacterColour, type CharacterState, type MatrixMode } from './dotMatrix';
+import { CHARACTER_SIZE, bodyOf, colourOf, dotLevel, faceDots, showsFace, type CharacterColour, type CharacterState, type MatrixMode } from './dotPatterns';
 
 /*
  * The dot matrix and agent characters (docs/design/instrument.md, "Personality"). Both draw on a canvas each frame
