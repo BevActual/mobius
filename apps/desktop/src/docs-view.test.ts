@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptGroup, countLabel, docStats, fillTemplate, headingInView, isTemplate, placeChanges, readableText, templatesIn } from './docs-view';
+import { acceptGroup, countLabel, docStats, fillTemplate, headingInView, isTemplate, placeChanges, readableText, templateName, templatesIn } from './docs-view';
 import { changeGroups, diffLines } from './line-diff';
 
 describe('what a document counts', () => {
@@ -87,5 +87,13 @@ describe('templates', () => {
     expect(filled).not.toContain('{{');
     expect(filled).toMatch(/2026/);
     expect(fillTemplate('No blanks', new Date())).toBe('No blanks');
+  });
+});
+
+describe('templateName', () => {
+  it('leaves out the blanks a template fills in', () => {
+    expect(templateName('Weekly update, {{date}}')).toBe('Weekly update');
+    expect(templateName('{{date}} – Standup')).toBe('Standup');
+    expect(templateName('Meeting notes')).toBe('Meeting notes');
   });
 });

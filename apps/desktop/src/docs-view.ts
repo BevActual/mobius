@@ -114,3 +114,8 @@ export function acceptGroup(lines: readonly { kind: 'same' | 'added' | 'removed'
     .map((line) => line.text)
     .join('\n');
 }
+
+/** A template's name in the Docs menu: its title without the {{date}} it fills in ("Weekly update, {{date}}" is "Weekly update"). */
+export function templateName(title: string): string {
+  return title.replace(/\{\{\s*\w+\s*\}\}/g, '').replace(/[\s,;:–—-]+$/, '').replace(/^[\s,;:–—-]+/, '').trim() || title;
+}

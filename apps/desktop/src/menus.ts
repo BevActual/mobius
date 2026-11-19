@@ -1,4 +1,5 @@
 import type { AppId } from './apps';
+import { templateName } from './docs-view';
 
 /**
  * Mobius's menus as plain data: File, Edit, View, Go, the open app's own menu, Window and Help. One definition, shown as
@@ -249,7 +250,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('new-document', 'New document', d.docs.newDocument),
         item('new-folder', 'New folder', d.docs.newFolder),
         // Apps lead: templates are the documents in the Templates folder.
-        ...(s.docs.templates.length ? [separator, ...s.docs.templates.slice(0, 12).map((t) => item(`template-${t.path}`, `New from ${t.title}`, () => d.docs.fromTemplate(t.path, t.title)))] : []),
+        ...(s.docs.templates.length ? [separator, ...s.docs.templates.slice(0, 12).map((t) => item(`template-${t.path}`, `New from ${templateName(t.title)}`, () => d.docs.fromTemplate(t.path, t.title)))] : []),
         separator,
         item('save-template', 'Save as template', d.docs.saveAsTemplate, { disabled: !s.docs.hasPage || s.docs.isTemplate }),
       ] };

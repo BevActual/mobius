@@ -38,7 +38,7 @@ import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
-import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templatesIn } from './docs-view';
+import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
 import { MessagesPage, MessagesSidebar } from './Messages';
@@ -1351,8 +1351,10 @@ export function App() {
           if (!read || 'ok' in read) { setToast('The template could not be read.'); return; }
           const here = docs.page && !isTemplate(docs.page.path) ? docs.page.path.split('/')[0] : undefined;
           const folder = here ?? docs.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(DEFAULT_FOLDER));
-          const made = folder ? await docs.createPage(folder, title, fillTemplate(read.content, new Date())) : null;
-          if (!made) setToast(`${title} could not be started${folder ? ` in ${folder}` : ''}.`);
+          // Named as its first line reads once filled: "Weekly update, {{date}}" makes "Weekly update, Thursday, 19 November 2026".
+          const now = new Date();
+          const made = folder ? await docs.createPage(folder, fillTemplate(title, now), fillTemplate(read.content, now)) : null;
+          if (!made) setToast(`${templateName(title)} could not be started${folder ? ` in ${folder}` : ''}.`);
         })(); },
         // Opens the copy in Templates: what is changed there is what new documents start with.
         saveAsTemplate: () => { const page = docs.page; if (!page || isTemplate(page.path)) return; void (async () => {
