@@ -164,3 +164,20 @@
 .ui-dot-character[data-size="medium"] canvas { width: calc(var(--sp-8) + var(--sp-4)); }
 .ui-dot-character[data-size="large"] { padding: var(--sp-3); border-radius: var(--radius-sheet); }
 .ui-dot-character[data-size="large"] canvas { width: calc(var(--sp-8) * 3); }
+
+/* Empty state (Instrument, "Empty state"): a single-weight grey line drawing, one short line, the New action. */
+.ui-empty { display: flex; flex-direction: column; align-items: center; gap: var(--sp-3); padding: var(--sp-8) var(--sp-4); text-align: center; }
+.ui-empty[data-quiet] { flex-direction: row; justify-content: center; gap: var(--sp-3); padding: var(--sp-4); }
+.ui-empty-drawing { display: block; width: calc(var(--sp-8) * 3.5); height: auto; aspect-ratio: 112 / 72; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.ui-empty-drawing [data-faint] { stroke: var(--faint); }
+.ui-empty-line { margin: 0; max-width: calc(var(--sp-8) * 10); font-size: var(--fs-md); color: var(--muted); }
+.ui-empty[data-quiet] .ui-empty-line { font-size: var(--fs-sm); }
+
+/* Busy: grey dots that rise and fall like a level meter, in place of a spinner. Still under reduced motion. */
+.ui-busy { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.ui-busy-dots { display: inline-flex; align-items: flex-end; gap: calc(var(--sp-1) / 2); height: var(--sp-3); }
+.ui-busy-dots i {
+  width: var(--sp-1); height: var(--sp-1); border-radius: var(--radius-pill); background: currentColor; opacity: 0.35;
+  animation: ui-busy-rise var(--dur-loop) var(--ease) infinite; animation-delay: calc(var(--i) * var(--dur-loop) / 8);
+}
+@keyframes ui-busy-rise { 0%, 100% { height: var(--sp-1); opacity: 0.35; } 40% { height: var(--sp-3); opacity: 0.9; } }

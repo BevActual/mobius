@@ -56,3 +56,4 @@ export { parseDate, parseTime, lengthLabel, type ReadDate } from './dateText';
 export { Chart, Sparkline, CHART_ORDER, chartTicks, chartNumber, type ChartSeries } from './Chart';
 export { DotMatrix, DotCharacter, type DotMatrixProps, type DotCharacterProps } from './DotMatrix';
 export { modeOfTool, dotLevel, showsFace, bodyOf, colourOf, faceDots, type MatrixMode, type CharacterState, type CharacterColour } from './dotPatterns';
+export { EmptyState, EmptyDrawing, Busy, type EmptyKind } from './EmptyState';

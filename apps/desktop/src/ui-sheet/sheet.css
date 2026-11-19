@@ -51,3 +51,4 @@ body { overflow: auto; background: var(--frame); }
 .sheet-dots:last-child { margin-bottom: 0; }
 .sheet-dot { display: grid; justify-items: start; gap: 6px; font-size: var(--fs-xs); color: var(--muted); }
 .sheet-dot-row { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-md); color: var(--ink); }
+.sheet-empties { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border: 1px solid var(--line); border-radius: var(--radius-panel); margin-bottom: 12px; }
