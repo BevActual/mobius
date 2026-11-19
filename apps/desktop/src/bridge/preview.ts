@@ -10,6 +10,7 @@ import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_NIGHT_BEFORE, PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_KNOWLEDGE } from './preview-knowledge';
 import { PREVIEW_BROWSER } from './preview-browser';
+import { PREVIEW_MESSAGES } from './preview-messages';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
 import { PREVIEW_VIEWS } from './preview-views';
@@ -99,6 +100,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // Settings › Approvals and Browser list these: none are kept in the preview.
   'agent.grants': () => [],
   ...PREVIEW_BROWSER,
+  // Messages: a Slack workspace and a Matrix account, kept in memory for as long as the preview is open.
+  ...PREVIEW_MESSAGES,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
   ...PREVIEW_VIEWS,

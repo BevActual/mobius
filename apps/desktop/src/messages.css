@@ -6,6 +6,8 @@
 .messages-run { max-width: 680px; display: flex; flex-direction: column; gap: 2px; }
 .messages-run header { display: flex; gap: var(--sp-2); align-items: baseline; }
 .messages-run time { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.messages-day { display: flex; align-items: center; gap: var(--sp-2); max-width: 680px; margin: var(--sp-2) 0 calc(-1 * var(--sp-1)); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
+.messages-day::after { content: ""; flex: 1; height: 0.5px; background: var(--hairline); }
 .messages-one p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
 .messages-edited { color: var(--muted); font-size: var(--fs-sm); }
 .messages-reactions { display: flex; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
