@@ -3700,6 +3700,24 @@ impl Bridge {
                 });
                 accounts.slack_sign_in(done)
             }
+            // Microsoft Teams chats: the Microsoft sign-in, asking for chats.
+            "teamsStatus" => Ok(accounts.teams_status()),
+            "teamsCancel" => {
+                accounts.teams_cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "teamsSignIn" => {
+                let emit = self.emit.clone();
+                let done: Arc<dyn Fn(Result<Value, String>) + Send + Sync> = Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(account) => {
+                        emit("mobius:messages-sign-in", json!({ "ok": true, "account": account }));
+                        emit("mobius:messages-changed", json!({ "account": account["id"], "channel": null }));
+                    }
+                    Err(message) if message == "cancelled" => {}
+                    Err(message) => emit("mobius:messages-sign-in", json!({ "ok": false, "message": message })),
+                });
+                accounts.teams_sign_in(done)
+            }
             // Matrix: how the person's server signs in, then a password typed here or a sign-in on the server's page.
             "matrixMethods" => text(0).ok_or_else(|| "a Matrix server is needed".to_owned()).and_then(|server| accounts.matrix_methods(server)),
             "matrixSignIn" => match (text(0), text(1), text(2)) {

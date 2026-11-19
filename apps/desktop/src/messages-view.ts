@@ -1,7 +1,7 @@
 import type { ChatAccount, ChatChannel, ChatMessage, ChatService, ContextItem } from '@mobius/shared';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
 
-export const SERVICE_NAMES: Record<ChatService, string> = { slack: 'Slack', matrix: 'Matrix', discord: 'Discord', telegram: 'Telegram' };
+export const SERVICE_NAMES: Record<ChatService, string> = { slack: 'Slack', matrix: 'Matrix', teams: 'Teams', discord: 'Discord', telegram: 'Telegram' };
 
 /** How a channel is named in lists and headings: `#general` for a channel, the person's name for a direct message. */
 export const channelLabel = (c: Pick<ChatChannel, 'name' | 'kind'>): string => (c.kind === 'channel' ? `#${c.name.replace(/^#/, '')}` : c.name);

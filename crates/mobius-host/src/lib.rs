@@ -19,6 +19,7 @@ pub mod code_processes;
 pub mod web;
 pub mod pages;
 pub mod database;
+pub mod teams;
 pub mod terminal;
 pub mod workspace_guide;
 pub mod turn_history;

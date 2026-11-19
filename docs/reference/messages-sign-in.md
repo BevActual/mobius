@@ -41,7 +41,23 @@ threads in Messages.
 What to expect: Slack hands a PKCE app rotating tokens. Mobius refreshes them, but the refresh token lasts 30 days, so
 someone who doesn't open Mobius for a month signs in again.
 
-## Telegram
+## Microsoft Teams
+
+Teams chats (one-to-one, group and meeting chats) come through Microsoft Graph with the same Microsoft sign-in as
+OneDrive and Outlook calendars: one app registration, built in as `MOBIUS_MICROSOFT_CLIENT_ID`. Its delegated permissions
+must include `Chat.ReadWrite` (see [Drives sign-in](drive-sign-in.md), step 4).
+
+- Settings › Messages › **Sign in to Microsoft Teams…** opens Microsoft's page. The tokens are kept in the system secret
+  store and refreshed there.
+- Graph reads Teams chats for **work and school accounts only**. A personal Microsoft account is told so at sign-in and
+  isn't added.
+- Some organisations make an administrator approve apps before their people can consent. Until then, Microsoft's page
+  says so.
+- Teams **channels** aren't read: reading them needs an administrator's consent (`ChannelMessage.Read.All`), so only
+  chats are here.
+- A chat is unread when someone else wrote last after the person last read it. Opening a chat marks it read in Teams too.
+  Chats hidden in Teams stay hidden. Teams chats have no threads; replies in Mobius go to the chat.
+
 
 Not built yet. It will sign in as the person's own account, with a phone number and code, through TDLib. It needs an
 `api_id` and `api_hash` from [my.telegram.org](https://my.telegram.org), under **API development tools**.

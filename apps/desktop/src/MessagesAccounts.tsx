@@ -13,7 +13,8 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
   const api = window.mobius.messages;
   const [accounts, setAccounts] = useState<ChatAccount[]>([]);
   const [status, setStatus] = useState<{ setUp: boolean; hint: string | null } | null>(null);
-  const [waiting, setWaiting] = useState<'slack' | 'matrix' | null>(null);
+  const [waiting, setWaiting] = useState<'slack' | 'matrix' | 'teams' | null>(null);
+  const [teams, setTeams] = useState<{ setUp: boolean; hint: string | null } | null>(null);
   // Matrix: the ID or server typed, then how that server signs in.
   const [server, setServer] = useState('');
   const [methods, setMethods] = useState<{ homeserver: string; password: boolean; browser: boolean } | null>(null);
@@ -25,7 +26,8 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
   const load = useCallback(async () => { const got = await api?.accounts().catch(() => null); if (got && !isNotesFailure(got)) setAccounts(got); }, [api]);
   useEffect(() => {
     void load();
-    void api?.slackStatus?.().then((r) => { if (!isNotesFailure(r)) { setStatus({ setUp: r.setUp, hint: r.hint }); setWaiting(r.pending !== null ? 'slack' : null); } }).catch(() => {});
+    void api?.slackStatus?.().then((r) => { if (!isNotesFailure(r)) { setStatus({ setUp: r.setUp, hint: r.hint }); if (r.pending !== null) setWaiting('slack'); } }).catch(() => {});
+    void api?.teamsStatus?.().then((r) => { if (!isNotesFailure(r)) { setTeams({ setUp: r.setUp, hint: r.hint }); if (r.pending !== null) setWaiting('teams'); } }).catch(() => {});
     return api?.onChanged(() => void load());
   }, [api, load]);
   useEffect(() => api?.onSignIn?.((done) => {
@@ -40,7 +42,20 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
     setWaiting('slack');
     void window.mobius.browser.open(r.url);
   };
-  const cancel = () => { if (waiting === 'matrix') void api?.matrixCancel?.(); else void api?.slackCancel?.(); setWaiting(null); };
+  const teamsSignIn = async () => {
+    setProblem(null);
+    const r = await api?.teamsSignIn?.().catch(() => null);
+    if (!r) { setProblem('Signing in to Teams is not available here.'); return; }
+    if (isNotesFailure(r)) { setProblem(r.message); return; }
+    setWaiting('teams');
+    void window.mobius.browser.open(r.url);
+  };
+  const cancel = () => {
+    if (waiting === 'matrix') void api?.matrixCancel?.();
+    else if (waiting === 'teams') void api?.teamsCancel?.();
+    else void api?.slackCancel?.();
+    setWaiting(null);
+  };
   const findServer = async (typed = server) => {
     setProblem(null);
     setBusy(true);
@@ -73,10 +88,11 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
     void load();
   };
   const again = (a: ChatAccount) => {
-    if (a.service === 'matrix') { setServer(a.name); void findServer(a.name); } else void signIn();
+    if (a.service === 'matrix') { setServer(a.name); void findServer(a.name); } else if (a.service === 'teams') void teamsSignIn(); else void signIn();
   };
   const hostOf = (address: string) => { try { return new URL(address).host; } catch { return address; } };
   const notSetUp = status !== null && !status.setUp;
+  const teamsNotSetUp = teams !== null && !teams.setUp;
   return (
     <Row path="messages/accounts/messages-accounts" title="Message accounts" description="Chat accounts Messages reads and sends through as you. Only you send: Mobius can draft, never send. Removing one keeps its messages where they are." {...(highlight ? { highlight } : {})}>
       {!api ? <Empty>Messages is not available here.</Empty> : (
@@ -98,7 +114,7 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
                     </>
                   ) : (
                     <>
-                      {a.status === 'signed-out' && <button type="button" className="btn" aria-label={`Sign in to ${a.name} again`} disabled={waiting !== null || (a.service === 'slack' && notSetUp)} onClick={() => again(a)}>Sign in again</button>}
+                      {a.status === 'signed-out' && <button type="button" className="btn" aria-label={`Sign in to ${a.name} again`} disabled={waiting !== null || (a.service === 'slack' && notSetUp) || (a.service === 'teams' && teamsNotSetUp)} onClick={() => again(a)}>Sign in again</button>}
                       <button type="button" className="btn" aria-label={`Remove ${a.name}`} onClick={() => setRemoving(a.id)}>Remove…</button>
                     </>
                   )}
@@ -109,10 +125,16 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
           {notSetUp && <Empty>{status.hint}</Empty>}
           {waiting === 'slack' && <Empty>Finish signing in on Slack’s page. Your workspace shows here when you’re done.</Empty>}
           {waiting === 'matrix' && <Empty>Finish signing in on your Matrix server’s page. Your account shows here when you’re done.</Empty>}
+          {waiting === 'teams' && <Empty>Finish signing in on Microsoft’s page with your work or school account. Your Teams chats show here when you’re done.</Empty>}
           {problem && <p className="field-error" role="alert">{problem}</p>}
           {waiting
             ? <button type="button" className="btn" onClick={cancel}>Cancel sign-in</button>
-            : <button type="button" className="btn" disabled={notSetUp} onClick={() => void signIn()}>Sign in to Slack…</button>}
+            : (
+              <>
+                <button type="button" className="btn" disabled={notSetUp} onClick={() => void signIn()}>Sign in to Slack…</button>
+                {api.teamsSignIn && <button type="button" className="btn" disabled={teamsNotSetUp} title={teamsNotSetUp ? teams?.hint ?? undefined : undefined} onClick={() => void teamsSignIn()}>Sign in to Microsoft Teams…</button>}
+              </>
+            )}
           {!waiting && (
             <form className="messages-matrix" aria-label="Sign in to Matrix" onSubmit={(event) => { event.preventDefault(); if (methods?.password && password) void matrixPassword(); else if (!methods) void findServer(); }}>
               <label className="field compact wide">
