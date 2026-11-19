@@ -96,10 +96,12 @@
 .mail-field span { width: 60px; color: var(--muted); font-size: var(--fs-sm); }
 .mail-field { border-radius: var(--radius-control); }
 .mail-field input { flex: 1; height: var(--row-list); border: 0; background: transparent; font: inherit; color: inherit; outline: none; box-shadow: none; appearance: none; }
-.mail-field input:focus, .mail-field input:focus-visible, .mail-compose textarea:focus-visible { outline: none; box-shadow: none; background: transparent; }
+.mail-field input:focus, .mail-field input:focus-visible { outline: none; box-shadow: none; background: transparent; }
+/* The body is borderless like the fields above it, and takes the same ring only while it has focus. */
+.mail-compose textarea:focus, .mail-compose textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; box-shadow: none; background: transparent; }
 /* Every field focuses the same way: the shared ring on its underline row. */
 .mail-field:focus-within { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
-.mail-compose textarea { flex: 1; min-height: 160px; padding: var(--sp-2) 0; border: 0; resize: none; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
+.mail-compose textarea { flex: 1; min-height: 160px; padding: var(--sp-2) var(--sp-1); border: 0; box-shadow: none; border-radius: var(--radius-control); resize: none; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
 .mail-later { position: relative; display: inline-flex; }
 .mail-later-menu { position: absolute; bottom: calc(100% + var(--sp-1)); right: 0; z-index: 5; display: grid; gap: var(--sp-1); padding: var(--sp-1); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-1); white-space: nowrap; }
 .mail-later-suggested[data-proposed] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: -1px; color: var(--mobius); }
