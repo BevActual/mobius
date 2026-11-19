@@ -1102,17 +1102,29 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .welcome-mark .mark-band[data-band="3"] { animation-delay: var(--dur-slow); }
 @keyframes welcome-band { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .welcome-mark .mark-band { animation: none; opacity: 1; } }
-.welcome-title { margin: 0; font-size: 34px; font-weight: 700; letter-spacing: -0.04em; }
-.welcome-lede { margin: 0; max-width: 34ch; color: var(--muted); font-size: var(--fs-lg); }
-.welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); text-align: left; }
+.welcome-title { margin: 0; font-size: var(--fs-display); font-weight: var(--fw-bold, 700); letter-spacing: -0.03em; }
+.welcome-lede { margin: 0; max-width: 32ch; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-body, 1.45); }
+/* How much Mobius should do: three one-line choices in one group, the chosen one ticked in ink. */
+.welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
 .welcome-h { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
-.welcome-next { width: 100%; max-width: 420px; margin: var(--sp-4) auto 0; text-align: left; }
-.welcome-level { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); border: 1px solid var(--line); border-radius: var(--radius-panel); background: var(--bg); text-align: left; cursor: pointer; }
-.welcome-level:hover { border-color: var(--line-strong); }
-.welcome-level[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
-.welcome-dot { flex: none; width: 18px; height: 18px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
-.welcome-level[aria-checked="true"] .welcome-dot { box-shadow: inset 0 0 0 5px var(--accent); }
-.welcome-level-text { display: flex; flex-direction: column; gap: 2px; }
+.welcome-next { width: 100%; max-width: 420px; margin: var(--sp-4) auto 0; padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
+.welcome-level {
+  display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-list-2, 48px); padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--line); border-radius: 0; background: var(--bg); color: var(--ink); font: inherit; text-align: left; cursor: default;
+}
+.welcome-level + .welcome-level { margin-top: -1px; }
+.welcome-level:first-of-type { border-radius: var(--radius-group) var(--radius-group) 0 0; }
+.welcome-level:last-of-type { border-radius: 0 0 var(--radius-group) var(--radius-group); }
+.welcome-levels { gap: 0; }
+.welcome-levels > .welcome-h { margin-bottom: var(--sp-2); }
+.welcome-levels > .welcome-note { margin-top: var(--sp-2); }
+.welcome-level:hover { background: var(--soft); }
+.welcome-level:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); position: relative; }
+.welcome-level[aria-checked="true"] { position: relative; z-index: 1; border-color: var(--ink); }
+.welcome-dot { flex: none; width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
+.welcome-level[aria-checked="true"] .welcome-dot { box-shadow: inset 0 0 0 5px var(--ink); }
+.welcome-level-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.welcome-level-text strong { font-weight: var(--fw-semibold); }
 .welcome-level-text span { color: var(--muted); font-size: var(--fs-sm); }
 .welcome-note { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 .chat-sees { margin: 0 0 4px; padding: 2px 10px; align-self: flex-start; border-radius: var(--radius-pill); background: var(--field); color: var(--muted); font-size: var(--fs-xs); }
