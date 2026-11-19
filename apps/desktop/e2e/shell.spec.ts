@@ -94,7 +94,7 @@ test('window.open becomes a new tab for web addresses only, and pages cannot nav
 });
 
 test('a new tab shows the start page instead of a page view, and closing the last tab opens a fresh one', async () => {
-  await mobius.shell.getByRole('button', { name: 'New tab' }).click();
+  await mobius.shell.getByTitle('New tab (Ctrl+T)').click();
   await expect(tabTitles()).toHaveCount(2);
   // Mobius draws the start page itself: no page view shows, so nothing of it reaches a web page.
   const start = mobius.shell.getByRole('region', { name: 'New tab' });
@@ -130,7 +130,7 @@ test('the launcher hides the native page while open and returns focus on Escape'
 });
 
 test('the launcher finds an open page and activates it', async () => {
-  await mobius.shell.getByRole('button', { name: 'New tab' }).click();
+  await mobius.shell.getByTitle('New tab (Ctrl+T)').click();
   await expect(tabTitles()).toHaveCount(2);
   await mobius.shell.keyboard.press('Control+K');
   await mobius.shell.keyboard.type('fixture');

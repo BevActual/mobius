@@ -70,7 +70,7 @@ test('the conversation list shows saved conversations, switches, starts new ones
   await openApp('Agent');
   await say('Alpha topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Alpha reply.');
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   await expect(log().locator('.msg')).toHaveCount(0);
   await say('Beta topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Beta reply.');

@@ -513,7 +513,8 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
           })}
         </div>
       )}
-      <div className="cal-scroll" ref={scroller}>
+      {/* Focusable, so the hours scroll from the keyboard too. */}
+      <div className="cal-scroll" ref={scroller} tabIndex={0} role="region" aria-label="Hours">
         <div className="cal-grid" ref={grid} style={{ ...columns, height: 24 * HOUR_PX }} data-dragging={drag?.moved || sweep?.moved || undefined}>
           <div className="cal-hours">
             {/* The hour the current time sits on gives its place to the time itself, in red, as in Calendar. */}

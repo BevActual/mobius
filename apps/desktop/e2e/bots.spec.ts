@@ -113,7 +113,7 @@ test('a bot is made, its sessions use its instructions and model, and other sess
   expect(JSON.stringify(first.messages)).toContain('Be brief.');
   expect(JSON.stringify(first.messages)).toContain('Always cite sources.');
   // A plain session keeps the usual setup.
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   await openAgents();
   await fromMenu('Mobius', 'New session');
   await say('hello plain');
@@ -181,7 +181,7 @@ test('removing a bot asks first, takes its sessions with it, and leaves the othe
   await newBot('Temp');
   await say('to the bot');
   await expect(log().locator('.msg.assistant')).toHaveText('bot said');
-  await shell().getByRole('button', { name: 'Create' }).click().catch(() => undefined);
+  await shell().locator('.app-side-new').click().catch(() => undefined);
   await openAgents();
   await fromMenu('Mobius', 'New session');
   await say('to mobius');

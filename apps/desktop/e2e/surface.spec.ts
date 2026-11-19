@@ -80,7 +80,7 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await composer().press('Enter');
   await expect(shell().getByRole('group', { name: /Approval needed/ })).toBeVisible();
   await openApp('Agent');
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
   await expect(desk.getByRole('heading', { name: GREETING })).toBeVisible();
   await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
