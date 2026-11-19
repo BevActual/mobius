@@ -726,6 +726,17 @@ export function App() {
   const ownApp = (id: OwnApp['id']) => () => ownApps.find((o) => o.id === id)?.run();
   // What waits, per app, for the launcher's dots and the Go button's: answers Mobius needs, and apps it changed.
   const waiting: Partial<Record<AppId, number>> = { ...Object.fromEntries([...changed].map((id) => [id, 1])), ...(needsYou > 0 ? { agent: needsYou } : {}) };
+  // The empty launcher's home: what waits for an answer, and the named agents at work now.
+  const launcherHome = launcherOpen ? {
+    waiting: [
+      ...conversation.list.filter((c) => c.waiting > 0).map((c) => ({ id: c.id, label: c.title || 'Untitled chat', detail: 'Needs your answer', app: 'agent' as AppId, run: () => { conversation.select(c.id); launch.openMobius(); } })),
+      ...[...changed].map((a) => ({ id: `changed-${a}`, label: `Changes in ${appName(a)}`, detail: 'Not kept yet', app: a, run: () => launch.openApp(a) })),
+    ],
+    agents: conversation.list.filter((c) => c.activity === 'working' && botOfConversation(c.id, botIds) !== MAIN_BOT_ID).map((c) => {
+      const bot = bots.bots.find((b) => b.id === botOfConversation(c.id, botIds));
+      return { id: c.id, name: bot?.name ?? 'Agent', state: 'working' as const, detail: c.title || undefined, run: () => { closeSettings(); conversation.select(c.id); setSideMode('bots'); openApp('agent'); } };
+    }),
+  } : undefined;
   const waitingTotal = Object.values(waiting).reduce((sum, n) => sum + (n ?? 0), 0);
   // The Mobius button (toolbar): show or hide Mobius beside the work.
   // An app bringing one of its panel tabs forward (useShowPanelTab) opens the right panel without moving focus.
@@ -2032,6 +2043,7 @@ export function App() {
         pinned={appearance.value.sidebarApps}
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
+        home={launcherHome}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}

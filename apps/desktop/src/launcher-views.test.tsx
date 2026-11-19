@@ -12,6 +12,20 @@ describe('launcher views', () => {
     expect(html).not.toContain('Right-click an app to pin');
   });
 
+  it('starts with what waits for you and the agents at work, but Enter still opens the first pinned app', () => {
+    const home = {
+      waiting: [1, 2, 3, 4].map((n) => ({ id: `w${n}`, label: `Chat ${n}`, detail: 'Needs your answer', app: 'agent' as const, run: () => {} })),
+      agents: [{ id: 'scout:1', name: 'Scout', state: 'working' as const, detail: 'Find a sled slot', run: () => {} }],
+    };
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} home={home} />);
+    expect(html).toContain('>Waiting for you<');
+    expect(html).toContain('>Agents at work<');
+    expect(html).toContain('Chat 3');
+    expect(html).not.toContain('Chat 4');
+    expect(html).toMatch(/Waiting for you.*Agents at work.*Scout.*Pinned/s);
+    expect(html).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Mail/s);
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);

@@ -8,6 +8,7 @@ import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
 import { isQuestion, type InlineAnswer } from './launcher-ask';
 import { RichText } from './RichText';
+import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
 import './launcher.css';
 
@@ -26,7 +27,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -38,6 +39,8 @@ export interface LauncherItem {
   place?: Place;
   fields?: readonly LauncherField[];
   preview?: LauncherPreview;
+  /** An agent's row: drawn as its dot character, in the state it is in. */
+  character?: { name: string; state: CharacterState };
   run: () => void;
 }
 
@@ -51,6 +54,11 @@ export interface LauncherField { label: string; value: string }
 export interface LauncherPreview { title: string; meta?: string; body?: string; rows?: readonly (readonly [string, string])[] }
 
 export type Place = 'home' | 'activity' | 'abilities' | 'settings';
+
+/** Something waiting for you, at the top of an empty launcher: "Plan the P2 build week, needs your answer". */
+export interface LauncherHomeRow { id: string; label: string; detail?: string; app?: AppId; run: () => void }
+/** An agent at work, drawn as its dot character. */
+export interface LauncherAgentRow { id: string; name: string; state: CharacterState; detail?: string; run: () => void }
 const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Abilities', settings: 'Settings' };
 const HOME_ICON = <><path d="M3.5 9 10 3.5 16.5 9" /><path d="M5 7.8V16h10V7.8" /></>;
 const PLACE_ICONS: Record<Place, ReactNode> = { home: HOME_ICON, activity: OWN_ICONS.activity, abilities: OWN_ICONS.extensions, settings: OWN_ICONS.settings };
@@ -96,6 +104,8 @@ interface Props {
   askInline?: (question: string, update: (answer: InlineAnswer) => void) => () => void;
   /** Continue in Mobius: open the conversation the inline answer was asked in. */
   onContinue?: (conversation: string) => void;
+  /** With nothing typed: what waits for you (answers Mobius needs, changes not kept) and agents at work, at the top. */
+  home?: { waiting: readonly LauncherHomeRow[]; agents: readonly LauncherAgentRow[] };
   /** For the reference sheet: an answer already given to what is typed. */
   answered?: { question: string; answer: InlineAnswer };
 }
@@ -106,7 +116,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -213,7 +223,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -370,6 +380,8 @@ export function Launcher({
         : [];
       return [
         ...ask,
+        ...(home?.waiting ?? []).slice(0, 3).map<LauncherItem>((w) => ({ id: `waiting-${w.id}`, kind: 'waiting', app: w.app, label: w.label, detail: w.detail, run: w.run })),
+        ...(home?.agents ?? []).slice(0, 3).map<LauncherItem>((a) => ({ id: `agent-${a.id}`, kind: 'agent', label: a.name, detail: a.detail, character: { name: a.name, state: a.state }, run: a.run })),
         ...pins.map<LauncherItem>((id, i) => ({
           id: `pin-${id}`, kind: 'pinned', app: id, label: appName(id), waiting: waiting[id] ?? 0, detail: i < 9 ? `Ctrl+${i + 1}` : undefined, run: () => onOpenApp(id),
         })),
@@ -421,7 +433,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -433,7 +445,7 @@ export function Launcher({
   // asks. Worked out as the list is drawn, so a quick Enter right after typing gets the same row.
   // A question is asked, not looked up: Enter answers it, even when something matched its words.
   const asksHere = Boolean(askInline) && isQuestion(query) && !scope && !actionsFor && view === 'start';
-  const found = asksHere ? 0 : items.findIndex((item) => item.kind !== 'ask' && !item.disabled);
+  const found = asksHere ? 0 : items.findIndex((item) => item.kind !== 'ask' && item.kind !== 'waiting' && item.kind !== 'agent' && !item.disabled);
   const picked = chosenId === null ? -1 : items.findIndex((item) => item.id === chosenId);
   const selected = picked >= 0 ? picked : Math.max(0, found > 0 ? found : 0);
   const current = items[selected];
@@ -673,8 +685,8 @@ export function Launcher({
               {members.map(({ item, index }) => (
                 <div key={item.id} {...option(item, index)}>
                   <span className="launcher-mark">
-                    <AppMark app={item.app} place={item.place} kind={item.kind} />
-                    {dot(item)}
+                    {item.character ? <DotCharacter name={item.character.name} state={item.character.state} size="small" /> : <AppMark app={item.app} place={item.place} kind={item.kind} />}
+                    {item.kind === 'waiting' ? <span className="launcher-dot" aria-hidden="true" /> : dot(item)}
                   </span>
                   <span className="launcher-label">{marked(item.label, query.trim().replace(/^>\s*/, ''))}</span>
                   {item.detail && <span className="launcher-detail" aria-hidden="true">{item.detail}</span>}
