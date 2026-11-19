@@ -1,3 +1,4 @@
+import { usePreferences } from './usePreferences';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { isNotesFailure, type MailAccount } from '@mobius/shared';
@@ -68,6 +69,26 @@ export function AccountDialog({ connect, onClose }: { connect: Connect; onClose:
   );
 }
 
+/** An account's signature: added under each new message, reply and forward from it. Kept as it is typed, on leaving the box. */
+function Signature({ account }: { account: MailAccount }) {
+  const preferences = usePreferences();
+  const saved = preferences.value.mailSignatures?.[account.id] ?? '';
+  const [text, setText] = useState(saved);
+  useEffect(() => setText(saved), [saved]);
+  const keep = () => {
+    if (text === saved) return;
+    const next = { ...preferences.value.mailSignatures };
+    if (text.trim()) next[account.id] = text.slice(0, 2000); else delete next[account.id];
+    void preferences.set({ mailSignatures: next });
+  };
+  return (
+    <label className="mail-signature">
+      <span>Signature</span>
+      <textarea aria-label={`Signature for ${account.email}`} placeholder="Added under what you write" rows={3} maxLength={2000} value={text} onChange={(e) => setText(e.target.value)} onBlur={keep} />
+    </label>
+  );
+}
+
 /** Settings › Mail › Accounts: each account, its problem if it has one, Remove (asked once more), and Add. */
 export function MailAccountsSettings({ highlight }: { highlight?: boolean }) {
   const api = window.mobius.mail;
@@ -95,6 +116,7 @@ export function MailAccountsSettings({ highlight }: { highlight?: boolean }) {
                   <div className="slist-main">
                     <span>{a.email}</span>
                     {a.problem && <span className="field-error" role="alert">{a.problem}</span>}
+                    <Signature account={a} />
                   </div>
                   {removing === a.id ? (
                     <>

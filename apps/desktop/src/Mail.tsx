@@ -179,7 +179,9 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
       onKeyDown={(e) => {
         if (e.key !== 'Escape' || e.defaultPrevented || (e.target as HTMLElement).closest('.mail-later-menu')) return;
         e.preventDefault();
-        if (!d.body.trim()) close(); else setLeaving(true);
+        // A new message left as it opened (its signature, or a quote) goes without asking; nothing is kept of it.
+        if (!draft.id && d.body === draft.body && d.to === draft.to && d.cc === draft.cc && d.subject === draft.subject) discard();
+        else if (!d.body.trim()) close(); else setLeaving(true);
       }}>
       <h1 className="mail-subject mail-compose-title">{heading}</h1>
       <label className="mail-field"><span>To</span><input ref={to} aria-label="To" list="mail-to-people" autoComplete="off" value={d.to} onChange={(e) => setD({ ...d, to: e.target.value })} onBlur={() => void keep(d)} /></label>

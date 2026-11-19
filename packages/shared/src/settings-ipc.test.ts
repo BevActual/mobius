@@ -137,7 +137,7 @@ describe('approval mode', () => {
 
 describe('preferences changes', () => {
   it('start with alerts on, sounds on and nothing kept awake', () => {
-    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' }, quickModel: '', imageModel: '', installedApps: null });
+    expect(DEFAULT_PREFERENCES).toEqual({ notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: 16384, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: 'whisper-1', listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: { browser: 'follow', notes: 'follow', docs: 'follow', sheets: 'follow', slides: 'follow', tasks: 'follow', calendar: 'follow', mail: 'follow', research: 'follow', reader: 'follow', code: 'follow', database: 'follow', design: 'follow', canvas: 'follow', photo: 'follow', studio: 'follow', video: 'follow', skills: 'follow' }, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} });
     expect(parsePreferencesPatch({ quickModel: 'openai|gpt-mini' })).toEqual({ quickModel: 'openai|gpt-mini' });
     expect(parsePreferencesPatch({ imageModel: 'openai|gpt-image-1' })).toEqual({ imageModel: 'openai|gpt-image-1' });
     expect(parsePreferencesPatch({ installedApps: ['notes', 'photo'] })).toEqual({ installedApps: ['notes', 'photo'] });
@@ -205,5 +205,12 @@ describe('voice choices', () => {
   it('accept the providers each job has, and real speech server addresses', () => {
     expect(parsePreferencesPatch({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' })).toEqual({ listenWith: 'local', listenUrl: 'http://127.0.0.1:9000/v1', speakWith: 'elevenlabs', speakVoice: 'Rachel' });
     for (const bad of [{ speakWith: 'chat' }, { listenWith: 'whisper' }, { listenUrl: 'ftp://x' }, { speakUrl: 'http://a b' }, { speakVoice: 'x'.repeat(101) }]) expect(parsePreferencesPatch(bad), JSON.stringify(bad)).toBeNull();
+  });
+});
+
+describe('mail signatures in preferences', () => {
+  it('keeps a signature per account and refuses anything else', () => {
+    expect(parsePreferencesPatch({ mailSignatures: { 'acct-1': 'Ana\nNorthway Freight' } })).toEqual({ mailSignatures: { 'acct-1': 'Ana\nNorthway Freight' } });
+    for (const bad of [null, [], 'x', { a: 1 }, { '': 'x' }, { a: 'x'.repeat(2001) }]) expect(parsePreferencesPatch({ mailSignatures: bad })).toBeNull();
   });
 });

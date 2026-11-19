@@ -66,7 +66,12 @@ fn is_quick_model(v: &Value) -> bool {
     v.as_str().is_some_and(|s| s.is_empty() || s.split_once('|').is_some_and(|(id, model)| !id.is_empty() && id.len() <= 40 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') && is_model_name(&json!(model))))
 }
 
-static FIELDS: [Field; 25] = [
+/// Mail signatures: each account's id to its signature, at most 20 accounts and 2,000 characters each.
+fn is_signatures(v: &Value) -> bool {
+    v.as_object().is_some_and(|m| m.len() <= 20 && m.iter().all(|(k, s)| !k.is_empty() && k.len() <= 200 && s.as_str().is_some_and(|s| s.chars().count() <= 2000 && !s.contains('\0'))))
+}
+
+static FIELDS: [Field; 26] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
@@ -98,6 +103,8 @@ static FIELDS: [Field; 25] = [
     Field { name: "imageModel", default: || json!(""), check: is_quick_model },
     // The apps added from Abilities, beside Mobius's own: null is every app (an install from before Abilities).
     Field { name: "installedApps", default: || Value::Null, check: is_app_list },
+    // Mail (marked): each account's signature, added under new messages, replies and forwards.
+    Field { name: "mailSignatures", default: || json!({}), check: is_signatures },
 ];
 
 pub fn open(file: PathBuf) -> Settings {
@@ -207,5 +214,20 @@ mod update_tests {
         assert_eq!(open(file.clone()).get()["autoUpdate"], false);
         p.set(&json!({ "autoUpdate": "yes" }));
         assert_eq!(open(file).get()["autoUpdate"], false, "only true or false is kept");
+    }
+}
+
+#[cfg(test)]
+mod signature_tests {
+    use super::*;
+
+    #[test]
+    fn a_signature_per_account_is_kept_and_anything_else_refused() {
+        assert!(is_signatures(&json!({})));
+        assert!(is_signatures(&json!({ "acct-1": "Ana\nNorthway" })));
+        assert!(!is_signatures(&json!([])));
+        assert!(!is_signatures(&json!({ "": "x" })));
+        assert!(!is_signatures(&json!({ "a": 1 })));
+        assert!(!is_signatures(&json!({ "a": "x".repeat(2001) })));
     }
 }
