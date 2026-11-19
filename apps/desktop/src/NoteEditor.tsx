@@ -20,6 +20,7 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { BulletToTask } from './task-shortcut';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { loadIntoEditor } from './editor-load';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { onCommand } from './commands';
@@ -369,10 +370,12 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     onBlur: () => setSelection(null),
   });
   // The page's text, from the store: put into the editor when it did not come from the editor itself.
+  const placed = useRef<string | null>(null);
   useEffect(() => {
     if (!editor || editor.isDestroyed || source || notes.text === known.current) return;
     known.current = notes.text;
-    editor.chain().setMeta('mobius-load', true).setContent(notes.text, { contentType: 'markdown', emitUpdate: false }).run();
+    loadIntoEditor(editor, notes.text, placed.current !== (path ?? null));
+    placed.current = path ?? null;
   }, [editor, notes.text, path, source]);
   // A page opened from the list takes the cursor, at its end (a new page: under its title).
   useEffect(() => {
