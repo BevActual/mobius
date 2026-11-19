@@ -42,6 +42,8 @@ Mobius uses `tauri-plugin-updater`, reading `releases/latest/download/latest.jso
   **Update available · Restart to install**.
 - **Settings › About › Software Update** shows the version and has **Check for Updates**. **Automatically install
   updates** (on by default) installs a downloaded update the next time Mobius quits.
+- Closing the window leaves Mobius in the tray, so it may not quit for days: once an update is downloaded, the tray
+  menu also offers **Restart to Update**.
 - The updater is off in development builds, in tests, and when `MOBIUS_NO_UPDATES` is set.
 
 ### Updater signatures
