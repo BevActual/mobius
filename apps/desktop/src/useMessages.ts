@@ -82,10 +82,12 @@ export function useMessages(active = true) {
     if (!api || !to || !text.trim() || (inThread && !id)) return false;
     const sent = await api.send(to.account, to.channel, text.trim(), id ?? undefined);
     if (isNotesFailure(sent)) { setMessage(sent.message); return false; }
+    // The service may already have said it changed, and the channel been read again with it in: it is not added twice.
+    const add = (list: ChatMessage[]) => (list.some((m) => m.id === sent.id) ? list : [...list, sent]);
     if (id) {
-      setReplies((list) => [...list, sent]);
+      setReplies(add);
       setMessages((list) => list.map((m) => (m.id === id ? { ...m, replies: (m.replies ?? 0) + 1 } : m)));
-    } else setMessages((list) => [...list, sent]);
+    } else setMessages(add);
     return true;
   }, [api]);
 
