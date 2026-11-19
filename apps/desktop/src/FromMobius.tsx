@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { MobiusMark } from './MobiusMark';
 
 export interface FromMobiusItem {
   key: string;
@@ -32,8 +33,9 @@ export function FromMobius({ items }: { items: readonly FromMobiusItem[] }) {
     <div ref={self} className="from-mobius">
       <h3 className="side-title from-mobius-title">From Mobius</h3>
       <button type="button" className="from-mobius-filter" aria-pressed={on} aria-label={`From Mobius: ${items.length} to review`} title={on ? 'Show everything again' : 'Show only what Mobius made or changed'} onClick={() => setOnly((o) => !o)}>
-        <span className="from-mobius-label">{on ? 'Showing only these' : 'Last turn'}</span>
-        <span className="from-mobius-count">{items.length} to review</span>
+        <span className="from-mobius-mark" aria-hidden="true"><MobiusMark size={16} /></span>
+        <span className="from-mobius-label">{on ? 'Showing only these' : 'Changes from Mobius'}</span>
+        <span className="from-mobius-count">{items.length}</span>
       </button>
     </div>
   );
