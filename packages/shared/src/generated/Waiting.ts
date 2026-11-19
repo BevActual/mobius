@@ -7,4 +7,8 @@ export type Waiting = { request_id: number, call_id: string, tool: string, argum
 /**
  * The request came from something Mobius read, not from the person.
  */
-origin?: string, };
+origin?: string, 
+/**
+ * `origin` was only read before the call (it sends, deletes or shares); its arguments did not come from there.
+ */
+earlier?: boolean, };

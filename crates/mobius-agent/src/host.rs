@@ -64,6 +64,10 @@ pub struct Waiting {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
     pub origin: Option<String>,
+    /// `origin` was only read before the call (it sends, deletes or shares); its arguments did not come from there.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    #[ts(as = "Option<bool>", optional)]
+    pub earlier: bool,
 }
 
 /// A question the model put to the person, still open.
@@ -538,7 +542,7 @@ impl Host {
                     return None;
                 }
                 let (request_id, call) = (a.turn.parked_request()?, a.turn.parked_call()?);
-                Some(Waiting { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only: a.turn.parked_once_only(), origin: a.turn.parked_origin().map(str::to_owned) })
+                Some(Waiting { request_id, call_id: call.id.clone(), tool: call.name.clone(), arguments: call.arguments.clone(), once_only: a.turn.parked_once_only(), origin: a.turn.parked_origin().map(str::to_owned), earlier: a.turn.parked_earlier() })
             })
             .collect()
     }

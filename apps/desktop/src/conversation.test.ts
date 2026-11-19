@@ -417,6 +417,9 @@ describe('a request that came from something read', () => {
     expect(s.items.at(-1)).toMatchObject({ status: 'waiting', onceOnly: true, origin: 'Priya Nair’s invite “Dinner”' });
     const fresh = reduce(run(), { type: 'pending', requests: [{ requestId: 5, callId: 'c2', tool: 'mail.draft', arguments: {}, onceOnly: true, origin: 'a web page (evil.example)' }] });
     expect(fresh.items.at(-1)).toMatchObject({ requestId: 5, origin: 'a web page (evil.example)' });
+    // A call that only follows outside text (it sends, deletes or shares after a read) says so.
+    const later = reduce(run(), { type: 'pending', requests: [{ requestId: 6, callId: 'c2', tool: 'messages.send', arguments: {}, onceOnly: true, origin: 'a chat message (#general)', earlier: true }] });
+    expect(later.items.at(-1)).toMatchObject({ requestId: 6, origin: 'a chat message (#general)', earlier: true });
   });
 });
 

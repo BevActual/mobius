@@ -711,7 +711,7 @@ impl AgentService {
             rows.iter()
                 .filter_map(|row| {
                     let (request_id, call_id, tool) = (row.get("request_id")?.as_u64()?, row.get("call_id")?.as_str()?, row.get("tool")?.as_str()?);
-                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)), "origin": row.get("origin").cloned().unwrap_or(Value::Null) }))
+                    Some(json!({ "requestId": request_id, "callId": call_id, "tool": tool, "arguments": row.get("arguments").cloned().unwrap_or(Value::Null), "onceOnly": row.get("once_only") == Some(&Value::Bool(true)), "origin": row.get("origin").cloned().unwrap_or(Value::Null), "earlier": row.get("earlier") == Some(&Value::Bool(true)) }))
                 })
                 .collect(),
         )
@@ -1007,7 +1007,7 @@ fn valid_event(e: &Value) -> bool {
         Some("message") => s("text"),
         Some("tool_call") => s("call_id") && s("name"),
         Some("tool_result") => s("call_id") && s("name") && e.get("is_error").is_some_and(Value::is_boolean),
-        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean) && e.get("origin").is_none_or(|o| o.as_str().is_some_and(|o| o.chars().count() <= 300)),
+        Some("needs_approval") => e.get("request_id").is_some_and(Value::is_u64) && s("call_id") && s("tool") && e.get("arguments").is_some() && e.get("once_only").is_none_or(Value::is_boolean) && e.get("origin").is_none_or(|o| o.as_str().is_some_and(|o| o.chars().count() <= 300)) && e.get("earlier").is_none_or(Value::is_boolean),
         Some("failed") => s("message"),
         Some("compacted") => e.get("messages").is_some_and(Value::is_u64),
         Some("context") => e.get("used").is_some_and(Value::is_u64) && e.get("limit").and_then(Value::as_u64).is_some_and(|l| l > 0),
