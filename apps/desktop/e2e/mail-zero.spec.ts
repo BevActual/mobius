@@ -97,6 +97,12 @@ test('the keys are told in the hint bar at the list\'s foot, not a tooltip over 
   await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
   await shell().keyboard.press('e');
   await expect(inbox().getByRole('option')).toHaveCount(1);
+  // Ctrl+Z takes the archive back, as the toast's Undo does; E then archives it again.
+  await shell().keyboard.press('Control+z');
+  await expect(inbox().getByRole('option')).toHaveCount(2);
+  await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
+  await shell().keyboard.press('e');
+  await expect(inbox().getByRole('option')).toHaveCount(1);
   await inbox().getByRole('option').first().click();
   await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toBeFocused();
   await shell().keyboard.press('h');
