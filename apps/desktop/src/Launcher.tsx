@@ -4,6 +4,7 @@ import type { BrowserTabState } from '@mobius/shared';
 import { APPS, DEFAULT_APPS, appName, isAvailable, isInstalled, recentApps, recentItems, type AppId, type RecentItem } from './apps';
 import { APP_ICONS, OWN_ICONS } from './Rail';
 import { relativeTime } from './relative-time';
+import { quickAnswer } from './quick-answers';
 import './launcher.css';
 
 /**
@@ -21,7 +22,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -87,7 +88,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -187,6 +188,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
       : app ? <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>
         : kind === 'ask' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
           : kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg>
+          : kind === 'answer' ? <svg viewBox="0 0 20 20" data-answer=""><path d="M5 8h10M5 12h10" /></svg>
             : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
   </span>
 );
@@ -365,6 +367,8 @@ export function Launcher({
     }
     return [
       ...(onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, run: () => onAsk(typed) }] : []),
+      // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
+      ...((answer) => (answer ? [{ id: 'answer', kind: 'answer' as const, label: answer.value, detail: answer.question, run: () => { void navigator.clipboard?.writeText(answer.copy).catch(() => undefined); } }] : []))(quickAnswer(typed)),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
       ...rankApps(APPS.filter((app) => has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
@@ -442,7 +446,7 @@ export function Launcher({
     if (k === 'Tab' && !event.shiftKey && !actionsFor && !scope && current?.app && current.kind !== 'grid') { event.preventDefault(); narrow(current.app); return; }
     // Shift+Enter, or Right at the end of the words, shows the chosen row's actions.
     const atEnd = event.currentTarget.selectionStart === event.currentTarget.value.length;
-    if (!actionsFor && current && current.kind !== 'ask' && !current.disabled && current.id !== 'all-apps'
+    if (!actionsFor && current && current.kind !== 'ask' && current.kind !== 'answer' && !current.disabled && current.id !== 'all-apps'
       && ((k === 'Enter' && event.shiftKey) || (k === 'ArrowRight' && !empty && atEnd && !ACROSS.has(current.kind)))) {
       event.preventDefault();
       setActionsFor(current); setQuery(''); setChosenId(null);
@@ -640,8 +644,8 @@ export function Launcher({
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'command' ? 'Run' : 'Open'}</span>
-          {!actionsFor && current.kind !== 'ask' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
+          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : 'Open'}</span>
+          {!actionsFor && current.kind !== 'ask' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
       )}

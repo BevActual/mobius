@@ -128,3 +128,22 @@ test('a gateway at your own address asks for its place with the key, and shows i
   await azure.getByRole('button', { name: 'Remove', exact: true }).click();
   await expect(azure).toContainText('No key');
 });
+
+test('on first run a saved key opens the model choice by itself, with only models that chat, and one press reaches a first answer', async () => {
+  provider = await startModel([says(['Hello, first answer.'])], { models: ['gpt-b', 'text-embedding-3-small', 'gpt-a', 'tts-1'] });
+  mobius = await launch(fixture.origin + '/', { newPerson: true, openMobius: true, userData, env: { MOBIUS_TEST_PROVIDER: `openai=${provider.url}` } });
+  const choose = shell().getByRole('group', { name: 'Choose a model' });
+  const row = choose.getByRole('listitem', { name: 'OpenAI', exact: true });
+  await row.getByRole('button', { name: 'Add a key for OpenAI' }).click({ timeout: 15_000 });
+  await row.getByRole('textbox', { name: 'OpenAI API key' }).fill(KEY);
+  await row.getByRole('button', { name: 'Save key' }).click();
+  // No second press to list the models: they are asked for at once, and speech and embedding models are left out.
+  await expect(row.getByRole('combobox', { name: 'OpenAI model' }).locator('option')).toHaveText(['gpt-a', 'gpt-b']);
+  await row.getByRole('button', { name: 'Use this model' }).click();
+  const composer = shell().getByRole('textbox', { name: 'Message Mobius' });
+  await expect(composer).toBeEnabled();
+  await composer.fill('hello');
+  await composer.press('Enter');
+  await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant').last()).toHaveText('Hello, first answer.');
+  expect(provider!.requests.at(-1)?.model).toBe('gpt-a');
+});
