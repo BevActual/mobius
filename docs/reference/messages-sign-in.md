@@ -85,5 +85,5 @@ Nothing to register. Matrix is open: any homeserver lets a client sign in to it,
   only its bot is, is left out of the list.
 
 What it unlocks: Settings › Messages › **Matrix ID or server**, then that account's rooms, direct messages and threads
-in Messages, read markers shared with the person's other devices, and Matrix bridges they already run (bridge labels
-come in the third Matrix PR).
+in Messages, read markers shared with the person's other devices, and Matrix bridges they already run, each
+room labelled with its network.
