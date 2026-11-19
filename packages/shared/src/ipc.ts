@@ -824,6 +824,10 @@ export interface MobiusBridge {
     /** Matrix: start signing in on the server's own page and answer the page to open; how it ends comes to `onSignIn`. */
     matrixBrowserSignIn?(server: string): Promise<{ url: string } | NotesFailure>;
     matrixCancel?(): Promise<{ ok: true } | NotesFailure>;
+    /** Matrix: whether this device can read the account's encrypted rooms (it is verified). */
+    matrixDevice?(account: string): Promise<{ verified: boolean } | NotesFailure>;
+    /** Matrix: verify this device with the account's recovery key (or passphrase) and restore its key backup. */
+    matrixRecover?(account: string, recoveryKey: string): Promise<{ verified: boolean; keys: number } | NotesFailure>;
   };
   /** The Calendar app. Only the Tauri shell has it. */
   calendar?: {

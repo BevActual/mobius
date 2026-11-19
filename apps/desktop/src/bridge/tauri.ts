@@ -517,6 +517,8 @@ export function createTauriBridge(): MobiusBridge {
       matrixSignIn: (server, user, password) => call('messages', 'matrixSignIn', [server, user, password], () => ({ ok: false as const, message: 'Messages is not available.' })),
       matrixBrowserSignIn: (server) => call('messages', 'matrixBrowserSignIn', [server], () => ({ ok: false as const, message: 'Messages is not available.' })),
       matrixCancel: () => call('messages', 'matrixCancel', [], () => ({ ok: true as const })),
+      matrixDevice: (account) => call('messages', 'matrixDevice', [account], () => ({ ok: false as const, message: 'Messages is not available.' })),
+      matrixRecover: (account, key) => call('messages', 'matrixRecover', [account, key], () => ({ ok: false as const, message: 'Messages is not available.' })),
       onSignIn: (listener) => on<ChatSignIn>('mobius:messages-sign-in', listener),
     },
     googleDrive: {

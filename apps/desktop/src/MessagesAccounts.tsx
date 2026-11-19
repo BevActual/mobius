@@ -89,6 +89,7 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
                   <div className="slist-main">
                     <span>{a.name} · {SERVICE_NAMES[a.service] ?? a.service}</span>
                     {a.status !== 'ready' && <span className="field-error" role="alert">{a.message ?? 'This account cannot be reached.'}</span>}
+                    {a.service === 'matrix' && a.status === 'ready' && <MatrixDevice account={a} />}
                   </div>
                   {removing === a.id ? (
                     <>
@@ -138,5 +139,45 @@ export function MessagesAccountsSettings({ highlight }: { highlight?: boolean })
         </>
       )}
     </Row>
+  );
+}
+
+/**
+ * A Matrix account's encrypted rooms: they open once this device is verified, with the recovery key (or passphrase)
+ * the person saved when they set up recovery in another Matrix app. Verifying also restores their key backup, so older
+ * encrypted messages read too. The key goes only to Mobius's own encryption and is not kept.
+ */
+function MatrixDevice({ account }: { account: ChatAccount }) {
+  const api = window.mobius.messages;
+  const [verified, setVerified] = useState<boolean | null>(null);
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [said, setSaid] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    void api?.matrixDevice?.(account.id).then((r) => { if (!isNotesFailure(r)) setVerified(r.verified); }).catch(() => {});
+  }, [api, account.id]);
+  if (verified === null || !api?.matrixRecover) return null;
+  if (verified) return <span className="slist-sub">Encrypted rooms: this device is verified.{said?.ok ? ` ${said.text}` : ''}</span>;
+  const verify = async () => {
+    setBusy(true);
+    setSaid(null);
+    const r = await api.matrixRecover!(account.id, key).catch(() => null);
+    setBusy(false);
+    setKey('');
+    if (!r) { setSaid({ ok: false, text: 'Verifying is not available here.' }); return; }
+    if (isNotesFailure(r)) { setSaid({ ok: false, text: r.message }); return; }
+    setVerified(r.verified);
+    setSaid({ ok: true, text: r.keys === 1 ? '1 message key restored from your backup.' : `${r.keys} message keys restored from your backup.` });
+  };
+  return (
+    <form className="messages-matrix" aria-label={`Verify this device for ${account.name}`} onSubmit={(event) => { event.preventDefault(); if (key.trim()) void verify(); }}>
+      <span className="slist-sub">Encrypted rooms open once this device is verified. Type the recovery key you saved when you set up recovery in another Matrix app, such as Element.</span>
+      <label className="field compact wide">
+        <span>Recovery key</span>
+        <input type="password" value={key} autoComplete="off" spellCheck={false} onChange={(event) => setKey(event.target.value)} />
+      </label>
+      <button type="submit" className="btn" disabled={busy || !key.trim()}>{busy ? 'Verifying…' : 'Verify this device'}</button>
+      {said && !said.ok && <p className="field-error" role="alert">{said.text}</p>}
+    </form>
   );
 }

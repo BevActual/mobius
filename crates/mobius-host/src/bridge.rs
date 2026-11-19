@@ -3708,6 +3708,12 @@ impl Bridge {
                 }),
                 _ => Err("a server, a username and a password are needed".to_owned()),
             },
+            // Matrix encryption: whether this device can read encrypted rooms, and verifying it with a recovery key.
+            "matrixDevice" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|a| accounts.matrix_device(a)),
+            "matrixRecover" => match (text(0), text(1)) {
+                (Some(a), Some(key)) => accounts.matrix_recover(a, key).inspect(|_| changed(a, None)),
+                _ => Err("an account and a recovery key are needed".to_owned()),
+            },
             "matrixStatus" => Ok(accounts.matrix_status()),
             "matrixCancel" => {
                 accounts.matrix_cancel();
