@@ -207,6 +207,10 @@ test('typing "[ ] " at the start of a bullet makes that bullet a checklist item,
   await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call the bakery' })).toBeVisible();
   // The bullet before it stays a bullet.
   await expect.poll(() => onDisk('Home', 'Untitled.md')).toBe('# Shop\n\n- Milk\n\n- [ ] Call the bakery\n');
+  // Ctrl+N, from the page, starts another one (it presses New page in the Notebooks panel).
+  await shell().keyboard.press('Control+n');
+  await expect(text().locator('h1')).toHaveText('Untitled');
+  await expect(side().getByRole('button', { name: /^Shop/ })).toBeVisible();
 });
 
 test('#tags in pages show under Tags, and a tag lists the pages that carry it', async () => {

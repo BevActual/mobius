@@ -986,7 +986,10 @@ export function App() {
       else if (action === 'littleMobius') { claim(); toggleMini(); }
       // New (Cmd-N, Ctrl-N elsewhere) is fixed too: it presses the open sidebar's New, whatever that makes there.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'KeyN') {
-        const create = document.querySelector<HTMLButtonElement>('.dock.left .side-new > .side-new-row, .dock.left .app-side-new');
+        // The app's own panel, in the pane being worked in when two apps are side by side.
+        const within: ParentNode = document.activeElement?.closest('.pane') ?? document;
+        const NEW = '.app-side .side-new > .side-new-row, .app-side .app-side-new';
+        const create = within.querySelector<HTMLButtonElement>(NEW) ?? document.querySelector<HTMLButtonElement>(NEW);
         if (create && !create.disabled) { claim(); create.click(); }
       }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
