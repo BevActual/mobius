@@ -21,3 +21,8 @@ example `color-contrast@dark`.
 had. Once `enforce` is true, a new finding, or a known one on more elements, fails the test. When a fix clears
 a finding, lower its count or remove it, so it stays fixed. The test's log ends with every finding as JSON, ready to
 paste.
+
+The one known finding (19 November 2026) is kept on purpose. In Notes, a page row that shows a second line is named
+by its title alone, and the second line is its description (`SidebarRow` with `sub`). A screen reader then reads the
+title, followed by the line, without repeating it. Voice control still works, because the name is the first visible
+words.

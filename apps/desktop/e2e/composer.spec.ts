@@ -48,7 +48,9 @@ const say = async (text: string) => {
 
 test('the message box has add context, mode, permission, model and send', async () => {
   await start();
-  for (const name of ['Add context', 'Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name, exact: true })).toBeVisible();
+  // Each pill is named for what it is and what it shows ("Mode: Ask"), so a screen reader says the choice too.
+  await expect(shell().getByRole('button', { name: 'Add context', exact: true })).toBeVisible();
+  for (const name of ['Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name: new RegExp(`^${name}: `) })).toBeVisible();
   await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');

@@ -1,4 +1,6 @@
 {
-  "enforce": false,
-  "known": {}
+  "enforce": true,
+  "known": {
+    "Notes": { "label-content-name-mismatch": 1 }
+  }
 }
