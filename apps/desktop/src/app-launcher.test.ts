@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent, CalendarPerson, ChatChannel, Contact, MailMessage, NoteHit } from '@mobius/shared';
-import { bodyHits, channelsMatching, eventsMatching, mailRows, pagesMatching, peopleRows } from './app-launcher';
+import { bodyHits, channelsMatching, eventsMatching, mailRows, pagesMatching, peopleRows, quickTask, quickTaskDetail } from './app-launcher';
 
 const ev = (id: string, title: string, start: string, extra: Partial<CalendarEvent> = {}): CalendarEvent => ({ id, calendar: 'Work', title, start, end: start, allDay: false, location: '', notes: '', repeats: false, ...extra });
 
@@ -47,5 +47,24 @@ describe('Messages and Knowledge', () => {
   it('finds Knowledge pages by title', () => {
     const books = [{ name: 'Team', pages: [{ path: 'Team/Onboarding.md', title: 'Onboarding', modified: 0 }, { path: 'Team/Hiring.md', title: 'Hiring', modified: 0 }] }];
     expect(pagesMatching(books as never, 'onboard')).toEqual([{ path: 'Team/Onboarding.md', title: 'Onboarding', notebook: 'Team' }]);
+  });
+});
+
+describe('quick add task', () => {
+  const now = new Date('2026-11-19T10:00:00');
+  it('reads the words after "task", with the day and time said at the end', () => {
+    expect(quickTask('task Call Sam tomorrow at 3pm', now)).toEqual({ text: 'Call Sam', due: '2026-11-20', time: '15:00' });
+    expect(quickTask('add task Renew passport', now)).toEqual({ text: 'Renew passport', due: null });
+    expect(quickTask('Todo pay rent tomorrow', now)).toEqual({ text: 'pay rent', due: '2026-11-20' });
+  });
+  it('is nothing for other words', () => {
+    expect(quickTask('tasks', now)).toBeNull();
+    expect(quickTask('task ', now)).toBeNull();
+    expect(quickTask('taskbar settings', now)).toBeNull();
+    expect(quickTask('Call Sam', now)).toBeNull();
+  });
+  it('says where it goes and when it is due', () => {
+    expect(quickTaskDetail({ due: null }, 'Inbox')).toBe('Tasks, to Inbox');
+    expect(quickTaskDetail({ due: '2026-11-20' }, 'Inbox')).toMatch(/^Tasks, to Inbox, due .*20/);
   });
 });
