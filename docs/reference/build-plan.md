@@ -63,7 +63,7 @@ As of 18 November 2026. Building comes first; demo runs are stopped until record
 | Plan my day and Files Tidy worked out in code (#512, #511); Music's bass in code (#519) | Apps lead, Music | Land on their tests |
 | First run: a fresh install to a useful first answer in five minutes, with no terminal and no doc | Builder | Next |
 | Contacts in Mail and Calendar over CardDAV, then Meetings in Calendar and Notes | Apps lead, Builder for the store | Store on `main`; the app pieces next |
-| The Messages app (Slack, Discord, Telegram) | Builder for the accounts, Apps lead for the app | After Contacts |
+| The Messages app (Slack, Matrix with its bridges, Teams chats, Telegram (grammers)) | Builder for the accounts, Apps lead for the app | After Contacts |
 | Calendar and drive sign-in for Google, Microsoft and Dropbox | Builder | Built; waits on Andrew registering Mobius ([drive sign-in](drive-sign-in.md)) |
 | Design and Research weak points, Database's Analyse mode | Apps lead | After the panels |
 | Clips and the reel | Launch | At launch, after one real-model run of each moment |
@@ -284,7 +284,7 @@ Nextcloud, a home machine. Open standards come before one-off integrations, so o
 | Models | A dozen services, sign-in with ChatGPT or Claude, OpenRouter, local models, and any server that speaks the common chat format | Nothing scheduled | Builder |
 | The agent | Connectors (MCP), started and stopped live: programs on this computer, and servers at an address (Streamable HTTP), added by address in Abilities, with a key or a sign-in (OAuth, as MCP describes it) | Nothing scheduled | Builder |
 | People | Nothing: there is no address book | An address book in the core over CardDAV (one `.vcf` per contact in `workspace/contacts/`), shown inside Mail and Calendar; no People app for now ([decided](#decided)). Building | Builder for the core, Apps lead for Mail and Calendar |
-| Messages | Nothing yet | Slack, Discord and Telegram on their official APIs, in a Messages app (early, in Abilities, after the demo; [decided](#decided)) | Builder for the accounts, Apps lead for the app |
+| Messages | Slack, Matrix (encrypted rooms, bridges), Teams chats; Telegram (grammers) built, waiting on its api_id and api_hash | Slack, Matrix, Teams chats via Graph, then Telegram (grammers, pure Rust); Discord, WhatsApp and Signal through the person's own Matrix bridges ([decided](#decided)) | Builder for the accounts, Apps lead for the app |
 | Notes, Docs, Sheets and the rest | Plain files in the workspace | They follow Files: once the workspace can live on WebDAV, so do they | |
 
 ### Drives

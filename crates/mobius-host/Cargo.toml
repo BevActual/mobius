@@ -33,7 +33,9 @@ sys-locale = "0.3"
 matrix-sdk-crypto = "0.19.1"
 matrix-sdk-sqlite = { version = "0.19.1", default-features = false, features = ["crypto-store"] }
 ruma = { version = "0.17", features = ["client-api-c"] }
-tokio = { version = "1", default-features = false, features = ["rt"] }
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread"] }
+grammers-client = { version = "0.12", default-features = false }
+grammers-session = { version = "0.12", default-features = false, features = ["serde"] }
 
 [dev-dependencies]
 tempfile = "3"

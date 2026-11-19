@@ -282,7 +282,7 @@ export interface CalendarChanged { calendar: string | null; by: 'person' | 'assi
 
 /** An email address or a phone number, with its kind (`work`, `home`, `cell`) when the card gives one. */
 /** Messages (Apps lead; accounts by the Builder): chat on Slack, Discord and Telegram through their official APIs. */
-export type ChatService = 'slack' | 'matrix' | 'teams' | 'discord' | 'telegram';
+export type ChatService = 'slack' | 'matrix' | 'teams' | 'telegram' | 'discord';
 export interface ChatAccount { id: string; service: ChatService; name: string; status: 'ready' | 'signed-out' | 'error'; message?: string }
 /**
  * Where an emoji verification with another of the person's Matrix devices is. `waiting`: for the other device to
@@ -834,6 +834,11 @@ export interface MobiusBridge {
     /** Starts the Microsoft sign-in for Teams chats and answers the page to open; how it ends comes to `onSignIn`. */
     teamsSignIn?(): Promise<{ url: string } | NotesFailure>;
     teamsCancel?(): Promise<{ ok: true } | NotesFailure>;
+    /** Telegram: whether this build can sign in, and whether a sign-in is waiting for its code or password. */
+    telegramStatus?(): Promise<{ setUp: boolean; pending: boolean; hint: string | null } | NotesFailure>;
+    /** One step of signing in to Telegram: the phone number, then the code, then the two-step password if asked. */
+    telegramSignIn?(step: 'phone' | 'code' | 'password', value: string): Promise<{ next: 'code' } | { next: 'password'; hint: string | null } | { id: string; service: 'telegram'; name: string } | NotesFailure>;
+    telegramCancel?(): Promise<{ ok: true } | NotesFailure>;
     onSignIn?(listener: (done: ChatSignIn) => void): () => void;
     /** Matrix: how the server for a Matrix ID or server name lets the person sign in. */
     matrixMethods?(server: string): Promise<{ homeserver: string; password: boolean; browser: boolean } | NotesFailure>;

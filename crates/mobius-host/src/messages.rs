@@ -2,7 +2,7 @@
 //! read from the service as they are shown and nothing of them is kept here; this keeps only the list of accounts
 //! (`messages-accounts.json` in the data folder) and, in the system secret store, each account's sign-in.
 //!
-//! Slack (`slack`), Matrix (`matrix`) and Microsoft Teams chats (`teams`). Only the person sends: the app calls `send` from their own Send, and the
+//! Slack (`slack`), Matrix (`matrix`), Microsoft Teams chats (`teams`) and Telegram (`telegram`). Only the person sends: the app calls `send` from their own Send, and the
 //! agent has no tool that does.
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -18,6 +18,7 @@ use crate::matrix::{self, Matrix, Session};
 use crate::matrix_crypto::Crypto;
 use crate::slack::{EXPIRED, Endpoints, Page, Slack, Tokens};
 use crate::teams::{self, Me, Teams};
+use crate::telegram::{self, Next, Telegram};
 
 type Res<T> = Result<T, String>;
 
@@ -32,7 +33,7 @@ type People = HashMap<String, (Instant, Arc<HashMap<String, String>>)>;
 #[serde(rename_all = "camelCase")]
 pub struct Account {
     pub id: String,
-    /// `slack`, `matrix` or `teams`.
+    /// `slack`, `matrix`, `teams` or `telegram`.
     pub service: String,
     pub name: String,
     /// The workspace's id on the service (on Matrix, the person's Matrix ID; on Teams, their user and organisation
@@ -55,6 +56,8 @@ pub struct Accounts {
     people: Mutex<People>,
     /// The Microsoft sign-in, asking for Teams chats.
     microsoft: Mutex<Arc<crate::onedrive::Service>>,
+    /// Telegram, made the first time it is needed (it runs its own connection thread).
+    telegram: std::sync::OnceLock<Option<Arc<Telegram>>>,
 }
 
 fn secret_name(id: &str) -> String {
@@ -71,7 +74,7 @@ impl Accounts {
         let state = std::fs::read_to_string(&file).ok().and_then(|t| serde_json::from_str::<Vec<Account>>(&t).ok()).unwrap_or_default();
         let slack = Arc::new(Slack::new(crate::slack::built_in_client_id(), Endpoints::default()));
         let microsoft = Arc::new(crate::onedrive::Service::new(crate::onedrive::built_in_client_id(), crate::onedrive::Endpoints::default(), crate::graph_calendar::agent()).with_scopes(teams::SCOPES));
-        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), crypto: Mutex::default(), people: Mutex::default(), microsoft: Mutex::new(microsoft) }
+        Accounts { file, secrets, state: Mutex::new(state), slack: Mutex::new(slack), matrix: Arc::new(Matrix::new()), crypto: Mutex::default(), people: Mutex::default(), microsoft: Mutex::new(microsoft), telegram: std::sync::OnceLock::new() }
     }
 
     /// A pretend Microsoft, in tests.
@@ -107,7 +110,7 @@ impl Accounts {
                 .map(|a| {
                     let status = match a.problem.as_deref() {
                         None => "ready",
-                        Some(EXPIRED | matrix::EXPIRED | teams::EXPIRED) => "signed-out",
+                        Some(EXPIRED | matrix::EXPIRED | teams::EXPIRED | telegram::EXPIRED) => "signed-out",
                         Some(_) => "error",
                     };
                     let mut account = json!({ "id": a.id, "service": a.service, "name": a.name, "status": status });
@@ -171,6 +174,9 @@ impl Accounts {
     }
 
     pub fn channels(&self, id: &str) -> Res<Value> {
+        if self.is_service(id, "telegram") {
+            return self.with_telegram(id, |t, kept, _| t.channels(id, kept)).map(Value::Array);
+        }
         if self.is_teams(id) {
             return self.with_teams(id, |t, a, me| t.channels(a, id, me)).map(Value::Array);
         }
@@ -184,6 +190,9 @@ impl Accounts {
     }
 
     pub fn history(&self, id: &str, channel: &str, before: Option<&str>, thread: Option<&str>, limit: usize) -> Res<Value> {
+        if self.is_service(id, "telegram") {
+            return if thread.is_some() { Ok(json!([])) } else { self.with_telegram(id, |t, kept, me| t.history(id, kept, channel, before, limit, me.0)).map(Value::Array) };
+        }
         if self.is_teams(id) {
             // Teams chats have no threads.
             return if thread.is_some() { Ok(json!([])) } else { self.with_teams(id, |t, a, me| t.history(a, channel, before, limit, me)).map(Value::Array) };
@@ -213,6 +222,9 @@ impl Accounts {
         if self.is_teams(id) {
             return self.with_teams(id, |t, a, me| t.send(a, channel, text, me));
         }
+        if self.is_service(id, "telegram") {
+            return self.with_telegram(id, |t, kept, me| t.send(id, kept, channel, text, me.0, &me.1));
+        }
         self.with(id, |slack, tokens| {
             let people = self.people(id, slack, tokens)?;
             slack.send(&tokens.access, channel, text, thread, &tokens.user, &people)
@@ -220,6 +232,9 @@ impl Accounts {
     }
 
     pub fn mark_read(&self, id: &str, channel: &str, up_to: &str) -> Res<()> {
+        if self.is_service(id, "telegram") {
+            return self.with_telegram(id, |t, kept, _| t.mark_read(id, kept, channel).map(|changed| ((), changed)));
+        }
         if self.is_teams(id) {
             return self.with_teams(id, |t, a, me| t.mark_read(a, channel, me));
         }
@@ -268,6 +283,97 @@ impl Accounts {
         drop(all);
         lock(&self.people).remove(&id);
         Ok(json!({ "id": id, "service": "slack", "name": name }))
+    }
+
+    fn is_service(&self, id: &str, service: &str) -> bool {
+        lock(&self.state).iter().any(|a| a.id == id && a.service == service)
+    }
+
+    fn telegram(&self) -> Option<Arc<Telegram>> {
+        self.telegram.get_or_init(|| Telegram::new(telegram::built_in()).ok().map(Arc::new)).clone()
+    }
+
+    /// A pretend Telegram, in tests: one without keys.
+    #[cfg(test)]
+    pub fn use_telegram(&self, t: Telegram) {
+        let _ = self.telegram.set(Some(Arc::new(t)));
+    }
+
+    /// Runs `f` with the Telegram account's kept sign-in and who it is (`(user id, name)`). What changed in the
+    /// sign-in is kept again; a device Telegram signed out marks the account signed out.
+    fn with_telegram<T>(&self, id: &str, f: impl FnOnce(&Telegram, &Value, &(i64, String)) -> Res<(T, Option<Value>)>) -> Res<T> {
+        let t = self.telegram().ok_or(telegram::NOT_SET_UP)?;
+        let mut saved: Value = self.secrets.get(&secret_name(id)).and_then(|k| serde_json::from_str(&k).ok()).ok_or(telegram::EXPIRED)?;
+        let me = (saved["user"].as_i64().unwrap_or(0), saved["name"].as_str().unwrap_or("").to_owned());
+        let result = f(&t, &saved["kept"], &me);
+        match &result {
+            Ok((_, Some(changed))) => {
+                saved["kept"] = changed.clone();
+                self.secrets.put(&secret_name(id), &saved.to_string());
+                self.set_problem(id, None);
+            }
+            Ok(_) => self.set_problem(id, None),
+            Err(e) if e == telegram::EXPIRED => self.set_problem(id, Some(telegram::EXPIRED.into())),
+            Err(_) => {}
+        }
+        result.map(|(t, _)| t)
+    }
+
+    /// Whether Telegram can be signed in to in this build, and whether a sign-in is waiting for a code or password.
+    pub fn telegram_status(&self) -> Value {
+        match self.telegram() {
+            Some(t) if t.set_up() => json!({ "setUp": true, "pending": t.signing_in(), "hint": null }),
+            _ => json!({ "setUp": false, "pending": false, "hint": telegram::NOT_SET_UP }),
+        }
+    }
+
+    /// One step of signing in to Telegram: `phone` starts it, then `code`, then `password` if the account has one.
+    /// Answers `{ next: "code" }`, `{ next: "password", hint }`, or the kept account.
+    pub fn telegram_sign_in(&self, step: &str, value: &str) -> Res<Value> {
+        let t = self.telegram().filter(|t| t.set_up()).ok_or(telegram::NOT_SET_UP)?;
+        let next = match step {
+            "phone" => t.start(value)?,
+            "code" => t.code(value)?,
+            "password" => t.password(value)?,
+            _ => return Err("That sign-in step isn't known.".into()),
+        };
+        match next {
+            Next::Code => Ok(json!({ "next": "code" })),
+            Next::Password { hint } => Ok(json!({ "next": "password", "hint": hint })),
+            Next::Done(signed) => self.keep_telegram(&t, &signed),
+        }
+    }
+
+    pub fn telegram_cancel(&self) {
+        if let Some(t) = self.telegram() {
+            t.cancel();
+        }
+    }
+
+    fn keep_telegram(&self, t: &Telegram, signed: &telegram::SignedIn) -> Res<Value> {
+        let team = signed.user.to_string();
+        let mut all = lock(&self.state);
+        let existing = all.iter().position(|a| a.service == "telegram" && a.team == team);
+        if existing.is_none() && all.len() >= MAX_ACCOUNTS {
+            return Err(format!("There can be at most {MAX_ACCOUNTS} message accounts."));
+        }
+        let id = existing.map_or_else(new_id, |i| all[i].id.clone());
+        let name = Some(signed.name.clone()).filter(|n| !n.is_empty()).unwrap_or_else(|| "Telegram".into());
+        let saved = json!({ "kept": signed.kept, "user": signed.user, "name": name });
+        if !self.secrets.put(&secret_name(&id), &saved.to_string()) {
+            return Err("The sign-in could not be kept in this computer's secret store.".into());
+        }
+        // A new sign-in replaces the old connection.
+        t.forget(&id);
+        match existing {
+            Some(i) => {
+                all[i].problem = None;
+                all[i].name = name.clone();
+            }
+            None => all.push(Account { id: id.clone(), service: "telegram".into(), name: name.clone(), team, problem: None }),
+        }
+        self.save(&all);
+        Ok(json!({ "id": id, "service": "telegram", "name": name }))
     }
 
     fn is_teams(&self, id: &str) -> bool {
@@ -526,12 +632,20 @@ impl Accounts {
     pub fn remove(&self, id: &str) -> Res<Value> {
         let mut all = lock(&self.state);
         let before = all.len();
+        let was_telegram = all.iter().any(|a| a.id == id && a.service == "telegram");
         all.retain(|a| a.id != id);
         if all.len() == before {
             return Err("That account is gone.".into());
         }
         self.save(&all);
         drop(all);
+        // A Telegram sign-in is its own device too: it is signed out of Telegram, without waiting.
+        if was_telegram
+            && let (Some(t), Some(saved)) = (self.telegram(), self.secrets.get(&secret_name(id)).and_then(|k| serde_json::from_str::<Value>(&k).ok()))
+        {
+            let id = id.to_owned();
+            std::thread::spawn(move || t.sign_out(&id, &saved["kept"]));
+        }
         // A Matrix sign-in is its own device on the account: it is signed out there too, without waiting.
         if let Some(session) = self.secrets.get(&secret_name(id)).and_then(|t| serde_json::from_str::<Session>(&t).ok()).filter(|s| !s.homeserver.is_empty()) {
             let (m, id) = (Arc::clone(&self.matrix), id.to_owned());
