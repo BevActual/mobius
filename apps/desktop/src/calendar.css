@@ -173,7 +173,9 @@
 .cal-editor[data-pop][data-side="left"]::before { left: -8px; }
 .cal-editor[data-pop][data-side="right"]::before { right: -8px; transform: rotate(225deg); }
 /* Delete in the popover: plain red words, centred at its foot, as in Calendar. */
-.cal-pop-delete { align-self: center; padding: 4px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
+.cal-pop-foot { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-1); }
+.cal-pop-foot .spacer { flex: 1; }
+.cal-pop-delete { margin-left: -10px; padding: 4px 10px; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--danger); font: inherit; font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer; }
 .cal-pop-delete:hover { background: color-mix(in srgb, var(--danger) 10%, transparent); }
 .cal-pop-delete:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 /* What Mobius's last turn added or changed waits dashed, as a proposed task does, until it is kept. */
@@ -192,11 +194,13 @@
 .calendar-row[aria-pressed="false"] .cal-dot { background: transparent; }
 .calendar-row[aria-pressed="false"] .ui-side-name { color: var(--faint); }
 .calendar-row .cal-lock { margin-left: auto; }
+.cal-dock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cal-from-mobius { display: inline-grid; place-items: center; color: var(--mobius); }
 .cal-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius); white-space: nowrap; align-self: center; }
 /* The all-day row: each item reads whole, on up to two lines, two a day, then "+N more". */
-.calendar-page .cal-all-day-cell .cal-event b, .calendar-page .cal-all-day-cell .cal-task span { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
-.calendar-page .cal-all-day-cell .cal-task { align-items: flex-start; line-height: 16px; }
-.calendar-page .cal-all-day-cell .cal-task input { margin-top: 1.5px; }
+/* One line each in the all-day row, cut with an ellipsis; two rows a day, then "+N more". */
+.calendar-page .cal-all-day-cell .cal-event b, .calendar-page .cal-all-day-cell .cal-task span { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.calendar-page .cal-all-day-cell .cal-task { align-items: center; line-height: 16px; }
 .calendar-page .cal-all-day-cell .cal-event[data-quiet] { min-height: 18px; }
 .calendar-page .cal-all-day-cell .cal-more { padding: 0 4px; font-weight: var(--fw-medium); }
 .calendar-page .cal-all-day > .cal-fewer { border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
@@ -233,7 +237,7 @@
 .cal-invitees { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0; padding: 0 2px; list-style: none; color: var(--muted); font-size: var(--fs-sm); }
 
 /* "More options": the popover's way to the Event panel, plain words at its foot. */
-.cal-dock { align-self: flex-start; padding: 2px 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
+.cal-dock { display: inline-flex; align-items: center; gap: 2px; padding: 2px 0; border: 0; background: transparent; color: var(--accent); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .cal-dock:hover { text-decoration: underline; }
 /* In the Event panel: the panel is the sheet, so the form fills it and the notes have room. */
 .cal-editor[data-docked] { width: auto; min-height: 100%; padding: var(--sp-3) var(--sp-4) var(--sp-4); border-radius: 0; background: transparent; box-shadow: none; }
@@ -257,3 +261,18 @@
 
 /* A timed event an hour or longer has room for its title on two lines. */
 .calendar-page .cal-column > .cal-event[data-tall] b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+
+/* An event's second line: the time, then its place only when at least its first word fits (see Place). */
+.calendar-page .cal-event .cal-event-when { display: flex; flex-wrap: wrap; align-self: stretch; height: 1lh; overflow: hidden; }
+.calendar-page .cal-event .cal-place { display: flex; min-width: 0; max-width: 100%; white-space: pre; }
+.calendar-page .cal-event .cal-place > span { flex: none; white-space: pre; }
+.calendar-page .cal-event .cal-place > .cal-place-rest { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+/* The Notes box grows with what is written, with no resize grip. */
+form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc(3lh + 12px); max-height: 40vh; }
+/* Narrow day columns: the weekday drops to one letter ("T 19"). */
+.calendar-page .cal-day-head { container-type: inline-size; min-width: 0; }
+.calendar-page .cal-day-head .cal-wd-one { display: none; }
+@container (max-width: 90px) {
+  .calendar-page .cal-day-head .cal-wd { display: none; }
+  .calendar-page .cal-day-head .cal-wd-one { display: inline; }
+}

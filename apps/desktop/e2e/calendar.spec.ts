@@ -110,7 +110,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   expect(work).toContain(`DTSTART:${ics(today())}T090000`);
 
   await plants.click();
-  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete Event' }).click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete event' }).click();
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
