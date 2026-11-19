@@ -19,6 +19,8 @@ const failed = [];
 const unstable = [];
 // The speed figures from e2e/speed.spec.ts, kept with its test as annotations (its last try's, when it had two).
 let speed = [];
+// What axe found in e2e/a11y.spec.ts, kept with its test as annotations (its last try's).
+let a11y = [];
 const walk = (suite) => {
   for (const spec of suite.specs ?? []) {
     for (const test of spec.tests ?? []) {
@@ -29,6 +31,8 @@ const walk = (suite) => {
       const last = test.results?.at(-1)?.annotations ?? test.annotations ?? [];
       const figures = last.filter((a) => a.type === 'speed').map((a) => JSON.parse(a.description));
       if (figures.length > 0) speed = figures;
+      const found = (test.results?.at(-1)?.annotations ?? test.annotations ?? []).filter((a) => a.type === 'a11y');
+      if (found.length > 0) a11y = found.map((a) => JSON.parse(a.description));
     }
   }
   for (const child of suite.suites ?? []) walk(child);
@@ -50,6 +54,13 @@ if (speed.length > 0) {
   for (const { name, value, unit, budget } of speed) {
     const over = budget > 0 && value > budget;
     lines.push(`| ${name} | ${over ? '**' : ''}${value} ${unit}${over ? '** (over)' : ''} | ${budget > 0 ? `${budget} ${unit}` : 'not set'} |`);
+  }
+  lines.push('');
+}
+if (a11y.length > 0) {
+  lines.push('**Accessibility** (axe; known findings in apps/desktop/e2e/a11y-baseline.json; see docs/developers/accessibility.md)', '', '| Where | Finding | Elements | Known | Example |', '| --- | --- | ---: | ---: | --- |');
+  for (const { place, key, nodes, known, help, example } of a11y) {
+    lines.push(`| ${place} | ${key}: ${help.replace(/\|/g, '\\|')} | ${nodes > known ? `**${nodes}**` : nodes} | ${known} | \`${example.replace(/\|/g, '\\|').replace(/`/g, "'")}\` |`);
   }
   lines.push('');
 }

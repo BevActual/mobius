@@ -85,9 +85,15 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, please hold it. We are 8.');
+  // Send waits a few seconds with Undo, which opens the message again, unsent.
   await compose.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(compose).toHaveCount(0);
-  await expect.poll(() => servers.sent.length).toBe(1);
+  await shell().locator('.ui-undo').getByRole('button', { name: 'Undo' }).click();
+  await expect(compose.getByRole('textbox', { name: 'Message' })).toHaveValue('Hi Rui, please hold it. We are 8.');
+  expect(servers.sent.length).toBe(0);
+  await compose.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(compose).toHaveCount(0);
+  await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
   expect(servers.sent[0]).toContain('In-Reply-To: <t1@example.com>');
   expect(servers.sent[0]).toContain('Hi Rui, please hold it. We are 8.');
 });
@@ -144,7 +150,7 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await expect(kept).toContainText('two vegetarians');
   await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
   await kept.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect.poll(() => servers.sent.length).toBe(1);
+  await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });
 

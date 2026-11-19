@@ -48,6 +48,7 @@ you want to build or change Mobius, go to **Developers**.
 | [Architecture](developers/architecture.md) | The processes, the crates, and how a request flows through them |
 | [Adding an app](developers/adding-an-app.md) | Every place a new app touches, from its icon to its README picture |
 | [Testing and CI](developers/testing.md) | Unit tests, end-to-end tests and the GitHub workflows |
+| [Accessibility](developers/accessibility.md) | Keyboard, names and contrast, and the axe check every pull request runs |
 | [Speed](developers/speed.md) | The speed budgets every pull request is measured against: start, switching apps, long lists, memory |
 | [Shared controls](developers/shared-controls.md) | The component library every app uses, from `src/ui`, one page per group with pictures |
 | [Drives](developers/drives.md) | Drives of every kind (WebDAV, S3, Dropbox, OneDrive and SharePoint), and two-way sync |

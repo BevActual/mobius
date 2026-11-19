@@ -77,7 +77,7 @@ test('screens: every app, Home, Settings and the Mobius panel, light and dark', 
     await both(shell, 'home');
     // The start page of a new tab.
     await open('Browser', 'browser');
-    await shell.getByRole('button', { name: 'New tab' }).click();
+    await shell.getByTitle('New tab (Ctrl+T)').click();
     await expect(shell.getByRole('region', { name: 'New tab' })).toBeVisible();
     await both(shell, 'new-tab');
     // Settings.

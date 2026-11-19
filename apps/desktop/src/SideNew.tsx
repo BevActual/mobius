@@ -28,7 +28,7 @@ interface Props {
 export function SideNew({ item, onNew, disabled = false, title }: Props) {
   return (
     <div className="side-new">
-      <button type="button" className="side-new-row" aria-label={`New ${item}`} title={title ?? `New ${item}`} disabled={disabled} onClick={onNew}>
+      <button type="button" className="side-new-row" title={title ?? `New ${item}`} disabled={disabled} onClick={onNew}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
         <span>New {item}</span>
         <kbd className="side-keys" aria-hidden="true">{newKeys()}</kbd>

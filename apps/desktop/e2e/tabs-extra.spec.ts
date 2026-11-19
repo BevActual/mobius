@@ -19,7 +19,7 @@ const titles = () => shell().locator('.tab-title');
 const openIn = async (path: string) => {
   await expect(titles().first()).toBeVisible();
   const before = await titles().count();
-  await shell().getByRole('button', { name: 'New tab' }).click();
+  await shell().getByTitle('New tab (Ctrl+T)').click();
   await expect(titles()).toHaveCount(before + 1);
   await expect(shell().getByRole('textbox', { name: 'Address or question' })).toHaveValue('');
   const address = shell().getByRole('textbox', { name: 'Address or question' });

@@ -41,8 +41,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
   await start();
   // New skill is the sidebar's New (its Create button), first as New is in every app.
-  await expect(shell().getByRole('button', { name: 'Create', exact: true })).toHaveAttribute('title', 'New skill');
-  await shell().getByRole('button', { name: 'Create', exact: true }).click();
+  await expect(shell().locator('.app-side-new')).toHaveAccessibleName('New skill');
+  await shell().locator('.app-side-new').click();
   await shell().getByRole('textbox', { name: 'Skill name' }).fill('Compare stays');
   await shell().getByRole('textbox', { name: 'When to use it' }).fill('When choosing where to stay');
   await shell().getByRole('textbox', { name: 'When to use it' }).press('Enter');

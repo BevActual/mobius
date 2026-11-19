@@ -7,7 +7,7 @@ import { APP_ICONS } from './Rail';
 import './activity.css';
 import { agentSchedules, mayTouch, modelChoices } from './bot-view';
 import { loadApply, permissionOf } from './chat-mode';
-import { Segmented, TimeField } from './ui';
+import { DotCharacter, Segmented, TimeField, type CharacterState } from './ui';
 import { usePreferences } from './usePreferences';
 import './agents.css';
 
@@ -153,6 +153,18 @@ function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => vo
   );
 }
 
+/**
+ * How an agent is, for its character (ui/DotCharacter): working while a session runs, waiting while one needs you,
+ * failed when its newest run failed, otherwise idle. Sessions come newest first.
+ */
+export function characterState(sessions: readonly Pick<ConversationInfo, 'activity' | 'waiting'>[]): CharacterState {
+  if (sessions.some((c) => c.activity === 'needs_you' || c.waiting > 0)) return 'waiting';
+  if (sessions.some((c) => c.activity === 'working')) return 'working';
+  return sessions[0]?.activity === 'failed' ? 'failed' : 'idle';
+}
+
+const STATE_WORDS: Partial<Record<CharacterState, string>> = { idle: 'Idle', working: 'Working', waiting: 'Needs you', failed: 'Its last run failed' };
+
 /** One titled part of the page: a plain heading over its content, parts divided by hairlines (no cards). */
 function Part({ title, action, children, label }: { title: string; action?: ReactNode; children: ReactNode; label?: string }) {
   return (
@@ -203,6 +215,15 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
   }
   return (
     <section className="agent-page" aria-label={bot.name}>
+      {!main && (() => {
+        const state = characterState(sessions);
+        return (
+          <div className="agent-hero">
+            <DotCharacter name={bot.name} state={state} size="large" />
+            <span className="agent-hero-state" data-state={state}>{STATE_WORDS[state]}</span>
+          </div>
+        );
+      })()}
       <Part title="What it does" action={!main && <button type="button" className="link-btn" onClick={() => onShow({ kind: 'show', id: bot.id, editing: true })}>Edit</button>}>
         {bot.instructions ? <p className="agent-text">{bot.instructions}</p> : <p className="agent-text agent-muted">{main ? 'Mobius’s usual instructions, with nothing added.' : 'Nothing added to the usual instructions yet.'}</p>}
         <p className="agent-meta">{bot.model ? `Uses ${bot.model}` : 'Uses the model in settings'}{main ? '. Built in.' : ''}</p>

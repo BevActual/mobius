@@ -53,7 +53,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
-    notes: { newNotebook: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
+    notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -156,6 +156,7 @@ function appMenu(c: MenuContext): Menu | null {
     case 'notes':
       return { id: 'app', label: 'Notes', items: [
         item('new-page', 'New page', c.do.create.note, { keys: 'mod+n' }),
+        item('today-note', 'Today’s note', d.notes.today),
         item('new-notebook', 'New notebook', d.notes.newNotebook),
         separator,
         item('changes', 'Show what the agent changed', d.notes.changes, { disabled: !s.notes.changed }),

@@ -14,6 +14,7 @@ import {
   BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
+  DotMatrix, DotCharacter,
 } from '../ui';
 import { GoButton, Launcher } from '../Launcher';
 import type { AppId } from '../apps';
@@ -705,6 +706,18 @@ export function Sheet() {
                 <ListRow key={t} title={t} meta={i === 3 ? undefined : dayLabel(new Date(2026, 10, [13, 14, 18][i]!))} lead={<Checkbox label={t} hideLabel checked={i === 0} onChange={() => {}} />} trail={i === 1 ? <Chip color="teal">Workshop</Chip> : undefined} onSelect={() => {}} />
               ))}
             </ul>
+          </div>
+        </Card>
+        <Card title="Dot matrix and agent characters (Mobius working, Agents)" shot="dot-matrix" wide>
+          <div className="sheet-dots">
+            {(['thinking', 'reading', 'searching', 'writing', 'working', 'waiting', 'done', 'stopped'] as const).map((m) => (
+              <div key={m} className="sheet-dot"><DotMatrix mode={m} progress={m === 'done' ? 1 : 0.5} at={1.3} /><span>{m[0]!.toUpperCase() + m.slice(1)}</span></div>
+            ))}
+          </div>
+          <div className="sheet-dots">
+            {([['Weekly P2 summary', 'idle'], ['Morning brief', 'writing'], ['File receipts', 'reading'], ['Supplier watch', 'waiting'], ['Trip planner', 'done'], ['Site check', 'failed']] as const).map(([n, st]) => (
+              <div key={n} className="sheet-dot"><DotCharacter name={n} state={st} at={1.3} /><span>{n} · {st}</span></div>
+            ))}
           </div>
         </Card>
       </div>

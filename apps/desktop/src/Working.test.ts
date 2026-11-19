@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { stepCount, workingOf } from './Working';
+import { matrixModeOf, stepCount, workingOf } from './Working';
 import { initialConversation, type ConversationState, type Item } from './conversation';
 
 const busy = (items: Item[]): ConversationState => ({ ...initialConversation('c'), items, busy: true });
-const tool = (name: string, status: 'running' | 'done', args?: unknown): Item => ({ kind: 'tool', id: name + status, callId: name, name, status, args });
+const tool = (name: string, status: 'running' | 'done' | 'waiting', args?: unknown): Item => ({ kind: 'tool', id: name + status, callId: name, name, status, args });
 
 describe('the working indicator', () => {
   it('numbers this turn\'s tools, each naming its app, and counts without a total', () => {
@@ -22,5 +22,15 @@ describe('the working indicator', () => {
   });
   it('starts at step 01 before any tool runs', () => {
     expect(stepCount(workingOf(busy([{ kind: 'user', id: 'u', text: 'hi' }])))).toBe('01');
+  });
+  it('moves the matrix with the work: reading, searching, writing, waiting, thinking', () => {
+    const u: Item = { kind: 'user', id: 'u', text: 'go' };
+    expect(matrixModeOf(busy([u]))).toBe('thinking');
+    expect(matrixModeOf(busy([u, tool('mail.read', 'running')]))).toBe('reading');
+    expect(matrixModeOf(busy([u, tool('browser.open', 'running')]))).toBe('searching');
+    expect(matrixModeOf(busy([u, tool('files.edit', 'running')]))).toBe('writing');
+    expect(matrixModeOf(busy([u, tool('mail.draft', 'waiting')]))).toBe('waiting');
+    expect(matrixModeOf(busy([u, tool('mail.read', 'done')]))).toBe('thinking');
+    expect(matrixModeOf(busy([u, tool('mail.read', 'done'), { kind: 'assistant', id: 'a', text: 'Hi', streaming: true }]))).toBe('writing');
   });
 });

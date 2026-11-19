@@ -167,9 +167,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* The working indicator (Working.tsx): dot matrix, Working, the step count, Stop, then this turn's numbered steps. */
 .work-now { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-1); }
 .work-now-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); }
-.dot-matrix { width: 96px; height: 24px; flex: none; fill: var(--mobius); }
-.dot-matrix circle { opacity: 0.18; animation: dot-wave var(--dur-loop) var(--ease) infinite; animation-delay: var(--d); }
-@keyframes dot-wave { 0%, 60%, 100% { opacity: 0.18; } 20% { opacity: 1; } }
 .work-now-word { font-weight: var(--fw-medium); }
 .work-now-count { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .work-now-stop { margin-left: auto; }
@@ -180,7 +177,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .work-now-n { flex: none; font-family: var(--font-mono); color: var(--muted); }
 .work-now-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .work-now-more { padding-left: calc(var(--sp-2) + 2ch); font-style: normal; }
-@media (prefers-reduced-motion: reduce) { .dot-matrix circle { animation: none; opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"]::after { animation: none; } }
 
 /* The Mobius mark. Turning, the three bands of the trefoil brighten one after the other, as the band travels round. */

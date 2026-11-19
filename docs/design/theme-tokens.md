@@ -30,7 +30,7 @@ Four themes ship from the same set of names. A theme is only these values; nothi
 | `--raised` | Menus, popovers, dialogs, popped-out panels | `#ffffff` | `#e2e2df` | `#2b2b29` | `#262d36` |
 | `--ink` | Titles, icons, primary buttons, inverted state | `#1b1b1a` | `#121211` | `#ecebe6` | `#e6eaf0` |
 | `--body` | Running text | `#2a2a28` | `#1f1f1d` | `#d8d7d1` | `#cfd5dd` |
-| `--muted` | Secondary text, sublines, resting icons | `#6f6e69` | `#4f4f49` | `#a09f99` | `#97a1ae` |
+| `--muted` | Secondary text, sublines, resting icons | `#676661` | `#464640` | `#a09f99` | `#97a1ae` |
 | `--faint` | Disabled text, placeholders, tick marks | `#a3a29c` | `#7c7c76` | `#6f6e69` | `#667080` |
 | `--on-ink` | Text and icons on an ink fill | `#ffffff` | `#d9d9d6` | `#1a1a19` | `#171b21` |
 | `--line` | Hairline between zones and around controls | `#e3e1da` | `#aeaeaa` | `#353533` | `#303843` |

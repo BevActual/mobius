@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { liveTitle, onPageChanged, statusText } from './notes-state';
+import { findTodayNote, JOURNAL, liveTitle, onPageChanged, statusText, todayNoteTitle } from './notes-state';
 
 describe('a page changed on disk', () => {
   it('reloads an assistant change to the open page only when nothing is waiting to be saved', () => {
@@ -24,5 +24,17 @@ describe('what the editor shows', () => {
     expect(statusText('saved')).toBe('Saved');
     expect(statusText('conflict')).toContain('assistant');
     expect(statusText('error')).toBe('Not saved');
+  });
+});
+
+describe("today's note", () => {
+  const day = new Date(2026, 10, 9, 23, 30);
+  it('is titled by the local day, padded so it sorts', () => {
+    expect(todayNoteTitle(day)).toBe('2026-11-09');
+  });
+  it('is found only in the Journal, by that title', () => {
+    const page = { title: '2026-11-09', path: 'Journal/2026-11-09.md' };
+    expect(findTodayNote([{ name: 'Notes', pages: [{ title: '2026-11-09', path: 'Notes/2026-11-09.md' }] }], day)).toBeUndefined();
+    expect(findTodayNote([{ name: JOURNAL, pages: [{ title: '2026-11-08', path: 'x' }, page] }], day)).toBe(page);
   });
 });
