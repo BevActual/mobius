@@ -81,7 +81,8 @@ out, the quieter the warning is by launch.
 
 ## Setting up Azure Artifact Signing
 
-The [Release workflow](../../.github/workflows/release.yml) signs the installer once the settings below exist, and
+The [Release workflow](../../.github/workflows/release.yml) signs Mobius's programs (the shell, the core and
+`mobius-inert-mcp`) before the installer packs them, then the installer itself, once the settings below exist, and
 releases it unsigned until then. It signs in to Azure through OpenID Connect from the repository's `release`
 environment, so there is no password or key to store.
 
@@ -125,5 +126,6 @@ which is what this repository's tokens carry; the plain `repo:BevActual/mobius:â
 Keep `AZURE_SIGNING_ACCOUNT` unset until the identity is approved and the certificate profile exists: while it is set,
 every release tries to sign and fails if it can't.
 
-The next tag then produces a signed installer; the run's **Check the signature** step prints who it was signed by.
+The next tag then produces a signed installer; the run's **Check the programs' signatures** and **Check the
+signature** steps print who each was signed by.
 
