@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { corePid, launch, removeTestData, type Launched } from './harness';
+import { corePid, launch, removeTestData, resizeWindow, type Launched } from './harness';
 
 // Speed budgets: how long Mobius takes to start, to switch apps and to open a long list, and how much memory it holds
 // after a long stretch of use. Every pull request measures them here, on the CI machine's debug build; each figure is
@@ -113,7 +113,10 @@ async function start(): Promise<number> {
   mobius = await launch('about:blank', { userData });
   await expect(mobius.shell.locator('.context-strip .go-button')).toBeVisible({ timeout: 60_000 });
   await mobius.shell.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
-  return Date.now() - began;
+  const took = Date.now() - began;
+  // A laptop-sized window, wide enough that Mail and Calendar show their panels (they hide them below 1200 px).
+  await resizeWindow(mobius.app, 1440, 900);
+  return took;
 }
 
 test('start, switching apps, a long list and memory after long use stay within their budgets', async () => {
