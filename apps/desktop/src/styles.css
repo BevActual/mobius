@@ -2208,6 +2208,10 @@ html .launcher, html .hub { border-radius: var(--sheet-radius); }
 input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable="true"][role="textbox"]:not([aria-multiline="true"]):focus-visible {
   outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
+/* A bare field that reads as a line of text (an add row, a title in place) takes no box: its row shows focus instead,
+   with a darker hairline under it, so the line never looks boxed in. Mark the input data-bare. */
+input[data-bare]:focus-visible, textarea[data-bare]:focus-visible { box-shadow: none; }
+:has(> input[data-bare]:focus-visible, > textarea[data-bare]:focus-visible) { border-bottom-color: var(--ink); }
 :is(.search-box, .hub-search, .launcher-search, .composer, .model-find-box, .chips-field) :is(input, textarea, [contenteditable]):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
 :is(.search-box, .hub-search):focus-within { border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 

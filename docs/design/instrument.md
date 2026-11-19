@@ -339,6 +339,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Reading column | Prose and short lists are centred in a column instead of stretching across the window. | 680px at most |
 | Card | Only for things that are objects in their own right: a file thumbnail, a board card, a dashboard tile. A list of rows is never drawn as cards. | 8 to 10px corners |
 | Empty state | A small line drawing, one short line of text, and the New action. It appears when a view is empty, and in a quieter form at the end of a short list. Built: `EmptyState` in the library, with a drawing for each kind of thing. | Drawing about 112 by 72px |
+| Bare field | A text field that reads as a line of text (an add row, a title edited in place) has no focus box. Its row's hairline turns ink while it has focus. Mark the input `data-bare`. | Row height |
 | Busy | Grey dots that rise and fall like a level meter, with what is loading said beside them. It replaces every spinner. Built: `Busy`. Mobius's own work is the indigo dot matrix, never this. | Text height |
 | Selection | A grey fill for rows and an ink outline for objects on a canvas. The canvas selection handles are the one place blue is allowed, because blue there is a tool convention. | 1.5px outline |
 | Dates and times | Always from the shared formatter, in tabular figures, grey unless overdue. | 12.5 to 13.5px |
