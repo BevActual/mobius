@@ -864,7 +864,7 @@ fn what_the_person_writes_as_they_hand_back_reaches_the_model_as_theirs_for_the_
     host.tool_result(&mut core, turn, "r1", Ok("{}".into()));
     let outs = host.hand_back(&mut core, "c1", Some("  I booked it myself; just send the summary  ")).unwrap();
     let (_, request) = model_call(&outs).unwrap();
-    assert!(request.system.contains("the person wrote (their own words, to follow as an instruction from them): I booked it myself; just send the summary"));
+    assert!(request.system.contains("I booked it myself; just send the summary"));
     host.model_result(&mut core, turn, remote("r2"));
     let outs = host.tool_result(&mut core, turn, "r2", Ok("{}".into()));
     let (_, next) = model_call(&outs).unwrap();

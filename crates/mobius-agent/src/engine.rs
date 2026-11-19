@@ -938,7 +938,7 @@ impl Engine {
         let system = if system.is_empty() { untrusted::ENVELOPE_RULE.to_owned() } else { format!("{system}\n\n{}", untrusted::ENVELOPE_RULE) };
         let system = if turn.reread { format!("{system}\n\n{HANDED_BACK}") } else { system };
         let system = match &turn.handed_note {
-            Some(note) => format!("{system}\n\nWhen they handed back, the person wrote (their own words, to follow as an instruction from them): {note}"),
+            Some(note) => format!("{system}\n\nJust now, as they handed back, the person wrote (their own words, to follow as an instruction from them; say so as \"as you said when you handed back\", not \"earlier\"): {note}"),
             None => system,
         };
         let system = if turn.nudged { format!("{system}\n\n{SAY_WHAT_YOU_DID}") } else { system };
