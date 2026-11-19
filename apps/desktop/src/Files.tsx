@@ -527,7 +527,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const cameFrom = useRef<string | null>(null);
   const listShown = !files.problem && !files.loading && rows.length > 0;
   useEffect(() => {
-    if (!listShown || (document.activeElement && document.activeElement !== document.body)) return;
+    // Nothing has it: the page itself, or the stage an app opened from Ctrl+K hands the keyboard to.
+    const on = document.activeElement;
+    if (!listShown || (on && on !== document.body && !on.matches('main.stage'))) return;
     // Back out of a folder, the keyboard is on that folder again.
     const back = cameFrom.current && rows.find((r) => r.path === cameFrom.current);
     cameFrom.current = null;
