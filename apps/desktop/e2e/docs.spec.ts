@@ -65,6 +65,37 @@ test('a new document is written on the page with formatting and kept as Markdown
   await expect(editor().locator('.doc-status')).toHaveCount(0);
 });
 
+test('a document starts from a template in the Templates folder, and any document can be saved as one', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  fs.mkdirSync(path.dirname(file('Templates/Weekly update.md')), { recursive: true });
+  fs.writeFileSync(file('Templates/Weekly update.md'), '# Weekly update, {{date}}\n\n## Done\n\n## Next\n');
+  await start();
+  const docsMenu = async (item: string) => {
+    await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+    await shell().locator('.menu-names').getByRole('button', { name: 'Docs', exact: true }).click();
+    await shell().getByRole('menu', { name: 'Docs' }).getByRole('menuitem', { name: item }).click();
+  };
+  await docsMenu('New from Weekly update');
+  // Says what went wrong, if anything did.
+  await expect(page()).toContainText(String(new Date().getFullYear()));
+  await expect(shell().locator('.toast')).toHaveCount(0);
+  // A copy, in a folder other than Templates (whichever was open, else the first), named with the date filled in.
+  const all = () => fs.readdirSync(file(''), { recursive: true }).map(String).map((p) => p.replace(/\\/g, '/')).filter((p) => p.endsWith('.md'));
+  const copy = () => all().find((p) => /^Work\/Weekly update, .+\.md$/.test(p));
+  await expect.poll(copy).toBeTruthy();
+  expect(copy()).not.toContain('{{');
+  const made = fs.readFileSync(file(copy()!), 'utf8');
+  expect(made).toContain('## Done\n\n## Next');
+  expect(made).not.toContain('{{date}}');
+  expect(made).toContain(String(new Date().getFullYear()));
+  // The template itself is untouched.
+  expect(fs.readFileSync(file('Templates/Weekly update.md'), 'utf8')).toContain('{{date}}');
+
+  await docsMenu('Save as template');
+  await expect.poll(() => fs.readdirSync(file('Templates')).filter((n) => n.endsWith('.md')).length).toBe(2);
+});
+
 test('Ctrl+F finds in the page and Ctrl+H replaces one or all, kept in the file and undone in one step', async () => {
   fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
   fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);

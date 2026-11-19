@@ -38,6 +38,7 @@ import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
+import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
 import { MessagesPage, MessagesSidebar } from './Messages';
@@ -1240,6 +1241,7 @@ export function App() {
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
+      docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
       agent: { busy: conversation.state.busy },
@@ -1346,6 +1348,23 @@ export function App() {
       docs: {
         newDocument: () => createActions.find((a) => a.id === 'doc')!.run(),
         newFolder: () => sendCommand('new-folder'),
+        // Apps lead: a new document starts as a copy of the template, in the folder open now (never Templates itself).
+        fromTemplate: (path, title) => { closeSettings(); openApp('docs'); void (async () => {
+          const read = await window.mobius.docs?.read(path).catch(() => null);
+          if (!read || 'ok' in read) { setToast('The template could not be read.'); return; }
+          const here = docs.page && !isTemplate(docs.page.path) ? docs.page.path.split('/')[0] : undefined;
+          const folder = here ?? docs.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(DEFAULT_FOLDER));
+          // Named as its first line reads once filled: "Weekly update, {{date}}" makes "Weekly update, Thursday, 19 November 2026".
+          const now = new Date();
+          const made = folder ? await docs.createPage(folder, fillTemplate(title, now), fillTemplate(read.content, now)) : null;
+          if (!made) setToast(`${templateName(title)} could not be started${folder ? ` in ${folder}` : ''}.`);
+        })(); },
+        // Opens the copy in Templates: what is changed there is what new documents start with.
+        saveAsTemplate: () => { const page = docs.page; if (!page || isTemplate(page.path)) return; void (async () => {
+          const text = docs.text;
+          const folder = docs.notebooks.find((n) => isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(TEMPLATES_FOLDER));
+          if (folder && await docs.createPage(folder, page.title, text)) setToast(`Saved as a template. New from ${page.title} is in the Docs menu`);
+        })(); },
       },
       calendar: {
         newEvent: () => createActions.find((a) => a.id === 'event')!.run(),

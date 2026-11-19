@@ -1,4 +1,5 @@
 import type { AppId } from './apps';
+import { templateName } from './docs-view';
 
 /**
  * Mobius's menus as plain data: File, Edit, View, Go, the open app's own menu, Window and Help. One definition, shown as
@@ -29,6 +30,7 @@ export interface MenuContext {
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
     notes: { hasPage: boolean; pinned: boolean; changed: boolean };
+    docs: { hasPage: boolean; isTemplate: boolean; templates: readonly { path: string; title: string }[] };
     tasks: { inList: boolean; done: number };
     calendar: { mode: 'day' | 'week' | 'month' | 'year' };
     agent: { busy: boolean };
@@ -55,7 +57,7 @@ export interface MenuContext {
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
     notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
-    docs: { newDocument: () => void; newFolder: () => void };
+    docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
     studio: { newSong: () => void; play: () => void };
     photo: { newAlbum: () => void; export: () => void };
@@ -247,6 +249,10 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Docs', items: [
         item('new-document', 'New document', d.docs.newDocument),
         item('new-folder', 'New folder', d.docs.newFolder),
+        // Apps lead: templates are the documents in the Templates folder.
+        ...(s.docs.templates.length ? [separator, ...s.docs.templates.slice(0, 12).map((t) => item(`template-${t.path}`, `New from ${templateName(t.title)}`, () => d.docs.fromTemplate(t.path, t.title)))] : []),
+        separator,
+        item('save-template', 'Save as template', d.docs.saveAsTemplate, { disabled: !s.docs.hasPage || s.docs.isTemplate }),
       ] };
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [
