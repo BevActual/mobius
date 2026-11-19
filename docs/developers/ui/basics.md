@@ -22,6 +22,13 @@ Back to [Shared controls](../shared-controls.md). Pictures: light theme, comfort
 
 ![List rows, one-line and two-line](img/list-rows.png)
 
+![Empty states for each kind of thing, the quiet form, and Busy](img/empty-states.png)
+
+| Component | Use it for |
+| --- | --- |
+| `EmptyState` | Any empty view: `kind` picks the drawing (`mail`, `tasks`, `notes`, `calendar`, `files`, `search`, `chats`, `done`, `generic`), the children are one short line, and `action` is the view's New button. `quiet` is the small form at the end of a short list, with no drawing. Never a blank grey field |
+| `Busy` | Something loading or working that isn't Mobius: grey dots that rise and fall, with a `label` that is read out (and shown unless `hideLabel`). Use it instead of a spinner. Mobius's own work is the indigo `DotMatrix` |
+
 ![The dot matrix in each mode, and agent characters at rest and at work](img/dot-matrix.png)
 
 `DotMatrix` and `DotCharacter` are Instrument's "Personality" ([Instrument](../../design/instrument.md)). Both draw on a
