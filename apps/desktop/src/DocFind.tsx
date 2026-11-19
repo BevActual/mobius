@@ -41,7 +41,7 @@ export function DocFind({ editor, replacing, focusToken, onClose }: { editor: Ed
         <input ref={field} aria-label="Find in page" placeholder="Find" value={query} spellCheck={false} maxLength={200}
           onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => keys(e, () => stepFind(editor, e.shiftKey ? -1 : 1))} />
         <span className="doc-find-count" role="status" aria-live="polite">{status}</span>
-        <button type="button" className="doc-find-case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
+        <button type="button" className="doc-find-case" aria-label="Match case" aria-pressed={matchCase} title="Match case" onClick={() => setMatchCase((m) => !m)}>Aa</button>
         <button type="button" className="strip-btn" aria-label="Previous match" title="Previous match (Shift+Enter)" disabled={found.count === 0} onClick={() => stepFind(editor, -1)}><Chevron d="m5 12 5-5 5 5" /></button>
         <button type="button" className="strip-btn" aria-label="Next match" title="Next match (Enter)" disabled={found.count === 0} onClick={() => stepFind(editor, 1)}><Chevron d="m5 8 5 5 5-5" /></button>
         <button type="button" className="strip-btn" aria-label="Close find" title="Close (Esc)" onClick={close}><Chevron d="m6 6 8 8M14 6l-8 8" /></button>
