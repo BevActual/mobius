@@ -427,3 +427,17 @@ test('someone invited opens in the Person panel, with their coming meetings', as
   await expect(card).toContainText('Ana Silva');
   await expect(card.getByRole('region', { name: 'Meetings with Ana Silva' })).toContainText('Budget review');
 });
+
+test('the launcher finds an event weeks away by where it is, and opens Calendar at its day', async () => {
+  const later = new Date();
+  later.setDate(later.getDate() + 20);
+  fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:audit\r\nDTSTART:${ics(day(later))}T140000\r\nDURATION:PT1H\r\nSUMMARY:Supplier audit\r\nLOCATION:Veltro plant\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  await start();
+  await tools().getByRole('radio', { name: 'Week' }).click();
+  await expect(page().getByRole('button', { name: /^Supplier audit/ })).toHaveCount(0);
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('veltro');
+  await shell().getByRole('option', { name: /Supplier audit/ }).click();
+  await expect(page().getByRole('button', { name: new RegExp(`^Supplier audit, ${span('14:00', '15:00')}, Veltro plant, Work`) })).toBeVisible();
+});
