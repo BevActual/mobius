@@ -79,8 +79,16 @@ test('the conversation list shows saved conversations, switches, starts new ones
   await expect(items.first().getByRole('button', { name: /Beta topic/ })).toHaveAttribute('aria-current', 'true');
   await items.nth(1).getByRole('button', { name: /Alpha topic/ }).click();
   await expect(log().locator('.msg.user')).toHaveText('Alpha topic');
-  await items.nth(1).getByRole('button', { name: 'Delete Alpha topic' }).click();
-  await items.nth(1).getByRole('button', { name: 'Confirm delete' }).click();
+  // Delete is in the row's More menu, and leaves an Undo behind.
+  await items.nth(1).hover();
+  await items.nth(1).getByRole('button', { name: 'More for Alpha topic' }).click();
+  await shell().getByRole('menuitem', { name: 'Delete' }).click();
+  await expect(items).toHaveCount(1);
+  await list().getByRole('button', { name: 'Undo' }).click();
+  await expect(items).toHaveCount(2);
+  await items.nth(1).hover();
+  await items.nth(1).getByRole('button', { name: 'More for Alpha topic' }).click();
+  await shell().getByRole('menuitem', { name: 'Delete' }).click();
   await expect(items).toHaveCount(1);
   await expect(log().locator('.msg.user')).toHaveText('Beta topic');
 });

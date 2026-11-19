@@ -327,7 +327,7 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
     case 'agent':
       return [
         { label: 'Plan my day', prompt: PLAN_MY_DAY, reads: planMyDayReads, finishes: true, tools: PLAN_MY_DAY_TOOLS },
-        { label: 'What is in my notes?', prompt: 'Look through my notes and give me a short overview of what is there.' },
+        { label: 'Catch me up', prompt: 'Catch me up: look at what is new in my mail, calendar, tasks and notes, and give me a short overview of what needs me.' },
         { label: 'Draft something', prompt: 'Help me draft ' },
       ];
     default:
