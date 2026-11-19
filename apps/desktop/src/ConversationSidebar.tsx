@@ -2,7 +2,8 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'rea
 import { createPortal } from 'react-dom';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { MAIN_BOT_ID, botOfConversation, type Bot, type BotResult, type ConversationInfo, type ScheduleInfo } from '@mobius/shared';
-import { EMPTY_DRAFT, type AgentView } from './AgentPage';
+import { MobiusMark } from './MobiusMark';
+import { characterState, EMPTY_DRAFT, type AgentView } from './AgentPage';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { activityBoard } from './activity-board';
@@ -10,7 +11,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, movesIn, turnId } from './ReviewStrip'
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
 import { botFromConversation } from './bot-view';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from './ui';
+import { AppSidebar, DotCharacter, SidebarRow, SidebarSearch, SidebarSection, type CharacterState } from './ui';
 import './conversation-sidebar.css';
 
 interface Props {
@@ -134,7 +135,7 @@ function useUndoableDelete(onDelete: (id: string) => Promise<string | null>) {
 const sessionCount = (n: number) => (n === 0 ? 'No sessions' : n === 1 ? '1 session' : `${n} sessions`);
 
 /** An agent in the sidebar: a plain row with its name. Its actions are in the More menu (or a right-click). */
-function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, onRemove, onMove }: { bot: Bot; sessions: number; current: boolean; first: boolean; last: boolean; onOpen: () => void; onEdit: () => void; onNew: () => void; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
+function BotRow({ bot, sessions, state, current, first, last, onOpen, onEdit, onNew, onRemove, onMove }: { bot: Bot; sessions: number; /** How its sessions stand, drawn as its character. */ state: CharacterState; current: boolean; first: boolean; last: boolean; onOpen: () => void; onEdit: () => void; onNew: () => void; onRemove: Props['onRemoveBot']; onMove: Props['onMoveBot'] }) {
   const [confirming, setConfirming] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -163,7 +164,9 @@ function BotRow({ bot, sessions, current, first, last, onOpen, onEdit, onNew, on
     ]),
   ];
   return (
-    <SidebarRow label={bot.name} current={current} onSelect={onOpen} title={`${main ? 'Built in' : bot.model || 'Model from settings'} · ${sessionCount(sessions)}`}
+    // Each agent has its character beside its name, showing how its sessions stand; Mobius's own row has its mark, so
+    // the names line up.
+    <SidebarRow icon={main ? <span className="bot-mark"><MobiusMark size={16} /></span> : <DotCharacter name={bot.name} state={state} size="small" />} label={bot.name} current={current} onSelect={onOpen} title={`${main ? 'Built in' : bot.model || 'Model from settings'} · ${sessionCount(sessions)}`}
       onContextMenu={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu(e.clientX === 0 && e.clientY === 0 ? { x: r.left + 12, y: r.bottom } : { x: e.clientX, y: e.clientY }); }}
       trail={<>
         <button ref={more} type="button" className="bot-more" aria-label={`More for ${bot.name}`} aria-haspopup="menu" aria-expanded={menu !== null} title="More (Shift+F10)" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu((m) => (m ? null : { x: r.left, y: r.bottom + 4 })); }}>
@@ -371,7 +374,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
         <>
           <SidebarSection title="Agents" action={<>{pin}<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
             {bots.map((bot, index) => (
-              <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} current={shownBot === bot.id} onOpen={() => onShowAgent({ kind: 'show', id: bot.id })} onEdit={() => onShowAgent({ kind: 'show', id: bot.id, editing: true })} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onRemove={onRemoveBot} />
+              <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} state={characterState(sessionsOf(bot.id))} current={shownBot === bot.id} onOpen={() => onShowAgent({ kind: 'show', id: bot.id })} onEdit={() => onShowAgent({ kind: 'show', id: bot.id, editing: true })} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onRemove={onRemoveBot} />
             ))}
           </SidebarSection>
           {/* What agents did that waits for you, as Mail's Suggested replies: it opens in Activity. */}
