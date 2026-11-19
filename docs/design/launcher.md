@@ -141,7 +141,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **Ask inline.** A question (ending in "?", or starting with what, when, how and the like) is answered in the launcher when you press Enter on Ask: read-only, with the quick model, in a conversation of its own, with the apps it read under the answer. Continue in Mobius opens that conversation in the panel; Copy the answer copies it. If Mobius wants to change something or ask you back, the answer says so and Continue takes it to the panel. Anything that isn't a question still goes straight to the panel. (`launcher-ask.ts`)
 
-Next, in order: the empty launcher as a dashboard (waiting items and agents at work), About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **The empty launcher as a home.** With nothing typed it lists, under Ask, up to three things Waiting for you (chats that need your answer, apps with changes not kept yet) and up to three Agents at work (each named agent working now, with its character). Enter on an empty launcher still opens the first pinned app; these rows are a glance, picked with the arrows or the mouse. (`home` prop, filled in `App.tsx`)
+
+Next, in order: About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 
