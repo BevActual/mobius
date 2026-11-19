@@ -131,6 +131,16 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 
 Later, if it earns its place: a preview of the selected item to the right of the list, as wide as the list (a note's first lines, a mail's sender and first line, an event's time).
 
+## The mockup, and what is built of it
+
+The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 November 2026: "go harder with competing with Raycast"). Built so far:
+
+- **Centred** in the window, from Go and Ctrl+K alike.
+- **A preview beside the list.** A found item can carry `preview` (`title`, `meta`, `body`, `rows`), shown to the right of the list for the chosen row; hidden below 900 px. Mail and Calendar results have one.
+- **Commands that read the rest of the line.** A found item can carry `fields` (`label`, `value`): what it read, shown as named parts under the field so a wrong reading shows before Enter, and it comes before anything else found. "task call Maya tomorrow 3pm" and "event lunch with Sam fri 1pm" work this way.
+
+Next, in order: inline Ask with its sources, the empty launcher as a dashboard (waiting items and agents at work), About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+
 ## How apps take part
 
 Each app registers what the launcher can find and do in it, the same way it declares its panels (`PanelLayout`). This works whether or not the app is open:

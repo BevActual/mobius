@@ -57,7 +57,11 @@ export function findInSources(query: string, first: readonly FoundItem[] = []): 
   const answers = [...sources].filter((s) => s.find).map((s) => {
     try { return s.find!(query, controller.signal); } catch { return []; }
   });
-  const tagged = (lists: readonly (readonly FoundItem[])[]) => [...first, ...lists.flatMap((list) => list)];
+  // A command that read the whole line ("event lunch fri 1pm") is what was meant: it comes before anything found.
+  const tagged = (lists: readonly (readonly FoundItem[])[]) => {
+    const all = [...first, ...lists.flatMap((list) => list)];
+    return [...all.filter((item) => item.fields?.length), ...all.filter((item) => !item.fields?.length)];
+  };
   if (answers.every((a) => !(a instanceof Promise))) return tagged(answers.map(listOf));
   return Promise.all(answers.map((a) => Promise.resolve(a).then(listOf, () => []))).then(tagged);
 }

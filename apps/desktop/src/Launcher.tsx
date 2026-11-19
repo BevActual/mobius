@@ -33,11 +33,19 @@ export interface LauncherItem {
   waiting?: number;
   /** A place at the foot: its mark. */
   place?: Place;
+  fields?: readonly LauncherField[];
+  preview?: LauncherPreview;
   run: () => void;
 }
 
 /** Something found in an app as the person types: a note, a thread, an event, a file. */
-export interface FoundItem { id: string; app: AppId; label: string; detail?: string; run: () => void }
+export interface FoundItem { id: string; app: AppId; label: string; detail?: string; run: () => void; fields?: readonly LauncherField[]; preview?: LauncherPreview }
+
+/** What a command read from the rest of the line ("lunch with Sam fri 1pm"): each part, named, shown under the field. */
+export interface LauncherField { label: string; value: string }
+
+/** What the chosen row is, shown beside the list before it is opened: a mail's first lines, an event's time. */
+export interface LauncherPreview { title: string; meta?: string; body?: string; rows?: readonly (readonly [string, string])[] }
 
 export type Place = 'home' | 'activity' | 'abilities' | 'settings';
 const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Abilities', settings: 'Settings' };
@@ -326,7 +334,7 @@ export function Launcher({
       const name = appName(scope);
       return [
         ...(!q ? [{ id: `app-${scope}`, kind: 'app' as const, app: scope, label: `Open ${name}`, run: () => onOpenApp(scope) }] : []),
-        ...(q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, run: item.run })) : []),
+        ...(q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, fields: item.fields, preview: item.preview, run: item.run })) : []),
         ...commands.filter((c) => (c.detail ?? '').includes(name) && has(c.label)).slice(0, 12)
           .map<LauncherItem>((c) => ({ id: `cmd-${c.id}`, kind: 'command', label: c.label, detail: c.detail, run: c.run })),
       ];
@@ -378,7 +386,7 @@ export function Launcher({
       ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(PLACE_NAMES[p]) && !APPS.some((a) => a.name === PLACE_NAMES[p])).map<LauncherItem>((p) => ({
         id: `place-${p}`, kind: 'app', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
       })),
-      ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), run: item.run })),
+      ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), fields: item.fields, preview: item.preview, run: item.run })),
       ...tabs.filter((tab) => has(`${tab.title} ${tab.url}`)).map<LauncherItem>((tab) => ({
         id: `tab-${tab.id}`,
         kind: 'tab',
@@ -546,6 +554,14 @@ export function Launcher({
         {finding && <span className="launcher-finding" aria-hidden="true" />}
         {view === 'apps' ? <button type="button" className="launcher-back" onClick={() => { switchView('start'); input.current?.focus(); }}>Back</button> : <kbd>Esc</kbd>}
       </div>
+      {current?.fields && current.fields.length > 0 && (
+        <div className="launcher-fields" aria-label={`${current.label}: what it read`} role="group">
+          {current.fields.map((f) => (
+            <span key={f.label} className="launcher-field" data-empty={f.value ? undefined : true}><small>{f.label}</small>{f.value || 'None'}</span>
+          ))}
+        </div>
+      )}
+      <div className="launcher-body">
       <div id="launcher-list" role="listbox" aria-label="Results" className="launcher-list">
         {sections.map((kind) => {
           const members = items.map((item, index) => ({ item, index })).filter(({ item }) => item.kind === kind);
@@ -640,10 +656,12 @@ export function Launcher({
           </div>
         )}
       </div>
+      {current?.preview && <Preview preview={current.preview} />}
+      </div>
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : 'Open'}</span>
+          <span><kbd>↵</kbd> {current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
           {!actionsFor && current.kind !== 'ask' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
@@ -703,4 +721,18 @@ export function landInStage(stage: Pick<HTMLElement, 'contains' | 'focus'> | nul
   if (!stage || (active && stage.contains(active))) return false;
   stage.focus({ preventScroll: true });
   return true;
+}
+
+/** The chosen row before it is opened, beside the list (docs/design/launcher.md, "A preview beside the list"). */
+function Preview({ preview }: { preview: LauncherPreview }) {
+  return (
+    <aside className="launcher-preview" aria-label="Preview">
+      <b className="launcher-preview-title">{preview.title}</b>
+      {preview.meta && <span className="launcher-preview-meta">{preview.meta}</span>}
+      {preview.body && <p className="launcher-preview-body">{preview.body}</p>}
+      {preview.rows && preview.rows.length > 0 && (
+        <dl className="launcher-preview-rows">{preview.rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+      )}
+    </aside>
+  );
 }
