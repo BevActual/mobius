@@ -78,6 +78,26 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await expect(shell().getByRole('region', { name: 'Note: Plan' })).toBeVisible();
 });
 
+test('the keyboard stays on the list going into and out of folders, and Ctrl+F searches the folder', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Home'), { recursive: true });
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).click();
+  await shell().keyboard.press('Enter');
+  await expect(title()).toHaveText('Notes');
+  // In the folder, the keyboard is on its first row at once: Down moves to the next.
+  const first = page.getByRole('row').nth(1);
+  await expect(first).toBeFocused();
+  await shell().keyboard.press('ArrowDown');
+  await expect(page.getByRole('row').nth(2)).toBeFocused();
+  // Back out, it is on the folder just left.
+  await shell().keyboard.press('Backspace');
+  await expect(page.getByRole('row', { name: 'notes', exact: true })).toBeFocused();
+  await shell().keyboard.press('Control+f');
+  await expect(shell().getByRole('searchbox', { name: 'Search this folder' })).toBeFocused();
+});
+
 test('what Mobius made is in Made by Mobius, dashed in the drive, until it is kept', async () => {
   await start([
     callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n\nFrom Mobius.\n' }),

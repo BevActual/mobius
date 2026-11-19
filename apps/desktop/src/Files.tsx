@@ -368,6 +368,11 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'N' || e.key === 'n') && files.place.kind === 'folder' && files.can.change) { e.preventDefault(); void startNewFolder(); return; }
+      // Ctrl+F searches the folder, as in Explorer: the panel's Search box.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F') && !e.defaultPrevented) {
+        const box = document.querySelector<HTMLInputElement>('input[aria-label="Search this folder"], input[aria-label="Search Made by Mobius"], input[aria-label="Search the Trash"]');
+        if (box) { e.preventDefault(); box.focus(); box.select(); return; }
+      }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       // Typing keeps Alt+arrows for moving by word.
       const t = e.target as HTMLElement | null;
@@ -383,6 +388,21 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     const join = (name: string) => (here ? `${here}/${name}` : name);
     return sortEntries(files.entries.filter((e) => !q || e.name.toLowerCase().includes(q)), files.sort, here).map((e) => ({ ...e, path: join(e.name) }));
   }, [files.entries, files.query, files.sort, here]);
+  // Opening Files, or going into or out of a folder, leaves the keyboard on the list (as in Explorer and Finder), so
+  // the arrows, Enter and Backspace work at once; never taken from something else that has it.
+  const cameFrom = useRef<string | null>(null);
+  // Before any early return below: a hook after one would break the other places (Trash, a drive, Made by Mobius).
+  const listShown = files.available && files.place.kind === 'folder' && !files.problem && !files.loading && rows.length > 0;
+  useEffect(() => {
+    // Nothing has it: the page itself, or the stage an app opened from Ctrl+K hands the keyboard to.
+    const on = document.activeElement;
+    if (!listShown || (on && on !== document.body && !on.matches('main.stage'))) return;
+    // Back out of a folder, the keyboard is on that folder again.
+    const back = cameFrom.current && rows.find((r) => r.path === cameFrom.current);
+    cameFrom.current = null;
+    if (back) { setSelected(back.path); listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(back.path)}"]`)?.focus({ preventScroll: true }); return; }
+    listRef.current?.querySelector<HTMLElement>('[role=row][tabindex="0"]')?.focus({ preventScroll: true });
+  }, [listShown, here, rows[0]?.path]);
   if (!files.available) return <section className="skills-page empty" aria-label="Files"><p className="note-empty">Files are not available here.</p></section>;
   const proposed = new Set(files.made.files);
   const open = (path: string, type: FileEntry['type']) => (type === 'folder' ? files.setPlace({ kind: 'folder', path }) : onOpenFile(path));
@@ -510,7 +530,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   );
   const move = (step: number) => {
     if (rows.length === 0) return;
-    const at = rows.findIndex((r) => r.path === selected);
+    // With nothing chosen yet, from the row the keyboard is on (the first, once Files is open).
+    const on = (document.activeElement as HTMLElement | null)?.dataset?.path;
+    const at = rows.findIndex((r) => r.path === (selected ?? on));
     const next = rows[Math.max(0, Math.min(rows.length - 1, at < 0 ? 0 : at + step))]!;
     setSelected(next.path);
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
@@ -527,7 +549,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     else if ((e.key === 'v' || e.key === 'V') && e.ctrlKey && !e.shiftKey && files.cut) { e.preventDefault(); void files.paste(here).then((to) => { if (to) setSelected(to); }); }
     else if (e.key === 'Escape' && files.cut) { e.preventDefault(); files.setCut(null); }
     else if (e.key === 'Delete' && selected && changeable(selected)) { e.preventDefault(); trash(selected); }
-    else if (e.key === 'Backspace' && parts.length > 0) { e.preventDefault(); files.setPlace({ kind: 'folder', path: parts.slice(0, -1).join('/') }); }
+    else if (e.key === 'Backspace' && parts.length > 0) { e.preventDefault(); cameFrom.current = here; files.setPlace({ kind: 'folder', path: parts.slice(0, -1).join('/') }); }
   };
   return (
     <section className="skills-page files-page" aria-label="Files">
