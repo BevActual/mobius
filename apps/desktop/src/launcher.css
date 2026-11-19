@@ -82,14 +82,10 @@
 .launcher-scope .launcher-icon svg { width: var(--sp-5); height: var(--sp-5); padding: 0; background: none; color: var(--muted); }
 .launcher-scope > svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 .launcher-foot { gap: var(--sp-4); }
-/* Opened from Go: just under it, left edges lined up, kept on screen; it grows from that corner. */
-.launcher[data-anchored="go"] {
-  top: var(--launcher-top); left: clamp(var(--sp-4), var(--launcher-left), calc(100vw - min(640px, 100vw - 32px) - var(--sp-4)));
-  transform: none; transform-origin: top left; max-height: min(560px, calc(100vh - var(--launcher-top) - var(--sp-4)));
-}
-.launcher[data-anchored="go"][open] { animation: launcher-grow var(--dur-fast) var(--ease); }
-@keyframes launcher-grow { from { opacity: 0; transform: scale(0.97); } }
-@media (prefers-reduced-motion: reduce) { .launcher[data-anchored="go"][open] { animation: none; } }
+/* Centred in the window, whatever opened it (Andrew, 19 November 2026); it grows in from the middle. */
+.launcher:not([data-inline])[open] { animation: launcher-grow var(--dur-fast) var(--ease); }
+@keyframes launcher-grow { from { opacity: 0; transform: translateX(-50%) scale(0.97); } }
+@media (prefers-reduced-motion: reduce) { .launcher:not([data-inline])[open] { animation: none; } }
 
 /* A quick answer: the result large, what it answers beside it in grey. */
 .launcher-option[data-kind="answer"] .launcher-label { font-size: var(--fs-xl); font-variant-numeric: tabular-nums; }
@@ -101,3 +97,43 @@
 .launcher-finding::after { content: ''; position: absolute; inset: 0 auto 0 0; width: 30%; background: var(--muted); animation: launcher-finding var(--dur-loop) var(--ease) infinite; }
 @keyframes launcher-finding { from { transform: translateX(-100%); } to { transform: translateX(340%); } }
 @media (prefers-reduced-motion: reduce) { .launcher-finding::after { animation: none; width: 100%; opacity: 0.5; } }
+
+/* Wide enough for the list and a preview beside it (docs/design/launcher.md); the list takes it all when there is none. */
+.launcher:not([data-inline]) { width: min(calc(var(--sp-8) * 24), calc(100vw - var(--sp-8))); }
+.launcher-body { display: flex; flex: 1; min-height: 0; }
+.launcher-body > .launcher-list { flex: 1; min-width: 0; min-height: 0; overflow: auto; }
+.launcher-preview {
+  flex: none; display: flex; flex-direction: column; gap: var(--sp-1); width: calc(var(--sp-8) * 8.5); padding: var(--sp-3) var(--sp-4);
+  border-left: var(--hairline-w) solid var(--line); overflow: hidden; font-size: var(--fs-sm); color: var(--body);
+}
+.launcher-preview-title { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); overflow-wrap: anywhere; }
+.launcher-preview-meta { color: var(--muted); font-size: var(--fs-xs); }
+.launcher-preview-body { margin: var(--sp-1) 0 0; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 8; -webkit-box-orient: vertical; overflow: hidden; white-space: pre-line; }
+.launcher-preview-rows { display: grid; gap: var(--sp-1); margin: var(--sp-2) 0 0; font-size: var(--fs-xs); }
+.launcher-preview-rows > div { display: grid; grid-template-columns: calc(var(--sp-8) * 2) minmax(0, 1fr); gap: var(--sp-2); }
+.launcher-preview-rows dt { color: var(--muted); }
+.launcher-preview-rows dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+@media (max-width: 900px) { .launcher-preview { display: none; } }
+
+/* What a command read from the line: each part named, under the field, so a wrong reading shows before Enter. */
+.launcher-fields { display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: var(--sp-2) var(--sp-3) 0; }
+.launcher-field {
+  display: inline-flex; flex-direction: column; justify-content: center; min-width: calc(var(--sp-8) * 2); padding: var(--sp-1) var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); font-size: var(--fs-sm); color: var(--ink); line-height: 1.2;
+}
+.launcher-field small { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.launcher-field[data-empty] { color: var(--faint); }
+
+/* Ask inline: Mobius's answer, in its wash with the dashed edge, above the rows that carry it on. */
+.launcher-ans {
+  margin: var(--sp-1) var(--sp-1) var(--sp-2); padding: var(--sp-3) var(--sp-4); border-radius: var(--radius-control);
+  background: var(--mobius-wash); border: var(--hairline-w) dashed color-mix(in srgb, var(--mobius) 50%, transparent);
+  font-size: var(--fs-md); color: var(--ink); line-height: 1.5;
+}
+.launcher-ans-text { margin: 0; max-height: calc(var(--sp-8) * 6); overflow: auto; }
+.launcher-ans-wait { color: var(--muted); }
+.launcher-ans[data-state="failed"] .launcher-ans-text { color: var(--muted); }
+.launcher-ans-src { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
+.launcher-ans-src span { padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--raised); font-size: var(--fs-xs); color: var(--muted); }
+.launcher-ans-text > :first-child { margin-top: 0; }
+.launcher-ans-text > :last-child { margin-bottom: 0; }

@@ -26,7 +26,7 @@ describe('eventsMatching', () => {
 describe('launcher rows', () => {
   it('reads mail by subject and sender', () => {
     const m = { id: 'm1', subject: '', from: { name: '', email: 'sam@example.com' } } as MailMessage;
-    expect(mailRows([m])).toEqual([{ id: 'm1', label: '(no subject)', detail: 'Mail, from sam@example.com' }]);
+    expect(mailRows([m])).toMatchObject([{ id: 'm1', label: '(no subject)', detail: 'Mail, from sam@example.com', preview: { title: '(no subject)', meta: 'sam@example.com' } }]);
   });
   it('offers to email only people with an address', () => {
     const p = (id: string, name: string, email?: string) => ({ id, name, org: 'Acme', emails: email ? [{ value: email, label: 'work' }] : [] }) as unknown as Contact;
@@ -66,5 +66,40 @@ describe('quick add task', () => {
   it('says where it goes and when it is due', () => {
     expect(quickTaskDetail({ due: null }, 'Inbox')).toBe('Tasks, to Inbox');
     expect(quickTaskDetail({ due: '2026-11-20' }, 'Inbox')).toMatch(/^Tasks, to Inbox, due .*20/);
+  });
+});
+
+import { eventPreview, eventWhen, quickEvent } from './app-launcher';
+
+describe('quickEvent', () => {
+  const now = new Date('2026-11-19T09:00:00');
+  it('reads an event from the rest of the line', () => {
+    const e = quickEvent('event lunch with Sam fri 1pm', now);
+    expect(e?.title).toBe('lunch with Sam');
+    expect(e?.start.slice(0, 16)).toBe('2026-11-20T13:00');
+    expect(quickEvent('new event Dentist 12 dec at 3pm', now)?.title).toBe('Dentist');
+  });
+  it('leaves other words alone', () => {
+    expect(quickEvent('events this week', now)).toBeNull();
+    expect(quickEvent('event', now)).toBeNull();
+    expect(quickEvent('meeting notes', now)).toBeNull();
+  });
+});
+
+describe('launcher previews', () => {
+  it('says when an event is, all day or between two times', () => {
+    expect(eventWhen({ start: '2026-11-21', end: '2026-11-22', allDay: true })).toMatch(/all day$/);
+    expect(eventWhen({ start: '2026-11-21T13:00', end: '2026-11-21T14:00' })).toMatch(/–/);
+  });
+  it('shows an event’s place and people', () => {
+    const p = eventPreview(ev('x', 'Dealer preview', '2026-11-21T13:00', { location: 'Room 2', attendees: [{ name: 'Sam', email: 's@x' } as CalendarPerson] }));
+    expect(p.rows?.map(([k]) => k)).toEqual(['When', 'Where', 'People']);
+  });
+  it('shows a mail’s first lines and who sent it', () => {
+    const m = { id: 'm', subject: 'Quote', from: { name: 'Maya', email: 'm@x' }, dateMs: Date.UTC(2026, 10, 19, 9), preview: 'The revised numbers', attachments: ['q.pdf'] } as unknown as MailMessage;
+    const [row] = mailRows([m]);
+    expect(row!.preview.body).toBe('The revised numbers');
+    expect(row!.preview.meta).toContain('Maya');
+    expect(row!.preview.rows).toEqual([['Attached', 'q.pdf']]);
   });
 });

@@ -117,7 +117,7 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 | What it does now | Change |
 |---|---|
 | Its height jumps: tall with nothing typed, then it shrinks to two rows as you type | Keep one height while it is open, the height it has with nothing typed. Results scroll inside it, and the field never moves |
-| It opens on its own, apart from the button | It grows from the Go button: same left edge, just under the top bar, 120 ms (none with reduced motion). Ctrl+K opens it in the same place |
+| It opens on its own, apart from the button | It opens centred in the window, whether from Go or Ctrl+K (Andrew, 19 November 2026), growing in from the middle in 120 ms (none with reduced motion) |
 | Section labels are in capitals ("PINNED", "APPLICATIONS") | Sentence case, as in every other list: "Pinned", "Recent", "Apps" (not "Applications") |
 | An app row's detail says "Pinned" | Show its key ("Ctrl+3"), or nothing |
 | Typing doesn't show why a row matched | The matched letters are drawn in ink at medium weight, and the rest in the row's own colour |
@@ -130,6 +130,18 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 | A Recent row shows its kind's icon | It shows its app's icon, so the column of icons tells you where each item lives |
 
 Later, if it earns its place: a preview of the selected item to the right of the list, as wide as the list (a note's first lines, a mail's sender and first line, an event's time).
+
+## The mockup, and what is built of it
+
+The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 November 2026: "go harder with competing with Raycast"). Built so far:
+
+- **Centred** in the window, from Go and Ctrl+K alike.
+- **A preview beside the list.** A found item can carry `preview` (`title`, `meta`, `body`, `rows`), shown to the right of the list for the chosen row; hidden below 900 px. Mail and Calendar results have one.
+- **Commands that read the rest of the line.** A found item can carry `fields` (`label`, `value`): what it read, shown as named parts under the field so a wrong reading shows before Enter, and it comes before anything else found. "task call Maya tomorrow 3pm" and "event lunch with Sam fri 1pm" work this way.
+
+- **Ask inline.** A question (ending in "?", or starting with what, when, how and the like) is answered in the launcher when you press Enter on Ask: read-only, with the quick model, in a conversation of its own, with the apps it read under the answer. Continue in Mobius opens that conversation in the panel; Copy the answer copies it. If Mobius wants to change something or ask you back, the answer says so and Continue takes it to the panel. Anything that isn't a question still goes straight to the panel. (`launcher-ask.ts`)
+
+Next, in order: the empty launcher as a dashboard (waiting items and agents at work), About this with AI commands, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 

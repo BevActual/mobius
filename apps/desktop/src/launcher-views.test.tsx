@@ -85,3 +85,13 @@ describe('opening an app from the launcher', () => {
     expect(s.focused).toBe(false);
   });
 });
+
+describe('an answer given in the launcher', () => {
+  it('shows its links and marks as the panel does, not as written', () => {
+    const answer = { conversation: 'c', state: 'done' as const, sources: ['Calendar'], text: 'It is [Crash test, 9:00 at Northfield](trust:yours "Calendar · Crash test").' };
+    const html = renderToStaticMarkup(<Launcher {...base} answered={{ question: 'when is the crash test?', answer }} />);
+    expect(html).toContain('Crash test, 9:00 at Northfield');
+    expect(html).not.toContain('trust:yours');
+    expect(html).toContain('Calendar');
+  });
+});
