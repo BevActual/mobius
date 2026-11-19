@@ -65,8 +65,9 @@ interface Props {
   /** The things last open in any app, newest first (by default, what `noteRecentItem` kept). */
   recent?: readonly RecentItem[];
   onOpenRecent?: (item: RecentItem) => void;
-  /** Items in every app that match what was typed (notes, threads, events, files), best first. */
-  find?: (query: string) => readonly FoundItem[];
+  /** Items in every app that match what was typed (notes, threads, events, files), best first. A promise when some
+   *  sources answer later: what was found before stays until it comes, with a thin line under the field meanwhile. */
+  find?: (query: string) => readonly FoundItem[] | Promise<readonly FoundItem[]>;
   /** Home, Activity, Abilities and Settings at the foot: each one shown when given. */
   places?: Partial<Record<Place, () => void>>;
   /** For the reference sheet: drawn in place, open, instead of as a modal dialog. */
@@ -297,6 +298,24 @@ export function Launcher({
     ];
   }, [pins, onAskAbout, onPinned, scope]);
 
+  // Sources that answer later: the words asked, and their items once they came. Until then the items found before
+  // stay, so nothing jumps when they arrive.
+  const pending = useRef<{ text: string; answer: Promise<readonly FoundItem[]> } | null>(null);
+  const [later, setLater] = useState<{ text: string; items: readonly FoundItem[] } | null>(null);
+  useEffect(() => { if (!open) { pending.current = null; setLater(null); } }, [open]);
+  const findNow = useCallback((text: string): readonly FoundItem[] => {
+    if (!find || !text) return [];
+    if (later?.text === text) return later.items;
+    if (pending.current?.text !== text) {
+      const answer = find(text);
+      if (!(answer instanceof Promise)) return answer;
+      pending.current = { text, answer };
+      const keep = (items: readonly FoundItem[]) => { if (pending.current?.answer === answer) setLater({ text, items }); };
+      answer.then(keep, () => keep([]));
+    }
+    return later?.items ?? [];
+  }, [find, later]);
+
   const listFor = useCallback((text: string): LauncherItem[] => {
     const q = text.trim().toLowerCase();
     const typed = text.trim();
@@ -313,7 +332,7 @@ export function Launcher({
       const name = appName(scope);
       return [
         ...(!q ? [{ id: `app-${scope}`, kind: 'app' as const, app: scope, label: `Open ${name}`, run: () => onOpenApp(scope) }] : []),
-        ...(q ? (find?.(typed) ?? []).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, run: item.run })) : []),
+        ...(q ? findNow(typed).filter((item) => item.app === scope).slice(0, 20).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail, run: item.run })) : []),
         ...commands.filter((c) => (c.detail ?? '').includes(name) && has(c.label)).slice(0, 12)
           .map<LauncherItem>((c) => ({ id: `cmd-${c.id}`, kind: 'command', label: c.label, detail: c.detail, run: c.run })),
       ];
@@ -365,7 +384,7 @@ export function Launcher({
       ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(PLACE_NAMES[p]) && !APPS.some((a) => a.name === PLACE_NAMES[p])).map<LauncherItem>((p) => ({
         id: `place-${p}`, kind: 'app', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
       })),
-      ...(find?.(typed) ?? []).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), run: item.run })),
+      ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), run: item.run })),
       ...tabs.filter((tab) => has(`${tab.title} ${tab.url}`)).map<LauncherItem>((tab) => ({
         id: `tab-${tab.id}`,
         kind: 'tab',
@@ -379,10 +398,12 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, find, places, now]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
+  // Read after the list is made, which is when a source that answers later is asked.
+  const finding = !!find && !!query.trim() && pending.current?.text === query.trim() && later?.text !== query.trim();
 
   // Ask Mobius is always the first row, but Enter opens what was found when something was: typing "notes" and
   // pressing Enter opens Notes, and with nothing typed Enter opens the first pinned app. With nothing found, Enter
@@ -523,6 +544,7 @@ export function Launcher({
           onChange={(event) => { setQuery(event.target.value); setChosenId(null); }}
           onKeyDown={keys}
         />
+        {finding && <span className="launcher-finding" aria-hidden="true" />}
         {view === 'apps' ? <button type="button" className="launcher-back" onClick={() => { switchView('start'); input.current?.focus(); }}>Back</button> : <kbd>Esc</kbd>}
       </div>
       <div id="launcher-list" role="listbox" aria-label="Results" className="launcher-list">
