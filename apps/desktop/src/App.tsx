@@ -2048,6 +2048,7 @@ export function App() {
         waiting={waiting}
         home={launcherHome}
         about={launcherAbout}
+        onOpenUrl={showPage}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
