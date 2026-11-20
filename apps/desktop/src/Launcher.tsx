@@ -243,7 +243,7 @@ export function Launcher({
     if (!askInline || !aboutNow) return;
     stopListening.current?.();
     setQuery(name);
-    stopListening.current = askInline(aboutPrompt(instruction, aboutNow), (answer) => setInlineAnswer({ question: name, answer }));
+    stopListening.current = askInline(aboutPrompt(name, instruction, aboutNow), (answer) => setInlineAnswer({ question: name, answer }));
     setChosenId('ask-continue');
   }, [askInline, aboutNow]);
   // null: the default row (what was found, or Ask when nothing was). An item's id once the arrows or pointer chose,

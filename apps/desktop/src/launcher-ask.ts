@@ -111,7 +111,7 @@ export interface AiCommand {
 export const AI_COMMANDS: readonly AiCommand[] = [
   { id: 'summarize', label: 'Summarize', detail: 'In a few short lines', instruction: 'Summarize this in a few short lines.' },
   { id: 'explain', label: 'Explain', detail: 'Simply, as to a newcomer', instruction: 'Explain this simply.' },
-  { id: 'fix', label: 'Fix spelling and grammar', detail: 'Copy the result', instruction: 'Fix the spelling and grammar of this. Reply with only the corrected text.' },
+  { id: 'fix', label: 'Fix spelling and grammar', detail: 'Copy the result', instruction: 'Fix the spelling and grammar of this, and keep the line breaks. Reply with only the corrected text.' },
   { id: 'shorter', label: 'Make it shorter', detail: 'Same meaning, fewer words', instruction: 'Make this shorter and keep its meaning. Reply with only the new text.' },
   { id: 'reply', label: 'Draft a reply', detail: 'To this message', instruction: 'Draft a short, friendly reply to this message. Reply with only the draft.' },
 ];
@@ -121,10 +121,16 @@ export function translateCommand(typed: string): AiCommand | null {
   const m = /^translate\s+(?:it\s+)?(?:to|into)\s+(\S.{0,30})$/i.exec(typed.trim());
   if (!m) return null;
   const language = m[1]!.trim().replace(/^./, (c) => c.toUpperCase());
-  return { id: `translate-${language.toLowerCase()}`, label: `Translate to ${language}`, detail: 'Copy the result', instruction: `Translate this to ${language}. Reply with only the translation.` };
+  return { id: `translate-${language.toLowerCase()}`, label: `Translate to ${language}`, detail: 'Copy the result', instruction: `Translate this to ${language}. Keep the names of people, companies and products as they are, and keep the line breaks. Reply with only the translation.` };
 }
 
-/** The message sent for a command or question about the selection. */
-export function aboutPrompt(instruction: string, about: LauncherAbout): string {
-  return `${instruction}\n\nThe selected text:\n"""\n${about.text}\n"""`;
+/**
+ * The message sent for a command or question about the selection. Its first line names it ("Summarize: “Hi Maya, the
+ * harness…”"), since a conversation is titled by its first line and is found by that title later.
+ */
+export function aboutPrompt(name: string, instruction: string, about: LauncherAbout): string {
+  const line = about.text.replace(/\s+/g, ' ').trim();
+  const excerpt = line.length > 40 ? `${line.slice(0, 39)}…` : line;
+  const head = name.trim() === instruction.trim() ? name.trim() : `${name.trim()}: “${excerpt}”`;
+  return `${head}\n\n${instruction}\n\nThe selected text:\n"""\n${about.text}\n"""`;
 }
