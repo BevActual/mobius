@@ -29,7 +29,7 @@ export const abilitiesTitle = (place: ExtensionPlace): string => PLACE_NAMES[pla
 const APP_PURPOSE: Partial<Record<AppId, string>> = {
   browser: 'A full web browser with tabs, favourites and downloads.',
   mail: 'Your mail on this computer, sorted, with drafts in your tone.',
-  messages: 'Slack, Discord and Telegram in one place, with a catch-up when you come back.',
+  messages: 'Slack, Matrix, Teams and Telegram in one place, with a catch-up when you come back.',
   search: 'One box for conversations, notes, tasks, docs, mail and pages.',
   research: 'Ask a question; Mobius searches, reads and writes a report.',
   reader: 'Pages saved to read later, as clean readable text.',
@@ -258,6 +258,7 @@ function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; on
                 {which === 'installed' && onOpenApp
                   ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
                   : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
+                {which === 'installed' && onOpenApp && <button type="button" className="btn abl-open" tabIndex={-1} aria-hidden="true" onClick={() => onOpenApp(app.id)}>Open</button>}
                 {which === 'installed'
                   ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
                   : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
