@@ -235,3 +235,5 @@
 }
 /* Mobius's changed-page dot sits under the date, on the grey line, so it never covers the time. */
 .ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; right: calc(var(--sp-2) + 2px); bottom: calc(var(--sp-2) + 4px); margin: 0; }
+/* Design, Canvas and Research: the date trails a one-line row. */
+.notes-side:not([data-app="notes"]) .note-side-when { align-self: center; padding-right: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }

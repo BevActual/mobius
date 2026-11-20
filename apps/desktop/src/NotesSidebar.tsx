@@ -113,18 +113,19 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   /** One page in the list: its title, then when it was edited and how it starts; Pin on hover. `where` names its notebook. */
   const pageRow = (pg: NotePage, where?: string, key = pg.path) => {
     const when = relativeTime(pg.modified, Math.max(now, pg.modified));
-    // Notes: one row height, the title with its date at the end (as Mail dates a message: "9:02" today, "Tue",
-    // "3 Nov") and one grey line of how it starts. Other apps keep their second line (where, when, how it starts).
+    // The title with its date at the end (as Mail dates a message: "9:02" today, "Tue", "3 Nov"). Notes adds one grey
+    // line of how it starts, so every note is one height; other apps (Design, Canvas, Research) are one line unless
+    // there is a notebook or a start to show.
     const notesRow = words === NOTES_WORDS;
-    const plain = [where, when, pg.preview].filter(Boolean).join(' · ');
+    const second = [where, pg.preview].filter(Boolean).join(' · ');
     return (
-      <SidebarRow key={key} label={pg.title} sub={notesRow ? ([where, pg.preview].filter(Boolean).join(' · ') || '\u00a0') : plain || undefined}
-        title={notesRow && when ? `Edited ${when}` : undefined}
+      <SidebarRow key={key} label={pg.title} sub={notesRow ? (second || '\u00a0') : second || undefined}
+        title={when ? `Edited ${when}` : undefined}
         current={notes.page?.path === pg.path} proposed={changed?.has(pg.path) === true}
         onSelect={() => void notes.open(pg.path, pg.title)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
         trail={<>
-          {notesRow && pg.modified > 0 && <span className="note-side-when" aria-hidden="true">{listDate(pg.modified, now)}</span>}
+          {pg.modified > 0 && <span className="note-side-when" aria-hidden="true">{listDate(pg.modified, now)}</span>}
           {onPin && <button type="button" className="note-delete note-pin" aria-pressed={pinned?.has(pg.path) ?? false} aria-label={pinned?.has(pg.path) ? `Unpin ${pg.title}` : `Pin ${pg.title}`} title={pinned?.has(pg.path) ? 'Unpin' : 'Pin'} onClick={() => onPin(pg.path, pg.title)}>
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
           </button>}
