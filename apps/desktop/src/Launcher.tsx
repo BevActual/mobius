@@ -9,7 +9,8 @@ import { afterPaint } from './ui/frame';
 import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
 import { clipboardQuery, findCopied, type LauncherClipboard } from './launcher-clipboard';
-import { findSystemApps, findSystemCommands, type LauncherSystem } from './launcher-system';
+import { findSystemApps, findSystemCommands, folderOf, type LauncherSystem } from './launcher-system';
+import type { SystemFile } from '@mobius/shared';
 import { callQuicklink, keepNamed, parseCreate, readQuicklinks, readSaved, readSnippets, withSaved, withoutSaved, writeQuicklinks, writeSaved, writeSnippets, type Quicklink, type SavedCommand, type Snippet } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
@@ -30,7 +31,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'system' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'system' | 'disk' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -127,7 +128,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', system: 'On this computer', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', system: 'On this computer', disk: 'Files', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -227,6 +228,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
       : app ? <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>
         : kind === 'ask' || kind === 'about' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
           : kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg>
+          : kind === 'disk' ? <svg viewBox="0 0 20 20" data-disk=""><path d="M6 3.5h5.5L15 7v9.5H6z M11.5 3.5V7H15" /></svg>
           : kind === 'system' ? <svg viewBox="0 0 20 20" data-system=""><rect x="3.5" y="4.5" width="13" height="9" rx="1.5" /><path d="M7.5 16.5h5M10 13.5v3" /></svg>
           : kind === 'clip' ? <svg viewBox="0 0 20 20" data-clip=""><path d="M7 4H6a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 6 17h8a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 14 4h-1M8 3h4v2.5H8z" /></svg>
           : kind === 'answer' ? <svg viewBox="0 0 20 20" data-answer=""><path d="M5 8h10M5 12h10" /></svg>
@@ -259,6 +261,15 @@ export function Launcher({
   const [snippets, setSnippets] = useState<Snippet[]>(() => (typeof window === 'undefined' ? [] : readSnippets()));
   const keepLinks = useCallback((next: Quicklink[]) => { setLinks(next); writeQuicklinks(next); }, []);
   const keepSnippets = useCallback((next: Snippet[]) => { setSnippets(next); writeSnippets(next); }, []);
+  // Files on disk: asked a moment after typing stops, and kept only for the words they were found for.
+  const [disk, setDisk] = useState<{ text: string; files: readonly SystemFile[] } | null>(null);
+  useEffect(() => {
+    const text = query.trim();
+    if (!system?.files || text.length < 2 || !open) return;
+    let live = true;
+    const timer = setTimeout(() => { void system.files!(text).then((files) => { if (live) setDisk({ text, files }); }, () => undefined); }, 150);
+    return () => { live = false; clearTimeout(timer); };
+  }, [query, system, open]);
   const keptRef = useRef({ links, snippets });
   keptRef.current = { links, snippets };
   // A command or question about the selection, answered here; what is typed becomes its name, so the answer stays with it.
@@ -354,6 +365,10 @@ export function Launcher({
     const act = (id: string, label: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label, detail, run });
     const pinned = item.app ? pins.includes(item.app) : false;
     const mine = item.id.startsWith('about-mine-') ? item.id.slice('about-mine-'.length) : null;
+    if (item.id.startsWith('disk-') && system?.reveal) {
+      const path = item.id.slice(5);
+      return [act('open', 'Open', item.run, '↵'), act('reveal', 'Show in folder', () => system.reveal!(path)), act('copy', 'Copy path', () => { void navigator.clipboard?.writeText(path).catch(() => undefined); })];
+    }
     if (item.id.startsWith('ql-') || item.id.startsWith('snip-')) {
       const link = item.id.startsWith('ql-'), id = item.id.slice(link ? 3 : 5);
       const forget = () => {
@@ -371,7 +386,7 @@ export function Launcher({
       ...(item.app && !scope ? [act('scope', `Search in ${appName(item.app)}`, () => narrowRef.current(item.app!), 'Tab')] : []),
       act('copy', 'Copy name', () => { void navigator.clipboard?.writeText(item.label).catch(() => undefined); }),
     ];
-  }, [pins, onAskAbout, onPinned, scope, keepSaved, keepLinks, keepSnippets]);
+  }, [pins, onAskAbout, onPinned, scope, keepSaved, keepLinks, keepSnippets, system]);
 
   // Sources that answer later: the words asked, and their items once they came. Until then the items found before
   // stay, so nothing jumps when they arrive.
@@ -518,6 +533,7 @@ export function Launcher({
         ...findSystemApps(system.apps, typed).filter((a) => !APPS.some((m) => m.name.toLowerCase() === a.name.toLowerCase())).map<LauncherItem>((a) => ({ id: `sys-app-${a.id}`, kind: 'system', label: a.name, detail: 'App', run: () => system.open(a.id) })),
         ...findSystemCommands(system.commands, typed).map<LauncherItem>((c) => ({ id: `sys-cmd-${c.id}`, kind: 'system', label: c.name, detail: 'Command', run: () => system.run(c.id) })),
       ] : []),
+      ...(system && disk && disk.text === typed ? disk.files.slice(0, 8).map<LauncherItem>((f) => ({ id: `disk-${f.path}`, kind: 'disk', label: f.name, detail: folderOf(f.path), run: () => system.openFile?.(f.path) })) : []),
       ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), fields: item.fields, preview: item.preview, run: item.run })),
       ...tabs.filter((tab) => has(`${tab.title} ${tab.url}`)).map<LauncherItem>((tab) => ({
         id: `tab-${tab.id}`,
@@ -532,7 +548,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system, disk]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
