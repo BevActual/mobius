@@ -124,7 +124,7 @@ export function tileContent(tile: Tile, src: ViewSources, now: Date): TileConten
       return {
         app, more, target: { kind: 'app', app: 'agent' },
         count: waiting.length > 0 ? { value: waiting.length, label: 'waiting for you' } : null,
-        rows: shown.map(({ c, needs }) => ({ key: c.id, text: c.title.trim() || 'New conversation', detail: needs ? 'Needs you' : 'Working', ...(needs ? { tone: 'mobius' as const } : {}), target: { kind: 'conversation' as const, id: c.id } })),
+        rows: shown.map(({ c, needs }) => ({ key: c.id, text: c.title.trim() || 'New conversation', detail: needs ? 'Needs your answer' : 'Working', ...(needs ? { tone: 'mobius' as const } : {}), target: { kind: 'conversation' as const, id: c.id } })),
         empty: working.length === 0 && waiting.length === 0 ? 'All quiet. Nothing is waiting for you.' : '',
       };
     }
