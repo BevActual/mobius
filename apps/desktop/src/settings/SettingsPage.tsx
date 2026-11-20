@@ -115,8 +115,8 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
           ) : (
             current && (
               <>
-                {/* The toolbar names the page; the page opens on one quiet line on what it is for, as Mail's toolbar subline. */}
-                <h2 className="sr-only">{current.label}</h2>
+                {/* The section's name over one quiet line on what it is for. */}
+                <h2 className="settings-heading">{current.label}</h2>
                 <p className="settings-lede">{current.description}</p>
                 {current.subpages.length > 1 && (
                   <div className="settings-tabs" role="tablist" aria-label={`${current.label} pages`}>
