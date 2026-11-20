@@ -99,10 +99,10 @@ test('an approval can be answered in the full view, and the running tool is show
   await say('what time');
   const card = shell().getByRole('group', { name: 'Approval needed: clock.now' });
   await expect(card).toBeVisible();
-  await expect(list().getByText('Needs you')).toBeVisible();
+  await expect(list().getByText('Needs your answer')).toBeVisible();
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It is now.');
-  await expect(list().getByText('Needs you')).toHaveCount(0);
+  await expect(list().getByText('Needs your answer')).toHaveCount(0);
 });
 
 test('settings opens over the Agent app and closes back to it', async () => {
@@ -132,7 +132,7 @@ test('a conversation waiting for you is flagged in the list and on the Go button
   await expect(shell().getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
   await expect(goButton(shell())).toHaveAccessibleName(/\. 1 waiting$/);
   await openApp('Agent');
-  await expect(list().getByText('Needs you')).toBeVisible();
+  await expect(list().getByText('Needs your answer')).toBeVisible();
   await list().getByRole('listitem').first().click();
   await shell().getByRole('group', { name: 'Approval needed: clock.now' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');
