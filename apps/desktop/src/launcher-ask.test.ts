@@ -44,10 +44,15 @@ describe('about this', () => {
   it('reads "translate to french" as a command, and nothing else', () => {
     expect(translateCommand('translate to french')).toMatchObject({ label: 'Translate to French' });
     expect(translateCommand('Translate it into Spanish')).toMatchObject({ label: 'Translate to Spanish' });
+    expect(translateCommand('translate to french')!.instruction).toMatch(/names of people, companies and products as they are/);
     expect(translateCommand('translate')).toBeNull();
     expect(translateCommand('notes')).toBeNull();
   });
   it('sends the instruction with the selection quoted after it', () => {
-    expect(aboutPrompt('Summarize this.', { text: 'A long note' })).toBe('Summarize this.\n\nThe selected text:\n"""\nA long note\n"""');
+    expect(aboutPrompt('Summarize', 'Summarize this.', { text: 'A long note' })).toBe('Summarize: “A long note”\n\nSummarize this.\n\nThe selected text:\n"""\nA long note\n"""');
+    // Titled by its first line: the command and the start of the selection, on one line.
+    expect(aboutPrompt('Explain', 'Explain this simply.', { text: 'Hi Maya,\nthe harness lead time is now six weeks' }).split('\n')[0]).toBe('Explain: “Hi Maya, the harness lead time is now s…”');
+    // A question typed about it is its own first line.
+    expect(aboutPrompt('who sent this?', 'who sent this?', { text: 'x' }).split('\n')[0]).toBe('who sent this?');
   });
 });

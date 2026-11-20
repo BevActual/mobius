@@ -131,6 +131,7 @@
   font-size: var(--fs-md); color: var(--ink); line-height: 1.5;
 }
 .launcher-ans-text { margin: 0; max-height: calc(var(--sp-8) * 6); overflow: auto; }
+.launcher-ans-text p { white-space: pre-line; }
 .launcher-ans-wait { color: var(--muted); }
 .launcher-ans[data-state="failed"] .launcher-ans-text { color: var(--muted); }
 .launcher-ans-src { display: flex; flex-wrap: wrap; gap: var(--sp-1); margin-top: var(--sp-2); }
