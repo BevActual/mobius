@@ -6,7 +6,7 @@ import { APP_ICONS, OWN_ICONS } from './Rail';
 import { relativeTime } from './relative-time';
 import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
-import { isQuestion, type InlineAnswer } from './launcher-ask';
+import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
@@ -27,7 +27,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'about' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -106,6 +106,8 @@ interface Props {
   onContinue?: (conversation: string) => void;
   /** With nothing typed: what waits for you (answers Mobius needs, changes not kept) and agents at work, at the top. */
   home?: { waiting: readonly LauncherHomeRow[]; agents: readonly LauncherAgentRow[] };
+  /** What was selected in the open app as the launcher opened: the AI commands work on it, and what is typed is asked about it. */
+  about?: LauncherAbout;
   /** For the reference sheet: an answer already given to what is typed. */
   answered?: { question: string; answer: InlineAnswer };
 }
@@ -116,7 +118,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', about: 'About the selection', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -214,7 +216,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
   <span className="launcher-icon" data-kind={kind} aria-hidden="true">
     {place ? <svg viewBox="0 0 20 20" data-place={place}>{PLACE_ICONS[place]}</svg>
       : app ? <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>
-        : kind === 'ask' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
+        : kind === 'ask' || kind === 'about' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
           : kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg>
           : kind === 'answer' ? <svg viewBox="0 0 20 20" data-answer=""><path d="M5 8h10M5 12h10" /></svg>
             : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
@@ -223,7 +225,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -232,6 +234,18 @@ export function Launcher({
   const [inlineAnswer, setInlineAnswer] = useState<{ question: string; answer: InlineAnswer } | null>(answered ?? null);
   const stopListening = useRef<(() => void) | null>(null);
   useEffect(() => () => stopListening.current?.(), []);
+  // About this: the selection, until it is left out (its x, or Backspace with nothing typed). Each opening brings it back.
+  const [aboutLeftOut, setAboutLeftOut] = useState(false);
+  useEffect(() => { if (open) setAboutLeftOut(false); }, [open, about]);
+  const aboutNow = aboutLeftOut || !askInline ? undefined : about;
+  // A command or question about the selection, answered here; what is typed becomes its name, so the answer stays with it.
+  const askAboutSelection = useCallback((name: string, instruction: string) => {
+    if (!askInline || !aboutNow) return;
+    stopListening.current?.();
+    setQuery(name);
+    stopListening.current = askInline(aboutPrompt(instruction, aboutNow), (answer) => setInlineAnswer({ question: name, answer }));
+    setChosenId('ask-continue');
+  }, [askInline, aboutNow]);
   // null: the default row (what was found, or Ask when nothing was). An item's id once the arrows or pointer chose,
   // so results that arrive later never move what is chosen.
   const [chosenId, setChosenId] = useState<string | null>(null);
@@ -378,8 +392,15 @@ export function Launcher({
       const ask: LauncherItem[] = onOpenMobius || onAsk
         ? [{ id: 'ask', kind: 'ask', label: 'Ask Mobius', detail: 'Type a question', run: () => (onOpenMobius ? onOpenMobius() : onAsk?.('')) }]
         : [];
+      const aboutRows: LauncherItem[] = aboutNow
+        ? [
+          ...AI_COMMANDS.map<LauncherItem>((c) => ({ id: `about-${c.id}`, kind: 'about', label: c.label, detail: c.detail, run: () => askAboutSelection(c.label, c.instruction) })),
+          { id: 'about-translate', kind: 'about', label: 'Translate to…', detail: 'Type the language', run: () => { setQuery('Translate to '); setChosenId(null); input.current?.focus(); } },
+        ]
+        : [];
       return [
         ...ask,
+        ...aboutRows,
         ...(home?.waiting ?? []).slice(0, 3).map<LauncherItem>((w) => ({ id: `waiting-${w.id}`, kind: 'waiting', app: w.app, label: w.label, detail: w.detail, run: w.run })),
         ...(home?.agents ?? []).slice(0, 3).map<LauncherItem>((a) => ({ id: `agent-${a.id}`, kind: 'agent', label: a.name, detail: a.detail, character: { name: a.name, state: a.state }, run: a.run })),
         ...pins.map<LauncherItem>((id, i) => ({
@@ -401,7 +422,13 @@ export function Launcher({
           { id: 'ask-continue', kind: 'ask' as const, label: 'Continue in Mobius', detail: inlineAnswer.answer.state === 'asking' ? 'Answering…' : undefined, run: () => onContinue?.(inlineAnswer.answer.conversation) },
           ...(inlineAnswer.answer.state === 'done' && inlineAnswer.answer.text ? [{ id: 'ask-copy', kind: 'answer' as const, label: 'Copy the answer', run: () => { void navigator.clipboard?.writeText(withoutMarks(inlineAnswer.answer.text)).catch(() => undefined); } }] : []),
         ]
-        : onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, detail: askInline && isQuestion(typed) ? 'Answer here' : undefined, run: () => onAsk(typed) }] : []),
+        : [
+          // What matches among the AI commands, and "translate to French" read as one.
+          ...(aboutNow ? [...(translateCommand(typed) ? [translateCommand(typed)!] : []), ...AI_COMMANDS.filter((c) => has(c.label))].map<LauncherItem>((c: AiCommand) => ({ id: `about-${c.id}`, kind: 'about', label: c.label, detail: c.detail, run: () => askAboutSelection(c.label, c.instruction) })) : []),
+          ...(aboutNow
+            ? [{ id: 'ask', kind: 'ask' as const, label: `Ask about the selection: “${typed.length > 50 ? `${typed.slice(0, 49)}…` : typed}”`, detail: 'Answer here', run: () => askAboutSelection(typed, typed) }]
+            : onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, detail: askInline && isQuestion(typed) ? 'Answer here' : undefined, run: () => onAsk(typed) }] : []),
+        ]),
       // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
       ...((answer) => (answer ? [{ id: 'answer', kind: 'answer' as const, label: answer.value, detail: answer.question, run: () => { void navigator.clipboard?.writeText(answer.copy).catch(() => undefined); } }] : []))(quickAnswer(typed)),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
@@ -433,7 +460,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -456,6 +483,7 @@ export function Launcher({
     // All apps is a view of the launcher, not somewhere to go: it stays open.
     if (item.id === 'all-apps' || item.id === 'act-scope') { item.run(); return; }
     // A question is answered here: the launcher stays open while the answer comes.
+    if (item.kind === 'about' || (item.id === 'ask' && aboutNow)) { item.run(); return; }
     if (item.id === 'ask' && askInline && isQuestion(query)) {
       const question = query;
       stopListening.current?.();
@@ -491,20 +519,21 @@ export function Launcher({
     }
     // Back out of the actions, then out of an app, then out of All apps.
     if (actionsFor && (k === 'Escape' || (empty && (k === 'Backspace' || k === 'ArrowLeft')))) { event.preventDefault(); setActionsFor(null); setQuery(''); setChosenId(actionsFor.id); return; }
+    if (aboutNow && empty && k === 'Backspace' && !scope && !actionsFor && view === 'start') { event.preventDefault(); setAboutLeftOut(true); setChosenId(null); return; }
     if (scope && empty && (k === 'Backspace' || k === 'Escape')) { event.preventDefault(); setScope(null); setChosenId(null); return; }
     if (view === 'apps' && empty && (k === 'Backspace' || k === 'Escape')) { event.preventDefault(); switchView('start'); return; }
     // Tab on an app (or something in one) narrows the launcher to that app.
     if (k === 'Tab' && !event.shiftKey && !actionsFor && !scope && current?.app && current.kind !== 'grid') { event.preventDefault(); narrow(current.app); return; }
     // Shift+Enter, or Right at the end of the words, shows the chosen row's actions.
     const atEnd = event.currentTarget.selectionStart === event.currentTarget.value.length;
-    if (!actionsFor && current && current.kind !== 'ask' && current.kind !== 'answer' && !current.disabled && current.id !== 'all-apps'
+    if (!actionsFor && current && current.kind !== 'ask' && current.kind !== 'about' && current.kind !== 'answer' && !current.disabled && current.id !== 'all-apps'
       && ((k === 'Enter' && event.shiftKey) || (k === 'ArrowRight' && !empty && atEnd && !ACROSS.has(current.kind)))) {
       event.preventDefault();
       setActionsFor(current); setQuery(''); setChosenId(null);
       return;
     }
     // Alt+Enter asks Mobius about the chosen row.
-    if (k === 'Enter' && event.altKey && onAskAbout && current && current.kind !== 'ask' && !actionsFor) {
+    if (k === 'Enter' && event.altKey && onAskAbout && current && current.kind !== 'ask' && current.kind !== 'about' && !actionsFor) {
       event.preventDefault();
       onClose();
       onAskAbout({ app: current.app, label: current.label, detail: current.detail });
@@ -598,6 +627,13 @@ export function Launcher({
         {finding && <span className="launcher-finding" aria-hidden="true" />}
         {view === 'apps' ? <button type="button" className="launcher-back" onClick={() => { switchView('start'); input.current?.focus(); }}>Back</button> : <kbd>Esc</kbd>}
       </div>
+      {aboutNow && view === 'start' && (
+        <div className="launcher-about" role="group" aria-label="About the selection">
+          <small>About</small>
+          <span className="launcher-about-text">“{aboutNow.text.length > 90 ? `${aboutNow.text.slice(0, 89)}…` : aboutNow.text}”</span>
+          <button type="button" aria-label="Leave out the selection" title="Leave out (Backspace)" onClick={() => { setAboutLeftOut(true); input.current?.focus(); }}>×</button>
+        </div>
+      )}
       {current?.fields && current.fields.length > 0 && (
         <div className="launcher-fields" aria-label={`${current.label}: what it read`} role="group">
           {current.fields.map((f) => (
@@ -706,8 +742,8 @@ export function Launcher({
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
-          {!actionsFor && current.kind !== 'ask' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
+          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' || current.kind === 'about' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
+          {!actionsFor && current.kind !== 'ask' && current.kind !== 'about' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
       )}

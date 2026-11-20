@@ -26,6 +26,18 @@ describe('launcher views', () => {
     expect(html).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Mail/s);
   });
 
+  it('offers the AI commands first when something was selected, and asks what is typed about it', () => {
+    const ask = () => () => {};
+    const empty = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet at 3 by the dock' }} />);
+    expect(empty).toContain('>About the selection<');
+    expect(empty).toContain('“Meet at 3 by the dock”');
+    expect(empty).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Summarize/s);
+    const typed = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'translate to french', answer: { conversation: 'c', text: '', state: 'asking', sources: [] } }} />);
+    expect(typed).toContain('Continue in Mobius');
+    const none = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} about={{ text: 'Meet' }} />);
+    expect(none).not.toContain('About the selection');
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);

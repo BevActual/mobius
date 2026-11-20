@@ -100,7 +100,7 @@ import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
-import { askInline } from './launcher-ask';
+import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -816,11 +816,14 @@ export function App() {
 
   // The launcher's key pressed again while it is open switches it between its start and All apps.
   const [launcherAgain, setLauncherAgain] = useState(0);
+  const [launcherAbout, setLauncherAbout] = useState<LauncherAbout | undefined>(undefined);
   const launcherShown = useRef(launcherOpen);
   launcherShown.current = launcherOpen;
   const openLauncher = useCallback(() => {
     if (launcherShown.current) { setLauncherAgain((n) => n + 1); return; }
     opener.current = document.activeElement as HTMLElement | null;
+    // About this: what is selected in the open app goes with the launcher, for its AI commands.
+    setLauncherAbout(selectionNow());
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
@@ -2044,6 +2047,7 @@ export function App() {
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
         home={launcherHome}
+        about={launcherAbout}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}

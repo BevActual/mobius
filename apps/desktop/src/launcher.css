@@ -137,3 +137,15 @@
 .launcher-ans-src span { padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--raised); font-size: var(--fs-xs); color: var(--muted); }
 .launcher-ans-text > :first-child { margin-top: 0; }
 .launcher-ans-text > :last-child { margin-bottom: 0; }
+
+/* About this: the selection the AI commands work on, in a hairline chip under the field. */
+.launcher-about {
+  display: flex; align-items: center; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; padding: var(--sp-1) var(--sp-1) var(--sp-1) var(--sp-2);
+  border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); font-size: var(--fs-sm); color: var(--ink); min-width: 0;
+}
+.launcher-about small { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); flex: none; }
+.launcher-about-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.launcher-about button {
+  flex: none; width: var(--sp-5); height: var(--sp-5); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); cursor: pointer;
+}
+.launcher-about button:hover { background: var(--sel); color: var(--ink); }
