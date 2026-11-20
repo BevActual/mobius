@@ -49,6 +49,18 @@ describe('launcher views', () => {
     expect(html).toContain('https://maps.example/?q={query}');
   });
 
+  it('shows clipboard history for "clipboard", or offers to turn it on', () => {
+    const idle = { conversation: 'c', text: '', state: 'failed' as const, sources: [] };
+    const clip = (on: boolean) => ({ on, entries: [{ text: 'Invoice 42 for Axion', at: 1000 }], setOn: () => {}, copy: () => {}, clear: () => {} });
+    const off = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} now={2000} clipboard={clip(false)} answered={{ question: 'clipboard', answer: idle }} />);
+    expect(off).toContain('Turn on clipboard history');
+    expect(off).not.toContain('Invoice 42');
+    const on = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} now={2000} clipboard={clip(true)} answered={{ question: 'cb axion', answer: idle }} />);
+    expect(on).toContain('>Clipboard history<');
+    expect(on).toContain('Invoice 42 for Axion');
+    expect(on).toContain('Turn off clipboard history');
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);
