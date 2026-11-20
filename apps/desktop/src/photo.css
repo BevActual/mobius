@@ -26,7 +26,7 @@
 .context-strip .photo-export { display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-3); margin-left: var(--sp-1); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: var(--ink); font-size: var(--fs-md); }
 .context-strip .photo-export:hover:not(:disabled) { background: var(--sel); }
 .context-strip .photo-export:disabled { opacity: 0.4; }
-/* Adjust, Filters and Crop in the middle of the top bar; Revert and Export stay at its end. */
+/* Adjust, Filters and Crop follow the album and count, as Notes' tools follow its title; Revert and Export stay at the end. */
 .ui-toolbar-slot:has(.photo-tabs) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .photo-tb-spacer) { flex: 1; }
 .photo-tb-spacer { flex: 1; min-width: 0; }

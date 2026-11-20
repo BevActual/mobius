@@ -669,7 +669,6 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
           </button>
           <span className="photo-meta">{at >= 0 ? `${at + 1} of ${order.length}` : ''}</span>
         </ToolbarItem>
-        <span className="photo-tb-spacer" aria-hidden="true" />
         <ToolbarItem priority="keep">
           <div className="photo-tabs" role="tablist" aria-label="Edit">
             {TABS.map((t) => (
