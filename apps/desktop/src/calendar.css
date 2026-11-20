@@ -160,8 +160,11 @@
 .calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day]) { background: var(--sel); }
 
 /* The current time: faint across the week, strong across today, and written in red in the hour column. */
-.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 40%, transparent); pointer-events: none; z-index: 1; }
-.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--danger); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--ink) 30%, transparent); pointer-events: none; z-index: 1; }
+.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--ink); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+/* Now is ink, one hairline with a small dot at its start: red is kept for conflicts. */
+.calendar-page .cal-now { height: 1px; background: var(--ink); }
+.calendar-page .cal-now::before { left: -3px; top: -3px; width: 7px; height: 7px; background: var(--ink); }
 /* In the popover the row names take less room, so a whole date fits beside its time. */
 .cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
 /* The popover's title and place read as text being written, without a ring around them. */
@@ -189,7 +192,8 @@
 .calendar-row[data-proposed] { outline: 1px dashed color-mix(in srgb, var(--mobius) 70%, var(--line)); outline-offset: -1px; border-radius: var(--row-radius); }
 /* The sidebar's calendars: plain rows, the calendar's colour as a small dot. A hidden calendar's dot is an empty ring
    and its name fades; pressing the row brings it back. */
-.calendar-row .cal-dot { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 50%; background: var(--swatch); box-shadow: inset 0 0 0 1.5px var(--swatch); }
+/* The same square swatch as an event's edge, so the calendar and its events read as one thing. */
+.calendar-row .cal-dot { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 2px; background: var(--swatch); box-shadow: inset 0 0 0 1.5px var(--swatch); }
 .calendar-row .cal-dot[data-tasks] { --swatch: var(--faint); border-radius: 2px; }
 .calendar-row[aria-pressed="false"] .cal-dot { background: transparent; }
 .calendar-row[aria-pressed="false"] .ui-side-name { color: var(--faint); }
@@ -256,7 +260,9 @@
 .cal-mini-day:hover { background: var(--soft); }
 .cal-mini-day[data-other] { color: var(--muted); }
 .cal-mini-day[data-shown] { background: var(--sel); border-radius: 0; }
-.cal-mini-day[data-today] { color: var(--paper); background: var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
+/* Today is an ink ring; the fill is kept for the day chosen. */
+.cal-mini-day[data-today] { box-shadow: inset 0 0 0 1.5px var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
+.cal-mini-day[aria-current="date"] { color: var(--paper); background: var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
 .cal-mini-day:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 
 /* A timed event an hour or longer has room for its title on two lines. */
@@ -275,4 +281,12 @@ form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc
 @container (max-width: 90px) {
   .calendar-page .cal-day-head .cal-wd { display: none; }
   .calendar-page .cal-day-head .cal-wd-one { display: inline; }
+}
+
+/* A narrow day column (the Mobius panel open beside a week): the block keeps its title and drops the time, which the
+   tooltip and the popover still give. */
+.calendar-page .cal-column { container-type: inline-size; container-name: cal-day; }
+@container cal-day (max-width: 120px) {
+  .calendar-page .cal-column > .cal-event .cal-event-when { display: none; }
+  .calendar-page .cal-column > .cal-event[data-tall] b { -webkit-line-clamp: 3; }
 }
