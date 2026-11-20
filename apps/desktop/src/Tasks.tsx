@@ -262,10 +262,9 @@ interface RowProps {
   hideDue?: boolean;
 }
 
-/** A task's note after its words: its first word never breaks, so when even that does not fit, the note drops out. */
+/** A task's note on the line under its words: one line, cut short with an ellipsis, the whole of it in the tooltip. */
 function TaskNote({ text }: { text: string }) {
-  const [first, ...rest] = text.split(' ');
-  return <span className="task-note" title={text}><span>{first}</span>{rest.length > 0 && <span className="task-note-rest">{` ${rest.join(' ')}`}</span>}</span>;
+  return <span className="task-note" title={text}>{text}</span>;
 }
 
 function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false }: RowProps) {
@@ -565,7 +564,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
       <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-      <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
+      <input ref={input} data-bare aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
         <button type="button" className="chip task-when" title={`“${said.phrase}” sets when it is due. Click to keep it as words.`} aria-label={`Due ${saidWords(said, now)}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>

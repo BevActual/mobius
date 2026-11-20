@@ -255,7 +255,10 @@ export function filesSub(files: FilesState): ReactNode {
 export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNode }) {
   const here = files.place.kind === 'folder' ? files.place.path : null;
   // A dot only on a folder holding something new from Mobius that the person has not looked in since.
-  const held = new Set(files.made.files.map((f) => f.split('/')[0]!).filter((r) => !files.seen.has(r)));
+  // What Mobius made in each top folder and nobody has kept: a count at the row's end, as other apps show waiting
+  // things. The list itself marks the folder with Mobius's dot, so the dot is not shown twice.
+  const held = new Map<string, number>();
+  for (const f of files.made.files) { const r = f.split('/')[0]!; if (!files.seen.has(r)) held.set(r, (held.get(r) ?? 0) + 1); }
   return (
     <AppSidebar label="Places">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
@@ -266,7 +269,8 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
       {files.roots.length > 0 && (
         <SidebarSection title="Folders">
           {files.roots.map((r) => (
-            <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} proposed={held.has(r.name)}
+            <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} count={held.get(r.name) ?? 0}
+              title={held.has(r.name) ? `${held.get(r.name)} from Mobius, not kept yet` : undefined}
               current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })}
               drop={files.can.move ? files.drop(r.name) : undefined} trail={syncTrail(files, r.name)} />
           ))}
@@ -339,6 +343,9 @@ function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntr
     </div>
   );
 }
+
+/** A folder's size, as Finder says it: how many things it holds. Blank when that is not known. */
+const itemCount = (n: number | undefined) => (n === undefined ? '' : n === 1 ? '1 item' : `${n} items`);
 
 /** Explorer on Windows and Linux file managers alike say Explorer-ish words; Finder on a Mac. */
 const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'Show in Finder' : 'Show in Explorer';
@@ -570,7 +577,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       )}
       {!files.problem && !files.loading && files.entries.length > 0 && (
         <div className="files-table" role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
-          <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Date Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
+          <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
           <div ref={listRef} role="rowgroup" onKeyDown={onListKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing here matches “{files.query}”.</p>}
             {rows.map((e) => {
@@ -591,7 +598,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
-                  <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? '—' : size(e.bytes)}</span>
+                  <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? itemCount(e.items) : size(e.bytes)}</span>
                 </div>
               );
             })}
@@ -669,7 +676,7 @@ function TrashPage({ files, bars }: { files: FilesState; bars: ReactNode }) {
         <EmptyState icon={GLYPH.trash} title="The Trash is empty" />
       ) : (
         <div className="files-table files-trash" role="grid" aria-label="In the Trash" aria-rowcount={rows.length + 1}>
-          <div className="files-head" role="row"><span role="columnheader" className="files-col">Name</span><span role="columnheader" className="files-col" data-col="modified">Date Trashed</span><span role="columnheader" className="files-col" data-col="kind">Where it was</span><span role="columnheader" className="files-col">Size</span></div>
+          <div className="files-head" role="row"><span role="columnheader" className="files-col">Name</span><span role="columnheader" className="files-col" data-col="modified">Trashed</span><span role="columnheader" className="files-col" data-col="kind">Where it was</span><span role="columnheader" className="files-col">Size</span></div>
           <div ref={listRef} role="rowgroup" onKeyDown={onKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing in the Trash matches “{files.query}”.</p>}
             {rows.map((t) => (
