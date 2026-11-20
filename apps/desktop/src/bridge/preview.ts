@@ -95,6 +95,8 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
   'preferences.get': () => ({ ...previewPrefs }),
   'preferences.set': ((change: Partial<typeof DEFAULT_PREFERENCES>) => { previewPrefs = { ...previewPrefs, ...change }; return { ...previewPrefs }; }) as never,
+  // The launcher's clipboard history: nothing copied in the preview.
+  'clipboard.history': () => [],
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
   // Settings › Approvals and Browser list these: none are kept in the preview.
