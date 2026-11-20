@@ -1,58 +1,90 @@
 //! The computer's own things for the launcher: the apps installed on it, and a few system commands.
 //!
 //! The bridge's `system` calls:
-//! - `apps()` → `[{ name, id }]`, sorted by name: on Windows the Start menu's shortcuts (the person's and everyone's),
-//!   on Linux the desktop entries. `id` is the shortcut's path.
-//! - `open(id)` → `{ ok }`: starts an app `apps()` listed. Any other path is refused, so a page can never use this to
+//! - `apps()` → `[{ name, id }]`, sorted by name: on Windows every app the Start menu lists, Store apps included
+//!   (PowerShell's `Get-StartApps`; `id` is the app's AppsFolder id), on Linux the desktop entries (`id` is the file).
+//! - `open(id)` → `{ ok }`: starts an app `apps()` listed. Any other id is refused, so a page can never use this to
 //!   start a program of its choosing.
 //! - `commands()` → `[{ id, name }]`: the system commands this computer has.
-//! - `run(id)` → `{ ok }`: runs one of them. Emptying the Recycle Bin asks Windows' own question first.
+//! - `run(id)` → `{ ok }`: runs one of them. Emptying the Recycle Bin asks Windows' own question first, and is `ok`
+//!   only when the bin is empty afterwards (so answering No is not).
+#[cfg(not(windows))]
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct App {
     pub name: String,
-    pub path: PathBuf,
+    pub id: String,
 }
 
-/// The folders whose shortcuts are the installed apps.
-fn app_folders() -> Vec<PathBuf> {
-    let mut folders = Vec::new();
-    if cfg!(windows) {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            folders.push(Path::new(&appdata).join(r"Microsoft\Windows\Start Menu\Programs"));
-        }
-        if let Ok(all) = std::env::var("ProgramData") {
-            folders.push(Path::new(&all).join(r"Microsoft\Windows\Start Menu\Programs"));
-        }
-    } else {
-        folders.push(PathBuf::from("/usr/share/applications"));
-        folders.push(PathBuf::from("/usr/local/share/applications"));
-        if let Ok(home) = std::env::var("HOME") {
-            folders.push(Path::new(&home).join(".local/share/applications"));
-        }
-    }
-    folders
-}
-
-/// The app a file stands for, if it is a launcher shortcut. Uninstallers and help links are left out.
-fn app_of(path: &Path) -> Option<App> {
-    let ext = path.extension()?.to_str()?.to_ascii_lowercase();
-    let name = match ext.as_str() {
-        "lnk" | "url" | "appref-ms" => path.file_stem()?.to_str()?.to_owned(),
-        "desktop" => desktop_name(&std::fs::read_to_string(path).ok()?)?,
-        _ => return None,
-    };
+/// Whether a listed entry is an app someone would open, not an uninstaller, help link or background helper.
+fn worth_listing(name: &str) -> bool {
     let lower = name.to_ascii_lowercase();
-    if lower.starts_with("uninstall") || lower.contains("uninstall ") || lower.ends_with(" help") || lower.ends_with(" readme") {
-        return None;
+    !(name.trim().is_empty()
+        || lower.starts_with("uninstall")
+        || lower.contains("uninstall ")
+        || lower.ends_with(" help")
+        || lower.ends_with(" readme")
+        || lower.ends_with(" autostart")
+        || lower == "administrative tools")
+}
+
+/// The apps in `Get-StartApps | ConvertTo-Json` output: an array, or one object when there is only one.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn parse_start_apps(text: &str) -> Vec<App> {
+    let value: Value = serde_json::from_str(text.trim()).unwrap_or(Value::Null);
+    let items = match value {
+        Value::Array(items) => items,
+        Value::Object(_) => vec![value],
+        _ => Vec::new(),
+    };
+    items
+        .iter()
+        .filter_map(|item| {
+            let name = item.get("Name")?.as_str()?.trim().to_owned();
+            let id = item.get("AppID")?.as_str()?.trim().to_owned();
+            (!id.is_empty() && worth_listing(&name)).then_some(App { name, id })
+        })
+        .collect()
+}
+
+/// Sorted by name, once each.
+fn tidy(mut found: Vec<App>) -> Vec<App> {
+    found.sort();
+    found.dedup_by(|a, b| a.name.eq_ignore_ascii_case(&b.name));
+    found
+}
+
+#[cfg(windows)]
+fn find_apps() -> Vec<App> {
+    use std::os::windows::process::CommandExt;
+    const NO_WINDOW: u32 = 0x0800_0000;
+    let script = "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-StartApps | Select-Object Name, AppID | ConvertTo-Json -Compress";
+    let Ok(out) = std::process::Command::new("powershell.exe").args(["-NoProfile", "-NonInteractive", "-Command", script]).creation_flags(NO_WINDOW).output() else {
+        return Vec::new();
+    };
+    tidy(parse_start_apps(&String::from_utf8_lossy(&out.stdout)))
+}
+
+#[cfg(not(windows))]
+fn find_apps() -> Vec<App> {
+    let mut found = Vec::new();
+    let mut folders = vec![PathBuf::from("/usr/share/applications"), PathBuf::from("/usr/local/share/applications")];
+    if let Ok(home) = std::env::var("HOME") {
+        folders.push(Path::new(&home).join(".local/share/applications"));
     }
-    Some(App { name, path: path.to_owned() })
+    for folder in folders {
+        walk(&folder, 0, &mut found);
+    }
+    tidy(found)
 }
 
 /// The name a desktop entry shows, unless it asks to be hidden.
+#[cfg_attr(windows, allow(dead_code))]
 pub fn desktop_name(entry: &str) -> Option<String> {
     let mut name = None;
     let mut in_entry = false;
@@ -75,19 +107,8 @@ pub fn desktop_name(entry: &str) -> Option<String> {
     name.filter(|n| !n.is_empty())
 }
 
-/// Every app the Start menu (or the desktop entries) lists, once each by name, sorted.
-pub fn apps() -> Vec<App> {
-    let mut found = Vec::new();
-    for folder in app_folders() {
-        walk(&folder, 0, &mut found);
-    }
-    found.sort();
-    found.dedup_by(|a, b| a.name.eq_ignore_ascii_case(&b.name));
-    found
-}
-
+#[cfg(not(windows))]
 fn walk(dir: &Path, depth: usize, found: &mut Vec<App>) {
-    // The Start menu nests a folder or two deep; nothing deeper is an app.
     if depth > 3 {
         return;
     }
@@ -96,10 +117,30 @@ fn walk(dir: &Path, depth: usize, found: &mut Vec<App>) {
         let path = entry.path();
         if path.is_dir() {
             walk(&path, depth + 1, found);
-        } else if let Some(app) = app_of(&path) {
-            found.push(app);
+        } else if path.extension().is_some_and(|e| e == "desktop")
+            && let Some(name) = std::fs::read_to_string(&path).ok().and_then(|t| desktop_name(&t))
+            && worth_listing(&name)
+        {
+            found.push(App { name, id: path.display().to_string() });
         }
     }
+}
+
+/// How long a list of apps is reused: asking Windows takes most of a second, and the launcher asks on every open.
+const FRESH: Duration = Duration::from_secs(60);
+static FOUND: Mutex<Option<(Instant, Vec<App>)>> = Mutex::new(None);
+
+/// Every app the Start menu (or the desktop entries) lists, once each by name, sorted.
+pub fn apps() -> Vec<App> {
+    let mut found = FOUND.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if let Some((at, apps)) = found.as_ref()
+        && at.elapsed() < FRESH
+    {
+        return apps.clone();
+    }
+    let apps = find_apps();
+    *found = Some((Instant::now(), apps.clone()));
+    apps
 }
 
 /// The system commands: (id, name).
@@ -111,18 +152,16 @@ pub fn commands() -> Vec<(&'static str, &'static str)> {
     }
 }
 
-fn start(path: &Path) -> bool {
+fn start(app: &App) -> bool {
     #[cfg(windows)]
     {
-        use std::os::windows::process::CommandExt;
-        // `start` opens a shortcut as Explorer would; the empty title keeps a quoted path from being taken as one.
-        const NO_WINDOW: u32 = 0x0800_0000;
-        std::process::Command::new("cmd").arg("/c").arg("start").arg("").arg(path).creation_flags(NO_WINDOW).spawn().is_ok()
+        // Explorer opens anything the Start menu lists by its AppsFolder id, Store apps included.
+        std::process::Command::new("explorer.exe").arg(format!("shell:AppsFolder\\{}", app.id)).spawn().is_ok()
     }
     #[cfg(not(windows))]
     {
-        let id = path.file_name().and_then(|n| n.to_str()).unwrap_or_default();
-        std::process::Command::new("gtk-launch").arg(id).spawn().is_ok()
+        let file = Path::new(&app.id).file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        std::process::Command::new("gtk-launch").arg(file).spawn().is_ok()
     }
 }
 
@@ -136,9 +175,13 @@ fn run(id: &str) -> bool {
                 .args(["-NoProfile", "-Command", "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Application]::SetSuspendState('Suspend', $false, $false)"])
                 .spawn()
                 .is_ok(),
-            // No flags: Windows asks its own "Are you sure?" before anything is deleted.
+            // No flags: Windows asks its own "Are you sure?" before anything is deleted. It answers success even when
+            // the person says No, so what counts is whether the bin is empty afterwards.
             // SAFETY: no root path (every drive's bin), no window handle, and flags of 0.
-            "empty-bin" => unsafe { windows::Win32::UI::Shell::SHEmptyRecycleBinW(None, windows::core::PCWSTR::null(), 0) }.is_ok(),
+            "empty-bin" => {
+                let _ = unsafe { windows::Win32::UI::Shell::SHEmptyRecycleBinW(None, windows::core::PCWSTR::null(), 0) };
+                bin_items() == Some(0)
+            }
             _ => false,
         }
     }
@@ -149,15 +192,25 @@ fn run(id: &str) -> bool {
     }
 }
 
+/// How many things the Recycle Bin holds, on every drive.
+#[cfg(windows)]
+fn bin_items() -> Option<i64> {
+    use windows::Win32::UI::Shell::{SHQUERYRBINFO, SHQueryRecycleBinW};
+    let mut info = SHQUERYRBINFO { cbSize: std::mem::size_of::<SHQUERYRBINFO>() as u32, ..Default::default() };
+    // SAFETY: no root path (every drive's bin) and a properly sized struct to fill.
+    unsafe { SHQueryRecycleBinW(windows::core::PCWSTR::null(), &mut info) }.ok()?;
+    Some(info.i64NumItems)
+}
+
 /// The bridge's `system` calls.
 pub fn call(method: &str, args: &[Value]) -> Result<Value, Value> {
     let arg = args.first().and_then(Value::as_str).unwrap_or_default();
     match method {
-        "apps" => Ok(Value::Array(apps().into_iter().map(|a| json!({ "name": a.name, "id": a.path.display().to_string() })).collect())),
+        "apps" => Ok(Value::Array(apps().into_iter().map(|a| json!({ "name": a.name, "id": a.id })).collect())),
         "open" => {
             // Only what apps() lists: the id is compared, never trusted.
-            let known = apps().into_iter().find(|a| a.path.display().to_string() == arg);
-            Ok(json!({ "ok": known.is_some_and(|a| start(&a.path)) }))
+            let known = apps().into_iter().find(|a| a.id == arg);
+            Ok(json!({ "ok": known.is_some_and(|a| start(&a)) }))
         }
         "commands" => Ok(Value::Array(commands().into_iter().map(|(id, name)| json!({ "id": id, "name": name })).collect())),
         "run" => Ok(json!({ "ok": commands().iter().any(|(id, _)| *id == arg) && run(arg) })),
@@ -179,19 +232,14 @@ mod tests {
     }
 
     #[test]
-    fn shortcuts_become_apps_and_uninstallers_do_not() {
-        let dir = std::env::temp_dir().join(format!("mobius-system-{}", std::process::id()));
-        let nested = dir.join("Tools");
-        std::fs::create_dir_all(&nested).unwrap();
-        for name in ["Paint.lnk", "Uninstall Paint.lnk", "notes.txt"] {
-            std::fs::write(dir.join(name), "").unwrap();
-        }
-        std::fs::write(nested.join("Terminal.lnk"), "").unwrap();
-        let mut found = Vec::new();
-        walk(&dir, 0, &mut found);
-        found.sort();
-        assert_eq!(found.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["Paint", "Terminal"]);
-        let _ = std::fs::remove_dir_all(&dir);
+    fn start_apps_are_read_and_helpers_left_out() {
+        let text = r#"[{"Name":"Notepad","AppID":"Microsoft.WindowsNotepad_8wekyb3d8bbwe!App"},{"Name":"Uninstall Paint","AppID":"x"},{"Name":"Ableton USB Audio Control Panel Autostart","AppID":"y"},{"Name":"Administrative Tools","AppID":"z"},{"Name":"Calculator","AppID":"Microsoft.WindowsCalculator_8wekyb3d8bbwe!App"}]"#;
+        let found = tidy(parse_start_apps(text));
+        assert_eq!(found.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["Calculator", "Notepad"]);
+        assert_eq!(found[1].id, "Microsoft.WindowsNotepad_8wekyb3d8bbwe!App");
+        // One app comes back as an object, not an array; nothing comes back as nothing.
+        assert_eq!(parse_start_apps(r#"{"Name":"Files","AppID":"f"}"#).len(), 1);
+        assert!(parse_start_apps("").is_empty());
     }
 
     #[test]

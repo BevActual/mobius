@@ -395,7 +395,7 @@ export interface ClipboardEntry {
   at: number;
 }
 
-/** An app installed on the computer, as the Start menu lists it; `id` is its shortcut. */
+/** An app installed on the computer, as the Start menu lists it; `id` is opaque, for `open(id)`. */
 export interface SystemApp {
   name: string;
   id: string;
@@ -529,7 +529,7 @@ export interface MobiusBridge {
     onCopied(listener: (entry: ClipboardEntry) => void): () => void;
   };
   /**
-   * The computer's own things for the launcher. `apps()` lists the installed apps (the Start menu's shortcuts) sorted
+   * The computer's own things for the launcher. `apps()` lists the installed apps (every app the Start menu lists, Store apps included) sorted
    * by name, and `open(id)` starts one of them; any id `apps()` did not list is refused. `commands()` lists the system
    * commands (on Windows: lock, sleep, empty the Recycle Bin, which asks Windows' own question first) and `run(id)`
    * runs one. Only in the desktop app.
