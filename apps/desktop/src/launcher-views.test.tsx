@@ -34,6 +34,11 @@ describe('launcher views', () => {
     expect(empty).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Summarize/s);
     const typed = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'translate to french', answer: { conversation: 'c', text: '', state: 'asking', sources: [] } }} />);
     expect(typed).toContain('Continue in Mobius');
+    const done = { conversation: 'c', text: 'Maya.', state: 'done' as const, sources: [] };
+    const asked = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'who replies?', answer: done }} />);
+    expect(asked).toContain('Save as a command');
+    const ran = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'Summarize', answer: done }} />);
+    expect(ran).not.toContain('Save as a command');
     const none = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} about={{ text: 'Meet' }} />);
     expect(none).not.toContain('About the selection');
   });

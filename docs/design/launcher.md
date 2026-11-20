@@ -145,7 +145,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **About this, with AI commands.** Text selected in the open app (or in a field) when the launcher opens shows as a chip under the field. With nothing typed, About the selection lists Summarize, Explain, Fix spelling and grammar, Make it shorter, Draft a reply and Translate to…; "translate to French" is read as one command. Anything else typed is asked about the selection. Each is answered inline, with Copy the answer and Continue in Mobius. The chip's x, or Backspace with nothing typed, leaves the selection out. (`selectionNow`, `AI_COMMANDS` in `launcher-ask.ts`)
 
-Next, in order: commands you save yourself, Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **Commands you save yourself.** After a question about the selection is answered, Save as a command keeps it under a name taken from its first line, listed with the AI commands as Yours (on this computer, at most 30). Shift+Enter on one shows Run and Remove this command. (`launcher-commands.ts`)
+
+Next, in order: Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 
