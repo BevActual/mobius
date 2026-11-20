@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { LauncherAnswer, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, UpdateInfo } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -157,6 +157,13 @@ export function createTauriBridge(): MobiusBridge {
       showMain: () => call('mini', 'showMain', [], () => null).then(() => undefined),
       setOnTop: (onTop) => call('mini', 'setOnTop', [onTop], () => null).then(() => undefined),
       onChange: (listener) => on<boolean>('mobius:mini', listener, () => call('mini', 'isOpen', [], () => false)),
+    },
+    clipboard: {
+      watch: (on) => call('clipboard', 'watch', [on], () => ({ on: false })),
+      history: () => call('clipboard', 'history', [], () => []),
+      copy: (text) => call('clipboard', 'copy', [text], () => ({ ok: false })),
+      clear: () => call('clipboard', 'clear', [], () => ({ ok: false })),
+      onCopied: (listener) => on<ClipboardEntry>('mobius:clipboard', listener),
     },
     launcherWindow: {
       hide: () => call('launcher', 'hide', [], () => null).then(() => undefined),

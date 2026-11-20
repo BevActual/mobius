@@ -390,6 +390,12 @@ export type LaunchChoice =
   | { kind: 'command'; id: string };
 
 /** What the main window found for the words typed in the launcher's own window, and every command it offers now. */
+/** One piece of copied text in the clipboard history; `at` is milliseconds since 1970. */
+export interface ClipboardEntry {
+  text: string;
+  at: number;
+}
+
 export interface LauncherAnswer {
   items: { id: string; app: string; label: string; detail?: string }[];
   commands: { id: string; label: string; detail?: string }[];
@@ -494,6 +500,20 @@ export interface MobiusBridge {
     find?(query: string): Promise<LauncherAnswer>;
     /** In the main window: answer the launcher's window. */
     onFind?(answer: (query: string) => Promise<LauncherAnswer> | LauncherAnswer): () => void;
+  };
+  /**
+   * Clipboard history for the launcher: text the person copied lately, anywhere on the computer, newest first. Nothing
+   * is watched until `watch(true)`; what is kept stays in memory (the last 50) and is forgotten on `watch(false)`.
+   * Copies a password manager marks as private are never kept. Only in the desktop app.
+   */
+  clipboard?: {
+    watch(on: boolean): Promise<{ on: boolean }>;
+    history(): Promise<ClipboardEntry[]>;
+    /** Puts the text on the clipboard, and first in the history while watching. */
+    copy(text: string): Promise<{ ok: boolean }>;
+    clear(): Promise<{ ok: boolean }>;
+    /** Hears each newly kept piece. */
+    onCopied(listener: (entry: ClipboardEntry) => void): () => void;
   };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {
