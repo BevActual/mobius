@@ -23,9 +23,14 @@ export const GLYPH = {
 /** A row's icon: the app that opens it, in its colour; a folder in Finder blue; anything else plain. */
 export function FileIcon({ path, type, size = 'row' }: { path: string; type: FileEntry['type']; size?: 'row' | 'side' }) {
   const app: AppId | null = appOf(path);
-  // An app's own folder (notes/) wears that app's icon; a folder inside it is a folder.
+  // Every folder is a folder; an app's own (notes/) carries that app's glyph small inside it, so it never reads as a file.
   const top = !path.includes('/');
-  if (type === 'folder' && !(top && app)) return <svg className="files-icon" data-size={size} data-glyph="folder" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.folder}</svg>;
+  if (type === 'folder') return (
+    <svg className="files-icon" data-size={size} data-glyph="folder" data-app={top && app ? app : undefined} viewBox="0 0 20 20" aria-hidden="true">
+      {GLYPH.folder}
+      {top && app && APP_ICONS[app] && <g className="files-icon-app" transform="translate(6.6 7.7) scale(0.34)" strokeWidth={3.6}>{APP_ICONS[app]}</g>}
+    </svg>
+  );
   if (app && APP_ICONS[app]) return <svg className="files-icon" data-size={size} data-app={app} viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS[app]}</svg>;
   return <svg className="files-icon" data-size={size} data-glyph="file" viewBox="0 0 20 20" aria-hidden="true">{GLYPH.file}</svg>;
 }
