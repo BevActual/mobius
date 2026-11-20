@@ -149,7 +149,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **Quicklinks and snippets.** Typing "quicklink maps maps.example/?q={query}" offers Create quicklink, with Name and Address read under the field. Typing "maps cafe" then opens that address with "cafe" in it, in the Browser. "snippet sig: Best, Andrew" makes a snippet; typing its name and Enter copies it. Shift+Enter on either shows Remove. Kept on this computer, at most 100 each. (`launcher-commands.ts`)
 
-Next, in order: Clipboard history, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **Clipboard history.** Off until turned on: typing "clipboard" (or "clip", "cb") offers Turn on clipboard history. Then the same word lists the last 50 copies made anywhere on the computer, newest first, with the whole text beside the list; words after it narrow the list ("cb invoice"). Enter copies one again. Clear and Turn off are there too; turning it off forgets what was kept. Copies a password manager marks as private are never kept. In memory only, by the desktop app (`window.mobius.clipboard`, #640; `launcher-clipboard.ts`).
+
+Next: the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 

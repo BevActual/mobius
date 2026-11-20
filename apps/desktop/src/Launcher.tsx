@@ -8,6 +8,7 @@ import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
 import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
+import { clipboardQuery, findCopied, type LauncherClipboard } from './launcher-clipboard';
 import { callQuicklink, keepNamed, parseCreate, readQuicklinks, readSaved, readSnippets, withSaved, withoutSaved, writeQuicklinks, writeSaved, writeSnippets, type Quicklink, type SavedCommand, type Snippet } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
@@ -28,7 +29,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'about' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -109,6 +110,8 @@ interface Props {
   home?: { waiting: readonly LauncherHomeRow[]; agents: readonly LauncherAgentRow[] };
   /** What was selected in the open app as the launcher opened: the AI commands work on it, and what is typed is asked about it. */
   about?: LauncherAbout;
+  /** Clipboard history: what was copied lately, shown for "clipboard" (or "clip", "cb"). */
+  clipboard?: LauncherClipboard;
   /** Open a web address (a quicklink) in the Browser. */
   onOpenUrl?: (url: string) => void;
   /** For the reference sheet: an answer already given to what is typed. */
@@ -121,7 +124,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', about: 'About the selection', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -221,6 +224,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
       : app ? <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>
         : kind === 'ask' || kind === 'about' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
           : kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg>
+          : kind === 'clip' ? <svg viewBox="0 0 20 20" data-clip=""><path d="M7 4H6a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 6 17h8a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 14 4h-1M8 3h4v2.5H8z" /></svg>
           : kind === 'answer' ? <svg viewBox="0 0 20 20" data-answer=""><path d="M5 8h10M5 12h10" /></svg>
             : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
   </span>
@@ -228,7 +232,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -461,6 +465,22 @@ export function Launcher({
         ]),
       // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
       ...((answer) => (answer ? [{ id: 'answer', kind: 'answer' as const, label: answer.value, detail: answer.question, run: () => { void navigator.clipboard?.writeText(answer.copy).catch(() => undefined); } }] : []))(quickAnswer(typed)),
+      // Clipboard history: "clipboard", "clip" or "cb", then words to look for in what was copied.
+      ...((asked) => {
+        if (!asked || !clipboard) return [];
+        if (!clipboard.on) return [{ id: 'clip-on', kind: 'clip' as const, label: 'Turn on clipboard history', detail: 'The last 50 copies, kept in memory on this computer', run: () => clipboard.setOn(true) }];
+        const found = findCopied(clipboard.entries, asked.words).slice(0, 20);
+        const when = now ?? Date.now();
+        return [
+          ...found.map<LauncherItem>((e, i) => {
+            const line = e.text.replace(/\s+/g, ' ').trim();
+            return { id: `clip-${i}-${e.at}`, kind: 'clip', label: line.length > 80 ? `${line.slice(0, 79)}…` : line, detail: relativeTime(e.at, when), preview: { title: 'Copied', meta: relativeTime(e.at, when), body: e.text.length > 2000 ? `${e.text.slice(0, 1999)}…` : e.text }, run: () => clipboard.copy(e.text) };
+          }),
+          ...(clipboard.entries.length === 0 ? [{ id: 'clip-none', kind: 'clip' as const, label: 'Nothing copied yet', detail: 'Copy some text anywhere, and it shows here', disabled: true, run: () => {} }] : []),
+          ...(clipboard.entries.length ? [{ id: 'clip-clear', kind: 'command' as const, label: 'Clear clipboard history', run: () => clipboard.clear() }] : []),
+          { id: 'clip-off', kind: 'command' as const, label: 'Turn off clipboard history', detail: 'Forgets what was kept', run: () => clipboard.setOn(false) },
+        ];
+      })(clipboardQuery(typed)),
       // Quicklinks and snippets: making one ("quicklink maps https://…?q={query}", "snippet sig: Best, Andrew"), calling one.
       ...((made) => (made ? [{
         id: 'make-kept', kind: 'command' as const, label: made.kind === 'quicklink' ? 'Create quicklink' : 'Create snippet',
@@ -503,7 +523,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -537,6 +557,8 @@ export function Launcher({
     if (item.id === 'ask-copy') { item.run(); setStatus('Answer copied'); return; }
     // A saved command's actions stay in the launcher: Run asks here, and Remove leaves the list open.
     if (actionsFor?.kind === 'about') { item.run(); return; }
+    if (item.id === 'clip-on' || item.id === 'clip-clear' || item.id === 'clip-off') { item.run(); setStatus(item.id === 'clip-on' ? 'Clipboard history on' : item.id === 'clip-off' ? 'Clipboard history off' : 'Clipboard history cleared'); return; }
+    if (item.id.startsWith('clip-')) setStatus('Copied');
     if (item.id === 'make-kept') { item.run(); setStatus(`${item.label === 'Create quicklink' ? 'Quicklink' : 'Snippet'} saved`); setQuery(''); setChosenId(null); return; }
     if (item.id.startsWith('start-')) { item.run(); return; }
     if (actionsFor && (actionsFor.id.startsWith('ql-') || actionsFor.id.startsWith('snip-')) && item.id === 'act-forget') { item.run(); return; }

@@ -101,6 +101,7 @@ import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
+import { useClipboardHistory } from './launcher-clipboard';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -817,6 +818,7 @@ export function App() {
   // The launcher's key pressed again while it is open switches it between its start and All apps.
   const [launcherAgain, setLauncherAgain] = useState(0);
   const [launcherAbout, setLauncherAbout] = useState<LauncherAbout | undefined>(undefined);
+  const clipboardHistory = useClipboardHistory();
   const launcherShown = useRef(launcherOpen);
   launcherShown.current = launcherOpen;
   const openLauncher = useCallback(() => {
@@ -2049,6 +2051,7 @@ export function App() {
         home={launcherHome}
         about={launcherAbout}
         onOpenUrl={showPage}
+        clipboard={clipboardHistory}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
