@@ -47,7 +47,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 
 test('a workbook of CSV sheets shows its formulas worked out, and typing in a cell works the rest out again', async () => {
   await start();
-  await expect(cell('D5')).toHaveText('5420');
+  await expect(cell('D5')).toHaveText('5,420');
   await cell('D5').click();
   await expect(shell().getByRole('textbox', { name: 'Cell contents' })).toHaveValue('=SUM(D2:D4)');
   await shell().getByRole('tablist', { name: 'Sheets' }).getByRole('tab', { name: 'People' }).click();
@@ -57,7 +57,7 @@ test('a workbook of CSV sheets shows its formulas worked out, and typing in a ce
   await expect.poll(() => fs.readFileSync(file('People'), 'utf8')).toBe('People,10\n');
   await shell().getByRole('tablist', { name: 'Sheets' }).getByRole('tab', { name: 'Budget' }).click();
   await expect(cell('D4')).toHaveText('400');
-  await expect(cell('D5')).toHaveText('5500');
+  await expect(cell('D5')).toHaveText('5,500');
 
   // A formula typed in the formula bar; a mistake shows as the spreadsheet error.
   await cell('E2').click();
@@ -174,7 +174,7 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect(cell('A3')).toHaveText('Terrace venue');
   await expect(cell('A4')).toHaveText('Hotel');
   await expect(cell('A5')).toHaveText('Total');
-  await expect(cell('D5')).toHaveText('5420');
+  await expect(cell('D5')).toHaveText('5,420');
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toBe('Item,Qty,Unit,Total\nLunch,=People!B1,40,=B2*C2\nTerrace venue,1,620,=B3*C3\nHotel,14,320,=B4*C4,"=ROUND(D4/14,0)"\nTotal,,,=SUM(D2:D4)\n');
 
   // Sorted again from column B's own menu, largest first: the whole column picked still leaves the header and total row put.
@@ -215,7 +215,7 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await cell('D2').click();
   await expect(format.getByRole('radio', { name: /Currency/ })).toBeChecked();
   await format.getByRole('radio', { name: /Automatic/ }).check();
-  await expect(cell('D5')).toHaveText('5420');
+  await expect(cell('D5')).toHaveText('5,420');
 });
 
 test('a chart beside the grid never cuts off a column: it narrows, or goes under the grid when there is no room', async () => {

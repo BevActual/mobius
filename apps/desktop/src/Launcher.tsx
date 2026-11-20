@@ -267,7 +267,7 @@ export function Launcher({
     const text = query.trim();
     if (!system?.files || text.length < 2 || !open) return;
     let live = true;
-    const timer = setTimeout(() => { void system.files!(text).then((files) => { if (live) setDisk({ text, files }); }, () => undefined); }, 150);
+    const timer = setTimeout(() => { void system.files!(text).then((files) => { if (live) setDisk({ text, files: Array.isArray(files) ? files : [] }); }, () => undefined); }, 150);
     return () => { live = false; clearTimeout(timer); };
   }, [query, system, open]);
   const keptRef = useRef({ links, snippets });

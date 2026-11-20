@@ -51,8 +51,8 @@ function readCollapsed(): string[] {
   }
 }
 
-const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs you', failed: 'Failed' } as const;
-const ACTIVITY_TONE = { working: 'good', needs_you: 'warn', failed: 'bad' } as const;
+const ACTIVITY_TEXT = { working: 'Working…', needs_you: 'Needs your answer', failed: 'Failed' } as const;
+const ACTIVITY_TONE = { working: 'good', needs_you: 'mobius', failed: 'bad' } as const;
 
 function Row({ conversation, current, onSelect, onDelete, onArchive, isArchived, onMakeBot }: { conversation: ConversationInfo; current: boolean; onSelect: () => void; onDelete: () => void; onArchive?: (archived: boolean) => void; isArchived?: boolean; onMakeBot?: () => void }) {
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -231,8 +231,8 @@ function ScheduledSection({ onOpen }: { onOpen: () => void }) {
   return (
     <SidebarSection title="Scheduled">
       {list.map((s) => (
-        <SidebarRow key={s.id} label={s.title} title={`${describeWhen(s.days, s.time)}${s.enabled ? '' : ' · Off'}. Change in Settings › Schedules.`} onSelect={onOpen}
-          icon={<svg viewBox="0 0 20 20" aria-hidden="true" className="side-glyph"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.6" /></svg>} />
+        // Like a chat row: the name, then when it runs on the line under it (no icon, so both start at the same edge).
+        <SidebarRow key={s.id} label={s.title} sub={`${describeWhen(s.days, s.time)}${s.enabled ? '' : ' · Off'}`} title="Change in Settings › Schedules." onSelect={onOpen} />
       ))}
     </SidebarSection>
   );

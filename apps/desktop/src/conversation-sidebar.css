@@ -5,7 +5,8 @@
 .agent-side .group-toggle:hover { background: none; color: var(--ink); }
 /* What a conversation is doing is a quiet word, not a coloured pill: Mobius is the only indigo, and nothing here shouts. */
 .ui-side.agent-side .badge, .ui-side.agent-side .badge[data-tone] { margin-left: 0; padding: 0; border-radius: 0; background: none; font-size: var(--fs-xs); color: var(--muted); }
-.ui-side.agent-side .badge[data-tone="warn"] { font-weight: var(--fw-medium); }
+/* Waiting on you is Mobius asking: indigo, in the same words as the Mobius panel and the launcher. */
+.ui-side.agent-side .badge[data-tone="mobius"] { font-weight: var(--fw-medium); color: var(--mobius); }
 .ui-side.agent-side .badge[data-tone="bad"] { color: var(--red); }
 
 /* Delete's Undo: one quiet line at the foot of the Chats panel while the deleted chat can still come back. */

@@ -228,8 +228,14 @@ describe('the Glance in the Mobius panel', () => {
       { label: 'Free time', value: '0 min' },
     ]);
   });
+  it('says plainly when nothing else is on today, without counting zero', () => {
+    expect(calendarGlance(events, day('2026-11-14T19:30'))).toEqual([
+      { label: 'Next', value: 'Nothing else today' },
+      { label: 'Free time', value: null },
+    ]);
+  });
   it('leaves out the free time once the working day is over', () => {
-    expect(calendarGlance(events, day('2026-11-14T19:30'))[2]!.value).toBeNull();
+    expect(calendarGlance(events, day('2026-11-14T19:30')).find((f) => f.label === 'Free time')!.value).toBeNull();
   });
 });
 
