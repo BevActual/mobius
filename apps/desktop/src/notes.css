@@ -12,14 +12,16 @@
 .note-scroll[hidden] { display: none; }
 .note-paper { flex: 0 0 auto; width: 100%; max-width: var(--note-col); margin: 0 auto; }
 
-/* The grey line under the toolbar: when it was edited, words, comments, then its tags. */
-.note-meta { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: 0 auto; padding: calc(var(--sp-8) + var(--sp-6)) var(--sp-8) 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
-.note-meta > span + span::before { content: "·"; margin-right: var(--sp-3); }
-/* Tags are chips: an outline with grey text, never a solid fill. */
-.note-meta-tag { height: var(--control-h); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-pill); color: var(--muted); font-size: var(--fs-xs); }
+/* The grey line under the title, as in Docs: when it was edited, words, comments, then its tags as plain grey words.
+   It is drawn in the page after the title; editing the Markdown itself, it sits over the text. */
+.note-scroll > .note-meta { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: 0 auto; padding: calc(var(--sp-8) + var(--sp-6)) var(--sp-8) 0; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.note-page .note-meta { margin: calc(-1 * var(--sp-2)) 0 var(--sp-6); user-select: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-2); color: var(--muted); font-family: var(--font); font-size: var(--fs-sm); line-height: var(--lh-body); font-variant-numeric: tabular-nums; }
+.note-meta > span + span::before { content: "·"; margin-right: var(--sp-2); }
+.note-meta-tags { display: inline-flex; flex-wrap: wrap; gap: var(--sp-2); }
+.note-meta-tag { height: auto; margin: 0 -2px; padding: 0 2px; border: 0; border-radius: var(--radius-small); background: none; color: var(--muted); font: inherit; }
 .note-meta-tag:hover { background: var(--sel); color: var(--ink); }
 
-.note-page { min-height: 40vh; padding: var(--sp-3) var(--sp-8) var(--sp-8); outline: none; color: var(--ink); font-size: var(--fs-reading); line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
+.note-page { padding: calc(var(--sp-8) + var(--sp-6)) var(--sp-8) var(--sp-6); outline: none; color: var(--ink); font-size: var(--fs-reading); line-height: var(--lh-body); -webkit-font-smoothing: antialiased; }
 .note-page:focus-visible { outline: none; }
 /* The title is the page heading: large, bold, tight. Headings under it step down the type scale. */
 .note-page h1 { margin: 0 0 var(--sp-3); font-size: var(--fs-display); font-weight: 700; line-height: var(--lh-tight); letter-spacing: -0.02em; }
@@ -37,8 +39,9 @@
 .note-page hr { margin: var(--sp-6) 0; border: 0; border-top: var(--hairline-w) solid var(--line); }
 .note-page ::selection { background: var(--sel); }
 .note-page .is-empty::before { content: attr(data-placeholder); float: left; height: 0; color: var(--muted); pointer-events: none; }
-/* A #tag in the text: the same outlined chip as the tags beside the word count. */
-.note-page .note-tag { padding: 0 var(--sp-1); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-pill); color: var(--muted); }
+/* A #tag in the text: grey words, with a soft fill under the pointer; no outline, so it never outweighs the text. */
+.note-page .note-tag { margin: 0 -2px; padding: 0 2px; border-radius: var(--radius-small); color: var(--muted); }
+.note-page .note-tag:hover { background: var(--sel); }
 
 /* Tables: a hairline grid, a grey semibold header, figures that line up. */
 .note-page table { width: 100%; margin: 0 0 var(--sp-4); table-layout: fixed; border-collapse: separate; border-spacing: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); overflow: hidden; font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
@@ -146,14 +149,14 @@
 .note-backlinks button > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-backlinks button:hover { background: var(--sel); }
 
-/* A commented passage: a soft amber tint and an amber edge under it (content colour, not red). */
-.note-page .note-commented { background: color-mix(in srgb, var(--c-yellow) 30%, transparent); border-bottom: 2px solid var(--c-amber); border-radius: var(--radius-small); }
+/* A commented passage: one soft warm tint and no underline, the same in Docs (--comment, with its own dark step). */
+.note-page .note-commented { background: var(--comment, color-mix(in srgb, var(--c-yellow) 28%, transparent)); border-radius: var(--radius-small); }
 .note-comment-composer { position: absolute; z-index: var(--z-menu); width: var(--panel-w); display: grid; gap: var(--sp-2); padding: var(--sp-3); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-3); animation: note-sheet-in var(--dur-med) var(--ease); }
 .note-comment-composer textarea { min-height: 60px; resize: vertical; padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); color: var(--ink); font: inherit; }
 .note-comment-composer textarea:focus { outline: none; border-color: var(--ink); }
 .note-comment-actions { display: flex; align-items: center; gap: var(--sp-2); }
 .note-comment-actions .spacer { flex: 1; }
-.note-comment-quote { margin: 0; padding-left: var(--sp-2); border-left: 3px solid var(--c-amber); color: var(--muted); font-size: var(--fs-sm); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.note-comment-quote { margin: 0; padding-left: var(--sp-2); border-left: 2px solid var(--ink); color: var(--muted); font-size: var(--fs-sm); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .note-comment-quote.gone { text-decoration: line-through; }
 .note-comments ul { display: grid; gap: var(--sp-2); margin: 0 0 var(--sp-2); padding: 0; list-style: none; }
 .note-comment { display: flex; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-panel); background: var(--field); }
@@ -218,6 +221,8 @@
 .notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible), :has(> .confirm)) > .note-side-when { visibility: hidden; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .confirm) > .note-pin { display: none; }
 .notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
+.notes-side .notes-new-group { color: var(--muted); }
+.notes-side .notes-new-group:hover { color: var(--ink); }
 /* While the list is read: grey placeholder bars the shape of the rows, not a spinner. */
 .notes-loading { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); list-style: none; }
 .notes-loading li { display: grid; gap: var(--sp-1); height: calc(var(--row-list) + var(--sp-4)); align-content: center; }
@@ -233,5 +238,6 @@
   .note-paper .note-page { padding: 0; color: var(--ink); }
   .note-paper .note-tag, .note-paper .note-commented { border: 0; background: none; color: inherit; }
 }
-/* Mobius's changed-page dot sits under the date, on the grey line, so it never covers the time. */
-.ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; right: calc(var(--sp-2) + 2px); bottom: calc(var(--sp-2) + 4px); margin: 0; }
+/* Mobius's changed-page dot sits in the trailing slot of the first line, as in Docs, and the time moves to its left. */
+.ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; top: calc(var(--sp-2) + (var(--fs-md) * var(--lh-tight) - 6px) / 2); right: var(--sp-2); margin: 0; }
+.notes-side[data-app="notes"] .ui-side-row-trail:has(> .list-row[data-proposed]) > .note-side-when { right: calc(var(--sp-2) + 6px + var(--sp-2)); }

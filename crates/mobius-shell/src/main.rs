@@ -397,6 +397,10 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
         let mut before = shell.menu.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return menu::set(&app, &mut before, &args);
     }
+    if namespace == "tray" && method == "savedForQuit" {
+        tray::saved_for_quit();
+        return Ok(Value::Null);
+    }
     if namespace == "tray" && method == "set" {
         let mut before = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return tray::set(&app, &mut before, &args);
@@ -505,7 +509,7 @@ fn main() {
     if !std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") {
         app = app.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             if tray::asks_to_quit(&args) {
-                app.exit(0);
+                tray::quit(app);
             } else {
                 tray::show_main(app);
             }

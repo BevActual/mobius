@@ -84,7 +84,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Conversations', 'Schedules', 'Abilities', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Chats with Mobius', 'Schedules', 'Abilities', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -228,7 +228,7 @@ test('conversations are saved across restarts, listed, reopened and deleted', as
   await expect(log().locator('.msg.user')).toHaveText('Order new nets');
 
   await openSettings();
-  await go('Conversations');
+  await go('Chats with Mobius');
   const list = page().getByRole('list', { name: 'Saved conversations' });
   await expect(list.getByRole('listitem')).toHaveText([/Order new nets/, /Plan the harbour walk/]);
   await list.getByRole('listitem').nth(1).getByRole('button', { name: 'Open' }).click();
@@ -237,7 +237,7 @@ test('conversations are saved across restarts, listed, reopened and deleted', as
   await expect(log().locator('.msg.assistant')).toHaveText('First answer.');
 
   await openSettings();
-  await go('Conversations');
+  await go('Chats with Mobius');
   const item = page().getByRole('list', { name: 'Saved conversations' }).getByRole('listitem').filter({ hasText: 'Order new nets' });
   await item.getByRole('button', { name: /Delete/ }).click();
   await expect(item.getByRole('button', { name: 'Confirm delete' })).toBeVisible();

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { AppSidebar, PanelLayout, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, type PanelSpec } from './ui';
+import { AppSidebar, Avatar, PanelLayout, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import type { MessagesState } from './useMessages';
 import { SERVICE_NAMES, catchUpAsk, channelGroups, channelLabel, chatItem, runs, unreadLabel } from './messages-view';
@@ -8,14 +8,19 @@ import { isNotesFailure, type ChatMessage, type ContextItem } from '@mobius/shar
 import { ContactPanel } from './ContactPanel';
 import './messages.css';
 
-/** The Messages list panel: each account's channels and direct messages, unread ones marked. */
+/** A conversation's leading slot: a # for a channel, the person's initials for a direct message or group. */
+function ConversationLead({ name, kind }: { name: string; kind: 'channel' | 'direct' | 'group' }) {
+  return <span className="msg-lead" aria-hidden="true">{kind !== 'direct' ? <svg viewBox="0 0 16 16"><path d="M6 2.5 4.5 13.5M11.5 2.5 10 13.5M3 6h10.5M2.5 10H13" /></svg> : <Avatar name={name} size="chip" />}</span>;
+}
+
+/** The Messages list panel, Conversations: each account's channels and people, unread ones in medium weight. */
 export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pin?: ReactNode }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const groups = channelGroups(messages.accounts, messages.channels);
   return (
-    <AppSidebar label="Channels">
-      <SidebarSearch label="Find a channel" value={query} onChange={setQuery} />
+    <AppSidebar label="Conversations" className="messages-side">
+      <SidebarSearch label="Find a conversation" value={query} onChange={setQuery} />
       {groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
       {groups.map(({ account, channels }, i) => {
         const shown = channels.filter((c) => !q || c.name.toLowerCase().includes(q));
@@ -26,7 +31,7 @@ export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pi
             {shown.map((c) => {
               const count = c.mentions || c.unread;
               return (
-                <SidebarRow key={c.id} label={channelLabel(c)} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
+                <SidebarRow key={c.id} icon={<ConversationLead name={c.name} kind={c.kind} />} label={c.name.replace(/^#/, '')} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
                   current={messages.open?.account === account.id && messages.open.channel === c.id}
                   onSelect={() => messages.choose({ account: account.id, channel: c.id })} />
               );
@@ -148,7 +153,8 @@ export function MessagesPage({ messages, onAsk, onAddAccount, listPanels = [] }:
   );
   if (!messages.loaded) return <PanelLayout app="messages" panels={listPanels}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
   if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Teams and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
-  if (!account || !channel) return empty('No channel open', 'Choose a channel or a person on the left.');
+  // The last conversation opens again by itself, so this shows only before one has ever been chosen.
+  if (!account || !channel) return empty('No conversation open', 'Choose a channel or a person on the left.');
   const unread = channel.unread;
   const name = channelLabel(channel);
   const where = `${open?.account}/${open?.channel}`;

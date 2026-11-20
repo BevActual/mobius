@@ -47,7 +47,7 @@ function move(from: string, to: string): void {
 export const PREVIEW_FILES: Record<string, (...args: never[]) => unknown> = {
   'files.list': ((folder: string) => {
     if (folder && TREE.get(folder)?.type !== 'folder') return { error: 'that folder is not there' };
-    const entries: FileEntry[] = [...TREE].filter(([p]) => parentOf(p) === folder && !p.startsWith('.')).map(([p, item]) => (item.type === 'file' ? { name: nameOf(p), type: 'file', bytes: item.bytes, modified: item.modified } : { name: nameOf(p), type: 'folder', modified: item.modified }));
+    const entries: FileEntry[] = [...TREE].filter(([p]) => parentOf(p) === folder && !p.startsWith('.')).map(([p, item]) => (item.type === 'file' ? { name: nameOf(p), type: 'file', bytes: item.bytes, modified: item.modified } : { name: nameOf(p), type: 'folder', modified: item.modified, items: [...TREE.keys()].filter((q) => parentOf(q) === p && !nameOf(q).startsWith('.')).length }));
     entries.sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.toLowerCase().localeCompare(b.name.toLowerCase())));
     return { path: folder, truncated: false, entries };
   }) as never,

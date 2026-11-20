@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { isNotesFailure, type BookmarkEntry, type HistoryEntry } from '@mobius/shared';
-import { tileColour, tileLetter } from './browser-view';
+import { tileLetter } from './browser-view';
 
 const host = (url: string): string => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return url; } };
 
@@ -24,7 +24,7 @@ function Tile({ url, title, onOpen }: { url: string; title: string; onOpen: (url
   const site = host(url);
   return (
     <button type="button" className="start-tile" title={url} onClick={() => onOpen(url)}>
-      <span className="start-tile-mark" aria-hidden="true" style={{ ['--tile' as string]: tileColour(site) }}>{tileLetter(site)}</span>
+      <span className="start-tile-mark" aria-hidden="true">{tileLetter(site)}</span>
       <span className="start-tile-title">{title || site}</span>
     </button>
   );
