@@ -17,10 +17,11 @@
 .browser-side .tab-title { flex: 1 1 auto; min-width: 0; }
 .browser-side .tab[aria-current="page"] .tab-title { font-weight: var(--fw-medium); }
 .browser-side .tab-icon { width: var(--sp-4); height: var(--sp-4); border-radius: var(--radius-small); }
-/* A site without a favicon: its letter on a soft tint of its palette colour. */
+/* A site without a favicon: its letter in ink on a neutral grey tile. Colour is not spent on an identity that means
+   nothing. */
 .browser-side .tab-icon.placeholder {
   display: grid; place-items: center; font-size: var(--fs-floor); font-weight: var(--fw-semibold); line-height: 1; color: var(--ink);
-  background: color-mix(in srgb, var(--tile, var(--c-stone)) 35%, transparent);
+  background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line);
 }
 .browser-side .tab-icon.placeholder:empty { background: var(--sel); }
 /* The Mobius mark, only on a tab Mobius opened or is using. */
@@ -115,7 +116,8 @@
 .browser-side .dl-button { position: relative; width: 26px; min-width: 26px; height: 26px; border-radius: 7px; color: var(--muted); }
 .browser-side .dl-button:hover, .browser-side .dl-button[aria-expanded="true"] { background: var(--side-hover); color: var(--ink); }
 .browser-side .dl-button svg { width: var(--sp-4); height: var(--sp-4); }
-.browser-side .dl-button .dl-ring { position: absolute; inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); transform: rotate(-90deg); fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; pointer-events: none; }
+/* The progress ring sits around the arrow, drawn only while a download runs. */
+.ui-dock[data-dock] .browser-side .dl-button svg.dl-ring { position: absolute; inset: 1px; width: calc(100% - 2px); height: calc(100% - 2px); transform: rotate(-90deg); fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; pointer-events: none; }
 .browser-side .dl-pop {
   position: absolute; z-index: var(--z-menu); top: calc(100% + var(--sp-1)); left: 0; right: 0; max-height: 360px; overflow: auto;
   padding: var(--menu-pad); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-menu);
@@ -153,10 +155,10 @@
 .start-page .start-tile { justify-content: flex-start; padding: var(--sp-3) var(--sp-1) var(--sp-2); border-radius: var(--radius-panel); }
 .start-page .start-tile:hover { background: var(--sel); }
 .start-page .start-tile:focus-visible { outline: 2px solid var(--ink); outline-offset: 0; }
-/* A site's tile: its letter in ink on a soft tint of its palette colour. */
+/* A site's tile: its letter in ink on a neutral grey tile, as in the tabs. */
 .start-page .start-tile-mark {
   width: 56px; height: 56px; border-radius: var(--radius-panel); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); color: var(--ink);
-  background: color-mix(in srgb, var(--tile, var(--c-stone)) 30%, var(--paper)); box-shadow: none;
+  background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line);
 }
 /* Names take two lines before they are cut, as on Safari's start page. */
 .start-page .start-tile-title { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; white-space: normal; text-align: center; line-height: var(--lh-tight); min-height: calc(2em * var(--lh-tight)); font-size: var(--fs-xs); color: var(--ink); overflow-wrap: anywhere; }

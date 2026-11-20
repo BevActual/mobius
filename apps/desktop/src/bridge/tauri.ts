@@ -228,6 +228,8 @@ export function createTauriBridge(): MobiusBridge {
       // Its own event: the window's "open the conversation a notice was about" is a different thing.
       onOpenConversation: (listener) => on<string>('mobius:tray-conversation', listener),
       onStopAll: (listener) => on<null>('mobius:tray-stop-all', () => listener()),
+      onQuitting: (listener) => on<null>('mobius:quitting', () => listener()),
+      savedForQuit: () => call('tray', 'savedForQuit', [], () => null).then(() => undefined),
     },
     core: {
       getStatus: () => call<CoreStatus>('core', 'getStatus', [], () => 'failed'),

@@ -6,8 +6,8 @@
 //   npm run package -- --stage build     the programs only (the shell, the core, mobius-inert-mcp), not the installer
 //   npm run package -- --stage bundle    the installer, from programs already built
 //
-// The release workflow builds in two stages so it can sign the programs between them: the installer then carries
-// signed programs, and is itself signed after.
+// The release workflow builds in two stages so it can sign the core and mobius-inert-mcp between them; the bundler
+// signs the shell itself (MOBIUS_SIGN_WINDOWS, below), and the installer is signed after.
 //
 // The updater only accepts what is signed with the key whose public half is in crates/mobius-shell/tauri.conf.json:
 // set TAURI_SIGNING_PRIVATE_KEY (the key itself, or the path to its file) and TAURI_SIGNING_PRIVATE_KEY_PASSWORD
@@ -56,6 +56,13 @@ if (version) overrides.version = version;
 if (!env.TAURI_SIGNING_PRIVATE_KEY) {
   console.warn('! TAURI_SIGNING_PRIVATE_KEY is not set: the installer is built, but not the signed files the updater reads.');
   overrides.bundle = { createUpdaterArtifacts: false };
+}
+// Windows code signing (the release workflow sets MOBIUS_SIGN_WINDOWS=1): Tauri's bundler signs the shell after it has
+// written the bundle type into it, then the programs beside it and the installer, through scripts/sign-windows.ps1.
+// Signed any earlier, the shell no longer matches its signature once installed.
+if (env.MOBIUS_SIGN_WINDOWS === '1') {
+  const script = path.join(root, 'scripts', 'sign-windows.ps1');
+  overrides.bundle = { ...overrides.bundle, windows: { signCommand: { cmd: 'pwsh', args: ['-NoProfile', '-NonInteractive', '-File', script, '%1'] } } };
 }
 const overridesFile = path.join(root, 'target', 'package-overrides.json');
 fs.mkdirSync(path.dirname(overridesFile), { recursive: true });

@@ -3,6 +3,13 @@ import { isNotesFailure, type ChatAccount, type ChatChannel, type ChatMessage } 
 
 export interface OpenChannel { account: string; channel: string; thread?: string }
 
+/** The conversation last open, so Messages opens on it again rather than on an empty page. Only its ids are kept. */
+const LAST_KEY = 'mobius.messages.last';
+const readLast = (): OpenChannel | null => {
+  try { const v = JSON.parse(window.localStorage.getItem(LAST_KEY) ?? 'null') as unknown; return v && typeof v === 'object' && typeof (v as OpenChannel).account === 'string' && typeof (v as OpenChannel).channel === 'string' ? { account: (v as OpenChannel).account, channel: (v as OpenChannel).channel } : null; } catch { return null; }
+};
+const keepLast = (to: OpenChannel | null) => { try { if (to) window.localStorage.setItem(LAST_KEY, JSON.stringify({ account: to.account, channel: to.channel })); } catch { /* not kept */ } };
+
 /**
  * The Messages app's state: accounts, their channels, and the open channel's messages. Messages are read from the
  * services as they are shown; nothing is kept by Mobius beyond what the service gives back.
@@ -58,6 +65,14 @@ export function useMessages(active = true) {
   }, [api]);
 
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
+  // Once the channels are in, the conversation last open opens again, if it is still there.
+  const restored = useRef(false);
+  useEffect(() => {
+    if (!active || !loaded || restored.current || openNow.current) return;
+    restored.current = true;
+    const last = readLast();
+    if (last && channels.some((c) => c.account === last.account && c.id === last.channel)) setOpen(last);
+  }, [active, loaded, channels]);
   useEffect(() => { void read(open); }, [open, read]);
   useEffect(() => { void readThread(openNow.current, thread); }, [open, thread, readThread]);
   useEffect(() => api?.onChanged((change) => {
@@ -70,6 +85,8 @@ export function useMessages(active = true) {
   const choose = useCallback((to: OpenChannel | null) => {
     const same = to && openNow.current && to.account === openNow.current.account && to.channel === openNow.current.channel;
     if (!same) { setMessages([]); setOpen(to ? { account: to.account, channel: to.channel } : null); }
+    restored.current = true;
+    keepLast(to);
     setReplies([]);
     setThread(to?.thread ?? null);
   }, []);

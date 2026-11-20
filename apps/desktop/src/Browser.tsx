@@ -9,7 +9,7 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileColour, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
 import './browser.css';
@@ -51,7 +51,7 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); window.mobius.browser.close(tab.id); } }}
     >
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
-        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true" style={tab.url ? { ['--tile' as string]: tileColour(site) } : undefined}>{tab.url ? tileLetter(site) : ''}</span>}
+        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true">{tab.url ? tileLetter(site) : ''}</span>}
         <span className="tab-title">{tab.title}</span>
         {tab.driver && (
           // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
@@ -186,13 +186,10 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
             <div className="side-head">
               <span className="side-title">Tabs</span>
               <div className="side-actions">
+                {/* Downloads, a header button like the others, in sight while it has something to show. */}
+                <DownloadsButton entries={downloads} />
                 {pin}
-                <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={onNewTab}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-                </button>
               </div>
-              {/* Downloads stays in sight, at the end of the head, while it has something to show; the other tools wait for the pointer. */}
-              <DownloadsButton entries={downloads} />
             </div>
             <ul className="tabs" role="list" aria-label="Open tabs">
               <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
@@ -213,7 +210,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
           <SidebarSection title="Bookmarks">
             {saved.map((b) => (
               <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)}
-                icon={<span className="tab-icon placeholder" aria-hidden="true" style={{ ['--tile' as string]: tileColour(hostOf(b.url)) }}>{tileLetter(hostOf(b.url))}</span>} />
+                icon={<span className="tab-icon placeholder" aria-hidden="true">{tileLetter(hostOf(b.url))}</span>} />
             ))}
           </SidebarSection>
         )}
@@ -222,6 +219,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
           <div className="from-mobius">
             <span className="side-title from-mobius-title">From Mobius</span>
             <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
+              <span className="from-mobius-mark" aria-hidden="true"><MobiusMark size={16} /></span>
               <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
               <span className="from-mobius-count">{fromMobius.length}</span>
             </button>
