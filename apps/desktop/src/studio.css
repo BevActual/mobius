@@ -62,7 +62,8 @@
 .studio-page .studio-track[aria-current] .studio-track-name { font-weight: var(--fw-medium); }
 .studio-page .studio-track-name:focus { outline: none; background: var(--paper); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
 .studio-track-sub { flex: 1 1 0; min-width: 0; font-size: var(--fs-sm); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.studio-track-buttons { flex: none; display: flex; gap: 2px; opacity: 0; }
+.studio-track-buttons { flex: none; display: flex; gap: 2px; margin-left: auto; opacity: 0.45; }
+/* M and S are on every track, faint until the row is hovered or chosen, so rows never change shape. */
 .studio-track:hover .studio-track-buttons, .studio-track[aria-current] .studio-track-buttons, .studio-track-buttons[data-on], .studio-track-buttons:focus-within { opacity: 1; }
 .studio-page .studio-ms { width: var(--fs-xl); height: var(--fs-xl); padding: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-small); background: var(--paper); color: var(--muted); font: var(--fw-semibold) var(--fs-floor) / 1 var(--font-mono); }
 .studio-page .studio-ms[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
@@ -77,6 +78,9 @@
 .studio-page .studio-lane { position: relative; height: var(--row-list); background-image: linear-gradient(90deg, var(--line-soft) var(--hairline-w), transparent var(--hairline-w)); background-size: var(--grid) 100%; }
 /* A clip: a solid block in the track's colour, the notes drawn small behind its name. */
 .studio-page .studio-clip { position: absolute; top: 3px; bottom: 3px; display: flex; align-items: flex-start; padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: var(--tc); color: var(--on-content); font: inherit; text-align: left; overflow: hidden; cursor: default; }
+/* A clip keeps its track's colour under the pointer (the shared button hover would turn it grey, as if muted). */
+.studio-page .studio-clip:hover:not(:disabled) { background: color-mix(in srgb, var(--tc) 88%, var(--ink)); }
+.studio-page .studio-clip[data-proposed]:hover:not(:disabled) { background: color-mix(in srgb, var(--mobius) 6%, transparent); }
 .studio-page .studio-clip:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .studio-track[aria-current] .studio-clip { box-shadow: inset 0 0 0 var(--hairline-w) var(--on-content); }
 .studio-clip-name { position: relative; font-size: var(--fs-xs); line-height: 1.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

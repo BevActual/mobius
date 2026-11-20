@@ -199,6 +199,20 @@ export function formatted(shown: string, format: NumberFormat | undefined, local
   } catch { return shown; }
 }
 
+/** A column of years (2024, 2025) keeps its numbers as typed; any other column groups its thousands (48,000). */
+export function groupsThousands(values: readonly (readonly string[])[], col: number): boolean {
+  const nums = values.map((row) => (row[col] ?? '').trim()).filter((v) => /^-?\d+(\.\d+)?$/.test(v));
+  return nums.length > 0 && !nums.every((v) => /^(19|20)\d\d$/.test(v));
+}
+
+/** Automatic, in a column that groups: a plain number with its thousands grouped, its decimals as typed. */
+export function grouped(shown: string, locale: string | undefined = systemLocale()): string {
+  const m = /^-?\d+(?:\.(\d+))?$/.exec(shown.trim());
+  if (!m) return shown;
+  const places = m[1]?.length ?? 0;
+  try { return Number(shown).toLocaleString(locale, { minimumFractionDigits: places, maximumFractionDigits: places }); } catch { return shown; }
+}
+
 /** Column formats after a column is put in (`insert`) or taken out at `at`: the ones after it move along. */
 export function shiftFormats(formats: Readonly<Record<number, NumberFormat>>, at: number, insert: boolean): Record<number, NumberFormat> {
   const out: Record<number, NumberFormat> = {};

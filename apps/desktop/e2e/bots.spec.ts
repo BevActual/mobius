@@ -51,7 +51,8 @@ const say = async (text: string) => {
 /** Agents opens from All apps and the Agent app's sessions from Home in the launcher, not from tabs in the sidebar. */
 /** The Agent app shows its sessions (Home) or its agents. */
 const shows = async (what: 'Agents' | 'Sessions') => {
-  await expectOnApp(shell(), 'Home');
+  // The Go button names where you are: Agents among the agents, Home among the sessions.
+  await expectOnApp(shell(), what === 'Agents' ? 'Agents' : 'Home');
   if (what === 'Agents') await expect(list().getByRole('region', { name: 'Agents' })).toBeVisible();
   else await expect(list().getByRole('region', { name: 'Agents' })).toHaveCount(0);
 };

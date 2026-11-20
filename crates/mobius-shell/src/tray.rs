@@ -118,6 +118,38 @@ pub fn asks_to_quit<S: AsRef<str>>(args: &[S]) -> bool {
     args.iter().skip(1).any(|a| a.as_ref() == QUIT_ARG)
 }
 
+/// How long quitting waits for the windows to save what is still being typed before it quits anyway.
+pub const QUIT_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+static QUITTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static SAVED_FOR_QUIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Quits Mobius, as the tray's Quit and `--quit` (the installer) do: first the main window is told
+/// (`mobius:quitting`) so it saves any edit still waiting to be written, and Mobius quits once it says it has
+/// ([`saved_for_quit`]) or after [`QUIT_WAIT`], whichever comes first.
+pub fn quit<R: Runtime>(app: &AppHandle<R>) {
+    use std::sync::atomic::Ordering;
+    if QUITTING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if app.get_window("main").is_none() || app.emit("mobius:quitting", ()).is_err() {
+        app.exit(0);
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let started = std::time::Instant::now();
+        while started.elapsed() < QUIT_WAIT && !SAVED_FOR_QUIT.load(Ordering::SeqCst) {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        app.exit(0);
+    });
+}
+
+/// The main window has saved everything for a quit.
+pub fn saved_for_quit() {
+    SAVED_FOR_QUIT.store(true, std::sync::atomic::Ordering::SeqCst);
+}
+
 pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
     if let Some(main) = app.get_window("main") {
         let _ = main.unminimize();
@@ -160,7 +192,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                     show_main(app);
                     let _ = app.emit("mobius:shortcut", json!("quick-entry"));
                 }
-                "quit" => app.exit(0),
+                "quit" => quit(app),
                 "autostart" => {
                     if let Err(e) = crate::autostart::set(!crate::autostart::enabled()) {
                         eprintln!("[tray] {e}");

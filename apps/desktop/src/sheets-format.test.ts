@@ -23,3 +23,15 @@ describe('number formats', () => {
     expect(shiftFormats({ 1: 'currency', 2: 'number', 3: 'percent' }, 2, false)).toEqual({ 1: 'currency', 2: 'percent' });
   });
 });
+
+describe('grouped thousands in Automatic', () => {
+  it('groups a column of amounts, keeps a column of years, and keeps typed decimals', async () => {
+    const { grouped, groupsThousands } = await import('./sheets-view');
+    expect(groupsThousands([['Cost'], ['48000'], ['240']], 0)).toBe(true);
+    expect(groupsThousands([['Year'], ['2024'], ['2025']], 0)).toBe(false);
+    expect(groupsThousands([['Name'], ['Veltro']], 0)).toBe(false);
+    expect(grouped('48000', 'en-US')).toBe('48,000');
+    expect(grouped('1234.50', 'en-US')).toBe('1,234.50');
+    expect(grouped('Total', 'en-US')).toBe('Total');
+  });
+});

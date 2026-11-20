@@ -26,15 +26,16 @@
 .tasks-nav .side-title { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
 .tasks-nav .list-row { gap: var(--sp-2); }
 .tasks-nav .list-count { color: var(--muted); font-variant-numeric: tabular-nums; }
-.smart-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--muted); }
-.smart-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* The leading slot is 16 wide, so with the row's padding the icon starts at 10 and the name at 34, as in every app. */
+.smart-icon { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.smart-icon svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .smart-icon[data-view="flagged"] svg { fill: currentColor; }
 .list-row[aria-current] .smart-icon { color: currentColor; }
 .tasks-nav .list-item { position: relative; display: flex; align-items: center; border-radius: var(--radius-control); }
 .tasks-nav .list-item .list-row { flex: 1; min-width: 0; gap: var(--sp-2); }
 .tasks-nav .list-item[data-drop] { box-shadow: inset 0 0 0 2px var(--ink); background: var(--sel); }
 /* A list is a small dot in its colour, in the icon's column so names line up with the smart lists. */
-.list-dot { flex: none; display: grid; place-items: center; width: 22px; height: 22px; }
+.list-dot { flex: none; display: grid; place-items: center; width: 16px; height: 16px; }
 .list-dot::before { content: ""; width: var(--sp-2); height: var(--sp-2); border-radius: 50%; background: var(--lc); }
 .list-more { flex: none; width: 24px; height: 24px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .list-more svg { width: 16px; height: 16px; fill: currentColor; }
@@ -99,21 +100,19 @@
 .task-items .task-check[aria-checked="true"], .inspector-subtasks .task-check[aria-checked="true"] { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
 .task-check svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 
-/* The words: the title in full ink, then the note in grey, on the same line. */
-.task-items .task-body { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--sp-2); overflow: hidden; }
-.task-items .task-text { flex: 0 1 auto; min-width: 0; max-width: 100%; padding: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal; font-size: var(--fs-md); line-height: var(--lh-tight); color: var(--ink); }
+/* The words: the title in full ink, and under it the note on one grey line. Compact rows keep to one line, so the
+   note shows only in the inspector there. */
+.task-items .task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; overflow: hidden; }
+.task-items .task-text { flex: none; min-width: 0; max-width: 100%; padding: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; overflow-wrap: normal; font-size: var(--fs-md); line-height: var(--lh-tight); color: var(--ink); text-align: left; }
 .task[data-done] > .task-line .task-text { color: var(--muted); text-decoration: none; }
 /* Renaming keeps the row as it was: the words stay put, borderless, with only the shared focus ring around them. */
 .task-items .task-edit { height: auto; margin: 0 0 0 -2px; padding: 0 0 0 2px; border: 0; border-radius: var(--radius-small); background: transparent; font-size: var(--fs-md); line-height: var(--lh-tight); box-shadow: none; }
 .task-items .task-edit:focus { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 .task-items .task-body:has(> .task-edit) { overflow: visible; }
-.task-note { flex: 1 1 0; display: flex; flex-wrap: wrap; height: 1lh; overflow: hidden; white-space: nowrap; font-size: var(--fs-sm); color: var(--muted); }
-/* The note is at least its first word wide: when even that does not fit beside the task, the note wraps onto the
-   body's hidden second line rather than showing "Dan…". The rest of it takes what room is left, with an ellipsis. */
-.task-items .task-body { flex-wrap: wrap; height: calc(var(--fs-md) * var(--lh-tight) + 2px); align-content: flex-start; }
-.task-note > span { flex: none; white-space: pre; }
-/* The rest shows only with room for a few letters, never as a lone "…". */
-.task-note > .task-note-rest { flex: 1 1 0; width: 0; min-width: 4em; overflow: hidden; text-overflow: ellipsis; }
+.task-note { display: block; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: var(--fs-sm); line-height: var(--lh-tight); color: var(--muted); }
+.task-line:has(.task-note) { height: auto; min-height: var(--row-list); padding-block: var(--sp-1); }
+html[data-density='compact'] .task-note { display: none; }
+html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list); padding-block: 0; }
 .task-items .task-body:has(> .task-edit) > .task-note { display: none; }
 
 /* The trailing edge: subtask count, list, flag, then the due date. Grey and tabular; red only when overdue. */

@@ -60,3 +60,9 @@
 .agent-hero-state { font-size: var(--fs-sm); color: var(--muted); }
 .agent-hero-state[data-state="waiting"] { color: var(--ink); font-weight: var(--fw-medium); }
 .agent-hero-state[data-state="failed"] { color: var(--red); }
+
+/* The agent's name heads its page; Approvals and safety is a quiet button that goes on, with a chevron. */
+.agent-page .agent-title { margin: 0 auto var(--sp-4); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); color: var(--ink); }
+.agent-page .agent-go { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); font-size: var(--fs-sm); }
+.agent-page .agent-go:hover { background: var(--sel); }
+.agent-page .agent-go svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }

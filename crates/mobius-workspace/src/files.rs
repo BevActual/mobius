@@ -260,7 +260,15 @@ impl Workspace {
         let items: Vec<Value> = entries
             .into_iter()
             .take(MAX_LIST)
-            .map(|(n, dir, size, modified)| if dir { json!({ "name": n, "type": "folder", "modified": modified }) } else { json!({ "name": n, "type": "file", "bytes": size, "modified": modified }) })
+            .map(|(n, dir, size, modified)| {
+                if dir {
+                    // How many things a folder holds, as Finder's list says it ("12 items"), hidden ones left out.
+                    let items = fs::read_dir(folder.join(&n)).map_or(0, |r| r.filter_map(Result::ok).filter(|e| !e.file_name().to_string_lossy().starts_with('.')).count());
+                    json!({ "name": n, "type": "folder", "modified": modified, "items": items })
+                } else {
+                    json!({ "name": n, "type": "file", "bytes": size, "modified": modified })
+                }
+            })
             .collect();
         Ok(json!({ "path": relative, "entries": items, "truncated": truncated }))
     }
@@ -923,6 +931,11 @@ mod tests {
 
         assert_eq!(ws.new_folder("notes", "Ideas").unwrap(), "notes/Ideas");
         assert!(ws.new_folder("notes", "Ideas").is_err(), "not twice");
+        let notes = ws.browse("notes").unwrap();
+        let ideas = notes["entries"].as_array().unwrap().iter().find(|e| e["name"] == "Ideas").unwrap();
+        assert_eq!(ideas["items"], 0, "a folder says how many things it holds");
+        let work = notes["entries"].as_array().unwrap().iter().find(|e| e["name"] == "Work").unwrap();
+        assert_eq!(work["items"], 1);
         assert!(ws.new_folder("notes", "../out").is_err());
         assert!(ws.new_folder("notes", ".hidden").is_err());
         assert!(ws.new_folder("notes", "a:b").is_err());

@@ -287,7 +287,9 @@ export function MiniMonth({ calendar, today = new Date() }: { calendar: Pick<Cal
               data-other={d.getMonth() !== shown.getMonth() || undefined}
               data-today={sameDay(d, today) || undefined}
               data-shown={onScreen.has(iso) || undefined}
-              aria-current={sameDay(d, calendar.anchor) ? 'date' : undefined}
+              // Today is the date a reader is told is current; the chosen day is the one pressed.
+              aria-current={sameDay(d, today) ? 'date' : undefined}
+              aria-pressed={sameDay(d, calendar.anchor)}
               aria-label={formatWith(d, { weekday: 'long', day: 'numeric', month: 'long' })}
               onClick={() => calendar.setAnchor(d)}>
               {d.getDate()}

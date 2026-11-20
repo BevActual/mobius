@@ -379,8 +379,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
           </SidebarSection>
           {/* What agents did that waits for you, as Mail's Suggested replies: it opens in Activity. */}
           <SidebarSection title="From Mobius">
-            <SidebarRow label="Runs waiting for you" onSelect={() => onMode('activity')}
-              trail={waiting > 0 ? <span className="agent-to-review">{waiting} to review</span> : undefined} />
+            <SidebarRow label="Runs waiting for you" count={waiting} title={waiting > 0 ? `${waiting} to review` : undefined} onSelect={() => onMode('activity')} />
           </SidebarSection>
         </>
       ) : shown.length === 0 ? (
