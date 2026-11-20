@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { listEndLine, nameFor } from './Mail';
+import { listEndKind, listEndLine, nameFor } from './Mail';
+
+describe('listEndKind', () => {
+  it('draws a cleared inbox as done, a search as search, and the other boxes as mail', () => {
+    expect(listEndKind({ kind: 'box', box: 'inbox', category: 'all' }, '')).toBe('done');
+    expect(listEndKind({ kind: 'box', box: 'inbox', category: 'all' }, 'kestrel')).toBe('search');
+    expect(listEndKind({ kind: 'box', box: 'archive', category: 'all' }, '')).toBe('mail');
+    expect(listEndKind({ kind: 'drafts' }, '')).toBe('mail');
+  });
+});
 
 describe('listEndLine', () => {
   it('says a view is empty in one plain line', () => {

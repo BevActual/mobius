@@ -128,7 +128,7 @@ export function Desk({ rows, changed, activity, conversations, onOpenApp, onOpen
                   <button type="button" className="desk-open" aria-label={`Answer ${name(c)}`} onClick={() => onOpenConversation(c.id)}>
                     <Icon app="agent" />
                     <span className="desk-name">{name(c)}</span>
-                    <span className="desk-text">{ask ? `Wants to ${plain ?? `use ${ask.tool}`}` : 'Has a question for you'}</span>
+                    <span className="desk-text">{ask ? `Wants to ${plain ?? `use ${ask.tool}`}` : 'Needs your answer'}</span>
                     {go('Answer')}
                   </button>
                   {ask && <button type="button" className="desk-act" data-primary disabled={busy.has(c.id)} aria-label={`Allow ${name(c)} once`} onClick={() => hold(c.id, () => window.mobius.agent.resolve(ask.requestId, true, 'once'))}>Allow</button>}
