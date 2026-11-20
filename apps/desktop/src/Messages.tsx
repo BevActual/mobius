@@ -10,7 +10,7 @@ import './messages.css';
 
 /** A conversation's leading slot: a # for a channel, the person's initials for a direct message or group. */
 function ConversationLead({ name, kind }: { name: string; kind: 'channel' | 'direct' | 'group' }) {
-  return <span className="msg-lead" aria-hidden="true">{kind === 'channel' ? <svg viewBox="0 0 16 16"><path d="M6 2.5 4.5 13.5M11.5 2.5 10 13.5M3 6h10.5M2.5 10H13" /></svg> : <Avatar name={name} size="chip" />}</span>;
+  return <span className="msg-lead" aria-hidden="true">{kind !== 'direct' ? <svg viewBox="0 0 16 16"><path d="M6 2.5 4.5 13.5M11.5 2.5 10 13.5M3 6h10.5M2.5 10H13" /></svg> : <Avatar name={name} size="chip" />}</span>;
 }
 
 /** The Messages list panel, Conversations: each account's channels and people, unread ones in medium weight. */
