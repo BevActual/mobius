@@ -10,6 +10,7 @@ import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { BulletToTask } from './task-shortcut';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { loadIntoEditor } from './editor-load';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
@@ -539,7 +540,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     const opened = placed.current !== path;
     const was = editor.state.selection.from;
     const hadFocus = editor.view.hasFocus();
-    editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
+    loadIntoEditor(editor, docs.text, opened);
     placed.current = path;
     if (opened) {
       // At the top, focused or not, so the outline and the toolbar speak of the start of the document.

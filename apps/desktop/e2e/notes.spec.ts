@@ -106,6 +106,27 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
 });
 
+test('Ctrl+Z takes back what was typed and stops there: never the page as it was before it opened', async () => {
+  fs.mkdirSync(file('Home'), { recursive: true });
+  fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n- oat milk\n');
+  fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n- tomatoes\n');
+  await start();
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  await side().getByRole('button', { name: 'Garden', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Garden');
+  await text().locator('li').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' and basil');
+  await expect.poll(() => onDisk('Home', 'Garden.md')).toContain('tomatoes and basil');
+  for (let i = 0; i < 8; i++) await shell().keyboard.press('Control+z');
+  await expect(text().locator('li')).toHaveText(['tomatoes']);
+  await expect(text().locator('h1')).toHaveText('Garden');
+  await expect.poll(() => onDisk('Home', 'Garden.md')).not.toContain('basil');
+  expect(onDisk('Home', 'Garden.md')).toMatch(/^# Garden\n+- tomatoes\n$/);
+  expect(onDisk('Home', 'Groceries.md')).toBe('# Groceries\n- oat milk\n');
+});
+
 test('the agent panel sits beside a note, and a change the agent makes shows up in the open page', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.writeFileSync(file('Work', 'Plan.md'), '# Plan\n- one\n');
