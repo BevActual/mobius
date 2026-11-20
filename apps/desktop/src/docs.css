@@ -30,7 +30,6 @@
 .doc-bar-style { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h); margin-right: var(--sp-1); padding: 0 var(--sp-2) 0 var(--sp-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font-size: var(--fs-sm); }
 .doc-bar-style:hover, .doc-bar-style[aria-expanded="true"] { border-color: var(--line-strong); }
 .doc-bar-style svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.4; opacity: 0.7; }
-@container doc-bar (max-width: 300px) { .doc-bar .doc-bar-group + .doc-bar-group { display: none; } }
 
 /* The canvas and the paper (the wiki's page, off the frame). */
 .doc-editor .doc-body { background: color-mix(in srgb, var(--panel) 80%, var(--bg)); }
@@ -82,13 +81,12 @@
 .doc-toolbar .doc-tool:has(.doc-tool-mobius) { padding: 0 6px; border: 1px solid color-mix(in srgb, var(--mobius) 35%, transparent); border-radius: var(--radius-pill); margin-left: 4px; }
 .doc-toolbar .doc-tool:has(.doc-tool-mobius):hover { background: color-mix(in srgb, var(--mobius) 10%, transparent); }
 
-/* On the frame, the bar is the window's toolbar (zone 3): no strip of its own, and it takes the room the title leaves.
-   When that room is short, Checklist (also in Aa's lists) gives way, and Writing tools keeps only its pen. */
+/* In the top bar's middle, the tools centred and Share at the end, as Notes has them; the less-used tools drop into
+   the ⋯ menu first when room is short (ToolbarItem). */
 .ui-toolbar-slot:has(.doc-toolbar[data-frame]) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .doc-toolbar[data-frame]) { flex: 1; }
-.app[data-app="docs"] .toolbar-place { flex: 0 1 auto; max-width: 30%; }
-.doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; overflow: hidden; container: doc-bar / inline-size; }
-@container doc-bar (max-width: 360px) { .doc-toolbar [data-gives-way] { display: none; } }
+.doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; }
+.doc-toolbar[data-frame] > .spacer { flex: 1; }
 .doc-toolbar .doc-tool-writing { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
 
 /* Linking: a field under the toolbar, with the documents whose names match. */

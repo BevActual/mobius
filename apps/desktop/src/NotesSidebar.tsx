@@ -200,8 +200,8 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             </SidebarSection>
           ))}
           {!naming && (
+            // Among rows whose words start at the row's edge, so it has no icon: its words line up with theirs.
             <button type="button" className="side-new-row notes-new-group" title={words.about} onClick={() => setNaming(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 6.5a1 1 0 0 1 1-1h3.5l1.5 1.5h6a1 1 0 0 1 1 1v6.5a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1z" /><path d="M10 9v4M8 11h4" /></svg>
               <span>New {words.group}</span>
             </button>
           )}

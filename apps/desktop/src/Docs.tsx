@@ -35,7 +35,7 @@ import { DocFind, findKeyOf } from './DocFind';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, useInspector, type MenuEntry } from './ui';
+import { AppMenu, Menu, PanelTab, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
@@ -253,9 +253,11 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     // and the document's options.
     const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
     const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
-    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => (
-      <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
-    );
+    // The less-used tools give way first when the top bar is short of room: they drop into its ⋯ menu.
+    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => {
+      const b = <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} onPointerDown={keep} onClick={onClick}>{icon}</button>;
+      return extra.gives ? <ToolbarItem priority="low">{b}</ToolbarItem> : b;
+    };
     const more: MenuEntry[] = [
       { label: 'Numbered list', checked: state.ordered, keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
       { label: 'Checklist', checked: state.task, keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
@@ -280,6 +282,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     return (
       <ToolbarControls label="Docs">
         <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
+          <span className="spacer" />
           <span className="doc-bar-group">
             <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, checked: state.style === s.id, keys: `${mod}Alt+${s.key}`, run: () => setStyle(s.id) }))}
               trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="Paragraph style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
