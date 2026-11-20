@@ -45,6 +45,11 @@ The suite refuses to run against a shell built before the interface, since it wo
 
 Pass `--trace off` unless you need traces; turn them on to debug a failure (`--trace on`).
 
+**Times of day.** CI runs around the clock, in UTC. A test that makes data for today must work at any hour: give
+an event or reminder a time relative to now (an hour from now) or the whole day, never a fixed hour such as 23:30, which
+stops being "coming" late in the evening. The interface and the shell both read the real clock, so the e2e page clock
+is not frozen: freezing only the page would put it out of step with the shell's own times.
+
 `e2e/speed.spec.ts` measures start, switching apps, a long list and memory after long use against budgets; see
 [Speed](speed.md).
 
