@@ -52,6 +52,16 @@ const WARM_MS = 600;
 
 interface Shown { name: string; keys: string[][]; x: number; y: number; below: boolean }
 
+/**
+ * Where a tip shows: centred under its element (above it near the window's foot), or, for `data-tip-at="pointer"` on
+ * a wide thing such as a clip in a lane, above the pointer, kept within the element, so it never covers the row below.
+ */
+export function tipPlace(box: { left: number; right: number; top: number; bottom: number }, windowHeight: number, pointerX?: number): { x: number; y: number; below: boolean } {
+  if (pointerX !== undefined) return { x: Math.min(box.right, Math.max(box.left, pointerX)), y: box.top - 6, below: false };
+  const below = box.bottom + 40 < windowHeight;
+  return { x: (box.left + box.right) / 2, y: below ? box.bottom + 6 : box.top - 6, below };
+}
+
 export function TooltipLayer() {
   const [shown, setShown] = useState<Shown | null>(null);
   const target = useRef<HTMLElement | null>(null);
@@ -75,15 +85,15 @@ export function TooltipLayer() {
       setShown(null);
     };
     const shownRef = { current: false };
+    const pointerX = { current: 0 };
     const show = (el: HTMLElement) => {
       const title = el.dataset.tip ?? el.getAttribute('title') ?? '';
       if (!title.trim() || !el.isConnected) return;
-      const box = el.getBoundingClientRect();
-      const below = box.bottom + 40 < window.innerHeight;
       shownRef.current = true;
-      setShown({ ...splitTitle(title), x: box.left + box.width / 2, y: below ? box.bottom + 6 : box.top - 6, below });
+      setShown({ ...splitTitle(title), ...tipPlace(el.getBoundingClientRect(), window.innerHeight, el.dataset.tipAt === 'pointer' ? pointerX.current : undefined) });
     };
     const over = (event: Event) => {
+      if ('clientX' in event) pointerX.current = (event as PointerEvent).clientX;
       const el = (event.target as Element | null)?.closest?.('[title], [data-tip]') as HTMLElement | null;
       if (el === target.current) return;
       hide();

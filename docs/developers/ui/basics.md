@@ -57,6 +57,7 @@ density: the window's, or compact for pro apps (the frame sets it). Values use t
 | `Chip` | A label or tag: outlined pill, a content-colour dot, grey text. `onRemove` adds ×, `onClick` makes it a filter (`pressed` when on) |
 | `Dot`, `CONTENT_COLORS` | A content colour as a small dot (the one palette of eight plus stone), or `red` for overdue or failed |
 | `Count` | A plain grey tabular number at a row's end. Nothing for zero; never a badge |
+| Tooltips | Any `title` shows as the shared tooltip (`TooltipLayer`), with a trailing "(Ctrl+K)" drawn as key caps. It sits under its element; add `data-tip-at="pointer"` to a wide thing (a clip in a lane) to show it above the pointer instead, so it never covers the row below. `data-no-tip` on an ancestor turns tips off |
 | `StatusLetter` | A grey mono letter with its meaning as the tooltip (Code's M, A, D); `tone="red"` for a conflict |
 | `StatusText` | "Connected", "Key saved": grey, no dot. `problem` shows a red dot and one plain sentence. Never a green dot |
 | `Avatar` | A grey circle with initials (from a name or an address), or `src` for a photo. `size="large"` for a person's card |
