@@ -1909,7 +1909,7 @@ export function App() {
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
         // start page, where the Go button already says Home.
-        title: place || (!settingsOpen && !inAgent && appName(app)) || undefined,
+        title: place || (!settingsOpen && !inAgent && !inResearch && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
