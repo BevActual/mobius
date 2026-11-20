@@ -79,7 +79,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
           <textarea
             aria-label="Research question"
             placeholder="Ask a question, as you would a person who will go and look it up"
-            rows={3}
+            rows={2}
             maxLength={1000}
             value={question}
             autoFocus
@@ -100,9 +100,12 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
             <button type="submit" className="btn primary" disabled={!question.trim()}>Start research</button>
           </div>
           {!question && (
-            <ul className="research-examples" aria-label="Examples">
-              {EXAMPLES.map((x) => <li key={x}><button type="button" className="research-example" onClick={() => setQuestion(x)}>{x}</button></li>)}
-            </ul>
+            <section className="research-try" aria-label="Examples">
+              <h2 className="research-try-title">Try</h2>
+              <ul className="research-examples">
+                {EXAMPLES.map((x) => <li key={x}><button type="button" className="research-example" onClick={() => setQuestion(x)}><span>{x}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" /></svg></button></li>)}
+              </ul>
+            </section>
           )}
         </form>
         </PanelLayout>

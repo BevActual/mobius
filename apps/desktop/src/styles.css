@@ -13,7 +13,9 @@ select:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 select:disabled { opacity: 0.4; cursor: default; }
 option { background: var(--bg); color: var(--ink); }
 button { cursor: pointer; border: 0; background: none; border-radius: var(--radius-control); }
-button:hover:not(:disabled) { background: var(--soft); }
+/* The default hover weighs one class and one element (:where keeps :not(:disabled) out of the count), so an app's own
+   `button.x:hover` or a state like `.row[aria-current]` wins without depending on which file loads last. */
+button:hover:where(:not(:disabled)) { background: var(--soft); }
 button:disabled { opacity: 0.4; cursor: default; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -1492,8 +1494,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-form { width: min(640px, calc(100% - 48px)); margin: 10vh auto 40px; display: flex; flex-direction: column; gap: var(--sp-3); }
 .research-form h1 { margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.01em; }
 .research-lede { margin: 0; color: var(--muted); }
-.research-form textarea { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--field); color: var(--ink); font: inherit; font-size: 16px; resize: vertical; outline: none; }
-.research-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent); }
+.research-form textarea { field-sizing: content; min-height: calc(2lh + 2 * var(--sp-2)); max-height: 40vh; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: var(--ink); font: inherit; font-size: var(--fs-md); line-height: var(--lh-body, 1.5); resize: none; outline: none; }
+.research-form textarea::placeholder { color: var(--faint); }
+.research-form textarea:focus { border-color: var(--ink); }
 .research-depth { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .research-depth-option { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; }
 .research-depth-option[data-on] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
@@ -1501,9 +1504,15 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-depth-label { font-weight: 600; }
 .research-depth-detail { color: var(--muted); font-size: var(--fs-sm); }
 .research-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }
-.research-examples { list-style: none; margin: var(--sp-3) 0 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
-.research-example { width: 100%; text-align: left; padding: 8px 12px; border-radius: 10px; color: var(--muted); font-size: var(--fs-sm); }
-.research-example:hover { background: var(--field); color: var(--ink); }
+.research-try { margin-top: var(--sp-4); }
+.research-try-title { margin: 0 0 var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.research-examples { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.research-examples li + li { border-top: var(--hairline-w) solid var(--line); }
+.research-example { display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: var(--row-list); padding: var(--sp-2) var(--sp-2); text-align: left; border-radius: var(--radius-control); color: var(--body, var(--ink)); font-size: var(--fs-md); }
+.research-example span { flex: 1; min-width: 0; }
+.research-example svg { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.research-example:hover:not(:disabled) { background: var(--soft); color: var(--ink); }
+.research-example:hover svg { stroke: var(--ink); }
 .research-report { box-sizing: border-box; height: 100%; min-width: 0; overflow-y: auto; padding: var(--sp-4) clamp(16px, 5vw, 56px) var(--sp-6); display: flex; flex-direction: column; gap: var(--sp-3); }
 .research-meta { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .research-working { color: var(--accent); }

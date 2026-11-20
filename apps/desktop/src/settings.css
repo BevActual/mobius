@@ -4,7 +4,8 @@
 
 .settings-page .settings-content { padding: 18px 32px 48px; }
 .settings-page { --settings-control-w: 200px; }
-.settings-page .settings-column { width: 100%; max-width: 640px; margin: 0; }
+.settings-page .settings-column { width: 100%; max-width: var(--reading-w, 640px); margin: 0 auto; }
+.settings-page .settings-heading { margin: var(--sp-4) 0 var(--sp-1); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); color: var(--ink); }
 .settings-page .settings-lede { margin: 0 0 14px; font-size: 13px; color: var(--muted); }
 
 /* The rows sit straight on the content: no border, fill or corners, a hairline between each. */

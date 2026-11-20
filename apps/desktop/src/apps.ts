@@ -11,7 +11,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'browser', name: 'Browser', available: true, group: 'Browse and find' },
   { id: 'agent', name: 'Agent', available: true, group: 'Assistant' },
   { id: 'mail', name: 'Mail', available: true, group: 'Browse and find' },
-  { id: 'messages', name: 'Messages', available: true, group: 'Browse and find', also: 'Chat Slack Discord Telegram Channels' },
+  { id: 'messages', name: 'Messages', available: true, group: 'Browse and find', also: 'Chat Slack Matrix Teams Telegram Channels' },
   { id: 'skills', name: 'Abilities', available: true, group: 'Assistant', own: true, also: 'Extensions Add apps Skills Connectors Plugins Catalogue Updates MCP Tools' },
   { id: 'notes', name: 'Notes', available: true, group: 'Write and plan' },
   { id: 'docs', name: 'Docs', available: true, group: 'Write and plan' },

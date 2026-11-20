@@ -70,7 +70,7 @@ export function StudioSidebar({ songs, pin, changed }: { songs: NotesState; pin:
       <SidebarSection title="From Mobius">
         {made.length === 0 && <li className="side-empty">Nothing to review.</li>}
         {made.map((pg) => (
-          <SidebarRow key={pg.path} label={pg.title} current={false} onSelect={() => void songs.open(pg.path, pg.title)} trail={<span className="studio-to-review">to review</span>} />
+          <SidebarRow key={pg.path} label={pg.title} current={false} onSelect={() => void songs.open(pg.path, pg.title)} trail={<span className="studio-to-review">To review</span>} />
         ))}
       </SidebarSection>
       <Confirm open={confirming !== null} title={`Delete “${confirming?.title ?? ''}”?`} description="The song and its notes go from your workspace." action="Delete song"
@@ -145,6 +145,7 @@ function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: numb
             style={{ left: c.from * bar + 1, width: (c.to - c.from) * bar - 3 }}
             aria-label={`${track.name}, ${words}${proposed ? ', proposed by Mobius' : ''}`}
             title="Double-click to edit the notes"
+            data-tip-at="pointer"
             onDoubleClick={(e) => { e.stopPropagation(); onOpen(from); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(from); } }}
           >
