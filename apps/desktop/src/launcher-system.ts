@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { SystemApp, SystemCommand } from '@mobius/shared';
+import type { SystemApp, SystemCommand, SystemFile } from '@mobius/shared';
 
 /**
  * The computer's own apps and commands in the launcher (docs/design/launcher.md): Start menu apps, and Lock, Sleep and
@@ -10,6 +10,18 @@ export interface LauncherSystem {
   commands: readonly SystemCommand[];
   open: (id: string) => void;
   run: (id: string) => void;
+  /** Files on disk whose names hold every word (Desktop, Documents, Downloads…), at most 20. */
+  files?: (query: string) => Promise<SystemFile[]>;
+  openFile?: (path: string) => void;
+  reveal?: (path: string) => void;
+}
+
+/** "C:\\Users\\a\\Documents\\Plans\\q3.xlsx" is in "Documents › Plans"; the folder a file is in, from the person's home. */
+export function folderOf(path: string): string {
+  const parts = path.split(/[\\/]+/).filter(Boolean);
+  parts.pop();
+  const home = parts.findIndex((p) => /^(desktop|documents|downloads|pictures|music|videos)$/i.test(p));
+  return (home >= 0 ? parts.slice(home) : parts.slice(-2)).join(' › ');
 }
 
 /** The apps whose names hold what was typed, those starting with it first, then A to Z. */
@@ -40,5 +52,8 @@ export function useSystemSearch(open: boolean): LauncherSystem | undefined {
     void api.commands().then((list) => { if (live) setCommands(list); }, () => undefined);
     return () => { live = false; };
   }, [api, open]);
-  return api ? { apps, commands, open: (id) => { void api.open(id); }, run: (id) => { void api.run(id); } } : undefined;
+  return api ? {
+    apps, commands, open: (id) => { void api.open(id); }, run: (id) => { void api.run(id); },
+    ...(api.files ? { files: (q: string) => api.files(q), openFile: (path: string) => { void api.openFile(path); }, reveal: (path: string) => { void api.reveal(path); } } : {}),
+  } : undefined;
 }

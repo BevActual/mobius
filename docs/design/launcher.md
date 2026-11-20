@@ -153,7 +153,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **The computer's own apps and commands.** Typing finds the Start menu's apps under On this computer, below Mobius's own (so "notes" still opens Notes), and Lock the computer, Put the computer to sleep and Empty the Recycle Bin (also by "lock", "sleep", "trash" or "bin"). Read once each time the launcher opens, in both Ctrl+K and the Ctrl+Space window. (`launcher-system.ts`, on `window.mobius.system` from #643)
 
-Next: files on disk, once the desktop app can search them.
+- **Files on disk.** A moment after typing stops (two letters or more), files whose names hold every word, from Desktop, Documents, Downloads, Pictures, Music and Videos, show under Files with the folder they are in. Enter opens one; Shift+Enter offers Show in folder and Copy path. Programs, scripts and installers are never listed. (`system.files` from #645)
+
+All of the plan above is built. What comes next is polish from use.
 
 ## How apps take part
 
