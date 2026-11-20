@@ -4,7 +4,7 @@ import { APP_ICONS, OWN_ICONS, type OwnApp } from './Rail';
 import { morphOut, useMorphIn } from './motion';
 import { afterPaint } from './ui/frame';
 
-export interface HubAction { id: string; label: string; app: AppId; run: () => void }
+export interface HubAction { id: string; label: string; app: AppId; run: () => void; /** Its own key, when not the usual New key (Browser's New tab: mod+t). */ keys?: string }
 
 interface Props {
   open: boolean;
