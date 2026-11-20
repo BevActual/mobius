@@ -4,6 +4,7 @@
 mod awake;
 mod secrets;
 mod tray;
+mod clipboard;
 mod autostart;
 mod launcher;
 mod menu;
@@ -402,6 +403,9 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
     if namespace == "launcher" {
         return launcher::call(&app, &method, &args);
     }
+    if namespace == "clipboard" {
+        return clipboard::call(&app, &method, &args);
+    }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
             let _ = mini.set_always_on_top(args.first().and_then(Value::as_bool).unwrap_or(true));
@@ -623,6 +627,7 @@ fn main() {
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
             app.manage(updater::Updates::new(test_mode));
+            app.manage(clipboard::Clipboard::default());
             updater::start(&handle);
             app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None), profiles_base: base_dir.clone() });
             // A choice in the macOS menu bar goes to the interface, which runs it.
