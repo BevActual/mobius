@@ -389,12 +389,25 @@ export type LaunchChoice =
   | { kind: 'found'; id: string }
   | { kind: 'command'; id: string };
 
-/** What the main window found for the words typed in the launcher's own window, and every command it offers now. */
 /** One piece of copied text in the clipboard history; `at` is milliseconds since 1970. */
 export interface ClipboardEntry {
   text: string;
   at: number;
 }
+
+/** An app installed on the computer, as the Start menu lists it; `id` is its shortcut. */
+export interface SystemApp {
+  name: string;
+  id: string;
+}
+
+/** A system command the computer offers, such as locking it. */
+export interface SystemCommand {
+  id: string;
+  name: string;
+}
+
+/** What the main window found for the words typed in the launcher's own window, and every command it offers now. */
 
 export interface LauncherAnswer {
   items: { id: string; app: string; label: string; detail?: string }[];
@@ -514,6 +527,18 @@ export interface MobiusBridge {
     clear(): Promise<{ ok: boolean }>;
     /** Hears each newly kept piece. */
     onCopied(listener: (entry: ClipboardEntry) => void): () => void;
+  };
+  /**
+   * The computer's own things for the launcher. `apps()` lists the installed apps (the Start menu's shortcuts) sorted
+   * by name, and `open(id)` starts one of them; any id `apps()` did not list is refused. `commands()` lists the system
+   * commands (on Windows: lock, sleep, empty the Recycle Bin, which asks Windows' own question first) and `run(id)`
+   * runs one. Only in the desktop app.
+   */
+  system?: {
+    apps(): Promise<SystemApp[]>;
+    open(id: string): Promise<{ ok: boolean }>;
+    commands(): Promise<SystemCommand[]>;
+    run(id: string): Promise<{ ok: boolean }>;
   };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {

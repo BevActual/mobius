@@ -5,6 +5,7 @@ mod awake;
 mod secrets;
 mod tray;
 mod clipboard;
+mod system;
 mod autostart;
 mod launcher;
 mod menu;
@@ -405,6 +406,9 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
     }
     if namespace == "clipboard" {
         return clipboard::call(&app, &method, &args);
+    }
+    if namespace == "system" {
+        return system::call(&method, &args);
     }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
