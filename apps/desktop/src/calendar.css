@@ -262,7 +262,7 @@
 .cal-mini-day[data-shown] { background: var(--sel); border-radius: 0; }
 /* Today is an ink ring; the fill is kept for the day chosen. */
 .cal-mini-day[data-today] { box-shadow: inset 0 0 0 1.5px var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
-.cal-mini-day[aria-current="date"] { color: var(--paper); background: var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
+.cal-mini-day[aria-pressed="true"] { color: var(--paper); background: var(--ink); border-radius: var(--radius-small); font-weight: var(--fw-semibold); }
 .cal-mini-day:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 
 /* A timed event an hour or longer has room for its title on two lines. */

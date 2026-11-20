@@ -451,6 +451,6 @@ test('the small month in the Calendars panel goes to the day picked, and marks t
   await month.getByRole('button', { name: 'Next month' }).click();
   const day = month.locator('.cal-mini-day:not([data-other])', { hasText: /^15$/ });
   await day.click();
-  await expect(day).toHaveAttribute('aria-current', 'date');
+  await expect(day).toHaveAttribute('aria-pressed', 'true');
   await expect(day).toHaveAttribute('data-shown', 'true');
 });
