@@ -3,6 +3,7 @@ import type { BrowserTabState, LaunchChoice, LauncherAnswer } from '@mobius/shar
 import { Launcher, type FoundItem } from './Launcher';
 import { useAppearance } from './useAppearance';
 import { useClipboardHistory } from './launcher-clipboard';
+import { useSystemSearch } from './launcher-system';
 import { findApp, type AppId } from './apps';
 
 /** True in the launcher's own window. The shell gives it the label `launcher`; `?view=launcher` shows it in a plain browser. */
@@ -44,6 +45,8 @@ export function LauncherWindow() {
   // The main window's answers, by the words asked; the commands come with each answer.
   // Clipboard history works over other apps too: the desktop app keeps it, for either window.
   const clipboard = useClipboardHistory();
+  // The computer's own apps and commands: the point of a launcher over other apps.
+  const system = useSystemSearch(shown);
   const [commands, setCommands] = useState<LauncherAnswer['commands']>([]);
   const answers = useRef(new Map<string, readonly FoundItem[]>());
   const toFound = useCallback((answer: LauncherAnswer): FoundItem[] => answer.items.flatMap((item) => (findApp(item.app)
@@ -84,6 +87,7 @@ export function LauncherWindow() {
         onAsk={(text) => run({ kind: 'ask', text })}
         find={find}
         clipboard={clipboard}
+        system={system}
         commands={commands.map((c) => ({ ...c, run: () => run({ kind: 'command', id: c.id }) }))}
         onAskAbout={(item) => run({ kind: 'ask-about', app: item.app ?? '', label: item.label, ...(item.detail ? { detail: item.detail } : {}) })}
       />

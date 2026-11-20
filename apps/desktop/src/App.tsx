@@ -102,6 +102,7 @@ import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
 import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
 import { useClipboardHistory } from './launcher-clipboard';
+import { useSystemSearch } from './launcher-system';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -819,6 +820,7 @@ export function App() {
   const [launcherAgain, setLauncherAgain] = useState(0);
   const [launcherAbout, setLauncherAbout] = useState<LauncherAbout | undefined>(undefined);
   const clipboardHistory = useClipboardHistory();
+  const systemSearch = useSystemSearch(launcherOpen);
   const launcherShown = useRef(launcherOpen);
   launcherShown.current = launcherOpen;
   const openLauncher = useCallback(() => {
@@ -2052,6 +2054,7 @@ export function App() {
         about={launcherAbout}
         onOpenUrl={showPage}
         clipboard={clipboardHistory}
+        system={systemSearch}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
