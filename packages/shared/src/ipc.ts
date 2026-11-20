@@ -616,6 +616,12 @@ export interface MobiusBridge {
     onOpenConversation(listener: (conversation: string) => void): () => void;
     /** Stop All was chosen: every conversation that is working stops. */
     onStopAll(listener: () => void): () => void;
+    /**
+     * Mobius is about to quit (the tray's Quit, or the installer replacing it): save what is still being typed, then
+     * call `savedForQuit()`. Mobius quits when told, or after 3 s regardless.
+     */
+    onQuitting(listener: () => void): () => void;
+    savedForQuit(): Promise<void>;
   };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {
@@ -1603,7 +1609,7 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number; /** A folder: how many things it holds (Files only). */ items?: number }
 export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 /** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
 export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }

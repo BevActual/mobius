@@ -26,3 +26,11 @@
 .messages-author { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .messages-author:hover strong { text-decoration: underline; text-underline-offset: 2px; }
 .messages-encrypted { margin: auto; padding: var(--sp-6); color: var(--muted); text-align: center; }
+
+/* Conversations: a # for a channel or group room, or the person's initials in the leading slot (icon at 10, name at 34), and an unread one with its
+   name in medium weight and its count in ink, so it is not missed. */
+.messages-side .msg-lead { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.messages-side .msg-lead svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.messages-side .msg-lead .ui-avatar { width: 16px; height: 16px; font-size: 8px; }
+.messages-side .list-row:has(.list-count) .ui-side-name { font-weight: var(--fw-semibold); color: var(--ink); }
+.ui-dock[data-dock] .messages-side .list-row .list-count { color: var(--ink); font-weight: var(--fw-semibold); }

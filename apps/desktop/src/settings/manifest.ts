@@ -177,7 +177,8 @@ const SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: 'sessions',
-    label: 'Conversations',
+    // Not "Conversations": Messages' panel is Conversations, so this says whose they are.
+    label: 'Chats with Mobius',
     description: 'Your saved conversations.',
     subpages: [
       { id: 'saved', label: 'Saved', rows: [
