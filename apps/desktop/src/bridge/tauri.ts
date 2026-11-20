@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, LauncherAnswer, SystemApp, SystemCommand, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -170,6 +170,9 @@ export function createTauriBridge(): MobiusBridge {
       open: (id) => call('system', 'open', [id], () => ({ ok: false })),
       commands: () => call<SystemCommand[]>('system', 'commands', [], () => []),
       run: (id) => call('system', 'run', [id], () => ({ ok: false })),
+      files: (query) => call<SystemFile[]>('system', 'files', [query], () => []),
+      openFile: (path) => call('system', 'openFile', [path], () => ({ ok: false })),
+      reveal: (path) => call('system', 'reveal', [path], () => ({ ok: false })),
     },
     launcherWindow: {
       hide: () => call('launcher', 'hide', [], () => null).then(() => undefined),
