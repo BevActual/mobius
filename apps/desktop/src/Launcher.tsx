@@ -8,6 +8,7 @@ import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
 import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
+import { readSaved, withSaved, withoutSaved, writeSaved, type SavedCommand } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
 import './launcher.css';
@@ -238,6 +239,11 @@ export function Launcher({
   const [aboutLeftOut, setAboutLeftOut] = useState(false);
   useEffect(() => { if (open) setAboutLeftOut(false); }, [open, about]);
   const aboutNow = aboutLeftOut || !askInline ? undefined : about;
+  // Commands you saved: a question asked about a selection, kept under a name.
+  const [saved, setSaved] = useState<SavedCommand[]>(() => (typeof window === 'undefined' ? [] : readSaved()));
+  const keepSaved = useCallback((next: SavedCommand[]) => { setSaved(next); writeSaved(next); }, []);
+  const savedRef = useRef(saved);
+  savedRef.current = saved;
   // A command or question about the selection, answered here; what is typed becomes its name, so the answer stays with it.
   const askAboutSelection = useCallback((name: string, instruction: string) => {
     if (!askInline || !aboutNow) return;
@@ -330,6 +336,8 @@ export function Launcher({
   const actionsOf = useCallback((item: LauncherItem): LauncherItem[] => {
     const act = (id: string, label: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label, detail, run });
     const pinned = item.app ? pins.includes(item.app) : false;
+    const mine = item.id.startsWith('about-mine-') ? item.id.slice('about-mine-'.length) : null;
+    if (mine) return [act('open', 'Run', () => { setActionsFor(null); item.run(); }, '↵'), act('forget', 'Remove this command', () => { keepSaved(withoutSaved(savedRef.current, mine)); setActionsFor(null); setStatus(`${item.label} removed`); })];
     return [
       act('open', item.kind === 'command' ? 'Run' : 'Open', item.run, '↵'),
       ...(onAskAbout ? [act('ask', 'Ask Mobius about this', () => onAskAbout({ app: item.app, label: item.label, detail: item.detail }), 'Alt+↵')] : []),
@@ -338,7 +346,7 @@ export function Launcher({
       ...(item.app && !scope ? [act('scope', `Search in ${appName(item.app)}`, () => narrowRef.current(item.app!), 'Tab')] : []),
       act('copy', 'Copy name', () => { void navigator.clipboard?.writeText(item.label).catch(() => undefined); }),
     ];
-  }, [pins, onAskAbout, onPinned, scope]);
+  }, [pins, onAskAbout, onPinned, scope, keepSaved]);
 
   // Sources that answer later: the words asked, and their items once they came. Until then the items found before
   // stay, so nothing jumps when they arrive.
@@ -395,6 +403,7 @@ export function Launcher({
       const aboutRows: LauncherItem[] = aboutNow
         ? [
           ...AI_COMMANDS.map<LauncherItem>((c) => ({ id: `about-${c.id}`, kind: 'about', label: c.label, detail: c.detail, run: () => askAboutSelection(c.label, c.instruction) })),
+          ...saved.map<LauncherItem>((c) => ({ id: `about-mine-${c.id}`, kind: 'about', label: c.label, detail: 'Yours', run: () => askAboutSelection(c.label, c.instruction) })),
           { id: 'about-translate', kind: 'about', label: 'Translate to…', detail: 'Type the language', run: () => { setQuery('Translate to '); setChosenId(null); input.current?.focus(); } },
         ]
         : [];
@@ -421,10 +430,14 @@ export function Launcher({
         ? [
           { id: 'ask-continue', kind: 'ask' as const, label: 'Continue in Mobius', detail: inlineAnswer.answer.state === 'asking' ? 'Answering…' : undefined, run: () => onContinue?.(inlineAnswer.answer.conversation) },
           ...(inlineAnswer.answer.state === 'done' && inlineAnswer.answer.text ? [{ id: 'ask-copy', kind: 'answer' as const, label: 'Copy the answer', run: () => { void navigator.clipboard?.writeText(withoutMarks(inlineAnswer.answer.text)).catch(() => undefined); } }] : []),
+          // A question asked about the selection can be kept, to run on the next one.
+          ...(aboutNow && inlineAnswer.answer.state === 'done' && !AI_COMMANDS.some((c) => c.label === typed) && !translateCommand(typed) && !saved.some((c) => c.instruction === typed.trim())
+            ? [{ id: 'about-save', kind: 'answer' as const, label: 'Save as a command', detail: 'For the next selection', run: () => keepSaved(withSaved(saved, typed)) }] : []),
         ]
         : [
           // What matches among the AI commands, and "translate to French" read as one.
           ...(aboutNow ? [...(translateCommand(typed) ? [translateCommand(typed)!] : []), ...AI_COMMANDS.filter((c) => has(c.label))].map<LauncherItem>((c: AiCommand) => ({ id: `about-${c.id}`, kind: 'about', label: c.label, detail: c.detail, run: () => askAboutSelection(c.label, c.instruction) })) : []),
+          ...(aboutNow ? saved.filter((c) => has(c.label)).map<LauncherItem>((c) => ({ id: `about-mine-${c.id}`, kind: 'about', label: c.label, detail: 'Yours', run: () => askAboutSelection(c.label, c.instruction) })) : []),
           ...(aboutNow
             ? [{ id: 'ask', kind: 'ask' as const, label: `Ask about the selection: “${typed.length > 50 ? `${typed.slice(0, 49)}…` : typed}”`, detail: 'Answer here', run: () => askAboutSelection(typed, typed) }]
             : onAsk ? [{ id: 'ask', kind: 'ask' as const, label: `Ask Mobius: “${typed.length > 60 ? `${typed.slice(0, 59)}…` : typed}”`, detail: askInline && isQuestion(typed) ? 'Answer here' : undefined, run: () => onAsk(typed) }] : []),
@@ -460,7 +473,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -492,6 +505,9 @@ export function Launcher({
       return;
     }
     if (item.id === 'ask-copy') { item.run(); setStatus('Answer copied'); return; }
+    // A saved command's actions stay in the launcher: Run asks here, and Remove leaves the list open.
+    if (actionsFor?.kind === 'about') { item.run(); return; }
+    if (item.id === 'about-save') { item.run(); setStatus('Saved as a command'); setChosenId('ask-continue'); return; }
     const typed = input.current?.value ?? query;
     if (typed.trim() && item.kind !== 'ask' && !actionsFor) {
       const next = noteChoice(choices, typed, item.id);
@@ -526,7 +542,7 @@ export function Launcher({
     if (k === 'Tab' && !event.shiftKey && !actionsFor && !scope && current?.app && current.kind !== 'grid') { event.preventDefault(); narrow(current.app); return; }
     // Shift+Enter, or Right at the end of the words, shows the chosen row's actions.
     const atEnd = event.currentTarget.selectionStart === event.currentTarget.value.length;
-    if (!actionsFor && current && current.kind !== 'ask' && current.kind !== 'about' && current.kind !== 'answer' && !current.disabled && current.id !== 'all-apps'
+    if (!actionsFor && current && current.kind !== 'ask' && (current.kind !== 'about' || current.id.startsWith('about-mine-')) && current.kind !== 'answer' && !current.disabled && current.id !== 'all-apps'
       && ((k === 'Enter' && event.shiftKey) || (k === 'ArrowRight' && !empty && atEnd && !ACROSS.has(current.kind)))) {
       event.preventDefault();
       setActionsFor(current); setQuery(''); setChosenId(null);
@@ -742,8 +758,8 @@ export function Launcher({
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' || current.kind === 'about' ? 'Ask' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
-          {!actionsFor && current.kind !== 'ask' && current.kind !== 'about' && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
+          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' || current.kind === 'about' ? 'Ask' : current.id === 'about-save' ? 'Save' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
+          {!actionsFor && current.kind !== 'ask' && (current.kind !== 'about' || current.id.startsWith('about-mine-')) && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
       )}
