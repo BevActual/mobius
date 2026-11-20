@@ -8,10 +8,10 @@
 .design-page > .ui-panels { flex: 1; min-height: 0; height: auto; }
 
 /* Toolbar: bare icons in groups split by a hairline, as in Mail. The zoom level is a readout. */
-/* The tools sit in the middle of the top bar, as Notes' and Sheets' do. */
+/* The tools start the top bar after the title, as Notes' and Sheets' do. */
 .ui-toolbar-slot:has(.design-tools) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .design-tools) { flex: 1; }
-.design-tools { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: center; gap: var(--sp-2); }
+.design-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); }
 .design-tools-group { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .design-tools-group + .design-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
 .design-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
