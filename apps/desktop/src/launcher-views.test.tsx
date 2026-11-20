@@ -43,6 +43,12 @@ describe('launcher views', () => {
     expect(none).not.toContain('About the selection');
   });
 
+  it('offers to create a quicklink from what is typed, showing what it read', () => {
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} onOpenUrl={() => {}} answered={{ question: 'quicklink maps maps.example/?q={query}', answer: { conversation: 'c', text: '', state: 'failed', sources: [] } }} />);
+    expect(html).toContain('Create quicklink');
+    expect(html).toContain('https://maps.example/?q={query}');
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);

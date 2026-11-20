@@ -147,7 +147,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **Commands you save yourself.** After a question about the selection is answered, Save as a command keeps it under a name taken from its first line, listed with the AI commands as Yours (on this computer, at most 30). Shift+Enter on one shows Run and Remove this command. (`launcher-commands.ts`)
 
-Next, in order: Clipboard, Snippets and Quicklinks, then the launcher over other apps (Windows apps, files on disk, system commands).
+- **Quicklinks and snippets.** Typing "quicklink maps maps.example/?q={query}" offers Create quicklink, with Name and Address read under the field. Typing "maps cafe" then opens that address with "cafe" in it, in the Browser. "snippet sig: Best, Andrew" makes a snippet; typing its name and Enter copies it. Shift+Enter on either shows Remove. Kept on this computer, at most 100 each. (`launcher-commands.ts`)
+
+Next, in order: Clipboard history, then the launcher over other apps (Windows apps, files on disk, system commands).
 
 ## How apps take part
 

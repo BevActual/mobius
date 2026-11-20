@@ -8,7 +8,7 @@ import { quickAnswer } from './quick-answers';
 import { afterPaint } from './ui/frame';
 import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
-import { readSaved, withSaved, withoutSaved, writeSaved, type SavedCommand } from './launcher-commands';
+import { callQuicklink, keepNamed, parseCreate, readQuicklinks, readSaved, readSnippets, withSaved, withoutSaved, writeQuicklinks, writeSaved, writeSnippets, type Quicklink, type SavedCommand, type Snippet } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
 import './launcher.css';
@@ -109,6 +109,8 @@ interface Props {
   home?: { waiting: readonly LauncherHomeRow[]; agents: readonly LauncherAgentRow[] };
   /** What was selected in the open app as the launcher opened: the AI commands work on it, and what is typed is asked about it. */
   about?: LauncherAbout;
+  /** Open a web address (a quicklink) in the Browser. */
+  onOpenUrl?: (url: string) => void;
   /** For the reference sheet: an answer already given to what is typed. */
   answered?: { question: string; answer: InlineAnswer };
 }
@@ -226,7 +228,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -244,6 +246,13 @@ export function Launcher({
   const keepSaved = useCallback((next: SavedCommand[]) => { setSaved(next); writeSaved(next); }, []);
   const savedRef = useRef(saved);
   savedRef.current = saved;
+  // Quicklinks and snippets, kept on this computer.
+  const [links, setLinks] = useState<Quicklink[]>(() => (typeof window === 'undefined' ? [] : readQuicklinks()));
+  const [snippets, setSnippets] = useState<Snippet[]>(() => (typeof window === 'undefined' ? [] : readSnippets()));
+  const keepLinks = useCallback((next: Quicklink[]) => { setLinks(next); writeQuicklinks(next); }, []);
+  const keepSnippets = useCallback((next: Snippet[]) => { setSnippets(next); writeSnippets(next); }, []);
+  const keptRef = useRef({ links, snippets });
+  keptRef.current = { links, snippets };
   // A command or question about the selection, answered here; what is typed becomes its name, so the answer stays with it.
   const askAboutSelection = useCallback((name: string, instruction: string) => {
     if (!askInline || !aboutNow) return;
@@ -337,6 +346,14 @@ export function Launcher({
     const act = (id: string, label: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label, detail, run });
     const pinned = item.app ? pins.includes(item.app) : false;
     const mine = item.id.startsWith('about-mine-') ? item.id.slice('about-mine-'.length) : null;
+    if (item.id.startsWith('ql-') || item.id.startsWith('snip-')) {
+      const link = item.id.startsWith('ql-'), id = item.id.slice(link ? 3 : 5);
+      const forget = () => {
+        if (link) keepLinks(keptRef.current.links.filter((c) => c.id !== id)); else keepSnippets(keptRef.current.snippets.filter((c) => c.id !== id));
+        setActionsFor(null); setQuery(''); setStatus(`${item.label} removed`);
+      };
+      return [act('open', link ? 'Open' : 'Copy', item.run, '↵'), act('forget', link ? 'Remove this quicklink' : 'Remove this snippet', forget)];
+    }
     if (mine) return [act('open', 'Run', () => { setActionsFor(null); item.run(); }, '↵'), act('forget', 'Remove this command', () => { keepSaved(withoutSaved(savedRef.current, mine)); setActionsFor(null); setStatus(`${item.label} removed`); })];
     return [
       act('open', item.kind === 'command' ? 'Run' : 'Open', item.run, '↵'),
@@ -346,7 +363,7 @@ export function Launcher({
       ...(item.app && !scope ? [act('scope', `Search in ${appName(item.app)}`, () => narrowRef.current(item.app!), 'Tab')] : []),
       act('copy', 'Copy name', () => { void navigator.clipboard?.writeText(item.label).catch(() => undefined); }),
     ];
-  }, [pins, onAskAbout, onPinned, scope, keepSaved]);
+  }, [pins, onAskAbout, onPinned, scope, keepSaved, keepLinks, keepSnippets]);
 
   // Sources that answer later: the words asked, and their items once they came. Until then the items found before
   // stay, so nothing jumps when they arrive.
@@ -444,6 +461,19 @@ export function Launcher({
         ]),
       // A sum, a unit or a time somewhere else: answered here, and Enter copies it.
       ...((answer) => (answer ? [{ id: 'answer', kind: 'answer' as const, label: answer.value, detail: answer.question, run: () => { void navigator.clipboard?.writeText(answer.copy).catch(() => undefined); } }] : []))(quickAnswer(typed)),
+      // Quicklinks and snippets: making one ("quicklink maps https://…?q={query}", "snippet sig: Best, Andrew"), calling one.
+      ...((made) => (made ? [{
+        id: 'make-kept', kind: 'command' as const, label: made.kind === 'quicklink' ? 'Create quicklink' : 'Create snippet',
+        fields: made.kind === 'quicklink' ? [{ label: 'Name', value: made.name }, { label: 'Address', value: made.url }] : [{ label: 'Name', value: made.name }, { label: 'Text', value: made.text.length > 40 ? `${made.text.slice(0, 39)}…` : made.text }],
+        run: () => (made.kind === 'quicklink' ? keepLinks(keepNamed(links, { name: made.name, url: made.url })) : keepSnippets(keepNamed(snippets, { name: made.name, text: made.text }))),
+      }] : []))(parseCreate(typed)),
+      ...((call) => (call && onOpenUrl ? [{ id: `ql-${call.link.id}`, kind: 'command' as const, label: call.rest ? `${call.link.name}: ${call.rest}` : call.link.name, detail: call.url, run: () => onOpenUrl(call.url) }] : []))(callQuicklink(links, typed)),
+      ...(onOpenUrl ? links.filter((l) => has(l.name) && !callQuicklink([l], typed)).slice(0, 4).map<LauncherItem>((l) => ({ id: `ql-${l.id}`, kind: 'command', label: l.name, detail: l.url.includes('{query}') ? `${l.url.replace('{query}', '…')}  ·  type after the name` : l.url, run: () => onOpenUrl(l.url.split('{query}').join('')) })) : []),
+      ...snippets.filter((c) => has(c.name)).slice(0, 4).map<LauncherItem>((c) => ({ id: `snip-${c.id}`, kind: 'command', label: c.name, detail: c.text.replace(/\s+/g, ' ').slice(0, 60), run: () => { void navigator.clipboard?.writeText(c.text).catch(() => undefined); } })),
+      ...(['quicklink', 'snippet'] as const).filter((k) => !parseCreate(typed) && (has(`create ${k}`) || (q.length >= 3 && k.startsWith(q)))).map<LauncherItem>((k) => ({
+        id: `start-${k}`, kind: 'command', label: k === 'quicklink' ? 'Create quicklink' : 'Create snippet', detail: k === 'quicklink' ? 'quicklink name address, with {query} for what you type' : 'snippet name: the text',
+        run: () => { setQuery(k === 'quicklink' ? 'quicklink ' : 'snippet '); setChosenId(null); input.current?.focus(); },
+      })),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
       ...rankApps(APPS.filter((app) => has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
@@ -473,7 +503,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
@@ -507,6 +537,10 @@ export function Launcher({
     if (item.id === 'ask-copy') { item.run(); setStatus('Answer copied'); return; }
     // A saved command's actions stay in the launcher: Run asks here, and Remove leaves the list open.
     if (actionsFor?.kind === 'about') { item.run(); return; }
+    if (item.id === 'make-kept') { item.run(); setStatus(`${item.label === 'Create quicklink' ? 'Quicklink' : 'Snippet'} saved`); setQuery(''); setChosenId(null); return; }
+    if (item.id.startsWith('start-')) { item.run(); return; }
+    if (actionsFor && (actionsFor.id.startsWith('ql-') || actionsFor.id.startsWith('snip-')) && item.id === 'act-forget') { item.run(); return; }
+    if (item.id.startsWith('snip-')) setStatus('Copied');
     if (item.id === 'about-save') { item.run(); setStatus('Saved as a command'); setChosenId('ask-continue'); return; }
     const typed = input.current?.value ?? query;
     if (typed.trim() && item.kind !== 'ask' && !actionsFor) {
@@ -758,7 +792,7 @@ export function Launcher({
       {/* One footer: the places when nothing is typed, else one hint for the chosen row. */}
       {(query.trim() !== '' || view === 'apps' || scope || actionsFor) && current && (
         <div className="launcher-foot" aria-hidden="true">
-          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' || current.kind === 'about' ? 'Ask' : current.id === 'about-save' ? 'Save' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
+          <span><kbd>↵</kbd> {current.id === 'ask-continue' ? 'Continue' : current.kind === 'ask' || current.kind === 'about' ? 'Ask' : current.id === 'about-save' || current.id === 'make-kept' ? 'Save' : current.id.startsWith('snip-') ? 'Copy' : current.id.startsWith('start-') ? 'Start' : current.kind === 'answer' ? 'Copy' : current.kind === 'command' ? 'Run' : current.fields?.length ? 'Add' : 'Open'}</span>
           {!actionsFor && current.kind !== 'ask' && (current.kind !== 'about' || current.id.startsWith('about-mine-')) && current.kind !== 'answer' && current.id !== 'all-apps' && <span><kbd>⇧</kbd><kbd>↵</kbd> Actions</span>}
           {!actionsFor && !scope && current.app && current.kind !== 'grid' && <span><kbd>Tab</kbd> Search in {appName(current.app)}</span>}
         </div>
