@@ -401,6 +401,12 @@ export interface SystemApp {
   id: string;
 }
 
+/** A file found on the computer; `path` is what `openFile` and `reveal` take. */
+export interface SystemFile {
+  name: string;
+  path: string;
+}
+
 /** A system command the computer offers, such as locking it. */
 export interface SystemCommand {
   id: string;
@@ -539,6 +545,15 @@ export interface MobiusBridge {
     open(id: string): Promise<{ ok: boolean }>;
     commands(): Promise<SystemCommand[]>;
     run(id: string): Promise<{ ok: boolean }>;
+    /**
+     * Up to 20 files whose names hold every word typed, from the person's Desktop, Documents, Downloads, Pictures,
+     * Music and Videos (answers within about half a second with what it found). Programs and scripts are never listed.
+     */
+    files(query: string): Promise<SystemFile[]>;
+    /** Opens a file the last `files()` found; any other path is refused. */
+    openFile(path: string): Promise<{ ok: boolean }>;
+    /** Shows a file the last `files()` found in its folder. */
+    reveal(path: string): Promise<{ ok: boolean }>;
   };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {
