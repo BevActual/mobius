@@ -145,7 +145,7 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
   const [retrying, setRetrying] = useState(false);
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
   const failed = !waiting && c.activity === 'failed';
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? `Failed ${relativeTime(c.updated_ms, Date.now()).toLowerCase()}` : relativeTime(c.updated_ms, Date.now());
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions need your answer` : 'Needs your answer') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? `Failed ${relativeTime(c.updated_ms, Date.now()).toLowerCase()}` : relativeTime(c.updated_ms, Date.now());
   return (
     <li className="act-row" data-picked={picked || undefined}>
       <button type="button" className="act-main" aria-current={picked || undefined} onClick={onPick}>
@@ -153,7 +153,7 @@ function ConversationLine({ c, picked, onPick, onOpen }: { c: ConversationInfo; 
         <Glyph app="agent" />
         <span className="act-text">
           <span className="act-what">{c.title || 'A conversation'}</span>
-          <span className="act-sub" data-failed={failed || undefined}>{state}</span>
+          <span className="act-sub" data-needs={waiting || undefined} data-failed={failed || undefined}>{state}</span>
         </span>
       </button>
       {/* A failed run waits for you: send what it asked once more, right here. */}
