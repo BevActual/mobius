@@ -128,6 +128,53 @@ const noteComments = (quotes: () => readonly string[]) => Extension.create({
   },
 });
 
+/** The quiet line under the title, as in Docs ("Edited just now · 22 words · 1 comment · #tag"), drawn in the page
+ *  after the first heading. Its tags are grey words that list the notes with that tag. Read from `look` when told. */
+interface NoteMetaLine { parts: string[]; tags: string[]; onTag: (tag: string) => void }
+const metaKey = new PluginKey<DecorationSet>('note-meta');
+function noteMetaDecorations(doc: PmNode, look: () => NoteMetaLine | null): DecorationSet {
+  const line = look();
+  if (!line) return DecorationSet.empty;
+  const first = doc.firstChild;
+  const at = first && first.type.name === 'heading' && Number(first.attrs.level) === 1 ? first.nodeSize : 0;
+  const draw = () => {
+    const p = document.createElement('p');
+    p.className = 'note-meta';
+    p.contentEditable = 'false';
+    for (const part of line.parts) { const span = document.createElement('span'); span.textContent = part; p.append(span); }
+    if (line.tags.length) {
+      const tags = document.createElement('span');
+      tags.className = 'note-meta-tags';
+      for (const tag of line.tags) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'note-meta-tag';
+        b.title = `Show every note tagged #${tag}`;
+        b.textContent = `#${tag}`;
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => look()?.onTag(tag));
+        tags.append(b);
+      }
+      p.append(tags);
+    }
+    return p;
+  };
+  return DecorationSet.create(doc, [Decoration.widget(at, draw, { side: -10, key: `note-meta:${line.parts.join('|')}:${line.tags.join(' ')}`, ignoreSelection: true, stopEvent: () => true })]);
+}
+const noteMeta = (look: () => NoteMetaLine | null) => Extension.create({
+  name: 'noteMeta',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: metaKey,
+      state: {
+        init: (_, state) => noteMetaDecorations(state.doc, look),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(metaKey) ? noteMetaDecorations(tr.doc, look) : old),
+      },
+      props: { decorations: (state) => metaKey.getState(state) },
+    })];
+  },
+});
+
 const STYLES = [
   { id: 'p', label: 'Body' },
   { id: 'h1', label: 'Title' },
@@ -292,6 +339,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // What Mobius's last turn changed, drawn in the page as dashed blocks to keep or discard one at a time (as in Docs).
   const changesNow = useRef<ChangeView | null>(null);
   const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
+  const metaNow = useRef<NoteMetaLine | null>(null);
+  const metaMark = useMemo(() => noteMeta(() => metaNow.current), []);
   const tryAnother = useContext(TryAnotherContext);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editor = useEditor({
@@ -309,6 +358,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       image,
       commentMarks,
       changeMarks,
+      metaMark,
       FindMarks,
     ],
     content: '',
@@ -711,6 +761,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // "Edited" counts on from when the page was last saved, so it is read again every half minute.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
+  const edited = notes.page?.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
+  // The meta line under the title: drawn in the page, so told to look again when what it says changes.
+  const metaParts = [
+    ...(edited ? [`Edited ${edited.toLowerCase() === 'just now' ? 'just now' : edited}`] : []),
+    words === 1 ? '1 word' : `${words} words`,
+    ...(openComments > 0 ? [openComments === 1 ? '1 comment' : `${openComments} comments`] : []),
+  ];
+  metaNow.current = notes.page && !source ? { parts: metaParts, tags, onTag: showTag } : null;
+  const metaText = metaNow.current ? `${metaParts.join('|')}|${tags.join(' ')}` : '';
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(metaKey, true)); }, [editor, metaText]);
 
   // The page's headings, for the Outline panel beside it (the same panel as Docs'), read once the page is in the editor.
   useEffect(() => {
@@ -739,7 +799,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     // The editor stays mounted (hidden), so it is ready the moment a page opens.
     return (
       <section className="note-editor empty" aria-label="Note">
-        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New page', run: () => newItemIn(notes, null, 'Notes') }} />
+        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New note', run: () => newItemIn(notes, null, 'Notes') }} />
         <EditorContent editor={editor} hidden />
       </section>
     );
@@ -756,7 +816,17 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
     ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );
-  const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
+  // Editing the Markdown itself, the same line sits over the text.
+  const metaLine = (
+    <p className="note-meta">
+      {metaParts.map((part) => <span key={part}>{part}</span>)}
+      {tags.length > 0 && (
+        <span className="note-meta-tags">
+          {tags.map((tag) => <button key={tag} type="button" className="note-meta-tag" title={`Show every note tagged #${tag}`} onClick={() => showTag(tag)}>#{tag}</button>)}
+        </span>
+      )}
+    </p>
+  );
   return (
     <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}
       onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor || source) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
@@ -862,15 +932,11 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         </ol>
       )}
       {linkAt && linkForm && diff === null && !history && createPortal(linkForm, document.body)}
-      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
-        <p className="note-meta">
-          {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
-          <span>{words === 1 ? '1 word' : `${words} words`}</span>
-          {openComments > 0 && <span>{openComments === 1 ? '1 comment' : `${openComments} comments`}</span>}
-          {tags.map((tag) => (
-            <button key={tag} type="button" className="note-meta-tag" title={`Show every note tagged #${tag}`} onClick={() => showTag(tag)}>#{tag}</button>
-          ))}
-        </p>
+      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined}
+        // Comments follow the words at the normal gap, so the room left over is below them: a click there writes on.
+        onMouseDown={(e) => { if (e.target !== e.currentTarget || !editor || source) return; e.preventDefault(); editor.commands.focus('end'); }}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
+        {source && metaLine}
         {source ? (
           <textarea
             ref={area}
