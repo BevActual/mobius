@@ -22,6 +22,23 @@ Back to [Shared controls](../shared-controls.md). Pictures: light theme, comfort
 
 ![List rows, one-line and two-line](img/list-rows.png)
 
+![Empty states for each kind of thing, the quiet form, and Busy](img/empty-states.png)
+
+| Component | Use it for |
+| --- | --- |
+| `EmptyState` | Any empty view: `kind` picks the drawing (`mail`, `tasks`, `notes`, `calendar`, `files`, `search`, `chats`, `done`, `generic`), the children are one short line, and `action` is the view's New button. `quiet` is the small form at the end of a short list, with no drawing. Never a blank grey field |
+| `Busy` | Something loading or working that isn't Mobius: grey dots that rise and fall, with a `label` that is read out (and shown unless `hideLabel`). Use it instead of a spinner. Mobius's own work is the indigo `DotMatrix` |
+
+![The dot matrix in each mode, and agent characters at rest and at work](img/dot-matrix.png)
+
+`DotMatrix` and `DotCharacter` are Instrument's "Personality" ([Instrument](../../design/instrument.md)). Both draw on a
+canvas while they move and hold one still frame under reduced motion, or at `at` seconds for pictures and tests.
+
+| Component | Use it for |
+| --- | --- |
+| `DotMatrix` | Mobius working: 24 × 6 indigo dots. `mode` is the kind of work (`thinking`, `reading`, `searching`, `writing`, `working`, `waiting`, `done`, `stopped`); `modeOfTool(name, status)` picks it from the running tool. Pass `progress` (0 to 1) and the bottom row fills with it |
+| `DotCharacter` | An agent: an 11 × 11 body whose shape and colour come from its `name`. While still (`idle`, `waiting`, `done`, `failed`, `paused`) it shows two eye dots; while it works, `state` is a matrix mode and its body becomes that pattern. Never for Mobius itself |
+
 Instrument's "Controls" and "Pro app readouts" ([Instrument](../../design/instrument.md)), all from `./ui`. Sizes follow the
 density: the window's, or compact for pro apps (the frame sets it). Values use tabular figures; readouts use the mono face.
 

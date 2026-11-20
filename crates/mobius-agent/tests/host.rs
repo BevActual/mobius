@@ -820,7 +820,7 @@ fn taking_over_pauses_at_the_next_safe_point_and_a_tool_decided_before_is_not_ru
     assert!(!runs_tool(&outs), "nothing runs while the person has control");
     assert!(host.is_busy("c1"));
     // Handing back: what it decided before is not run; the model is asked again and told to read what is there.
-    let outs = host.hand_back(&mut core, "c1").unwrap();
+    let outs = host.hand_back(&mut core, "c1", None).unwrap();
     assert!(event_of(&outs, "resumed").is_some());
     assert!(!runs_tool(&outs));
     let (_, request) = model_call(&outs).expect("Mobius goes on");
@@ -829,7 +829,7 @@ fn taking_over_pauses_at_the_next_safe_point_and_a_tool_decided_before_is_not_ru
     assert_eq!(host.control("c1"), None);
     let outs = host.model_result(&mut core, turn, text("Carried on."));
     assert!(kinds(&outs).contains(&"done".to_owned()));
-    assert_eq!(host.hand_back(&mut core, "c1").err(), Some(HostError::NotWaiting));
+    assert_eq!(host.hand_back(&mut core, "c1", None).err(), Some(HostError::NotWaiting));
 }
 
 #[test]
@@ -842,7 +842,7 @@ fn while_a_tool_runs_the_next_model_request_waits_and_is_told_to_read_again() {
     host.take_over("c1").unwrap();
     let outs = host.tool_result(&mut core, turn, "r1", Ok("{\"title\":\"Home\"}".into()));
     assert!(model_call(&outs).is_none(), "the next request waits for the person");
-    let outs = host.hand_back(&mut core, "c1").unwrap();
+    let outs = host.hand_back(&mut core, "c1", None).unwrap();
     let (_, request) = model_call(&outs).unwrap();
     assert!(request.system.contains(mobius_agent::engine::HANDED_BACK));
     assert!(matches!(request.messages.last(), Some(Message::Tool { is_error: false, .. })), "the tool that did run keeps its answer");
@@ -851,6 +851,24 @@ fn while_a_tool_runs_the_next_model_request_waits_and_is_told_to_read_again() {
     let outs = host.tool_result(&mut core, turn, "r2", Ok("{}".into()));
     let (_, next) = model_call(&outs).unwrap();
     assert!(!next.system.contains(mobius_agent::engine::HANDED_BACK));
+}
+
+#[test]
+fn what_the_person_writes_as_they_hand_back_reaches_the_model_as_theirs_for_the_rest_of_the_turn() {
+    let (mut core, mut host) = setup();
+    allow_remote(&mut core);
+    let (turn, _) = host.send(&core, "c1", "go").unwrap();
+    let outs = host.model_result(&mut core, turn, remote("r1"));
+    assert!(runs_tool(&outs));
+    host.take_over("c1").unwrap();
+    host.tool_result(&mut core, turn, "r1", Ok("{}".into()));
+    let outs = host.hand_back(&mut core, "c1", Some("  I booked it myself; just send the summary  ")).unwrap();
+    let (_, request) = model_call(&outs).unwrap();
+    assert!(request.system.contains("I booked it myself; just send the summary"));
+    host.model_result(&mut core, turn, remote("r2"));
+    let outs = host.tool_result(&mut core, turn, "r2", Ok("{}".into()));
+    let (_, next) = model_call(&outs).unwrap();
+    assert!(next.system.contains("I booked it myself"), "it holds for the rest of the turn");
 }
 
 #[test]

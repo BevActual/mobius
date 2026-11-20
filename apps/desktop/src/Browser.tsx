@@ -9,7 +9,7 @@ import { MobiusMark } from './MobiusMark';
 import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
-import { addressParts, dropPlan, hostOf, sidebarMatch, suggestionsFor, tileColour, tileLetter, type Suggestion } from './browser-view';
+import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
 import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
 import './browser.css';
@@ -51,7 +51,7 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); window.mobius.browser.close(tab.id); } }}
     >
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
-        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true" style={tab.url ? { ['--tile' as string]: tileColour(site) } : undefined}>{tab.url ? tileLetter(site) : ''}</span>}
+        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true">{tab.url ? tileLetter(site) : ''}</span>}
         <span className="tab-title">{tab.title}</span>
         {tab.driver && (
           // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
@@ -143,7 +143,7 @@ function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: Br
     { label: 'Reload', keys: tab.active ? 'Ctrl+R' : undefined, run: () => api.reload(tab.id), disabled: !tab.url },
     ...(api.reopenClosed ? [{ label: 'Reopen closed tab', keys: 'Ctrl+Shift+T', run: () => void api.reopenClosed?.() }] : []),
     { label: 'Copy link', run: () => void navigator.clipboard?.writeText(tab.url).catch(() => {}), disabled: !web, separated: true },
-    { label: 'Bookmark…', run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
+    { label: 'Bookmark…', keys: tab.active ? 'Ctrl+D' : undefined, run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
     // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
     { label: pinnedPages.has(tab.url) ? 'Unpin page' : 'Pin page', run: () => onPinPage(tab), disabled: !web },
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
@@ -186,13 +186,10 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
             <div className="side-head">
               <span className="side-title">Tabs</span>
               <div className="side-actions">
+                {/* Downloads, a header button like the others, in sight while it has something to show. */}
+                <DownloadsButton entries={downloads} />
                 {pin}
-                <button type="button" className="strip-btn" aria-label="New tab" title="New tab (Ctrl+T)" onClick={onNewTab}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg>
-                </button>
               </div>
-              {/* Downloads stays in sight, at the end of the head, while it has something to show; the other tools wait for the pointer. */}
-              <DownloadsButton entries={downloads} />
             </div>
             <ul className="tabs" role="list" aria-label="Open tabs">
               <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
@@ -213,7 +210,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
           <SidebarSection title="Bookmarks">
             {saved.map((b) => (
               <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)}
-                icon={<span className="tab-icon placeholder" aria-hidden="true" style={{ ['--tile' as string]: tileColour(hostOf(b.url)) }}>{tileLetter(hostOf(b.url))}</span>} />
+                icon={<span className="tab-icon placeholder" aria-hidden="true">{tileLetter(hostOf(b.url))}</span>} />
             ))}
           </SidebarSection>
         )}
@@ -222,6 +219,7 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
           <div className="from-mobius">
             <span className="side-title from-mobius-title">From Mobius</span>
             <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
+              <span className="from-mobius-mark" aria-hidden="true"><MobiusMark size={16} /></span>
               <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
               <span className="from-mobius-count">{fromMobius.length}</span>
             </button>
@@ -273,7 +271,8 @@ export interface BrowserChromeProps {
 
 /**
  * The Browser's own keys, as in every browser: Alt+Left and Alt+Right go back and forward, Ctrl+R reloads (instead of
- * reloading Mobius itself) and Ctrl+Shift+T reopens the tab closed last. Only while the Browser shows.
+ * reloading Mobius itself), Ctrl+Shift+T reopens the tab closed last, Ctrl+D bookmarks the page and Ctrl+Tab (or
+ * Ctrl+Page Down) and Ctrl+Shift+Tab (or Ctrl+Page Up) step through the tabs. Only while the Browser shows.
  */
 function useBrowserKeys(active: BrowserTabState | undefined) {
   useEffect(() => {
@@ -292,6 +291,16 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
       } else if (mod && e.shiftKey && !e.altKey && e.code === 'KeyT') {
         e.preventDefault();
         void api.reopenClosed?.();
+      } else if (mod && !e.altKey && !e.shiftKey && e.code === 'KeyD') {
+        e.preventDefault();
+        if (active && /^https?:/.test(active.url)) void window.mobius.bookmarks.toggle();
+      } else if (e.ctrlKey && !e.altKey && !e.metaKey && (e.key === 'Tab' || ((e.key === 'PageDown' || e.key === 'PageUp') && !e.shiftKey))) {
+        e.preventDefault();
+        const step = e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
+        void api.getState().then((s) => {
+          const id = nextTabId(s?.tabs ?? [], step);
+          if (id) api.activate(id);
+        }).catch(() => {});
       }
     };
     window.addEventListener('keydown', onKey);

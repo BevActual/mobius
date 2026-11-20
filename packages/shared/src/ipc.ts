@@ -389,7 +389,32 @@ export type LaunchChoice =
   | { kind: 'found'; id: string }
   | { kind: 'command'; id: string };
 
+/** One piece of copied text in the clipboard history; `at` is milliseconds since 1970. */
+export interface ClipboardEntry {
+  text: string;
+  at: number;
+}
+
+/** An app installed on the computer, as the Start menu lists it; `id` is opaque, for `open(id)`. */
+export interface SystemApp {
+  name: string;
+  id: string;
+}
+
+/** A file found on the computer; `path` is what `openFile` and `reveal` take. */
+export interface SystemFile {
+  name: string;
+  path: string;
+}
+
+/** A system command the computer offers, such as locking it. */
+export interface SystemCommand {
+  id: string;
+  name: string;
+}
+
 /** What the main window found for the words typed in the launcher's own window, and every command it offers now. */
+
 export interface LauncherAnswer {
   items: { id: string; app: string; label: string; detail?: string }[];
   commands: { id: string; label: string; detail?: string }[];
@@ -495,6 +520,41 @@ export interface MobiusBridge {
     /** In the main window: answer the launcher's window. */
     onFind?(answer: (query: string) => Promise<LauncherAnswer> | LauncherAnswer): () => void;
   };
+  /**
+   * Clipboard history for the launcher: text the person copied lately, anywhere on the computer, newest first. Nothing
+   * is watched until `watch(true)`; what is kept stays in memory (the last 50) and is forgotten on `watch(false)`.
+   * Copies a password manager marks as private are never kept. Only in the desktop app.
+   */
+  clipboard?: {
+    watch(on: boolean): Promise<{ on: boolean }>;
+    history(): Promise<ClipboardEntry[]>;
+    /** Puts the text on the clipboard, and first in the history while watching. */
+    copy(text: string): Promise<{ ok: boolean }>;
+    clear(): Promise<{ ok: boolean }>;
+    /** Hears each newly kept piece. */
+    onCopied(listener: (entry: ClipboardEntry) => void): () => void;
+  };
+  /**
+   * The computer's own things for the launcher. `apps()` lists the installed apps (every app the Start menu lists, Store apps included) sorted
+   * by name, and `open(id)` starts one of them; any id `apps()` did not list is refused. `commands()` lists the system
+   * commands (on Windows: lock, sleep, empty the Recycle Bin, which asks Windows' own question first) and `run(id)`
+   * runs one. Only in the desktop app.
+   */
+  system?: {
+    apps(): Promise<SystemApp[]>;
+    open(id: string): Promise<{ ok: boolean }>;
+    commands(): Promise<SystemCommand[]>;
+    run(id: string): Promise<{ ok: boolean }>;
+    /**
+     * Up to 20 files whose names hold every word typed, from the person's Desktop, Documents, Downloads, Pictures,
+     * Music and Videos (answers within about half a second with what it found). Programs and scripts are never listed.
+     */
+    files(query: string): Promise<SystemFile[]>;
+    /** Opens a file the last `files()` found; any other path is refused. */
+    openFile(path: string): Promise<{ ok: boolean }>;
+    /** Shows a file the last `files()` found in its folder. */
+    reveal(path: string): Promise<{ ok: boolean }>;
+  };
   /** Separate sets of data (Personal, Work…). Switching starts Mobius again with the other one. */
   profiles?: {
     list(): Promise<ProfilesState>;
@@ -556,6 +616,12 @@ export interface MobiusBridge {
     onOpenConversation(listener: (conversation: string) => void): () => void;
     /** Stop All was chosen: every conversation that is working stops. */
     onStopAll(listener: () => void): () => void;
+    /**
+     * Mobius is about to quit (the tray's Quit, or the installer replacing it): save what is still being typed, then
+     * call `savedForQuit()`. Mobius quits when told, or after 3 s regardless.
+     */
+    onQuitting(listener: () => void): () => void;
+    savedForQuit(): Promise<void>;
   };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {
@@ -576,8 +642,8 @@ export interface MobiusBridge {
     cancel(conversation: string): Promise<void>;
     /** Take over the running task: Mobius pauses at the next safe point and the apps are yours. */
     takeOver?(conversation: string): Promise<AgentResult>;
-    /** Hand the task back: Mobius reads what is there again, then goes on. */
-    handBack?(conversation: string): Promise<AgentResult>;
+    /** Hand the task back: Mobius reads what is there again, then goes on. `note` is what the person tells it as they do (what they changed, or what to do next). */
+    handBack?(conversation: string, note?: string): Promise<AgentResult>;
     /** Whether you have control of the conversation's task, and the step Mobius paused at. */
     control?(conversation: string): Promise<{ theirs: boolean; step?: number; of?: number | null }>;
     history(conversation: string): Promise<Message[]>;
@@ -1543,7 +1609,7 @@ export interface ModelGroup {
 export interface ModelCatalog { current: string; groups: ModelGroup[] }
 
 /** Settings > Advanced > Other apps. */
-export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number }
+export interface FileEntry { name: string; type: 'file' | 'folder'; bytes?: number; /** When it last changed, ms since 1970 (Files only). */ modified?: number; /** A folder: how many things it holds (Files only). */ items?: number }
 export type FilesActionResult = { ok: true; path: string } | { ok: false; error: string };
 /** Something in Files' Trash: `held` is where it is kept, `from` where it was (empty when not known). */
 export interface TrashEntry { held: string; name: string; from: string; trashed: number; type: 'file' | 'folder'; bytes?: number }
@@ -1745,6 +1811,8 @@ export interface PreferencesSettings {
   imageModel: string;
   /** The apps added from Abilities, beside Home and Mobius's own; null is every app (an install from before Abilities). */
   installedApps: string[] | null;
+  /** Mail: each account's signature by account id, added under what is written. */
+  mailSignatures: Record<string, string>;
 }
 export interface ProfilesState { current: string; list: { id: string; name: string }[] }
 /** A scheduled request as the person writes it: `time` is "HH:MM" local; `days` 1 (Monday) to 7 (Sunday). */
@@ -1778,7 +1846,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1805,6 +1873,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   appAccess: isAppAccess,
   quickModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
   installedApps: (v): v is string[] | null => v === null || (Array.isArray(v) && v.length <= 40 && v.every((x) => typeof x === 'string' && /^[a-z]{1,20}$/.test(x))),
+  mailSignatures: (v): v is Record<string, string> => typeof v === 'object' && v !== null && !Array.isArray(v) && Object.keys(v).length <= 20 && Object.entries(v).every(([k, s]) => k.length > 0 && k.length <= 200 && typeof s === 'string' && [...s].length <= 2000 && !s.includes('\0')),
   imageModel: (v): v is string => typeof v === 'string' && (v === '' || /^[A-Za-z0-9-]{1,40}\|[^\r\n]{1,200}$/.test(v)),
 };
 export function parsePreferencesPatch(value: unknown): Partial<PreferencesSettings> | null {

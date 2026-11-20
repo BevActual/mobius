@@ -223,6 +223,11 @@ pub fn now_ms() -> u64 {
 
 /// A conversation id for one run. Mobius's own is never mistaken for an agent's (those are `c-`, the agent's six
 /// characters, then `-`); an agent's run is one of that agent's conversations, so it shows on its page.
+/// Whether a conversation is one a schedule started (`conversation_for_run`).
+pub fn is_scheduled_run(conversation: &str) -> bool {
+    conversation.starts_with("c-scheduled-") || (conversation.starts_with("c-") && conversation.contains("-scheduled-"))
+}
+
 pub fn conversation_for_run(bot: Option<&str>) -> String {
     match bot.filter(|b| is_bot_id(b)) {
         Some(bot) => format!("c-{bot}-scheduled-{}{}", new_id(), new_id()),

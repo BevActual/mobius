@@ -18,7 +18,7 @@ const titles = () => shell().locator('.tab-title');
 const address = () => shell().getByRole('textbox', { name: 'Address or question' });
 const openIn = async (path: string) => {
   const before = await titles().count();
-  await shell().getByRole('button', { name: 'New tab' }).click();
+  await shell().getByTitle('New tab (Ctrl+T)').click();
   await expect(titles()).toHaveCount(before + 1);
   await address().fill(fixture.origin + path);
   await address().press('Enter');
@@ -62,4 +62,15 @@ test('a middle click closes a tab', async () => {
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await shell().locator('.tab', { hasText: 'Fixture home' }).locator('.tab-main').click({ button: 'middle' });
   await expect(titles()).toHaveText(['Second page']);
+});
+
+test('Ctrl+Tab and Ctrl+Shift+Tab step through the tabs, going round', async () => {
+  await openIn('/second');
+  await expect(titles()).toHaveText(['Fixture home', 'Second page']);
+  const current = () => shell().locator('.tab[aria-current="page"] .tab-title');
+  await expect(current()).toHaveText('Second page');
+  await shell().keyboard.press('Control+Tab');
+  await expect(current()).toHaveText('Fixture home');
+  await shell().keyboard.press('Control+Shift+Tab');
+  await expect(current()).toHaveText('Second page');
 });

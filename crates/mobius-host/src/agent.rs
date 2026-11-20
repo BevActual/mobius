@@ -648,8 +648,12 @@ impl AgentService {
     }
 
     /// The person takes over the running task, or hands it back. Ok, or what went wrong in words.
-    pub fn control(&self, conversation: &str, theirs: bool) -> Value {
-        match self.call(if theirs { "agent.take_over" } else { "agent.hand_back" }, json!({ "conversation": conversation })) {
+    pub fn control(&self, conversation: &str, theirs: bool, note: Option<&str>) -> Value {
+        let mut params = json!({ "conversation": conversation });
+        if let Some(note) = note.map(str::trim).filter(|n| !n.is_empty() && !theirs) {
+            params["note"] = json!(note.chars().take(2000).collect::<String>());
+        }
+        match self.call(if theirs { "agent.take_over" } else { "agent.hand_back" }, params) {
             Ok(_) => json!({ "ok": true }),
             Err(_) => json!({ "ok": false, "error": if theirs { "Nothing is running to take over." } else { "There is nothing to hand back." } }),
         }

@@ -43,9 +43,10 @@ jobs:
         shell: bash
         run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
 
-      # The installer alone: no updater key here, so package.mjs makes no updater files from the unsigned build.
+      # The programs first (the shell, the core, mobius-inert-mcp), so they are signed before the installer packs them.
+      # No updater key here, so package.mjs makes no updater files from the unsigned build.
       # The services' app ids (docs/reference/drive-sign-in.md). Empty until set: the build then says that service isn't set up.
-      - name: Build the installer
+      - name: Build the programs
         env:
           MOBIUS_DROPBOX_APP_KEY: ${{ vars.MOBIUS_DROPBOX_APP_KEY }}
           MOBIUS_MICROSOFT_CLIENT_ID: ${{ vars.MOBIUS_MICROSOFT_CLIENT_ID }}
@@ -54,7 +55,79 @@ jobs:
           MOBIUS_GOOGLE_PICKER_KEY: ${{ vars.MOBIUS_GOOGLE_PICKER_KEY }}
           MOBIUS_TELEGRAM_API_ID: ${{ vars.MOBIUS_TELEGRAM_API_ID }}
           MOBIUS_TELEGRAM_API_HASH: ${{ secrets.MOBIUS_TELEGRAM_API_HASH }}
-        run: npm run package -- --version ${{ steps.version.outputs.value }}
+        run: npm run package -- --version ${{ steps.version.outputs.value }} --stage build
+
+      # ---- Code signing (Windows), through Azure Artifact Signing; skipped until AZURE_SIGNING_ACCOUNT is set --------
+      # Signs the programs, then the installer: Windows, its firewall and Defender then see Mobius's publisher on every
+      # program it runs, not only on the installer. The core and mobius-inert-mcp are signed here; the shell by the
+      # bundler (it changes the shell as it bundles); the installer last. Signing in through OpenID Connect: no password is stored,
+      # Azure trusts this repository's `release` environment (see docs/reference/code-signing-options.md for the setup).
+      - name: Sign in to Azure
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Find the programs
+        id: programs
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        run: |
+          # The core and mobius-inert-mcp, where the bundler takes them from (crates/mobius-shell/binaries). Not the shell:
+          # the bundler writes its bundle type into it, so the bundler signs it after that (scripts/sign-windows.ps1).
+          $files = @(Get-ChildItem 'crates\mobius-shell\binaries' -Filter '*.exe' | ForEach-Object FullName)
+          if ($files.Count -lt 2) { throw "Expected the core and mobius-inert-mcp, found: $($files -join ', ')" }
+          "files=$($files -join ',')" >> $env:GITHUB_OUTPUT
+
+      - name: Sign the programs
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ steps.programs.outputs.files }}
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Mobius
+          description-url: https://github.com/${{ github.repository }}
+
+      - name: Check the programs' signatures
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        env:
+          FILES: ${{ steps.programs.outputs.files }}
+        run: |
+          foreach ($file in $env:FILES -split ',') {
+            $check = Get-AuthenticodeSignature $file
+            if ($check.Status -ne 'Valid') { throw "$file does not verify: $($check.Status) $($check.StatusMessage)" }
+            Write-Host "$(Split-Path $file -Leaf): signed by $($check.SignerCertificate.Subject)"
+          }
+
+      # What the bundler signs with (scripts/sign-windows.ps1): the same module azure/artifact-signing-action uses.
+      - name: Install the signing module
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        run: Install-Module -Name ArtifactSigning -RequiredVersion 0.1.20 -Force -Repository PSGallery
+
+      # The installer, from the programs as signed; the bundler signs the shell once it has finished changing it.
+      - name: Bundle the installer
+        env:
+          MOBIUS_SIGN_WINDOWS: ${{ vars.AZURE_SIGNING_ACCOUNT != '' && '1' || '' }}
+          AZURE_SIGNING_ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          AZURE_SIGNING_ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          AZURE_CERTIFICATE_PROFILE: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          MOBIUS_DROPBOX_APP_KEY: ${{ vars.MOBIUS_DROPBOX_APP_KEY }}
+          MOBIUS_MICROSOFT_CLIENT_ID: ${{ vars.MOBIUS_MICROSOFT_CLIENT_ID }}
+          MOBIUS_GOOGLE_CLIENT_ID: ${{ vars.MOBIUS_GOOGLE_CLIENT_ID }}
+          MOBIUS_GOOGLE_CLIENT_SECRET: ${{ secrets.MOBIUS_GOOGLE_CLIENT_SECRET }}
+          MOBIUS_GOOGLE_PICKER_KEY: ${{ vars.MOBIUS_GOOGLE_PICKER_KEY }}
+          MOBIUS_TELEGRAM_API_ID: ${{ vars.MOBIUS_TELEGRAM_API_ID }}
+          MOBIUS_TELEGRAM_API_HASH: ${{ secrets.MOBIUS_TELEGRAM_API_HASH }}
+        run: npm run package -- --version ${{ steps.version.outputs.value }} --stage bundle
 
       - name: Find the installer
         id: setup
@@ -66,17 +139,6 @@ jobs:
           if (-not $setup) { throw "No installer for $env:VERSION in target\release\bundle\nsis" }
           "path=$($setup.FullName)" >> $env:GITHUB_OUTPUT
           "name=$($setup.Name)" >> $env:GITHUB_OUTPUT
-
-      # ---- Code signing (Windows), through Azure Artifact Signing; skipped until AZURE_SIGNING_ACCOUNT is set --------
-      # Signs the installer in place. Signing in through OpenID Connect: no password is stored, Azure trusts this
-      # repository's `release` environment (see docs/reference/code-signing-options.md for the setup).
-      - name: Sign in to Azure
-        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
-        uses: azure/login@v3
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
       - name: Sign the installer
         if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
@@ -101,6 +163,25 @@ jobs:
           $check = Get-AuthenticodeSignature $env:SETUP
           if ($check.Status -ne 'Valid') { throw "The signed installer does not verify: $($check.Status) $($check.StatusMessage)" }
           Write-Host "Signed by $($check.SignerCertificate.Subject)"
+
+      # The programs as they will be installed: unpacked from the installer, so a change made to one after it was signed
+      # (as the bundler's was to the shell in v0.1.19) fails here, not on someone's computer.
+      - name: Check the programs inside the installer
+        if: ${{ vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        env:
+          SETUP: ${{ steps.setup.outputs.path }}
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP 'installer-contents'
+          7z x $env:SETUP "-o$out" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7-Zip could not unpack $env:SETUP" }
+          foreach ($name in 'mobius-shell.exe', 'mobius-cored.exe', 'mobius-inert-mcp.exe') {
+            $file = Get-ChildItem $out -Recurse -Filter $name | Select-Object -First 1
+            if (-not $file) { throw "$name is not in the installer" }
+            $check = Get-AuthenticodeSignature $file.FullName
+            if ($check.Status -ne 'Valid') { throw "$name in the installer does not verify: $($check.Status) $($check.StatusMessage)" }
+            Write-Host "$name in the installer: signed by $($check.SignerCertificate.Subject)"
+          }
       # -------------------------------------------------------------------------------------------------------------
 
       # The updater's signature, from the installer as it will be shipped (signed or not).

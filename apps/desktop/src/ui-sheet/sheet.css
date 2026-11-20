@@ -47,3 +47,8 @@ body { overflow: auto; background: var(--frame); }
 .sheet-photo[data-look="before"] { background: linear-gradient(160deg, #9aa0a6, #6b7075 60%, #4a4e52); }
 .sheet-photo[data-look="after"] { background: linear-gradient(160deg, #f2c28b, #c8693c 55%, #5a2a1c); }
 .sheet-patch-param { display: inline-flex; align-items: center; gap: 4px; }
+.sheet-dots { display: flex; flex-wrap: wrap; gap: 20px 28px; margin-bottom: 20px; }
+.sheet-dots:last-child { margin-bottom: 0; }
+.sheet-dot { display: grid; justify-items: start; gap: 6px; font-size: var(--fs-xs); color: var(--muted); }
+.sheet-dot-row { display: inline-flex; align-items: center; gap: 8px; font-size: var(--fs-md); color: var(--ink); }
+.sheet-empties { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; border: 1px solid var(--line); border-radius: var(--radius-panel); margin-bottom: 12px; }

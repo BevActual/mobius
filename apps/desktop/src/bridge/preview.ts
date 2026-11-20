@@ -10,6 +10,7 @@ import { PREVIEW_READING } from './preview-reading';
 import { PREVIEW_NIGHT_BEFORE, PREVIEW_SONGS } from './preview-songs';
 import { PREVIEW_KNOWLEDGE } from './preview-knowledge';
 import { PREVIEW_BROWSER } from './preview-browser';
+import { PREVIEW_MESSAGES } from './preview-messages';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
 import { PREVIEW_VIEWS } from './preview-views';
@@ -57,10 +58,13 @@ const NOTE_TEXT: Record<string, string> = {
   'Home/Groceries.md': '# Groceries\n\n- [ ] Oats\n- [ ] Coffee #home\n',
 };
 const notePage = (path: string, modified: number) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), modified, preview: previewOf(NOTE_TEXT[path] ?? ''), tags: tagsIn(NOTE_TEXT[path] ?? ''), links: linksIn(NOTE_TEXT[path] ?? '', path) });
-const NOTES = () => [
-  { name: 'P2 build', pages: [notePage('P2 build/Supplier notes.md', now - hour), notePage('P2 build/Build plan.md', now - 3 * hour)] },
-  { name: 'Home', pages: [notePage('Home/Groceries.md', now - 30 * hour)] },
-];
+// Notebooks and pages made in the preview are kept for as long as it is open, so making a page can be tried.
+const NOTEBOOKS = ['P2 build', 'Home'];
+const NOTE_TIMES: Record<string, number> = { 'P2 build/Supplier notes.md': now - hour, 'P2 build/Build plan.md': now - 3 * hour, 'Home/Groceries.md': now - 30 * hour };
+const NOTES = () => NOTEBOOKS.map((name) => ({
+  name,
+  pages: Object.keys(NOTE_TEXT).filter((p) => p.startsWith(`${name}/`)).map((p) => notePage(p, NOTE_TIMES[p] ?? now)).sort((a, b) => b.modified - a.modified),
+}));
 /** The first line under the title, as the Rust list gives it (roughly: enough for the preview). */
 const previewOf = (text: string) => (text.split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('# ') && !l.startsWith('|'))[0] ?? '').replace(/^#+\s*|^[-*] (\[[ x]\] )?/g, '').replace(/!?\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/[*_`]/g, '').slice(0, 120);
 /** One turn of Mobius's, still waiting to be kept, so the dashed proposals and Why this can be looked at. */
@@ -91,11 +95,19 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'appearance.set': ((change: Partial<typeof DEFAULT_APPEARANCE>) => { previewLook = { ...previewLook, ...change }; return { ...previewLook }; }) as never,
   'preferences.get': () => ({ ...previewPrefs }),
   'preferences.set': ((change: Partial<typeof DEFAULT_PREFERENCES>) => { previewPrefs = { ...previewPrefs, ...change }; return { ...previewPrefs }; }) as never,
+  // The launcher's clipboard history: nothing copied in the preview.
+  'clipboard.history': () => [],
   'agent.getSettings': () => ({ baseUrl: 'https://portal.example/v1', model: 'Balanced', system: '', configured: true, hasKey: true, maxSteps: 24, keyStorage: 'session', fallbackBaseUrl: '', fallbackModel: '' }),
   'agent.question': () => null,
   // Settings › Approvals and Browser list these: none are kept in the preview.
   'agent.grants': () => [],
+  // The launcher's own-computer search: the preview has no installed apps, system commands or files on disk.
+  'system.apps': () => [],
+  'system.commands': () => [],
+  'system.files': () => [],
   ...PREVIEW_BROWSER,
+  // Messages: a Slack workspace and a Matrix account, kept in memory for as long as the preview is open.
+  ...PREVIEW_MESSAGES,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
   ...PREVIEW_VIEWS,
@@ -131,7 +143,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'notes.list': () => NOTES(),
   'notes.search': ((query: string) => Object.entries(NOTE_TEXT).filter(([, t]) => t.toLowerCase().includes(query.toLowerCase())).map(([path, t]) => ({ path, title: path.slice(path.indexOf('/') + 1, -3), notebook: path.split('/')[0], line: t.split('\n').find((l) => l.toLowerCase().includes(query.toLowerCase())) ?? '' }))) as never,
   // Typing in a note is kept for as long as the preview is open, so the Markdown it is saved as can be looked at.
-  'notes.save': ((path: string, content: string) => { NOTE_TEXT[path] = content; (window as unknown as { savedNote?: string }).savedNote = content; return { path, modified: Date.now() }; }) as never,
+  'notes.save': ((path: string, content: string) => { NOTE_TEXT[path] = content; NOTE_TIMES[path] = Date.now(); (window as unknown as { savedNote?: string }).savedNote = content; return { path, modified: Date.now() }; }) as never,
   // Two earlier versions of every page: one from before Mobius's turn, one kept while typing.
   'notes.versions': ((path: string) => [
     { whenMs: now - 40 * 60_000, content: (NOTE_TEXT[path] ?? '').replace(/\n- The price hold[^\n]*/, ''), source: 'kept' },
@@ -151,6 +163,14 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_SHEETS,
   ...PREVIEW_DATABASES,
   'notes.read': ((path: string) => ({ path, content: NOTE_TEXT[path] ?? '', modified: now })) as never,
+  'notes.createNotebook': ((name: string) => { const n = name.trim() || 'Notes'; if (!NOTEBOOKS.includes(n)) NOTEBOOKS.push(n); return { name: n }; }) as never,
+  'notes.createPage': ((notebook: string, title: string) => {
+    let path = `${notebook}/${title}.md`;
+    for (let i = 2; path in NOTE_TEXT; i++) path = `${notebook}/${title} ${i}.md`;
+    NOTE_TEXT[path] = `# ${title}\n\n`;
+    NOTE_TIMES[path] = Date.now();
+    return { path, content: NOTE_TEXT[path], modified: NOTE_TIMES[path] };
+  }) as never,
   'changes.lastTurn': () => ({ checkpoint: TURN.start, files: [...TURN.files, ...SONG_TURN.files] }),
   'changes.turns': () => ({ ok: true, turns: [TURN, SONG_TURN] }),
   // Before the turn: the supplier notes had only their title, and the P2 build list had no deposit task.

@@ -12,6 +12,65 @@ describe('launcher views', () => {
     expect(html).not.toContain('Right-click an app to pin');
   });
 
+  it('starts with what waits for you and the agents at work, but Enter still opens the first pinned app', () => {
+    const home = {
+      waiting: [1, 2, 3, 4].map((n) => ({ id: `w${n}`, label: `Chat ${n}`, detail: 'Needs your answer', app: 'agent' as const, run: () => {} })),
+      agents: [{ id: 'scout:1', name: 'Scout', state: 'working' as const, detail: 'Find a sled slot', run: () => {} }],
+    };
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} home={home} />);
+    expect(html).toContain('>Waiting for you<');
+    expect(html).toContain('>Agents at work<');
+    expect(html).toContain('Chat 3');
+    expect(html).not.toContain('Chat 4');
+    expect(html).toMatch(/Waiting for you.*Agents at work.*Scout.*Pinned/s);
+    expect(html).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Mail/s);
+  });
+
+  it('offers the AI commands first when something was selected, and asks what is typed about it', () => {
+    const ask = () => () => {};
+    const empty = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet at 3 by the dock' }} />);
+    expect(empty).toContain('>About the selection<');
+    expect(empty).toContain('“Meet at 3 by the dock”');
+    expect(empty).toMatch(/aria-selected="true"[^>]*>(?:(?!aria-selected).)*Summarize/s);
+    const typed = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'translate to french', answer: { conversation: 'c', text: '', state: 'asking', sources: [] } }} />);
+    expect(typed).toContain('Continue in Mobius');
+    const done = { conversation: 'c', text: 'Maya.', state: 'done' as const, sources: [] };
+    const asked = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'who replies?', answer: done }} />);
+    expect(asked).toContain('Save as a command');
+    const ran = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} askInline={ask} about={{ text: 'Meet' }} answered={{ question: 'Summarize', answer: done }} />);
+    expect(ran).not.toContain('Save as a command');
+    const none = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} about={{ text: 'Meet' }} />);
+    expect(none).not.toContain('About the selection');
+  });
+
+  it('offers to create a quicklink from what is typed, showing what it read', () => {
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} onOpenUrl={() => {}} answered={{ question: 'quicklink maps maps.example/?q={query}', answer: { conversation: 'c', text: '', state: 'failed', sources: [] } }} />);
+    expect(html).toContain('Create quicklink');
+    expect(html).toContain('https://maps.example/?q={query}');
+  });
+
+  it('shows clipboard history for "clipboard", or offers to turn it on', () => {
+    const idle = { conversation: 'c', text: '', state: 'failed' as const, sources: [] };
+    const clip = (on: boolean) => ({ on, entries: [{ text: 'Invoice 42 for Axion', at: 1000 }], setOn: () => {}, copy: () => {}, clear: () => {} });
+    const off = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} now={2000} clipboard={clip(false)} answered={{ question: 'clipboard', answer: idle }} />);
+    expect(off).toContain('Turn on clipboard history');
+    expect(off).not.toContain('Invoice 42');
+    const on = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} now={2000} clipboard={clip(true)} answered={{ question: 'cb axion', answer: idle }} />);
+    expect(on).toContain('>Clipboard history<');
+    expect(on).toContain('Invoice 42 for Axion');
+    expect(on).toContain('Turn off clipboard history');
+  });
+
+  it('finds the computer\'s own apps and commands below Mobius\'s, under On this computer', () => {
+    const idle = { conversation: 'c', text: '', state: 'failed' as const, sources: [] };
+    const system = { apps: [{ name: 'Spotify', id: 's' }, { name: 'Notes', id: 'n' }], commands: [{ id: 'sleep', name: 'Put the computer to sleep' }], open: () => {}, run: () => {} };
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} system={system} answered={{ question: 'spot', answer: idle }} />);
+    expect(html).toContain('>On this computer<');
+    expect(html).toContain('Spotify');
+    const notes = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} system={system} answered={{ question: 'notes', answer: idle }} />);
+    expect(notes).not.toContain('On this computer');
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);
@@ -63,5 +122,35 @@ describe('launcher choice memory', () => {
     let c = {};
     for (let i = 0; i < 25; i += 1) c = noteChoice(c, 'abc', `id-${i}`);
     expect(Object.keys((c as Record<string, object>).abc!)).toHaveLength(20);
+  });
+});
+
+import { landInStage } from './Launcher';
+
+describe('opening an app from the launcher', () => {
+  const stage = (inside: unknown[]) => {
+    let focused = false;
+    return { contains: (n: unknown) => inside.includes(n), focus: () => { focused = true; }, get focused() { return focused; } };
+  };
+  it('gives the keyboard to the work area when focus went back to the composer', () => {
+    const s = stage([]);
+    expect(landInStage(s as never, {} as Element)).toBe(true);
+    expect(s.focused).toBe(true);
+  });
+  it('leaves it where the app put it', () => {
+    const list = {} as Element;
+    const s = stage([list]);
+    expect(landInStage(s as never, list)).toBe(false);
+    expect(s.focused).toBe(false);
+  });
+});
+
+describe('an answer given in the launcher', () => {
+  it('shows its links and marks as the panel does, not as written', () => {
+    const answer = { conversation: 'c', state: 'done' as const, sources: ['Calendar'], text: 'It is [Crash test, 9:00 at Northfield](trust:yours "Calendar · Crash test").' };
+    const html = renderToStaticMarkup(<Launcher {...base} answered={{ question: 'when is the crash test?', answer }} />);
+    expect(html).toContain('Crash test, 9:00 at Northfield');
+    expect(html).not.toContain('trust:yours');
+    expect(html).toContain('Calendar');
   });
 });

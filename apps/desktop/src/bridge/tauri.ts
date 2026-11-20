@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { LauncherAnswer, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -158,6 +158,22 @@ export function createTauriBridge(): MobiusBridge {
       setOnTop: (onTop) => call('mini', 'setOnTop', [onTop], () => null).then(() => undefined),
       onChange: (listener) => on<boolean>('mobius:mini', listener, () => call('mini', 'isOpen', [], () => false)),
     },
+    clipboard: {
+      watch: (on) => call('clipboard', 'watch', [on], () => ({ on: false })),
+      history: () => call('clipboard', 'history', [], () => []),
+      copy: (text) => call('clipboard', 'copy', [text], () => ({ ok: false })),
+      clear: () => call('clipboard', 'clear', [], () => ({ ok: false })),
+      onCopied: (listener) => on<ClipboardEntry>('mobius:clipboard', listener),
+    },
+    system: {
+      apps: () => call<SystemApp[]>('system', 'apps', [], () => []),
+      open: (id) => call('system', 'open', [id], () => ({ ok: false })),
+      commands: () => call<SystemCommand[]>('system', 'commands', [], () => []),
+      run: (id) => call('system', 'run', [id], () => ({ ok: false })),
+      files: (query) => call<SystemFile[]>('system', 'files', [query], () => []),
+      openFile: (path) => call('system', 'openFile', [path], () => ({ ok: false })),
+      reveal: (path) => call('system', 'reveal', [path], () => ({ ok: false })),
+    },
     launcherWindow: {
       hide: () => call('launcher', 'hide', [], () => null).then(() => undefined),
       run: (chosen) => call('launcher', 'run', [chosen], () => null).then(() => undefined),
@@ -212,6 +228,8 @@ export function createTauriBridge(): MobiusBridge {
       // Its own event: the window's "open the conversation a notice was about" is a different thing.
       onOpenConversation: (listener) => on<string>('mobius:tray-conversation', listener),
       onStopAll: (listener) => on<null>('mobius:tray-stop-all', () => listener()),
+      onQuitting: (listener) => on<null>('mobius:quitting', () => listener()),
+      savedForQuit: () => call('tray', 'savedForQuit', [], () => null).then(() => undefined),
     },
     core: {
       getStatus: () => call<CoreStatus>('core', 'getStatus', [], () => 'failed'),
@@ -224,7 +242,7 @@ export function createTauriBridge(): MobiusBridge {
       transcribe: (audio, mime) => call('agent', 'transcribe', [toBase64(audio), mime], () => refused),
       cancel: (conversation) => call('agent', 'cancel', [conversation], () => undefined).then(() => undefined),
       takeOver: (conversation) => call('agent', 'takeOver', [conversation], () => ({ ok: false as const, error: 'Not available.' })),
-      handBack: (conversation) => call('agent', 'handBack', [conversation], () => ({ ok: false as const, error: 'Not available.' })),
+      handBack: (conversation, note) => call('agent', 'handBack', note ? [conversation, note] : [conversation], () => ({ ok: false as const, error: 'Not available.' })),
       control: (conversation) => call('agent', 'control', [conversation], () => ({ theirs: false })),
       history: (conversation) => call('agent', 'history', [conversation], () => []),
       waiting: (conversation) => call('agent', 'waiting', [conversation], () => []),

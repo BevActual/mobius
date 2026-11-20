@@ -64,7 +64,7 @@ const retitle = async (title: string) => {
 
 test('a first notebook and page are real files, and typing is saved as Markdown', async () => {
   await start();
-  await expect(side().getByText('No pages yet.')).toBeVisible();
+  await expect(side().getByText('No notes yet.')).toBeVisible();
   await newNotebook('Work');
   await expect(text()).toBeFocused();
   await expect(text().locator('h1')).toHaveText('Untitled');
@@ -104,6 +104,27 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
   await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
+});
+
+test('Ctrl+Z takes back what was typed and stops there: never the page as it was before it opened', async () => {
+  fs.mkdirSync(file('Home'), { recursive: true });
+  fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n- oat milk\n');
+  fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n- tomatoes\n');
+  await start();
+  await side().getByRole('button', { name: 'Groceries', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Groceries');
+  await side().getByRole('button', { name: 'Garden', exact: true }).click();
+  await expect(text().locator('h1')).toHaveText('Garden');
+  await text().locator('li').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.type(' and basil');
+  await expect.poll(() => onDisk('Home', 'Garden.md')).toContain('tomatoes and basil');
+  for (let i = 0; i < 8; i++) await shell().keyboard.press('Control+z');
+  await expect(text().locator('li')).toHaveText(['tomatoes']);
+  await expect(text().locator('h1')).toHaveText('Garden');
+  await expect.poll(() => onDisk('Home', 'Garden.md')).not.toContain('basil');
+  expect(onDisk('Home', 'Garden.md')).toMatch(/^# Garden\n+- tomatoes\n$/);
+  expect(onDisk('Home', 'Groceries.md')).toBe('# Groceries\n- oat milk\n');
 });
 
 test('the agent panel sits beside a note, and a change the agent makes shows up in the open page', async () => {
@@ -195,6 +216,24 @@ test('the format bar makes a checklist you tick, and More clips a web page where
   await expect.poll(() => onDisk('Trip', 'Untitled.md')).toMatch(/- \[ \] Pack\n\n> Nine rooms in Príncipe Real\.\n>\n> Breakfast included\.\n\n— \[Casa Amora\]\(/);
 });
 
+test('typing "[ ] " at the start of a bullet makes that bullet a checklist item, as in other notes apps', async () => {
+  await start();
+  await newNotebook('Home');
+  await retitle('Shop');
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('- Milk');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('[ ] Call the bakery');
+  await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call the bakery' })).toBeVisible();
+  // The bullet before it stays a bullet.
+  await expect.poll(() => onDisk('Home', 'Untitled.md')).toBe('# Shop\n\n- Milk\n\n- [ ] Call the bakery\n');
+  // Ctrl+N, from the page, starts another one (it presses New note in the Notebooks panel).
+  await shell().keyboard.press('Control+n');
+  await expect(text().locator('h1')).toHaveText('Untitled');
+  await expect(side().getByRole('button', { name: /^Shop/ })).toBeVisible();
+});
+
 test('#tags in pages show under Tags, and a tag lists the pages that carry it', async () => {
   fs.mkdirSync(file('Work'), { recursive: true });
   fs.mkdirSync(file('Home'), { recursive: true });
@@ -216,7 +255,7 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   await expect(text().locator('.note-tag')).toHaveText(['#supplier', '#kestrel/p2']);
   await shell().locator('.note-meta').getByRole('button', { name: '#kestrel/p2' }).click();
   await expect(side().getByRole('region', { name: '#kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
-  await side().getByRole('button', { name: 'Show every page' }).click();
+  await side().getByRole('button', { name: 'Show every note' }).click();
   await expect(side().getByRole('region', { name: 'Work' })).toBeVisible();
 });
 
@@ -363,4 +402,24 @@ test('Share exports the page as Markdown, with its pictures, and as one web page
   const html = fs.readFileSync(path.join(exports, 'Battery.html'), 'utf8');
   expect(html).toContain('<title>Battery</title>');
   expect(html).toContain('src="data:image/png;base64,');
+});
+
+test("Today's note makes a dated page in Journal once, and opens that same page after", async () => {
+  await start();
+  const d = new Date();
+  const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  await notesMenu('Today’s note');
+  await expect(text().locator('h1')).toHaveText(day);
+  await expect.poll(() => (fs.existsSync(file('Journal')) ? fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md')) : [])).toEqual([`${day}.md`]);
+  await text().locator('h1').click();
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('Called Veltro.');
+  await expect.poll(() => onDisk('Journal', `${day}.md`)).toContain('Called Veltro.');
+  // From anywhere, Ctrl+K "Today's note" opens the same page rather than making another.
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Today’s note');
+  await shell().getByRole('option', { name: /Today’s note/ }).first().click();
+  await expect(text()).toContainText('Called Veltro.');
+  expect(fs.readdirSync(file('Journal')).filter((f) => f.endsWith('.md'))).toEqual([`${day}.md`]);
 });

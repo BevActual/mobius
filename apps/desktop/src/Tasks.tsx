@@ -1,4 +1,3 @@
-import { RowMark } from './RowMark';
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
@@ -10,6 +9,7 @@ import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
+import { MobiusMark } from './MobiusMark';
 import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
@@ -38,6 +38,29 @@ function stepRow(from: HTMLElement, by: 1 | -1) {
   const next = rows[at + by];
   if (next) { next.focus(); next.scrollIntoView({ block: 'nearest' }); }
   else if (by === -1) page.querySelector<HTMLInputElement>('.task-new input[aria-label="New task"]')?.focus();
+}
+
+/**
+ * Before a focused row leaves (ticked off or deleted), hands the keyboard to the row after it, or the one before at the end.
+ * Rows are keyed by their line, so the save can remount the rows below: once `saved` settles, the same task gets it back.
+ */
+function stepAway(from: HTMLElement | null, saved: () => Promise<unknown>) {
+  if (!from || !from.contains(document.activeElement)) return saved();
+  const page = from.closest('.tasks-main');
+  const leaving = from.closest('li.task') ?? from;
+  // Its subtasks leave with it, so the next row is the first one outside it.
+  const rows = page ? [...page.querySelectorAll<HTMLElement>('.task-line[tabindex]')] : [];
+  const at = rows.indexOf(from);
+  const to = rows.slice(at + 1).find((r) => !leaving.contains(r)) ?? rows.slice(0, Math.max(at, 0)).reverse().find((r) => !leaving.contains(r))
+    ?? page?.querySelector<HTMLInputElement>('.task-new input[aria-label="New task"]') ?? null;
+  to?.focus();
+  to?.scrollIntoView({ block: 'nearest' });
+  const label = to?.getAttribute('aria-label');
+  // After the save's render, which lands a frame after it settles.
+  return saved().finally(() => window.requestAnimationFrame(() => {
+    if (!page || !label || (document.activeElement && document.activeElement !== document.body)) return;
+    [...page.querySelectorAll<HTMLElement>('.task-line[tabindex], .task-new input')].find((el) => el.getAttribute('aria-label') === label)?.focus();
+  }));
 }
 
 /** The smart lists' marks: a white glyph on a coloured circle, as in Apple's Reminders. */
@@ -121,8 +144,7 @@ export function TasksSidebar({ tasks, pin, changed, pinned, onPin, starts, onSta
                     onContextMenu={(e) => { if (l.name !== DEFAULT_LIST_NAME) { e.preventDefault(); setMenu({ name: l.name, x: e.clientX, y: e.clientY }); } }}>
                     <ListIcon name={l.name} />
                     <span className="list-name">{l.name}</span>
-                    <RowMark changed={changed?.has(l.name) === true} changedTitle="Changed by Mobius in its last turn" />
-                    {!changed?.has(l.name) && <span className="list-count">{l.open || ''}</span>}
+                    <span className="list-count" title={changed?.has(l.name) ? 'Mobius changed this list. Open it to keep or discard the change' : undefined}>{l.open || ''}</span>
                   </button>
                   {onPin && <button type="button" className="list-pin" aria-pressed={pinned?.has(l.name) ?? false} aria-label={pinned?.has(l.name) ? `Unpin ${l.name}` : `Pin ${l.name}`} title={pinned?.has(l.name) ? 'Unpin' : 'Pin to the top'} onClick={() => onPin(l.name)}>
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 3h6M8 3v6l-3 4h10l-3-4V3M10 13v4" /></svg>
@@ -240,6 +262,11 @@ interface RowProps {
   hideDue?: boolean;
 }
 
+/** A task's note on the line under its words: one line, cut short with an ellipsis, the whole of it in the tooltip. */
+function TaskNote({ text }: { text: string }) {
+  return <span className="task-note" title={text}>{text}</span>;
+}
+
 function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = false, reorder = false, hideDue = false }: RowProps) {
   const [editing, setEditing] = useState(false);
   const [words, setWords] = useState(task.text);
@@ -248,7 +275,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const line = useRef<HTMLDivElement>(null);
-  const completing = useCompleting(() => tasks.change(list, task, { done: true }));
+  const completing = useCompleting(() => stepAway(line.current, () => tasks.complete(list, task)));
   useEffect(() => { if (editing) field.current?.select(); }, [editing]);
   const finish = (keep: boolean) => {
     setEditing(false);
@@ -260,7 +287,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
   const tick = () => { if (task.done) void tasks.change(list, task, { done: false }); else completing.toggle(); };
   const details = () => tasks.pick(isPicked ? null : { list, text: task.text });
   const setDue = (due: string | null) => void tasks.change(list, task, { due });
-  const remove = () => { stepRow(line.current!, 1); void tasks.remove(list, task); };
+  const remove = () => void stepAway(line.current, () => tasks.remove(list, task));
   // The row's own keys, as in Reminders: arrows between tasks, Space ticks, Enter renames, ⌘I details, Delete deletes.
   const onKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     if (e.target !== e.currentTarget) return;
@@ -312,7 +339,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
           ) : (
             <button type="button" className="task-text" title="Click to change" onClick={() => { setWords(task.text); setEditing(true); }}>{task.text}</button>
           )}
-          {note && <span className="task-note">{note}</span>}
+          {note && <TaskNote text={note} />}
         </div>
         {/* The trailing edge, as in Linear: the subtask count, the list (in views across lists), the flag, then the
             due date in tabular figures, grey unless overdue. */}
@@ -329,13 +356,8 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <input type="date" className="task-date" aria-label={`Due date for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
               onChange={(e) => { setDating(false); void tasks.change(list, task, { due: e.target.value || null }); }} onBlur={() => setDating(false)} onKeyDown={(e) => { if (e.key === 'Escape') setDating(false); }} />
           ) : (
-            <button type="button" className="strip-btn" aria-label={`Set a due date for ${task.text}`} title="Due date" onClick={() => setDating(true)}>
+            <button type="button" className="strip-btn" aria-label={`Set a due date for ${task.text}`} title={task.due ? "Change the due date" : "Due date"} onClick={() => setDating(true)}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 3v3M13 3v3" /></svg>
-            </button>
-          )}
-          {task.due && !dating && (
-            <button type="button" className="strip-btn" aria-label={`Clear the due date for ${task.text}`} title="Clear due date" onClick={() => void tasks.change(list, task, { due: null })}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M6 6l8 8M14 6l-8 8" /></svg>
             </button>
           )}
           <button type="button" className="strip-btn" aria-pressed={task.flagged ?? false} aria-label={task.flagged ? `Unflag ${task.text}` : `Flag ${task.text}`} title={task.flagged ? 'Unflag' : 'Flag'} onClick={() => void tasks.change(list, task, { flagged: !task.flagged })}>
@@ -542,7 +564,7 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
   return (
     <form className="task-new" data-typing={text !== '' || due !== '' || undefined} onSubmit={(e) => void submit(e)}>
       <svg className="task-plus" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
-      <input ref={input} aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
+      <input ref={input} data-bare aria-label="New task" placeholder={placeholder} value={text} maxLength={500} onChange={(e) => { setText(e.target.value); if (!e.target.value) setLiteral(false); }}
         onKeyDown={(e) => { if (e.key === 'ArrowDown') { const first = e.currentTarget.closest('.tasks-main')?.querySelector<HTMLElement>('.task-line[tabindex]'); if (first) { e.preventDefault(); first.focus(); } } }} />
       {said && (
         <button type="button" className="chip task-when" title={`“${said.phrase}” sets when it is due. Click to keep it as words.`} aria-label={`Due ${saidWords(said, now)}. Keep “${said.phrase}” as words instead`} onClick={() => { setLiteral(true); input.current?.focus(); }}>
@@ -569,8 +591,20 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   const now = new Date();
   const view = tasks.view;
   const query = tasks.query.trim();
-  // Undo from the menus puts back the task just deleted.
-  useEffect(() => onCommand('undo', () => { if (tasks.deleted) void tasks.undoDelete(); }), [tasks]);
+  // Undo, from the menus or Ctrl+Z outside a text field, puts back the task just deleted or ticked off.
+  useEffect(() => onCommand('undo', () => void tasks.undoLast()), [tasks]);
+  useEffect(() => {
+    if (!tasks.deleted && !tasks.finished) return undefined;
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.defaultPrevented || e.key.toLowerCase() !== 'z') return;
+      if (t?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+      e.preventDefault();
+      void tasks.undoLast();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tasks]);
   useEffect(() => { setShowDone(false); }, [view]);
   const ask = onAsk ?? tasks.ask.current ?? undefined;
   // A task typed in Today is due today; anything typed outside a list lands in the Inbox.
@@ -614,7 +648,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
             row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
             task === lastNew && review && !working && (
               <li key="mobius-change" className="task-change">
-                <ChangeBar who="Mobius changed this list" onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                <ChangeBar who={<><MobiusMark size={14} />Mobius changed this list</>} onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
               </li>
             ),
@@ -701,6 +735,9 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
           {body}
           {empty && <p className="tasks-empty">{empty}</p>}
         </div>
+        {tasks.finished && !tasks.deleted && (
+          <UndoToast text={`Completed “${tasks.finished.text}”`} onUndo={() => void tasks.undoComplete()} onDismiss={tasks.dismissFinished} />
+        )}
         {tasks.deleted && (
           <UndoToast text={`${tasks.deleted.kind === 'list' ? 'Deleted the list' : 'Deleted'} “${tasks.deleted.kind === 'list' ? tasks.deleted.list : tasks.deleted.text}”`} onUndo={() => void tasks.undoDelete()} onDismiss={tasks.dismissDeleted} />
         )}

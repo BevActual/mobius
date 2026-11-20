@@ -11,6 +11,7 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       sidebarShown: true, hasSidebar: true, agentShown: true, hasAgentPanel: true, commenting: false, split: false, canSplit: true, miniOpen: false, zoom: 1,
       browser: { hasPage: true, canBack: false, canForward: false, bookmarked: false, pinned: false },
       notes: { hasPage: false, pinned: false, changed: false },
+      docs: { hasPage: false, isTemplate: false, templates: [] },
       tasks: { inList: false, done: 0 },
       calendar: { mode: 'week' },
       agent: { busy: false },
@@ -21,9 +22,9 @@ function context(app: MenuContext['app'], over: Partial<MenuContext['state']> = 
       closeTab: noop, settings: noop, shortcuts: noop, learn: noop, profiles: noop, about: noop, edit: noop, find: noop, toggleSidebar: noop, toggleAgent: noop, toggleComments: noop,
       toggleSplit: noop, toggleMini: noop, zoom: noop, open: noop, allApps: noop, launcher: noop,
       browser: { back: noop, forward: noop, reload: noop, address: noop, bookmark: noop, pin: noop, reopen: noop, selection: noop, saveToReader: noop },
-      notes: { newNotebook: noop, pin: noop, changes: noop, history: noop, clip: noop, markdown: noop },
+      notes: { newNotebook: noop, today: noop, pin: noop, changes: noop, history: noop, clip: noop, markdown: noop },
       tasks: { newList: noop, clearDone: noop, today: noop, scheduled: noop },
-      docs: { newDocument: noop, newFolder: noop },
+      docs: { newDocument: noop, newFolder: noop, fromTemplate: noop, saveAsTemplate: noop },
       video: { newProject: noop, showFolder: noop },
       studio: { newSong: noop, play: noop },
       photo: { newAlbum: noop, export: noop },
@@ -94,5 +95,18 @@ describe('menus', () => {
     findItem(menus, 'split')!.run();
     expect(c.do.toggleSplit).toHaveBeenCalledOnce();
     expect(findItem(menus, 'nope')).toBeUndefined();
+  });
+});
+
+describe('Docs templates in the Docs menu', () => {
+  const docsMenu = (over: Partial<MenuContext['state']>) => buildMenus(context('docs', over)).find((m) => m.id === 'app')!;
+  const labels = (over: Partial<MenuContext['state']>) => docsMenu(over).items.flatMap((i) => (i.kind === 'item' ? [i.label] : []));
+  it('lists each template as New from …, and Save as template only with a document open that is not one', () => {
+    const templates = [{ path: 'Templates/Meeting notes.md', title: 'Meeting notes' }];
+    expect(labels({ docs: { hasPage: true, isTemplate: false, templates } })).toEqual(['New document', 'New folder', 'New from Meeting notes', 'Save as template']);
+    const save = (state: MenuContext['state']['docs']) => docsMenu({ docs: state }).items.find((i) => i.kind === 'item' && i.id === 'save-template');
+    expect(save({ hasPage: false, isTemplate: false, templates: [] })).toMatchObject({ disabled: true });
+    expect(save({ hasPage: true, isTemplate: true, templates })).toMatchObject({ disabled: true });
+    expect(save({ hasPage: true, isTemplate: false, templates })).toMatchObject({ disabled: false });
   });
 });

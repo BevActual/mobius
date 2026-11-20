@@ -4,6 +4,8 @@
 mod awake;
 mod secrets;
 mod tray;
+mod clipboard;
+mod system;
 mod autostart;
 mod launcher;
 mod menu;
@@ -395,12 +397,22 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
         let mut before = shell.menu.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return menu::set(&app, &mut before, &args);
     }
+    if namespace == "tray" && method == "savedForQuit" {
+        tray::saved_for_quit();
+        return Ok(Value::Null);
+    }
     if namespace == "tray" && method == "set" {
         let mut before = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
         return tray::set(&app, &mut before, &args);
     }
     if namespace == "launcher" {
         return launcher::call(&app, &method, &args);
+    }
+    if namespace == "clipboard" {
+        return clipboard::call(&app, &method, &args);
+    }
+    if namespace == "system" {
+        return system::call(&method, &args);
     }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
@@ -492,9 +504,16 @@ fn main() {
     let _ = mobius_workspace::notes::FILE_HOLDERS.set(file_holders);
     let mut app = tauri::Builder::default();
     // One Mobius: starting it again while it waits in the tray brings its window back, never a second copy on the same
-    // data. Tests start many copies at once, each with its own data.
+    // data; started again with --quit (the installer, before it replaces the files), it quits as the tray's Quit does.
+    // Tests start many copies at once, each with its own data.
     if !std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1") {
-        app = app.plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| tray::show_main(app)));
+        app = app.plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            if tray::asks_to_quit(&args) {
+                tray::quit(app);
+            } else {
+                tray::show_main(app);
+            }
+        }));
     }
     let app = app
         .plugin(tauri_plugin_notification::init())
@@ -508,6 +527,11 @@ fn main() {
             std::thread::spawn(move || responder.respond(media_response(shell.as_deref(), &request)));
         })
         .setup(|app| {
+            // Asked to quit with no Mobius running: there is nothing to quit, so start nothing.
+            if tray::asks_to_quit(&std::env::args().collect::<Vec<_>>()) {
+                app.handle().exit(0);
+                return Ok(());
+            }
             let test_mode = std::env::var("MOBIUS_TEST").is_ok_and(|v| v == "1");
             let base_dir = match std::env::var("MOBIUS_USER_DATA") {
                 Ok(dir) if test_mode => PathBuf::from(dir),
@@ -611,6 +635,7 @@ fn main() {
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));
             app.manage(updater::Updates::new(test_mode));
+            app.manage(clipboard::Clipboard::default());
             updater::start(&handle);
             app.manage(Shell { bridge: bridge.clone(), mini_place: data_dir.join("little-mobius.json"), tray: std::sync::Mutex::new(None), menu: std::sync::Mutex::new(None), profiles_base: base_dir.clone() });
             // A choice in the macOS menu bar goes to the interface, which runs it.

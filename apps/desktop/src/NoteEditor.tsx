@@ -10,13 +10,17 @@ import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
 import { EditorContent, useEditor, useEditorState, type Editor } from '@tiptap/react';
+import { FindMarks } from './doc-find';
+import { DocFind, findKeyOf } from './DocFind';
 import { Extension, generateHTML } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
+import { BulletToTask } from './task-shortcut';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { loadIntoEditor } from './editor-load';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { onCommand } from './commands';
@@ -120,6 +124,53 @@ const noteComments = (quotes: () => readonly string[]) => Extension.create({
         apply: (tr, old) => (tr.docChanged || tr.getMeta(commentKey) ? commentDecorations(tr.doc, quotes()) : old),
       },
       props: { decorations: (state) => commentKey.getState(state) },
+    })];
+  },
+});
+
+/** The quiet line under the title, as in Docs ("Edited just now · 22 words · 1 comment · #tag"), drawn in the page
+ *  after the first heading. Its tags are grey words that list the notes with that tag. Read from `look` when told. */
+interface NoteMetaLine { parts: string[]; tags: string[]; onTag: (tag: string) => void }
+const metaKey = new PluginKey<DecorationSet>('note-meta');
+function noteMetaDecorations(doc: PmNode, look: () => NoteMetaLine | null): DecorationSet {
+  const line = look();
+  if (!line) return DecorationSet.empty;
+  const first = doc.firstChild;
+  const at = first && first.type.name === 'heading' && Number(first.attrs.level) === 1 ? first.nodeSize : 0;
+  const draw = () => {
+    const p = document.createElement('p');
+    p.className = 'note-meta';
+    p.contentEditable = 'false';
+    for (const part of line.parts) { const span = document.createElement('span'); span.textContent = part; p.append(span); }
+    if (line.tags.length) {
+      const tags = document.createElement('span');
+      tags.className = 'note-meta-tags';
+      for (const tag of line.tags) {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'note-meta-tag';
+        b.title = `Show every note tagged #${tag}`;
+        b.textContent = `#${tag}`;
+        b.addEventListener('mousedown', (e) => e.preventDefault());
+        b.addEventListener('click', () => look()?.onTag(tag));
+        tags.append(b);
+      }
+      p.append(tags);
+    }
+    return p;
+  };
+  return DecorationSet.create(doc, [Decoration.widget(at, draw, { side: -10, key: `note-meta:${line.parts.join('|')}:${line.tags.join(' ')}`, ignoreSelection: true, stopEvent: () => true })]);
+}
+const noteMeta = (look: () => NoteMetaLine | null) => Extension.create({
+  name: 'noteMeta',
+  addProseMirrorPlugins() {
+    return [new Plugin<DecorationSet>({
+      key: metaKey,
+      state: {
+        init: (_, state) => noteMetaDecorations(state.doc, look),
+        apply: (tr, old) => (tr.docChanged || tr.getMeta(metaKey) ? noteMetaDecorations(tr.doc, look) : old),
+      },
+      props: { decorations: (state) => metaKey.getState(state) },
     })];
   },
 });
@@ -261,6 +312,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   const focusOnOpen = useRef(autoFocus);
   focusOnOpen.current = autoFocus;
   const [source, setSource] = useState(readSource);
+  // Find (Ctrl+F) and Replace (Ctrl+H) in the page; not in the Markdown source, which is a plain text area.
+  const [finding, setFinding] = useState<{ replacing: boolean; token: number } | null>(null);
   const sourceNow = useRef(source);
   sourceNow.current = source;
   // The selection bar sits just above the selection.
@@ -286,6 +339,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // What Mobius's last turn changed, drawn in the page as dashed blocks to keep or discard one at a time (as in Docs).
   const changesNow = useRef<ChangeView | null>(null);
   const changeMarks = useMemo(() => changeBlocks(() => changesNow.current), []);
+  const metaNow = useRef<NoteMetaLine | null>(null);
+  const metaMark = useMemo(() => noteMeta(() => metaNow.current), []);
   const tryAnother = useContext(TryAnotherContext);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
   const editor = useEditor({
@@ -294,6 +349,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       TableKit,
       TaskList,
       TaskItem.configure({ nested: true }),
+      BulletToTask,
       Markdown,
       // The hints are for a page still to be written: an empty title, and the first line under it. A page with words
       // in it shows none, so the empty line kept at its end does not read as a prompt.
@@ -302,6 +358,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       image,
       commentMarks,
       changeMarks,
+      metaMark,
+      FindMarks,
     ],
     content: '',
     editorProps: {
@@ -362,10 +420,12 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     onBlur: () => setSelection(null),
   });
   // The page's text, from the store: put into the editor when it did not come from the editor itself.
+  const placed = useRef<string | null>(null);
   useEffect(() => {
     if (!editor || editor.isDestroyed || source || notes.text === known.current) return;
     known.current = notes.text;
-    editor.chain().setMeta('mobius-load', true).setContent(notes.text, { contentType: 'markdown', emitUpdate: false }).run();
+    loadIntoEditor(editor, notes.text, placed.current !== (path ?? null));
+    placed.current = path ?? null;
   }, [editor, notes.text, path, source]);
   // A page opened from the list takes the cursor, at its end (a new page: under its title).
   useEffect(() => {
@@ -432,6 +492,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   useEffect(() => { caret.current = null; }, [path]);
   const [clipping, setClipping] = useState<string | null>(null);
   const [linking, setLinking] = useState<string | null>(null);
+  // Where [[ was typed (in the window), for the note picker to open there rather than above the page.
+  const [linkAt, setLinkAt] = useState<{ left: number; top: number } | null>(null);
+  useEffect(() => { if (linking === null) setLinkAt(null); }, [linking]);
+  // A click anywhere else closes it, as it would a menu.
+  useEffect(() => {
+    if (!linkAt) return undefined;
+    const away = (e: PointerEvent) => { if (!(e.target instanceof Element && e.target.closest('.note-link-float'))) setLinking(null); };
+    document.addEventListener('pointerdown', away, true);
+    return () => document.removeEventListener('pointerdown', away, true);
+  }, [linkAt]);
   const [insertProblem, setInsertProblem] = useState<string | null>(null);
   const recordedFor = useRef(0);
   /** A block of Markdown put in where the cursor is. */
@@ -538,7 +608,32 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     else chain.extendMarkRange('link').setLink({ href }).run();
   };
   openPage.current = (page) => { const found = notes.notebooks.flatMap((nb) => nb.pages).find((pg) => pg.path === page); void notes.open(page, found?.title ?? ''); };
-  askForPage.current = () => setLinking('');
+  askForPage.current = () => {
+    const at = editor?.view.coordsAtPos(editor.state.selection.from);
+    setLinkAt(at ? { left: Math.max(8, Math.min(at.left, window.innerWidth - 340)), top: at.bottom + 6 } : null);
+    setLinking('');
+  };
+  const linkForm = linking === null ? null : (
+            <form className={`note-clip note-link-form${linkAt ? ' note-link-float' : ''}`} style={linkAt ? { left: linkAt.left, top: linkAt.top } : undefined} onSubmit={(e) => { const pick = linkPages[linkChoice]; if (pick) { e.preventDefault(); linkPage(pick); } else addLink(e); }}>
+              <input autoFocus aria-label="Link to" placeholder="A note's name, or paste a link" value={linking} role="combobox" aria-expanded={linkPages.length > 0} aria-controls="note-link-pages" aria-activedescendant={linkPages[linkChoice] ? `note-link-${linkChoice}` : undefined}
+                onChange={(e) => setLinking(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') { setLinking(null); setLinkAt(null); editor?.commands.focus(); }
+                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setLinkChoice((c) => (linkPages.length ? (c + (e.key === 'ArrowDown' ? 1 : linkPages.length - 1)) % linkPages.length : 0)); }
+                }} />
+              <button type="submit" className="btn" disabled={!linking.trim() && !linkPages.length}>Link</button>
+              {linkPages.length > 0 && (
+                <ul id="note-link-pages" className="note-link-pages" role="listbox" aria-label="Notes to link">
+                  {linkPages.map((pg, i) => (
+                    <li key={pg.path} id={`note-link-${i}`} role="option" aria-selected={i === linkChoice} onPointerDown={(e) => e.preventDefault()} onClick={() => linkPage(pg)}>
+                      <span className="note-link-title">{pg.title}</span>
+                      <span className="note-link-book">{pg.notebook}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </form>
+  );
   const backlinks = useMemo(() => (path ? linkedFrom(notes.notebooks, path) : []), [notes.notebooks, path]);
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
@@ -666,6 +761,16 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   // "Edited" counts on from when the page was last saved, so it is read again every half minute.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
+  const edited = notes.page?.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
+  // The meta line under the title: drawn in the page, so told to look again when what it says changes.
+  const metaParts = [
+    ...(edited ? [`Edited ${edited.toLowerCase() === 'just now' ? 'just now' : edited}`] : []),
+    words === 1 ? '1 word' : `${words} words`,
+    ...(openComments > 0 ? [openComments === 1 ? '1 comment' : `${openComments} comments`] : []),
+  ];
+  metaNow.current = notes.page && !source ? { parts: metaParts, tags, onTag: showTag } : null;
+  const metaText = metaNow.current ? `${metaParts.join('|')}|${tags.join(' ')}` : '';
+  useEffect(() => { if (editor && !editor.isDestroyed) editor.view.dispatch(editor.state.tr.setMeta(metaKey, true)); }, [editor, metaText]);
 
   // The page's headings, for the Outline panel beside it (the same panel as Docs'), read once the page is in the editor.
   useEffect(() => {
@@ -694,7 +799,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     // The editor stays mounted (hidden), so it is ready the moment a page opens.
     return (
       <section className="note-editor empty" aria-label="Note">
-        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New page', run: () => newItemIn(notes, null, 'Notes') }} />
+        <EmptyState app="notes" label="No page open" title={notes.notebooks.some((n) => n.pages.length) ? 'No page open' : 'No pages yet'} line="Choose a page on the left, or start a new one." action={{ label: 'New note', run: () => newItemIn(notes, null, 'Notes') }} />
         <EditorContent editor={editor} hidden />
       </section>
     );
@@ -711,9 +816,21 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
     ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );
-  const edited = notes.page.base ? relativeTime(notes.page.base, Math.max(now, notes.page.base)) : '';
+  // Editing the Markdown itself, the same line sits over the text.
+  const metaLine = (
+    <p className="note-meta">
+      {metaParts.map((part) => <span key={part}>{part}</span>)}
+      {tags.length > 0 && (
+        <span className="note-meta-tags">
+          {tags.map((tag) => <button key={tag} type="button" className="note-meta-tag" title={`Show every note tagged #${tag}`} onClick={() => showTag(tag)}>#{tag}</button>)}
+        </span>
+      )}
+    </p>
+  );
   return (
-    <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}>
+    <section ref={section} className="note-editor" aria-label={`Note: ${title}`} data-source={source || undefined}
+      onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor || source) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
+      {finding && editor && !source && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">
@@ -764,7 +881,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         </div>
         </ToolbarControls>
       )}
-      {diff === null && !history && (clipping !== null || linking !== null || meetingDone || (insertProblem ?? recording.problem ?? meeting.problem)) && (
+      {diff === null && !history && (clipping !== null || (linking !== null && !linkAt) || meetingDone || (insertProblem ?? recording.problem ?? meeting.problem)) && (
         <div className="note-forms">
           {clipping !== null && (
             <form className="note-clip" onSubmit={(e) => { e.preventDefault(); if (clipping.trim()) void clip(clipping); }}>
@@ -772,27 +889,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
               <button type="submit" className="btn" disabled={!clipping.trim()}>Clip</button>
             </form>
           )}
-          {linking !== null && (
-            <form className="note-clip note-link-form" onSubmit={(e) => { const pick = linkPages[linkChoice]; if (pick) { e.preventDefault(); linkPage(pick); } else addLink(e); }}>
-              <input autoFocus aria-label="Link to" placeholder="A note's name, or paste a link" value={linking} role="combobox" aria-expanded={linkPages.length > 0} aria-controls="note-link-pages" aria-activedescendant={linkPages[linkChoice] ? `note-link-${linkChoice}` : undefined}
-                onChange={(e) => setLinking(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Escape') { setLinking(null); editor?.commands.focus(); }
-                  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); setLinkChoice((c) => (linkPages.length ? (c + (e.key === 'ArrowDown' ? 1 : linkPages.length - 1)) % linkPages.length : 0)); }
-                }} />
-              <button type="submit" className="btn" disabled={!linking.trim() && !linkPages.length}>Link</button>
-              {linkPages.length > 0 && (
-                <ul id="note-link-pages" className="note-link-pages" role="listbox" aria-label="Notes to link">
-                  {linkPages.map((pg, i) => (
-                    <li key={pg.path} id={`note-link-${i}`} role="option" aria-selected={i === linkChoice} onPointerDown={(e) => e.preventDefault()} onClick={() => linkPage(pg)}>
-                      <span className="note-link-title">{pg.title}</span>
-                      <span className="note-link-book">{pg.notebook}</span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </form>
-          )}
+          {linking !== null && !linkAt && linkForm}
           {meetingDone && (
             <div className="note-clip note-meeting" role="status">
               <span>The meeting is in this page.</span>
@@ -834,15 +931,12 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
           })()}
         </ol>
       )}
-      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined} onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
-        <p className="note-meta">
-          {edited && <span>Edited {edited.toLowerCase() === 'just now' ? 'just now' : edited}</span>}
-          <span>{words === 1 ? '1 word' : `${words} words`}</span>
-          {openComments > 0 && <span>{openComments === 1 ? '1 comment' : `${openComments} comments`}</span>}
-          {tags.map((tag) => (
-            <button key={tag} type="button" className="note-meta-tag" title={`Show every note tagged #${tag}`} onClick={() => showTag(tag)}>#{tag}</button>
-          ))}
-        </p>
+      {linkAt && linkForm && diff === null && !history && createPortal(linkForm, document.body)}
+      <div ref={setScroller} className="note-scroll" hidden={diff !== null || history} data-entering={entering || undefined}
+        // Comments follow the words at the normal gap, so the room left over is below them: a click there writes on.
+        onMouseDown={(e) => { if (e.target !== e.currentTarget || !editor || source) return; e.preventDefault(); editor.commands.focus('end'); }}
+        onAnimationEnd={(e) => { if (e.target === e.currentTarget) setEntering(false); }}>
+        {source && metaLine}
         {source ? (
           <textarea
             ref={area}

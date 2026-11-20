@@ -13,7 +13,9 @@ select:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 select:disabled { opacity: 0.4; cursor: default; }
 option { background: var(--bg); color: var(--ink); }
 button { cursor: pointer; border: 0; background: none; border-radius: var(--radius-control); }
-button:hover:not(:disabled) { background: var(--soft); }
+/* The default hover weighs one class and one element (:where keeps :not(:disabled) out of the count), so an app's own
+   `button.x:hover` or a state like `.row[aria-current]` wins without depending on which file loads last. */
+button:hover:where(:not(:disabled)) { background: var(--soft); }
 button:disabled { opacity: 0.4; cursor: default; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -167,9 +169,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 /* The working indicator (Working.tsx): dot matrix, Working, the step count, Stop, then this turn's numbered steps. */
 .work-now { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-1); }
 .work-now-head { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); }
-.dot-matrix { width: 96px; height: 24px; flex: none; fill: var(--mobius); }
-.dot-matrix circle { opacity: 0.18; animation: dot-wave var(--dur-loop) var(--ease) infinite; animation-delay: var(--d); }
-@keyframes dot-wave { 0%, 60%, 100% { opacity: 0.18; } 20% { opacity: 1; } }
 .work-now-word { font-weight: var(--fw-medium); }
 .work-now-count { font-family: var(--font-mono); font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
 .work-now-stop { margin-left: auto; }
@@ -180,7 +179,6 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .work-now-n { flex: none; font-family: var(--font-mono); color: var(--muted); }
 .work-now-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .work-now-more { padding-left: calc(var(--sp-2) + 2ch); font-style: normal; }
-@media (prefers-reduced-motion: reduce) { .dot-matrix circle { animation: none; opacity: 0.45; } }
 @media (prefers-reduced-motion: reduce) { .msg.assistant[data-streaming="true"]::after { animation: none; } }
 
 /* The Mobius mark. Turning, the three bands of the trefoil brighten one after the other, as the band travels round. */
@@ -336,6 +334,8 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 .slist-item:last-child { border-bottom: 0; }
 .slist-item[data-tone="warning"] .slist-main > span:first-child { color: var(--danger); }
 .slist-main { display: flex; flex-direction: column; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mail-signature { display: grid; gap: 4px; margin-top: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.mail-signature textarea { width: 100%; max-width: 420px; min-height: calc(3lh + 12px); padding: 6px 8px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); color: var(--ink); font: inherit; font-size: var(--fs-md); resize: none; field-sizing: content; }
 .slist-sub { font-size: var(--fs-sm); color: var(--muted); }
 .slist-time { flex: none; font-size: var(--fs-sm); color: var(--muted); }
 .badge { flex: none; margin-left: 8px; padding: 1px 8px; border-radius: var(--radius-small); background: var(--soft); font-size: var(--fs-xs); }
@@ -1462,6 +1462,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .db-none { padding: var(--sp-1) var(--sp-2); }
 .side-empty { padding: var(--sp-2) var(--sp-3); color: var(--muted); font-size: var(--fs-sm); display: flex; flex-direction: column; gap: var(--sp-2); align-items: flex-start; }
 .side-empty p { margin: 0; }
+/* The end of a list drawn in part (NotesSidebar): one pixel, so it can scroll into view and draw more. */
+.side-more { height: 1px; list-style: none; }
 .stage .db-page { position: absolute; z-index: 1; inset: 0; display: flex; flex-direction: column; background: var(--bg); overflow: hidden; }
 .db-page.empty { align-items: center; justify-content: center; }
 .db-review { margin: var(--sp-2) var(--sp-3) 0; }
@@ -1723,6 +1725,7 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* Take over: while you have control of a running task. */
 .control-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); margin: 0 var(--sp-3) var(--sp-2); padding: 6px 6px 6px 12px; border-radius: var(--radius-panel); background: var(--wash); font: var(--fs-sm)/1.2 var(--font); }
 .control-text { flex: 1; font-weight: 500; }
+.control-note { flex: 1 1 100%; order: 1; height: 28px; padding: 0 10px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--bg); font: inherit; }
 .composer-actions .take-over { height: 28px; padding: 0 10px; font-size: var(--fs-sm); }
 
 /* Who is using a tab while a task runs. */
@@ -2207,6 +2210,10 @@ html .launcher, html .hub { border-radius: var(--sheet-radius); }
 input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"]):focus-visible, textarea:focus-visible, select:focus-visible, [contenteditable="true"][role="textbox"]:not([aria-multiline="true"]):focus-visible {
   outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
+/* A bare field that reads as a line of text (an add row, a title in place) takes no box: its row shows focus instead,
+   with a darker hairline under it, so the line never looks boxed in. Mark the input data-bare. */
+input[data-bare]:focus-visible, textarea[data-bare]:focus-visible { box-shadow: none; }
+:has(> input[data-bare]:focus-visible, > textarea[data-bare]:focus-visible) { border-bottom-color: var(--ink); }
 :is(.search-box, .hub-search, .launcher-search, .composer, .model-find-box, .chips-field) :is(input, textarea, [contenteditable]):is(:focus, :focus-visible) { outline: none; box-shadow: none; }
 :is(.search-box, .hub-search):focus-within { border-color: transparent; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent); }
 
@@ -2373,7 +2380,8 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 /* From Mobius: a quiet heading, then one row with how many are left to review. */
 .ui-dock[data-dock="left"] .from-mobius > .from-mobius-title { display: flex; height: 28px; padding: 0 8px; }
 .from-mobius-filter { color: var(--ink); font-weight: var(--fw-regular); }
-.from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--mobius); }
+.from-mobius-filter .from-mobius-count { flex: none; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.from-mobius-filter .from-mobius-mark { flex: none; display: inline-grid; place-items: center; color: var(--mobius); }
 .ui-dock[data-dock="left"] .from-mobius { border-top: 0; padding-top: 0; }
 
 /* One Mobius change block in every app (frame review): the dashed indigo edge Docs draws round a change, on the page's
@@ -2510,6 +2518,8 @@ body { font-variant-numeric: tabular-nums; }
 .actions { display: flex; flex-direction: column; gap: var(--sp-1); }
 .actions-list { display: flex; flex-direction: column; counter-reset: action; margin: 0 calc(var(--sp-2) * -1); }
 .actions-app, .actions-ideas { display: contents; }
+/* No ideas for this app (Messages): no heading over an empty list. */
+.actions:not(:has(.action-row:not([hidden]))) { display: none; }
 .action-row { counter-increment: action; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-h); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink); font: inherit; text-align: start; cursor: pointer; }
 .action-row:hover, .action-row:focus-visible { background: var(--sel); }
 .action-row[hidden] { display: none; }

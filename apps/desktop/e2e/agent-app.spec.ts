@@ -70,7 +70,7 @@ test('the conversation list shows saved conversations, switches, starts new ones
   await openApp('Agent');
   await say('Alpha topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Alpha reply.');
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   await expect(log().locator('.msg')).toHaveCount(0);
   await say('Beta topic');
   await expect(log().locator('.msg.assistant')).toHaveText('Beta reply.');
@@ -79,8 +79,16 @@ test('the conversation list shows saved conversations, switches, starts new ones
   await expect(items.first().getByRole('button', { name: /Beta topic/ })).toHaveAttribute('aria-current', 'true');
   await items.nth(1).getByRole('button', { name: /Alpha topic/ }).click();
   await expect(log().locator('.msg.user')).toHaveText('Alpha topic');
-  await items.nth(1).getByRole('button', { name: 'Delete Alpha topic' }).click();
-  await items.nth(1).getByRole('button', { name: 'Confirm delete' }).click();
+  // Delete is in the row's More menu, and leaves an Undo behind.
+  await items.nth(1).hover();
+  await items.nth(1).getByRole('button', { name: 'More for Alpha topic' }).click();
+  await shell().getByRole('menuitem', { name: 'Delete' }).click();
+  await expect(items).toHaveCount(1);
+  await list().getByRole('button', { name: 'Undo' }).click();
+  await expect(items).toHaveCount(2);
+  await items.nth(1).hover();
+  await items.nth(1).getByRole('button', { name: 'More for Alpha topic' }).click();
+  await shell().getByRole('menuitem', { name: 'Delete' }).click();
   await expect(items).toHaveCount(1);
   await expect(log().locator('.msg.user')).toHaveText('Beta topic');
 });
@@ -91,10 +99,10 @@ test('an approval can be answered in the full view, and the running tool is show
   await say('what time');
   const card = shell().getByRole('group', { name: 'Approval needed: clock.now' });
   await expect(card).toBeVisible();
-  await expect(list().getByText('Needs you')).toBeVisible();
+  await expect(list().getByText('Needs your answer')).toBeVisible();
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('It is now.');
-  await expect(list().getByText('Needs you')).toHaveCount(0);
+  await expect(list().getByText('Needs your answer')).toHaveCount(0);
 });
 
 test('settings opens over the Agent app and closes back to it', async () => {
@@ -124,7 +132,7 @@ test('a conversation waiting for you is flagged in the list and on the Go button
   await expect(shell().getByRole('group', { name: 'Approval needed: clock.now' })).toBeVisible();
   await expect(goButton(shell())).toHaveAccessibleName(/\. 1 waiting$/);
   await openApp('Agent');
-  await expect(list().getByText('Needs you')).toBeVisible();
+  await expect(list().getByText('Needs your answer')).toBeVisible();
   await list().getByRole('listitem').first().click();
   await shell().getByRole('group', { name: 'Approval needed: clock.now' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Done.');

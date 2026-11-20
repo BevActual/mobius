@@ -1,21 +1,26 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { AppSidebar, PanelLayout, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, type PanelSpec } from './ui';
+import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
+import { AppSidebar, Avatar, PanelLayout, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import type { MessagesState } from './useMessages';
 import { SERVICE_NAMES, catchUpAsk, channelGroups, channelLabel, chatItem, runs, unreadLabel } from './messages-view';
-import { formatWith, timeLabel } from './dates';
+import { dayLabel, nearDayLabel, timeLabel } from './dates';
 import { isNotesFailure, type ChatMessage, type ContextItem } from '@mobius/shared';
 import { ContactPanel } from './ContactPanel';
 import './messages.css';
 
-/** The Messages list panel: each account's channels and direct messages, unread ones marked. */
+/** A conversation's leading slot: a # for a channel, the person's initials for a direct message or group. */
+function ConversationLead({ name, kind }: { name: string; kind: 'channel' | 'direct' | 'group' }) {
+  return <span className="msg-lead" aria-hidden="true">{kind !== 'direct' ? <svg viewBox="0 0 16 16"><path d="M6 2.5 4.5 13.5M11.5 2.5 10 13.5M3 6h10.5M2.5 10H13" /></svg> : <Avatar name={name} size="chip" />}</span>;
+}
+
+/** The Messages list panel, Conversations: each account's channels and people, unread ones in medium weight. */
 export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pin?: ReactNode }) {
   const [query, setQuery] = useState('');
   const q = query.trim().toLowerCase();
   const groups = channelGroups(messages.accounts, messages.channels);
   return (
-    <AppSidebar label="Channels">
-      <SidebarSearch label="Find a channel" value={query} onChange={setQuery} />
+    <AppSidebar label="Conversations" className="messages-side">
+      <SidebarSearch label="Find a conversation" value={query} onChange={setQuery} />
       {groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
       {groups.map(({ account, channels }, i) => {
         const shown = channels.filter((c) => !q || c.name.toLowerCase().includes(q));
@@ -26,7 +31,7 @@ export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pi
             {shown.map((c) => {
               const count = c.mentions || c.unread;
               return (
-                <SidebarRow key={c.id} label={channelLabel(c)} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
+                <SidebarRow key={c.id} icon={<ConversationLead name={c.name} kind={c.kind} />} label={c.name.replace(/^#/, '')} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
                   current={messages.open?.account === account.id && messages.open.channel === c.id}
                   onSelect={() => messages.choose({ account: account.id, channel: c.id })} />
               );
@@ -46,9 +51,14 @@ function MessageLog({ label, list, onThread, onPerson }: { label: string; list: 
   return (
     <div ref={log} className="messages-log" role="log" aria-label={label}>
       {grouped.length === 0 && <p className="messages-none">No messages here yet.</p>}
-      {grouped.map((run) => (
-        <article key={run.messages[0]!.id} className="messages-run" data-me={run.author.me || undefined}>
-          <header>{onPerson && !run.author.me ? <button type="button" className="messages-author" title={`About ${run.author.name}`} onClick={() => onPerson(run.author)}><strong>{run.author.name}</strong></button> : <strong>{run.author.name}</strong>} <time dateTime={new Date(run.at).toISOString()}>{formatWith(new Date(run.at), { weekday: 'short', day: 'numeric', month: 'short' })}, {timeLabel(new Date(run.at))}</time></header>
+      {grouped.map((run, i) => (
+        <Fragment key={run.messages[0]!.id}>
+        {/* Each day starts under its name ("Today", "Yesterday", "Thu, 12 Nov"), so a run says only its time. */}
+        {(i === 0 || new Date(grouped[i - 1]!.at).toDateString() !== new Date(run.at).toDateString()) && (
+          <div className="messages-day" role="separator"><span>{nearDayLabel(run.at) ?? dayLabel(run.at, { weekday: 'short' })}</span></div>
+        )}
+        <article className="messages-run" data-me={run.author.me || undefined}>
+          <header>{onPerson && !run.author.me ? <button type="button" className="messages-author" title={`About ${run.author.name}`} onClick={() => onPerson(run.author)}><strong>{run.author.name}</strong></button> : <strong>{run.author.name}</strong>} <time dateTime={new Date(run.at).toISOString()}>{timeLabel(new Date(run.at))}</time></header>
           {run.messages.map((m) => (
             <div key={m.id} className="messages-one">
               <p>{m.text}{m.edited && <span className="messages-edited"> (edited)</span>}</p>
@@ -61,6 +71,7 @@ function MessageLog({ label, list, onThread, onPerson }: { label: string; list: 
             </div>
           ))}
         </article>
+        </Fragment>
       ))}
     </div>
   );
@@ -94,11 +105,23 @@ function ChatPerson({ author, service }: { author: ChatMessage['author']; servic
   );
 }
 
-/** A box to write in; Enter sends, Shift+Enter starts a new line. Only the person sends. */
+/** What was written and not sent, by channel (or thread), kept while Mobius is open: going to look at another channel loses nothing. */
+const DRAFTS = new Map<string, string>();
+
+/**
+ * A box to write in; Enter sends, Shift+Enter starts a new line. Only the person sends. Opening a channel from the list
+ * puts the keyboard here, as in Slack, unless something else (Mobius's box, a search) has it.
+ */
 function Compose({ label, reset, onSend }: { label: string; reset: string; onSend: (text: string) => Promise<boolean> }) {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraftNow] = useState(() => DRAFTS.get(reset) ?? '');
   const [sending, setSending] = useState(false);
-  useEffect(() => { setDraft(''); }, [reset]);
+  const box = useRef<HTMLTextAreaElement>(null);
+  const setDraft = (text: string) => { setDraftNow(text); if (text) DRAFTS.set(reset, text); else DRAFTS.delete(reset); };
+  useEffect(() => {
+    setDraftNow(DRAFTS.get(reset) ?? '');
+    const on = document.activeElement;
+    if (!on || on === document.body || on.matches('main.stage') || on.closest('.app-side, .messages-log')) box.current?.focus({ preventScroll: true });
+  }, [reset]);
   const send = async (e: FormEvent) => {
     e.preventDefault();
     if (sending || !draft.trim()) return;
@@ -109,7 +132,7 @@ function Compose({ label, reset, onSend }: { label: string; reset: string; onSen
   };
   return (
     <form className="messages-compose" onSubmit={(e) => void send(e)}>
-      <textarea aria-label={label} placeholder={label} rows={2} value={draft}
+      <textarea ref={box} aria-label={label} placeholder={label} rows={2} value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }} />
       <button type="submit" className="btn primary" disabled={sending || !draft.trim()}>Send</button>
@@ -118,19 +141,20 @@ function Compose({ label, reset, onSend }: { label: string; reset: string; onSen
 }
 
 /** The open channel: its messages by sender, threads to open beside it, and a box to write in. Only the person sends. */
-export function MessagesPage({ messages, onAsk, listPanels = [] }: { messages: MessagesState; /** Puts a message in Mobius's box with the channel attached, ready to send. */ onAsk?: (prompt: string, item: ContextItem) => void; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
+export function MessagesPage({ messages, onAsk, onAddAccount, listPanels = [] }: { messages: MessagesState; /** Opens Settings at Messages' accounts. */ onAddAccount?: () => void; /** Puts a message in Mobius's box with the channel attached, ready to send. */ onAsk?: (prompt: string, item: ContextItem) => void; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[] }) {
   const { account, channel, open, thread } = messages;
   // Person (right, while someone is picked): who wrote a message, from the address book when they are in it.
   const [person, setPerson] = useState<ChatMessage['author'] | null>(null);
   useEffect(() => setPerson(null), [open?.account, open?.channel]);
-  const empty = (title: string, line: string) => (
+  const empty = (title: string, line: string, action?: { label: string; run: () => void }) => (
     <PanelLayout app="messages" panels={listPanels}>
-      <section className="messages-page empty" aria-label="Messages"><EmptyState app="messages" title={title} line={line} /></section>
+      <section className="messages-page empty" aria-label="Messages"><EmptyState app="messages" title={title} line={line} action={action} /></section>
     </PanelLayout>
   );
   if (!messages.loaded) return <PanelLayout app="messages" panels={listPanels}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
-  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack or Matrix account in Settings to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.');
-  if (!account || !channel) return empty('No channel open', 'Choose a channel or a person on the left.');
+  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
+  // The last conversation opens again by itself, so this shows only before one has ever been chosen.
+  if (!account || !channel) return empty('No conversation open', 'Choose a channel or a person on the left.');
   const unread = channel.unread;
   const name = channelLabel(channel);
   const where = `${open?.account}/${open?.channel}`;

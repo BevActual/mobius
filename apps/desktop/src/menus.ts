@@ -1,4 +1,5 @@
 import type { AppId } from './apps';
+import { templateName } from './docs-view';
 
 /**
  * Mobius's menus as plain data: File, Edit, View, Go, the open app's own menu, Window and Help. One definition, shown as
@@ -29,6 +30,7 @@ export interface MenuContext {
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
     notes: { hasPage: boolean; pinned: boolean; changed: boolean };
+    docs: { hasPage: boolean; isTemplate: boolean; templates: readonly { path: string; title: string }[] };
     tasks: { inList: boolean; done: number };
     calendar: { mode: 'day' | 'week' | 'month' | 'year' };
     agent: { busy: boolean };
@@ -53,9 +55,9 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
-    notes: { newNotebook: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
+    notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
-    docs: { newDocument: () => void; newFolder: () => void };
+    docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
     studio: { newSong: () => void; play: () => void };
     photo: { newAlbum: () => void; export: () => void };
@@ -146,7 +148,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('reload', 'Reload', d.browser.reload, { keys: 'mod+r', disabled: !s.browser.hasPage }),
         item('address', 'Go to the address bar', d.browser.address, { keys: keys.address }),
         separator,
-        item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { disabled: !s.browser.hasPage }),
+        item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { keys: 'mod+d', disabled: !s.browser.hasPage }),
         item('pin-page', s.browser.pinned ? 'Unpin' : 'Pin', d.browser.pin, { disabled: !s.browser.hasPage }),
         item('reopen', 'Reopen closed tab', d.browser.reopen, { keys: 'mod+shift+t' }),
         separator,
@@ -155,7 +157,8 @@ function appMenu(c: MenuContext): Menu | null {
       ] };
     case 'notes':
       return { id: 'app', label: 'Notes', items: [
-        item('new-page', 'New page', c.do.create.note, { keys: 'mod+n' }),
+        item('new-page', 'New note', c.do.create.note, { keys: 'mod+n' }),
+        item('today-note', 'Today’s note', d.notes.today),
         item('new-notebook', 'New notebook', d.notes.newNotebook),
         separator,
         item('changes', 'Show what the agent changed', d.notes.changes, { disabled: !s.notes.changed }),
@@ -246,6 +249,10 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Docs', items: [
         item('new-document', 'New document', d.docs.newDocument),
         item('new-folder', 'New folder', d.docs.newFolder),
+        // Apps lead: templates are the documents in the Templates folder.
+        ...(s.docs.templates.length ? [separator, ...s.docs.templates.slice(0, 12).map((t) => item(`template-${t.path}`, `New from ${templateName(t.title)}`, () => d.docs.fromTemplate(t.path, t.title)))] : []),
+        separator,
+        item('save-template', 'Save as template', d.docs.saveAsTemplate, { disabled: !s.docs.hasPage || s.docs.isTemplate }),
       ] };
     case 'calendar':
       return { id: 'app', label: 'Calendar', items: [

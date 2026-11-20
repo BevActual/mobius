@@ -21,6 +21,8 @@
    the reading column. Every size and colour comes from the tokens. */
 .wiki-page.skills-page { gap: var(--sp-3); padding-top: var(--sp-8); font-size: var(--fs-md); }
 .wiki-page.skills-page > * { max-width: var(--reading-w); }
+/* The undo toast keeps its own size, centred over the column, not the column's width. */
+.wiki-page.skills-page > .ui-undo { width: auto; margin: 0; }
 .wiki-page > .field-error { margin-top: calc(var(--sp-2) * -1); margin-bottom: 0; }
 .kn-head { display: flex; align-items: center; gap: var(--sp-2); }
 .kn-head h1 { margin: 0; font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); }

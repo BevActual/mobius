@@ -4,7 +4,7 @@
 
 /* The list beside the reading pane: one fixed two-line row per message (the rule for a master list beside a reading
    pane): the sender and the date on the first line, the subject and its first words in grey on the second. */
-.mail-list-pane { flex: 0 0 360px; min-width: 0; display: flex; flex-direction: column; overflow: auto; border-right: var(--hairline-w) solid var(--line); }
+.mail-list-pane { flex: 0 1 420px; min-width: 240px; display: flex; flex-direction: column; overflow: auto; border-right: var(--hairline-w) solid var(--line); }
 .mail-list { flex: none; display: flex; flex-direction: column; }
 .mail-row {
   --list-side: 22px;
@@ -26,19 +26,22 @@
 .mail-row-preview:empty { display: none; }
 /* Unread: the sender in semibold, and a small ink dot in the margin. Not a colour. */
 .mail-row[data-unread] .mail-row-who { font-weight: var(--fw-semibold); }
-.mail-row[data-unread]::before { content: ""; position: absolute; left: calc(var(--list-side) / 2 - 3px); top: calc(50% - 3px - 0.7em); width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+/* Unread: the same drawn ink dot as something waiting in the launcher and on the Go button. */
+.mail-row[data-unread]::before { content: ""; position: absolute; left: calc(var(--list-side) / 2 - var(--sp-2) / 2); top: calc(50% - var(--sp-2) / 2 - 0.7em); width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--ink); }
 /* A reply Mobius wrote: the dashed indigo edge until it is kept or discarded. */
-.mail-row[data-suggested] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: calc(-1 * var(--sp-1)); }
+/* A reply Mobius wrote: the ordinary row, with a small Mobius mark before the name (the dashed edge is for the draft itself). */
+.mail-row-mark { flex: none; margin-right: var(--sp-1); vertical-align: -1px; color: var(--mobius); }
 .mail-row-end { min-width: 4.5em; display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
-.mail-row-flag { display: inline-flex; color: var(--c-amber); }
+/* A flag is state, so it is ink: colour is kept for Mobius and for danger. */
+.mail-row-flag { display: inline-flex; color: var(--ink); }
 .mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
 .mail-when { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mail-needs-reply { color: var(--muted); }
 
-/* A short list ends with one quiet line and New message; an empty one says it in the middle of the pane. */
-.mail-list-end { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4) 22px; color: var(--muted); font-size: var(--fs-sm); }
-.mail-list-end p { margin: 0; }
-.mail-list-end[data-empty] { flex: 1; align-items: center; justify-content: center; text-align: center; }
+/* A short list ends with the quiet empty state; an empty one shows its drawing in the middle of the pane. */
+.mail-list-end:not([data-quiet]) { flex: 1; justify-content: center; }
+.mail-list-end[data-quiet] { justify-content: flex-start; padding-inline: 22px; }
+.mail-reading-pane > .ui-empty { min-height: 100%; justify-content: center; }
 
 /* Loading: grey bars the shape of the rows that are coming. */
 .mail-loading { display: flex; flex-direction: column; }
@@ -49,6 +52,8 @@
 /* The message: a reading column of 680px, a large subject, the body at reading size. */
 .mail-reading-pane { flex: 1; min-width: 0; overflow: auto; padding: var(--sp-8) var(--sp-6); }
 .mail-reader { max-width: 680px; margin: 0; display: flex; flex-direction: column; gap: var(--sp-4); outline: none; }
+/* It holds the keys (E, R, the arrows) for the open message; a ring round the whole message would only be noise. */
+.mail-reader:focus-visible { outline: none; }
 .mail-reader-head { display: flex; gap: var(--sp-3); align-items: center; }
 .mail-reader-head .mail-format { margin-left: auto; }
 .mail-avatar { flex: 0 0 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; background: var(--sel); color: var(--ink); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
@@ -69,18 +74,19 @@
 .mail-tools .strip-btn { border-radius: var(--radius-control); color: var(--body); }
 .mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
 .mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--c-amber); }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--ink); }
+.mail-tools .strip-btn[aria-pressed="true"] svg { fill: currentColor; }
 .mail-tools .strip-btn svg [data-dot] { fill: var(--ink); stroke: none; }
 .mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
 
 /* Mobius's draft: one dashed indigo block, its text as the person would send it. */
 .mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
-.mail-suggested-head { font-weight: var(--fw-medium); color: var(--mobius); cursor: help; }
+.mail-suggested-head { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); cursor: help; }
+.mail-suggested-head .mobius-mark { color: var(--mobius); }
 .mail-suggested-body { margin: 0; padding: var(--sp-4) var(--sp-5); border: var(--hairline-w) dashed var(--mobius); border-radius: var(--radius-panel); white-space: pre-wrap; font-size: var(--fs-reading); line-height: 1.6; color: var(--body); }
 /* Draft from Mobius, then the shared change block's Discard and Try another as plain text and a filled Keep and edit. */
 .mail-suggested-actions { display: flex; gap: var(--sp-1); align-items: center; flex-wrap: wrap; white-space: nowrap; }
 .mail-suggested-actions > * { flex: none; }
-.mail-suggested-actions .mail-suggested-head { margin-right: var(--sp-1); }
 /* A reply the person kept, under the message it answers: theirs now, so a plain edge, with Send right there. */
 .mail-kept { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border-radius: var(--radius-panel); border: var(--hairline-w) solid var(--line); background: var(--paper); }
 .mail-kept .mail-suggested-body { padding: 0; border: 0; }
@@ -88,20 +94,38 @@
 .mail-kept-problem { margin: 0; font-size: var(--fs-sm); color: var(--red); }
 
 /* Writing: plain fields on hairlines, the body at reading size. */
-.mail-compose { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--sp-2); }
+/* Writing fills its pane: the title, the fields, the body down to one bar at the foot with Send and Close. */
+.mail-compose { max-width: 680px; min-height: 100%; margin: 0; display: flex; flex-direction: column; gap: var(--sp-2); }
+.mail-compose-title { margin-bottom: var(--sp-2); }
 .mail-field { display: flex; align-items: center; gap: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line); }
 .mail-field span { width: 60px; color: var(--muted); font-size: var(--fs-sm); }
-.mail-field input { flex: 1; height: var(--row-list); border: 0; background: transparent; font: inherit; color: inherit; outline: none; }
-.mail-compose textarea { min-height: 260px; padding: var(--sp-2) 0; border: 0; resize: vertical; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
+.mail-field { border-radius: var(--radius-control); }
+.mail-field input { flex: 1; height: var(--row-list); border: 0; background: transparent; font: inherit; color: inherit; outline: none; box-shadow: none; appearance: none; }
+.mail-field input:focus, .mail-field input:focus-visible { outline: none; box-shadow: none; background: transparent; }
+/* The body is borderless like the fields above it, and takes the same ring only while it has focus. */
+.mail-compose textarea:focus, .mail-compose textarea:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; box-shadow: none; background: transparent; }
+/* Every field focuses the same way: the shared ring on its underline row. */
+.mail-field:focus-within { outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 2px; }
+.mail-compose textarea { flex: 1; min-height: 160px; padding: var(--sp-2) var(--sp-1); border: 0; box-shadow: none; border-radius: var(--radius-control); resize: none; font: inherit; font-size: var(--fs-reading); line-height: 1.6; background: transparent; color: inherit; outline: none; }
 .mail-later { position: relative; display: inline-flex; }
 .mail-later-menu { position: absolute; bottom: calc(100% + var(--sp-1)); right: 0; z-index: 5; display: grid; gap: var(--sp-1); padding: var(--sp-1); border-radius: var(--radius-panel); background: var(--raised); box-shadow: var(--shadow-1); white-space: nowrap; }
 .mail-later-suggested[data-proposed] { outline: var(--hairline-w) dashed var(--mobius); outline-offset: -1px; color: var(--mobius); }
 .mail-scheduled { display: flex; align-items: center; gap: var(--sp-2); margin: 0; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 
 @container (max-width: 760px) { .mail-list-pane { flex-basis: 280px; } }
+/* The reader never goes under 420px: when the list and a readable message don't both fit, the open message takes the
+   list's place, with Back to the list at its top. */
+.mail-back { display: none; }
+.mail-reading-pane { min-width: 420px; }
+@container (max-width: 700px) {
+  .mail-reading-pane { min-width: 0; }
+  .mail-page[data-open] .mail-list-pane { display: none; }
+  .mail-page:not([data-open]) .mail-reading-pane { display: none; }
+  .mail-page:not([data-open]) .mail-list-pane { flex: 1; border-right: 0; }
+  .mail-page[data-open] .mail-back { display: inline-flex; align-self: flex-start; margin-bottom: var(--sp-4); }
+}
 
 /* Empty places in Mail: a plain line icon, not a coloured tile. */
-.mail-page .empty-state-icon { background: none; box-shadow: none; color: var(--faint); }
 
 /* Get to zero, in the Mobius panel: Mobius's plan with a dashed indigo edge. */
 .mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }
@@ -144,3 +168,10 @@
 /* The folders' marks in the Mailboxes panel, as Tasks draws its smart lists. */
 .mail-folder-icon { flex: none; display: grid; place-items: center; width: 22px; height: 22px; color: var(--muted); }
 .mail-folder-icon svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+
+/* The compose bar: at the foot of the pane, staying there as the body scrolls. */
+.mail-compose-bar { position: sticky; bottom: calc(-1 * var(--sp-8)); display: flex; align-items: center; gap: var(--sp-2); margin-top: auto; padding: var(--sp-3) 0 var(--sp-4); border-top: var(--hairline-w) solid var(--line); background: var(--paper); }
+.mail-compose-ask { font-size: var(--fs-sm); color: var(--ink); }
+/* The reading pane stacks its message and its keys: the key bar sits at the pane's foot. */
+.mail-reading-pane { display: flex; flex-direction: column; }
+.mail-reading-pane > .ui-key-hints { margin: auto 0 0; align-self: flex-start; position: sticky; bottom: var(--sp-3); }

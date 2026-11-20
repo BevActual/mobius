@@ -78,11 +78,12 @@ test('a calendar file from another app shows in the week, and events are added, 
   await tools().getByRole('radio', { name: 'Week' }).click();
   await expect(page().getByRole('button', { name: new RegExp(`^Standup, ${span('9:00', '9:30')}, Work`) }).first()).toBeVisible();
   await expect(shell().getByRole('region', { name: 'My calendars' }).getByText('Work')).toBeVisible();
-  // The Mobius panel's Glance sums up the rest of today (its numbers depend on the hour the test runs).
-  await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText('Still to come');
+  // The Mobius panel's Glance sums up the rest of today. What it leads with depends on the hour the test runs: once
+  // the day's last event is over it says Next (Nothing else today) instead of counting what is still to come.
+  await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText(/^(Still to come|Next)$/);
 
   // New event: the editor opens at the next hour today.
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   const editor = shell().getByRole('dialog', { name: 'New event' });
   await editor.getByRole('textbox', { name: 'Title' }).fill('Water the plants');
   await editor.getByRole('switch', { name: 'All day' }).click();
@@ -110,7 +111,7 @@ test('a calendar file from another app shows in the week, and events are added, 
   expect(work).toContain(`DTSTART:${ics(today())}T090000`);
 
   await plants.click();
-  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete Event' }).click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete event' }).click();
   await expect(plants).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).not.toContain('Water the plants');
 
@@ -287,7 +288,7 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(view).toHaveCount(0);
 
   // New events go only to calendars that can take them.
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
@@ -418,7 +419,9 @@ test('an event says who is invited and how they answered, and Invite adds someon
 
 test('someone invited opens in the Person panel, with their coming meetings', async () => {
   fs.mkdirSync(path.dirname(file('Work')), { recursive: true });
-  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T230000\r\nDTEND:${ics(today())}T233000\r\nSUMMARY:Budget review\r\nATTENDEE;CN=Ana Silva;PARTSTAT=ACCEPTED:mailto:ana@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
+  // A meeting still to come at any time of day the test runs: it lasts all of today, to 23:59. It used to end at 23:30,
+  // after which the card rightly showed no coming meetings and the test failed every evening (UTC on CI).
+  fs.writeFileSync(file('Work'), `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//Other//EN\r\nBEGIN:VEVENT\r\nUID:budget\r\nDTSTART:${ics(today())}T000000\r\nDTEND:${ics(today())}T235900\r\nSUMMARY:Budget review\r\nATTENDEE;CN=Ana Silva;PARTSTAT=ACCEPTED:mailto:ana@example.com\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n`);
   await start();
   await tools().getByRole('radio', { name: 'Week' }).click();
   await page().getByRole('button', { name: /^Budget review/ }).first().click();
@@ -449,6 +452,6 @@ test('the small month in the Calendars panel goes to the day picked, and marks t
   await month.getByRole('button', { name: 'Next month' }).click();
   const day = month.locator('.cal-mini-day:not([data-other])', { hasText: /^15$/ });
   await day.click();
-  await expect(day).toHaveAttribute('aria-current', 'date');
+  await expect(day).toHaveAttribute('aria-pressed', 'true');
   await expect(day).toHaveAttribute('data-shown', 'true');
 });

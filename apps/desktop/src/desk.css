@@ -10,16 +10,16 @@
 .chat.full[data-empty] .desk .greeting { margin: 0; font-size: 28px; font-weight: var(--fw-semibold); letter-spacing: -0.02em; line-height: 1.2; }
 .desk-title { margin: var(--sp-1) 0 0; font-size: var(--fs-md); color: var(--muted); }
 /* The suggestions are quiet text links, as in the Mobius panel: no capsule, no border. */
-.desk .starters { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 0 var(--sp-4); margin-top: var(--sp-3); }
-.desk .starter { height: auto; padding: 2px 0; border-radius: 0; background: none; box-shadow: none; font-size: var(--fs-md); font-weight: var(--fw-regular); color: var(--muted); }
-.desk .starter:hover { background: none; color: var(--ink); }
+.desk .starters { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: var(--sp-2); margin-top: var(--sp-4); }
+/* The suggestions are chips: a hairline pill that fills on hover, each a button in the tab order. */
+.desk .starter { background: none; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); color: var(--ink); }
+.desk .starter:hover { background: var(--soft); box-shadow: inset 0 0 0 var(--hairline-w) transparent; }
 .desk-group + .desk-group { margin-top: var(--sp-6); }
 /* Section headers in the sidebars' style: small, semibold, grey, sentence case. */
 .desk-head { margin: 0 0 var(--sp-1); padding-left: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); letter-spacing: 0.01em; color: var(--muted); }
 /* Plain rows with a hairline between them, as in Mail's list: no card per row. */
 .desk-rows { list-style: none; margin: 0 -8px; padding: 0; display: flex; flex-direction: column; }
-.desk-rows > li + li { border-top: var(--hairline-w) solid var(--line); }
-.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; height: 40px; padding: 0 8px; border: 0; border-radius: 0; background: none; box-shadow: none; color: var(--ink); text-align: left; transition: background var(--dur-fast) var(--ease); }
+.desk-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 36px; padding: 0 8px; border: 0; border-radius: var(--radius-control); background: none; box-shadow: none; color: var(--ink); text-align: left; transition: background var(--dur-fast) var(--ease); }
 button.desk-row:hover:not(:disabled) { background: var(--line-soft, var(--soft)); }
 button.desk-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 button.desk-row:disabled { opacity: 1; cursor: default; }
@@ -31,7 +31,8 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 /* The one thing in an app worth a look ("Standup", "Ana Lopes"), between the app's name and its detail. */
 .desk-item { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
 .desk-item + .desk-text { flex: none; max-width: 45%; }
-.desk-row:has(.desk-item) .desk-name { width: 84px; color: var(--muted); font-weight: var(--fw-regular); }
+/* The app's name is the meta, smaller and grey, so the item reads first. */
+.desk-row:has(.desk-item) .desk-name { width: 84px; font-size: var(--fs-sm); color: var(--muted); font-weight: var(--fw-regular); }
 /* Answering in place: quiet buttons with a hairline; Allow is the one filled. */
 .desk-act { flex: none; height: 26px; padding: 0 10px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); background: none; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
 .desk-act:hover:not(:disabled) { background: var(--line-soft, var(--soft)); }
@@ -52,5 +53,34 @@ button.desk-row:disabled { opacity: 1; cursor: default; }
 .chat.full[data-empty] .desk { max-width: var(--reading-w); }
 html .chat.full :is(.chat-scroll, .composer, .review-strip, .chat-sees, .turn-summary, .turn-history) { max-width: var(--reading-w); }
 .chat.full .turn-history { width: 100%; margin-left: auto; margin-right: auto; box-sizing: border-box; }
-.desk-row { height: var(--row-reading); }
+.desk-row { min-height: 36px; }
 .desk-name, .desk-item, .desk .starter, .desk-end { font-size: var(--fs-reading); }
+
+/* One row style in every section: 36px, no hairlines, the whole row one press, and a quiet word at its end on hover
+   that says what the press does (Open, Answer). Rows that answer in place (Now) keep their Allow or Stop beside it. */
+.desk-open { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; align-self: stretch; padding: 0; border: 0; background: none; box-shadow: none; color: inherit; text-align: left; font: inherit; }
+li.desk-row:has(.desk-open) { padding-right: 4px; }
+li.desk-row:has(.desk-open:hover) { background: var(--line-soft, var(--soft)); }
+.desk-open:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius-control); }
+.desk-open > svg.desk-glyph { flex: none; width: 16px; height: 16px; color: var(--muted); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linejoin: round; stroke-linecap: round; }
+:is(button.desk-row, .desk-open) { position: relative; }
+.desk-go { position: absolute; right: 8px; top: 50%; translate: 0 -50%; font-size: var(--fs-sm); color: var(--muted); opacity: 0; pointer-events: none; transition: opacity var(--dur-fast) var(--ease); }
+.desk-open .desk-go { right: 0; }
+/* The detail makes room for the word only while it shows, so the column lines up with the buttons at rest. */
+:is(button.desk-row, .desk-open) .desk-text { transition: margin-right var(--dur-fast) var(--ease); }
+:is(button.desk-row, .desk-open):is(:hover, :focus-visible) .desk-text { margin-right: 52px; }
+:is(button.desk-row, .desk-open):is(:hover, :focus-visible) .desk-go { opacity: 1; }
+/* Get started: what to do, then why on a second line, then the buttons. */
+.desk-stack { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: var(--sp-1) 0; }
+.desk-stack .desk-name { max-width: 100%; }
+.desk-sub { font-size: var(--fs-sm); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* In your apps: the first thing, then how many more as a quiet second line. */
+.desk-row[data-more] .desk-text { display: flex; flex-direction: column; align-items: flex-end; padding: var(--sp-1) 0; line-height: 1.3; }
+.desk-more { font-size: var(--fs-xs); color: var(--muted); }
+/* More below than fits above the message box: the page fades at its foot, so it reads as more to scroll to. */
+.chat.full[data-empty] .chat-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+
+/* A two-line row (Get started): the icon sits on the first line, as every other row's does, not between the lines. */
+.desk-row[data-connect] { align-items: flex-start; padding-block: var(--sp-2); }
+.desk-row[data-connect] > svg.desk-glyph { margin-top: calc((1lh - 16px) / 2); font-size: var(--fs-reading); }
+.desk-row[data-connect] > .desk-act { align-self: center; }

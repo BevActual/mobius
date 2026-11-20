@@ -61,7 +61,7 @@
   --raised: #ffffff;
   --ink: #1b1b1a;
   --body: #2a2a28;
-  --muted: #6f6e69;
+  --muted: #676661; /* 4.6:1 on --sel, the tint behind chips and segmented choices (WCAG AA) */
   --faint: #a3a29c;
   --on-ink: #ffffff;
   --line: #e3e1da;
@@ -80,6 +80,8 @@
   /* Content colours: one palette for anything the person colours. Text on any of them is always #1b1b1a. */
   --c-amber: #e8a33d;
   --c-yellow: #e6c84a;
+  /* A comment's anchor in Notes and Docs: a soft warm tint under ink text, never an underline. */
+  --comment: color-mix(in srgb, #e6c84a 28%, transparent);
   --c-green: #9ccf5a;
   --c-teal: #4fb7a8;
   --c-blue: #5aa7e0;
@@ -263,6 +265,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --comment: color-mix(in srgb, #d9b84a 22%, transparent);
     --chart-blue: #3987e5;
     --chart-coral: #d95926;
     --chart-teal: #199e70;
@@ -309,7 +312,7 @@
   --raised: #e9e9e6;
   --ink: #121211;
   --body: #1f1f1d;
-  --muted: #4f4f49;
+  --muted: #464640; /* 4.6:1 on --sel (WCAG AA) */
   --faint: #74746e;
   --on-ink: #e3e3e0;
   --line: #aeaeaa;
@@ -323,6 +326,7 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 :root[data-theme="cool"] {
+  --comment: color-mix(in srgb, #d9b84a 22%, transparent);
   --chart-blue: #3987e5;
   --chart-coral: #d95926;
   --chart-teal: #199e70;

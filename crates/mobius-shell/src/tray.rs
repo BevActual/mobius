@@ -99,11 +99,55 @@ fn menu<R: Runtime>(app: &AppHandle<R>, shown: &Shown) -> tauri::Result<Menu<R>>
         }
     }
     menu.append(&PredefinedMenuItem::separator(app)?)?;
+    if app.try_state::<crate::updater::Updates>().is_some_and(|u| u.is_ready()) {
+        menu.append(&MenuItem::with_id(app, "update", "Restart to Update", true, None::<&str>)?)?;
+    }
     if crate::autostart::AVAILABLE {
         menu.append(&CheckMenuItem::with_id(app, "autostart", "Start with Windows", true, crate::autostart::enabled(), None::<&str>)?)?;
     }
     menu.append(&MenuItem::with_id(app, "quit", "Quit Mobius", true, None::<&str>)?)?;
     Ok(menu)
+}
+
+/// What the installer passes to ask a running Mobius to quit as the tray's Quit does (drafts saved, the core stopped),
+/// before it replaces Mobius's files. Started with it while no Mobius runs, Mobius starts nothing and leaves.
+pub const QUIT_ARG: &str = "--quit";
+
+/// Whether these arguments (the program's own first) ask Mobius to quit.
+pub fn asks_to_quit<S: AsRef<str>>(args: &[S]) -> bool {
+    args.iter().skip(1).any(|a| a.as_ref() == QUIT_ARG)
+}
+
+/// How long quitting waits for the windows to save what is still being typed before it quits anyway.
+pub const QUIT_WAIT: std::time::Duration = std::time::Duration::from_secs(3);
+static QUITTING: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+static SAVED_FOR_QUIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Quits Mobius, as the tray's Quit and `--quit` (the installer) do: first the main window is told
+/// (`mobius:quitting`) so it saves any edit still waiting to be written, and Mobius quits once it says it has
+/// ([`saved_for_quit`]) or after [`QUIT_WAIT`], whichever comes first.
+pub fn quit<R: Runtime>(app: &AppHandle<R>) {
+    use std::sync::atomic::Ordering;
+    if QUITTING.swap(true, Ordering::SeqCst) {
+        return;
+    }
+    if app.get_window("main").is_none() || app.emit("mobius:quitting", ()).is_err() {
+        app.exit(0);
+        return;
+    }
+    let app = app.clone();
+    std::thread::spawn(move || {
+        let started = std::time::Instant::now();
+        while started.elapsed() < QUIT_WAIT && !SAVED_FOR_QUIT.load(Ordering::SeqCst) {
+            std::thread::sleep(std::time::Duration::from_millis(25));
+        }
+        app.exit(0);
+    });
+}
+
+/// The main window has saved everything for a quit.
+pub fn saved_for_quit() {
+    SAVED_FOR_QUIT.store(true, std::sync::atomic::Ordering::SeqCst);
 }
 
 pub fn show_main<R: Runtime>(app: &AppHandle<R>) {
@@ -148,18 +192,19 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
                     show_main(app);
                     let _ = app.emit("mobius:shortcut", json!("quick-entry"));
                 }
-                "quit" => app.exit(0),
+                "quit" => quit(app),
                 "autostart" => {
                     if let Err(e) = crate::autostart::set(!crate::autostart::enabled()) {
                         eprintln!("[tray] {e}");
                     }
                     // The check mark shows what Windows now has, whatever the click did to it.
-                    if let (Some(tray), Some(shell)) = (app.tray_by_id(ID), app.try_state::<crate::Shell>()) {
-                        let now = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
-                        let shown = now.unwrap_or(Shown { state: State::Idle, tooltip: "Mobius".into(), items: Vec::new() });
-                        if let Ok(m) = menu(app, &shown) {
-                            let _ = tray.set_menu(Some(m));
-                        }
+                    refresh(app);
+                }
+                "update" => {
+                    if let Some(updates) = app.try_state::<crate::updater::Updates>() {
+                        let answer = updates.install_and_restart(app);
+                        eprintln!("[tray] update not installed: {answer}");
+                        refresh(app);
                     }
                 }
                 "stop-all" => {
@@ -185,6 +230,18 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> Option<TrayIcon<R>> {
         Err(error) => {
             eprintln!("[tray] could not be shown: {error}");
             None
+        }
+    }
+}
+
+/// Build the menu again from what it shows now, for a change the interface did not ask for (Start with Windows
+/// ticked, an update downloaded).
+pub fn refresh<R: Runtime>(app: &AppHandle<R>) {
+    if let (Some(tray), Some(shell)) = (app.tray_by_id(ID), app.try_state::<crate::Shell>()) {
+        let now = shell.tray.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone();
+        let shown = now.unwrap_or(Shown { state: State::Idle, tooltip: "Mobius".into(), items: Vec::new() });
+        if let Ok(m) = menu(app, &shown) {
+            let _ = tray.set_menu(Some(m));
         }
     }
 }
@@ -215,6 +272,16 @@ pub fn set<R: Runtime>(app: &AppHandle<R>, before: &mut Option<Shown>, args: &[V
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn only_the_quit_argument_asks_to_quit() {
+        assert!(asks_to_quit(&["mobius-shell.exe", "--quit"]));
+        assert!(asks_to_quit(&["mobius-shell.exe", "--hidden", "--quit"]));
+        assert!(!asks_to_quit(&["mobius-shell.exe"]));
+        assert!(!asks_to_quit(&["mobius-shell.exe", "--hidden"]));
+        // The program's own path is not an argument, whatever it is called.
+        assert!(!asks_to_quit(&["--quit"]));
+    }
 
     #[test]
     fn what_the_tray_shows_is_checked_and_shortened() {

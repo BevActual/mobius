@@ -49,7 +49,7 @@ test('an empty Agent app is the desk: one greeting, suggestions under it, which 
   await expect(region.getByRole('heading', { name: 'What can I help with?' })).toHaveCount(0);
   // The desk shows what is open in your apps, each row one press from its app.
   await expect(region.getByRole('region', { name: 'Desk' }).getByRole('button', { name: /Browser.*1 tab open/ })).toBeVisible();
-  await region.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'What is in my notes?' }).click();
+  await region.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'Catch me up' }).click();
   await expect(log().locator('.msg.assistant')).toHaveText('Here is an overview.');
   expect(sent()).toContain('give me a short overview');
   // A conversation has started, so the desk has gone; the suggestions hide while you type.
@@ -80,11 +80,11 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await composer().press('Enter');
   await expect(shell().getByRole('group', { name: /Approval needed/ })).toBeVisible();
   await openApp('Agent');
-  await shell().getByRole('button', { name: 'Create' }).click();
+  await shell().locator('.app-side-new').click();
   const desk = shell().getByRole('region', { name: 'Agent conversation' }).getByRole('region', { name: 'Desk' });
   await expect(desk.getByRole('heading', { name: GREETING })).toBeVisible();
   await expect(desk.locator('.desk-title')).toContainText('1 waiting for you');
-  // The conversation that waits is under Now, not again under Recent.
+  // Chats are in the Chats panel; the desk lists the one that waits under Now, answered from its row.
   await expect(desk.getByRole('group', { name: 'Recent' })).toHaveCount(0);
   const now = desk.getByRole('group', { name: 'Now' });
   await expect(now.getByRole('listitem')).toContainText('Wants to');
@@ -92,10 +92,8 @@ test('the desk is the Agent app’s home: what waits is allowed in place, and wh
   await now.getByRole('button', { name: /^Allow .* once$/ }).click();
   await expect(desk.getByRole('group', { name: 'Now' })).toHaveCount(0);
   await expect.poll(() => fs.existsSync(path.join(userData, 'workspace', 'notes', 'Work', 'Ideas.md'))).toBe(true);
-  // Once it has finished it is under Recent, and one press picks it up again.
-  const recent = desk.getByRole('group', { name: 'Recent' }).getByRole('button');
-  await expect(recent).toHaveCount(1);
-  await recent.click();
+  // Once it has finished it is in the Chats panel, and one press picks it up again.
+  await shell().getByRole('complementary', { name: 'Chats' }).locator('.clist-main').first().click();
   await expect(log().locator('.msg.assistant').last()).toHaveText('Made it.');
 });
 

@@ -125,22 +125,33 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   const load = useCallback(async () => { setItems(await api?.items().catch(() => []) ?? []); }, [api]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api?.onChange(() => void load()), [api, load]);
+  // The keyboard moves line to line, and stays in the list when a line is kept, forgotten or edited.
+  const page = useRef<HTMLElement>(null);
+  const lineEls = () => [...(page.current?.querySelectorAll<HTMLElement>('.wiki-line[data-line]') ?? [])];
+  const focusLine = (text: string | null) => window.requestAnimationFrame(() => { if (text !== null) lineEls().find((el) => el.dataset.line === text)?.focus(); });
+  /** The line next to this one (after it, or before at the end), when the keyboard is on this one. */
+  const besideIfFocused = (text: string) => {
+    const rows = lineEls();
+    const at = rows.findIndex((el) => el.dataset.line === text);
+    if (at < 0 || !rows[at]!.contains(document.activeElement)) return null;
+    return (rows[at + 1] ?? rows[at - 1])?.dataset.line ?? null;
+  };
   if (!api) return <section className="skills-page empty" aria-label="How I work"><p className="note-empty">Knowledge is not available here.</p></section>;
   const done = async (r: { ok: boolean; error?: string } | undefined, next: { label: string; run: () => Promise<unknown> } | null) => {
     if (r && !r.ok) { setProblem(r.error ?? 'That could not be done.'); return; }
     setProblem(null); setUndo(next); await load();
   };
-  const keep = (m: MemoryItem) => api.keep?.(m.text, true).then((r) => done(r, { label: `Kept “${m.text}”.`, run: () => api.keep!(m.text, false) }));
-  const notTrue = (m: MemoryItem) => api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }));
+  const keep = (m: MemoryItem) => { const to = besideIfFocused(m.text); return api.keep?.(m.text, true).then((r) => done(r, { label: `Kept “${m.text}”.`, run: () => api.keep!(m.text, false) })).then(() => focusLine(to)); };
+  const notTrue = (m: MemoryItem) => { const to = besideIfFocused(m.text); return api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) })).then(() => focusLine(to)); };
   const share = async (m: MemoryItem) => {
     const r = await window.mobius.wiki?.offer?.('your knowledge', m.text).catch(() => null);
     if (!r || ('ok' in r && r.ok === false)) { setProblem('That line could not be shared.'); return; }
     setUndo({ label: `Shared “${m.text}” with Knowledge. It waits there until it is kept.`, run: async () => { if ('id' in r) await window.mobius.wiki?.declineChange?.(r.id); } });
   };
   const learned = items.filter((m) => m.learned);
-  const forget = (m: MemoryItem) => api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) }));
+  const forget = (m: MemoryItem) => { const to = besideIfFocused(m.text); return api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) })).then(() => focusLine(to)); };
   const line = (m: MemoryItem) => (
-    <li key={m.text} className="wiki-line" data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
+    <li key={m.text} className="wiki-line" data-line={m.text} data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
       onContextMenu={(e) => { if (editing?.old === m.text) return; e.preventDefault(); setMenu({ text: m.text, x: e.clientX, y: e.clientY }); }}
       tabIndex={editing?.old === m.text ? undefined : 0}
       onKeyDown={(e) => {
@@ -148,14 +159,19 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
         if (e.key === 'F10' && e.shiftKey) { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ text: m.text, x: r.left + 24, y: r.bottom - 4 }); return; }
         // The keys the menu shows, on the line itself: Enter edits (or keeps what Mobius learned), Delete forgets.
         if (e.target !== e.currentTarget) return;
-        if (e.key === 'Enter') { e.preventDefault(); if (m.learned) void keep(m); else setEditing({ old: m.text, text: m.text, category: m.category }); }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const rows = lineEls();
+          const to = rows[rows.indexOf(e.currentTarget) + (e.key === 'ArrowDown' ? 1 : -1)];
+          if (to) { to.focus(); to.scrollIntoView({ block: 'nearest' }); } else if (e.key === 'ArrowDown') addRef.current?.focus();
+        } else if (e.key === 'Enter') { e.preventDefault(); if (m.learned) void keep(m); else setEditing({ old: m.text, text: m.text, category: m.category }); }
         else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); void (m.learned ? notTrue(m) : forget(m)); }
       }}>
       {editing?.old === m.text ? (
-        <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => setEditing(null)); }}>
-          <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') setEditing(null); }} />
+        <form className="wiki-edit" onSubmit={(e) => { e.preventDefault(); const now = editing.text.trim() || editing.old; void api.edit(editing.old, editing.text, editing.category).then((r) => done(r, null)).then(() => { setEditing(null); focusLine(now); }); }}>
+          <input autoFocus aria-label="Line" value={editing.text} maxLength={300} onChange={(e) => setEditing({ ...editing, text: e.target.value })} onKeyDown={(e) => { if (e.key === 'Escape') { setEditing(null); focusLine(m.text); } }} />
           <span className="kn-popup"><select aria-label="Kind" value={editing.category} onChange={(e) => setEditing({ ...editing, category: e.target.value as MemoryCategory })}>{MEMORY_KINDS.map((k) => <option key={k.id} value={k.id}>{k.name}</option>)}</select></span>
-          <button type="button" className="review-btn" onClick={() => setEditing(null)}>Cancel</button>
+          <button type="button" className="review-btn" onClick={() => { setEditing(null); focusLine(m.text); }}>Cancel</button>
           <button type="submit" className="review-btn" data-kind="keep">Save</button>
         </form>
       ) : (
@@ -195,7 +211,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
   );
   const asks = onAnswer ? waiting : [];
   return (
-    <section className="skills-page wiki-page" aria-label="How I work">
+    <section ref={page} className="skills-page wiki-page" aria-label="How I work">
       <header className="kn-head">
         <h1>How I work</h1>
         <span className="kn-about" role="img" tabIndex={0} aria-label="Only you and your Mobius see this page. Mobius reads it before every reply." title="Only you and your Mobius see this page. Mobius reads it before every reply."><svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="7" /><path d="M10 9v4.5M10 6.6v.1" /></svg></span>

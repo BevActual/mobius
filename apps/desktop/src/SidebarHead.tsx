@@ -1,6 +1,6 @@
 import { Reorder } from 'motion/react';
 import { useRef, useState, type ReactNode } from 'react';
-import type { Favourite } from '@mobius/shared';
+import { describeCombo, type Favourite } from '@mobius/shared';
 import { APP_ICONS } from './Rail';
 import { newKeys } from './SideNew';
 import { afterPaint } from './ui/frame';
@@ -10,7 +10,7 @@ interface Props {
    *  already names it. */
   title?: string;
   /** The open app's New; none where there is nothing to make, or the app's own list starts with one. */
-  create?: { label: string; run: () => void } | undefined;
+  create?: { label: string; run: () => void; keys?: string | undefined } | undefined;
   /** Notes, task lists and pages pinned by the person, in their order. */
   favourites?: readonly Favourite[];
   onOpenFavourite?: (favourite: Favourite) => void;
@@ -42,10 +42,10 @@ export function SidebarHead({ title, create, favourites = [], onOpenFavourite, o
         </div>
       )}
       {create && (
-        <button type="button" className="app-side-new" aria-label="Create" title={create.label} onClick={create.run}>
+        <button type="button" className="app-side-new" title={create.keys ? `${create.label} (${describeCombo(create.keys, window.mobius?.platform ?? '')})` : create.label} onClick={create.run}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
           <span>{create.label}</span>
-          <kbd className="side-keys" aria-hidden="true">{newKeys()}</kbd>
+          <kbd className="side-keys" aria-hidden="true">{create.keys ? describeCombo(create.keys, window.mobius?.platform ?? '') : newKeys()}</kbd>
         </button>
       )}
       {favourites.length > 0 && (

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { startMailServers, type MailFixture } from './mail-fixture';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
@@ -40,6 +40,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // Wide enough for Mailboxes, which starts hidden in a narrow window.
+  await resizeWindow(mobius.app, 1440, 900);
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Mail');
   await shell().keyboard.press('Enter');
@@ -83,9 +85,15 @@ test('an account signs in with an app password, mail is sorted here, and only th
   await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   await expect(compose.getByRole('textbox', { name: 'Subject' })).toHaveValue('Re: Terrace + lunch for the 13th');
   await compose.getByRole('textbox', { name: 'Message' }).fill('Hi Rui, please hold it. We are 8.');
+  // Send waits a few seconds with Undo, which opens the message again, unsent.
   await compose.getByRole('button', { name: 'Send', exact: true }).click();
   await expect(compose).toHaveCount(0);
-  await expect.poll(() => servers.sent.length).toBe(1);
+  await shell().locator('.ui-undo').getByRole('button', { name: 'Undo' }).click();
+  await expect(compose.getByRole('textbox', { name: 'Message' })).toHaveValue('Hi Rui, please hold it. We are 8.');
+  expect(servers.sent.length).toBe(0);
+  await compose.getByRole('button', { name: 'Send', exact: true }).click();
+  await expect(compose).toHaveCount(0);
+  await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
   expect(servers.sent[0]).toContain('In-Reply-To: <t1@example.com>');
   expect(servers.sent[0]).toContain('Hi Rui, please hold it. We are 8.');
 });
@@ -142,7 +150,7 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await expect(kept).toContainText('two vegetarians');
   await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
   await kept.getByRole('button', { name: 'Send', exact: true }).click();
-  await expect.poll(() => servers.sent.length).toBe(1);
+  await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });
 
@@ -152,13 +160,19 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
   const tools = shell().getByRole('toolbar', { name: 'Message' });
   const boxes = shell().getByRole('region', { name: 'Folders' });
   await list.getByRole('option').first().click();
+  // The account's signature (Settings › Mail) goes under where you write, above the quoted message.
+  await shell().evaluate(async () => {
+    const accounts = await window.mobius.mail!.accounts();
+    if (!Array.isArray(accounts)) throw new Error('no accounts');
+    await window.mobius.preferences.set({ mailSignatures: { [accounts[0]!.id]: 'Ana\nNorthway' } });
+  });
   // Reply All starts above the quoted message, with the cursor there.
   await tools.getByRole('button', { name: 'Reply All' }).click();
   const compose = page().getByRole('form', { name: 'Reply' });
   await expect(compose.getByRole('combobox', { name: 'To' })).toHaveValue('rui@example.com');
   const body = compose.getByRole('textbox', { name: 'Message' });
   await expect(body).toBeFocused();
-  await expect(body).toHaveValue(/Rui Almeida <rui@example.com> wrote:\n> Hi!/);
+  await expect(body).toHaveValue(/^\n\n-- \nAna\nNorthway\n\nOn .*Rui Almeida <rui@example.com> wrote:\n> Hi!/);
   await compose.getByRole('button', { name: 'Close' }).click();
   await list.getByRole('option').first().click();
   // Forward carries the message, with no one to send it to yet.

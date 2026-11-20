@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { launch, resizeWindow, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { startMailServers, type MailFixture } from './mail-fixture';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
@@ -38,6 +38,8 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   model = await startModel(replies);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
+  // Wide enough for the list and the message side by side.
+  await resizeWindow(mobius.app, 1440, 900);
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Mail');
   await shell().keyboard.press('Enter');
@@ -95,6 +97,13 @@ test('the keys are told in the hint bar at the list\'s foot, not a tooltip over 
   await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
   await shell().keyboard.press('e');
   await expect(inbox().getByRole('option')).toHaveCount(1);
+  // Ctrl+Z takes the archive back, as the toast's Undo does; E then archives it again.
+  await shell().keyboard.press('Control+z');
+  await expect(inbox().getByRole('option')).toHaveCount(2);
+  await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
+  await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
+  await shell().keyboard.press('e');
+  await expect(inbox().getByRole('option')).toHaveCount(1);
   await inbox().getByRole('option').first().click();
   await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toBeFocused();
   await shell().keyboard.press('h');
@@ -147,5 +156,5 @@ test('Triage in the panel sends a turn in Mail\'s Triage mode, for the unread in
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Triage mode (Mail)');
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Triage my unread message.');
   // The composer is in Triage now too, so a follow-up stays in it.
-  await expect(shell().getByRole('button', { name: 'Mode', exact: true })).toContainText('Triage');
+  await expect(shell().getByRole('button', { name: /^Mode: / })).toContainText('Triage');
 });

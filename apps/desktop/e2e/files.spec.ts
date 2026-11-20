@@ -78,6 +78,26 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await expect(shell().getByRole('region', { name: 'Note: Plan' })).toBeVisible();
 });
 
+test('the keyboard stays on the list going into and out of folders, and Ctrl+F searches the folder', async () => {
+  fs.mkdirSync(path.join(userData, 'workspace', 'notes', 'Home'), { recursive: true });
+  await start();
+  await openFiles();
+  const page = shell().getByRole('region', { name: 'Files', exact: true });
+  await page.getByRole('row', { name: 'notes', exact: true }).click();
+  await shell().keyboard.press('Enter');
+  await expect(title()).toHaveText('Notes');
+  // In the folder, the keyboard is on its first row at once: Down moves to the next.
+  const first = page.getByRole('row').nth(1);
+  await expect(first).toBeFocused();
+  await shell().keyboard.press('ArrowDown');
+  await expect(page.getByRole('row').nth(2)).toBeFocused();
+  // Back out, it is on the folder just left.
+  await shell().keyboard.press('Backspace');
+  await expect(page.getByRole('row', { name: 'notes', exact: true })).toBeFocused();
+  await shell().keyboard.press('Control+f');
+  await expect(shell().getByRole('searchbox', { name: 'Search this folder' })).toBeFocused();
+});
+
 test('what Mobius made is in Made by Mobius, dashed in the drive, until it is kept', async () => {
   await start([
     callsTool('files-write', { path: 'notes/Work/Brief.md', content: '# Brief\n\nFrom Mobius.\n' }),
@@ -96,12 +116,12 @@ test('what Mobius made is in Made by Mobius, dashed in the drive, until it is ke
   await expect(made.getByRole('option', { name: 'Work / Brief, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: 'Workspace' }).click();
   const page = shell().getByRole('region', { name: 'Files', exact: true });
-  // A folder holding something from Mobius has an indigo dot, here and in the sidebar until it is looked in.
+  // A folder holding something from Mobius has an indigo dot here, and a count in the sidebar until it is looked in.
   await expect(page.getByRole('row', { name: 'notes, from Mobius' }).getByRole('img', { name: '1 from Mobius' })).toBeVisible();
   const notesSide = side.getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' });
-  await expect(notesSide).toHaveAttribute('data-proposed', 'true');
+  await expect(notesSide.locator('.list-count')).toHaveText('1');
   await page.getByRole('row', { name: 'notes, from Mobius' }).dblclick();
-  await expect(notesSide).not.toHaveAttribute('data-proposed', 'true');
+  await expect(notesSide.locator('.list-count')).toHaveCount(0);
   await page.getByRole('row', { name: 'Work, from Mobius' }).dblclick();
   await expect(page.getByRole('row', { name: 'Brief.md, from Mobius' })).toHaveAttribute('data-proposed');
   await side.getByRole('button', { name: /Made by Mobius/ }).click();

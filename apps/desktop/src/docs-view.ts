@@ -1,4 +1,22 @@
 /** Docs' small pieces of logic, kept apart from the editor so they can be tested. */
+import type { Notebook, NotePage } from '@mobius/shared';
+
+/** The folder whose documents are templates: File › New from template lists them, and Save as template adds to it. */
+export const TEMPLATES_FOLDER = 'Templates';
+
+export const isTemplate = (path: string | undefined): boolean => !!path && path.split('/')[0]?.toLowerCase() === TEMPLATES_FOLDER.toLowerCase();
+
+/** The templates kept, by name. */
+export function templatesIn(notebooks: readonly Notebook[]): NotePage[] {
+  const folder = notebooks.find((n) => n.name.toLowerCase() === TEMPLATES_FOLDER.toLowerCase());
+  return [...(folder?.pages ?? [])].sort((a, b) => a.title.localeCompare(b.title));
+}
+
+/** A template's words for a new document: {{date}} becomes today ("Thursday, 19 November 2026"). */
+export function fillTemplate(text: string, now: Date): string {
+  const date = now.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  return text.replace(/\{\{\s*date\s*\}\}/gi, date);
+}
 
 /** The Markdown as the words a reader sees: no marks, links as their words, pictures and code fences gone. */
 export function readableText(markdown: string): string {
@@ -95,4 +113,9 @@ export function acceptGroup(lines: readonly { kind: 'same' | 'added' | 'removed'
     .filter((line, i) => line.kind === 'same' || (groups[i] === group ? line.kind === 'added' : line.kind === 'removed'))
     .map((line) => line.text)
     .join('\n');
+}
+
+/** A template's name in the Docs menu: its title without the {{date}} it fills in ("Weekly update, {{date}}" is "Weekly update"). */
+export function templateName(title: string): string {
+  return title.replace(/\{\{\s*\w+\s*\}\}/g, '').replace(/[\s,;:–—-]+$/, '').replace(/^[\s,;:–—-]+/, '').trim() || title;
 }

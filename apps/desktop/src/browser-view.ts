@@ -22,14 +22,6 @@ export function addressParts(url: string): { secure: boolean; host: string; path
   }
 }
 
-/** The shared content palette (tokens.css): a site's letter tile takes one of these, never a colour of its own. */
-const TILE_COLOURS = ['amber', 'yellow', 'green', 'teal', 'blue', 'violet', 'pink', 'coral'] as const;
-/** A steady colour for a site's letter tile, from the shared palette and picked from its name, so it is the same every time. */
-export function tileColour(site: string): string {
-  let h = 0;
-  for (const ch of site) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return `var(--c-${TILE_COLOURS[h % TILE_COLOURS.length]!})`;
-}
 /** The letter a site's tile shows. */
 export const tileLetter = (site: string): string => (site.replace(/^[^a-z0-9]+/i, '')[0] ?? '?').toUpperCase();
 
@@ -87,4 +79,16 @@ export function sidebarMatch(query: string, title: string, url: string): boolean
   if (words.length === 0) return true;
   const text = `${title} ${url.replace(/^https?:\/\/(www\.)?/, '')}`.toLowerCase();
   return words.every((w) => text.includes(w));
+}
+
+/**
+ * The tab Ctrl+Tab (step 1) or Ctrl+Shift+Tab (step -1) goes to: the next or previous in the order the sidebar lists
+ * them (the open tabs, then the pinned ones), going round at either end.
+ */
+export function nextTabId(tabs: readonly BrowserTabState[], step: 1 | -1): string | null {
+  const order = [...tabs.filter((t) => !t.pinned), ...tabs.filter((t) => t.pinned)];
+  if (order.length < 2) return null;
+  const at = order.findIndex((t) => t.active);
+  const next = order[(Math.max(at, 0) + step + order.length) % order.length];
+  return next && next.id !== order[at]?.id ? next.id : null;
 }

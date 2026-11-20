@@ -7,8 +7,10 @@ import StarterKit from '@tiptap/starter-kit';
 import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
+import { BulletToTask } from './task-shortcut';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
+import { loadIntoEditor } from './editor-load';
 import { Decoration, DecorationSet } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
@@ -28,10 +30,12 @@ import { fileMarkdown, noteImage, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
+import { FindMarks } from './doc-find';
+import { DocFind, findKeyOf } from './DocFind';
 import { linkTo, pageOfLink, pagesMatching } from './note-links';
 import { acceptGroup, placeChanges, COUNT_ORDER, countLabel, docStats, headingInView, type CountShown } from './docs-view';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppMenu, Menu, PanelTab, ToolbarControls, UndoToast, useInspector, type MenuEntry } from './ui';
+import { AppMenu, Menu, PanelTab, ToolbarControls, ToolbarItem, UndoToast, useInspector, type MenuEntry } from './ui';
 import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
@@ -249,9 +253,11 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     // and the document's options.
     const styleName = STYLES.find((s) => s.id === state.style)?.label ?? 'Body';
     const mobiusIcon = <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>;
-    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => (
-      <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} data-gives-way={extra.gives || undefined} onPointerDown={keep} onClick={onClick}>{icon}</button>
-    );
+    // The less-used tools give way first when the top bar is short of room: they drop into its ⋯ menu.
+    const btn = (label: string, title: string, pressed: boolean | undefined, onClick: () => void, icon: ReactNode, extra: { gives?: boolean } = {}) => {
+      const b = <button type="button" className="strip-btn doc-bar-btn" aria-label={label} title={title} {...(pressed === undefined ? {} : { 'aria-pressed': pressed })} onPointerDown={keep} onClick={onClick}>{icon}</button>;
+      return extra.gives ? <ToolbarItem priority="low">{b}</ToolbarItem> : b;
+    };
     const more: MenuEntry[] = [
       { label: 'Numbered list', checked: state.ordered, keys: `${mod}Shift+7`, run: run((c) => c.toggleOrderedList()) },
       { label: 'Checklist', checked: state.task, keys: `${mod}Shift+9`, run: run((c) => c.toggleTaskList()) },
@@ -442,6 +448,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   // History, comments, files and export are kept for Docs' own documents; the wiki keeps its own history.
   const own = docs.kind === 'docs' ? window.mobius.docs : undefined;
   const section = useRef<HTMLElement>(null);
+  // Find (Ctrl+F) and Replace (Ctrl+H): open while set; the token puts the cursor back in the bar on a second press.
+  const [finding, setFinding] = useState<{ replacing: boolean; token: number } | null>(null);
   const pathNow = useRef(path);
   pathNow.current = path;
   // The Markdown the editor last gave or was given, so a change from elsewhere is told from the person's typing.
@@ -479,11 +487,13 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       TableKit,
       TaskList,
       TaskItem.configure({ nested: true }),
+      BulletToTask,
       Markdown,
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Write here…') }),
       image,
       commentMarks,
       changeMarks,
+      FindMarks,
       ...(inFrame ? [metaMarks] : []),
     ],
     content: '',
@@ -532,7 +542,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     const opened = placed.current !== path;
     const was = editor.state.selection.from;
     const hadFocus = editor.view.hasFocus();
-    editor.chain().setMeta('mobius-load', true).setContent(docs.text, { contentType: 'markdown', emitUpdate: false }).run();
+    loadIntoEditor(editor, docs.text, opened);
     placed.current = path;
     if (opened) {
       // At the top, focused or not, so the outline and the toolbar speak of the start of the document.
@@ -830,7 +840,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
-    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}>
+    <section ref={section} className="doc-editor" data-frame={inFrame || undefined} aria-label={`Document: ${title}`} data-margin={margin || undefined} data-font={font}
+      onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
+      {finding && editor && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       {docs.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>This document was changed somewhere else while you were editing it.</span>

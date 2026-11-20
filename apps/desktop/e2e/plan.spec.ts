@@ -92,9 +92,9 @@ test('with Plan first, the assistant only proposes steps, and starts them when y
     says(['Done.']),
   ]);
   // Plan is a mode, chosen in the message box; the Mode button says so.
-  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('button', { name: /^Mode: / }).click();
   await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Plan/ }).click();
-  const planFirst = shell().getByRole('button', { name: 'Mode', exact: true });
+  const planFirst = shell().getByRole('button', { name: /^Mode: / });
   await expect(planFirst).toContainText('Plan');
   await say('summarise my notes');
   const plan = log().getByRole('region', { name: 'Plan' });
@@ -121,7 +121,7 @@ test('I’ll Drive puts a proposed plan in Tasks, for you to do yourself', async
     callsTool('todo-write', { items: [{ text: 'Book the room', status: 'pending' }, { text: 'Send the invite', status: 'pending' }] }),
     says(['Here is the plan.']),
   ]);
-  await shell().getByRole('button', { name: 'Mode', exact: true }).click();
+  await shell().getByRole('button', { name: /^Mode: / }).click();
   await shell().getByRole('menu', { name: 'Mode', exact: true }).getByRole('menuitemradio', { name: /^Plan/ }).click();
   await say('plan the offsite');
   const plan = log().getByRole('region', { name: 'Plan' });

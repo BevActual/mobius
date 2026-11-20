@@ -19,6 +19,7 @@
 .bot-row .clist-main { min-width: 0; }
 .bot-row .clist-title, .bot-row .clist-sub { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bot-row .clist-sub { display: block; }
+.bot-mark { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; color: var(--mobius); }
 .bot-more { flex: none; width: 24px; height: 24px; margin-right: 4px; padding: 0; display: grid; place-items: center; border-radius: var(--radius-small); color: var(--muted); opacity: 0; }
 .bot-more svg { width: 16px; height: 16px; fill: currentColor; }
 .ui-side-row-trail:hover > .bot-more, .bot-more:focus-visible, .bot-more[aria-expanded="true"] { opacity: 1; }
@@ -54,3 +55,8 @@
 .agent-loading span:nth-child(3n + 1) { width: 30%; }
 .agent-loading span:nth-child(3n + 2) { width: 90%; }
 .agent-loading span:nth-child(3n) { width: 60%; }
+/* The agent as a dot character (ui/DotCharacter): its face while it rests, the work moving through it while it runs. */
+.agent-hero { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); padding: var(--sp-4) 0 var(--sp-2); }
+.agent-hero-state { font-size: var(--fs-sm); color: var(--muted); }
+.agent-hero-state[data-state="waiting"] { color: var(--ink); font-weight: var(--fw-medium); }
+.agent-hero-state[data-state="failed"] { color: var(--red); }

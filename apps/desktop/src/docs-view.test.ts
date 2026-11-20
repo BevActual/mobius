@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { acceptGroup, countLabel, docStats, headingInView, placeChanges, readableText } from './docs-view';
+import { acceptGroup, countLabel, docStats, fillTemplate, headingInView, isTemplate, placeChanges, readableText, templateName, templatesIn } from './docs-view';
 import { changeGroups, diffLines } from './line-diff';
 
 describe('what a document counts', () => {
@@ -68,5 +68,32 @@ describe("Mobius's changes in the page", () => {
     expect(kept).toContain('We need a few days away.');
     expect(kept).toContain('- Plan on the 13th');
     expect(changeGroups(diffLines(kept, now)).filter((g) => g !== null).length).toBeGreaterThan(0);
+  });
+});
+
+describe('templates', () => {
+  it('are the documents in the Templates folder, by name', () => {
+    const page = (path: string, title: string) => ({ path, title, modified: 0 });
+    const notebooks = [{ name: 'Documents', pages: [page('Documents/Plan.md', 'Plan')] }, { name: 'Templates', pages: [page('Templates/Weekly.md', 'Weekly'), page('Templates/Brief.md', 'Brief')] }];
+    expect(templatesIn(notebooks).map((p) => p.title)).toEqual(['Brief', 'Weekly']);
+    expect(templatesIn([])).toEqual([]);
+    expect(isTemplate('Templates/Brief.md')).toBe(true);
+    expect(isTemplate('templates/Brief.md')).toBe(true);
+    expect(isTemplate('Documents/Templates.md')).toBe(false);
+    expect(isTemplate(undefined)).toBe(false);
+  });
+  it('fill {{date}} with today', () => {
+    const filled = fillTemplate('# Notes, {{date}}\n\nOn {{ DATE }}', new Date('2026-11-19T10:00:00'));
+    expect(filled).not.toContain('{{');
+    expect(filled).toMatch(/2026/);
+    expect(fillTemplate('No blanks', new Date())).toBe('No blanks');
+  });
+});
+
+describe('templateName', () => {
+  it('leaves out the blanks a template fills in', () => {
+    expect(templateName('Weekly update, {{date}}')).toBe('Weekly update');
+    expect(templateName('{{date}} – Standup')).toBe('Standup');
+    expect(templateName('Meeting notes')).toBe('Meeting notes');
   });
 });

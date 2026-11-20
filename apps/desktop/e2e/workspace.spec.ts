@@ -173,7 +173,7 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   await start();
   // The Browser's list is its own Tabs panel, and its New follows the app you are in.
   await expect(leftSide().getByRole('heading', { name: 'Tabs', exact: true })).toBeVisible();
-  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveAttribute('title', 'New tab');
+  await expect(leftSide().locator('.app-side-new')).toHaveAccessibleName('New tab');
   await expect(shell().getByRole('complementary', { name: 'Tabs' })).toBeVisible();
   // It sits under the top bar, which starts with the Go button at the window's left edge.
   const side = (await leftSide().boundingBox())!;
@@ -186,7 +186,7 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   // head's own Create button gives way.
   const lists = shell().getByRole('navigation', { name: 'Lists' });
   await expect(lists).toBeVisible();
-  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  await expect(leftSide().locator('.app-side-new')).toHaveCount(0);
   await expect(shell().getByRole('complementary', { name: 'Lists' }).getByRole('button', { name: 'New list' })).toBeVisible();
   await lists.getByRole('button', { name: /^Inbox/ }).click();
   await expect(shell().locator('.strip-title')).toHaveText('Inbox');
@@ -356,7 +356,7 @@ test('design review: the title bar names the app, nothing claims a page it canno
   await expect(scopes.getByRole('button')).toHaveCount(9);
   await scopes.getByRole('button', { name: 'Tasks' }).click();
   await expect(scopes.getByRole('button', { name: 'Tasks' })).toHaveAttribute('aria-current', 'page');
-  await expect(leftSide().getByRole('button', { name: 'Create' })).toHaveCount(0);
+  await expect(leftSide().locator('.app-side-new')).toHaveCount(0);
   // The scopes show once: in their panel while it shows, as chips under the field when it is hidden.
   const chips = shell().locator('.search-page').getByRole('radiogroup', { name: 'Show' });
   await expect(chips).toBeHidden();

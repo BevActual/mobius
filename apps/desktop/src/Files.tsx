@@ -255,18 +255,22 @@ export function filesSub(files: FilesState): ReactNode {
 export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNode }) {
   const here = files.place.kind === 'folder' ? files.place.path : null;
   // A dot only on a folder holding something new from Mobius that the person has not looked in since.
-  const held = new Set(files.made.files.map((f) => f.split('/')[0]!).filter((r) => !files.seen.has(r)));
+  // What Mobius made in each top folder and nobody has kept: a count at the row's end, as other apps show waiting
+  // things. The list itself marks the folder with Mobius's dot, so the dot is not shown twice.
+  const held = new Map<string, number>();
+  for (const f of files.made.files) { const r = f.split('/')[0]!; if (!files.seen.has(r)) held.set(r, (held.get(r) ?? 0) + 1); }
   return (
     <AppSidebar label="Places">
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
-      <SidebarSection title="Places" {...(pin ? { action: pin } : {})}>
+      <SidebarSection title="This computer" {...(pin ? { action: pin } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} drop={files.can.move ? files.drop('') : undefined} />
         {files.can.trash && <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />}
       </SidebarSection>
       {files.roots.length > 0 && (
         <SidebarSection title="Folders">
           {files.roots.map((r) => (
-            <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} proposed={held.has(r.name)}
+            <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} count={held.get(r.name) ?? 0}
+              title={held.has(r.name) ? `${held.get(r.name)} from Mobius, not kept yet` : undefined}
               current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })}
               drop={files.can.move ? files.drop(r.name) : undefined} trail={syncTrail(files, r.name)} />
           ))}
@@ -340,6 +344,9 @@ function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntr
   );
 }
 
+/** A folder's size, as Finder says it: how many things it holds. Blank when that is not known. */
+const itemCount = (n: number | undefined) => (n === undefined ? '' : n === 1 ? '1 item' : `${n} items`);
+
 /** Explorer on Windows and Linux file managers alike say Explorer-ish words; Finder on a Mac. */
 const SHOW_IN = typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? 'Show in Finder' : 'Show in Explorer';
 
@@ -368,6 +375,11 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.shiftKey && (e.key === 'N' || e.key === 'n') && files.place.kind === 'folder' && files.can.change) { e.preventDefault(); void startNewFolder(); return; }
+      // Ctrl+F searches the folder, as in Explorer: the panel's Search box.
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && (e.key === 'f' || e.key === 'F') && !e.defaultPrevented) {
+        const box = document.querySelector<HTMLInputElement>('input[aria-label="Search this folder"], input[aria-label="Search Made by Mobius"], input[aria-label="Search the Trash"]');
+        if (box) { e.preventDefault(); box.focus(); box.select(); return; }
+      }
       if (!e.altKey || e.ctrlKey || e.metaKey) return;
       // Typing keeps Alt+arrows for moving by word.
       const t = e.target as HTMLElement | null;
@@ -383,6 +395,21 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     const join = (name: string) => (here ? `${here}/${name}` : name);
     return sortEntries(files.entries.filter((e) => !q || e.name.toLowerCase().includes(q)), files.sort, here).map((e) => ({ ...e, path: join(e.name) }));
   }, [files.entries, files.query, files.sort, here]);
+  // Opening Files, or going into or out of a folder, leaves the keyboard on the list (as in Explorer and Finder), so
+  // the arrows, Enter and Backspace work at once; never taken from something else that has it.
+  const cameFrom = useRef<string | null>(null);
+  // Before any early return below: a hook after one would break the other places (Trash, a drive, Made by Mobius).
+  const listShown = files.available && files.place.kind === 'folder' && !files.problem && !files.loading && rows.length > 0;
+  useEffect(() => {
+    // Nothing has it: the page itself, or the stage an app opened from Ctrl+K hands the keyboard to.
+    const on = document.activeElement;
+    if (!listShown || (on && on !== document.body && !on.matches('main.stage'))) return;
+    // Back out of a folder, the keyboard is on that folder again.
+    const back = cameFrom.current && rows.find((r) => r.path === cameFrom.current);
+    cameFrom.current = null;
+    if (back) { setSelected(back.path); listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(back.path)}"]`)?.focus({ preventScroll: true }); return; }
+    listRef.current?.querySelector<HTMLElement>('[role=row][tabindex="0"]')?.focus({ preventScroll: true });
+  }, [listShown, here, rows[0]?.path]);
   if (!files.available) return <section className="skills-page empty" aria-label="Files"><p className="note-empty">Files are not available here.</p></section>;
   const proposed = new Set(files.made.files);
   const open = (path: string, type: FileEntry['type']) => (type === 'folder' ? files.setPlace({ kind: 'folder', path }) : onOpenFile(path));
@@ -510,7 +537,9 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   );
   const move = (step: number) => {
     if (rows.length === 0) return;
-    const at = rows.findIndex((r) => r.path === selected);
+    // With nothing chosen yet, from the row the keyboard is on (the first, once Files is open).
+    const on = (document.activeElement as HTMLElement | null)?.dataset?.path;
+    const at = rows.findIndex((r) => r.path === (selected ?? on));
     const next = rows[Math.max(0, Math.min(rows.length - 1, at < 0 ? 0 : at + step))]!;
     setSelected(next.path);
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
@@ -527,7 +556,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     else if ((e.key === 'v' || e.key === 'V') && e.ctrlKey && !e.shiftKey && files.cut) { e.preventDefault(); void files.paste(here).then((to) => { if (to) setSelected(to); }); }
     else if (e.key === 'Escape' && files.cut) { e.preventDefault(); files.setCut(null); }
     else if (e.key === 'Delete' && selected && changeable(selected)) { e.preventDefault(); trash(selected); }
-    else if (e.key === 'Backspace' && parts.length > 0) { e.preventDefault(); files.setPlace({ kind: 'folder', path: parts.slice(0, -1).join('/') }); }
+    else if (e.key === 'Backspace' && parts.length > 0) { e.preventDefault(); cameFrom.current = here; files.setPlace({ kind: 'folder', path: parts.slice(0, -1).join('/') }); }
   };
   return (
     <section className="skills-page files-page" aria-label="Files">
@@ -548,7 +577,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       )}
       {!files.problem && !files.loading && files.entries.length > 0 && (
         <div className="files-table" role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
-          <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Date Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
+          <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
           <div ref={listRef} role="rowgroup" onKeyDown={onListKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing here matches “{files.query}”.</p>}
             {rows.map((e) => {
@@ -569,7 +598,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
-                  <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? '—' : size(e.bytes)}</span>
+                  <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? itemCount(e.items) : size(e.bytes)}</span>
                 </div>
               );
             })}
@@ -647,7 +676,7 @@ function TrashPage({ files, bars }: { files: FilesState; bars: ReactNode }) {
         <EmptyState icon={GLYPH.trash} title="The Trash is empty" />
       ) : (
         <div className="files-table files-trash" role="grid" aria-label="In the Trash" aria-rowcount={rows.length + 1}>
-          <div className="files-head" role="row"><span role="columnheader" className="files-col">Name</span><span role="columnheader" className="files-col" data-col="modified">Date Trashed</span><span role="columnheader" className="files-col" data-col="kind">Where it was</span><span role="columnheader" className="files-col">Size</span></div>
+          <div className="files-head" role="row"><span role="columnheader" className="files-col">Name</span><span role="columnheader" className="files-col" data-col="modified">Trashed</span><span role="columnheader" className="files-col" data-col="kind">Where it was</span><span role="columnheader" className="files-col">Size</span></div>
           <div ref={listRef} role="rowgroup" onKeyDown={onKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing in the Trash matches “{files.query}”.</p>}
             {rows.map((t) => (

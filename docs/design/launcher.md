@@ -117,7 +117,7 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 | What it does now | Change |
 |---|---|
 | Its height jumps: tall with nothing typed, then it shrinks to two rows as you type | Keep one height while it is open, the height it has with nothing typed. Results scroll inside it, and the field never moves |
-| It opens on its own, apart from the button | It grows from the Go button: same left edge, just under the top bar, 120 ms (none with reduced motion). Ctrl+K opens it in the same place |
+| It opens on its own, apart from the button | It opens centred in the window, whether from Go or Ctrl+K (Andrew, 19 November 2026), growing in from the middle in 120 ms (none with reduced motion) |
 | Section labels are in capitals ("PINNED", "APPLICATIONS") | Sentence case, as in every other list: "Pinned", "Recent", "Apps" (not "Applications") |
 | An app row's detail says "Pinned" | Show its key ("Ctrl+3"), or nothing |
 | Typing doesn't show why a row matched | The matched letters are drawn in ink at medium weight, and the rest in the row's own colour |
@@ -130,6 +130,32 @@ This section comes from reviewing the reference sheet's launcher, light and dark
 | A Recent row shows its kind's icon | It shows its app's icon, so the column of icons tells you where each item lives |
 
 Later, if it earns its place: a preview of the selected item to the right of the list, as wide as the list (a note's first lines, a mail's sender and first line, an event's time).
+
+## The mockup, and what is built of it
+
+The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 November 2026: "go harder with competing with Raycast"). Built so far:
+
+- **Centred** in the window, from Go and Ctrl+K alike.
+- **A preview beside the list.** A found item can carry `preview` (`title`, `meta`, `body`, `rows`), shown to the right of the list for the chosen row; hidden below 900 px. Mail and Calendar results have one.
+- **Commands that read the rest of the line.** A found item can carry `fields` (`label`, `value`): what it read, shown as named parts under the field so a wrong reading shows before Enter, and it comes before anything else found. "task call Maya tomorrow 3pm" and "event lunch with Sam fri 1pm" work this way.
+
+- **Ask inline.** A question (ending in "?", or starting with what, when, how and the like) is answered in the launcher when you press Enter on Ask: read-only, with the quick model, in a conversation of its own, with the apps it read under the answer. Continue in Mobius opens that conversation in the panel; Copy the answer copies it. If Mobius wants to change something or ask you back, the answer says so and Continue takes it to the panel. Anything that isn't a question still goes straight to the panel. (`launcher-ask.ts`)
+
+- **The empty launcher as a home.** With nothing typed it lists, under Ask, up to three things Waiting for you (chats that need your answer, apps with changes not kept yet) and up to three Agents at work (each named agent working now, with its character). Enter on an empty launcher still opens the first pinned app; these rows are a glance, picked with the arrows or the mouse. (`home` prop, filled in `App.tsx`)
+
+- **About this, with AI commands.** Text selected in the open app (or in a field) when the launcher opens shows as a chip under the field. With nothing typed, About the selection lists Summarize, Explain, Fix spelling and grammar, Make it shorter, Draft a reply and Translate to…; "translate to French" is read as one command. Anything else typed is asked about the selection. Each is answered inline, with Copy the answer and Continue in Mobius. The chip's x, or Backspace with nothing typed, leaves the selection out. (`selectionNow`, `AI_COMMANDS` in `launcher-ask.ts`)
+
+- **Commands you save yourself.** After a question about the selection is answered, Save as a command keeps it under a name taken from its first line, listed with the AI commands as Yours (on this computer, at most 30). Shift+Enter on one shows Run and Remove this command. (`launcher-commands.ts`)
+
+- **Quicklinks and snippets.** Typing "quicklink maps maps.example/?q={query}" offers Create quicklink, with Name and Address read under the field. Typing "maps cafe" then opens that address with "cafe" in it, in the Browser. "snippet sig: Best, Andrew" makes a snippet; typing its name and Enter copies it. Shift+Enter on either shows Remove. Kept on this computer, at most 100 each. (`launcher-commands.ts`)
+
+- **Clipboard history.** Off until turned on: typing "clipboard" (or "clip", "cb") offers Turn on clipboard history. Then the same word lists the last 50 copies made anywhere on the computer, newest first, with the whole text beside the list; words after it narrow the list ("cb invoice"). Enter copies one again. Clear and Turn off are there too; turning it off forgets what was kept. Copies a password manager marks as private are never kept. In memory only, by the desktop app (`window.mobius.clipboard`, #640; `launcher-clipboard.ts`).
+
+- **The computer's own apps and commands.** Typing finds the Start menu's apps under On this computer, below Mobius's own (so "notes" still opens Notes), and Lock the computer, Put the computer to sleep and Empty the Recycle Bin (also by "lock", "sleep", "trash" or "bin"). Read once each time the launcher opens, in both Ctrl+K and the Ctrl+Space window. (`launcher-system.ts`, on `window.mobius.system` from #643)
+
+- **Files on disk.** A moment after typing stops (two letters or more), files whose names hold every word, from Desktop, Documents, Downloads, Pictures, Music and Videos, show under Files with the folder they are in. Enter opens one; Shift+Enter offers Show in folder and Copy path. Programs, scripts and installers are never listed. (`system.files` from #645)
+
+All of the plan above is built. What comes next is polish from use.
 
 ## How apps take part
 

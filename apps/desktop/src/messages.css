@@ -6,6 +6,8 @@
 .messages-run { max-width: 680px; display: flex; flex-direction: column; gap: 2px; }
 .messages-run header { display: flex; gap: var(--sp-2); align-items: baseline; }
 .messages-run time { color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.messages-day { display: flex; align-items: center; gap: var(--sp-2); max-width: 680px; margin: var(--sp-2) 0 calc(-1 * var(--sp-1)); color: var(--muted); font-size: var(--fs-sm); font-weight: 600; }
+.messages-day::after { content: ""; flex: 1; height: 0.5px; background: var(--hairline); }
 .messages-one p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
 .messages-edited { color: var(--muted); font-size: var(--fs-sm); }
 .messages-reactions { display: flex; gap: 4px; margin: 4px 0 0; padding: 0; list-style: none; }
@@ -24,3 +26,11 @@
 .messages-author { padding: 0; border: 0; background: none; color: inherit; font: inherit; cursor: pointer; }
 .messages-author:hover strong { text-decoration: underline; text-underline-offset: 2px; }
 .messages-encrypted { margin: auto; padding: var(--sp-6); color: var(--muted); text-align: center; }
+
+/* Conversations: a # for a channel or group room, or the person's initials in the leading slot (icon at 10, name at 34), and an unread one with its
+   name in medium weight and its count in ink, so it is not missed. */
+.messages-side .msg-lead { flex: none; display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.messages-side .msg-lead svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; }
+.messages-side .msg-lead .ui-avatar { width: 16px; height: 16px; font-size: 8px; }
+.messages-side .list-row:has(.list-count) .ui-side-name { font-weight: var(--fw-semibold); color: var(--ink); }
+.ui-dock[data-dock] .messages-side .list-row .list-count { color: var(--ink); font-weight: var(--fw-semibold); }

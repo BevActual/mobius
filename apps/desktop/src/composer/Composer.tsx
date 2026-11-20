@@ -386,6 +386,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   }, [configured, settings?.model]);
   const pillName = currentLabel || modelName;
   const effortLabel = EFFORTS.find((e) => e.id === effort)?.label ?? 'Default';
+  // What the Model pill shows, which its name holds too.
+  const modelShown = `${bestFit ? 'Best fit' : pillName || 'Model'}${effort ? ` · ${effortLabel}` : ''}`;
   const permission = permissionOf(preferences.value.approvalMode, apply);
   const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
   const modeInfo = chatModeOf(mode, surface?.app);
@@ -550,7 +552,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               onChange={setMode}
               choices={modesFor(surface?.app).map((option, i) => ({ value: option.id, label: option.name, meaning: option.hint, ...(i === CHAT_MODES.length ? { separated: true } : {}) }))}
               footer={[{ label: 'Next mode', keys: 'Shift+Tab', run: () => setMode(nextChatMode(mode, surface?.app)) }]}
-              trigger={<button type="button" className="pill pill-compact" aria-label="Mode" disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+              trigger={<button type="button" className="pill pill-compact" aria-label={`Mode: ${modeInfo.name}`} disabled={busy} title={`Mode: ${modeInfo.name}. ${modeInfo.hint}. Shift+Tab in the message box changes it.`}><span className="pill-text">{modeInfo.name}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
           </span>
           <span className="popmenu">
@@ -560,10 +562,10 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               onChange={(id) => { const option = PERMISSIONS.find((p) => p.id === id); if (option) choosePermission(option); }}
               choices={PERMISSIONS.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
               footer={[{ label: 'Always ask and never lists…', run: () => onOpenSettings('safety') }]}
-              trigger={<button type="button" className="pill pill-compact" aria-label="Permission" title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+              trigger={<button type="button" className="pill pill-compact" aria-label={`Permission: ${permission.short}`} title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
           </span>
-          <PopMenu label="Model" className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={bestFit ? `Model: Best fit (${quickName} for short questions, ${modelName} for the rest)${effort ? ` · ${effortLabel} effort` : ''}` : modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{bestFit ? 'Best fit' : pillName || 'Model'}{effort ? <span className="pill-suffix"> · {effortLabel}</span> : null}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
+          <PopMenu label="Model" buttonLabel={modelShown === 'Model' ? 'Model' : `Model: ${modelShown}`} className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={bestFit ? `Model: Best fit (${quickName} for short questions, ${modelName} for the rest)${effort ? ` · ${effortLabel} effort` : ''}` : modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{bestFit ? 'Best fit' : pillName || 'Model'}{effort ? <span className="pill-suffix"> · {effortLabel}</span> : null}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
             {(close) => (
               <div className="model-menu">
                 <input type="search" className="model-find" aria-label="Find a model" placeholder="Find a model" value={find} autoFocus onChange={(event) => setFind(event.target.value)} />

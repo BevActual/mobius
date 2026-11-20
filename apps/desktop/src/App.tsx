@@ -34,10 +34,12 @@ import { useConversation } from './useConversation';
 import { SettingsPage } from './settings/SettingsPage';
 import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
+import { saveAll } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
+import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
 import { MailPage, MailSidebar, mailPlace } from './Mail';
 import { MessagesPage, MessagesSidebar } from './Messages';
@@ -93,12 +95,16 @@ import { parseLayout } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
-import { nest, smartName, smartView } from './tasks-view';
+import { SERVICE_NAMES, channelLabel } from './messages-view';
+import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
 import { activityOf } from './activity';
 import { findInSources, sourceCommands } from './launcher-sources';
 import { useDailyLauncherSources, useMoreLauncherSources } from './app-launcher';
+import { askInline, selectionNow, type LauncherAbout } from './launcher-ask';
+import { useClipboardHistory } from './launcher-clipboard';
+import { useSystemSearch } from './launcher-system';
 import { launcherFind, targetApp, targetLabel, targetOfRef, type HubTarget, type LauncherSources } from './search-hub';
 import { useTasks } from './useTasks';
 import { useCalendar } from './useCalendar';
@@ -107,7 +113,7 @@ import { contactSheet } from './picture';
 
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
-import { liveTitle, statusText } from './notes-state';
+import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -178,13 +184,24 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
  */
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
-  agent: 'Chats', mail: 'Mailboxes', messages: 'Channels', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
+  agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
 const LIST_HANDED: readonly AppId[] = ['design', 'slides', 'research', 'tasks', 'video', 'code', 'studio', 'database', 'messages', 'photo'];
+
+/** Whether the window is at least this wide, kept up to date as it is resized. */
+function useWideWindow(min: number): boolean {
+  const [wide, setWide] = useState(() => window.innerWidth >= min);
+  useEffect(() => {
+    const on = () => setWide(window.innerWidth >= min);
+    window.addEventListener('resize', on);
+    return () => window.removeEventListener('resize', on);
+  }, [min]);
+  return wide;
+}
 
 export function App() {
   const browser = useBrowser();
@@ -579,6 +596,8 @@ export function App() {
   const workingNow = useRef<string[]>([]);
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
+  // Quitting: write what is still being typed first, then let Mobius go (it waits up to 3 s for this).
+  useEffect(() => window.mobius.tray?.onQuitting(() => { void saveAll().finally(() => void window.mobius.tray?.savedForQuit().catch(() => undefined)); }), []);
   const activity = activityOf(conversation.state);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
@@ -612,7 +631,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : 'New conversation')) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? settingsTitle : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inMessages ? (chat.channel ? channelLabel(chat.channel) : '') /* Messages: the open conversation */ : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : smartName(tasks.view.id)) : inCalendar ? calendarHeading(calendar.mode, calendar.anchor) : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -668,9 +687,12 @@ export function App() {
   const ownListRef = useRef<(id: AppId) => ReactNode>(() => null);
   // Activity's list filters its page (which is the region named Activity), so the panel is named for that.
   const homeListName = sideMode === 'activity' ? 'Filter' : sideMode === 'bots' ? 'Agents' : 'Chats';
+  // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
+  // Panels menu (or the top bar) brings it back, and a choice made there is kept.
+  const roomy = useWideWindow(1200);
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: true, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' || id === 'calendar' ? roomy : true, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -710,6 +732,17 @@ export function App() {
   const ownApp = (id: OwnApp['id']) => () => ownApps.find((o) => o.id === id)?.run();
   // What waits, per app, for the launcher's dots and the Go button's: answers Mobius needs, and apps it changed.
   const waiting: Partial<Record<AppId, number>> = { ...Object.fromEntries([...changed].map((id) => [id, 1])), ...(needsYou > 0 ? { agent: needsYou } : {}) };
+  // The empty launcher's home: what waits for an answer, and the named agents at work now.
+  const launcherHome = launcherOpen ? {
+    waiting: [
+      ...conversation.list.filter((c) => c.waiting > 0).map((c) => ({ id: c.id, label: c.title || 'Untitled chat', detail: 'Needs your answer', app: 'agent' as AppId, run: () => { conversation.select(c.id); launch.openMobius(); } })),
+      ...[...changed].map((a) => ({ id: `changed-${a}`, label: `Changes in ${appName(a)}`, detail: 'Not kept yet', app: a, run: () => launch.openApp(a) })),
+    ],
+    agents: conversation.list.filter((c) => c.activity === 'working' && botOfConversation(c.id, botIds) !== MAIN_BOT_ID).map((c) => {
+      const bot = bots.bots.find((b) => b.id === botOfConversation(c.id, botIds));
+      return { id: c.id, name: bot?.name ?? 'Agent', state: 'working' as const, detail: c.title || undefined, run: () => { closeSettings(); conversation.select(c.id); setSideMode('bots'); openApp('agent'); } };
+    }),
+  } : undefined;
   const waitingTotal = Object.values(waiting).reduce((sum, n) => sum + (n ?? 0), 0);
   // The Mobius button (toolbar): show or hide Mobius beside the work.
   // An app bringing one of its panel tabs forward (useShowPanelTab) opens the right panel without moving focus.
@@ -789,15 +822,20 @@ export function App() {
 
   // The launcher's key pressed again while it is open switches it between its start and All apps.
   const [launcherAgain, setLauncherAgain] = useState(0);
+  const [launcherAbout, setLauncherAbout] = useState<LauncherAbout | undefined>(undefined);
+  const clipboardHistory = useClipboardHistory();
+  const systemSearch = useSystemSearch(launcherOpen);
   const launcherShown = useRef(launcherOpen);
   launcherShown.current = launcherOpen;
   const openLauncher = useCallback(() => {
     if (launcherShown.current) { setLauncherAgain((n) => n + 1); return; }
     opener.current = document.activeElement as HTMLElement | null;
+    // About this: what is selected in the open app goes with the launcher, for its AI commands.
+    setLauncherAbout(selectionNow());
     setLauncherOpen(true);
   }, []);
   const [hubOpen, setHubOpen] = useState(false);
-  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | undefined>(undefined);
+  const [settingsSection, setSettingsSection] = useState<'advanced' | 'layout' | 'profiles' | 'keyboard' | 'about' | 'schedules' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages' | undefined>(undefined);
   const [taskFocus, setTaskFocus] = useState(0);
   const openHub = useCallback(() => { opener.current = document.activeElement as HTMLElement | null; setHubOpen(true); }, []);
   const closeHub = useCallback((restore = true) => { setHubOpen(false); if (restore) queueMicrotask(() => opener.current?.focus?.()); }, []);
@@ -972,7 +1010,10 @@ export function App() {
       else if (action === 'littleMobius') { claim(); toggleMini(); }
       // New (Cmd-N, Ctrl-N elsewhere) is fixed too: it presses the open sidebar's New, whatever that makes there.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'KeyN') {
-        const create = document.querySelector<HTMLButtonElement>('.dock.left .side-new > .side-new-row, .dock.left .app-side-new');
+        // The app's own panel, in the pane being worked in when two apps are side by side.
+        const within: ParentNode = document.activeElement?.closest('.pane') ?? document;
+        const NEW = '.app-side .side-new > .side-new-row, .app-side .app-side-new';
+        const create = within.querySelector<HTMLButtonElement>(NEW) ?? document.querySelector<HTMLButtonElement>(NEW);
         if (create && !create.disabled) { claim(); create.click(); }
       }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
@@ -1004,10 +1045,17 @@ export function App() {
   };
 
   const createActions: HubAction[] = [
-    { id: 'conversation', label: 'New conversation', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
+    { id: 'conversation', label: 'New chat', app: 'agent', run: () => { closeSettings(); conversation.newConversation(); openApp('agent'); setFocusToken((n) => n + 1); } },
     { id: 'note', label: 'New note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => { const nb = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name ?? (await notes.createNotebook('Notes')); if (nb) await notes.createPage(nb); })(); } },
+    // Notes: today's dated page in the Journal notebook, opened if it was made already, otherwise made.
+    { id: 'today-note', label: 'Today’s note', app: 'notes', run: () => { closeSettings(); openApp('notes'); void (async () => {
+      const made = findTodayNote(notes.notebooks);
+      if (made) { await notes.open(made.path, made.title); return; }
+      const book = notes.notebooks.some((nb) => nb.name === JOURNAL) ? JOURNAL : await notes.createNotebook(JOURNAL);
+      if (book) await notes.createPage(book, todayNoteTitle(), `# ${todayNoteTitle()}\n\n`);
+    })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
-    { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
+    { id: 'tab', label: 'New tab', app: 'browser', keys: 'mod+t', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
     { id: 'message', label: 'New message', app: 'mail', run: () => { closeSettings(); openApp('mail'); mail.compose(); } },
     { id: 'deck', label: 'New deck', app: 'slides', run: () => { closeSettings(); openApp('slides'); void (async () => { const folder = slides.page?.path.split('/')[0] ?? slides.notebooks[0]?.name ?? (await slides.createNotebook('Presentations')); if (folder) await slides.createPage(folder, 'Untitled deck'); })(); } },
@@ -1194,8 +1242,9 @@ export function App() {
       return;
     }
     // Canvas, Design, Slides and Photo keep their own history: what the menu's Undo means there, outside a text field.
+    // Tasks: Undo puts back the task just deleted or ticked off.
     const typing = document.activeElement instanceof HTMLInputElement || document.activeElement instanceof HTMLTextAreaElement || (document.activeElement as HTMLElement | null)?.isContentEditable;
-    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto) && !typing) { sendCommand(command); return; }
+    if ((command === 'undo' || command === 'redo') && (inCanvas || inDesign || inSlides || inPhoto || (inTasks && command === 'undo')) && !typing) { sendCommand(command); return; }
     document.execCommand(command);
   };
   // Learn (shell/learn-view): opening it unpins Mobius from beside; closing puts focus back where it was.
@@ -1205,7 +1254,7 @@ export function App() {
     setLearnOpen(true);
   };
   const closeLearn = () => { setLearnOpen(false); if (learnFrom.current?.isConnected) learnFrom.current.focus(); };
-  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar') => { setSettingsSection(section); setSettingsOpen(true); };
+  const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
     apps: APPS.filter((a) => isAvailable(a.id)),
@@ -1216,12 +1265,13 @@ export function App() {
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
+      docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
       agent: { busy: conversation.state.busy },
     },
     do: {
-      create: { conversation: createActions[0]!.run, note: createActions[1]!.run, task: createActions[2]!.run, tab: createActions[3]!.run },
+      create: { conversation: createActions[0]!.run, note: createActions[1]!.run, task: createActions.find((a) => a.id === 'task')!.run, tab: createActions.find((a) => a.id === 'tab')!.run },
       closeTab: () => { if (active) window.mobius.browser.close(active.id); },
       settings: openSettings,
       shortcuts: () => openSettingsAt('keyboard'),
@@ -1262,6 +1312,7 @@ export function App() {
       },
       notes: {
         newNotebook: () => sendCommand('new-notebook'),
+        today: () => createActions.find((a) => a.id === 'today-note')!.run(),
         pin: () => { if (notes.page) togglePin({ kind: 'note', id: notes.page.path, title: notes.page.title || notes.page.path }); },
         changes: () => sendCommand('show-changes'),
         // Notes: the page's less-used controls live here, not in a second ⋯ in the toolbar.
@@ -1321,6 +1372,23 @@ export function App() {
       docs: {
         newDocument: () => createActions.find((a) => a.id === 'doc')!.run(),
         newFolder: () => sendCommand('new-folder'),
+        // Apps lead: a new document starts as a copy of the template, in the folder open now (never Templates itself).
+        fromTemplate: (path, title) => { closeSettings(); openApp('docs'); void (async () => {
+          const read = await window.mobius.docs?.read(path).catch(() => null);
+          if (!read || 'ok' in read) { setToast('The template could not be read.'); return; }
+          const here = docs.page && !isTemplate(docs.page.path) ? docs.page.path.split('/')[0] : undefined;
+          const folder = here ?? docs.notebooks.find((n) => !isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(DEFAULT_FOLDER));
+          // Named as its first line reads once filled: "Weekly update, {{date}}" makes "Weekly update, Thursday, 19 November 2026".
+          const now = new Date();
+          const made = folder ? await docs.createPage(folder, fillTemplate(title, now), fillTemplate(read.content, now)) : null;
+          if (!made) setToast(`${templateName(title)} could not be started${folder ? ` in ${folder}` : ''}.`);
+        })(); },
+        // Opens the copy in Templates: what is changed there is what new documents start with.
+        saveAsTemplate: () => { const page = docs.page; if (!page || isTemplate(page.path)) return; void (async () => {
+          const text = docs.text;
+          const folder = docs.notebooks.find((n) => isTemplate(`${n.name}/`))?.name ?? (await docs.createNotebook(TEMPLATES_FOLDER));
+          if (folder && await docs.createPage(folder, page.title, text)) setToast(`Saved as a template. New from ${page.title} is in the Docs menu`);
+        })(); },
       },
       calendar: {
         newEvent: () => createActions.find((a) => a.id === 'event')!.run(),
@@ -1352,6 +1420,10 @@ export function App() {
     tasksView: (id) => { opener.current = null; closeSettings(); tasks.setView({ kind: 'smart', id }); openApp('tasks'); },
     calendarToday: () => { opener.current = null; closeSettings(); calendar.setAnchor(new Date()); openApp('calendar'); },
     filesTrash: () => { opener.current = null; closeSettings(); files.setPlace({ kind: 'trash' }); openApp('files'); },
+    taskList: () => tasks.lists.find((l) => l.name === DEFAULT_LIST_NAME && !l.account)?.name ?? tasks.lists.find((l) => !l.account)?.name ?? tasks.lists[0]?.name ?? DEFAULT_LIST_NAME,
+    calendarInto: () => { const writable = calendar.calendars.filter((c) => !calendar.readOnly(c)); return writable.find((c) => !calendar.hidden.has(c)) ?? writable[0] ?? 'Calendar'; },
+    addEvent: (into, event) => { void calendar.add(into, event).then((ok) => setToast(ok ? `Added to ${into}` : 'The event could not be added.')); },
+    addTask: (list, text, due, time) => { void tasks.add(list, text, due, time ? { time } : undefined).then((ok) => setToast(ok ? `Added to ${list}` : 'The task could not be added.')); },
   });
   // Apps lead: Messages and Knowledge take part too (app-launcher.ts).
   useMoreLauncherSources({
@@ -1633,7 +1705,7 @@ export function App() {
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':
-        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
+        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAddAccount={() => openSettingsAt('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
@@ -1692,6 +1764,8 @@ export function App() {
                 onOpenApp={openApp}
                 onOpenConversation={conversation.select}
                 onOpenSchedules={() => openSettingsAt('schedules')}
+                opened={recentItems(12)}
+                onOpenRecent={launch.openRecent}
                 // First run: once a model answers, mail and calendar are what make its answers about the person's own day.
                 {...(settings?.configured && (mail.accounts.length === 0 || calendar.accounts.length === 0) ? { connect: { mail: mail.accounts.length === 0, calendar: calendar.accounts.length === 0, onMail: () => openSettingsAt('mail'), onCalendar: () => openSettingsAt('calendar') } } : {})}
               />
@@ -1837,8 +1911,10 @@ export function App() {
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
           <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
-        // The open document's name, or the app's when nothing is open, so the title bar is never blank.
-        title: place || (!settingsOpen && appName(app)) || undefined,
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
+        // start page, where the Go button already says Home.
+        // Messages with nothing open is blank too: its Go button says Messages, and the title would only repeat it.
+        title: place || (!settingsOpen && !inAgent && !inMessages && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
@@ -1848,10 +1924,12 @@ export function App() {
           : inDocs && docs.page ? <>{docs.page.path.split('/')[0]} · <span className="note-status" role="status" data-status={docs.status}>{statusText(docs.status)}</span></>
           : inReader && reading.page ? readerSub(reading.text) // Reader: the site the article came from
           : inMail ? (mail.counts.all === 0 ? 'Nothing unread' : `${mail.counts.all} unread`)
+          : inMessages && chat.account && chat.channel ? `${chat.account.name} · ${SERVICE_NAMES[chat.account.service]}` // Messages: the account it is in
           : inSheets && sheets.data ? sheets.data.sheet
           // Calendar: the week number in Week view (short, so it fits beside the controls), otherwise what today holds.
           : inCalendar ? (calendar.mode === 'week' ? `Week ${isoWeek(calendar.anchor)}` : eventsToday === 0 ? 'Nothing today' : `${plural(eventsToday, 'event')} today`)
-          : inTasks ? (tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
+          // Tasks: what is left to do, or in Completed, how many are done.
+          : inTasks ? (tasks.view.kind === 'smart' && tasks.view.id === 'completed' ? `${tasksDone} done` : tasksOpen === 0 ? 'Nothing to do' : `${tasksOpen} to do`)
           : inFiles ? filesSub(files) // Files: how many items
           : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
@@ -1862,7 +1940,8 @@ export function App() {
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
         // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
-        panels: (own) => settingsOpen ? null : (
+        // Settings too: its Sections panel and Mobius, as in every app.
+        panels: (own) => (
           <PanelsMenu
             app={own}
             shell={[
@@ -1879,7 +1958,7 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {menuBar(appMenu)}
-          {hasRight && !settingsOpen && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
+          {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}
     >
@@ -1978,12 +2057,19 @@ export function App() {
         pinned={appearance.value.sidebarApps}
         onPinned={(sidebarApps) => void appearance.set({ sidebarApps: sidebarApps as typeof appearance.value.sidebarApps })}
         waiting={waiting}
+        home={launcherHome}
+        about={launcherAbout}
+        onOpenUrl={showPage}
+        clipboard={clipboardHistory}
+        system={systemSearch}
         recent={launcherOpen ? recentItems() : []}
         onOpenRecent={launch.openRecent}
         find={launch.find}
         places={launch.places}
         onOpenMobius={launch.openMobius}
         onAsk={launch.ask}
+        askInline={settings?.configured ? askInline : undefined}
+        onContinue={(id) => { conversation.select(id); launch.openMobius(); }}
         onAskAbout={launch.askAbout}
         commands={allCommands} />
       <TooltipLayer />

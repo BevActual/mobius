@@ -66,9 +66,9 @@ test('channels by account, a channel read and its thread, Send only from the per
     };
   });
   await openMessages();
-  const side = shell().getByRole('complementary', { name: 'Channels' });
+  const side = shell().getByRole('complementary', { name: 'Conversations' });
   await expect(side.getByRole('region', { name: 'Northway · Slack' })).toBeVisible();
-  await side.getByRole('button', { name: /^#general/ }).click();
+  await side.getByRole('button', { name: /^general/ }).click();
   const log = shell().getByRole('log', { name: '#general', exact: true });
   await expect(log).toContainText('Priya Nair');
   await expect(log).toContainText('Can someone look before standup?');
@@ -99,6 +99,13 @@ test('channels by account, a channel read and its thread, Send only from the per
   await expect(box).toHaveValue('');
   await expect(log).toContainText('Looking now');
   expect(await shell().evaluate(() => (window as unknown as { sentMessages: string[] }).sentMessages)).toEqual(['Thanks Lee', 'Looking now']);
+  // What is written and not sent waits in its channel while another is looked at; opening a channel puts the keyboard in its box.
+  await box.fill('Half a thought');
+  await side.getByRole('button', { name: /^Priya Nair/ }).click();
+  await expect(shell().getByRole('textbox', { name: 'Message Priya Nair' })).toBeFocused();
+  await side.getByRole('button', { name: /^general/ }).click();
+  await expect(box).toHaveValue('Half a thought');
+  await box.fill('');
   // Catch me up: the channel attached as someone else's words, and the ask in Mobius's box, not sent.
   await shell().getByRole('group', { name: 'Messages' }).getByRole('button', { name: 'Catch me up' }).click();
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/^Catch me up on #general/);
@@ -122,12 +129,12 @@ test('a Matrix room this device cannot read yet shows one line instead of its me
     };
   });
   await openMessages();
-  const side = shell().getByRole('complementary', { name: 'Channels' });
+  const side = shell().getByRole('complementary', { name: 'Conversations' });
   await expect(side.getByRole('region', { name: '@ana:example.org · Matrix' })).toBeVisible();
   await side.getByRole('button', { name: /^Lee Park/ }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Encrypted: verify this device in Settings > Messages to read' })).toHaveCount(1);
   await expect(shell().getByRole('textbox', { name: 'Message Lee Park' })).toHaveCount(0);
-  await side.getByRole('button', { name: /^#Ops/ }).click();
+  await side.getByRole('button', { name: /^Ops/ }).click();
   await expect(shell().getByRole('textbox', { name: 'Message #Ops' })).toBeVisible();
   // A bridged chat says which network it comes from.
   await expect(side.getByRole('button', { name: /^Sam Lee/ })).toContainText('WhatsApp');

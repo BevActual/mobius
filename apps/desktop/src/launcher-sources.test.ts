@@ -44,3 +44,12 @@ describe('launcher sources', () => {
     off();
   });
 });
+
+describe('commands that read the line', () => {
+  it('come before what was found', () => {
+    const off = registerLauncherSource({ app: 'calendar', find: () => [{ id: 'e', app: 'calendar', label: 'Add event “lunch”', fields: [{ label: 'Title', value: 'lunch' }], run: () => {} }] });
+    const found = findInSources('event lunch', [{ id: 'x', app: 'notes', label: 'Lunch spots', run: () => {} }]);
+    off();
+    expect((found as readonly FoundItem[]).map((f) => f.id)).toEqual(['e', 'x']);
+  });
+});

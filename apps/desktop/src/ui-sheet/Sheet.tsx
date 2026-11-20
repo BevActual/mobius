@@ -14,6 +14,8 @@ import {
   BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
   Chart, Sparkline,
+  DotMatrix, DotCharacter,
+  EmptyState, Busy,
 } from '../ui';
 import { GoButton, Launcher } from '../Launcher';
 import type { AppId } from '../apps';
@@ -705,6 +707,40 @@ export function Sheet() {
                 <ListRow key={t} title={t} meta={i === 3 ? undefined : dayLabel(new Date(2026, 10, [13, 14, 18][i]!))} lead={<Checkbox label={t} hideLabel checked={i === 0} onChange={() => {}} />} trail={i === 1 ? <Chip color="teal">Workshop</Chip> : undefined} onSelect={() => {}} />
               ))}
             </ul>
+          </div>
+        </Card>
+        <Card title="Empty states and Busy (every app)" shot="empty-states" wide>
+          <div className="sheet-empties">
+            <EmptyState kind="mail" action={<Button>New message</Button>}>No mail here. New mail lands in Inbox.</EmptyState>
+            <EmptyState kind="tasks" action={<Button>New task</Button>}>Nothing due today.</EmptyState>
+            <EmptyState kind="notes" action={<Button>New page</Button>}>Pages you write live here.</EmptyState>
+            <EmptyState kind="calendar">No events this week.</EmptyState>
+            <EmptyState kind="files">This folder is empty.</EmptyState>
+            <EmptyState kind="search">Nothing matches “harness q4”.</EmptyState>
+            <EmptyState kind="chats">Chats with Mobius show up here.</EmptyState>
+            <EmptyState kind="done">That’s everything for today.</EmptyState>
+          </div>
+          <div className="sheet-row">
+            <EmptyState quiet>That’s everything in this list.</EmptyState>
+            <Busy label="Loading mail" />
+            <Busy label="Syncing" hideLabel />
+          </div>
+        </Card>
+        <Card title="Dot matrix and agent characters (Mobius working, Agents)" shot="dot-matrix" wide>
+          <div className="sheet-dots">
+            {(['thinking', 'reading', 'searching', 'writing', 'working', 'waiting', 'done', 'stopped'] as const).map((m) => (
+              <div key={m} className="sheet-dot"><DotMatrix mode={m} progress={m === 'done' ? 1 : 0.5} at={1.3} /><span>{m[0]!.toUpperCase() + m.slice(1)}</span></div>
+            ))}
+          </div>
+          <div className="sheet-dots">
+            {([['Weekly P2 summary', 'idle'], ['Morning brief', 'writing'], ['File receipts', 'reading'], ['Supplier watch', 'waiting'], ['Trip planner', 'done'], ['Site check', 'failed']] as const).map(([n, st]) => (
+              <div key={n} className="sheet-dot"><DotCharacter name={n} state={st} at={1.3} /><span>{n} · {st}</span></div>
+            ))}
+          </div>
+          <div className="sheet-dots">
+            {(['Weekly P2 summary', 'Morning brief', 'File receipts', 'Supplier watch', 'Trip planner'] as const).map((n) => (
+              <span key={n} className="sheet-dot-row"><DotCharacter name={n} state="idle" size="small" at={1.3} />{n}</span>
+            ))}
           </div>
         </Card>
       </div>
