@@ -6,7 +6,7 @@ import { createPortal } from 'react-dom';
 import type { CellChange } from '@mobius/shared';
 import { onCommand } from './commands';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
-import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
+import { cellName, changedCells, chartData, closeFormula, hasFooter, columnName, FUNCTIONS, fillSeries, findCells, formatted, grouped, groupsThousands, inRange, NUMBER_FORMATS, shiftFormats, type NumberFormat, isError, isNumeric, jump, numberIn, parseCsv, pasted, quickTarget, rangeName, rangeOf, rangeSize, refsIn, selectionGlance, selectionStats, shiftFormula, sortedRows, statNumber, toTsv, typingFunction, wantsRef, type Range } from './sheets-view';
 import { readBefore } from './readBefore';
 import './sheets.css';
 import type { SheetsState } from './useSheets';
@@ -249,7 +249,9 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   const raw = (r: number, c: number) => data?.cells[r]?.[c] ?? '';
   const shown = (r: number, c: number) => data?.values[r]?.[c] ?? '';
   // What a cell shows in its column's number format; copying and sums still use the plain value.
-  const display = (r: number, c: number) => formatted(shown(r, c), formats[c]);
+  // Automatic columns group their thousands (48,000), except a column of years.
+  const groupedCols = new Set(Array.from({ length: data?.values[0]?.length ?? 0 }, (_, c) => c).filter((c) => (formats[c] ?? 'auto') === 'auto' && groupsThousands(data?.values ?? [], c)));
+  const display = (r: number, c: number) => (groupedCols.has(c) ? grouped(shown(r, c)) : formatted(shown(r, c), formats[c]));
   const sel = rangeOf(anchor, focus);
   const select = (a: Pos, b: Pos = a) => { setAnchor(a); setFocus(b); };
   useEffect(() => { select({ r: 0, c: 0 }); setEdit(null); setPick(null); setFinding((f) => (f ? { ...f, at: 0 } : f)); }, [data?.workbook, data?.sheet]);
@@ -690,6 +692,7 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
           ref={barInput}
           className="sheet-formula"
           aria-label="Cell contents"
+          data-formula={formula.startsWith('=') || undefined}
           value={formula}
           placeholder="Type a value, or = for a formula"
           spellCheck={false}
@@ -832,7 +835,6 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
                       data-changed={showReview && changed.has(key) ? true : undefined}
                       data-fresh={sheets.fresh.has(key) || undefined}
                       data-match={matchKeys.has(key) || undefined}
-                      title={raw(r, c).startsWith('=') ? raw(r, c) : undefined}
                       style={shadows.length ? { boxShadow: shadows.join(', ') } : undefined}
                       onMouseDown={(e) => {
                         if (e.button !== 0) { if (!inSel && !edit) select({ r, c }); return; }

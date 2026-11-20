@@ -10,7 +10,10 @@
 /* ---------- Toolbar and formula row ---------- */
 /* Undo, quick formula, number format, Table and Sort sit in the shell toolbar like Mail's tools. The cell reference and
    the formula field are one slim row fastened to the grid, as in Numbers and Excel. */
-.sheet-tools { display: flex; align-items: center; gap: var(--sp-2); }
+/* In the top bar's middle, centred as Notes' and Docs' tools are. */
+.ui-toolbar-slot:has(.sheet-tools) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .sheet-tools) { flex: 1; }
+.sheet-tools { display: flex; flex: 1; justify-content: center; align-items: center; gap: var(--sp-2); }
 .sheet-tools-group { display: inline-flex; align-items: center; gap: 2px; }
 .sheet-tools-group + .sheet-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
 .sheet-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
@@ -20,7 +23,9 @@
 .sheet-page .sheet-formula-row { flex-shrink: 0; display: flex; align-items: stretch; height: var(--row-side); border-bottom: var(--hairline-w) solid var(--line); background: var(--bg); }
 .sheet-page .sheet-address { flex: none; min-width: 72px; display: inline-grid; place-items: center start; padding: 0 var(--sp-3); border-right: var(--hairline-w) solid var(--line); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sheet-page .sheet-fx { flex: none; align-self: center; padding: 0 var(--sp-1) 0 var(--sp-3); color: var(--muted); font-style: italic; font-size: var(--fs-md); }
-.sheet-page .sheet-formula { flex: 1; min-width: 120px; padding: 0 var(--sp-3) 0 var(--sp-1); border: 0; border-radius: 0; background: transparent; color: var(--ink); font-family: var(--font-mono); font-size: var(--fs-sm); }
+.sheet-page .sheet-formula { flex: 1; min-width: 120px; padding: 0 var(--sp-3) 0 var(--sp-1); border: 0; border-radius: 0; background: transparent; color: var(--ink); font-size: var(--fs-md); }
+/* Mono is for formulas only; words and numbers in the bar are set as the cells set them. */
+.sheet-page .sheet-formula[data-formula] { font-family: var(--font-mono); font-size: var(--fs-sm); }
 .sheet-page .sheet-formula:focus { outline: none; box-shadow: inset 0 -2px 0 var(--ink); }
 /* The find bar's small buttons. */
 .sheet-page .sheet-tool-group { display: inline-flex; align-items: center; gap: 2px; flex: none; }
