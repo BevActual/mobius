@@ -616,6 +616,12 @@ export interface MobiusBridge {
     onOpenConversation(listener: (conversation: string) => void): () => void;
     /** Stop All was chosen: every conversation that is working stops. */
     onStopAll(listener: () => void): () => void;
+    /**
+     * Mobius is about to quit (the tray's Quit, or the installer replacing it): save what is still being typed, then
+     * call `savedForQuit()`. Mobius quits when told, or after 3 s regardless.
+     */
+    onQuitting(listener: () => void): () => void;
+    savedForQuit(): Promise<void>;
   };
   /** The renderer can see whether the core is up. It cannot call the core: only the main process can. */
   core: {

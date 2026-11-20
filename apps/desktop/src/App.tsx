@@ -34,6 +34,7 @@ import { useConversation } from './useConversation';
 import { SettingsPage } from './settings/SettingsPage';
 import { useCoreStatus } from './useCoreStatus';
 import { useNotes } from './useNotes';
+import { saveAll } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
@@ -594,6 +595,8 @@ export function App() {
   const workingNow = useRef<string[]>([]);
   workingNow.current = conversation.list.filter((c) => c.activity === 'working').map((c) => c.id);
   useEffect(() => window.mobius.tray?.onStopAll(() => { for (const id of workingNow.current) void window.mobius.agent.cancel(id); }), []);
+  // Quitting: write what is still being typed first, then let Mobius go (it waits up to 3 s for this).
+  useEffect(() => window.mobius.tray?.onQuitting(() => { void saveAll().finally(() => void window.mobius.tray?.savedForQuit().catch(() => undefined)); }), []);
   const activity = activityOf(conversation.state);
   const callsDone = useMemo(() => conversation.state.items.filter((item) => item.kind === 'tool' && item.status === 'done').length, [conversation.state.items]);
   const turnMarks = useTurnChanges(conversation.state.conversation, conversation.state.busy, callsDone);
