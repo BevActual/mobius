@@ -99,6 +99,10 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'agent.question': () => null,
   // Settings › Approvals and Browser list these: none are kept in the preview.
   'agent.grants': () => [],
+  // The launcher's own-computer search: the preview has no installed apps, system commands or files on disk.
+  'system.apps': () => [],
+  'system.commands': () => [],
+  'system.files': () => [],
   ...PREVIEW_BROWSER,
   // Messages: a Slack workspace and a Matrix account, kept in memory for as long as the preview is open.
   ...PREVIEW_MESSAGES,
