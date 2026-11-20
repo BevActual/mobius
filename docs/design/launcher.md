@@ -151,7 +151,9 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **Clipboard history.** Off until turned on: typing "clipboard" (or "clip", "cb") offers Turn on clipboard history. Then the same word lists the last 50 copies made anywhere on the computer, newest first, with the whole text beside the list; words after it narrow the list ("cb invoice"). Enter copies one again. Clear and Turn off are there too; turning it off forgets what was kept. Copies a password manager marks as private are never kept. In memory only, by the desktop app (`window.mobius.clipboard`, #640; `launcher-clipboard.ts`).
 
-Next: the launcher over other apps (Windows apps, files on disk, system commands).
+- **The computer's own apps and commands.** Typing finds the Start menu's apps under On this computer, below Mobius's own (so "notes" still opens Notes), and Lock the computer, Put the computer to sleep and Empty the Recycle Bin (also by "lock", "sleep", "trash" or "bin"). Read once each time the launcher opens, in both Ctrl+K and the Ctrl+Space window. (`launcher-system.ts`, on `window.mobius.system` from #643)
+
+Next: files on disk, once the desktop app can search them.
 
 ## How apps take part
 

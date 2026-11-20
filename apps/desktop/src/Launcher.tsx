@@ -9,6 +9,7 @@ import { afterPaint } from './ui/frame';
 import { AI_COMMANDS, aboutPrompt, isQuestion, translateCommand, type AiCommand, type InlineAnswer, type LauncherAbout } from './launcher-ask';
 import { RichText } from './RichText';
 import { clipboardQuery, findCopied, type LauncherClipboard } from './launcher-clipboard';
+import { findSystemApps, findSystemCommands, type LauncherSystem } from './launcher-system';
 import { callQuicklink, keepNamed, parseCreate, readQuicklinks, readSaved, readSnippets, withSaved, withoutSaved, writeQuicklinks, writeSaved, writeSnippets, type Quicklink, type SavedCommand, type Snippet } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
@@ -29,7 +30,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'system' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -110,6 +111,8 @@ interface Props {
   home?: { waiting: readonly LauncherHomeRow[]; agents: readonly LauncherAgentRow[] };
   /** What was selected in the open app as the launcher opened: the AI commands work on it, and what is typed is asked about it. */
   about?: LauncherAbout;
+  /** The computer's own apps and commands (Start menu apps, Lock, Sleep, Empty the Recycle Bin), from the desktop app. */
+  system?: LauncherSystem;
   /** Clipboard history: what was copied lately, shown for "clipboard" (or "clip", "cb"). */
   clipboard?: LauncherClipboard;
   /** Open a web address (a quicklink) in the Browser. */
@@ -124,7 +127,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', system: 'On this computer', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -224,6 +227,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
       : app ? <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>
         : kind === 'ask' || kind === 'about' ? <svg viewBox="0 0 20 20" data-app="agent">{APP_ICONS.agent}</svg>
           : kind === 'tab' ? <svg viewBox="0 0 20 20" data-app="browser">{APP_ICONS.browser}</svg>
+          : kind === 'system' ? <svg viewBox="0 0 20 20" data-system=""><rect x="3.5" y="4.5" width="13" height="9" rx="1.5" /><path d="M7.5 16.5h5M10 13.5v3" /></svg>
           : kind === 'clip' ? <svg viewBox="0 0 20 20" data-clip=""><path d="M7 4H6a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 6 17h8a1.5 1.5 0 0 0 1.5-1.5v-10A1.5 1.5 0 0 0 14 4h-1M8 3h4v2.5H8z" /></svg>
           : kind === 'answer' ? <svg viewBox="0 0 20 20" data-answer=""><path d="M5 8h10M5 12h10" /></svg>
             : <svg viewBox="0 0 20 20"><path d="M6 7l-3 3 3 3M9 14h8" /></svg>}
@@ -232,7 +236,7 @@ const AppMark = ({ app, place, kind }: { app?: AppId; place?: Place; kind: Launc
 
 export function Launcher({
   open, onClose, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands = [], pinned, onPinned, waiting = {}, recent, onOpenRecent, find,
-  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard,
+  places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard, system,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
   const input = useRef<HTMLInputElement>(null);
@@ -509,6 +513,11 @@ export function Launcher({
       ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(PLACE_NAMES[p]) && !APPS.some((a) => a.name === PLACE_NAMES[p])).map<LauncherItem>((p) => ({
         id: `place-${p}`, kind: 'app', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
       })),
+      // The computer's own apps, then its commands: below Mobius's apps, so "notes" still opens Notes.
+      ...(system ? [
+        ...findSystemApps(system.apps, typed).filter((a) => !APPS.some((m) => m.name.toLowerCase() === a.name.toLowerCase())).map<LauncherItem>((a) => ({ id: `sys-app-${a.id}`, kind: 'system', label: a.name, detail: 'App', run: () => system.open(a.id) })),
+        ...findSystemCommands(system.commands, typed).map<LauncherItem>((c) => ({ id: `sys-cmd-${c.id}`, kind: 'system', label: c.name, detail: 'Command', run: () => system.run(c.id) })),
+      ] : []),
       ...findNow(typed).slice(0, 8).map<LauncherItem>((item) => ({ id: `item-${item.app}-${item.id}`, kind: 'item', app: item.app, label: item.label, detail: item.detail ?? appName(item.app), fields: item.fields, preview: item.preview, run: item.run })),
       ...tabs.filter((tab) => has(`${tab.title} ${tab.url}`)).map<LauncherItem>((tab) => ({
         id: `tab-${tab.id}`,
@@ -523,7 +532,7 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard]);
+  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
   const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);

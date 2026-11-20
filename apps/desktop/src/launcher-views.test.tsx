@@ -61,6 +61,16 @@ describe('launcher views', () => {
     expect(on).toContain('Turn off clipboard history');
   });
 
+  it('finds the computer\'s own apps and commands below Mobius\'s, under On this computer', () => {
+    const idle = { conversation: 'c', text: '', state: 'failed' as const, sources: [] };
+    const system = { apps: [{ name: 'Spotify', id: 's' }, { name: 'Notes', id: 'n' }], commands: [{ id: 'sleep', name: 'Put the computer to sleep' }], open: () => {}, run: () => {} };
+    const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} system={system} answered={{ question: 'spot', answer: idle }} />);
+    expect(html).toContain('>On this computer<');
+    expect(html).toContain('Spotify');
+    const notes = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} system={system} answered={{ question: 'notes', answer: idle }} />);
+    expect(notes).not.toContain('On this computer');
+  });
+
   it('shows every app A to Z in All apps, then Add apps', () => {
     const html = renderToStaticMarkup(<Launcher {...base} startIn="apps" pinned={['mail']} places={{ abilities: () => {} }} />);
     const names = [...html.matchAll(/class="launcher-tile-name">([^<]+)</g)].map((m) => m[1]);
