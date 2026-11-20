@@ -80,7 +80,7 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 
 | Item | Owner | Status |
 | --- | --- | --- |
-| Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request, then the next app. Order: Home, Mail, Calendar, Tasks, Notes, Docs, Files, Browser, Messages, then the rest | Design lead, Apps lead | Starting with Home |
+| Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request, then the next app. Order: Home, Mail, Calendar, Tasks, Notes, Docs, Files, Browser, Messages, then the rest | Design lead, Apps lead | First nine done 20 November 2026: Mail #649, Home #650, Calendar #652, Tasks #653, Notes and Docs #655, Files #656, Browser #657, Messages #659. The rest open two at a time: Sheets, Knowledge, Settings, Agents, Abilities, Music, Design, Research, Photo |
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
 | The Builder's queue below: speed, then accessibility | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
