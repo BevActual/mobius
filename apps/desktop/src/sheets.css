@@ -11,9 +11,10 @@
 /* Undo, quick formula, number format, Table and Sort sit in the shell toolbar like Mail's tools. The cell reference and
    the formula field are one slim row fastened to the grid, as in Numbers and Excel. */
 /* In the top bar's middle, centred as Notes' and Docs' tools are. */
+/* The tools start the toolbar's middle, right after the title, as Notes' and Docs' do. */
 .ui-toolbar-slot:has(.sheet-tools) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .sheet-tools) { flex: 1; }
-.sheet-tools { display: flex; flex: 1; justify-content: center; align-items: center; gap: var(--sp-2); }
+.sheet-tools { display: flex; flex: 1; align-items: center; gap: var(--sp-2); }
 .sheet-tools-group { display: inline-flex; align-items: center; gap: 2px; }
 .sheet-tools-group + .sheet-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
 .sheet-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
