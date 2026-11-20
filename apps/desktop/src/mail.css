@@ -4,7 +4,7 @@
 
 /* The list beside the reading pane: one fixed two-line row per message (the rule for a master list beside a reading
    pane): the sender and the date on the first line, the subject and its first words in grey on the second. */
-.mail-list-pane { flex: 0 1 360px; min-width: 240px; display: flex; flex-direction: column; overflow: auto; border-right: var(--hairline-w) solid var(--line); }
+.mail-list-pane { flex: 0 1 420px; min-width: 240px; display: flex; flex-direction: column; overflow: auto; border-right: var(--hairline-w) solid var(--line); }
 .mail-list { flex: none; display: flex; flex-direction: column; }
 .mail-row {
   --list-side: 22px;
@@ -26,20 +26,22 @@
 .mail-row-preview:empty { display: none; }
 /* Unread: the sender in semibold, and a small ink dot in the margin. Not a colour. */
 .mail-row[data-unread] .mail-row-who { font-weight: var(--fw-semibold); }
-.mail-row[data-unread]::before { content: ""; position: absolute; left: calc(var(--list-side) / 2 - 3px); top: calc(50% - 3px - 0.7em); width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+/* Unread: the same drawn ink dot as something waiting in the launcher and on the Go button. */
+.mail-row[data-unread]::before { content: ""; position: absolute; left: calc(var(--list-side) / 2 - var(--sp-2) / 2); top: calc(50% - var(--sp-2) / 2 - 0.7em); width: var(--sp-2); height: var(--sp-2); border-radius: var(--radius-pill); background: var(--ink); }
 /* A reply Mobius wrote: the dashed indigo edge until it is kept or discarded. */
 /* A reply Mobius wrote: the ordinary row, with a small Mobius mark before the name (the dashed edge is for the draft itself). */
 .mail-row-mark { flex: none; margin-right: var(--sp-1); vertical-align: -1px; color: var(--mobius); }
 .mail-row-end { min-width: 4.5em; display: inline-flex; align-items: center; justify-content: flex-end; gap: var(--sp-1); }
-.mail-row-flag { display: inline-flex; color: var(--c-amber); }
+/* A flag is state, so it is ink: colour is kept for Mobius and for danger. */
+.mail-row-flag { display: inline-flex; color: var(--ink); }
 .mail-row-flag svg { width: 12px; height: 12px; fill: currentColor; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; }
 .mail-when { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .mail-needs-reply { color: var(--muted); }
 
-/* A short list ends with one quiet line and New message; an empty one says it in the middle of the pane. */
-.mail-list-end { display: flex; flex-direction: column; align-items: flex-start; gap: var(--sp-2); padding: var(--sp-4) 22px; color: var(--muted); font-size: var(--fs-sm); }
-.mail-list-end p { margin: 0; }
-.mail-list-end[data-empty] { flex: 1; align-items: center; justify-content: center; text-align: center; }
+/* A short list ends with the quiet empty state; an empty one shows its drawing in the middle of the pane. */
+.mail-list-end:not([data-quiet]) { flex: 1; justify-content: center; }
+.mail-list-end[data-quiet] { justify-content: flex-start; padding-inline: 22px; }
+.mail-reading-pane > .ui-empty { min-height: 100%; justify-content: center; }
 
 /* Loading: grey bars the shape of the rows that are coming. */
 .mail-loading { display: flex; flex-direction: column; }
@@ -72,7 +74,8 @@
 .mail-tools .strip-btn { border-radius: var(--radius-control); color: var(--body); }
 .mail-tools .strip-btn:hover { background: var(--soft); color: var(--ink); }
 .mail-tools .strip-btn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
-.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--c-amber); }
+.mail-tools .strip-btn[aria-pressed="true"] { background: none; color: var(--ink); }
+.mail-tools .strip-btn[aria-pressed="true"] svg { fill: currentColor; }
 .mail-tools .strip-btn svg [data-dot] { fill: var(--ink); stroke: none; }
 .mail-tools .strip-btn svg[data-filled="true"] path { fill: currentColor; }
 
@@ -123,7 +126,6 @@
 }
 
 /* Empty places in Mail: a plain line icon, not a coloured tile. */
-.mail-page .empty-state-icon { background: none; box-shadow: none; color: var(--faint); }
 
 /* Get to zero, in the Mobius panel: Mobius's plan with a dashed indigo edge. */
 .mail-plan { display: grid; gap: var(--sp-2); margin: var(--sp-2) var(--sp-3) 0; }

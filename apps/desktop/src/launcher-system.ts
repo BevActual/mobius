@@ -48,8 +48,8 @@ export function useSystemSearch(open: boolean): LauncherSystem | undefined {
   useEffect(() => {
     if (!api || !open) return;
     let live = true;
-    void api.apps().then((list) => { if (live) setApps(list); }, () => undefined);
-    void api.commands().then((list) => { if (live) setCommands(list); }, () => undefined);
+    void api.apps().then((list) => { if (live) setApps(Array.isArray(list) ? list : []); }, () => undefined);
+    void api.commands().then((list) => { if (live) setCommands(Array.isArray(list) ? list : []); }, () => undefined);
     return () => { live = false; };
   }, [api, open]);
   return api ? {
