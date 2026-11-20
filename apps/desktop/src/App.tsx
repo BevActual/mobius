@@ -1913,8 +1913,8 @@ export function App() {
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
         // start page, where the Go button already says Home.
-        // Messages with nothing open is blank too: its Go button says Messages, and the title would only repeat it.
-        title: place || (!settingsOpen && !inAgent && !inMessages && appName(app)) || undefined,
+        // Messages and Research with nothing open are blank too: the Go button names the app, and the title would only repeat it.
+        title: place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
