@@ -8,7 +8,10 @@
 .design-page > .ui-panels { flex: 1; min-height: 0; height: auto; }
 
 /* Toolbar: bare icons in groups split by a hairline, as in Mail. The zoom level is a readout. */
-.design-tools { display: flex; align-items: center; gap: var(--sp-2); }
+/* The tools start the top bar after the title, as Notes' and Sheets' do. */
+.ui-toolbar-slot:has(.design-tools) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .design-tools) { flex: 1; }
+.design-tools { flex: 1; min-width: 0; display: flex; align-items: center; gap: var(--sp-2); }
 .design-tools-group { display: inline-flex; align-items: center; gap: var(--sp-1); }
 .design-tools-group + .design-tools-group { padding-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line); }
 .design-tools .strip-btn { border-radius: var(--radius-control); color: var(--body, var(--ink)); }
@@ -81,7 +84,11 @@
 .design-color select { flex: 1; min-width: 0; height: var(--control-h); padding: 0 var(--sp-6) 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper, var(--bg)) var(--chevron) no-repeat right var(--sp-2) center / var(--sp-3); appearance: none; font: inherit; font-size: var(--fs-md); color: inherit; }
 .design-styles { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); }
 .design-styles li { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--control-h); font-size: var(--fs-md); }
-.design-styles code { margin-left: auto; font: var(--fs-sm) var(--font-mono); color: var(--muted); }
+.design-inspector .design-styles code { margin-left: auto; font: var(--fs-sm) var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); }
+/* Add style: the one-line add row, as in Knowledge and Tasks, its plus where the swatches sit. */
+.design-inspector .design-add-style { margin-top: var(--sp-1); padding-left: calc((var(--control-h) - var(--sp-4)) / 2); color: var(--muted); }
+.design-inspector .design-add-style:hover { color: var(--ink); }
+.design-inspector .design-add-style svg { stroke: currentColor; }
 .design-page .design-hint { margin: 0; color: var(--muted); font-size: var(--fs-sm); }
 /* Red only for something wrong (a contrast below AA, a failed export, a missing component). */
 .design-page .design-hint[data-bad] { color: var(--danger); }
