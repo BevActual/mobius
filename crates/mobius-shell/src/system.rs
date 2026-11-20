@@ -153,7 +153,9 @@ pub const LOOK_FOR: Duration = Duration::from_millis(400);
 /// The most files a search answers with.
 const MOST_FILES: usize = 20;
 /// Files that run something when opened: never listed, so opening a found file can't start a program.
-const RUNS: [&str; 16] = ["exe", "bat", "cmd", "com", "scr", "msi", "ps1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "lnk", "url", "appref-ms"];
+const RUNS: [&str; 28] = [
+    "exe", "bat", "cmd", "com", "scr", "pif", "cpl", "hta", "msi", "msp", "msix", "msixbundle", "appx", "appxbundle", "appinstaller", "application", "ps1", "vbs", "vbe", "js", "jse", "wsf", "wsh", "jar", "reg", "lnk", "url", "appref-ms",
+];
 /// What the last search found: the only paths `openFile` and `reveal` accept.
 static LAST_FILES: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 
@@ -340,12 +342,12 @@ mod tests {
         let nested = dir.join("Taxes");
         std::fs::create_dir_all(&nested).unwrap_or_default();
         std::fs::create_dir_all(dir.join(".hidden")).unwrap_or_default();
-        for path in [nested.join("Tax Return 2025.pdf"), dir.join("tax-tool.exe"), dir.join(".hidden").join("tax return.txt"), dir.join("notes.txt")] {
+        for path in [nested.join("Tax Return 2025.pdf"), dir.join("tax-tool.exe"), dir.join("tax app.msixbundle"), dir.join(".hidden").join("tax return.txt"), dir.join("notes.txt")] {
             std::fs::write(path, "").unwrap_or_default();
         }
         let names = |q: &str| find_files(std::slice::from_ref(&dir), q, Duration::from_secs(5)).iter().filter_map(|p| p.file_name()?.to_str().map(str::to_owned)).collect::<Vec<_>>();
         assert_eq!(names("tax RETURN"), ["Tax Return 2025.pdf"]);
-        assert!(names("tax").iter().all(|n| !n.ends_with(".exe")), "programs are never found");
+        assert_eq!(names("tax"), ["Tax Return 2025.pdf"], "programs and installers are never found");
         assert!(names("").is_empty(), "nothing typed finds nothing");
         let _ = std::fs::remove_dir_all(&dir);
     }
