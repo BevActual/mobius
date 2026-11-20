@@ -1934,7 +1934,8 @@ export function App() {
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
         // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
-        panels: (own) => settingsOpen ? null : (
+        // Settings too: its Sections panel and Mobius, as in every app.
+        panels: (own) => (
           <PanelsMenu
             app={own}
             shell={[
@@ -1951,7 +1952,7 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {menuBar(appMenu)}
-          {hasRight && !settingsOpen && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
+          {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}
     >
