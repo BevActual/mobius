@@ -32,10 +32,12 @@ function changeWas(group: number, removed: string[], view: ChangeView, whole: bo
   else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
   return old;
 }
-/** The line under a change's block: who did it, then Discard, Try another and Keep. */
-function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, head = false): HTMLElement {
+/** The line over a change's block: who did it, then Discard, Try another and Keep. Over a change taller than the view
+ *  it is pinned to the top while the change scrolls by. */
+function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null): HTMLElement {
   const note = document.createElement('div');
-  note.className = head ? 'doc-change-head' : 'doc-change';
+  note.className = 'doc-change';
+  if (added && view.tall?.has(group)) note.dataset.tall = '';
   note.contentEditable = 'false';
   note.dataset.group = String(group);
   note.setAttribute('role', 'group');
@@ -106,17 +108,17 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
     const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
-      // A change taller than the view also has its answers at its top, so they are never only out of sight.
-      if (view.tall?.has(g)) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look, true), opts(-2, 'head')));
+      // The answers sit over the change, where it is read first, in Notes and Docs alike.
+      const tall = view.tall?.has(g) ? '-tall' : '';
+      marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look), opts(-2, `note${tall}`)));
       if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
-      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look), opts(1, 'note')));
       continue;
     }
     const near = at.block < 0 ? undefined : tops[blocks[at.block]!.top];
     const pos = !near ? 0 : at.before ? near.from : near.to;
     const side = at.before ? -2 : 1;
-    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side, `was-${pos}`)));
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side + 1, `note-${pos}`)));
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side, `note-${pos}`)));
+    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side + 1, `was-${pos}`)));
   }
   return DecorationSet.create(doc, marks);
 }
@@ -136,7 +138,7 @@ export const changeBlocks = (look: () => ChangeView | null) => Extension.create(
 
 /**
  * Draws the changes again whenever `key` (what should show) changes, and measures which are taller than the scroller,
- * so their answers show at their top too. Returns those changes, for the page's ChangeView.
+ * so their answers stay pinned at the top while they scroll by. Returns those changes, for the page's ChangeView.
  */
 export function useTallChanges(editor: Editor | null, scroller: HTMLElement | null, key: string, changesNow: MutableRefObject<ChangeView | null>): MutableRefObject<ReadonlySet<number>> {
   const tallGroups = useRef<ReadonlySet<number>>(new Set());
@@ -160,10 +162,22 @@ export function useTallChanges(editor: Editor | null, scroller: HTMLElement | nu
       if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
       editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
     };
-    const cancel = afterPaint(measure);
+    // A pinned note lets go once the bottom of its change has gone up past it.
+    const unpin = () => {
+      if (editor.isDestroyed) return;
+      const top = scroller.getBoundingClientRect().top;
+      for (const note of editor.view.dom.querySelectorAll<HTMLElement>('.doc-change[data-tall]')) {
+        const ends = editor.view.dom.querySelectorAll<HTMLElement>(`.doc-change-new[data-group="${note.dataset.group}"]`);
+        const end = ends[ends.length - 1];
+        const past = !!end && end.getBoundingClientRect().bottom < top + note.offsetHeight;
+        if (past !== note.hasAttribute('data-past')) note.toggleAttribute('data-past', past);
+      }
+    };
+    const cancel = afterPaint(() => { measure(); unpin(); });
     const resized = new ResizeObserver(() => measure());
     resized.observe(scroller);
-    return () => { cancel(); resized.disconnect(); };
+    scroller.addEventListener('scroll', unpin, { passive: true });
+    return () => { cancel(); resized.disconnect(); scroller.removeEventListener('scroll', unpin); };
   }, [editor, scroller, key]);
 
   return tallGroups;

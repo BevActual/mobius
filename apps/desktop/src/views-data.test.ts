@@ -73,7 +73,7 @@ describe('tiles', () => {
 
   it('Mobius puts what waits for you first, then what is working', () => {
     const t = tileContent({ id: 'x', kind: 'mobius', size: 'wide' }, src, now);
-    expect(t.rows.map((r) => `${r.text}: ${r.detail}`)).toEqual(['Invoice: Needs you', 'Trip: Working']);
+    expect(t.rows.map((r) => `${r.text}: ${r.detail}`)).toEqual(['Invoice: Needs your answer', 'Trip: Working']);
     expect(t.count).toEqual({ value: 1, label: 'waiting for you' });
     expect(tileSummary('Mobius', t)).toBe('Mobius: 1 waiting for you');
     const quiet = tileContent({ id: 'x', kind: 'mobius', size: 'wide' }, { ...src, conversations: [] }, now);

@@ -157,7 +157,7 @@ function appMenu(c: MenuContext): Menu | null {
       ] };
     case 'notes':
       return { id: 'app', label: 'Notes', items: [
-        item('new-page', 'New page', c.do.create.note, { keys: 'mod+n' }),
+        item('new-page', 'New note', c.do.create.note, { keys: 'mod+n' }),
         item('today-note', 'Today’s note', d.notes.today),
         item('new-notebook', 'New notebook', d.notes.newNotebook),
         separator,

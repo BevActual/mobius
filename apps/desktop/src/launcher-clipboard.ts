@@ -35,7 +35,7 @@ export function useClipboardHistory(): LauncherClipboard | undefined {
   useEffect(() => {
     if (!api) return;
     let live = true;
-    void api.watch(on).then(() => (on ? api.history() : [])).then((list) => { if (live) setEntries(list); }, () => undefined);
+    void api.watch(on).then(() => (on ? api.history() : [])).then((list) => { if (live) setEntries(Array.isArray(list) ? list : []); }, () => undefined);
     const off = on ? api.onCopied((entry) => setEntries((was) => [entry, ...was.filter((e) => e.text !== entry.text)].slice(0, 50))) : () => {};
     return () => { live = false; off(); };
   }, [api, on]);

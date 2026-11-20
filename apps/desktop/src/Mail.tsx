@@ -1,12 +1,11 @@
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppMenu, AppSidebar, KeyHintBar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast } from './ui';
+import { AppMenu, AppSidebar, Button, EmptyState, KeyHintBar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type EmptyKind } from './ui';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
 import { TryAnotherContext } from './ReviewBar';
 import { SideNew, newKeys, type Start } from './SideNew';
-import { EmptyState } from './EmptyState';
 import { MobiusMark } from './MobiusMark';
 import './mail.css';
 import { AccountDialog } from './MailAccounts';
@@ -391,13 +390,20 @@ export function listEndLine(v: MailState['view'], count: number, query: string):
   return 'Your inbox is empty.';
 }
 
+/** The drawing an empty list shows: what was searched for, a cleared inbox, or the kind of thing missing. */
+export function listEndKind(v: MailState['view'], query: string): EmptyKind {
+  if (query) return 'search';
+  if (v.kind === 'box' && v.box === 'inbox') return 'done';
+  return 'mail';
+}
+
 function ListEnd({ mail, count }: { mail: MailState; count: number }) {
   const canWrite = mail.accounts.length > 0;
   return (
-    <div className="mail-list-end" data-empty={count === 0 || undefined}>
-      <p>{listEndLine(mail.view, count, mail.query)}</p>
-      {canWrite && count === 0 && !mail.query && <button type="button" className="btn" title={`New message (${newKeys()})`} onClick={mail.compose}>New message</button>}
-    </div>
+    <EmptyState className="mail-list-end" quiet={count > 0} kind={listEndKind(mail.view, mail.query)}
+      action={canWrite && count === 0 && !mail.query ? <Button keys={newKeys()} onClick={mail.compose}>New message</Button> : undefined}>
+      {listEndLine(mail.view, count, mail.query)}
+    </EmptyState>
   );
 }
 
@@ -440,12 +446,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
-  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState icon={MAIL_ICONS.inbox} title="Mail is not available here" /></section>;
+  if (!mail.available) return <section className="mail-page empty" aria-label="Mail"><EmptyState kind="mail">Mail is not available here.</EmptyState></section>;
   // With no account and no drafts there is nothing to show; a draft Mobius kept before any account was added is shown.
   if (mail.accounts.length === 0 && mail.drafts.length === 0) {
     return (
       <section className="mail-page empty" aria-label="Mail">
-        <EmptyState icon={MAIL_ICONS.inbox} title="No mail account yet" line="Add one to see your mail here. Mobius reads and drafts; only you send." action={{ label: 'Add a mail account…', run: () => setAdding(true) }} />
+        <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Add an account to see your mail here. Mobius reads and drafts; only you send.</EmptyState>
         {adding && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
       </section>
     );
@@ -478,8 +484,9 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
         {mail.editing ? <DraftEditor key={mail.editing.id || 'new'} mail={mail} draft={mail.editing} />
           : mail.open ? <Reader mail={mail} content={mail.open} {...(onDraftReply ? { onDraftReply } : {})} />
             : mail.accounts.length === 0
-              ? <EmptyState icon={MAIL_ICONS.inbox} label="No mail account yet" title="No mail account yet" line="Drafts are kept here on this computer. Add an account to send them." action={{ label: 'Add a mail account…', run: () => setAdding(true) }} />
-              : <EmptyState icon={MAIL_ICONS.inbox} label="No message open" title="No message open" line="Choose one in the list. ↑ ↓ to move, Enter to open." />}
+              ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>
+              // An empty list already says so, with its drawing: the pane beside it stays clear.
+              : (v.kind === 'drafts' ? drafts.length : mail.messages.length) > 0 && <EmptyState kind="mail">Choose a message in the list. ↑ ↓ to move, Enter to open.</EmptyState>}
         {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
         {/* The keys act on the open message, so their bar sits at the foot of the pane that shows it, and only then. */}
         {/* Not under the Undo toast: both sit at the foot of the message. */}

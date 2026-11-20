@@ -1051,7 +1051,7 @@ export function App() {
       if (book) await notes.createPage(book, todayNoteTitle(), `# ${todayNoteTitle()}\n\n`);
     })(); } },
     { id: 'task', label: 'New task', app: 'tasks', run: () => { closeSettings(); tasks.setView({ kind: 'list', name: 'Inbox' }); openApp('tasks'); setTaskFocus((n) => n + 1); } },
-    { id: 'tab', label: 'New tab', app: 'browser', run: () => { closeSettings(); openApp('browser'); newTab(); } },
+    { id: 'tab', label: 'New tab', app: 'browser', keys: 'mod+t', run: () => { closeSettings(); openApp('browser'); newTab(); } },
     { id: 'doc', label: 'New document', app: 'docs', run: () => { closeSettings(); openApp('docs'); void (async () => { const folder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name ?? (await docs.createNotebook(DEFAULT_FOLDER)); if (folder) await docs.createPage(folder); })(); } },
     { id: 'message', label: 'New message', app: 'mail', run: () => { closeSettings(); openApp('mail'); mail.compose(); } },
     { id: 'deck', label: 'New deck', app: 'slides', run: () => { closeSettings(); openApp('slides'); void (async () => { const folder = slides.page?.path.split('/')[0] ?? slides.notebooks[0]?.name ?? (await slides.createNotebook('Presentations')); if (folder) await slides.createPage(folder, 'Untitled deck'); })(); } },
@@ -1934,7 +1934,8 @@ export function App() {
         // Words and icons never share a capsule: the update notice stands on its own, before the icons.
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
         // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
-        panels: (own) => settingsOpen ? null : (
+        // Settings too: its Sections panel and Mobius, as in every app.
+        panels: (own) => (
           <PanelsMenu
             app={own}
             shell={[
@@ -1951,7 +1952,7 @@ export function App() {
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
           {menuBar(appMenu)}
-          {hasRight && !settingsOpen && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
+          {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}
     >

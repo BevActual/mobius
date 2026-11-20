@@ -41,7 +41,7 @@ export function DownloadsButton({ entries }: { entries: DownloadEntry[] }) {
   const share = running.length === 0 ? 1 : total > 0 ? running.reduce((n, e) => n + e.received, 0) / total : 0.15;
   return (
     <span className="dl-wrap" ref={wrap}>
-      <button type="button" className="strip-btn dl-button" aria-label="Downloads" aria-expanded={open} title="Downloads" data-busy={running.length > 0 || undefined} onClick={() => setOpen((o) => !o)}>
+      <button type="button" className="strip-btn dl-button" aria-label="Downloads" aria-expanded={open} title={running.length > 0 ? `Downloads: ${running.length} downloading, ${Math.round(share * 100)}% done` : 'Downloads'} data-busy={running.length > 0 || undefined} onClick={() => setOpen((o) => !o)}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3.5v9M6.5 9l3.5 3.5L13.5 9M5 16h10" /></svg>
         {running.length > 0 && (
           <svg className="dl-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8.5" pathLength="100" strokeDasharray={`${Math.round(share * 100)} 100`} /></svg>
