@@ -64,7 +64,7 @@ const retitle = async (title: string) => {
 
 test('a first notebook and page are real files, and typing is saved as Markdown', async () => {
   await start();
-  await expect(side().getByText('No pages yet.')).toBeVisible();
+  await expect(side().getByText('No notes yet.')).toBeVisible();
   await newNotebook('Work');
   await expect(text()).toBeFocused();
   await expect(text().locator('h1')).toHaveText('Untitled');
@@ -228,7 +228,7 @@ test('typing "[ ] " at the start of a bullet makes that bullet a checklist item,
   await expect(text().getByRole('checkbox', { name: 'Task item checkbox for Call the bakery' })).toBeVisible();
   // The bullet before it stays a bullet.
   await expect.poll(() => onDisk('Home', 'Untitled.md')).toBe('# Shop\n\n- Milk\n\n- [ ] Call the bakery\n');
-  // Ctrl+N, from the page, starts another one (it presses New page in the Notebooks panel).
+  // Ctrl+N, from the page, starts another one (it presses New note in the Notebooks panel).
   await shell().keyboard.press('Control+n');
   await expect(text().locator('h1')).toHaveText('Untitled');
   await expect(side().getByRole('button', { name: /^Shop/ })).toBeVisible();
@@ -255,7 +255,7 @@ test('#tags in pages show under Tags, and a tag lists the pages that carry it', 
   await expect(text().locator('.note-tag')).toHaveText(['#supplier', '#kestrel/p2']);
   await shell().locator('.note-meta').getByRole('button', { name: '#kestrel/p2' }).click();
   await expect(side().getByRole('region', { name: '#kestrel/p2' }).getByRole('listitem')).toHaveCount(1);
-  await side().getByRole('button', { name: 'Show every page' }).click();
+  await side().getByRole('button', { name: 'Show every note' }).click();
   await expect(side().getByRole('region', { name: 'Work' })).toBeVisible();
 });
 

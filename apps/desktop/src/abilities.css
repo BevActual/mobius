@@ -17,7 +17,7 @@
 .abl-item:hover { background: var(--line-soft, var(--soft)); }
 .abl-main { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; padding: 8px 0; color: inherit; text-align: left; background: none; border: 0; font: inherit; }
 button.abl-main { cursor: default; }
-button.abl-main:hover, button.abl-main:active { background: none; }
+button.abl-main:hover:not(:disabled), button.abl-main:active { background: none; }
 button.abl-main:focus-visible, .abl-item:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; border-radius: 6px; }
 
 /* A line icon in the ink, never a tinted tile. */
@@ -37,8 +37,11 @@ button.abl-main:focus-visible, .abl-item:focus-visible { outline: 2px solid var(
 .btn.abl-add { flex: none; min-width: 56px; }
 .abl-more { flex: none; border-radius: var(--radius-control); color: var(--muted); opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
 .abl-item:hover .abl-more, .abl-item:focus-within .abl-more, .abl-more[aria-expanded="true"] { opacity: 1; }
+/* Open: a quiet button before the ⋯, shown with it on hover or focus. */
+.btn.abl-open { flex: none; opacity: 0; transition: opacity var(--dur-fast) var(--ease); }
+.abl-item:hover .abl-open, .abl-item:focus-within .abl-open { opacity: 1; }
 .abl-more:hover { background: var(--soft); color: var(--ink); }
-@media (hover: none) { .abl-more { opacity: 1; } }
+@media (hover: none) { .abl-more, .btn.abl-open { opacity: 1; } }
 .abl-more-glyph { width: 18px; height: 18px; fill: currentColor; stroke: none; }
 
 /* Toolbar buttons: line icons in the ink, as Mail's. */
