@@ -75,15 +75,24 @@ export function TooltipLayer() {
       setShown(null);
     };
     const shownRef = { current: false };
+    const pointerX = { current: 0 };
     const show = (el: HTMLElement) => {
       const title = el.dataset.tip ?? el.getAttribute('title') ?? '';
       if (!title.trim() || !el.isConnected) return;
       const box = el.getBoundingClientRect();
+      // data-tip-at="pointer": a wide thing (a clip in a lane) shows its tip above the pointer, so the tip never covers
+      // the row below it.
+      if (el.dataset.tipAt === 'pointer') {
+        shownRef.current = true;
+        setShown({ ...splitTitle(title), x: Math.min(box.right, Math.max(box.left, pointerX.current)), y: box.top - 6, below: false });
+        return;
+      }
       const below = box.bottom + 40 < window.innerHeight;
       shownRef.current = true;
       setShown({ ...splitTitle(title), x: box.left + box.width / 2, y: below ? box.bottom + 6 : box.top - 6, below });
     };
     const over = (event: Event) => {
+      if ('clientX' in event) pointerX.current = (event as PointerEvent).clientX;
       const el = (event.target as Element | null)?.closest?.('[title], [data-tip]') as HTMLElement | null;
       if (el === target.current) return;
       hide();
