@@ -13,7 +13,9 @@ select:focus-visible { outline: 3px solid var(--accent); outline-offset: 1px; }
 select:disabled { opacity: 0.4; cursor: default; }
 option { background: var(--bg); color: var(--ink); }
 button { cursor: pointer; border: 0; background: none; border-radius: var(--radius-control); }
-button:hover:not(:disabled) { background: var(--soft); }
+/* The default hover weighs one class and one element (:where keeps :not(:disabled) out of the count), so an app's own
+   `button.x:hover` or a state like `.row[aria-current]` wins without depending on which file loads last. */
+button:hover:where(:not(:disabled)) { background: var(--soft); }
 button:disabled { opacity: 0.4; cursor: default; }
 :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; flex: none; }
