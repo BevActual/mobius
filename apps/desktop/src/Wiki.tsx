@@ -65,7 +65,7 @@ export function WikiSidebar({ wiki, place, onPlace, incoming, pin }: { wiki: Not
     </li>
   );
   return (
-    <aside className="side wiki-side" aria-label="Pages">
+    <aside className="side wiki-side" aria-label="Knowledge">
       <div className="side-head">
         <span className="side-title">Knowledge</span>
         {pin && <span className="side-actions">{pin}</span>}
@@ -219,8 +219,9 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
       {undo && <UndoToast text={undo.label} onUndo={() => { const u = undo; setUndo(null); void u.run().then(load); }} onDismiss={() => setUndo(null)} />}
       {problem && <p className="field-error" role="alert">{problem}</p>}
       {(asks.length > 0 || learned.length > 0) && (
-        <section className="kn-group" aria-label="Waiting for you" data-waiting>
-          <h2 className="kn-group-head">Waiting for you <span className="kn-badge" aria-label={`${asks.length + learned.length} waiting`}>{asks.length + learned.length}</span></h2>
+        // Named for what it holds, so its count never reads as the panel's Suggested changes (offers for the pages).
+        <section className="kn-group" aria-label="Mobius learned" data-waiting>
+          <h2 className="kn-group-head">Mobius learned <span className="kn-badge" aria-label={`${asks.length + learned.length} waiting`}>{asks.length + learned.length}</span></h2>
           {asks.map((w) => {
             const args = (w.args ?? {}) as { text?: string; source?: string };
             return (

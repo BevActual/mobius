@@ -185,7 +185,7 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
-  reader: 'Library', research: 'Reports', wiki: 'Pages', projects: 'Projects', views: 'Dashboards', review: 'Changes',
+  reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
