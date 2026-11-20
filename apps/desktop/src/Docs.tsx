@@ -282,7 +282,6 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     return (
       <ToolbarControls label="Docs">
         <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
-          <span className="spacer" />
           <span className="doc-bar-group">
             <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, checked: state.style === s.id, keys: `${mod}Alt+${s.key}`, run: () => setStyle(s.id) }))}
               trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="Paragraph style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
