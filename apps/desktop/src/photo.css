@@ -26,6 +26,10 @@
 .context-strip .photo-export { display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--control-h); padding: 0 var(--sp-3); margin-left: var(--sp-1); border-radius: var(--radius-control); border: var(--hairline-w) solid var(--line); background: var(--paper); color: var(--ink); font-size: var(--fs-md); }
 .context-strip .photo-export:hover:not(:disabled) { background: var(--sel); }
 .context-strip .photo-export:disabled { opacity: 0.4; }
+/* Adjust, Filters and Crop in the middle of the top bar; Revert and Export stay at its end. */
+.ui-toolbar-slot:has(.photo-tabs) { flex: 1 1 auto; min-width: 0; }
+.ui-toolbar-group:has(> .photo-tb-spacer) { flex: 1; }
+.photo-tb-spacer { flex: 1; min-width: 0; }
 .context-strip .photo-tabs { display: inline-flex; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); overflow: hidden; }
 .context-strip .photo-tab { height: var(--control-h); padding: 0 var(--sp-2); font-size: var(--fs-md); color: var(--muted); }
 .context-strip .photo-tab + .photo-tab { border-left: var(--hairline-w) solid var(--line); }
@@ -63,7 +67,7 @@
 /* One photo on the content surface, in Light and Dark alike; the frame around it stays neutral. The stage has the
    content to itself: the Adjust panel is a tab of the right panel. */
 .photo-page .photo-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr); }
-.photo-page .photo-stage { position: relative; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: var(--sp-8) clamp(var(--sp-2), 6%, 96px) calc(var(--info-h) + var(--sp-8) + var(--sp-4)); background: var(--paper); }
+.photo-page .photo-stage { position: relative; min-width: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; padding: var(--sp-8) clamp(calc(var(--sp-8) + var(--sp-5)), 6%, 96px) calc(var(--info-h) + var(--sp-8) + var(--sp-4)); background: var(--paper); }
 .photo-page .photo-stage[data-zoomed] { overflow: auto; align-items: flex-start; justify-content: flex-start; }
 .photo-page .photo-stage[data-zoomed] .photo-frame { max-width: none; max-height: none; margin: auto; }
 .photo-page .photo-stage[data-zoomed] .photo-canvas { max-width: none; max-height: none; cursor: zoom-out; }
@@ -73,8 +77,8 @@
 .photo-page .photo-stage[data-cropping] .photo-canvas { cursor: default; }
 .photo-page .photo-step { position: absolute; top: 50%; z-index: 2; width: 32px; height: 32px; margin-top: -16px; display: grid; place-items: center; border-radius: var(--radius-pill); background: var(--raised); box-shadow: 0 0 0 var(--hairline-w) var(--line); color: var(--ink); opacity: 0; transition: opacity var(--dur-med) var(--ease); }
 .photo-page .photo-step svg { width: 18px; height: 18px; }
-.photo-page .photo-step.prev { left: var(--sp-3); }
-.photo-page .photo-step.next { right: var(--sp-3); }
+.photo-page .photo-step.prev { left: var(--sp-2); }
+.photo-page .photo-step.next { right: var(--sp-2); }
 .photo-page .photo-stage:hover .photo-step, .photo-page .photo-step:focus-visible { opacity: 1; }
 .photo-page .photo-step:hover { background: var(--sel); }
 /* Where an adjustment applies, drawn on the photo: a dashed line or ellipse in white, as on any photo editor's canvas. */
