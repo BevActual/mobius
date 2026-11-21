@@ -28,7 +28,7 @@ describe('browser pieces', () => {
     expect(html).toContain('1 filter');
     expect(html).toContain('>Clear<');
     const none = renderToStaticMarkup(<FilterBar groups={[]} value={{}} onChange={noop} />);
-    expect(none).toContain('No filters');
+    expect(none).not.toContain('filter</span>');
     expect(none).not.toContain('>Clear<');
   });
 

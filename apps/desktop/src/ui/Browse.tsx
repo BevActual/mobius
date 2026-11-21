@@ -57,7 +57,8 @@ export function FilterBar({ groups, value, onChange, label = 'Filters', onClear 
         </div>
       ))}
       <div className="ui-filter-results" role="status">
-        <span>{count === 0 ? 'No filters' : count === 1 ? '1 filter' : `${count} filters`}</span>
+        {/* Nothing picked says nothing (Live's browser has no empty line): the row appears with the first tag. */}
+        {count > 0 && <span>{count === 1 ? '1 filter' : `${count} filters`}</span>}
         {count > 0 && <button type="button" className="ui-filter-clear" onClick={() => { onChange({}); onClear?.(); }}>Clear</button>}
       </div>
     </div>

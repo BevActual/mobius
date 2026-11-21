@@ -10,6 +10,7 @@
   display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding-top: var(--sp-1);
   border-top: var(--hairline-w) solid var(--line-soft); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums;
 }
+.ui-filter-results:empty { display: none; }
 .ui-filter-clear { margin-left: auto; padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; font-weight: var(--fw-medium); cursor: default; }
 .ui-filter-clear:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
 .ui-filter-clear:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: 0; }
