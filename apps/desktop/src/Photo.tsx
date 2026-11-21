@@ -19,6 +19,8 @@ import { AppSidebar, BeforeAfter, HoldButton, PanelLayout, PanelTab, Select, Sid
 
 import './photo.css';
 
+/** Holding the backslash key also shows the original, as in Lightroom; M is Photos' key. */
+const HOLD_ALSO = ['\\'] as const;
 const PREVIEW_MAX = 1600;
 const EXPORT_MAX = 6000;
 const THUMB_MAX = 480;
@@ -405,7 +407,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
   const frame = useRef<HTMLDivElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   // Show original: held from the toolbar or with M; it lets go on blur and when the window hides, so it never sticks.
-  const hold = useHold('m');
+  const hold = useHold('m', true, HOLD_ALSO);
   const before = hold.held;
   const [busy, setBusy] = useState('');
   // The toolbar's Adjust, Filters and Crop bring the right panel's Adjust tab forward, opening the panel if it is shut.

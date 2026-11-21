@@ -37,7 +37,8 @@ const typingIn = (target: EventTarget | null): boolean => {
 };
 
 /** Held while the pointer is down on the control, Space or Enter is down on it, or `key` is down anywhere (not while typing). */
-export function useHold(key?: string, enabled = true): Hold {
+/** `key` holds the original while pressed; `also` are more keys that do the same (Photo: \\ as in Lightroom). */
+export function useHold(key?: string, enabled = true, also: readonly string[] = []): Hold {
   const [held, setHeld] = useState(false);
   const letGo = useRef(() => setHeld(false));
   useEffect(() => {
@@ -45,11 +46,12 @@ export function useHold(key?: string, enabled = true): Hold {
     const release = () => setHeld(false);
     const hidden = () => { if (document.visibilityState !== 'visible') release(); };
     const k = key?.toLowerCase();
+    const ks = k ? [k, ...also.map((a) => a.toLowerCase())] : [];
     const down = (e: globalThis.KeyboardEvent) => {
       if (!k || e.repeat || e.ctrlKey || e.metaKey || e.altKey || typingIn(e.target)) return;
-      if (e.key.toLowerCase() === k) setHeld(true);
+      if (ks.includes(e.key.toLowerCase())) setHeld(true);
     };
-    const up = (e: globalThis.KeyboardEvent) => { if (k && e.key.toLowerCase() === k) release(); };
+    const up = (e: globalThis.KeyboardEvent) => { if (ks.includes(e.key.toLowerCase())) release(); };
     window.addEventListener('keydown', down);
     window.addEventListener('keyup', up);
     window.addEventListener('blur', release);
@@ -60,7 +62,7 @@ export function useHold(key?: string, enabled = true): Hold {
       window.removeEventListener('blur', release);
       document.removeEventListener('visibilitychange', hidden);
     };
-  }, [key, enabled]);
+  }, [key, enabled, also.join(' ')]);
   const off = letGo.current;
   return {
     held: enabled && held,
