@@ -98,7 +98,7 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
    window's own content, so the page stops short of that strip, or it would take the pointer and the strip never sees it. */
 .stage[data-edge-right]:not([data-split]) .surface-slot, .stage[data-edge-right] .pane[data-pane="1"] .surface-slot { right: 8px; }
 
-/* Launcher: floats on the top layer. */
+/* Launcher: floats above the page. */
 .launcher {
   position: fixed; top: 12vh; left: 50%; transform: translateX(-50%); margin: 0; padding: 0;
   width: min(640px, calc(100vw - 32px)); max-height: min(560px, 76vh);
@@ -108,7 +108,9 @@ svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width:
 }
 .launcher:not([open]) { display: none; }
 .launcher[open] { display: flex; flex-direction: column; }
-.launcher::backdrop { background: #0000004a; }
+/* Opened with show(), not as a modal (see Launcher.tsx): it stacks above everything, over a shade of its own. */
+.launcher { z-index: 1000; }
+.launcher-backdrop { position: fixed; inset: 0; z-index: 999; background: #0000004a; }
 .launcher-search { display: flex; align-items: center; gap: 10px; height: 54px; padding: 0 16px; border-bottom: 1px solid var(--line); flex: none; }
 .launcher-search input { flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: transparent; font-size: var(--fs-xl); }
 .launcher-search kbd { font: 11px/1 var(--font); color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius-small); padding: 3px 6px; }

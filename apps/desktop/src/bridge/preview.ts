@@ -39,17 +39,24 @@ const hour = 3_600_000;
 
 const person = (name: string, email: string) => ({ name, email });
 /** Mail's drafts in the preview: Mobius's suggested reply to Priya. */
-let FOLLOW_UPS: import('@mobius/shared').MailFollowUp[] = [{ messageId: '<p2-loan@northway.example>', sentId: null, account: 'a1', to: ['Veltro Cells <sales@veltro.example>'], subject: 'Loan pack for the sled test?', sentMs: Date.now() - 3 * 86_400_000, remindMs: Date.now() - 3_600_000, replyId: null, repliedMs: null, status: 'due' }];
+let FOLLOW_UPS: import('@mobius/shared').MailFollowUp[] = [
+  { messageId: '<p2-loan@northway.example>', sentId: 's1', account: 'a1', to: ['Veltro Cells <sales@veltro.example>'], subject: 'Loan pack for the sled test?', sentMs: Date.now() - 3 * 86_400_000, remindMs: Date.now() - 3_600_000, replyId: null, repliedMs: null, status: 'due' },
+  { messageId: '<motor-spec@northway.example>', sentId: 's2', account: 'a1', to: ['Axion Motors <hello@axion.example>'], subject: 'Torque spec sheet', sentMs: Date.now() - 4 * 86_400_000, remindMs: Date.now() - 7_200_000, replyId: null, repliedMs: null, status: 'due' },
+];
 const MAIL_DRAFTS = [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1' as string | null, by: 'mobius' as 'mobius' | 'you', why: 'you asked me to confirm the build week', updatedMs: Date.now() }];
 const MAIL = [
   { id: 'm1', account: 'a1', box: 'inbox', uid: 1, from: person('Priya Nair', 'priya@northway.example'), to: [person('You', 'you@northway.example')], cc: [person('Sam Okafor', 'sam@northway.example')], subject: 'P2 build dates', dateMs: now - 2 * hour, seen: false, flagged: false, preview: 'Can you confirm the build week and send the plan to the team?', category: 'primary' },
   { id: 'm2', account: 'a1', box: 'inbox', uid: 2, from: person('Veltro Cells', 'sales@veltro.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'Quote: 8 × 60 kWh packs', dateMs: now - 26 * hour, seen: true, flagged: true, preview: 'Six weeks from order to your dock. The hold lasts until Friday.', category: 'primary' },
+  { id: 's1', account: 'a1', box: 'sent', uid: 11, from: person('You', 'you@northway.example'), to: [person('Veltro Cells', 'sales@veltro.example')], cc: [], subject: 'Loan pack for the sled test?', dateMs: now - 72 * hour, seen: true, flagged: false, preview: 'Could you lend us a pack for the sled test while ours ship?', category: 'primary' },
+  { id: 's2', account: 'a1', box: 'sent', uid: 12, from: person('You', 'you@northway.example'), to: [person('Axion Motors', 'hello@axion.example')], cc: [], subject: 'Torque spec sheet', dateMs: now - 96 * hour, seen: true, flagged: false, preview: 'Can you send the torque spec sheet for the 150 kW motor?', category: 'primary' },
   { id: 'm3', account: 'a1', box: 'inbox', uid: 3, from: person('Sam Okafor', 'sam@northway.example'), to: [person('You', 'you@northway.example')], cc: [], subject: 'Motor call', dateMs: now - 30 * hour, seen: true, flagged: false, preview: 'Axion can do Wednesday. Does 10:00 work?', category: 'primary' },
 ];
 const MAIL_TEXT: Record<string, string> = {
   m1: 'Hi,\n\nCan you confirm the build week and send the plan to the team? I would like to tell Northfield by Thursday.\n\nPriya',
   m2: 'Hello,\n\nEight 60 kWh packs: six weeks from order to your dock. The hold lasts until Friday.\n\nVeltro Cells',
   m3: 'Axion can do Wednesday. Does 10:00 work?\n\nSam',
+  s1: 'Hello,\n\nCould you lend us a pack for the sled test while ours ship?\n\nThanks',
+  s2: 'Hi,\n\nCan you send the torque spec sheet for the 150 kW motor?\n\nThanks',
 };
 
 const NOTE_FILES: Record<string, string> = {};
@@ -206,7 +213,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'providers.catalog': () => ({ current: 'claude-sonnet-5-5', groups: [{ kind: 'subscription', id: 'claude', name: 'Claude plan', active: true, models: [{ id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' }, { id: 'claude-opus-5-5', label: 'Opus 5.5' }], error: null }, { kind: 'local', id: 'local', name: 'On this computer', active: false, models: [{ id: 'qwen3-8b', label: 'Qwen3 8B' }], error: null }] }),
   'mail.accounts': () => [{ id: 'a1', name: 'Northway', email: 'you@northway.example', lastSyncMs: now, problem: null }],
   // Flags and Archive are kept for as long as the preview is open.
-  'mail.list': ((box: string) => MAIL.filter((m) => box !== 'inbox' || !(m as { archived?: boolean }).archived)) as never,
+  'mail.list': ((box: string) => MAIL.filter((m) => (box === 'sent' ? m.box === 'sent' : m.box !== 'sent' && (box !== 'inbox' || !(m as { archived?: boolean }).archived)))) as never,
   'mail.flag': ((id: string, which: 'seen' | 'flagged', on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) m[which] = on; return { ok: true }; }) as never,
   'mail.archive': ((id: string, on: boolean) => { const m = MAIL.find((x) => x.id === id); if (m) (m as { archived?: boolean }).archived = on; return { ok: true }; }) as never,
   // A reply Mobius suggested to Priya, waiting to be kept.

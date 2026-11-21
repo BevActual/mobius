@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
+import { choose, launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { fakeLlama, patterned, startHub, type FakeHub, type FakeRepo } from './hub-fixture';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
@@ -196,7 +196,7 @@ test('the context size chosen in settings is the one the model is started with',
   await suggest();
   await results().getByRole('button', { name: 'Download Tiny-1B-Q8_0' }).click();
   await expect(mine().getByRole('listitem')).toHaveCount(1, { timeout: 20_000 });
-  await page().getByRole('combobox', { name: 'Context size' }).selectOption('32768');
+  await choose(page(), 'Context size', '32,768 tokens');
   await expect.poll(() => shell().evaluate(() => window.mobius.preferences.get().then((p) => p?.localContext))).toBe(32768);
   await mine().getByRole('button', { name: 'Run Tiny-1B-Q8_0' }).click();
   const running = page().getByRole('status').filter({ hasText: 'Tiny-1B-Q8_0' });
@@ -270,7 +270,7 @@ test('Models has a row for each job: chat, quick, listen and speak, and voice ch
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   for (const title of ['Chat model', 'Quick model', 'Listen', 'Speak']) await expect(page().getByRole('heading', { name: title, exact: true }).or(page().getByText(title, { exact: true })).first()).toBeVisible();
-  await page().getByRole('combobox', { name: 'Speak with' }).selectOption({ label: 'ElevenLabs' });
+  await choose(page(), 'Speak with', 'ElevenLabs');
   await expect(page().getByText('Voice: ElevenLabs')).toBeVisible();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).speakWith).toBe('elevenlabs');
 });
@@ -279,6 +279,6 @@ test('Images offers nothing until a gateway that makes pictures has a key', asyn
   await start();
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await expect(page().getByRole('combobox', { name: 'Image model' })).toHaveValue('none');
+  await expect(page().getByRole('combobox', { name: 'Image model' })).toHaveText('None');
   await expect(page().getByText(/Add a key for OpenAI, OpenRouter/)).toBeVisible();
 });
