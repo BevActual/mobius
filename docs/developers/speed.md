@@ -14,7 +14,7 @@ list, and how much memory it holds after long use. Every pull request measures t
 | switch to an app, first visit | Median of the first switch into Tasks, Calendar, Mail, Docs and Files |
 | switch apps | Median of 120 switches between six apps already visited (20 rounds) |
 | switch apps, slowest tenth | The 90th percentile of those 120 |
-| switch to the slowest app | The highest of the six apps' own medians over those 120; over budget, it is measured twice more (ten rounds each) and the median of the three is kept, as CI machines differ by about a third from run to run |
+| switch to the slowest app | The highest of the six apps' own medians over those 120, scaled to a machine that starts Mobius in 1.5 s (on one that takes 3 s, half of it counts), as CI's machines differ about twofold from run to run |
 | interface memory after long use | The interface's JavaScript heap after a garbage collection, after the 120 switches |
 | interface memory growth over long use | That heap minus the heap before the 120 switches: memory a long session piles up |
 | DOM nodes after long use, and their growth | The same for the page's DOM nodes, which show views that are never let go |
@@ -43,7 +43,8 @@ slowest tenth (Notes and Calendar are the slowest to switch to, at 0.23 and 0.19
 11 MB over the 120 switches, 3,900 DOM nodes growing 860, core 12 MB.
 
 On 21 November 2026, after #711 and #709, the slowest app's median was 89 to 136 ms (Notes, then Calendar) and the
-slowest app got a budget of its own, 150 ms. Its medians over three measures keep a slow machine from failing it.
+slowest app got a budget of its own, 150 ms. Scaled by start time, the runs so far came to 97 to 127 ms on both the
+fast and the slow machines.
 
 Notes drew every page of a long notebook each time it opened, which took 0.84 s for 2,000 pages in a smaller window.
 It now draws the first 100 and more as the list scrolls. Next is switching itself, which costs over 100 ms even
