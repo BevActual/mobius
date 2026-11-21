@@ -29,6 +29,7 @@ const HOME: DesignDoc = {
 };
 const TEXT: Record<string, string> = { 'Trip app/Home.json': writeDesign(HOME) };
 const MODIFIED: Record<string, number> = { 'Trip app/Home.json': now - 3_600_000 };
+const FILES: Record<string, string> = {};
 const title = (path: string) => path.slice(path.indexOf('/') + 1, -5);
 
 export const PREVIEW_DESIGNS: Record<string, (...args: never[]) => unknown> = {
@@ -41,5 +42,12 @@ export const PREVIEW_DESIGNS: Record<string, (...args: never[]) => unknown> = {
     MODIFIED[path] = Date.now();
     return { path, content: TEXT[path], modified: MODIFIED[path] };
   }) as never,
+  // Pictures added to a design are kept for as long as the preview is open.
+  'designs.attach': ((path: string, name: string, base64: string) => {
+    const ref = `${title(path)} files/${name}`.replace(/ /g, '%20');
+    FILES[ref] = `data:${/\.svg$/i.test(name) ? 'image/svg+xml' : /\.jpe?g$/i.test(name) ? 'image/jpeg' : 'image/png'};base64,${base64}`;
+    return { path, ref, name, image: true };
+  }) as never,
+  'designs.asset': ((_path: string, ref: string) => (FILES[ref] ? { dataUrl: FILES[ref], size: 1 } : { ok: false, message: 'that file is not there' })) as never,
   'designs.remove': ((path: string) => { delete TEXT[path]; return { path }; }) as never,
 };

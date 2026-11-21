@@ -17,11 +17,11 @@ const MAX_CHANGES: usize = 200;
 const MAX_LAYERS: usize = 2000;
 
 /// What a layer may say, beside its id and type; anything else is left out.
-const LAYER_KEYS: [&str; 18] = ["name", "x", "y", "w", "h", "fill", "radius", "opacity", "text", "size", "weight", "color", "align", "stroke", "strokeWidth", "hidden", "locked", "overrides"];
+const LAYER_KEYS: [&str; 21] = ["name", "x", "y", "w", "h", "fill", "radius", "opacity", "text", "size", "weight", "color", "align", "stroke", "strokeWidth", "hidden", "locked", "overrides", "flip", "dash", "ends"];
 const FRAME_KEYS: [&str; 9] = ["name", "x", "y", "w", "h", "fill", "radius", "stroke", "strokeWidth"];
 
 pub fn tool_descriptions() -> Vec<Value> {
-    let layer = json!({ "type": "object", "description": "A layer: type (rect, ellipse, text or instance), name, x, y, w, h (inside its frame), fill, radius, opacity (0 to 1), and for text: text, size, weight, color, align (left, center, right); stroke and strokeWidth draw a border inside the edge. An instance copies the component frame named by `of`, with overrides { <layer id>: { text, fill, color } }. Colours are #rrggbb or style:<name>." });
+    let layer = json!({ "type": "object", "description": "A layer: type (rect, ellipse, text, line or instance), name, x, y, w, h (inside its frame), fill, radius, opacity (0 to 1), and for text: text, size, weight, color, align (left, center, right); stroke and strokeWidth draw a border inside the edge. A line runs corner to corner across its box (top left to bottom right, or bottom left to top right with flip: true; h 0 is flat, w 0 upright) in stroke and strokeWidth, with dash: true for dashed and ends \"end\" or \"both\" for arrowheads. An instance copies the component frame named by `of`, with overrides { <layer id>: { text, fill, color } }. Colours are #rrggbb or style:<name>." });
     vec![json!({ "name": "design.edit", "description": "Change a design in the Design app in one call: add layers to a frame, change layers by id (only the fields given), remove layers, and add frames. Read the design first (files.read) to know its frames and layer ids. Each change waits for the person to keep it.", "capability": "files.write",
         "input_schema": { "type": "object", "properties": {
             "design": { "type": "string", "description": "The design as Folder/Design (its path under designs/, without .json)." },
@@ -52,7 +52,8 @@ fn field(key: &str, v: &Value) -> Res<Value> {
     let number = |lo: f64, hi: f64| v.as_f64().filter(|n| n.is_finite()).map(|n| json!(((n * 100.0).round() / 100.0).clamp(lo, hi))).ok_or_else(|| format!("{key} is a number"));
     match key {
         "x" | "y" => number(-100_000.0, 100_000.0),
-        "w" | "h" => number(1.0, 100_000.0),
+        // A line may be flat or upright, so its box can be nothing across.
+        "w" | "h" => number(0.0, 100_000.0),
         "radius" => number(0.0, 10_000.0),
         "opacity" => number(0.0, 1.0),
         "size" => number(4.0, 400.0),
@@ -62,7 +63,8 @@ fn field(key: &str, v: &Value) -> Res<Value> {
         "name" => v.as_str().map(|s| json!(s.chars().take(80).collect::<String>())).ok_or_else(|| "name is text".to_owned()),
         "text" => v.as_str().map(|s| json!(s.chars().take(2000).collect::<String>())).ok_or_else(|| "text is text".to_owned()),
         "align" => v.as_str().filter(|a| matches!(*a, "left" | "center" | "right")).map(|a| json!(a)).ok_or_else(|| "align is left, center or right".to_owned()),
-        "hidden" | "locked" => v.as_bool().map(Value::Bool).ok_or_else(|| format!("{key} is true or false")),
+        "ends" => v.as_str().filter(|e| matches!(*e, "none" | "end" | "both")).map(|e| json!(e)).ok_or_else(|| "ends is none, end or both".to_owned()),
+        "hidden" | "locked" | "flip" | "dash" => v.as_bool().map(Value::Bool).ok_or_else(|| format!("{key} is true or false")),
         "overrides" => v.is_object().then(|| v.clone()).ok_or_else(|| "overrides is an object".to_owned()),
         _ => Err(format!("a layer has no {key}")),
     }
@@ -100,8 +102,8 @@ fn fresh_id(taken: &mut Vec<String>, prefix: char) -> String {
 
 fn new_layer(given: &Value, taken: &mut Vec<String>) -> Res<Value> {
     let kind = given.get("type").and_then(Value::as_str).unwrap_or("rect");
-    if !matches!(kind, "rect" | "ellipse" | "text" | "instance") {
-        return Err(format!("{kind} is not a kind of layer: rect, ellipse, text or instance"));
+    if !matches!(kind, "rect" | "ellipse" | "text" | "line" | "instance") {
+        return Err(format!("{kind} is not a kind of layer: rect, ellipse, text, line or instance"));
     }
     let mut out = Map::new();
     let id = given.get("id").and_then(Value::as_str).filter(|id| !id.is_empty() && id.len() <= 40 && !taken.iter().any(|t| t == id)).map(str::to_owned);
@@ -124,7 +126,7 @@ fn new_layer(given: &Value, taken: &mut Vec<String>) -> Res<Value> {
 
 /// An object on one line with its keys in the Design app's order (id, type, name, then the box), not by the alphabet.
 fn line(v: &Value) -> String {
-    const ORDER: [&str; 23] = ["id", "type", "name", "x", "y", "w", "h", "fill", "of", "overrides", "radius", "opacity", "text", "size", "weight", "color", "align", "stroke", "strokeWidth", "hidden", "locked", "component", "children"];
+    const ORDER: [&str; 27] = ["id", "type", "name", "x", "y", "w", "h", "fill", "src", "of", "overrides", "radius", "opacity", "text", "size", "weight", "color", "align", "stroke", "strokeWidth", "flip", "dash", "ends", "hidden", "locked", "component", "children"];
     let Some(map) = v.as_object() else { return v.to_string() };
     let mut keys: Vec<&String> = map.keys().collect();
     keys.sort_by_key(|k| ORDER.iter().position(|o| o == k).unwrap_or(ORDER.len()));
@@ -319,6 +321,20 @@ mod tests {
         assert_eq!(layers[1]["id"], "n2");
         assert_eq!(doc["styles"][0]["name"], "Primary", "the styles stay");
         assert!(text.lines().any(|l| l.trim_start().starts_with(r#"{"id":"n2","#)), "one layer to a line:\n{text}");
+    }
+
+    #[test]
+    fn a_line_with_an_arrow_can_be_added() {
+        let (_dir, designs, file) = setup();
+        designs
+            .run("design.edit", &json!({ "design": "Kestrel app/Charging screen",
+                "add": [{ "frame": "charging", "layer": { "type": "line", "x": 24, "y": 400, "w": 200, "h": 0, "stroke": "#1f2937", "strokeWidth": 2, "dash": true, "ends": "end" } }] }))
+            .unwrap();
+        let doc: Value = serde_json::from_str(&fs::read_to_string(&file).unwrap()).unwrap();
+        let line = &doc["frames"][0]["children"][2];
+        assert_eq!((line["type"].as_str(), line["h"].as_f64(), line["ends"].as_str(), line["dash"].as_bool()), (Some("line"), Some(0.0), Some("end"), Some(true)));
+        let wrong = designs.run("design.edit", &json!({ "design": "Kestrel app/Charging screen", "add": [{ "frame": "charging", "layer": { "type": "line", "ends": "start" } }] }));
+        assert!(wrong.is_err());
     }
 
     #[test]

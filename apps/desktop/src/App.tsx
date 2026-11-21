@@ -38,6 +38,7 @@ import { saveAll } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
+import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
@@ -53,6 +54,7 @@ import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
+import { researchSteps } from './research-format';
 import { ReaderPage, ReaderSidebar, readerSub, saveToReader } from './Reader';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
 import { useDatabases } from './useDatabases';
@@ -66,7 +68,7 @@ import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 // Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
 import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
-import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
+import { FilesCrumbs, FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
 import { SyncGlyph } from './Sync';
 import { pairFor } from './sync-view';
 import { setChatMode } from './chat-mode';
@@ -95,7 +97,7 @@ import { parseLayout } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
-import { SERVICE_NAMES, channelLabel } from './messages-view';
+import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem } from './messages-view';
 import { DEFAULT_LIST_NAME, nest, smartName, smartView } from './tasks-view';
 import { SearchPage, SearchSidebar } from './SearchPage';
 import type { HubFilter } from './search-hub';
@@ -220,6 +222,8 @@ export function App() {
   const preferences = usePreferences();
   // The apps added from Abilities decide what opens, what the switcher lists and what loads.
   setInstalledApps(preferences.value.installedApps);
+  // Mobius's own words, in the language chosen (English for now).
+  setLanguage(preferences.value.language);
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
@@ -551,8 +555,9 @@ export function App() {
     app,
     hasPage: active !== undefined && /^https?:/.test(active.url),
     pages: browser.tabs.filter((t) => /^https?:/.test(t.url)).length,
-    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inViews && views.page ? { path: views.page.path, title: views.page.title, text: views.text, folder: 'views' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: `Database ${databases.open}`, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
+    note: inNotes && notes.page ? { path: notes.page.path, title: notes.page.title, text: notes.text } : inDocs && docs.page ? { path: docs.page.path, title: liveTitle(docs.text, docs.page.title), text: docs.text, folder: 'docs', ...(docComments.page === docs.page.path && docComments.outline ? { extra: docComments.outline } : {}) } : inSlides && slides.page ? { path: slides.page.path, title: slides.page.title, text: slides.text, folder: 'slides' } : inDesign && designs.page ? { path: designs.page.path, title: designs.page.title, text: designs.text, folder: 'designs' } : inStudio && songs.page ? { path: songs.page.path, title: songs.page.title, text: songs.text, folder: 'studio' } : inCanvas && boards.page ? { path: boards.page.path, title: boards.page.title, text: boards.text, folder: 'boards' } : inViews && views.page ? { path: views.page.path, title: views.page.title, text: views.text, folder: 'views' } : inResearch && research.page && !askingResearch ? { path: research.page.path, title: liveTitle(research.text, research.page.title), text: research.text, folder: 'research' } : inReader && reading.page ? { path: reading.page.path, title: reading.page.title, text: reading.text, folder: 'reading' } : inTerminal && lastTerminal ? { path: lastTerminal.cwd || '~', title: `Terminal: ${lastTerminal.command}`.slice(0, 120), text: `$ ${lastTerminal.command}   (in ~/${lastTerminal.cwd})\n${lastTerminal.result!.output.slice(-20_000)}\n${lastTerminal.result!.passed ? 'Exit code 0' : `Exit code ${lastTerminal.result!.code ?? 'none'}${lastTerminal.result!.timedOut ? ' (stopped: too long)' : ''}`}`, folder: 'terminal' } : inDatabase && databases.open ? { path: `${databases.open}.sqlite`, title: databases.open, text: databaseOutline(databases.open, databases.list.find((d) => d.name === databases.open)?.tables ?? []), folder: 'databases' } : null,
     tasks: inTasks ? tasksContext(tasks) : null,
+    chat: inMessages && chat.account && chat.channel && !chat.channel.encrypted && chat.messages.length > 0 ? { id: `${chat.account.id}/${chat.channel.id}`, title: channelLabel(chat.channel), item: chatItem(chat.account, chat.channel, chat.messages), catchUp: catchUpAsk(chat.channel, chat.unreadAtOpen) } : null,
     folder: inFiles && files.place.kind === 'folder' && files.place.path !== '' ? files.place.path : null,
     mail: inMail && mail.open ? { id: mail.open.id, title: `Email: ${mail.open.subject || '(no subject)'}`, text: `From: ${mail.open.from.name} <${mail.open.from.email}>\nSubject: ${mail.open.subject}\nDate: ${mail.open.dateMs ? new Date(mail.open.dateMs).toString() : ''}\n\n${mail.open.text}` } : null,
     cut: inVideo && video.project ? { title: `Video: ${video.project}`, source: `video/${video.project}/cut.json`, text: `Clips in video/${video.project}/ (never change them):\n${video.clips.map((c) => `- ${c.name}${c.kind === 'audio' ? ' (sound)' : ''}: ${video.lengthOf(c.name) ?? '?'} s`).join('\n') || '(none yet)'}\n\nThe cut, video/${video.project}/cut.json:\n${writeCut(video.cut)}` } : null,
@@ -690,9 +695,13 @@ export function App() {
   // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
   // Panels menu (or the top bar) brings it back, and a choice made there is kept.
   const roomy = useWideWindow(1200);
+  // Every other app's list does the same while Mobius is docked beside it, so the page keeps a readable column (at
+  // 1024 wide, Notes had about 370px). Home is the chat itself and keeps its list. A choice made in the Panels menu is
+  // kept, as for Mail.
+  const mobiusDocked = chatOpen && appearance.value.rightSidebar !== 'floating';
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' || id === 'calendar' ? roomy : true, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'agent' ? true : id === 'mail' || id === 'calendar' ? roomy : roomy || !mobiusDocked, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
@@ -1683,7 +1692,7 @@ export function App() {
       case 'reader':
         return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && liveMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
-        return <ResearchPage research={research} listPanels={listFor('research')} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && liveMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ResearchPage research={research} listPanels={listFor('research')} steps={research.page ? researchSteps(conversation.state.items, `research/${research.page.path}`) : []} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && liveMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'views':
         return (
           <ViewPage
@@ -1705,7 +1714,7 @@ export function App() {
       case 'mail':
         return <MailPage mail={mail} onDraftReply={onDraftReply} />;
       case 'messages':
-        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAddAccount={() => openSettingsAt('messages')} onAsk={(prompt, item) => { if (!shows('agent')) setChatOpen(true); setIncoming({ token: Date.now(), item, text: prompt }); }} />;
+        return <MessagesPage messages={chat} listPanels={listFor('messages')} onAddAccount={() => openSettingsAt('messages')} />;
       case 'sheets':
         return <SheetGrid sheets={sheets} review={sheets.data && liveMarks.sheets.has(sheets.data.workbook) ? { conversation: conversation.state.conversation } : null} working={conversation.state.busy} />;
       case 'calendar':
@@ -1875,6 +1884,7 @@ export function App() {
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
+      onRead={() => { if (!active) return; void saveToReader(reading, active.url).then((done) => { if (!done.ok) { setToast(done.message); return; } openApp('reader'); void reading.open(done.path, active.title); }); }}
     />
   );
   // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
@@ -1914,7 +1924,8 @@ export function App() {
         // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
         // start page, where the Go button already says Home.
         // Messages and Research with nothing open are blank too: the Go button names the app, and the title would only repeat it.
-        title: place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
+        // Files inside a nested folder: the path as a breadcrumb, each part opening its folder.
+        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.

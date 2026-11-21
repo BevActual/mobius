@@ -467,6 +467,9 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .group-toggle .chev { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.6; transition: transform var(--dur-fast); }
 .group-toggle .chev[data-open] { transform: rotate(90deg); }
 .group-count { margin-left: auto; font-weight: 400; }
+/* Day headings in the Chats panel: quieter than an agent group, sentence case. */
+.clist-day { margin: 10px 12px 2px; font-size: var(--fs-xs); font-weight: 500; color: var(--muted); }
+.clist-dayset:first-child .clist-day { margin-top: 4px; }
 @media (prefers-reduced-motion: reduce) { .group-toggle .chev { transition: none; } }
 
 /* Notes */
@@ -927,8 +930,10 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant li[data-task] input { margin: 0 0.35em 0 0; vertical-align: -0.12em; accent-color: var(--mobius); }
 .msg.assistant li[data-task="done"] { color: var(--muted); }
 .msg.assistant strong { font-weight: var(--fw-semibold); }
-.msg.assistant a { color: var(--mobius); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--mobius) 40%, transparent); text-underline-offset: 2px; cursor: pointer; }
-.msg.assistant a:hover { text-decoration-color: currentColor; }
+/* Links in what you read (replies, notes, docs, reports): ink with a quiet underline that turns ink on hover. Not blue,
+   and not indigo, which is kept for what Mobius touched. */
+:is(.msg.assistant, .note-page, .research-text) a:not(.cite) { color: var(--ink); text-decoration-line: underline; text-decoration-thickness: 1px; text-decoration-color: var(--line-strong); text-underline-offset: 2px; cursor: pointer; }
+:is(.msg.assistant, .note-page, .research-text) a:not(.cite):hover { text-decoration-color: var(--ink); }
 .msg.assistant :not(pre) > code { padding: 1px 5px; border-radius: 5px; background: var(--field); font-family: var(--font-mono); font-size: 0.92em; }
 .msg.assistant pre { padding: 10px 12px; border-radius: var(--radius-group); background: var(--field); overflow-x: auto; white-space: pre; font-family: var(--font-mono); font-size: 0.9em; line-height: 1.45; }
 .msg.assistant blockquote { padding-left: 12px; border-left: 3px solid var(--line-strong); color: var(--muted); }
@@ -936,6 +941,8 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .msg.assistant .md-table { overflow-x: auto; max-width: 100%; }
 .msg.assistant .md-table table { border-collapse: collapse; font-size: 0.95em; font-variant-numeric: tabular-nums; }
 .msg.assistant .md-table th, .msg.assistant .md-table td { padding: 4px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: top; }
+.msg.assistant .md-chart { margin: var(--sp-3) 0; }
+.msg.assistant .md-chart figcaption { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); margin-bottom: var(--sp-2); }
 /* In the narrow panel a wide table scrolls sideways instead of squeezing a column to a letter per line: words are never
    broken inside a cell, and each column keeps a floor (the first, which usually names the row, a wider one). */
 .msg.assistant .md-table :is(th, td) { min-width: 4.5em; overflow-wrap: normal; word-break: normal; }
@@ -1103,10 +1110,14 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @keyframes welcome-band { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .welcome-mark .mark-band { animation: none; opacity: 1; } }
 .welcome-title { margin: 0; font-size: var(--fs-display); font-weight: var(--fw-bold, 700); letter-spacing: -0.03em; }
-.welcome-lede { margin: 0; max-width: 32ch; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-body, 1.45); }
+.welcome-lede { margin: 0; max-width: 42ch; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-body, 1.45); }
 /* How much Mobius should do: three one-line choices in one group, the chosen one ticked in ink. */
 .welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
 .welcome-h { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+/* The step's number: a quiet mono figure in a ring, before the question. */
+.welcome-step { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: var(--sp-2); border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; vertical-align: 1px; }
+/* A step's one line of help lines up with its question's words, not the number. */
+.first-run-models > .srow-desc { padding-left: 28px; }
 .welcome-next { width: 100%; max-width: 420px; margin: var(--sp-4) auto 0; padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
 .welcome-level {
   display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-list-2, 48px); padding: var(--sp-2) var(--sp-3);
@@ -1362,11 +1373,10 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* Trust marks: each fact says where it came from; only the shaky ones ask for attention. */
 .claim-wrap { position: relative; }
-.claim { display: inline; padding: 0 1px; border-radius: 3px; font: inherit; color: inherit; text-decoration-line: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; cursor: pointer; }
-.claim[data-tier="yours"], .claim[data-tier="checked"] { text-decoration-color: #34c759; }
-.claim[data-tier="web"] { text-decoration-color: #0a84ff; }
-.claim[data-tier="unsure"] { text-decoration-style: dotted; text-decoration-color: #ff9f0a; background: rgba(255, 159, 10, 0.14); font-style: italic; }
-.claim:hover, .claim[aria-expanded="true"] { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.claim { display: inline; padding: 0 1px; border-radius: 3px; font: inherit; color: inherit; text-decoration-line: underline; text-decoration-thickness: 1px; text-decoration-color: var(--line-strong); text-underline-offset: 2px; cursor: pointer; }
+/* The tiers differ in the line's style, never its colour: a fact not sure is dotted and in italics, to check. */
+.claim[data-tier="unsure"] { text-decoration-style: dotted; text-decoration-thickness: 1.5px; text-decoration-color: var(--ink); font-style: italic; }
+.claim:hover, .claim[aria-expanded="true"], .claim:focus-visible { text-decoration-color: var(--ink); background: var(--soft); }
 .claim-card { position: absolute; left: 0; top: calc(100% + 4px); z-index: 4; width: max-content; max-width: 280px; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); font-style: normal; white-space: normal; }
 .claim-card .claim-note { color: var(--muted); font-size: var(--fs-xs); }
 .claim-card .btn { align-self: flex-start; }
@@ -1522,7 +1532,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-chips { display: flex; flex-wrap: wrap; gap: 6px; max-width: 720px; }
 .research-chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 4px; border-radius: var(--radius-pill); background: var(--field); color: var(--ink); font-size: var(--fs-xs); text-decoration: none; }
 .research-chip:hover { background: color-mix(in srgb, var(--accent) 12%, var(--field)); }
-.research-chip-dot { width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--app-research); color: #fff; font-size: var(--fs-floor); font-weight: 700; }
+/* A site's letter in ink on a neutral tile, as Browser shows a site without a favicon. */
+.research-chip-dot { width: 18px; height: 18px; display: grid; place-items: center; border-radius: var(--radius-small); background: var(--bg); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); color: var(--ink); font-size: var(--fs-floor); font-weight: var(--fw-semibold); }
 .research-more { padding: 0 10px; color: var(--muted); }
 .research-text { max-width: 680px; font-size: 15px; line-height: 1.6; }
 .research-text h1 { font-size: 26px; line-height: 1.25; margin: 0 0 12px; }
@@ -2402,7 +2413,7 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .doc-change-bar { display: flex; align-items: center; gap: 6px; }
 .doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
 .doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
-.task-items > .task-change { list-style: none; margin: 6px 0 10px; }
+.task-items > .task-change { list-style: none; margin: 10px 0 4px; }
 .task[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; border-radius: 6px; }
 .task[data-proposed] > .task-line { outline: 0; }
 /* The work area takes focus after an app opens from All apps; it is a landing place, not a control, so no ring. */
@@ -2672,3 +2683,26 @@ body { font-variant-numeric: tabular-nums; }
 .canvas-inspector-facts > div { display: flex; justify-content: space-between; gap: var(--sp-2); }
 .canvas-inspector-facts dt { color: var(--muted); font-size: var(--fs-xs); }
 .canvas-inspector-facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* Research as it goes: quiet rows, the matrix only on the step under way; folded into one row once the report is written. */
+.research-steps { list-style: none; margin: var(--sp-2) 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--muted); }
+.research-step { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--sp-5); }
+.research-step a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-step a:hover { color: var(--ink); }
+.research-step span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-step-mark { flex: none; width: var(--sp-5); display: grid; place-items: center; }
+.research-step-mark::before { content: ""; width: var(--sp-1); height: var(--sp-1); border-radius: var(--radius-pill); background: var(--faint); }
+.research-step[data-failed] { color: var(--faint); }
+.research-step-matrix { width: var(--sp-5); }
+.research-steps-done { margin: 0 0 var(--sp-3); font-size: var(--fs-sm); color: var(--muted); }
+.research-steps-done summary { cursor: default; width: max-content; padding: var(--sp-1) 0; }
+.research-steps-done summary:hover { color: var(--ink); }
+.research-next { margin-top: var(--sp-5); }
+/* A fact's source, numbered as in Sources: small and muted, ink on hover, with the page's title and site. */
+.cite-wrap { position: relative; line-height: 0; }
+.cite { margin-left: 1px; padding: 0 2px; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--muted); text-decoration: none; border-radius: var(--radius-control); }
+.cite:hover, .cite:focus-visible { color: var(--ink); }
+.cite-card { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 4; display: none; flex-direction: column; gap: 2px; width: max-content; max-width: 280px; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); line-height: 1.35; white-space: normal; }
+.cite:hover .cite-card, .cite:focus-visible .cite-card { display: flex; }
+.cite-card-title { color: var(--ink); font-weight: var(--fw-medium, 500); }
+.cite-card-site { color: var(--muted); font-size: var(--fs-xs); }

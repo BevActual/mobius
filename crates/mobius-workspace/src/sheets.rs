@@ -384,6 +384,43 @@ impl Sheets {
         Ok(json!({ "workbook": workbook, "sheet": name }))
     }
 
+    /// Copies a sheet, its charts too, into a new tab just after it: "Budget copy", then "Budget copy 2".
+    pub fn duplicate_sheet(&self, workbook: &str, sheet: &str) -> Res<Value> {
+        let mut order = self.sheets_of(workbook)?;
+        let at = order.iter().position(|s| s == sheet).ok_or("that sheet is not there")?;
+        let (rows, _) = self.load(workbook, sheet)?;
+        let base = file_name_for(&format!("{sheet} copy"));
+        let mut chosen = base.clone();
+        let mut n = 2;
+        while order.iter().any(|s| s.eq_ignore_ascii_case(&chosen)) {
+            chosen = format!("{base} {n}");
+            n += 1;
+        }
+        self.store(workbook, &chosen, &rows)?;
+        order.insert(at + 1, chosen.clone());
+        self.set_order(workbook, &order)?;
+        let mut charts = self.charts(workbook);
+        let copies: Vec<Value> = charts.iter().filter(|c| c["sheet"] == sheet).cloned().map(|mut c| {
+            c["sheet"] = json!(chosen);
+            c
+        }).collect();
+        if !copies.is_empty() {
+            charts.extend(copies);
+            self.set_charts(workbook, &charts)?;
+        }
+        Ok(json!({ "workbook": workbook, "sheet": chosen }))
+    }
+
+    /// Moves a tab to place `to` (from 0) among the workbook's sheets; past the end puts it last.
+    pub fn move_sheet(&self, workbook: &str, sheet: &str, to: usize) -> Res<Value> {
+        let mut order = self.sheets_of(workbook)?;
+        let from = order.iter().position(|s| s == sheet).ok_or("that sheet is not there")?;
+        let name = order.remove(from);
+        order.insert(to.min(order.len()), name);
+        self.set_order(workbook, &order)?;
+        Ok(json!({ "workbook": workbook, "sheet": sheet, "sheets": order }))
+    }
+
     /// Deletes a sheet, after a checkpoint, so it can be brought back. A workbook keeps at least one.
     pub fn remove_sheet(&self, workbook: &str, sheet: &str) -> Res<Value> {
         let mut order = self.sheets_of(workbook)?;
@@ -548,6 +585,21 @@ mod tests {
         assert_eq!(s.read("Offsite budget", "Budget").unwrap()["cells"][1][0], "Total");
         assert!(s.remove_sheet("Offsite budget", "People").is_ok());
         assert!(s.remove_sheet("Offsite budget", "Budget").is_err(), "one sheet stays");
+        // A copy lands just after its sheet, with its charts; a move takes a tab to a place.
+        s.run("sheets.write", &json!({ "workbook": "Offsite budget", "sheet": "Budget", "charts": [{ "range": "A2:B3", "at": "D2" }] })).unwrap();
+        assert_eq!(s.add_sheet("Offsite budget", "People").unwrap()["sheet"], "People");
+        assert_eq!(s.duplicate_sheet("Offsite budget", "Budget").unwrap()["sheet"], "Budget copy");
+        assert_eq!(s.duplicate_sheet("Offsite budget", "Budget").unwrap()["sheet"], "Budget copy 2");
+        assert_eq!(s.sheets_of("Offsite budget").unwrap(), vec!["Budget", "Budget copy 2", "Budget copy", "People"]);
+        let copy = s.read("Offsite budget", "Budget copy").unwrap();
+        assert_eq!(copy["cells"][1][0], "Total");
+        assert_eq!(copy["charts"][0]["sheet"], "Budget copy");
+        assert_eq!(s.read("Offsite budget", "Budget").unwrap()["charts"].as_array().unwrap().len(), 1);
+        assert_eq!(s.move_sheet("Offsite budget", "People", 0).unwrap()["sheets"], json!(["People", "Budget", "Budget copy 2", "Budget copy"]));
+        s.move_sheet("Offsite budget", "Budget", 99).unwrap();
+        assert_eq!(s.sheets_of("Offsite budget").unwrap(), vec!["People", "Budget copy 2", "Budget copy", "Budget"]);
+        assert!(s.move_sheet("Offsite budget", "Nope", 0).is_err());
+        assert!(s.duplicate_sheet("Offsite budget", "Nope").is_err());
         assert!(s.read("../x", "Budget").is_err());
     }
 

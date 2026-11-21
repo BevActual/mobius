@@ -202,9 +202,11 @@
 .cal-from-mobius { display: inline-grid; place-items: center; color: var(--mobius); }
 .cal-to-review { padding-right: var(--sp-2); font-size: var(--fs-sm); color: var(--mobius); white-space: nowrap; align-self: center; }
 /* The all-day row: each item reads whole, on up to two lines, two a day, then "+N more". */
-/* One line each in the all-day row, cut with an ellipsis; two rows a day, then "+N more". */
-.calendar-page .cal-all-day-cell .cal-event b, .calendar-page .cal-all-day-cell .cal-task span { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.calendar-page .cal-all-day-cell .cal-task { align-items: center; line-height: 16px; }
+/* Up to two lines each, so a title reads whole; three a day, then "+N more". */
+.calendar-page .cal-all-day-cell .cal-event b, .calendar-page .cal-all-day-cell .cal-task span { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; min-width: 0; white-space: normal; overflow: hidden; overflow-wrap: anywhere; }
+.calendar-page .cal-all-day-cell .cal-task { align-items: flex-start; line-height: 16px; }
+.calendar-page .cal-all-day-cell .cal-task input { margin-top: 1.5px; }
+.calendar-page .cal-done-count { padding: 0 4px; font-size: var(--fs-xs); color: var(--muted); }
 .calendar-page .cal-all-day-cell .cal-event[data-quiet] { min-height: 18px; }
 .calendar-page .cal-all-day-cell .cal-more { padding: 0 4px; font-weight: var(--fw-medium); }
 .calendar-page .cal-all-day > .cal-fewer { border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
@@ -234,8 +236,9 @@
 .calendar-page .cal-year-day[data-today]::after { background: var(--on-ink); }
 
 /* A task with a due time, at its hour in Day and Week: a thin line on paper, beside any event it falls inside. Its time is in its name and tooltip, as events in a month keep theirs. */
-.calendar-page .cal-task[data-timed] { position: absolute; z-index: 2; height: 22px; padding: 0 var(--sp-1); background: var(--paper); border: var(--hairline-w) solid var(--line); box-shadow: var(--shadow-1); }
-.calendar-page .cal-task[data-timed]:hover { background: var(--sel); }
+/* A timed task is the same block as an event (tint, small radius), with its circle where an event has its edge. */
+.calendar-page .cal-task[data-timed] { position: absolute; z-index: 2; height: 22px; padding: 0 var(--sp-2) 0 5px; background: color-mix(in srgb, var(--muted) 12%, var(--paper)); border: 0; border-radius: var(--radius-small); font-size: var(--fs-sm); }
+.calendar-page .cal-task[data-timed]:hover { background: color-mix(in srgb, var(--muted) 20%, var(--paper)); }
 .calendar-page .cal-task-repeat { flex: none; width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .cal-meeting { align-self: flex-start; }
 .cal-invitees { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 0; padding: 0 2px; list-style: none; color: var(--muted); font-size: var(--fs-sm); }

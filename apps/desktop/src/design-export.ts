@@ -1,5 +1,8 @@
 import { isNotesFailure } from '@mobius/shared';
-import { componentOf, resolveColor, withOverride, type DesignDoc, type DesignFrame, type DesignNode } from './design-format';
+import { componentOf, coverCrop, lineEnds, resolveColor, withOverride, type DesignDoc, type DesignFrame, type DesignNode } from './design-format';
+
+/** The design's pictures, loaded, by the `src` each image layer keeps. */
+export type Pictures = ReadonlyMap<string, CanvasImageSource & { naturalWidth: number; naturalHeight: number }>;
 
 /** The album in Photo that a design's exported frames go to. */
 export const EXPORT_ALBUM = 'Design exports';
@@ -50,7 +53,7 @@ function border(ctx: CanvasRenderingContext2D, t: { type?: DesignNode['type']; x
 }
 
 /** Draws layers in order; a copy of a component draws the component's layers in its box, with its own text and colours. */
-function drawLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, layers: readonly DesignNode[], font: string, depth: number) {
+function drawLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, layers: readonly DesignNode[], font: string, depth: number, pictures: Pictures) {
   for (const n of layers) {
     if (n.hidden) continue;
     ctx.save();
@@ -63,13 +66,25 @@ function drawLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, layers: reado
         shape(ctx, { x: 0, y: 0, w: main.w, h: main.h, radius: main.radius });
         ctx.clip();
         if (main.fill !== 'transparent') { ctx.fillStyle = resolveColor(main.fill, doc.styles); ctx.fill(); }
-        drawLayers(ctx, doc, main.children.map((c) => withOverride(c, n)), font, depth + 1);
+        drawLayers(ctx, doc, main.children.map((c) => withOverride(c, n)), font, depth + 1, pictures);
       }
       ctx.restore();
       continue;
     }
+    if (n.type === 'line') { drawLine(ctx, n, doc); ctx.restore(); continue; }
     if (n.fill !== 'transparent') { ctx.fillStyle = resolveColor(n.fill, doc.styles); shape(ctx, n); ctx.fill(); }
-    if (n.type === 'text') {
+    if (n.type === 'image') {
+      const pic = n.src ? pictures.get(n.src) : undefined;
+      if (pic) {
+        ctx.save();
+        shape(ctx, n);
+        ctx.clip();
+        const c = coverCrop({ w: pic.naturalWidth, h: pic.naturalHeight }, n);
+        ctx.drawImage(pic, c.sx, c.sy, c.sw, c.sh, n.x, n.y, n.w, n.h);
+        ctx.restore();
+      }
+      border(ctx, n, doc);
+    } else if (n.type === 'text') {
       ctx.font = `${n.weight} ${n.size}px ${font}`;
       ctx.fillStyle = resolveColor(n.color, doc.styles);
       ctx.textBaseline = 'middle';
@@ -84,8 +99,39 @@ function drawLayers(ctx: CanvasRenderingContext2D, doc: DesignDoc, layers: reado
   }
 }
 
+/** A line corner to corner across its box, dashed if asked, with filled arrowheads at the ends it has them. */
+function drawLine(ctx: CanvasRenderingContext2D, n: DesignNode, doc: DesignDoc) {
+  if (n.strokeWidth <= 0 || n.stroke === 'transparent') return;
+  const e = lineEnds(n);
+  const x1 = n.x + e.x1, y1 = n.y + e.y1, x2 = n.x + e.x2, y2 = n.y + e.y2;
+  const colour = resolveColor(n.stroke, doc.styles);
+  const ends = n.ends ?? 'none';
+  ctx.strokeStyle = colour;
+  ctx.fillStyle = colour;
+  ctx.lineWidth = n.strokeWidth;
+  ctx.lineCap = ends === 'none' ? 'round' : 'butt';
+  if (n.dash) ctx.setLineDash([n.strokeWidth * 3, n.strokeWidth * 2]);
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  // The same head as on the canvas: four stroke widths long, pointing along the line.
+  const head = (tx: number, ty: number, fx: number, fy: number) => {
+    const a = Math.atan2(ty - fy, tx - fx), len = n.strokeWidth * 4, half = len * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(tx + Math.cos(a) * len * 0.2, ty + Math.sin(a) * len * 0.2);
+    ctx.lineTo(tx - Math.cos(a) * len * 0.8 - Math.sin(a) * half, ty - Math.sin(a) * len * 0.8 + Math.cos(a) * half);
+    ctx.lineTo(tx - Math.cos(a) * len * 0.8 + Math.sin(a) * half, ty - Math.sin(a) * len * 0.8 - Math.cos(a) * half);
+    ctx.closePath();
+    ctx.fill();
+  };
+  if (ends !== 'none') head(x2, y2, x1, y1);
+  if (ends === 'both') head(x1, y1, x2, y2);
+}
+
 /** Draws one frame, at `scale` times its size, as it shows on the canvas: its fill, its layers in order, and borders. */
-export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, font: string): HTMLCanvasElement {
+export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, font: string, pictures: Pictures = new Map()): HTMLCanvasElement {
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(frame.w * scale));
   canvas.height = Math.max(1, Math.round(frame.h * scale));
@@ -95,25 +141,37 @@ export function drawFrame(doc: DesignDoc, frame: DesignFrame, scale: number, fon
   shape(ctx, box);
   ctx.clip();
   if (frame.fill !== 'transparent') { ctx.fillStyle = resolveColor(frame.fill, doc.styles); ctx.fill(); }
-  drawLayers(ctx, doc, frame.children, font, 0);
+  drawLayers(ctx, doc, frame.children, font, 0, pictures);
   border(ctx, { ...box, stroke: frame.stroke, strokeWidth: frame.strokeWidth }, doc);
   return canvas;
 }
 
 /** The frame as a PNG (base64, without the data: prefix). */
-export function framePng(doc: DesignDoc, frame: DesignFrame, scale: number, font: string): string {
-  return drawFrame(doc, frame, scale, font).toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
+export function framePng(doc: DesignDoc, frame: DesignFrame, scale: number, font: string, pictures: Pictures = new Map()): string {
+  return drawFrame(doc, frame, scale, font, pictures).toDataURL('image/png').replace(/^data:image\/png;base64,/, '');
 }
 
 /**
  * Saves a frame as a PNG into Photo's "Design exports" album (made the first time), and says where it went. The
  * picture is drawn here, so nothing new is needed from the core: Photo already keeps pictures.
  */
-export async function exportFrame(doc: DesignDoc, frame: DesignFrame, scale = 2): Promise<{ path: string } | { error: string }> {
+/** Loads the pictures a design shows (as `data:` addresses), so a frame can be drawn with them. */
+export async function loadPictures(urls: Readonly<Record<string, string>>): Promise<Pictures> {
+  const out = new Map<string, HTMLImageElement>();
+  await Promise.all(Object.entries(urls).map(([src, url]) => new Promise<void>((done) => {
+    const img = new Image();
+    img.onload = () => { out.set(src, img); done(); };
+    img.onerror = () => done();
+    img.src = url;
+  })));
+  return out;
+}
+
+export async function exportFrame(doc: DesignDoc, frame: DesignFrame, scale = 2, pictures: Pictures = new Map()): Promise<{ path: string } | { error: string }> {
   const photos = window.mobius.photos;
   if (!photos) return { error: 'Exporting needs Photo, which this window does not have.' };
   const font = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
-  const data = framePng(doc, frame, scale, font);
+  const data = framePng(doc, frame, scale, font, pictures);
   const albums = await photos.albums();
   if (isNotesFailure(albums) || !Array.isArray(albums)) return { error: (isNotesFailure(albums) && albums.message) || 'Photo could not be reached, so the picture was not saved.' };
   if (!albums.some((a) => a.name === EXPORT_ALBUM)) {

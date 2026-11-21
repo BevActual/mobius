@@ -321,6 +321,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Menu | White, a hairline border, 10px corners and a soft shadow. Mobius actions come first where they exist, then the app's. Every item shows its key. | 30px rows |
 | Tooltip | Small ink label with the control's name, then its key. | 12px text |
 | Key cap | A small bordered cap with a heavier bottom edge. Used in menus, tooltips, the New button and the hint bar. | 11px text |
+| Link | A web link in reading text (replies, Notes, Docs, reports): ink text with a 1px underline in line-strong at a 2px offset, the underline turning ink on hover. Never blue; indigo stays for names of things Mobius touched. A sourced claim wears the same underline with a soft fill on hover; an unsure one is dotted and italic, still ink. A citation is a superscript [n] in muted fs-xs. | Text size |
 | Chip (label or tag) | An outlined pill with a small colour dot and grey text. Never a solid colour fill. | 12px text |
 | Count | A plain grey number at the trailing edge. Never a black or coloured badge; a waiting app gets one ink dot on the Go button and in the launcher. | 12.5px, tabular |
 | Avatar | A grey circle with initials, or the photo. | 24px in one-line rows, 32px in two-line rows, 40px on a card |

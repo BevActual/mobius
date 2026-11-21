@@ -508,7 +508,7 @@ impl Bridge {
             skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
-            designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
+            designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             views: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "views").of_files("json", mobius_workspace::notes::view_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),
@@ -870,6 +870,11 @@ impl Bridge {
             ("files", "emptyTrash") => Ok(match self.workspace.empty_trash(arg(0).as_str().unwrap_or("")) {
                 Ok(gone) => json!({ "ok": true, "gone": gone }),
                 Err(error) => json!({ "ok": false, "error": error }),
+            }),
+            // Space in Files: a look at the file, read only (the person's own, not the agent's).
+            ("files", "peek") => Ok(match self.workspace.locate(arg(0).as_str().unwrap_or("")) {
+                Ok(path) => crate::peek::peek(&path),
+                Err(error) => json!({ "kind": "none", "reason": error }),
             }),
             ("files", "show") => {
                 if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
@@ -2007,6 +2012,15 @@ impl Bridge {
                 }
                 if bridge.mail.send_due() > 0 {
                     (bridge.emit)("mobius:mail-changed", json!({ "by": "person" }));
+                }
+                // Remind if no reply: an answer that came marks its follow-up; one whose time came unanswered is
+                // raised once, for Mail to show.
+                let (answered, due) = bridge.mail.follow_ups_due();
+                if answered {
+                    (bridge.emit)("mobius:mail-changed", json!({ "by": "reminder" }));
+                }
+                if !due.is_empty() {
+                    (bridge.emit)("mobius:mail-no-reply", json!({ "due": due }));
                 }
                 drop(bridge);
                 std::thread::sleep(Duration::from_secs(60));
@@ -3458,11 +3472,13 @@ impl Bridge {
             "remind" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.remind(id, args.get(1).and_then(Value::as_i64))),
             "schedule" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.schedule(id, args.get(1).and_then(Value::as_i64))),
             "suggestSend" => Ok(text(0).map_or(Value::Null, |id| m.suggest_send(id))),
+            "followUp" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.follow_up(id, args.get(1).and_then(Value::as_i64))),
+            "followUps" => Ok(m.follow_ups()),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read" | "plan" | "suggestSend") {
+                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read" | "plan" | "suggestSend" | "followUps") {
                     (self.emit)("mobius:mail-changed", json!({ "by": "person" }));
                 }
                 value
@@ -3505,6 +3521,14 @@ impl Bridge {
             "renameSheet" => match (text(0), text(1), text(2)) {
                 (Some(w), Some(sh), Some(n)) => s.rename_sheet(w, sh, n),
                 _ => Err("a name is needed".to_owned()),
+            },
+            "duplicateSheet" => match (text(0), text(1)) {
+                (Some(w), Some(sh)) => s.duplicate_sheet(w, sh),
+                _ => Err("a sheet is needed".to_owned()),
+            },
+            "moveSheet" => match (text(0), text(1), num(2)) {
+                (Some(w), Some(sh), Some(to)) => s.move_sheet(w, sh, to),
+                _ => Err("a sheet and a place are needed".to_owned()),
             },
             "removeSheet" => match (text(0), text(1)) {
                 (Some(w), Some(sh)) => s.remove_sheet(w, sh),
@@ -3683,6 +3707,19 @@ impl Bridge {
             "markRead" => match (text(0), text(1), text(2)) {
                 (Some(a), Some(c), Some(ts)) => accounts.mark_read(a, c, ts).map(|()| json!({ "ok": true })),
                 _ => Err("a conversation is needed".to_owned()),
+            },
+            "markUnread" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(m)) => accounts.mark_unread(a, c, m).map(|()| json!({ "ok": true })).inspect(|_| changed(a, Some(c))),
+                _ => Err("a message is needed".to_owned()),
+            },
+            "permalink" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(m)) => accounts.permalink(a, c, m).map(|url| json!({ "url": url })),
+                _ => Err("a message is needed".to_owned()),
+            },
+            // The person's own reaction, from the hover tools: never the agent's.
+            "react" => match (text(0), text(1), text(2), text(3), args.get(4).and_then(Value::as_bool)) {
+                (Some(a), Some(c), Some(m), Some(e), Some(on)) => accounts.react(a, c, m, e, on).map(|()| json!({ "ok": true })).inspect(|_| changed(a, Some(c))),
+                _ => Err("a message and a reaction are needed".to_owned()),
             },
             "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|a| accounts.remove(a)).inspect(|_| changed(text(0).unwrap_or(""), None)),
             // Slack: a sign-in on Slack's page; the window hears how it ended (`mobius:messages-sign-in`).

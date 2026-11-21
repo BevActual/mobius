@@ -128,3 +128,39 @@
 .files-info-facts dt { color: var(--muted); font-size: var(--fs-xs); }
 .files-info-facts dd { margin: 0; overflow-wrap: anywhere; user-select: text; font-variant-numeric: tabular-nums; }
 .files-info-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+/* The path in the title inside a nested folder: the parts above are muted buttons, where you are is in ink. */
+.files-title-path { display: inline-flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
+.files-crumb-step { display: inline-flex; align-items: baseline; min-width: 0; }
+.files-crumb-sep { margin: 0 var(--sp-1); color: var(--muted); font-weight: var(--fw-regular); }
+.files-title-path button.files-crumb { padding: 0 2px; border: 0; border-radius: var(--radius-small); background: none; font: inherit; color: var(--muted); cursor: pointer; }
+.files-title-path button.files-crumb:hover { background: var(--soft); color: var(--ink); }
+.files-crumb[aria-current] { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+/* Space's preview: a sheet over the list, as Quick Look. */
+.files-peek-scrim { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: var(--sp-6); background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.files-peek { display: flex; flex-direction: column; width: min(720px, 100%); max-height: 100%; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--shadow-2); outline: none; overflow: hidden; }
+.files-peek-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); border-bottom: var(--hairline-w) solid var(--line); }
+.files-peek-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); color: var(--ink); }
+.files-peek-body { overflow: auto; padding: var(--sp-5) var(--sp-6); }
+.files-peek-body img { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto; object-fit: contain; }
+.files-peek-text { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.55; color: var(--body); }
+.files-peek-md { font-size: var(--fs-reading); line-height: var(--lh-body); color: var(--body); }
+.files-peek-none { margin: var(--sp-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.files-page { position: relative; }
+.files-peek:focus, .files-peek:focus-visible { outline: none; }
+/* Grid view: tiles with the picture (or the file's icon) over its name; the columns other than the name step aside. */
+.files-view { margin-left: var(--sp-1); }
+.files-view .seg-btn { display: inline-flex; align-items: center; padding: 2px 6px; }
+.files-view svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.files-table[data-view="grid"] .files-head { display: none; }
+.files-table[data-view="grid"] > [role="rowgroup"] { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: var(--sp-2); padding-top: var(--sp-2); }
+.files-table[data-view="grid"] .files-row { border: 0; box-shadow: none; display: flex; flex-direction: column; align-items: stretch; height: auto; padding: var(--sp-2); border-radius: var(--radius-panel); }
+.files-table[data-view="grid"] .files-row > .files-cell:not(.files-name) { display: none; }
+.files-table[data-view="grid"] .files-name { display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); min-width: 0; text-align: center; }
+.files-table[data-view="grid"] .files-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); }
+.files-tile { display: grid; place-items: center; width: 100%; aspect-ratio: 4 / 3; border-radius: var(--radius-control); background: var(--soft); overflow: hidden; }
+.files-tile img { width: 100%; height: 100%; object-fit: cover; }
+.files-tile svg, .files-table[data-view="grid"] .files-tile .files-icon { width: 48px; height: 48px; }
+/* The glyph drawn about 32px across, its lines kept at the weight of every other icon. */
+.files-tile .files-icon * { vector-effect: non-scaling-stroke; stroke-width: 1.5; }
+/* In a tile, a folder's glyph is in ink like a file's, so a tile reads at a glance. */
+.files-table[data-view="grid"] .files-tile .files-icon { color: var(--ink) !important; stroke-width: 1.25; }

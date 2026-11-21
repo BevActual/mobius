@@ -7,7 +7,7 @@ import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWords, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -54,7 +54,7 @@ const GUTTER = 68;
 /** How many events and tasks a month cell lists before "more". */
 const CELL_ROWS = 4;
 /** How many all-day events and tasks a day shows above the hours before "+N more". */
-const ALL_DAY_ROWS = 2;
+const ALL_DAY_ROWS = 3;
 const MODES: { id: CalendarMode; name: string; keys: string }[] = [{ id: 'day', name: 'Day', keys: 'D' }, { id: 'week', name: 'Week', keys: 'W' }, { id: 'month', name: 'Month', keys: 'M' }, { id: 'year', name: 'Year', keys: 'Y' }];
 
 /** A calendar in the sidebar: its colour as a dot, its name; pressed, it is hidden from the grid and pressed again, shown. */
@@ -469,7 +469,9 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
   const [allDayOpen, setAllDayOpen] = useState(false);
   // Tasks with a time sit at their hour; the rest wait in the all-day row.
   const dueAll = days.map((d) => tasksOn(calendar.due, d));
-  const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null));
+  // Done ones leave the all-day row in Day and Week, folded into a quiet "N done" count, so open ones have the room.
+  const due = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null && !t.task.done));
+  const doneOn = dueAll.map((list) => list.filter((t) => taskMinutes(t) === null && t.task.done).length);
   // A timed task with a block of its own (an event or suggestion of the same name that day) is drawn by that block,
   // which says it is also a task: drawn twice, the two split the column and the block shrinks to a sliver.
   const timed = dueAll.map((list) => list.filter((t) => taskMinutes(t) !== null && !all.some((e) => taskFor([t], e) !== undefined)));
@@ -495,13 +497,13 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
           </button>
         ))}
       </div>
-      {(allDay.some((list) => list.length > 0) || due.some((list) => list.length > 0)) && (
+      {(allDay.some((list) => list.length > 0) || due.some((list) => list.length > 0) || doneOn.some((n) => n > 0)) && (
         <div className="cal-all-day" style={columns}>
           {allDayOpen && allDay.some((list, i) => list.length + due[i]!.length > ALL_DAY_ROWS)
-            ? <button type="button" className="cal-hour cal-fewer" title="Show two a day again" onClick={() => setAllDayOpen(false)}>Fewer</button>
+            ? <button type="button" className="cal-hour cal-fewer" title="Show three a day again" onClick={() => setAllDayOpen(false)}>Fewer</button>
             : <span className="cal-hour">All day</span>}
           {allDay.map((list, i) => {
-            // Two a day, events first, so the row stays short and each item reads whole; "+N more" opens the rest.
+            // Three a day, events first, so the row stays short and each item reads whole; "+N more" opens the rest.
             const events = allDayOpen ? list : list.slice(0, ALL_DAY_ROWS);
             const tasks = allDayOpen ? due[i]! : due[i]!.slice(0, ALL_DAY_ROWS - events.length);
             const more = list.length + due[i]!.length - events.length - tasks.length;
@@ -510,6 +512,7 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
                 {events.map((e) => <EventBlock key={keyOf(e)} calendar={calendar} event={e} onOpen={onOpen} picking={picking} compact from={days[i]!} span={spanOn(e, days[i]!, i === 0)} />)}
                 {tasks.map((t) => <TaskChip key={`${t.list}:${t.task.line}`} calendar={calendar} item={t} />)}
                 {more > 0 && <button type="button" className="cal-more" title="Show everything all day" onClick={() => setAllDayOpen(true)}>+{more} more</button>}
+                {doneOn[i]! > 0 && <span className="cal-done-count" title="Done tasks show in Month and in Tasks">{doneOn[i]} done</span>}
               </div>
             );
           })}
@@ -978,21 +981,21 @@ function QuickAdd({ calendar, into, onAdded, onClose }: { calendar: CalendarStat
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const field = useRef<HTMLInputElement>(null);
-  const parsed = text.trim() ? parseEventWords(text, new Date(), parseWhen) : null;
+  const parsed = text.trim() ? parseEventWithPlace(text, new Date(), parseWhen) : null;
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!parsed || busy) return;
     setBusy(true);
-    const ok = await calendar.add(into, { title: parsed.title, start: parsed.start, end: parsed.end });
+    const ok = await calendar.add(into, { title: parsed.title, start: parsed.start, end: parsed.end, ...(parsed.location ? { location: parsed.location } : {}) });
     setBusy(false);
     if (ok) { setText(''); onAdded(parsed.start); }
   };
   return (
     <form className="cal-quick" role="search" aria-label="Quick add" onSubmit={(e) => void submit(e)}>
-      <input ref={field} autoFocus aria-label="Quick add an event" aria-describedby="cal-quick-hint" placeholder="Lunch fri 1pm" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); onClose(); } }} />
+      <input ref={field} autoFocus aria-label="Quick add an event" aria-describedby="cal-quick-hint" placeholder="Lunch fri 1pm at Dock 2" value={text} maxLength={200} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setText(''); onClose(); } }} />
       {text.trim() && (
         <p id="cal-quick-hint" className="cal-quick-hint" role="status" data-ok={parsed ? true : undefined}>
-          {parsed ? <><b>{parsed.title}</b> <span>{whenSaid(parsed)} · {into}</span> <kbd>↵</kbd></> : 'Add a day or a time, such as “tomorrow 9am” or “fri 2-3pm”.'}
+          {parsed ? <><b>{parsed.title}</b> <span>{whenSaid(parsed)}{parsed.location && ` · ${parsed.location}`} · {into}</span> <kbd>↵</kbd></> : 'Add a day or a time, such as “tomorrow 9am” or “fri 2-3pm”.'}
         </p>
       )}
     </form>

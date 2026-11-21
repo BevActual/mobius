@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
+import type { FileEntry, FilePeek, FilesActionResult, TrashEntry } from '@mobius/shared';
+import { RichText } from './RichText';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { AppSidebar, Button, Confirm, IconButton, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
@@ -239,6 +240,31 @@ export function filesTitle(files: FilesState): string {
   const parts = files.place.path ? files.place.path.split('/') : [];
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
+/**
+ * The title inside a nested folder: its path as a breadcrumb, as Finder's path bar ("Workspace › notes › P2 build").
+ * Each part above opens that folder; the last is where you are, in ink. At the top or one folder down, the plain title.
+ */
+export function FilesCrumbs({ files }: { files: FilesState }): ReactNode {
+  if (files.place.kind !== 'folder') return filesTitle(files);
+  const parts = files.place.path ? files.place.path.split('/') : [];
+  if (parts.length < 2) return filesTitle(files);
+  const go = (to: string) => files.setPlace({ kind: 'folder', path: to });
+  return (
+    <nav className="files-title-path" aria-label="Folder path">
+      <button type="button" className="files-crumb" onClick={() => go('')}>Workspace</button>
+      {parts.map((part, i) => {
+        const last = i === parts.length - 1;
+        const name = i === 0 ? folderName(part) : part;
+        return (
+          <span key={i} className="files-crumb-step">
+            <span className="files-crumb-sep" aria-hidden="true">›</span>
+            {last ? <span className="files-crumb" aria-current="page">{name}</span> : <button type="button" className="files-crumb" onClick={() => go(parts.slice(0, i + 1).join('/'))}>{name}</button>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
 export function filesSub(files: FilesState): ReactNode {
   if (!files.available || (files.place.kind === 'folder' && files.problem) || files.place.kind === 'add-drive') return undefined;
@@ -270,7 +296,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
         <SidebarSection title="Folders">
           {files.roots.map((r) => (
             <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} count={held.get(r.name) ?? 0}
-              title={held.has(r.name) ? `${held.get(r.name)} from Mobius, not kept yet` : undefined}
+              title={held.has(r.name) ? `${held.get(r.name) === 1 ? '1 change' : `${held.get(r.name)} changes`} from Mobius, not kept yet` : undefined}
               current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })}
               drop={files.can.move ? files.drop(r.name) : undefined} trail={syncTrail(files, r.name)} />
           ))}
@@ -278,7 +304,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
       )}
       {files.drives.available && <DrivesSection files={files} />}
       <SidebarSection title="From Mobius">
-        <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
+        <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} title={files.made.files.length === 1 ? '1 file Mobius made or changed' : `${files.made.files.length} files Mobius made or changed`} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
       </SidebarSection>
     </AppSidebar>
   );
@@ -326,6 +352,62 @@ function DrivesSection({ files }: { files: FilesState }) {
 }
 
 /** Info (right, hidden until asked for): what the picked file or folder is, or the open folder when nothing is picked. */
+type FilesView = 'list' | 'grid';
+const VIEW_KEY = 'mobius.files.view';
+const readView = (): FilesView => { try { return window.localStorage.getItem(VIEW_KEY) === 'grid' ? 'grid' : 'list'; } catch { return 'list'; } };
+const PICTURE = /\.(png|jpe?g|gif|webp|svg|bmp)$/i;
+
+/** A grid tile's picture: the picture itself for an image (read once it is on screen), the file's icon otherwise. */
+function FileTile({ path, type }: { path: string; type: FileEntry['type'] }) {
+  const [src, setSrc] = useState<string | null>(null);
+  const box = useRef<HTMLSpanElement>(null);
+  const picture = type === 'file' && PICTURE.test(path) && !!window.mobius.files?.peek;
+  useEffect(() => {
+    if (!picture || !box.current) return undefined;
+    let live = true;
+    const load = () => { void window.mobius.files?.peek?.(path).then((got) => { if (live && got.kind === 'image') setSrc(got.src); }); };
+    if (typeof IntersectionObserver === 'undefined') { load(); return () => { live = false; }; }
+    const seen = new IntersectionObserver((items) => { if (items.some((i) => i.isIntersecting)) { seen.disconnect(); load(); } });
+    seen.observe(box.current);
+    return () => { live = false; seen.disconnect(); };
+  }, [path, picture]);
+  return <span ref={box} className="files-tile" aria-hidden="true">{src ? <img src={src} alt="" draggable={false} /> : <FileIcon path={path} type={type} />}</span>;
+}
+
+/** Space's look at a file, over the list: Markdown drawn, other text as it is, a picture fitted; Space or Esc closes. */
+function FilePeekView({ path, onClose, onOpen }: { path: string; onClose: () => void; onOpen: () => void }) {
+  const [peek, setPeek] = useState<FilePeek | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let live = true;
+    setPeek(null);
+    void window.mobius.files?.peek?.(path).then((got) => { if (live) setPeek(got); });
+    return () => { live = false; };
+  }, [path]);
+  useEffect(() => { box.current?.focus(); }, []);
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return (
+    <div className="files-peek-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={box} className="files-peek" role="dialog" aria-label={`Preview of ${name}`} tabIndex={-1}
+        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } else if (e.key === 'Enter') { e.preventDefault(); onOpen(); } }}>
+        <header className="files-peek-head">
+          <FileIcon path={path} type="file" />
+          <span className="files-peek-name">{name}</span>
+          <Button kind="quiet" onClick={onOpen}>Open</Button>
+          <IconButton label="Close preview" icon={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg>} onClick={onClose} />
+        </header>
+        <div className="files-peek-body">
+          {peek === null ? null
+            : peek.kind === 'image' ? <img src={peek.src} alt={name} />
+            : peek.kind === 'text' ? (peek.markdown ? <div className="files-peek-md"><RichText text={peek.text} /></div> : <pre className="files-peek-text">{peek.text}</pre>)
+            : <p className="files-peek-none">{peek.reason}</p>}
+          {peek?.kind === 'text' && peek.cut && <p className="files-peek-none">The rest is in the file. Press Enter to open it.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntry & { path: string }) | null; here: string; count: number; onOpen?: () => void; onCopyPath: (path: string) => void }) {
   const path = entry ? entry.path : here;
   const name = entry ? entry.name : (here.split('/').pop() || 'Workspace');
@@ -365,6 +447,9 @@ function FilesTools({ files, onNewFolder, children }: { files: FilesState; onNew
 
 /** The open folder of the drive, or Made by Mobius. Click selects, double-click or Enter opens: files open in their own app. */
 export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onOpenFile: (path: string) => void; onAsk?: ((prompt: string) => void) | undefined }) {
+  const [peeking, setPeeking] = useState<string | null>(null);
+  const [view, setView] = useState<FilesView>(readView);
+  const changeView = (v: FilesView) => { setView(v); try { window.localStorage.setItem(VIEW_KEY, v); } catch { /* kept for now */ } };
   const [selected, setSelected] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ path: string; type: FileEntry['type']; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -544,9 +629,17 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     setSelected(next.path);
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
   };
+  // How many tiles a grid row holds, for ↑ and ↓.
+  const gridColumns = () => { const el = listRef.current; if (!el) return 1; return Math.max(1, getComputedStyle(el).gridTemplateColumns.split(' ').filter(Boolean).length); };
   const onListKey = (e: React.KeyboardEvent) => {
-    if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
+    // Space: a look at the selected file over the list, as Finder's Quick Look; Space or Esc puts it away.
+    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && selected && window.mobius.files?.peek) {
+      const r = rows.find((x) => x.path === selected);
+      if (r && r.type === 'file') { e.preventDefault(); setPeeking((cur) => (cur === r.path ? null : r.path)); return; }
+    }
+    if (e.key === 'ArrowDown') { e.preventDefault(); move(view === 'grid' ? gridColumns() : 1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); move(view === 'grid' ? -gridColumns() : -1); }
+    else if (view === 'grid' && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) { e.preventDefault(); move(e.key === 'ArrowRight' ? 1 : -1); }
     else if (e.key === 'Home') { e.preventDefault(); move(-rows.length); }
     else if (e.key === 'End') { e.preventDefault(); move(rows.length); }
     else if (e.key === 'Enter') { const r = rows.find((x) => x.path === selected); if (r) { e.preventDefault(); open(r.path, r.type); } }
@@ -561,6 +654,11 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   return (
     <section className="skills-page files-page" aria-label="Files">
       <FilesTools files={files} onNewFolder={files.can.change ? () => void startNewFolder() : undefined}>
+        {/* List or grid, as Finder and Drive switch: one two-way control. */}
+        <span className="seg files-view" role="radiogroup" aria-label="View">
+          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'list'} title="As a list" aria-label="List" onClick={() => changeView('list')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" /></svg></button>
+          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'grid'} title="As a grid" aria-label="Grid" onClick={() => changeView('grid')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /></svg></button>
+        </span>
         {herePair && <>
           <IconButton label={herePair.paused ? 'Resume syncing' : 'Pause syncing'} icon={<svg viewBox="0 0 20 20" aria-hidden="true">{herePair.paused ? <path d="M7 5.5v9l7.5-4.5z" /> : <path d="M7.5 5.5v9M12.5 5.5v9" />}</svg>} onClick={() => void files.sync.pause(herePair, !herePair.paused)} />
           <Button kind="quiet" disabled={herePair.paused} onClick={() => void files.sync.syncNow(herePair)}>Sync now</Button>
@@ -576,7 +674,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         <EmptyState icon={GLYPH.folder} title="This folder is empty" {...(files.can.change ? { action: { label: 'New folder', run: () => void startNewFolder() } } : {})} />
       )}
       {!files.problem && !files.loading && files.entries.length > 0 && (
-        <div className="files-table" role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
+        <div className="files-table" data-view={view} role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1}>
           <div className="files-head" role="row">{head('name', 'Name')}{head('modified', 'Modified')}{head('kind', 'Kind')}{head('size', 'Size')}</div>
           <div ref={listRef} role="rowgroup" onKeyDown={onListKey}>
             {rows.length === 0 && <p className="note-empty files-none">Nothing here matches “{files.query}”.</p>}
@@ -595,7 +693,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
                   className="files-row" data-proposed={(mine && e.type === 'file') || undefined} aria-label={mine ? `${e.name}, from Mobius` : e.name}
                   onClick={() => setSelected(e.path)} onDoubleClick={() => open(e.path, e.type)}
                   onContextMenu={(ev) => { ev.preventDefault(); setSelected(e.path); setMenu({ path: e.path, type: e.type, x: ev.clientX, y: ev.clientY }); }}>
-                  <span role="gridcell" className="files-cell files-name"><FileIcon path={e.path} type={e.type} />{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
+                  <span role="gridcell" className="files-cell files-name">{view === 'grid' ? <FileTile path={e.path} type={e.type} /> : <FileIcon path={e.path} type={e.type} />}{nameCell(e.path, e.name)}{e.type === 'folder' && syncTrail(files, e.path)}{held > 0 && <span className="files-dot" role="img" aria-label={`${held} from Mobius`} title={held === 1 ? 'Holds one thing from Mobius, not kept yet' : `Holds ${held} things from Mobius, not kept yet`} />}</span>
                   <span role="gridcell" className="files-cell files-date">{e.modified ? relativeTime(e.modified, Date.now()) : '—'}</span>
                   <span role="gridcell" className="files-cell files-kind">{fileKind(e.path, e.type)}</span>
                   <span role="gridcell" className="files-cell files-size">{e.type === 'folder' ? itemCount(e.items) : size(e.bytes)}</span>
@@ -615,6 +713,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         ))}
       </nav>}
       {fileMenu}
+      {peeking && <FilePeekView path={peeking} onClose={() => { setPeeking(null); listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus(); }} onOpen={() => { setPeeking(null); onOpenFile(peeking); }} />}
       <PanelTab id="info" name="Info">{(() => { const e = rows.find((x) => x.path === selected) ?? null; return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />; })()}</PanelTab>
     </section>
   );

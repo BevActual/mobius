@@ -32,8 +32,9 @@ test('opens one window with a single visible page glued to the slot', async () =
 
 test('the page stays glued to the slot when the window resizes and the panel toggles', async () => {
   await expectVisibleView(mobius.app);
-  await resizeWindow(mobius.app, 1000, 700);
+  // Hide the tabs while the window is wide: below 1200 px with Mobius docked the list already starts folded.
   await mobius.shell.getByRole('button', { name: 'Hide Tabs' }).click();
+  await resizeWindow(mobius.app, 1000, 700);
   await expect.poll(async () => {
     const slot = (await mobius.shell.getByTestId('surface-slot').boundingBox())!;
     const view = (await views(mobius.app)).find((v) => v.visible)!;

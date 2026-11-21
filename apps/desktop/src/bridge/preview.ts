@@ -13,6 +13,7 @@ import { PREVIEW_BROWSER } from './preview-browser';
 import { PREVIEW_MESSAGES } from './preview-messages';
 import { PREVIEW_CODE } from './preview-code';
 import { PREVIEW_DESIGNS } from './preview-designs';
+import { PREVIEW_RESEARCH } from './preview-research';
 import { PREVIEW_VIEWS } from './preview-views';
 import { PREVIEW_SLIDES } from './preview-slides';
 import { PREVIEW_PHOTOS } from './preview-photos';
@@ -110,6 +111,7 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   ...PREVIEW_MESSAGES,
   ...PREVIEW_CODE,
   ...PREVIEW_DESIGNS,
+  ...PREVIEW_RESEARCH,
   ...PREVIEW_VIEWS,
   ...PREVIEW_SLIDES,
   ...PREVIEW_PHOTOS,

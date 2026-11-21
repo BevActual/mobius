@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, LauncherAnswer, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -354,6 +354,7 @@ export function createTauriBridge(): MobiusBridge {
       trashList: () => call('files', 'trashList', [], () => ({ error: 'Not here.' })),
       emptyTrash: (held) => call('files', 'emptyTrash', [held], () => ({ ok: false as const, error: 'Not here.' })),
       show: (path) => call('files', 'show', [path], () => undefined),
+      peek: (path) => call('files', 'peek', [path], () => ({ kind: 'none' as const, reason: 'Not available.' })),
     },
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),
@@ -405,6 +406,9 @@ export function createTauriBridge(): MobiusBridge {
       remind: (id, atMs) => call('mail', 'remind', [id, atMs], () => ({ ok: false as const, message: 'Not available.' })),
       schedule: (id, atMs) => call('mail', 'schedule', [id, atMs], () => ({ ok: false as const, message: 'Not available.' })),
       suggestSend: (id) => call('mail', 'suggestSend', [id], () => null),
+      followUp: (id, remindMs) => call('mail', 'followUp', [id, remindMs], () => ({ ok: false as const, message: 'Not available.' })),
+      followUps: () => call('mail', 'followUps', [], () => []),
+      onNoReply: (listener) => on<{ due: MailFollowUp[] }>('mobius:mail-no-reply', listener),
       send: (id) => call('mail', 'send', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       onChanged: (listener) => on<{ by: string }>('mobius:mail-changed', listener),
     },
@@ -479,6 +483,8 @@ export function createTauriBridge(): MobiusBridge {
       addSheet: (workbook, name) => call('sheets', 'addSheet', [workbook, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       renameSheet: (workbook, sheet, name) => call('sheets', 'renameSheet', [workbook, sheet, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       removeSheet: (workbook, sheet) => call('sheets', 'removeSheet', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      duplicateSheet: (workbook, sheet) => call('sheets', 'duplicateSheet', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      moveSheet: (workbook, sheet, to) => call('sheets', 'moveSheet', [workbook, sheet, to], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       onChanged: (listener) => on<SheetsChanged>('mobius:sheets-changed', listener),
     },
     contacts: {
@@ -526,6 +532,9 @@ export function createTauriBridge(): MobiusBridge {
       history: (account, channel, options) => call('messages', 'history', [account, channel, options ?? {}], () => []),
       send: (account, channel, text, thread) => call('messages', 'send', [account, channel, text, thread ?? ''], () => ({ ok: false as const, message: 'Messages is not available.' })),
       markRead: async (account, channel, upTo) => { await call('messages', 'markRead', [account, channel, upTo], () => null); },
+      markUnread: (account, channel, message) => call('messages', 'markUnread', [account, channel, message], () => ({ ok: false as const, message: 'Messages is not available.' })),
+      permalink: (account, channel, message) => call('messages', 'permalink', [account, channel, message], () => ({ ok: false as const, message: 'Messages is not available.' })),
+      react: (account, channel, message, emoji, on) => call('messages', 'react', [account, channel, message, emoji, on], () => ({ ok: false as const, message: 'Messages is not available.' })),
       onChanged: (listener) => on<ChatChanged>('mobius:messages-changed', listener),
       removeAccount: (id) => call('messages', 'removeAccount', [id], () => ({ ok: false as const, message: 'Messages is not available.' })),
       slackStatus: () => call('messages', 'slackStatus', [], () => ({ setUp: false, pending: null, hint: null })),
@@ -641,6 +650,8 @@ export function createTauriBridge(): MobiusBridge {
       createPage: (notebook, title) => call('designs', 'createPage', [notebook, title], () => ({ ok: false as const, message: 'Design is not available.' })),
       remove: (path) => call('designs', 'remove', [path], () => ({ ok: false as const, message: 'Design is not available.' })),
       search: (query) => call('designs', 'search', [query], () => []),
+      attach: (path, name, base64) => call('designs', 'attach', [path, name, base64], () => ({ ok: false as const, message: 'Design is not available.' })),
+      asset: (path, reference) => call('designs', 'asset', [path, reference], () => ({ ok: false as const, message: 'Design is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:designs-changed', listener),
     },
     boards: {

@@ -33,7 +33,12 @@ Frames on a canvas, as in Sketch and Figma.
 - Design opens on the design you had open last (or the newest one). **New design** is at the top of the sidebar
   (Ctrl+N).
 - The tools and zoom sit in the window's toolbar. Draw with a tool (**V** move, **F** frame, **R** rectangle,
-  **O** oval, **T** text) or click one to add it.
+  **O** oval, **L** line, **T** text) or click one to add it. Hold Shift while drawing a line to keep it flat, upright
+  or at 45°. A line's **Stroke** in the inspector sets its colour and width, arrowheads at the end or both ends, and
+  solid or dashed.
+- **Images**: paste a picture, drop one on a frame, or use the toolbar's **Image** button (Ctrl+Shift+K). It fills its
+  box and is cropped to it, and takes a corner radius like a rectangle. Pictures are kept beside the design, in
+  `<design> files/`.
 - The **Inspector** is a panel on the right, beside Mobius. Hide or show it from the Panels menu or with Ctrl+Alt+I.
 - Pick with a click, Shift-click or a box. Move with smart guides, size from any edge, line layers up from the
   inspector, copy and duplicate. Double-click a text layer to type on the canvas.
@@ -55,7 +60,7 @@ Frames on a canvas, as in Sketch and Figma.
 - Mobius's changes are dashed to keep or discard. It can also make pictures with your
   [Images model](../guide/models-and-gateways.md#a-model-for-each-job).
 
-**Kept in:** `workspace/designs/`, each design a JSON file.
+**Kept in:** `workspace/designs/`, each design a JSON file, with its pictures in a `<design> files` folder beside it.
 
 ## Photo
 

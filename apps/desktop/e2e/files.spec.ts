@@ -27,7 +27,8 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 /** The toolbar's title: the open folder's name. */
-const title = () => shell().locator('.strip-title');
+// Where you are: the title, or inside a nested folder the breadcrumb's last part (the parts above open their folders).
+const title = () => shell().locator('.strip-title .files-crumb[aria-current], .strip-title:not(:has(.files-title-path))');
 /** Files' own controls, in the toolbar. */
 const tools = () => shell().getByRole('group', { name: 'Files' });
 
@@ -60,6 +61,7 @@ test('Files shows the workspace as a drive, folder by folder, and a file opens i
   await expect(title()).toHaveText('Notes');
   await tools().getByRole('button', { name: 'Forward' }).click();
   await expect(title()).toHaveText('Work');
+  await expect(shell().locator('.strip-title .files-title-path')).toHaveText('Workspace›Notes›Work');
   await expect(shell().getByRole('complementary', { name: 'Places' }).getByRole('region', { name: 'Folders' }).getByRole('button', { name: 'Notes' })).toHaveAttribute('aria-current', 'page');
   // The sidebar's search narrows the folder; the keyboard selects and opens.
   await shell().getByRole('searchbox', { name: 'Search this folder' }).fill('nothing like it');
