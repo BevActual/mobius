@@ -1,5 +1,7 @@
 import { Fragment, createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 import { claimKey, parseMarkdown, plainText, type Block, type Inline } from './markdown';
+import { parseReplyChart } from './reply-chart';
+import { Chart } from './ui/Chart';
 
 /** Links in a reply open as a browser tab in Mobius, not in another program. */
 function openLink(href: string) {
@@ -101,7 +103,12 @@ function block(node: Block, i: number): ReactNode {
       return node.ordered ? <ol key={i} start={node.start === 1 ? undefined : node.start}>{items}</ol> : <ul key={i} data-tasks={tasks || undefined}>{items}</ul>;
     }
     case 'quote': return <blockquote key={i}>{inline(node.children)}</blockquote>;
-    case 'code': return <pre key={i} data-lang={node.lang || undefined}><code>{node.text}</code></pre>;
+    case 'code': {
+      // Analyse mode's charts: a finished `chart` block that reads as one is drawn; anything else stays code.
+      const chart = node.lang === 'chart' && !node.open ? parseReplyChart(node.text) : null;
+      if (chart) return <figure key={i} className="md-chart"><figcaption>{chart.title}</figcaption><Chart label={chart.title} kind={chart.kind} categories={chart.categories} series={chart.series} height={180} /></figure>;
+      return <pre key={i} data-lang={node.lang || undefined}><code>{node.text}</code></pre>;
+    }
     case 'table':
       // Wide tables scroll inside their own box, so the reply around them keeps its width.
       return (

@@ -270,7 +270,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
         <SidebarSection title="Folders">
           {files.roots.map((r) => (
             <SidebarRow key={r.name} icon={<FileIcon path={r.name} type="folder" size="side" />} label={folderName(r.name)} count={held.get(r.name) ?? 0}
-              title={held.has(r.name) ? `${held.get(r.name)} from Mobius, not kept yet` : undefined}
+              title={held.has(r.name) ? `${held.get(r.name) === 1 ? '1 change' : `${held.get(r.name)} changes`} from Mobius, not kept yet` : undefined}
               current={here !== null && (here === r.name || here.startsWith(`${r.name}/`))} onSelect={() => files.setPlace({ kind: 'folder', path: r.name })}
               drop={files.can.move ? files.drop(r.name) : undefined} trail={syncTrail(files, r.name)} />
           ))}
@@ -278,7 +278,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
       )}
       {files.drives.available && <DrivesSection files={files} />}
       <SidebarSection title="From Mobius">
-        <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
+        <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} title={files.made.files.length === 1 ? '1 file Mobius made or changed' : `${files.made.files.length} files Mobius made or changed`} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
       </SidebarSection>
     </AppSidebar>
   );

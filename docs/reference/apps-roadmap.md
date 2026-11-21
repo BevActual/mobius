@@ -40,7 +40,7 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 | Settings | Permission wording (#241) | Shared selects | |
 | Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
 | Projects | Instrument round and Permission names (#186) | Projects in Ctrl+K; drag a conversation onto a project | |
-| Sheets | Sum, average and count of the selection in Glance (#261) | Analyse mode reachable from the panel | |
+| Sheets | Sum, average and count of the selection in Glance (#261); Analyse… in the panel (#540), its charts drawn in the reply | | |
 | Slides | Instrument (#201) | Shared selects; Rehearse mode later | |
 | Design | Instrument (#185) | Pen tool; Assets panel | Assets panel: where app panels go |
 | Code | Instrument (#150) | Debug mode; failing tests in Glance | |
@@ -48,7 +48,7 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 | Video | Instrument (#190) | Toolbar split so it folds into ⋯; track lanes with mute and solo (library `LetterToggle`); clip inspector sliders | Toolbar split: Builder, toolbar fit (#264) |
 | Knowledge | Instrument (#194) | Check against sources; Rename and Delete with Undo on pages | |
 | Reader | Instrument (#184) | Shared empty state for the list | |
-| Database | Instrument (#187) | Analyse mode in the panel | |
+| Database | Instrument (#187); Analyse… in the panel (#540), its charts drawn in the reply | | |
 | Activity | Instrument (#155) | Rows and sizes from the shell | Builder: row sizes for Activity |
 | Views | Instrument (#191) | Sheets and Database tiles with charts; ask Mobius to make a view | |
 | Abilities | Instrument (#160) | Connector on and off with its tool list; skills on and off | Builder: start and stop a connector live |
@@ -68,7 +68,7 @@ These are the same change made in many apps. Each still lands as one pull reques
 | Shared selects | Native `<select>` becomes the library's `Select` or `ChoiceMenu`. | Calendar, Tasks and Agents (Have); Photo (Building); Settings, Slides, Design, Knowledge, Projects, Canvas | Next |
 | Shared date fields | Native date and time inputs become `DateField` and `TimeField`. | Calendar (#246), Tasks (#248) and Agents (#243) Have; Settings (Schedules) | Next |
 | Actions in the panel | Each app puts its own actions in the panel's Actions slot with `AppAction`, as Mail does with Get to zero. | Calendar, Tasks, Files, Docs, Notes, then the rest | Next, one app at a time |
-| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Have, #251, #278), then Docs and Notes, Sheets and Database, Code | Next |
+| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Have, #251, #278), Sheets and Database (Have, #540), then Docs and Notes, Code | Next |
 | Glance and Result slots | What each app shows in the panel's Glance and Result slots. | Sheets (#261), Tasks (#271) and Calendar (#272) Have; then every app | Next |
 | App panels out of the Mobius panel | The Mobius panel is just Mobius (Andrew, 14 November). Each app's own panel (Docs outline, Reader highlights, the Design, Photo, Video and Slides inspectors, Code and Sheets panels) moves out of the tabs beside Mobius to where the design lead's rule puts it. No app adds a tab beside Mobius meanwhile. | Docs, Reader, Design, Photo, Video, Slides, Code, Sheets | Waiting: the design lead's rule, then the Builder's shell change |
 
