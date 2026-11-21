@@ -1922,11 +1922,10 @@ export function App() {
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
           <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
-        // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
-        // start page, where the Go button already says Home.
-        // Messages and Research with nothing open are blank too: the Go button names the app, and the title would only repeat it.
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank: the Go button shows
+        // only the app's icon (Andrew, 21 November 2026), so the title names Home, Messages and Research too.
         // Files inside a nested folder: the path as a breadcrumb, each part opening its folder.
-        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
+        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (settingsOpen ? undefined : app === 'agent' ? (inAgents ? 'Agents' : 'Home') : appName(app)),
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
