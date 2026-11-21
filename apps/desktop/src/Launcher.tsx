@@ -360,7 +360,7 @@ export function Launcher({
       if (!element?.open || event.defaultPrevented) return;
       if (event.key === 'Escape' && !element.contains(event.target as Node)) { event.preventDefault(); onCloseRef.current(); return; }
       if (event.key !== 'Tab') return;
-      const stops = [...element.querySelectorAll<HTMLElement>('input, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null);
+      const stops = [...element.querySelectorAll<HTMLElement>('input, select, textarea, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null);
       if (stops.length === 0) return;
       const first = stops[0]!, last = stops[stops.length - 1]!;
       const at = document.activeElement;
@@ -968,7 +968,7 @@ export function Launcher({
     <>
       {/* The shade behind it: a click on it closes the launcher, as a click outside a modal dialog did. */}
       {open && <div className="launcher-backdrop" aria-hidden="true" onClick={onClose} />}
-      <dialog ref={dialog} className="launcher" aria-label="Launcher" aria-modal="true"
+      <dialog ref={dialog} className="launcher" aria-label="Launcher" aria-modal={open || undefined}
         onCancel={(event) => { event.preventDefault(); onClose(); }}
         onKeyDown={(event) => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose(); } }}>
         {body}
