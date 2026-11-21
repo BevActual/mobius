@@ -4,11 +4,15 @@
 //! makes the sound block by block on a sample clock, so the same code serves offline render (export, and comparing
 //! with the window's Web Audio version) and, next, the audio thread behind a device stream.
 //!
+//! [`engine::Engine`] plays it live: a device stream whose audio thread only renders, fed new songs through a
+//! wait-free queue and handing back its position and levels through atomics.
+//!
 //! This first part plays the synth voice every melodic instrument uses ([`voice`]), with each track's volume, pan,
 //! mute and solo, through the master. Drums, effects and automation come next, matched one by one against
 //! `apps/desktop/src/studio-audio.ts`.
 
 pub mod clock;
+pub mod engine;
 pub mod param;
 pub mod render;
 pub mod song;

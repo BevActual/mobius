@@ -10,10 +10,15 @@ enum Event {
     Target { target: f64, tau: f64 },
 }
 
-/// Events in time order, read forward one sample at a time.
+/// The most events one value holds: a note's envelope needs four.
+const MAX_EVENTS: usize = 6;
+
+/// Events in time order, read forward one sample at a time. It holds them in place, so making one on the audio
+/// thread allocates nothing.
 #[derive(Debug, Clone)]
 pub struct Param {
-    events: Vec<(f64, Event)>,
+    events: [(f64, Event); MAX_EVENTS],
+    count: usize,
     /// The first event not yet reached.
     next: usize,
     /// The value where the event before `next` left it, and when.
@@ -25,40 +30,44 @@ pub struct Param {
 impl Param {
     #[must_use]
     pub fn new(value: f64) -> Param {
-        Param { events: Vec::new(), next: 0, from: (0.0, value), target: None }
+        Param { events: [(0.0, Event::Set(value)); MAX_EVENTS], count: 0, next: 0, from: (0.0, value), target: None }
     }
 
     /// The value from `at` on (`setValueAtTime`).
     #[must_use]
-    pub fn set(mut self, value: f64, at: f64) -> Param {
-        self.events.push((at, Event::Set(value)));
-        self
+    pub fn set(self, value: f64, at: f64) -> Param {
+        self.push(at, Event::Set(value))
     }
 
     /// A straight line from the last event to `value` at `at` (`linearRampToValueAtTime`).
     #[must_use]
-    pub fn linear(mut self, value: f64, at: f64) -> Param {
-        self.events.push((at, Event::Linear(value)));
-        self
+    pub fn linear(self, value: f64, at: f64) -> Param {
+        self.push(at, Event::Linear(value))
     }
 
     /// An exponential curve from the last event to `value` at `at` (`exponentialRampToValueAtTime`).
     #[must_use]
-    pub fn exponential(mut self, value: f64, at: f64) -> Param {
-        self.events.push((at, Event::Exponential(value)));
-        self
+    pub fn exponential(self, value: f64, at: f64) -> Param {
+        self.push(at, Event::Exponential(value))
     }
 
     /// From `at`, moving toward `target` with time constant `tau` seconds (`setTargetAtTime`).
     #[must_use]
-    pub fn target(mut self, target: f64, at: f64, tau: f64) -> Param {
-        self.events.push((at, Event::Target { target, tau: tau.max(1e-6) }));
+    pub fn target(self, target: f64, at: f64, tau: f64) -> Param {
+        self.push(at, Event::Target { target, tau: tau.max(1e-6) })
+    }
+
+    fn push(mut self, at: f64, event: Event) -> Param {
+        if let Some(slot) = self.events.get_mut(self.count) {
+            *slot = (at, event);
+            self.count += 1;
+        }
         self
     }
 
     /// The value at `time` seconds. Times must not go backwards between calls.
     pub fn at(&mut self, time: f64) -> f64 {
-        while let Some(&(when, event)) = self.events.get(self.next) {
+        while let Some(&(when, event)) = self.events[..self.count].get(self.next) {
             let start = self.current(when);
             match event {
                 // A ramp is under way until its time: the line from where the last event left the value.

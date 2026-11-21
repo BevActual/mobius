@@ -57,7 +57,9 @@ impl LowPass {
 /// A sounding note. It is made when the note starts and is done once its release has run out.
 #[derive(Debug, Clone)]
 pub struct Voice {
-    oscs: Vec<Osc>,
+    /// At most two detuned pairs of sine and saw, and the sub: held in place, so a note allocates nothing.
+    oscs: [Osc; 5],
+    count: usize,
     base: f64,
     gain: Param,
     cutoff: Param,
@@ -88,19 +90,27 @@ impl Voice {
             cutoff = cutoff.linear(open, attack).target(sound.cutoff, attack, decay / 3.0);
         }
         let detunes: &[f64] = if sound.detune > 0.0 { &[-0.5, 0.5] } else { &[0.0] };
-        let mut oscs = Vec::new();
+        let mut oscs = [Osc { phase: 0.0, cents: 0.0, ratio: 1.0, saw: false, level: 0.0 }; 5];
+        let mut count = 0;
+        let mut add = |osc: Osc| {
+            if let Some(slot) = oscs.get_mut(count) {
+                *slot = osc;
+                count += 1;
+            }
+        };
         for share in detunes {
             for (saw, level) in [(false, 1.0 - sound.shape), (true, sound.shape)] {
                 if level > 0.001 {
-                    oscs.push(Osc { phase: 0.0, cents: share * sound.detune, ratio: 1.0, saw, level: level / detunes.len() as f64 });
+                    add(Osc { phase: 0.0, cents: share * sound.detune, ratio: 1.0, saw, level: level / detunes.len() as f64 });
                 }
             }
         }
         if sound.sub > 0.001 {
-            oscs.push(Osc { phase: 0.0, cents: 0.0, ratio: 0.5, saw: false, level: sound.sub * 0.8 });
+            add(Osc { phase: 0.0, cents: 0.0, ratio: 0.5, saw: false, level: sound.sub * 0.8 });
         }
         Voice {
             oscs,
+            count,
             base: hz(f64::from(pitch)),
             gain,
             cutoff,
@@ -131,7 +141,7 @@ impl Voice {
             let wobble = if self.vibrato > 0.0 { self.vibrato * (TAU * self.lfo).sin() } else { 0.0 };
             self.lfo = (self.lfo + self.rate * dt).fract();
             let mut x = 0.0;
-            for osc in &mut self.oscs {
+            for osc in &mut self.oscs[..self.count] {
                 let step = self.base * osc.ratio * 2f64.powf((osc.cents + wobble) / 1200.0) * dt;
                 x += osc.level * if osc.saw { saw(osc.phase, step) } else { (TAU * osc.phase).sin() };
                 osc.phase = (osc.phase + step).fract();
