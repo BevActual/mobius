@@ -29,7 +29,15 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 function file() { return path.join(userData, 'workspace', 'studio', 'Songs', 'Night Drive.json'); }
-const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof SONG;
+type Note = { pitch: number; start: number; length: number; velocity: number };
+type SavedClip = { id: string; start: number; length: number; name?: string; muted?: boolean; notes: Note[] };
+/** The saved song, with each track's notes also read out of its clips into song time, as the notes editor shows them. */
+const saved = () => {
+  const song = JSON.parse(fs.readFileSync(file(), 'utf8')) as { version: number; tracks: { clips?: SavedClip[]; notes: Note[] }[] };
+  // A file the app has not saved since it was written (by a test or by Mobius) may still be version 1, notes and all.
+  for (const t of song.tracks) if (t.clips) t.notes = t.clips.flatMap((c) => c.notes.map((n) => ({ ...n, start: c.start + n.start }))).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+  return song as unknown as typeof SONG & { version: number; tracks: (typeof SONG.tracks[number] & { clips: SavedClip[] })[] };
+};
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
 /** Adds a track from Sounds in the sidebar. */
@@ -68,6 +76,9 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
   await roll.getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 4 * 40 + 5, y: 6 } });
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 64)).toEqual({ pitch: 64, start: 4, length: 1, velocity: 0.8 });
+  // Saved as version 2: Arrange's notes are kept in clips, each note timed from its clip's start.
+  expect(saved().version).toBe(2);
+  expect(saved().tracks[0]!.clips.find((c) => c.start === 4)?.notes).toEqual([{ pitch: 64, start: 0, length: 1, velocity: 0.8 }]);
   // A click picks a note; a double-click takes it out.
   await roll.getByLabel('E4 at beat 5, 1 beats').dblclick();
   await expect.poll(() => saved().tracks[0]!.notes.some((n) => n.pitch === 64)).toBe(false);
@@ -638,4 +649,46 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('button', { name: 'Add track' }).click();
   await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Lead' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
+});
+
+test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied with Ctrl+D and deleted, each undone', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  // The four-bar song's notes are one clip, bar 1; the song is made eight bars so there is room to move it.
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  await ruler.click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Add 4 Bars' }).click();
+  const r = (await ruler.boundingBox())!;
+  const bar = r.width / 8;
+  const clip = () => shell().getByRole('button', { name: /^Keys, bar/ }).first();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 1');
+  // Dragged two bars right, it lands on bar 3, its notes going with it.
+  let b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + 10, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + 10 + bar * 2, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 3');
+  await expect.poll(() => saved().tracks[0]!.clips?.map((c) => [c.start, c.length])).toEqual([[8, 4]]);
+  expect(saved().tracks[0]!.notes.map((n) => n.start)).toEqual([8, 8]);
+  // Its right edge, dragged a bar further, makes it two bars long.
+  b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + b.width - 2, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + b.width - 2 + bar, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 3 to 4');
+  // 0 mutes it (kept, not played), Ctrl+D copies it straight after, Delete takes the copy out; Undo goes back a step.
+  await clip().focus();
+  await shell().keyboard.press('0');
+  await expect(clip()).toHaveAccessibleName('Keys, bars 3 to 4, muted');
+  await expect.poll(() => saved().tracks[0]!.clips?.[0]?.muted).toBe(true);
+  await shell().keyboard.press('Control+d');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
+  await shell().getByRole('button', { name: 'Keys, bars 5 to 6, muted' }).focus();
+  await shell().keyboard.press('Delete');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(1);
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+z');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDevice } from './device-format';
 import { newEffect, type Effect } from './song-format';
-import { deviceGraph, effectChain, rmsDb } from './studio-audio';
+import { deviceGraph, effectChain, rmsDb, softLimit } from './studio-audio';
 
 /**
  * A pretend audio context that writes down every node made, every value set on it and every connection, so a graph
@@ -158,5 +158,19 @@ describe('the levels the Workbench shows', () => {
     expect(rmsDb(new Float32Array(64).fill(1))).toBeCloseTo(0, 6);
     expect(rmsDb(new Float32Array(64).fill(0.5))).toBeCloseTo(-6.02, 2);
     expect(rmsDb(new Float32Array(64))).toBe(-90);
+  });
+});
+
+describe('the soft limit on a device', () => {
+  // A wave shaper reads its curve across inputs from -1 to 1: the value at input v is at (v + 1) / 2 of the way along.
+  const at = (v: number) => { const c = softLimit(); return c[Math.round(((v + 1) / 2) * (c.length - 1))]!; };
+  it('leaves a signal under 0.8 as it is, so a device is as loud as its parts', () => {
+    expect(at(0)).toBeCloseTo(0, 5);
+    expect(at(0.5)).toBeCloseTo(0.5, 2);
+    expect(at(-0.25)).toBeCloseTo(-0.25, 2);
+  });
+  it('bends louder ones toward a ceiling under 1', () => {
+    expect(at(1)).toBeGreaterThan(0.9);
+    expect(at(1)).toBeLessThan(1);
   });
 });
