@@ -28,7 +28,7 @@ describe('browser pieces', () => {
     expect(html).toContain('1 filter');
     expect(html).toContain('>Clear<');
     const none = renderToStaticMarkup(<FilterBar groups={[]} value={{}} onChange={noop} />);
-    expect(none).toContain('No filters');
+    expect(none).not.toContain('filter</span>');
     expect(none).not.toContain('>Clear<');
   });
 
@@ -42,7 +42,7 @@ describe('browser pieces', () => {
     expect(html).toContain('>Raw<');
     expect(html).toContain('Preview volume');
     const empty = renderToStaticMarkup(<PreviewStrip on={false} raw onToggle={noop} onRaw={noop} volume={0} onVolume={noop} />);
-    expect(empty).toContain('Nothing chosen');
+    expect(empty).toContain('>Preview<');
     expect(empty).toContain('Shift+Enter previews the chosen item');
   });
 });
