@@ -3583,6 +3583,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mobius-audio"
+version = "0.0.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "mobius-browser"
 version = "0.0.0"
 dependencies = [
