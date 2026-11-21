@@ -218,14 +218,14 @@ describe('the Glance in the Mobius panel', () => {
     expect(calendarGlance(events, day('2026-11-14T10:00'))).toEqual([
       { label: 'Still to come', value: '3' },
       { label: 'Next', value: clock('2026-11-14T10:30') },
-      { label: 'Free time', value: '6 hr' },
+      { label: 'Free time', value: '6 h' },
     ]);
   });
   it('counts an event under way, and says so when nothing else starts today', () => {
     expect(calendarGlance(events, day('2026-11-14T17:45'))).toEqual([
       { label: 'Still to come', value: '1' },
       { label: 'Next', value: 'Nothing' },
-      { label: 'Free time', value: '0 min' },
+      { label: 'Free time', value: '0 m' },
     ]);
   });
   it('says plainly when nothing else is on today, without counting zero', () => {
@@ -251,5 +251,18 @@ describe('who is invited', () => {
     expect(sameInvitees([{ email: 'x@example.com' }], on)).toBe(false);
     expect(answerWord('declined')).toBe('not going');
     expect(answerWord('needs-action')).toBe('');
+  });
+});
+
+describe('quick event with a place', () => {
+  const now = new Date(2026, 10, 21, 10, 0);
+  it('takes a place said last after a time', async () => {
+    const { parseEventWithPlace } = await import('./calendar-view');
+    const { parseWhen } = await import('./tasks-view');
+    expect(parseEventWithPlace('Lunch with Priya fri 1pm at Dock 2', now, parseWhen)).toMatchObject({ title: 'Lunch with Priya', location: 'Dock 2' });
+    expect(parseEventWithPlace('Dentist tomorrow at 3pm', now, parseWhen)).toMatchObject({ title: 'Dentist' });
+    expect(parseEventWithPlace('Dentist tomorrow at 3pm', now, parseWhen)?.location).toBeUndefined();
+    expect(parseEventWithPlace('Lunch at noon', now, parseWhen)?.location).toBeUndefined();
+    expect(parseEventWithPlace('Offsite next week in Lisbon', now, parseWhen)).toMatchObject({ title: 'Offsite', location: 'Lisbon', allDay: true });
   });
 });
