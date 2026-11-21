@@ -25,7 +25,7 @@ test.afterEach(async () => {
 const FILE = 'research/Research/Boutique hotels in Principe Real.md';
 const report = (origin: string, extra = '') => `# Boutique hotels in Príncipe Real
 
-Casa Amora is the closest fit: [nine rooms](trust:web "Casa Amora") and breakfast included.
+Casa Amora is the closest fit: [nine rooms](trust:web "${origin}/casa-amora") and breakfast included.
 ${extra}
 ## Sources
 
