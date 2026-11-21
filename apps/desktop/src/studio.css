@@ -278,3 +278,7 @@
 .studio-bench-dot { flex: none; width: var(--port-size); }
 .studio-bench-name { color: var(--muted); }
 .studio-bench-value { margin-left: auto; padding-left: var(--sp-2); color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+/* A muted clip is kept, faded; a clip being dragged rides above its lane. Its right edge stretches it. */
+.studio-page .studio-clip[data-muted] { opacity: 0.4; }
+.studio-page .studio-clip[data-dragging] { z-index: 2; box-shadow: var(--shadow-2); }
+.studio-clip-edge { position: absolute; top: 0; right: 0; bottom: 0; width: var(--sp-2); cursor: ew-resize; }
