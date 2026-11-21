@@ -138,8 +138,8 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await expect(log.getByRole('group', { name: 'Approval needed: mail.draft' })).toHaveCount(0);
   const suggested = page().getByLabel('Suggested reply');
   await expect(suggested).toContainText('two vegetarians');
-  await expect(suggested).toContainText('Draft from Mobius');
-  await expect(suggested.getByText('Draft from Mobius')).toHaveAttribute('title', /Mobius never sends; you press Send/);
+  await expect(suggested).toContainText('Mobius drafted this');
+  await expect(suggested.getByText('Mobius drafted this')).toHaveAttribute('title', /Mobius never sends; you press Send/);
   expect(servers.sent.length).toBe(0);
   // Keep opens it as your draft.
   await suggested.getByRole('button', { name: 'Keep' }).click();

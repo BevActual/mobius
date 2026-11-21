@@ -72,7 +72,7 @@ export function useMail() {
   const [loaded, setLoaded] = useState(false);
   const [message, setMessage] = useState('');
   /** What the last archive or Remind me did, offered back for a while in the shared Undo toast. */
-  const [undo, setUndo] = useState<{ text: string; run: () => Promise<void> } | null>(null);
+  const [undo, setUndo] = useState<{ text: string; run: () => Promise<void>; /** When a held send goes out: the toast counts down to it. */ until?: number } | null>(null);
   useEffect(() => {
     if (!undo) return;
     const t = setTimeout(() => setUndo(null), 8000);
@@ -184,7 +184,7 @@ export function useMail() {
         await refresh();
       });
     }, UNDO_SEND_MS);
-    setUndo({ text: `Sending ${label}`, run: async () => { undone = true; clearTimeout(timer); setUndo(null); hold(false); setEditing(saved); } });
+    setUndo({ text: `Sending ${label}`, until: Date.now() + UNDO_SEND_MS, run: async () => { undone = true; clearTimeout(timer); setUndo(null); hold(false); setEditing(saved); } });
     return null;
   }, [api, refresh]);
 

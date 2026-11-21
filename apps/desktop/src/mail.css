@@ -15,8 +15,8 @@
 .mail-row-who { grid-area: who; }
 .mail-row-what { grid-area: what; }
 .mail-row-end { grid-area: end; }
-.mail-row:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
-.mail-row[aria-selected="true"] { background: var(--sel); }
+.mail-row:hover { background: color-mix(in srgb, var(--sel) 35%, transparent); }
+.mail-row[aria-selected="true"], .mail-row[aria-selected="true"]:hover { background: var(--sel); }
 .mail-row[aria-selected="true"] .mail-row-who { font-weight: var(--fw-medium); }
 .mail-row:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .mail-row-who, .mail-row-what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -81,7 +81,10 @@
 
 /* Mobius's draft: one dashed indigo block, its text as the person would send it. */
 .mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
-.mail-suggested-head { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); cursor: help; }
+.mail-suggested { gap: var(--sp-2); }
+.mail-suggested .doc-change-bar { flex-wrap: wrap; row-gap: var(--sp-1); }
+.mail-suggested .doc-change-bar > span:first-child { display: inline-flex; flex: 1 1 auto; }
+.mail-suggested-head { display: inline-flex; align-items: center; white-space: nowrap; flex: none; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--mobius); cursor: help; }
 .mail-suggested-head .mobius-mark { color: var(--mobius); }
 .mail-suggested-body { margin: 0; padding: var(--sp-4) var(--sp-5); border: var(--hairline-w) dashed var(--mobius); border-radius: var(--radius-panel); white-space: pre-wrap; font-size: var(--fs-reading); line-height: 1.6; color: var(--body); }
 /* Draft from Mobius, then the shared change block's Discard and Try another as plain text and a filled Keep and edit. */
@@ -175,3 +178,7 @@
 /* The reading pane stacks its message and its keys: the key bar sits at the pane's foot. */
 .mail-reading-pane { display: flex; flex-direction: column; }
 .mail-reading-pane > .ui-key-hints { margin: auto 0 0; align-self: flex-start; position: sticky; bottom: var(--sp-3); }
+.context-strip:has(.mail-tools) .toolbar-place { flex: 0 1 auto; }
+.context-strip:has(.mail-tools) .ui-toolbar-slot { flex: 1 1 auto; justify-content: flex-start; }
+.mail-suggested .doc-change-bar { gap: var(--sp-1); }
+.mail-suggested .doc-change-bar .review-btn { padding: 0 8px; }

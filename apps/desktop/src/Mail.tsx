@@ -1,10 +1,11 @@
-import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AppMenu, AppSidebar, Button, EmptyState, KeyHintBar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type EmptyKind } from './ui';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
-import { TryAnotherContext } from './ReviewBar';
+import { ChangeBar } from './ReviewBar';
+import { EmptyState as AppEmpty } from './EmptyState';
 import { SideNew, newKeys, type Start } from './SideNew';
 import { MobiusMark } from './MobiusMark';
 import './mail.css';
@@ -224,18 +225,27 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
  * change and send), discards it or asks for another. Mobius never sends.
  */
 function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
-  const tryAnother = useContext(TryAnotherContext);
   return (
     <section className="mail-suggested" aria-label="Suggested reply">
-      <span className="mail-suggested-head" title={draft.why ? `Why this: ${draft.why}. Mobius never sends; you press Send.` : 'Mobius never sends; you press Send.'}><MobiusMark size={14} />Draft from Mobius</span>
+      {/* One indigo line above the box, as Notes and Docs mark a change: who, then Discard, Try another and Keep and edit. */}
+      <ChangeBar
+        who={<span className="mail-suggested-head" title={draft.why ? `Why this: ${draft.why}. Mobius never sends; you press Send.` : 'Mobius never sends; you press Send.'}><MobiusMark size={14} />Mobius drafted this</span>}
+        onDiscard={() => mail.deleteDraft(draft.id)} discardTitle="Delete this suggestion"
+        onKeep={() => mail.setEditing({ ...draft, by: 'you' })} keepText="Keep and edit" keepTitle="Keep it: it opens as your draft, to change and send" />
       <p className="mail-suggested-body">{draft.body}</p>
-      <div className="mail-suggested-actions">
-        <button type="button" className="review-btn" title="Delete this suggestion" onClick={() => void mail.deleteDraft(draft.id)}>Discard</button>
-        {tryAnother && <button type="button" className="review-btn" data-kind="again" title="Put it back and ask Mobius for another" onClick={() => void mail.deleteDraft(draft.id).then(tryAnother)}>Try another</button>}
-        <button type="button" className="review-btn" data-kind="keep" title="Keep it: it opens as your draft, to change and send" onClick={() => mail.setEditing({ ...draft, by: 'you' })}>Keep and edit</button>
-      </div>
     </section>
   );
+}
+
+/** Undo send with the seconds left in view, so it is plain how long Undo still takes it back. */
+function SendCountdown({ text, until, onUndo, onDismiss }: { text: string; until: number; onUndo: () => void; onDismiss: () => void }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+  const left = Math.max(0, Math.ceil((until - now) / 1000));
+  return <UndoToast text={left > 0 ? `${text} in ${left} s` : text} onUndo={onUndo} onDismiss={onDismiss} />;
 }
 
 /** A reply the person kept (from a suggestion or from Keep all), shown under the message it answers, ready to send. */
@@ -486,14 +496,14 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             : mail.accounts.length === 0
               ? <EmptyState kind="mail" action={<Button kind="primary" onClick={() => setAdding(true)}>Add a mail account…</Button>}>Drafts are kept here on this computer. Add an account to send them.</EmptyState>
               // An empty list already says so, with its drawing: the pane beside it stays clear.
-              : (v.kind === 'drafts' ? drafts.length : mail.messages.length) > 0 && <EmptyState kind="mail">Choose a message in the list. ↑ ↓ to move, Enter to open.</EmptyState>}
+              : (v.kind === 'drafts' ? drafts.length : mail.messages.length) > 0 && <AppEmpty app="mail" title="No message open" line="Choose one in the list. ↑ ↓ to move, Enter to open." />}
         {adding && mail.accounts.length === 0 && <AccountDialog connect={mail.connect} onClose={() => setAdding(false)} />}
         {/* The keys act on the open message, so their bar sits at the foot of the pane that shows it, and only then. */}
         {/* Not under the Undo toast: both sit at the foot of the message. */}
         {mail.open && !mail.editing && !mail.undo && <KeyHintBar id="mail" label="Mail keys" hints={MAIL_KEYS} />}
       </div>
       {rowMenu && <PointMenu x={rowMenu.x} y={rowMenu.y} label={`${rowMenu.m.subject || 'Message'} menu`} onClose={() => setRowMenu(null)} entries={rowItems(mail, rowMenu.m)} />}
-      {mail.undo && <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />}
+      {mail.undo && (mail.undo.until ? <SendCountdown key={mail.undo.until} text={mail.undo.text} until={mail.undo.until} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} /> : <UndoToast text={mail.undo.text} onUndo={() => void mail.undo?.run()} onDismiss={mail.clearUndo} />)}
       <MailToolbar mail={mail} />
     </section>
   );
