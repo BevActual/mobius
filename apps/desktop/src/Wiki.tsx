@@ -391,7 +391,7 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
   ) : null;
   return (
     <div className="wiki-doc">
-      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} inFrame afterPage={<LinkedFrom wiki={wiki} path={path} />} />
+      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} inFrame flush afterPage={<LinkedFrom wiki={wiki} path={path} />} />
       {putBack && !open && (
         <UndoToast text={`Put back the version from ${putBack.label}.`} onUndo={() => { wiki.edit(putBack.was); setPutBack(null); }} onDismiss={() => setPutBack(null)} />
       )}
