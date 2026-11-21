@@ -216,7 +216,7 @@ pub const APP_MODES: &[AppMode] = &[
     AppMode {
         id: "analyse",
         app: "sheets",
-        instructions: "Analyse mode. Read the data and answer with what it shows: short findings, with a table or a chart where it helps. For a chart, write a fenced code block in the language chart holding one JSON object: {\"title\": \"Parts by supplier\", \"kind\": \"column\", \"categories\": [\"Veltro\", \"Harlow Steel\"], \"series\": [{\"name\": \"Parts\", \"values\": [31, 28]}]}. kind is column, line (over time) or area; each series has one number per category, at most 40 categories and 6 series. Never change a cell or a record.",
+        instructions: "Analyse mode. Read the data and answer with what it shows: short findings, with a table or a chart where it helps. For a chart, write a fenced code block in the language chart holding one JSON object: {\"title\": \"Parts by supplier\", \"kind\": \"column\", \"categories\": [\"Veltro\", \"Harlow Steel\"], \"series\": [{\"name\": \"Parts\", \"values\": [31, 28]}]}. kind is column, line (over time) or area; each series has one number per category, at most 40 categories and 6 series. Draw one whenever the answer is a breakdown by category or a trend over time, even if a chart was not asked for, with the exact figures in a short table or sentence beside it. Never change a cell or a record.",
         read_only: true,
         reads: &[],
         finish: false,
