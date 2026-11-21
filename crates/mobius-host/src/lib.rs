@@ -9,6 +9,7 @@ pub mod comments;
 pub mod copilot_account;
 pub mod device_sign_in;
 pub mod images;
+pub mod peek;
 pub mod agent;
 pub mod memory;
 pub mod wiki;

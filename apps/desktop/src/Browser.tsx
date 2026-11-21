@@ -244,6 +244,17 @@ function useBookmarks(): BookmarkEntry[] {
   return list;
 }
 
+/** A page that may read as an article: web, and somewhere down a site rather than its home or a search. */
+export function isArticleLike(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (!/^https?:$/.test(u.protocol)) return false;
+    const path = u.pathname.replace(/\/+$/, '');
+    if (!path || /\/(search|results)$/i.test(path)) return false;
+    return path.split('/').filter(Boolean).some((part) => part.length >= 6 || /\d{4}/.test(part));
+  } catch { return false; }
+}
+
 export interface BrowserChromeProps {
   active: BrowserTabState | undefined;
   saved: boolean;
@@ -267,6 +278,8 @@ export interface BrowserChromeProps {
   findOpen: boolean;
   finding: number;
   onCloseFind: () => void;
+  /** Read: keeps the page in Reader and opens it there, as Safari's Reader button. */
+  onRead?: () => void;
 }
 
 /**
@@ -309,7 +322,7 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
 }
 
 /** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
-export function BrowserChrome({ active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+export function BrowserChrome({ onRead, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
   useBrowserKeys(active);
   // In the toolbar's middle, as the frame has every app's own controls (ui/AppFrame).
   return (
@@ -328,6 +341,12 @@ export function BrowserChrome({ active, saved, selectionMenu, setSelectionMenu, 
         </div>
         <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting} />
         <div className="cap-group" role="group" aria-label="This page">
+          {/* Read, before the star, on pages that look like an article (a page down a site, not its home page). */}
+          {onRead && active && isArticleLike(active.url) && (
+            <button type="button" className="strip-btn" aria-label="Read in Reader" title="Read in Reader" onClick={onRead}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5c2.5-1 4.7-1 7 .5 2.3-1.5 4.5-1.5 7-.5V15c-2.5-1-4.7-1-7 .5-2.3-1.5-4.5-1.5-7-.5ZM10 6v9.5" /></svg>
+            </button>
+          )}
           <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
         </button>

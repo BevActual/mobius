@@ -354,6 +354,7 @@ export function createTauriBridge(): MobiusBridge {
       trashList: () => call('files', 'trashList', [], () => ({ error: 'Not here.' })),
       emptyTrash: (held) => call('files', 'emptyTrash', [held], () => ({ ok: false as const, error: 'Not here.' })),
       show: (path) => call('files', 'show', [path], () => undefined),
+      peek: (path) => call('files', 'peek', [path], () => ({ kind: 'none' as const, reason: 'Not available.' })),
     },
     extensions: {
       connectors: () => call('extensions', 'connectors', [], () => ({ running: [], failed: [], problem: null })),

@@ -871,6 +871,11 @@ impl Bridge {
                 Ok(gone) => json!({ "ok": true, "gone": gone }),
                 Err(error) => json!({ "ok": false, "error": error }),
             }),
+            // Space in Files: a look at the file, read only (the person's own, not the agent's).
+            ("files", "peek") => Ok(match self.workspace.locate(arg(0).as_str().unwrap_or("")) {
+                Ok(path) => crate::peek::peek(&path),
+                Err(error) => json!({ "kind": "none", "reason": error }),
+            }),
             ("files", "show") => {
                 if let (Ok(path), Some(d)) = (self.workspace.locate(arg(0).as_str().unwrap_or("")), self.dialogs.get()) {
                     d.show_path(&path);

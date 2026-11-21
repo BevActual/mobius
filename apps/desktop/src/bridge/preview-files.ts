@@ -97,6 +97,17 @@ export const PREVIEW_FILES: Record<string, (...args: never[]) => unknown> = {
       return { held: p, name: held.slice(cut + 1), from: FROM.get(p) ?? '', trashed: Number(held.slice(0, cut)), type: item.type, ...(item.type === 'file' ? { bytes: item.bytes } : {}) };
     }).sort((a, b) => b.trashed - a.trashed),
   })) as never,
+  // Space's preview: a short sample for Markdown and text, as the core would read it.
+  'files.peek': ((path: string) => {
+    const item = TREE.get(path);
+    if (!item || item.type !== 'file') return { kind: 'none', reason: 'A folder has no preview.' };
+    if (/\.(md|txt|csv)$/i.test(path)) {
+      const name = path.slice(path.lastIndexOf('/') + 1).replace(/\.[^.]+$/, '');
+      const md = path.endsWith('.md');
+      return { kind: 'text', markdown: md, cut: false, text: md ? `# ${name}\n\nThe build week is the 23rd. Packs arrive six weeks from order.\n\n- Deposit due by the 14th\n- Two spare packs stay sealed` : 'Item,Cost\nPacks,48000\nSled,1200\n' };
+    }
+    return { kind: 'none', reason: 'No preview for this kind of file. Press Enter to open it.' };
+  }) as (...args: unknown[]) => unknown,
   'files.emptyTrash': ((held: string) => {
     const gone = [...TREE.keys()].filter((p) => parentOf(p) === '.trash' && (!held || p === held));
     for (const g of gone) { for (const p of [...TREE.keys()]) if (p === g || p.startsWith(`${g}/`)) TREE.delete(p); FROM.delete(g); }

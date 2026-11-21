@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import type { FileEntry, FilesActionResult, TrashEntry } from '@mobius/shared';
+import type { FileEntry, FilePeek, FilesActionResult, TrashEntry } from '@mobius/shared';
+import { RichText } from './RichText';
 import { describeChange, KEPT_EVENT, keepTurn, keptTurns, turnId, undoAt } from './ReviewStrip';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { AppSidebar, Button, Confirm, IconButton, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type MenuEntry, type SidebarRowDrop } from './ui';
@@ -239,6 +240,31 @@ export function filesTitle(files: FilesState): string {
   const parts = files.place.path ? files.place.path.split('/') : [];
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
+/**
+ * The title inside a nested folder: its path as a breadcrumb, as Finder's path bar ("Workspace › notes › P2 build").
+ * Each part above opens that folder; the last is where you are, in ink. At the top or one folder down, the plain title.
+ */
+export function FilesCrumbs({ files }: { files: FilesState }): ReactNode {
+  if (files.place.kind !== 'folder') return filesTitle(files);
+  const parts = files.place.path ? files.place.path.split('/') : [];
+  if (parts.length < 2) return filesTitle(files);
+  const go = (to: string) => files.setPlace({ kind: 'folder', path: to });
+  return (
+    <nav className="files-title-path" aria-label="Folder path">
+      <button type="button" className="files-crumb" onClick={() => go('')}>Workspace</button>
+      {parts.map((part, i) => {
+        const last = i === parts.length - 1;
+        const name = i === 0 ? folderName(part) : part;
+        return (
+          <span key={i} className="files-crumb-step">
+            <span className="files-crumb-sep" aria-hidden="true">›</span>
+            {last ? <span className="files-crumb" aria-current="page">{name}</span> : <button type="button" className="files-crumb" onClick={() => go(parts.slice(0, i + 1).join('/'))}>{name}</button>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
 export function filesSub(files: FilesState): ReactNode {
   if (!files.available || (files.place.kind === 'folder' && files.problem) || files.place.kind === 'add-drive') return undefined;
@@ -326,6 +352,40 @@ function DrivesSection({ files }: { files: FilesState }) {
 }
 
 /** Info (right, hidden until asked for): what the picked file or folder is, or the open folder when nothing is picked. */
+/** Space's look at a file, over the list: Markdown drawn, other text as it is, a picture fitted; Space or Esc closes. */
+function FilePeekView({ path, onClose, onOpen }: { path: string; onClose: () => void; onOpen: () => void }) {
+  const [peek, setPeek] = useState<FilePeek | null>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let live = true;
+    setPeek(null);
+    void window.mobius.files?.peek?.(path).then((got) => { if (live) setPeek(got); });
+    return () => { live = false; };
+  }, [path]);
+  useEffect(() => { box.current?.focus(); }, []);
+  const name = path.slice(path.lastIndexOf('/') + 1);
+  return (
+    <div className="files-peek-scrim" onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div ref={box} className="files-peek" role="dialog" aria-label={`Preview of ${name}`} tabIndex={-1}
+        onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } else if (e.key === 'Enter') { e.preventDefault(); onOpen(); } }}>
+        <header className="files-peek-head">
+          <FileIcon path={path} type="file" />
+          <span className="files-peek-name">{name}</span>
+          <Button kind="quiet" onClick={onOpen}>Open</Button>
+          <IconButton label="Close preview" icon={<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 5l10 10M15 5 5 15" /></svg>} onClick={onClose} />
+        </header>
+        <div className="files-peek-body">
+          {peek === null ? null
+            : peek.kind === 'image' ? <img src={peek.src} alt={name} />
+            : peek.kind === 'text' ? (peek.markdown ? <div className="files-peek-md"><RichText text={peek.text} /></div> : <pre className="files-peek-text">{peek.text}</pre>)
+            : <p className="files-peek-none">{peek.reason}</p>}
+          {peek?.kind === 'text' && peek.cut && <p className="files-peek-none">The rest is in the file. Press Enter to open it.</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FileInfo({ entry, here, count, onOpen, onCopyPath }: { entry: (FileEntry & { path: string }) | null; here: string; count: number; onOpen?: () => void; onCopyPath: (path: string) => void }) {
   const path = entry ? entry.path : here;
   const name = entry ? entry.name : (here.split('/').pop() || 'Workspace');
@@ -365,6 +425,7 @@ function FilesTools({ files, onNewFolder, children }: { files: FilesState; onNew
 
 /** The open folder of the drive, or Made by Mobius. Click selects, double-click or Enter opens: files open in their own app. */
 export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onOpenFile: (path: string) => void; onAsk?: ((prompt: string) => void) | undefined }) {
+  const [peeking, setPeeking] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ path: string; type: FileEntry['type']; x: number; y: number } | null>(null);
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -545,6 +606,11 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     listRef.current?.querySelector<HTMLElement>(`[data-path="${CSS.escape(next.path)}"]`)?.focus();
   };
   const onListKey = (e: React.KeyboardEvent) => {
+    // Space: a look at the selected file over the list, as Finder's Quick Look; Space or Esc puts it away.
+    if (e.key === ' ' && !e.ctrlKey && !e.metaKey && !e.altKey && selected && window.mobius.files?.peek) {
+      const r = rows.find((x) => x.path === selected);
+      if (r && r.type === 'file') { e.preventDefault(); setPeeking((cur) => (cur === r.path ? null : r.path)); return; }
+    }
     if (e.key === 'ArrowDown') { e.preventDefault(); move(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); move(-1); }
     else if (e.key === 'Home') { e.preventDefault(); move(-rows.length); }
@@ -615,6 +681,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         ))}
       </nav>}
       {fileMenu}
+      {peeking && <FilePeekView path={peeking} onClose={() => { setPeeking(null); listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.focus(); }} onOpen={() => { setPeeking(null); onOpenFile(peeking); }} />}
       <PanelTab id="info" name="Info">{(() => { const e = rows.find((x) => x.path === selected) ?? null; return <FileInfo entry={e} here={here} count={files.entries.length} onOpen={e ? () => open(e.path, e.type) : undefined} onCopyPath={copyPath} />; })()}</PanelTab>
     </section>
   );
