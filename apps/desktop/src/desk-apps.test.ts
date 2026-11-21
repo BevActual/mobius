@@ -20,11 +20,11 @@ describe('In your apps', () => {
 
   it('names the next event left today, says Now once it has begun, and opens its day', () => {
     const events = [event('Done', '2026-11-12T08:00', '2026-11-12T09:00'), event('Review', '2026-11-12T14:00', '2026-11-12T15:00'), event('Standup', '2026-11-12T10:00', '2026-11-12T10:15'), event('Tomorrow', '2026-11-13T10:00', '2026-11-13T11:00')];
-    expect(deskAppRows({ ...none, events }, now)).toEqual([{ app: 'calendar', item: 'Standup', text: '10:00', more: '+1 more today', target: { app: 'calendar', date: '2026-11-12' } }]);
+    expect(deskAppRows({ ...none, events }, now)).toEqual([{ app: 'calendar', item: 'Standup', text: '10:00', more: '1 more today', target: { app: 'calendar', date: '2026-11-12' } }]);
     const [row] = deskAppRows({ ...none, events: [event('Standup', '2026-11-12T09:15', '2026-11-12T09:45')] }, now);
     expect(row?.text).toBe('Now');
     const [allDay] = deskAppRows({ ...none, events: [event('Offsite', '2026-11-11', '2026-11-12', true), event('Standup', '2026-11-12T10:00', '2026-11-12T10:15')] }, now);
-    expect(allDay).toMatchObject({ item: 'Offsite', text: 'All day', more: '+1 more today' });
+    expect(allDay).toMatchObject({ item: 'Offsite', text: 'All day', more: '1 more today' });
   });
 
   it('names the first task due and opens its list', () => {
