@@ -302,6 +302,8 @@ pub struct Bridge {
     projects: crate::projects::Projects,
     databases: crate::database::Databases,
     songs: mobius_workspace::notes::Notes,
+    /// Music's own sound engine.
+    music: crate::music::Music,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
     video: mobius_workspace::video::Video,
@@ -507,6 +509,7 @@ impl Bridge {
             photos: mobius_workspace::photos::Photos::new(data_dir.join("workspace")),
             skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
+            music: crate::music::Music::new(emit.clone()),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
@@ -709,6 +712,7 @@ impl Bridge {
                 }
                 Err(e) => json!({ "ok": false, "message": e }),
             }),
+            ("music", _) => Ok(self.music.call(method, args, &self.songs)),
             ("songs", _) => Ok(self.notes_call(&self.songs, "mobius:songs-changed", method, args)),
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("boards", _) => Ok(self.notes_call(&self.boards, "mobius:boards-changed", method, args)),
