@@ -1224,6 +1224,10 @@ export interface MobiusBridge {
     playSession?(click?: boolean, launches?: Record<string, number | null>): Promise<{ ok: true } | NotesFailure>;
     /** Start a track's clip in `slot` (or stop it, with null) at the next bar line. */
     launch?(trackId: string, slot: number | null): Promise<{ ok: true } | NotesFailure>;
+    /** Sound a note of a track of the loaded song at once, playing or not (a key pressed, a note put in): `seconds` long (0.35). */
+    preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
+    /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
+    countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
     seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;

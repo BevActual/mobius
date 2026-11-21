@@ -8,7 +8,7 @@
 // The audio side is driven by the Windows output device; elsewhere only the tests use it.
 #![cfg_attr(not(windows), allow(dead_code))]
 
-use crate::render::{Playing, Renderer, SessionState, MAX_BLOCK};
+use crate::render::{Oneshot, Oneshots, Playing, Renderer, SessionState, MAX_BLOCK};
 use crate::song::Song;
 use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -16,12 +16,16 @@ use std::sync::{Arc, Mutex, PoisonError};
 /// The most tracks whose levels are reported; the master's comes after them.
 pub const MAX_METERS: usize = 128;
 
+// Carried by value through a fixed ring: boxing the big variant would free memory on the audio thread.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Command {
     /// Play this from where it starts, taking over what the one before it still has sounding.
     Play(Box<Renderer>),
     Stop,
     /// In the Session view: start a track's clip in a slot (or stop it) at the next bar line.
     Launch(usize, Option<usize>),
+    /// A sound apart from the song: a note heard as it is played or put in, or a count-in.
+    Oneshot(Oneshot),
 }
 
 /// What the audio thread reports.
@@ -61,6 +65,8 @@ pub(crate) struct AudioSide {
     trash: rtrb::Producer<Box<Renderer>>,
     shared: Arc<Shared>,
     playing: Option<Box<Renderer>>,
+    oneshots: Oneshots,
+    rate: f64,
     left: Vec<f32>,
     right: Vec<f32>,
 }
@@ -82,6 +88,7 @@ impl AudioSide {
                         renderer.launch(track, slot);
                     }
                 }
+                Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
                 Command::Stop => {
                     if let Some(old) = self.playing.take() {
                         self.let_go(old);
@@ -96,15 +103,22 @@ impl AudioSide {
                 self.let_go(old);
             }
         }
-        let Some(renderer) = self.playing.as_mut() else {
+        if self.playing.is_none() && !self.oneshots.busy() {
             data.fill(0.0);
             self.shared.playing.store(false, Ordering::Release);
             return;
-        };
+        }
         for frames in data.chunks_mut(MAX_BLOCK * channels) {
             let n = frames.len() / channels;
             let (left, right) = (&mut self.left[..n], &mut self.right[..n]);
-            renderer.render(left, right);
+            match self.playing.as_mut() {
+                Some(renderer) => renderer.render(left, right),
+                None => {
+                    left.fill(0.0);
+                    right.fill(0.0);
+                }
+            }
+            self.oneshots.add_to(left, right, self.rate);
             for (i, frame) in frames.chunks_mut(channels).enumerate() {
                 for (c, out) in frame.iter_mut().enumerate() {
                     *out = match c {
@@ -115,6 +129,10 @@ impl AudioSide {
                 }
             }
         }
+        let Some(renderer) = self.playing.as_ref() else {
+            self.shared.playing.store(false, Ordering::Release);
+            return;
+        };
         let shared = &self.shared;
         let mut count = 0u32;
         for (slot, (l, r)) in shared.peaks.iter().zip(renderer.peaks()) {
@@ -183,7 +201,7 @@ impl Engine {
         let (commands, consumer) = rtrb::RingBuffer::new(64);
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
-        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
+        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
         let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), sample_rate, device, _stream: None };
         (engine, audio)
     }
@@ -261,6 +279,37 @@ impl Engine {
     pub fn launch(&self, track: &str, slot: Option<usize>) -> Result<(), String> {
         let index = lock(&self.session).iter().position(|t| t == track).ok_or_else(|| format!("No track \"{track}\" is playing in Session."))?;
         self.send(Command::Launch(index, slot))
+    }
+
+    /// Sounds a note of `track` at once, playing or not, as the window does when a key is pressed or a note is put on
+    /// the roll: its instrument and sound (a drum through its kit and pad), straight out, `seconds` long.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn preview(&self, track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
+        let shot = if track.instrument == crate::song::Instrument::Drums {
+            let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
+            Oneshot::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)))
+        } else {
+            Oneshot::Voice(match &track.sound {
+                Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
+                None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
+            })
+        };
+        self.send(Command::Oneshot(shot))
+    }
+
+    /// A count-in of `beats` ticks at `tempo`, a high one first, starting 50 ms from now (studio-audio.ts `countIn`).
+    /// `None` for `beats` cuts one short.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn count_in(&self, tempo: f64, beats: Option<usize>) -> Result<(), String> {
+        let shot = match beats {
+            Some(beats) if tempo > 0.0 => Oneshot::CountIn { beats, seconds_per_beat: 60.0 / tempo },
+            _ => Oneshot::Hush,
+        };
+        self.send(Command::Oneshot(shot))
     }
 
     /// Changes the song being played, from the beat it has reached. Stopped, it does nothing.
@@ -454,5 +503,43 @@ mod tests {
         audio.fill(&mut buffer, 2);
         assert_eq!(engine.position().session[0].1.queued, Some(Some(1)));
         assert!(engine.launch("nope", None).is_err());
+    }
+
+    #[test]
+    fn a_previewed_note_and_a_count_in_sound_while_stopped_and_a_count_in_can_be_cut_short() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"piano"},{"id":"d","instrument":"drums"}]}"#).unwrap();
+        let mut buffer = vec![0f32; 4_800 * 2];
+        engine.preview(&song.tracks[0], 60, 0.8, 0.35).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert!(buffer.iter().any(|s| s.abs() > 0.01) && !engine.position().playing);
+        // It rings out and goes quiet.
+        for _ in 0..30 {
+            audio.fill(&mut buffer, 2);
+        }
+        assert!(buffer.iter().all(|s| *s == 0.0));
+        engine.preview(&song.tracks[1], 36, 1.0, 0.35).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert!(buffer.iter().any(|s| s.abs() > 0.01));
+        for _ in 0..30 {
+            audio.fill(&mut buffer, 2);
+        }
+        // A count-in at 120: ticks at 50 ms and every half second after, the first louder.
+        engine.count_in(120.0, Some(4)).unwrap();
+        let mut out = vec![0f32; 48_000 * 2 * 2];
+        for chunk in out.chunks_mut(960 * 2) {
+            audio.fill(chunk, 2);
+        }
+        let left: Vec<f32> = out.iter().step_by(2).copied().collect();
+        let onsets: Vec<usize> = (0..4).map(|i| 2_400 + i * 24_000).collect();
+        for at in &onsets {
+            assert!(left[at - 10..*at].iter().all(|s| *s == 0.0) && left[*at..at + 200].iter().any(|s| s.abs() > 0.05), "{at}");
+        }
+        let peak = |at: usize| left[at..at + 200].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!(peak(onsets[0]) > peak(onsets[1]) * 1.5);
+        engine.count_in(120.0, Some(4)).unwrap();
+        engine.count_in(120.0, None).unwrap();
+        audio.fill(&mut out, 2);
+        assert!(out.iter().all(|s| *s == 0.0));
     }
 }

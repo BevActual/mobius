@@ -77,6 +77,97 @@ impl Lane {
     }
 }
 
+/// Sounds heard apart from the song, straight out as the window's sampler plays them: a note as a key is pressed or
+/// put on the roll, and a count-in's ticks. Room for them is made up front, so the audio thread allocates nothing.
+pub struct Oneshots {
+    voices: Vec<Voice>,
+    hits: Vec<Hit>,
+    ticks: Vec<Tick>,
+    mono: Vec<f32>,
+}
+
+/// One sound for [`Oneshots`].
+#[derive(Debug, Clone)]
+// Carried by value through a fixed ring: boxing the big variant would free memory on the audio thread.
+#[allow(clippy::large_enum_variant)]
+pub enum Oneshot {
+    Voice(Voice),
+    Hit(Hit),
+    /// A count-in: `beats` ticks `seconds_per_beat` apart, a high one first, starting 50 ms from now.
+    CountIn { beats: usize, seconds_per_beat: f64 },
+    /// Silence what is sounding (a count-in cut short).
+    Hush,
+}
+
+/// The most notes, drum hits and ticks sounding at once apart from the song.
+const ONESHOTS: usize = 16;
+
+impl Default for Oneshots {
+    fn default() -> Oneshots {
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK] }
+    }
+}
+
+impl Oneshots {
+    /// Starts `shot` at the next block; past the room there is, the oldest of its kind gives way.
+    pub fn start(&mut self, shot: Oneshot, rate: f64) {
+        match shot {
+            Oneshot::Voice(v) => {
+                if self.voices.len() >= ONESHOTS {
+                    self.voices.remove(0);
+                }
+                self.voices.push(v);
+            }
+            Oneshot::Hit(h) => {
+                if self.hits.len() >= ONESHOTS {
+                    self.hits.remove(0);
+                }
+                self.hits.push(h);
+            }
+            Oneshot::CountIn { beats, seconds_per_beat } => {
+                self.ticks.clear();
+                for i in 0..beats.min(ONESHOTS) {
+                    let wait = ((0.05 + i as f64 * seconds_per_beat) * rate).round() as usize;
+                    self.ticks.push(Tick { wait, time: 0, accent: i == 0, gain: 1.0 });
+                }
+            }
+            Oneshot::Hush => {
+                self.ticks.clear();
+                self.voices.clear();
+                self.hits.clear();
+            }
+        }
+    }
+
+    /// Whether anything is sounding or waiting to.
+    #[must_use]
+    pub fn busy(&self) -> bool {
+        !(self.voices.is_empty() && self.hits.is_empty() && self.ticks.is_empty())
+    }
+
+    /// Adds what is sounding into `left` and `right`.
+    pub fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
+        for (l, r) in left.chunks_mut(MAX_BLOCK).zip(right.chunks_mut(MAX_BLOCK)) {
+            let mono = &mut self.mono[..l.len()];
+            mono.fill(0.0);
+            for v in &mut self.voices {
+                v.add_to(mono, rate);
+            }
+            for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
+                *a += *m;
+                *b += *m;
+            }
+            for h in &mut self.hits {
+                let wait = h.take_wait().min(l.len());
+                h.add_to(&mut l[wait..], &mut r[wait..], rate);
+            }
+            self.ticks.retain_mut(|t| !t.add_to(l, r, rate));
+        }
+        self.voices.retain(|v| !v.done());
+        self.hits.retain(|h| !h.done());
+    }
+}
+
 /// Plays a song from a beat, a block at a time. Everything it needs is made when it is made, so `render` allocates
 /// nothing and can run on the audio thread.
 pub struct Renderer {
@@ -131,10 +222,12 @@ pub struct SessionState {
 /// A metronome tick (studio-audio.ts `tick`): a sine, 1760 Hz on a bar's first beat and 1320 Hz on the others, falling
 /// from 0.28 (or 0.16) to silence over 50 ms and cut at 60 ms.
 struct Tick {
-    /// Samples into the block it starts at, then samples since it started.
+    /// Samples until it starts (it may be blocks away), then samples since it started.
     wait: usize,
     time: u64,
     accent: bool,
+    /// Through the master (0.8) while a song plays, or straight out for a count-in.
+    gain: f64,
 }
 
 impl Tick {
@@ -145,14 +238,18 @@ impl Tick {
     fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) -> bool {
         let (freq, level) = if self.accent { (1760.0, 0.28) } else { (1320.0, 0.16) };
         let end = (Tick::LENGTH * rate).ceil() as u64;
-        let wait = std::mem::take(&mut self.wait).min(left.len());
+        if self.wait >= left.len() {
+            self.wait -= left.len();
+            return false;
+        }
+        let wait = std::mem::take(&mut self.wait);
         for (l, r) in left[wait..].iter_mut().zip(right[wait..].iter_mut()) {
             if self.time >= end {
                 return true;
             }
             let t = self.time as f64 / rate;
             let gain = level * (0.0001f64 / level).powf((t / Tick::FALL).min(1.0));
-            let y = ((std::f64::consts::TAU * freq * t).sin() * gain * MASTER) as f32;
+            let y = ((std::f64::consts::TAU * freq * t).sin() * gain * self.gain) as f32;
             *l += y;
             *r += y;
             self.time += 1;
@@ -493,7 +590,7 @@ impl Renderer {
                     self.ticks.remove(0);
                 }
                 let wait = usize::try_from(clock.sample_of_beat(beat) - from).unwrap_or(0);
-                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9 });
+                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: MASTER });
                 beat += 1.0;
             }
         }

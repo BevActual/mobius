@@ -74,6 +74,11 @@ impl Music {
                 Some(track) => self.launch(track, arg(1)),
                 None => Err("a track is needed".to_owned()),
             },
+            "preview" => match (arg(0).as_str(), arg(1).as_u64().and_then(|p| u8::try_from(p).ok()).filter(|p| *p < 128)) {
+                (Some(track), Some(pitch)) => self.preview(track, pitch, arg(2).as_f64().unwrap_or(0.8), arg(3).as_f64().unwrap_or(0.35)),
+                _ => Err("a track and a pitch are needed".to_owned()),
+            },
+            "countIn" => self.count_in(arg(0).as_u64().and_then(|b| usize::try_from(b).ok()), arg(1).as_f64()),
             "stop" => self.stop(),
             "seek" => match arg(0).as_f64() {
                 Some(beat) if beat.is_finite() => self.seek(beat.max(0.0)),
@@ -136,6 +141,23 @@ impl Music {
         let slot = slot_of(slot).ok_or("a slot or null is needed")?;
         let engine = lock(&self.engine).clone().ok_or("play the Session view first")?;
         engine.launch(track, slot)?;
+        Ok(json!({ "ok": true }))
+    }
+
+    /// A note of a track of the loaded song, heard at once as a key is pressed or a note put in.
+    fn preview(&self, track: &str, pitch: u8, velocity: f64, seconds: f64) -> Result<Value, String> {
+        let engine = self.engine()?;
+        let song = lock(&self.song);
+        let track = song.as_ref().ok_or("load a song first")?.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
+        engine.preview(track, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        Ok(json!({ "ok": true }))
+    }
+
+    /// A count-in of `beats` ticks at the song's tempo (or `tempo`), or none to cut one short.
+    fn count_in(&self, beats: Option<usize>, tempo: Option<f64>) -> Result<Value, String> {
+        let engine = self.engine()?;
+        let tempo = tempo.filter(|t| t.is_finite() && *t > 0.0).or_else(|| lock(&self.song).as_ref().map(|s| s.tempo)).ok_or("a tempo is needed")?;
+        engine.count_in(tempo, beats)?;
         Ok(json!({ "ok": true }))
     }
 
