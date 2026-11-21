@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track, trackNotes } from './song-format';
 import { cableEnd, type Device } from './device-format';
 import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
@@ -385,7 +385,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
           for (const p of t.volumeAuto) if (p.beat > s + 1e-9 && p.beat < s + span - 1e-9) g.linearRampToValueAtTime(p.value, at(p.beat));
           g.linearRampToValueAtTime(autoValueAt(t.volumeAuto, s + span - 1e-6, t.volume), at(s + span) - 1e-4);
         }
-        for (const n of t.instrumentOn === false ? [] : t.notes) {
+        for (const n of t.instrumentOn === false ? [] : trackNotes(t, true)) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
@@ -560,7 +560,7 @@ export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (d
       for (const p of t.volumeAuto) out.gain.linearRampToValueAtTime(p.value, p.beat * spb);
     }
     if (t.instrumentOn === false) continue;
-    for (const n of t.notes) {
+    for (const n of trackNotes(t, true)) {
       if (t.instrument === 'drums') drum(ctx, out, n.pitch, n.start * spb, n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
       else tone(ctx, out, t.instrument, n.pitch, n.start * spb, n.length * spb, n.velocity, t.sound);
     }

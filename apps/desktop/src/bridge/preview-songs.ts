@@ -1,4 +1,8 @@
-import { writeSong, type Song } from '../song-format';
+import { parseSong, writeSong, type Song, type SongNote, type Track } from '../song-format';
+
+/** The preview's songs are written as version 1 (one list of notes per track) and read into clips as a file would be. */
+type V1Song = Omit<Song, 'version' | 'tracks'> & { version: 1; tracks: (Omit<Track, 'clips'> & { notes: SongNote[] })[] };
+const v2 = (song: V1Song): Song => { const read = parseSong(JSON.stringify(song)); if ('error' in read) throw new Error(read.error); return read.song; };
 
 /** The preview's Studio: songs kept in memory while the preview is open, so Studio can be used without the Rust core. */
 const now = Date.now();
@@ -6,7 +10,7 @@ const chord = (pitches: number[], start: number, length = 4, velocity = 0.6) => 
 const DAY = 86_400_000;
 const bars = (from: number, to: number) => Array.from({ length: to - from }, (_, i) => from + i);
 /** A song in D minor at 92 bpm, laid out like the Music mock: a beat all through, a bass line, chords, a hook and a pad. */
-const NIGHT: Song = {
+const NIGHT: V1Song = {
   version: 1, tempo: 92, key: 'D minor', bars: 24,
   tracks: [
     { id: 't1', name: 'Drums', instrument: 'drums', color: 'amber', volume: 0.8, pan: 0, muted: false, solo: false, kit: { tune: 0, decay: 1, tone: 0.55 }, notes: bars(0, 24).flatMap((bar) => [0, 1, 2, 3].flatMap((b) => { const at = bar * 4 + b; return [{ pitch: b % 2 === 0 ? 36 : 38, start: at, length: 0.25, velocity: 0.9 }, { pitch: 42, start: at, length: 0.25, velocity: 0.5 }, { pitch: 42, start: at + 0.5, length: 0.25, velocity: 0.35 }]; })) },
@@ -17,12 +21,12 @@ const NIGHT: Song = {
   ],
 };
 /** Night Drive before Mobius's last turn added the pad, so the preview shows that pad dashed, to keep or discard. */
-export const PREVIEW_NIGHT_BEFORE = writeSong({ ...NIGHT, tracks: NIGHT.tracks.slice(0, 4) });
-const SKETCH: Song = { version: 1, tempo: 120, key: 'A minor', bars: 8, tracks: [NIGHT.tracks[0]!].map((t) => ({ ...t, notes: t.notes.filter((n) => n.start < 32) })) };
+export const PREVIEW_NIGHT_BEFORE = writeSong(v2({ ...NIGHT, tracks: NIGHT.tracks.slice(0, 4) }));
+const SKETCH: V1Song = { version: 1, tempo: 120, key: 'A minor', bars: 8, tracks: [NIGHT.tracks[0]!].map((t) => ({ ...t, notes: t.notes.filter((n) => n.start < 32) })) };
 const TEXT: Record<string, string> = {
-  'Songs/Night Drive.json': writeSong(NIGHT),
-  'Songs/Offsite reel.json': writeSong({ ...NIGHT, tempo: 104, key: 'A minor', bars: 16, tracks: NIGHT.tracks.slice(0, 3).map((t) => ({ ...t, notes: t.notes.filter((n) => n.start < 64) })) }),
-  'Songs/Sketch 14.json': writeSong(SKETCH),
+  'Songs/Night Drive.json': writeSong(v2(NIGHT)),
+  'Songs/Offsite reel.json': writeSong(v2({ ...NIGHT, tempo: 104, key: 'A minor', bars: 16, tracks: NIGHT.tracks.slice(0, 3).map((t) => ({ ...t, notes: t.notes.filter((n) => n.start < 64) })) })),
+  'Songs/Sketch 14.json': writeSong(v2(SKETCH)),
 };
 const MODIFIED: Record<string, number> = { 'Songs/Night Drive.json': now - 3_600_000, 'Songs/Offsite reel.json': now - 3 * DAY, 'Songs/Sketch 14.json': now - 10 * DAY };
 const title = (path: string) => path.slice(path.indexOf('/') + 1, -5);
@@ -33,7 +37,7 @@ export const PREVIEW_SONGS: Record<string, (...args: never[]) => unknown> = {
   'songs.save': ((path: string, content: string) => { TEXT[path] = content; MODIFIED[path] = Date.now(); return { path, modified: MODIFIED[path] }; }) as never,
   'songs.createPage': ((folder: string, name?: string) => {
     const path = `${folder}/${(name ?? '').trim() || 'Untitled'}.json`;
-    TEXT[path] = writeSong({ version: 1, tempo: 112, key: 'C major', bars: 8, tracks: [] });
+    TEXT[path] = writeSong({ version: 2, tempo: 112, key: 'C major', bars: 8, tracks: [] });
     MODIFIED[path] = Date.now();
     return { path, content: TEXT[path], modified: MODIFIED[path] };
   }) as never,

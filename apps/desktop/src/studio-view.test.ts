@@ -257,7 +257,7 @@ describe('encodeWav', () => {
 });
 
 describe('soundChanges', () => {
-  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] };
+  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, clips: [{ id: 'c1', start: 0, length: 4, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] }] };
   it('names each setting Mobius moved, with where it was and where it is', () => {
     const warmer = { ...pad, sound: { shape: 1, detune: 14, sub: 0, drive: 0.2, cutoff: 900, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 } };
     const got = soundChanges(pad, warmer);
@@ -271,8 +271,8 @@ describe('soundChanges', () => {
   });
   it('has nothing to compare for a new track, and leaves notes to notesDiffer', () => {
     expect(soundChanges(undefined, pad)).toEqual([]);
-    expect(soundChanges(pad, { ...pad, notes: [] })).toEqual([]);
-    expect(notesDiffer(pad, { ...pad, notes: [] })).toBe(true);
+    expect(soundChanges(pad, { ...pad, clips: [] })).toEqual([]);
+    expect(notesDiffer(pad, { ...pad, clips: [] })).toBe(true);
     expect(notesDiffer(pad, { ...pad, volume: 1 })).toBe(false);
   });
 });

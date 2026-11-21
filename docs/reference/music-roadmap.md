@@ -106,7 +106,7 @@ notes for good, so the file always shows what you hear.
 
 | Feature | What it does | Status |
 | --- | --- | --- |
-| Tracks and clips | Tracks of notes, clips drawn from where notes sit, zoom. | Have |
+| Tracks and clips | Tracks of clips, each with its own notes, kept in the song file (version 2); zoom. Moving, resizing and looping clips next. | Have |
 | Notes editor | Draw, move, stretch, box-select, copy, duplicate, paste. | Have |
 | Loop and metronome | Loop some bars or the song; a click in time. | Have |
 | Keys and scales | The song's key, with notes outside it shown. | Have |
