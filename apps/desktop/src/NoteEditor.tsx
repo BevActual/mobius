@@ -18,6 +18,7 @@ import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { BulletToTask } from './task-shortcut';
+import { CheckedLast, checkedLast, setCheckedLast } from './checked-last';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { loadIntoEditor } from './editor-load';
@@ -207,6 +208,7 @@ function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () 
   // Where the panel opens: under the Aa button. It is drawn over the page (in body), not inside the toolbar, so its
   // glass blurs the page behind it.
   const [panel, setPanel] = useState<{ top: number; left: number } | null>(null);
+  const [sortChecked, setSortChecked] = useState(checkedLast);
   const wrap = useRef<HTMLDivElement>(null);
   const sheet = useRef<HTMLDivElement>(null);
   const toggle = () => setPanel((o) => {
@@ -262,6 +264,11 @@ function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () 
                 </button>
               </div>
             </div>
+            {/* Apple Notes' Sort checked items: off until turned on, and kept for every note. */}
+            <label className="note-aa-option">
+              <input type="checkbox" checked={sortChecked} onChange={(e) => { setCheckedLast(e.target.checked); setSortChecked(e.target.checked); }} />
+              Move checked items to the bottom
+            </label>
           </div>,
           document.body,
         )}
@@ -350,6 +357,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       TaskList,
       TaskItem.configure({ nested: true }),
       BulletToTask,
+      CheckedLast,
       Markdown,
       // The hints are for a page still to be written: an empty title, and the first line under it. A page with words
       // in it shows none, so the empty line kept at its end does not read as a prompt.
