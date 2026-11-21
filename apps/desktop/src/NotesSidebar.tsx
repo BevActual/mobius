@@ -203,8 +203,9 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
           {/* Design, Canvas and Research: New folder waits until there is something to put in one. Notes keeps New
               notebook, where making a notebook first is a common start. */}
           {!naming && (words === NOTES_WORDS || notes.notebooks.some((nb) => nb.pages.length > 0)) && (
-            // Among rows whose words start at the row's edge, so it has no icon: its words line up with theirs.
+            // An action, not a folder: muted, with + in the leading slot, so it never reads as a folder called New folder.
             <button type="button" className="side-new-row notes-new-group" title={words.about} onClick={() => setNaming(true)}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
               <span>New {words.group}</span>
             </button>
           )}
