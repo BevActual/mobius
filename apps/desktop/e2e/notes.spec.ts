@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { goTo, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Notes is built in the Tauri shell');
@@ -88,6 +88,10 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   await start();
   await side().getByRole('button', { name: 'Garden', exact: true }).click();
   await expect(text().locator('h1')).toHaveText('Garden');
+  await expect(text().locator('li')).toHaveText(['tomatoes']);
+  // Coming back to Notes opens the same page again: that does not rewrite it either (checked at the end).
+  await goTo(shell(), 'Tasks');
+  await goTo(shell(), 'Notes');
   await expect(text().locator('li')).toHaveText(['tomatoes']);
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('oat');
   const results = side().getByRole('region', { name: 'Results' });

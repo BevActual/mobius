@@ -539,7 +539,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       },
     },
     onUpdate: ({ editor: e, transaction }) => {
-      if (transaction.getMeta('mobius-load')) return;
+      if (transaction.getMeta('mobius-load') || !transaction.docChanged) return; // only the editor's own additions: not an edit
       const md = tidyMarkdown(e.getMarkdown());
       known.current = md;
       docs.edit(md);
