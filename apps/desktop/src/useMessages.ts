@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { channelGroups } from './messages-view';
 import { isNotesFailure, type ChatAccount, type ChatChannel, type ChatMessage } from '@mobius/shared';
 
 export interface OpenChannel { account: string; channel: string; thread?: string }
@@ -29,6 +30,12 @@ export function useMessages(active = true) {
   const [message, setMessage] = useState<string | null>(null);
   const openNow = useRef(open);
   openNow.current = open;
+  const channelsNow = useRef(channels);
+  channelsNow.current = channels;
+  // How many messages were unread when the conversation was opened: reading it marks them read at once, but the
+  // "New" line and Catch me up still need to know where the unread ones began.
+  const [unreadAtOpen, setUnreadAtOpen] = useState(0);
+  const counted = useRef('');
 
   const refresh = useCallback(async () => {
     if (!api) { setLoaded(true); return; }
@@ -48,6 +55,11 @@ export function useMessages(active = true) {
     if (isNotesFailure(got)) { setMessage(got.message); return; }
     setMessage(null);
     setMessages(got);
+    const key = `${to.account}/${to.channel}`;
+    if (counted.current !== key) {
+      counted.current = key;
+      setUnreadAtOpen(channelsNow.current.find((c) => c.account === to.account && c.id === to.channel)?.unread ?? 0);
+    }
     const last = got[got.length - 1];
     if (last && !to.thread) {
       void api.markRead(to.account, to.channel, last.id);
@@ -65,14 +77,17 @@ export function useMessages(active = true) {
   }, [api]);
 
   useEffect(() => { if (active) void refresh(); }, [active, refresh]);
-  // Once the channels are in, the conversation last open opens again, if it is still there.
+  // Once the channels are in, the first conversation with something unread opens, in the list's order; failing that,
+  // the one last open, if it is still there.
   const restored = useRef(false);
   useEffect(() => {
     if (!active || !loaded || restored.current || openNow.current) return;
     restored.current = true;
+    const unread = channelGroups(accounts, channels).flatMap((g) => g.channels).find((c) => c.unread > 0 && !c.encrypted);
     const last = readLast();
-    if (last && channels.some((c) => c.account === last.account && c.id === last.channel)) setOpen(last);
-  }, [active, loaded, channels]);
+    if (unread) setOpen({ account: unread.account, channel: unread.id });
+    else if (last && channels.some((c) => c.account === last.account && c.id === last.channel)) setOpen(last);
+  }, [active, loaded, accounts, channels]);
   useEffect(() => { void read(open); }, [open, read]);
   useEffect(() => { void readThread(openNow.current, thread); }, [open, thread, readThread]);
   useEffect(() => api?.onChanged((change) => {
@@ -84,7 +99,7 @@ export function useMessages(active = true) {
   /** Opens a channel; with `thread`, that thread opens beside it. */
   const choose = useCallback((to: OpenChannel | null) => {
     const same = to && openNow.current && to.account === openNow.current.account && to.channel === openNow.current.channel;
-    if (!same) { setMessages([]); setOpen(to ? { account: to.account, channel: to.channel } : null); }
+    if (!same) { setMessages([]); setUnreadAtOpen(0); counted.current = ''; setOpen(to ? { account: to.account, channel: to.channel } : null); }
     restored.current = true;
     keepLast(to);
     setReplies([]);
@@ -110,7 +125,7 @@ export function useMessages(active = true) {
 
   const account = accounts.find((a) => a.id === open?.account) ?? null;
   const channel = channels.find((c) => c.account === open?.account && c.id === open?.channel) ?? null;
-  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, choose, send, refresh, thread, replies, openThread };
+  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, unreadAtOpen, choose, send, refresh, thread, replies, openThread };
 }
 
 export type MessagesState = ReturnType<typeof useMessages>;

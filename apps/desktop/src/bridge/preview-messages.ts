@@ -12,7 +12,7 @@ const ACCOUNTS: ChatAccount[] = [
   { id: 'matrix:home', service: 'matrix', name: 'matrix.org', status: 'ready' },
 ];
 let channels: ChatChannel[] = [
-  { id: 'c-p2', account: 'slack:northway', name: 'kestrel-p2', kind: 'channel', unread: 3, mentions: 1, last: now - 6 * min },
+  { id: 'c-p2', account: 'slack:northway', name: 'kestrel-p2', kind: 'channel', unread: 2, mentions: 1, last: now - 6 * min },
   { id: 'c-build', account: 'slack:northway', name: 'build-floor', kind: 'channel', unread: 0, mentions: 0, last: now - 2 * hour },
   { id: 'c-general', account: 'slack:northway', name: 'general', kind: 'channel', unread: 0, mentions: 0, last: now - 26 * hour },
   { id: 'd-priya', account: 'slack:northway', name: 'Priya Natarajan', kind: 'direct', unread: 1, mentions: 0, last: now - 18 * min },
@@ -27,7 +27,7 @@ const msg = (id: string, channel: string, author: ChatMessage['author'], text: s
 const HISTORY: Record<string, ChatMessage[]> = {
   'c-p2': [
     msg('p1', 'c-p2', tom, 'Morning all. The Veltro quote came in: 60 kWh pack, 9 week lead time.', 3 * hour),
-    msg('p2', 'c-p2', priya, 'That pushes the sled test into March. Can we ask about a loan pack in the meantime?', 3 * hour - 12 * min, { replies: 2, reactions: [{ emoji: '👍', count: 2 }] }),
+    msg('p2', 'c-p2', priya, 'That pushes the sled test into March. Can we ask about a loan pack in the meantime?', 3 * hour - 12 * min, { replies: 2, repliers: [{ name: 'Tom Okafor' }, { name: 'Lena Brandt' }], lastReply: now - 90 * min, reactions: [{ emoji: '👍', count: 2 }] }),
     msg('p3', 'c-p2', me, 'I’ll ask them today.', 3 * hour - 20 * min),
     msg('p4', 'c-p2', lena, 'Axion confirmed the 150 kW motor ships Friday.', 40 * min, { reactions: [{ emoji: '🎉', count: 3, mine: true }] }),
     msg('p5', 'c-p2', priya, '@You can you bring the torque spec sheet to Thursday’s review?', 6 * min),
