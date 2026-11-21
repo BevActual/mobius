@@ -155,5 +155,21 @@ export const PREVIEW_SHEETS: Record<string, (...args: never[]) => unknown> = {
   'sheets.createWorkbook': ((name: string) => { BOOKS[name] = { order: ['Sheet 1'], sheets: { 'Sheet 1': [] } }; changed(name); return { name, sheet: 'Sheet 1' }; }) as never,
   'sheets.addSheet': ((workbook: string, name: string) => { const b = BOOKS[workbook]!; b.order.push(name); b.sheets[name] = []; changed(workbook); return { workbook, sheet: name }; }) as never,
   'sheets.renameSheet': ((workbook: string, sheet: string, name: string) => { const b = BOOKS[workbook]!; b.sheets[name] = b.sheets[sheet]!; delete b.sheets[sheet]; b.order = b.order.map((s) => (s === sheet ? name : s)); changed(workbook); return { workbook, sheet: name }; }) as never,
+  'sheets.duplicateSheet': ((workbook: string, sheet: string) => {
+    const b = BOOKS[workbook]!;
+    let name = `${sheet} copy`;
+    for (let n = 2; b.order.includes(name); n++) name = `${sheet} copy ${n}`;
+    b.sheets[name] = JSON.parse(JSON.stringify(b.sheets[sheet] ?? [])) as never;
+    b.order.splice(b.order.indexOf(sheet) + 1, 0, name);
+    changed(workbook);
+    return { workbook, sheet: name };
+  }) as never,
+  'sheets.moveSheet': ((workbook: string, sheet: string, to: number) => {
+    const b = BOOKS[workbook]!;
+    b.order = b.order.filter((s) => s !== sheet);
+    b.order.splice(Math.min(Math.max(0, to), b.order.length), 0, sheet);
+    changed(workbook);
+    return { workbook, sheet, sheets: [...b.order] };
+  }) as never,
   'sheets.removeSheet': ((workbook: string, sheet: string) => { const b = BOOKS[workbook]!; delete b.sheets[sheet]; b.order = b.order.filter((s) => s !== sheet); changed(workbook); return { workbook, removed: sheet }; }) as never,
 };

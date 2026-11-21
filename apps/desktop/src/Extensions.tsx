@@ -104,8 +104,11 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 export function AbilitiesSub({ place, skills }: { place: ExtensionPlace; skills: SkillsState }) {
   const { installed, available } = useInstalled();
   const { status } = useConnectors();
-  if (place === 'installed') return <>{plural(installed.length, 'app')}</>;
-  if (place === 'available') return <>{available.length === 0 ? 'Every app is installed' : plural(available.length, 'app')}</>;
+  const [q] = useAbilitiesQuery();
+  // While searching, how many of them match: "4 of 21 apps".
+  const of = (list: readonly AppInfo[]) => { const n = list.filter((a) => appMatches(q, a)).length; return `${n} of ${plural(list.length, 'app')}`; };
+  if (place === 'installed') return <>{q.trim() ? of(installed) : plural(installed.length, 'app')}</>;
+  if (place === 'available') return <>{available.length === 0 ? 'Every app is installed' : q.trim() ? of(available) : plural(available.length, 'app')}</>;
   if (place === 'connectors') return <>{plural(connectorCount(status), 'connector')}</>;
   return skills.open ? <>{`Version ${skills.open.version}${skills.saved ? '' : ' · Saving…'}`}</> : <>{plural(skills.list.length, 'skill')}</>;
 }

@@ -980,6 +980,11 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
           <ContextMenu x={menu.x} y={menu.y} label={menu.sheet} onClose={() => setMenu(null)} items={[
             { action: 'open', label: 'Open', run: () => void sheets.open(data.workbook, menu.sheet) },
             { action: 'rename', label: 'Rename…', run: () => rename(menu.sheet) },
+            ...(sheets.canDuplicate ? [{ action: 'duplicate' as const, label: 'Duplicate', run: () => void sheets.duplicateSheet(menu.sheet) }] : []),
+            ...(sheets.canMove ? [
+              { action: 'move' as const, label: 'Move left', disabled: data.sheets.indexOf(menu.sheet) <= 0, run: () => void sheets.moveSheet(menu.sheet, data.sheets.indexOf(menu.sheet) - 1) },
+              { label: 'Move right', disabled: data.sheets.indexOf(menu.sheet) >= data.sheets.length - 1, run: () => void sheets.moveSheet(menu.sheet, data.sheets.indexOf(menu.sheet) + 1) },
+            ] : []),
             { action: 'delete', label: 'Delete sheet…', danger: true, separated: true, disabled: data.sheets.length <= 1, run: () => setConfirm(menu.sheet) },
           ]} />,
           document.body,
