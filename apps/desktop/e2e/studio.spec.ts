@@ -34,7 +34,8 @@ type SavedClip = { id: string; start: number; length: number; name?: string; mut
 /** The saved song, with each track's notes also read out of its clips into song time, as the notes editor shows them. */
 const saved = () => {
   const song = JSON.parse(fs.readFileSync(file(), 'utf8')) as { version: number; tracks: { clips?: SavedClip[]; notes: Note[] }[] };
-  for (const t of song.tracks) t.notes = (t.clips ?? []).flatMap((c) => c.notes.map((n) => ({ ...n, start: c.start + n.start }))).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+  // A file the app has not saved since it was written (by a test or by Mobius) may still be version 1, notes and all.
+  for (const t of song.tracks) if (t.clips) t.notes = t.clips.flatMap((c) => c.notes.map((n) => ({ ...n, start: c.start + n.start }))).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
   return song as unknown as typeof SONG & { version: number; tracks: (typeof SONG.tracks[number] & { clips: SavedClip[] })[] };
 };
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
