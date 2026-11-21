@@ -164,8 +164,9 @@ function tone(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, pit
   });
 }
 
-function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean) {
+function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean, keep?: AudioScheduledSourceNode[]) {
   const osc = ctx.createOscillator();
+  keep?.push(osc);
   const gain = ctx.createGain();
   osc.frequency.value = accent ? 1760 : 1320;
   gain.gain.setValueAtTime(accent ? 0.28 : 0.16, at);
@@ -317,6 +318,29 @@ export function previewNote(instrument: Instrument, pitch: number, velocity = 0.
     if (instrument === 'drums') drum(sampler, sampler.destination, pitch, at, velocity, noise(sampler), kit, pad);
     else tone(sampler, sampler.destination, instrument, pitch, at, seconds, velocity, sound);
   } catch { /* No sound here (a test browser); the note is still put in. */ }
+}
+
+/**
+ * A bar of metronome ticks before recording starts, at the song's tempo: a high tick first, then lower ones. `done`
+ * resolves when the bar is over (at once where there is no sound); `stop` cuts it short and never resolves it.
+ */
+export function countIn(tempo: number, beats = 4): { done: Promise<void>; stop(): void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const nodes: AudioScheduledSourceNode[] = [];
+  const done = new Promise<void>((resolve) => {
+    const spb = 60 / tempo;
+    try {
+      sampler ??= new AudioContext();
+      void sampler.resume().catch(() => {});
+      const at = sampler.currentTime + 0.05;
+      const ctx = sampler;
+      for (let i = 0; i < beats; i++) {
+        tick(ctx, ctx.destination, at + i * spb, i === 0, nodes);
+      }
+    } catch { /* No sound here (a test browser): the wait is still a bar long. */ }
+    timer = setTimeout(resolve, (0.05 + beats * spb) * 1000);
+  });
+  return { done, stop: () => { clearTimeout(timer); for (const n of nodes) { try { n.stop(); } catch { /* already over */ } } } };
 }
 
 export interface Player {

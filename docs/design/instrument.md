@@ -381,7 +381,7 @@ comfortable first, then compact. Comment on a row to change it.
 | Step dots | A row of 16 dots. On is ink, off is grey, and an accented step uses the track's colour. | 16 per row |
 | Track header | The track's number in a small cap, then its name. | Row height |
 | Clip | A solid block in the track's colour with its name. A clip Mobius proposed is dashed and unfilled. | Fills the lane |
-| Transport | Play, position in mono, then tempo, time signature and key as one segmented group. | Toolbar height |
+| Transport | Play, position in mono, then tempo (with a small Tap after it, `TapTempo`), time signature and key as one segmented group. | Toolbar height |
 
 ## Foundations
 

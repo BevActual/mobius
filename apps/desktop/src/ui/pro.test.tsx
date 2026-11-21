@@ -1,10 +1,28 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { GainReductionMeter, LetterToggle, LevelMeter, decibelLabel, NumberField, Readout, Transport, barsLabel, clockLabel, levelPosition } from './Pro';
+import { GainReductionMeter, LetterToggle, TapTempo, tapTempo, LevelMeter, decibelLabel, NumberField, Readout, Transport, barsLabel, clockLabel, levelPosition } from './Pro';
 
 const noop = () => {};
 
 describe('pro controls', () => {
+  it('reads a tempo from taps: the last four gaps, a long pause starting again', () => {
+    expect(tapTempo([0])).toBeNull();
+    expect(tapTempo([0, 500])).toBe(120);
+    expect(tapTempo([0, 500, 1000, 1500, 2000])).toBe(120);
+    // Only the last four gaps count: an early slow tap is forgotten.
+    expect(tapTempo([0, 900, 1400, 1900, 2400, 2900])).toBe(120);
+    // A pause over two seconds starts a new count.
+    expect(tapTempo([0, 500, 4000])).toBeNull();
+    expect(tapTempo([0, 500, 4000, 4600])).toBe(100);
+    expect(tapTempo([0, 50], 20, 300)).toBe(300);
+    expect(tapTempo([0, 461])).toBe(130.15);
+  });
+  it('draws tap tempo as a small button whose tooltip says how', () => {
+    const html = renderToStaticMarkup(<TapTempo onTempo={noop} keys="T" />);
+    expect(html).toContain('aria-label="Tap tempo"');
+    expect(html).toContain('title="Tap tempo: tap in time (T)"');
+    expect(html).toContain('>Tap<');
+  });
   it('draws a number field as a spinbutton with its unit, sized to its widest value', () => {
     const html = renderToStaticMarkup(<NumberField label="Tempo" value={120} onChange={noop} min={30} max={300} reset={120} unit="BPM" />);
     expect(html).toContain('role="spinbutton"');

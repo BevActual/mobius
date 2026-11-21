@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { followScroll, soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -274,5 +274,18 @@ describe('soundChanges', () => {
     expect(soundChanges(pad, { ...pad, clips: [] })).toEqual([]);
     expect(notesDiffer(pad, { ...pad, clips: [] })).toBe(true);
     expect(notesDiffer(pad, { ...pad, volume: 1 })).toBe(false);
+  });
+});
+
+describe('followScroll', () => {
+  it('leaves the view alone while the playhead is in sight', () => {
+    expect(followScroll(0, 1000, 200, 300)).toBeNull();
+  });
+  it('turns a page when the playhead reaches the right edge, and comes back when it loops to the start', () => {
+    expect(followScroll(0, 1000, 200, 790)).toBe(774);
+    expect(followScroll(774, 1000, 200, 20)).toBe(4);
+  });
+  it('does nothing when there is no room for the lanes', () => {
+    expect(followScroll(0, 150, 200, 500)).toBeNull();
   });
 });
