@@ -14,8 +14,8 @@ use std::time::Duration;
 
 /// How often the window hears where playback is: about 30 times a second.
 const POSITION_EVERY: Duration = Duration::from_millis(33);
-/// The rate a song is rendered to a file at.
-const RENDER_RATE: u32 = 48_000;
+/// The rate a song is rendered to a file at: 44.1 kHz, as the window's export is.
+const RENDER_RATE: u32 = 44_100;
 
 pub struct Music {
     engine: Mutex<Option<Arc<Engine>>>,

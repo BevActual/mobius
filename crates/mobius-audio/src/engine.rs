@@ -287,16 +287,19 @@ mod device {
         }
         let config: cpal::StreamConfig = supported.into();
         let channels = usize::from(config.channels);
+        let rate = config.sample_rate.0;
         let (mut engine, mut audio): (Engine, AudioSide) = Engine::pair(config.sample_rate.0, name.clone());
         let shared = std::sync::Arc::clone(&engine.shared);
         let stream = device
             .build_output_stream(
                 &config,
                 move |data: &mut [f32], info: &cpal::OutputCallbackInfo| {
+                    // How far ahead of the speakers this block is: what the device says, and at least the block itself
+                    // (some devices give the same time for both).
                     let t = info.timestamp();
-                    if let Some(ahead) = t.playback.duration_since(&t.callback) {
-                        shared.latency_us.store(u64::try_from(ahead.as_micros()).unwrap_or(u64::MAX), Ordering::Relaxed);
-                    }
+                    let said = t.playback.duration_since(&t.callback).map_or(0, |d| u64::try_from(d.as_micros()).unwrap_or(u64::MAX));
+                    let block = (data.len() / channels.max(1)) as u64 * 1_000_000 / u64::from(rate.max(1));
+                    shared.latency_us.store(said.max(block), Ordering::Relaxed);
                     audio.fill(data, channels);
                 },
                 |e| eprintln!("[mobius] sound output: {e}"),
@@ -304,6 +307,13 @@ mod device {
             )
             .map_err(|e| format!("{name} could not be opened: {e}"))?;
         stream.play().map_err(|e| format!("{name} could not start: {e}"))?;
+        // Wait (briefly) for the first block, so the latency asked for straight after opening is the real one.
+        for _ in 0..50 {
+            if engine.shared.latency_us.load(Ordering::Relaxed) > 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(4));
+        }
         engine._stream = Some(end);
         Ok((engine, stream))
     }
