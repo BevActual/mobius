@@ -105,6 +105,7 @@ Narrow windows:
 |---|---|
 | 1440px and up | Everything as placed |
 | 980 to 1439px | The right dock and Mobius share one column: whichever was brought forward last shows |
+| Under 1200px, Mobius docked | An app's list (left dock) starts hidden so the page keeps a readable column; Home keeps its Chats. The Panels menu brings it back, and that choice is kept |
 | 720 to 979px | The left dock becomes an overlay, opened from its key or the Panels menu; Mobius slides over the content and closes when the content is clicked |
 | Under 720px | One thing at a time: content, or one panel full width |
 

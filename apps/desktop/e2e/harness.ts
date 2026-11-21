@@ -107,6 +107,9 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
     // Mobius opens in the right panel, beside the work, from the start.
     await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
   }
+  // The runner's screen can be smaller than the window asks for, and below 1200 px with Mobius docked an app's list
+  // starts folded (docs/design/panel-layouts.md). Tests start at the size a laptop person has; narrow-window tests resize.
+  if ((await launched.shell.evaluate(() => window.innerWidth)) < 1200) await resizeWindow(launched.app, 1440, 900);
   return launched;
 }
 
