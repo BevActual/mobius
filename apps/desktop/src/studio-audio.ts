@@ -213,11 +213,13 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
 
 /** A gentle ceiling: unchanged up to 0.8, then rounding off towards 1, so a wild patch can't hurt ears or speakers. */
 let limitCurve: Float32Array | null = null;
-function softLimit(): Float32Array {
+export function softLimit(): Float32Array {
   if (limitCurve) return limitCurve;
   const n = 2049, curve = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x);
+    // A wave shaper reads its curve across inputs -1 to 1 (louder ones take the end values), so the curve covers just
+    // that: unchanged up to 0.8, then bending toward a ceiling of 0.95. Spread over -2 to 2, it doubled every device.
+    const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
     const y = a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2);
     curve[i] = Math.sign(x) * y;
   }
