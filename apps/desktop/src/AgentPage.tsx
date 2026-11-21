@@ -3,7 +3,6 @@ import { MAIN_BOT_ID, MAX_BOT_INSTRUCTIONS, MAX_BOT_NAME, botOfConversation, typ
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
 import { dateTimeLabel } from './dates';
-import { APP_ICONS } from './Rail';
 import './activity.css';
 import { agentSchedules, mayTouch, modelChoices } from './bot-view';
 import { loadApply, permissionOf } from './chat-mode';
@@ -139,10 +138,10 @@ function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => vo
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
   const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions need your answer` : 'Needs your answer') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? 'Failed' : 'Finished';
   return (
-    <li className="act-row">
+    <li className="act-row agent-run">
       <button type="button" className="act-main" onClick={() => onOpen(c.id)}>
+        {/* Every run here is this agent's, so no face repeats on each row: the state's dot leads it. */}
         <span className="act-mark" data-state={waiting ? 'needs' : c.activity} aria-hidden="true" />
-        <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS.agent}</svg>
         <span className="act-text">
           <span className="act-what">{c.title || 'A session'}</span>
           <span className="act-sub" data-needs={waiting || undefined} data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>

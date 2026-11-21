@@ -899,10 +899,7 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
       )}
       {menu && <PointMenu x={menu.x} y={menu.y} label="Cells" entries={cellEntries} onClose={() => setMenu(null)} />}
       {colMenu && <PointMenu x={colMenu.x} y={colMenu.y} label={`Column ${columnName(colMenu.c)}`} entries={columnEntries(colMenu.c)} onClose={() => setColMenu(null)} />}
-      <SheetTabs sheets={sheets} status={stats && (stats.numbers > 0
-        ? <><span>Sum <b>{statNumber(stats.sum)}</b></span><span>Average <b>{statNumber(stats.average)}</b></span><span>Min <b>{statNumber(stats.min)}</b></span><span>Max <b>{statNumber(stats.max)}</b></span><span>Count <b>{stats.count}</b></span></>
-        : <span>Count <b>{stats.count}</b></span>)}
-      />
+      <SheetTabs sheets={sheets} status={stats && <SelectionStat stats={stats} />} />
       {/* Format (the inspector's right panel, hidden until asked for): how the picked columns show their numbers, and
           whether the first row is a header. The same choices are in a column's menu. */}
       <PanelTab id="format" name="Format" shown={false}>
@@ -926,6 +923,25 @@ export function SheetGrid({ sheets, review, working = false }: { sheets: SheetsS
   );
 }
 
+type StatId = 'sum' | 'average' | 'count' | 'min' | 'max';
+const STAT_KEY = 'mobius.sheets.stat';
+const STATS: readonly { id: StatId; label: string }[] = [{ id: 'sum', label: 'Sum' }, { id: 'average', label: 'Average' }, { id: 'count', label: 'Count' }, { id: 'min', label: 'Min' }, { id: 'max', label: 'Max' }];
+const readStat = (): StatId => { try { const v = window.localStorage.getItem(STAT_KEY); return STATS.some((x) => x.id === v) ? (v as StatId) : 'sum'; } catch { return 'sum'; } };
+
+/** The selection's one figure at the right of the tabs, as every spreadsheet shows it: Sum unless another was picked,
+ *  and a click offers the others. With no numbers in it, only how many cells hold something. */
+function SelectionStat({ stats }: { stats: ReturnType<typeof selectionStats> }) {
+  const [stat, setStat] = useState<StatId>(readStat);
+  const valueOf = (id: StatId) => (id === 'count' ? String(stats.count) : statNumber(stats[id]));
+  if (stats.numbers === 0) return <span className="sheet-stat">Count <b>{stats.count}</b></span>;
+  const pick = (id: StatId) => { setStat(id); try { window.localStorage.setItem(STAT_KEY, id); } catch { /* kept for now */ } };
+  const label = STATS.find((x) => x.id === stat)!.label;
+  return (
+    <Menu label="Selection figure" entries={STATS.map((x) => ({ label: `${x.label}  ${valueOf(x.id)}`, checked: x.id === stat, run: () => pick(x.id) }))}
+      trigger={<button type="button" className="sheet-stat" title="Show another figure for the selection">{label} <b>{valueOf(stat)}</b></button>} />
+  );
+}
+
 function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode }) {
   const data = sheets.data!;
   const [renaming, setRenaming] = useState<string | null>(null);
@@ -941,8 +957,14 @@ function SheetTabs({ sheets, status }: { sheets: SheetsState; status: ReactNode 
             <input autoFocus className="sheet-tab-name" aria-label="Sheet name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} onBlur={() => setRenaming(null)} onKeyDown={(e) => { if (e.key === 'Escape') setRenaming(null); }} />
           </form>
         ) : (
-          <button key={s} type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
-            onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
+          <span key={s} className="sheet-tab-wrap" data-current={s === data.sheet || undefined}>
+            <button type="button" role="tab" aria-selected={s === data.sheet} className="sheet-tab" onClick={() => void sheets.open(data.workbook, s)} onDoubleClick={() => rename(s)}
+              onContextMenu={(e) => { e.preventDefault(); setMenu({ sheet: s, x: e.clientX, y: e.clientY }); }}>{s}</button>
+            <button type="button" className="sheet-tab-more" aria-label={`More for ${s}`} title="More"
+              onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ sheet: s, x: r.left, y: r.top - 4 }); }}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="8" r="1" /><circle cx="8" cy="8" r="1" /><circle cx="12" cy="8" r="1" /></svg>
+            </button>
+          </span>
         )))}
         <button type="button" className="sheet-tab-add" aria-label="New sheet" title="New sheet" onClick={() => void sheets.addSheet(`Sheet ${data.sheets.length + 1}`)}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>

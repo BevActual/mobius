@@ -189,5 +189,10 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -A
           git commit -qm "Screenshots of $BRANCH at $SHA"
-          git push -fq "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/ci-screens/${BRANCH}"
+          # Two runs on main finish close together and push here at once; the one that loses the ref's lock tries again.
+          for try in 1 2 3 4; do
+            git push -fq "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" "HEAD:refs/heads/ci-screens/${BRANCH}" && break
+            [ "$try" = 4 ] && exit 1
+            sleep $((try * 5))
+          done
           echo "Published $(ls *.png | wc -l) screenshots to ci-screens/${BRANCH}"

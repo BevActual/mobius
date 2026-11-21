@@ -287,11 +287,11 @@ function AccountRow({ account: a, onChanged, hideMissing = false, firstRun = fal
       </div>
       <span className="prow-status" role="status" data-has-key={status?.signedIn === true}>{said}</span>
       <span className="prow-actions">
-        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>{a.id === 'copilot' ? 'Sign in with GitHub' : browser ? `Continue with ${a.name.replace(/ subscription$/, '')}` : 'Sign in…'}</button>}
+        {status?.installed && !status.signedIn && !waiting && <button type="button" className="btn primary" aria-label={`Sign in to ${a.name}`} onClick={() => void signIn()}>{a.id === 'copilot' ? 'Sign in with GitHub' : browser ? `Continue with ${a.name.replace(/ subscription$/, '')}` : 'Sign in…'}</button>}
         {waiting && <button type="button" className="btn" onClick={() => void api.cancelSignIn(a.id).then(check)}>Cancel</button>}
         {browser && status?.signedIn && status.manageUsage && <button type="button" className="btn link" onClick={() => void window.mobius.browser.open(status.manageUsage!)}>Manage usage</button>}
         {browser && status?.signedIn && <button type="button" className="btn" aria-label={`Sign out of ${a.name}`} onClick={() => void signOut()}>Sign out</button>}
-        {!browser && status !== null && !(firstRun && status.signedIn) && <button type="button" className="btn" aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
+        {!browser && status !== null && !(firstRun && status.signedIn) && <button type="button" className={status.signedIn ? 'btn' : 'btn link'} aria-label={`Check ${a.name} again`} onClick={check}>Check again</button>}
         {status?.signedIn && !choosing && <button type="button" className="btn" aria-label={`Use ${a.name}`} onClick={() => setChoosing(true)}>Use…</button>}
       </span>
       {status && !status.installed && status.hint && <span className="prow-note prow-problem">{status.hint}</span>}

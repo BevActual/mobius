@@ -11,6 +11,7 @@ import { RichText } from './RichText';
 import { clipboardQuery, findCopied, type LauncherClipboard } from './launcher-clipboard';
 import { findSystemApps, findSystemCommands, folderOf, type LauncherSystem } from './launcher-system';
 import type { SystemFile } from '@mobius/shared';
+import { aliasHit, cleanAlias, comboOf, keyHit, readShortcuts, shortcutFor, targetOf, withAlias, withKey, writeShortcuts, type Shortcut, type ShortcutTarget } from './launcher-shortcuts';
 import { callQuicklink, keepNamed, parseCreate, readQuicklinks, readSaved, readSnippets, withSaved, withoutSaved, writeQuicklinks, writeSaved, writeSnippets, type Quicklink, type SavedCommand, type Snippet } from './launcher-commands';
 import { DotCharacter, type CharacterState } from './ui';
 import { withoutMarks, withoutToolTags } from './markdown';
@@ -31,7 +32,7 @@ import './launcher.css';
 
 export interface LauncherItem {
   id: string;
-  kind: 'ask' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'system' | 'disk' | 'tab' | 'command' | 'grid';
+  kind: 'ask' | 'alias' | 'about' | 'clip' | 'waiting' | 'agent' | 'answer' | 'pinned' | 'recent' | 'place' | 'app' | 'item' | 'system' | 'disk' | 'tab' | 'command' | 'grid';
   label: string;
   detail?: string;
   disabled?: boolean;
@@ -128,7 +129,7 @@ export type LauncherView = 'start' | 'apps';
 export const GRID_COLS = 7;
 
 const SECTION: Record<LauncherItem['kind'], string> = {
-  ask: 'Ask Mobius', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', system: 'On this computer', disk: 'Files', tab: 'Open pages', command: 'Commands', grid: 'All apps',
+  ask: 'Ask Mobius', alias: 'Your alias', about: 'About the selection', clip: 'Clipboard history', waiting: 'Waiting for you', agent: 'Agents at work', answer: 'Answer', pinned: 'Pinned', recent: 'Recent', place: 'Places', app: 'Apps', item: 'In your apps', system: 'On this computer', disk: 'Files', tab: 'Open pages', command: 'Commands', grid: 'All apps',
 };
 /** The kinds laid out in a row (left and right move along them). */
 const ACROSS = new Set<LauncherItem['kind']>(['pinned', 'place', 'grid']);
@@ -272,6 +273,10 @@ export function Launcher({
   }, [query, system, open]);
   const keptRef = useRef({ links, snippets });
   keptRef.current = { links, snippets };
+  // Aliases and keys of your own (launcher-shortcuts.ts), and the row one is being given to.
+  const [shortcuts, setShortcuts] = useState<Shortcut[]>(() => (typeof window === 'undefined' ? [] : readShortcuts()));
+  const keepShortcuts = useCallback((next: Shortcut[]) => { setShortcuts(next); writeShortcuts(next); }, []);
+  const [naming, setNaming] = useState<{ target: ShortcutTarget; label: string; what: 'alias' | 'key'; back: LauncherItem } | null>(null);
   // A command or question about the selection, answered here; what is typed becomes its name, so the answer stays with it.
   const askAboutSelection = useCallback((name: string, instruction: string) => {
     if (!askInline || !aboutNow) return;
@@ -322,6 +327,7 @@ export function Launcher({
     setChosenId(null);
     setScope(null);
     setActionsFor(null);
+    setNaming(null);
     setInlineAnswer(null);
     stopListening.current?.();
     stopListening.current = null;
@@ -360,6 +366,22 @@ export function Launcher({
   const narrowRef = useRef(narrow);
   narrowRef.current = narrow;
 
+  /** Give a row an alias or a key of its own, or take one away. Shown in its actions; the launcher stays open. */
+  const shortcutActs = useCallback((item: LauncherItem): LauncherItem[] => {
+    const target = targetOf(item.id);
+    if (!target) return [];
+    const label = item.kind === 'command' || item.kind === 'place' || item.kind === 'alias' ? item.label : item.label.replace(/^Open /, '');
+    const had = shortcutFor(shortcuts, target);
+    const act = (id: string, text: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label: text, detail, run });
+    const name = (what: 'alias' | 'key') => () => { setNaming({ target, label, what, back: item }); setActionsFor(null); setQuery(''); setChosenId(null); input.current?.focus(); };
+    return [
+      act('alias', had?.alias ? 'Change alias' : 'Add an alias', name('alias'), had?.alias),
+      ...(had?.alias ? [act('unalias', 'Remove the alias', () => { keepShortcuts(withAlias(shortcuts, target, label, null)); setStatus(`Alias ${had.alias} removed`); setActionsFor(null); setQuery(''); })] : []),
+      act('key', had?.key ? 'Change key' : 'Set a key', name('key'), had?.key),
+      ...(had?.key ? [act('unkey', 'Remove the key', () => { keepShortcuts(withKey(shortcuts, target, label, null)); setStatus(`${had.key} removed`); setActionsFor(null); setQuery(''); })] : []),
+    ];
+  }, [shortcuts, keepShortcuts]);
+
   /** What can be done with a row: shown by Shift+Enter. */
   const actionsOf = useCallback((item: LauncherItem): LauncherItem[] => {
     const act = (id: string, label: string, run: () => void, detail?: string): LauncherItem => ({ id: `act-${id}`, kind: 'command', label, detail, run });
@@ -375,7 +397,7 @@ export function Launcher({
         if (link) keepLinks(keptRef.current.links.filter((c) => c.id !== id)); else keepSnippets(keptRef.current.snippets.filter((c) => c.id !== id));
         setActionsFor(null); setQuery(''); setStatus(`${item.label} removed`);
       };
-      return [act('open', link ? 'Open' : 'Copy', item.run, '↵'), act('forget', link ? 'Remove this quicklink' : 'Remove this snippet', forget)];
+      return [act('open', link ? 'Open' : 'Copy', item.run, '↵'), ...shortcutActs(item), act('forget', link ? 'Remove this quicklink' : 'Remove this snippet', forget)];
     }
     if (mine) return [act('open', 'Run', () => { setActionsFor(null); item.run(); }, '↵'), act('forget', 'Remove this command', () => { keepSaved(withoutSaved(savedRef.current, mine)); setActionsFor(null); setStatus(`${item.label} removed`); })];
     return [
@@ -384,9 +406,10 @@ export function Launcher({
       ...(item.app && onPinned && (item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid')
         ? [act('pin', pinned ? 'Unpin' : 'Pin', () => pinRef.current(item.app!, !pinned))] : []),
       ...(item.app && !scope ? [act('scope', `Search in ${appName(item.app)}`, () => narrowRef.current(item.app!), 'Tab')] : []),
+      ...shortcutActs(item),
       act('copy', 'Copy name', () => { void navigator.clipboard?.writeText(item.label).catch(() => undefined); }),
     ];
-  }, [pins, onAskAbout, onPinned, scope, keepSaved, keepLinks, keepSnippets, system]);
+  }, [pins, onAskAbout, onPinned, scope, keepSaved, keepLinks, keepSnippets, system, shortcutActs]);
 
   // Sources that answer later: the words asked, and their items once they came. Until then the items found before
   // stay, so nothing jumps when they arrive.
@@ -406,11 +429,33 @@ export function Launcher({
     return later?.items ?? [];
   }, [find, later]);
 
+  /** A row for an alias or key of your own, opening what it stands for; null when that is gone. */
+  const resolveShortcut = useCallback((s: Shortcut): LauncherItem | null => {
+    const t = s.target;
+    const base = { id: `alias-${t.type}-${t.ref}`, kind: 'alias' as const, label: s.label, detail: [s.alias, s.key].filter(Boolean).join(' · ') || undefined };
+    if (t.type === 'app') { const app = t.ref as AppId; return isAvailable(app) ? { ...base, app, label: appName(app), run: () => onOpenApp(app) } : null; }
+    if (t.type === 'place') { const place = t.ref as Place; const go = places[place]; return go ? { ...base, place, label: PLACE_NAMES[place] ?? s.label, run: go } : null; }
+    if (t.type === 'command') { const c = commands.find((c) => c.id === t.ref); return c ? { ...base, label: c.label, run: c.run } : null; }
+    if (t.type === 'quicklink') { const l = links.find((l) => l.id === t.ref); return l && onOpenUrl ? { ...base, label: l.name, run: () => onOpenUrl(l.url.split('{query}').join('')) } : null; }
+    const n = snippets.find((n) => n.id === t.ref);
+    return n ? { ...base, label: n.name, run: () => { void navigator.clipboard?.writeText(n.text).catch(() => undefined); } } : null;
+  }, [onOpenApp, places, commands, links, snippets, onOpenUrl]);
+
   const listFor = useCallback((text: string): LauncherItem[] => {
     const q = text.trim().toLowerCase();
     const typed = text.trim();
     const has = (words: string) => words.toLowerCase().includes(q);
     if (actionsFor) return actionsOf(actionsFor).filter((a) => has(a.label));
+    // Giving a row an alias (typed, then Enter) or a key (pressed: see `keys`).
+    if (naming) {
+      const fields = [{ label: 'For', value: naming.label }];
+      if (naming.what === 'key') return [{ id: 'key-wait', kind: 'command', label: 'Press the keys', detail: 'Ctrl or Alt, one more of Ctrl, Alt or Shift, and a letter, number or F-key', fields, disabled: true, run: () => {} }];
+      const alias = cleanAlias(typed);
+      return [{
+        id: 'save-alias', kind: 'command', label: alias ? `Save alias “${alias}”` : typed ? 'One short word, at most 12 letters' : 'Type the alias', fields, disabled: !alias,
+        run: () => { if (alias) keepShortcuts(withAlias(shortcuts, naming.target, naming.label, alias)); },
+      }];
+    }
     // ">" first: commands only.
     const only = view === 'start' && !scope ? commandsOnly(commands, typed) : null;
     if (only) {
@@ -548,10 +593,33 @@ export function Launcher({
           .filter((command) => has(command.label))
           .map<LauncherItem>((command) => ({ id: command.id, kind: 'command', label: command.label, detail: command.detail, run: onNewTab }))),
     ];
-  }, [actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system, disk]);
+  }, [naming, shortcuts, keepShortcuts, actionsFor, actionsOf, scope, view, switchView, tabs, onNewTab, onActivateTab, onOpenApp, onAsk, onOpenMobius, commands, pins, waiting, lastOpen, onOpenRecent, findNow, places, now, inlineAnswer, askInline, onContinue, home, aboutNow, askAboutSelection, saved, keepSaved, links, snippets, keepLinks, keepSnippets, onOpenUrl, clipboard, system, disk]);
   const [choices, setChoices] = useState<Choices>(() => (typeof window === 'undefined' ? {} : readChoices()));
-  const listRanked = useCallback((text: string) => (text.trim() && !actionsFor ? rankByChoice(listFor(text), choices, text) : listFor(text)), [listFor, choices, actionsFor]);
+  const listRanked = useCallback((text: string) => {
+    const list = text.trim() && !actionsFor && !naming ? rankByChoice(listFor(text), choices, text) : listFor(text);
+    // An alias typed alone: what it stands for comes first after Ask, and Enter opens it.
+    const hit = !actionsFor && !naming && !scope && view === 'start' ? aliasHit(shortcuts, text) : null;
+    const row = hit ? resolveShortcut(hit) : null;
+    if (!row) return list;
+    const rest = list.filter((item) => { const t = targetOf(item.id); return !t || t.type !== hit!.target.type || t.ref !== hit!.target.ref; });
+    const at = rest.findIndex((item) => item.kind !== 'ask');
+    return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
+  }, [listFor, choices, actionsFor, naming, scope, view, shortcuts, resolveShortcut]);
   const items = useMemo(() => listRanked(query), [listRanked, query]);
+  // Keys of your own work anywhere in this window while the launcher is shut.
+  useEffect(() => {
+    if (open || inline || !shortcuts.some((s) => s.key)) return;
+    const on = (e: globalThis.KeyboardEvent) => {
+      const hit = keyHit(shortcuts, comboOf(e));
+      const row = hit ? resolveShortcut(hit) : null;
+      if (!row) return;
+      e.preventDefault();
+      e.stopPropagation();
+      row.run();
+    };
+    window.addEventListener('keydown', on, true);
+    return () => window.removeEventListener('keydown', on, true);
+  }, [open, inline, shortcuts, resolveShortcut]);
   // Read after the list is made, which is when a source that answers later is asked.
   const finding = !!find && !!query.trim() && pending.current?.text === query.trim() && later?.text !== query.trim();
 
@@ -586,6 +654,9 @@ export function Launcher({
     if (item.id.startsWith('clip-')) setStatus('Copied');
     if (item.id === 'make-kept') { item.run(); setStatus(`${item.label === 'Create quicklink' ? 'Quicklink' : 'Snippet'} saved`); setQuery(''); setChosenId(null); return; }
     if (item.id.startsWith('start-')) { item.run(); return; }
+    // Aliases and keys of your own: chosen from a row's actions, the launcher stays open to take them.
+    if (item.id === 'act-alias' || item.id === 'act-key' || item.id === 'act-unalias' || item.id === 'act-unkey') { item.run(); return; }
+    if (item.id === 'save-alias' && naming) { item.run(); setStatus(`Alias ${cleanAlias(query)} saved for ${naming.label}`); setNaming(null); setQuery(''); setChosenId(null); return; }
     if (actionsFor && (actionsFor.id.startsWith('ql-') || actionsFor.id.startsWith('snip-')) && item.id === 'act-forget') { item.run(); return; }
     if (item.id.startsWith('snip-')) setStatus('Copied');
     if (item.id === 'about-save') { item.run(); setStatus('Saved as a command'); setChosenId('ask-continue'); return; }
@@ -599,7 +670,7 @@ export function Launcher({
     item.run();
     // Opening an app hands it the keyboard. The closing dialog gives focus back to where it was (often Message Mobius),
     // which is right for a command but left an app's list keys typing into the composer.
-    if (item.app && (item.kind === 'app' || item.kind === 'grid' || item.kind === 'pinned') && !inline) {
+    if (item.app && (item.kind === 'app' || item.kind === 'grid' || item.kind === 'pinned' || item.kind === 'alias') && !inline) {
       afterPaint(() => landInStage(document.querySelector<HTMLElement>('main.stage'), document.activeElement));
     }
   };
@@ -614,6 +685,23 @@ export function Launcher({
       switchView(view === 'apps' ? 'start' : 'apps');
       return;
     }
+    // Giving a row an alias or a key: Escape goes back to its actions. A key is taken as it is pressed.
+    if (naming) {
+      if (k === 'Escape' || (empty && k === 'Backspace')) { event.preventDefault(); setActionsFor(naming.back); setNaming(null); setQuery(''); setChosenId(null); return; }
+      if (naming.what === 'key') {
+        event.preventDefault();
+        if (k === 'Control' || k === 'Alt' || k === 'Shift' || k === 'Meta') return;
+        const combo = comboOf(event);
+        if (!combo) { setStatus('Use Ctrl or Alt, one more of Ctrl, Alt or Shift, and a letter, number or F-key'); return; }
+        keepShortcuts(withKey(shortcuts, naming.target, naming.label, combo));
+        setStatus(`${combo} saved for ${naming.label}`); setNaming(null); setQuery(''); setChosenId(null);
+        return;
+      }
+    }
+    // A key of your own works here too.
+    const own = !naming && !actionsFor ? keyHit(shortcuts, comboOf(event)) : null;
+    const ownRow = own ? resolveShortcut(own) : null;
+    if (ownRow) { event.preventDefault(); onClose(); ownRow.run(); return; }
     // Back out of the actions, then out of an app, then out of All apps.
     if (actionsFor && (k === 'Escape' || (empty && (k === 'Backspace' || k === 'ArrowLeft')))) { event.preventDefault(); setActionsFor(null); setQuery(''); setChosenId(actionsFor.id); return; }
     if (aboutNow && empty && k === 'Backspace' && !scope && !actionsFor && view === 'start') { event.preventDefault(); setAboutLeftOut(true); setChosenId(null); return; }
@@ -714,7 +802,7 @@ export function Launcher({
           aria-activedescendant={activeId}
           aria-autocomplete="list"
           aria-label={actionsFor ? `Actions for ${actionsFor.label}` : scope ? `Search in ${appName(scope)}` : view === 'apps' ? 'Find an app' : 'Find apps, pages and commands'}
-          placeholder={actionsFor ? 'Choose an action' : scope ? `Search in ${appName(scope)}` : view === 'apps' ? 'Find an app' : 'Find, open or ask anything'}
+          placeholder={naming ? (naming.what === 'alias' ? `Alias for ${naming.label}` : `Press the keys for ${naming.label}`) : actionsFor ? 'Choose an action' : scope ? `Search in ${appName(scope)}` : view === 'apps' ? 'Find an app' : 'Find, open or ask anything'}
           autoComplete="off"
           spellCheck={false}
           value={query}
@@ -814,7 +902,7 @@ export function Launcher({
           }
           return (
             <div key={kind} role="group" aria-label={SECTION[kind]} className="launcher-section" data-kind={kind}>
-              {kind !== 'ask' && <div className="launcher-heading" aria-hidden="true">{actionsFor ? 'Actions' : scope && kind === 'item' ? `In ${appName(scope)}` : SECTION[kind]}</div>}
+              {kind !== 'ask' && <div className="launcher-heading" aria-hidden="true">{naming ? (naming.what === 'alias' ? 'New alias' : 'New key') : actionsFor ? 'Actions' : scope && kind === 'item' ? `In ${appName(scope)}` : SECTION[kind]}</div>}
               {members.map(({ item, index }) => (
                 <div key={item.id} {...option(item, index)}>
                   <span className="launcher-mark">

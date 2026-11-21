@@ -208,7 +208,9 @@ const isHistoryKey = (e: KeyboardEvent) => (e.ctrlKey || e.metaKey) && e.altKey 
  * On the frame, Outline and History are in Document options (they become panels), and when the toolbar is short Checklist gives way
  * (it is in Aa's lists too) and Writing tools shows only its pen.
  */
-function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
+function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = false }: {
+  /** In the top bar, the tools start right after the title rather than in its middle (Knowledge, as Sheets). */
+  flush?: boolean;
   editor: Editor;
   onTool?: (tool: WritingTool, selection: string | null) => void;
   busy: boolean;
@@ -285,7 +287,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
     ];
     return (
       <ToolbarControls label="Docs">
-        <div className="doc-toolbar doc-bar" data-frame role="toolbar" aria-label="Format">
+        <div className="doc-toolbar doc-bar" data-frame data-flush={flush || undefined} role="toolbar" aria-label="Format">
           <span className="doc-bar-group">
             <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, checked: state.style === s.id, keys: `${mod}Alt+${s.key}`, run: () => setStyle(s.id) }))}
               trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="Paragraph style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
@@ -316,6 +318,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
               ]} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
             );
           })()}
+          {trailing}
           {/* The rest is at the top of the toolbar's one ⋯ (the window's), which opens on it. */}
           <AppMenu label="Docs" entries={more} />
         </div>
@@ -435,8 +438,12 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd, inFrame = false }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd, inFrame = false, afterPage, flush = false }: {
+  /** The format tools start right after the title in the top bar (Knowledge). */
+  flush?: boolean;
   docs: NotesState;
+  /** What goes under the page, in its scroll (Knowledge's Linked from). */
+  afterPage?: ReactNode;
   /** The format bar goes in the window's toolbar (Docs, on the frame); without it, it stays above the page (the wiki). */
   inFrame?: boolean;
   /** The folder's own controls, at the end of the format bar (Knowledge's versions), so the page keeps one bar. */
@@ -878,7 +885,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
         </div>
       )}
       {editor && (
-        <Toolbar editor={editor} busy={busy} inFrame={inFrame} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
+        <Toolbar editor={editor} busy={busy} inFrame={inFrame} flush={flush} {...(onTool ? { onTool } : {})} trailing={toolbarEnd} extras={{
           font, onFont: setFont,
           onLink: () => setLinking(''),
           ...(own?.attach ? { onFile: () => picker.current?.click() } : {}),
@@ -954,6 +961,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
                 </aside>
               )}
             </div>
+            {afterPage}
           </div>
         </div>
       )}
