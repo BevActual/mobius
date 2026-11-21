@@ -58,6 +58,7 @@ The reasons are recorded in the [architecture decisions](../adr/README.md), espe
 | `crates/mobius-cored` | The core as a separate process |
 | `crates/mobius-agent` | Conversation state, the turn engine, model providers, context compaction |
 | `crates/mobius-claude` | Claude Pro/Max through the official Claude Code CLI, with Mobius's tools and approvals |
+| `crates/mobius-audio` | Music's sound engine: plays and renders a `song.json` on a sample clock, away from the window (being built; see `docs/reference/music-parity.md`) |
 | `crates/mobius-runtime` | Local models: finding and ranking them, downloads, supervising `llama-server` |
 | `crates/mobius-host` | What the window may ask for: validation, the bridge, services (mail, calendar accounts, voice, images, projects, schedules, memory, MCP, updates, secrets) |
 | `crates/mobius-store` | Small JSON stores (settings, history, bookmarks, bots), written atomically and read defensively |
