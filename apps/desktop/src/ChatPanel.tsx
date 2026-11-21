@@ -621,7 +621,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
   const log = useRef<HTMLDivElement>(null);
   const stuck = useRef(true);
   const configured = settings?.configured ?? false;
-  const needsSetup = settings !== null && !configured && !settings.baseUrl;
+  // No model yet, or the saved one could not be set up: the model choice, never "Connecting…" that does not end.
+  const needsSetup = settings !== null && !configured && (!settings.baseUrl || settings.setupFailed === true);
   const showSettings = settings !== null && needsSetup;
   const canType = configured && coreReady;
   // A time above the first message, and above any sent more than fifteen minutes after the one before.

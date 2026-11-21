@@ -1464,6 +1464,8 @@ export interface AgentSettings {
   model: string;
   system: string;
   configured: boolean;
+  /** A saved model could not be set up when the core started: choose a model again rather than wait. */
+  setupFailed?: boolean;
   hasKey: boolean;
   /** The most model calls one request may use. */
   maxSteps: number;
