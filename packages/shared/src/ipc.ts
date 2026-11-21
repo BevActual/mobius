@@ -3,6 +3,7 @@ import type { AgentEvent, Assessment, ConversationInfo, Duration, Hardware, Loca
 import type { Bot, BotDraft, BotResult, BotsState } from './bots';
 import { isContextList, type ContextItem } from './context';
 import { DEFAULT_KEYBINDINGS, isKeyBindings, type KeyBindings } from './keys';
+import { DEFAULT_LANGUAGE, isLanguage, type LanguageId } from './language';
 
 /** Everything that crosses the renderer -> main boundary is validated here. The renderer is untrusted input. */
 export interface Bounds { x: number; y: number; width: number; height: number }
@@ -1787,6 +1788,8 @@ export interface PreferencesSettings {
   muteSounds: boolean;
   /** Stop the computer sleeping while the agent is working. */
   keepAwake: boolean;
+  /** The language Mobius's own words are shown in. */
+  language: LanguageId;
   /** How much text a local model keeps in view. More uses more graphics memory. */
   localContext: number;
   /** Let the agent open, read and act on addresses on this computer or the local network. Off unless chosen. */
@@ -1860,7 +1863,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1868,6 +1871,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   notifyDownloads: isFlag,
   muteSounds: isFlag,
   keepAwake: isFlag,
+  language: isLanguage,
   localContext: (v): v is number => typeof v === 'number' && CONTEXT_SIZES.includes(v),
   agentPrivateUrls: isFlag,
   approvalMode: oneOf<ApprovalModeChoice>('manual', 'propose', 'smart', 'off'),

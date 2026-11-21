@@ -71,12 +71,14 @@ fn is_signatures(v: &Value) -> bool {
     v.as_object().is_some_and(|m| m.len() <= 20 && m.iter().all(|(k, s)| !k.is_empty() && k.len() <= 200 && s.as_str().is_some_and(|s| s.chars().count() <= 2000 && !s.contains('\0'))))
 }
 
-static FIELDS: [Field; 26] = [
+static FIELDS: [Field; 27] = [
     Field { name: "notifyNeedsYou", default: || json!(true), check: is_flag },
     Field { name: "notifyFinished", default: || json!(true), check: is_flag },
     Field { name: "notifyDownloads", default: || json!(true), check: is_flag },
     Field { name: "muteSounds", default: || json!(false), check: is_flag },
     Field { name: "keepAwake", default: || json!(false), check: is_flag },
+    // The language Mobius's own words are shown in (packages/shared/src/language.ts). English only for now.
+    Field { name: "language", default: || json!("en"), check: |v| one_of(v, &["en"]) },
     Field { name: "localContext", default: || json!(DEFAULT_CONTEXT), check: |v| v.as_u64().is_some_and(|n| CONTEXT_SIZES.contains(&n)) && v.is_u64() },
     Field { name: "agentPrivateUrls", default: || json!(false), check: is_flag },
     // Ask first (manual), Propose (the default) or Act (smart). Off is still understood, for the core and older files,

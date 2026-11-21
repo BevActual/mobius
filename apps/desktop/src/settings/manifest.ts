@@ -228,6 +228,7 @@ const SECTIONS: readonly SettingsSection[] = [
     subpages: [
       { id: 'general', label: 'General', rows: [
         row('resume-last', 'Reopen the last conversation', 'When Mobius starts, open the conversation you were in instead of a blank one.', 'resume', 'reopen', 'startup', 'launch', 'last chat', 'last conversation'),
+        row('language', 'Language', 'The language Mobius shows its own words in. More languages are coming.', 'language', 'translation', 'locale', 'english', 'translate'),
         row('keep-awake', 'Keep the computer awake while working', 'Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you.', 'keep awake', 'prevent sleep', 'caffeinate', 'idle', 'power', 'overnight'),
       ] },
     ],

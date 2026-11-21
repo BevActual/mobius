@@ -42,8 +42,11 @@ import {
   type ToolSteps,
   type AccessLevel,
   type AppAccess,
+  LANGUAGES,
+  isLanguage,
 } from '@mobius/shared';
 import { APP_ICONS } from '../Rail';
+import { t } from '../i18n';
 import { appName } from '../apps';
 import { relativeTime } from '../relative-time';
 import { dateTimeLabel } from '../dates';
@@ -908,9 +911,16 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
   if (subpage === 'profiles') return <ProfilesPane subpage={subpage} highlight={highlight} />;
   if (subpage === 'desktop') {
     return (
-      <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
-        <Toggle label="Keep the computer awake while working" checked={preferences.keepAwake} onChange={(keepAwake) => void onPreferences({ keepAwake })} />
-      </Row>
+      <>
+        <Row path={rowPath('advanced', subpage, 'language')} title={t('settings.language.title')} description={t('settings.language.description')} highlight={highlight === 'language'}>
+          <select className="popup" aria-label={t('settings.language.title')} value={preferences.language} onChange={(event) => { if (isLanguage(event.target.value)) void onPreferences({ language: event.target.value }); }}>
+            {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
+          </select>
+        </Row>
+        <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
+          <Toggle label="Keep the computer awake while working" checked={preferences.keepAwake} onChange={(keepAwake) => void onPreferences({ keepAwake })} />
+        </Row>
+      </>
     );
   }
   return (
