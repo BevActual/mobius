@@ -59,6 +59,9 @@ pub struct Track {
     /// How its volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`.
     #[serde(default)]
     pub volume_auto: Vec<AutoPoint>,
+    /// The Session view's clips, one slot per scene; an empty slot is null.
+    #[serde(default)]
+    pub slots: Vec<Option<SlotClip>>,
     /// Its effects in order, as the file has them (read by [`crate::fx::Chain`]).
     #[serde(default)]
     pub fx: Vec<serde_json::Value>,
@@ -117,6 +120,14 @@ pub fn auto_value_at(points: &[AutoPoint], beat: f64, empty: f64) -> f64 {
         }
     }
     last.value
+}
+
+/// A clip in a Session slot: `bars` long, going round while it plays.
+#[derive(Debug, Clone, Deserialize)]
+pub struct SlotClip {
+    pub bars: f64,
+    #[serde(default)]
+    pub notes: Vec<Note>,
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it

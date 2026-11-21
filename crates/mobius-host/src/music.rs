@@ -69,6 +69,11 @@ impl Music {
             "engine" => self.engine().map(|e| json!({ "ok": true, "device": e.device(), "sampleRate": e.sample_rate(), "latencyMs": e.latency_ms() })),
             "load" => self.load(arg(0)),
             "play" => self.play(arg(0).as_f64(), cycle_of(arg(1)), arg(2).as_bool().unwrap_or(false)),
+            "playSession" => self.play_session(arg(0).as_bool().unwrap_or(false), arg(1)),
+            "launch" => match arg(0).as_str() {
+                Some(track) => self.launch(track, arg(1)),
+                None => Err("a track is needed".to_owned()),
+            },
             "stop" => self.stop(),
             "seek" => match arg(0).as_f64() {
                 Some(beat) if beat.is_finite() => self.seek(beat.max(0.0)),
@@ -103,13 +108,35 @@ impl Music {
         {
             let song = lock(&self.song);
             let song = song.as_ref().ok_or("load a song first")?;
-            let how = Playing { from, cycle, click };
+            let how = Playing { from, cycle, click, session: false };
             engine.play(song, how)?;
             *lock(&self.how) = how;
         }
         *lock(&self.start) = from;
         self.report(engine);
         Ok(json!({ "ok": true, "beat": from }))
+    }
+
+    /// Play the Session view, with the clips the window has waiting (`{ trackId: slot or null }`) starting at once.
+    fn play_session(&self, click: bool, launches: &Value) -> Result<Value, String> {
+        let launches: Vec<(String, Option<usize>)> = launches.as_object().map_or_else(Vec::new, |o| o.iter().filter_map(|(id, slot)| Some((id.clone(), slot_of(slot)?))).collect());
+        let engine = self.engine()?;
+        {
+            let song = lock(&self.song);
+            let song = song.as_ref().ok_or("load a song first")?;
+            engine.play_session(song, click, &launches)?;
+            *lock(&self.how) = Playing { from: 0.0, cycle: None, click, session: true };
+        }
+        self.report(engine);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// Start a track's clip in a slot, or stop the track with null, at the next bar line.
+    fn launch(&self, track: &str, slot: &Value) -> Result<Value, String> {
+        let slot = slot_of(slot).ok_or("a slot or null is needed")?;
+        let engine = lock(&self.engine).clone().ok_or("play the Session view first")?;
+        engine.launch(track, slot)?;
+        Ok(json!({ "ok": true }))
     }
 
     fn stop(&self) -> Result<Value, String> {
@@ -124,7 +151,7 @@ impl Music {
         *lock(&self.start) = beat;
         let engine = lock(&self.engine).clone();
         if let Some(e) = engine {
-            if e.position().playing {
+            if e.position().playing && !lock(&self.how).session {
                 let song = lock(&self.song);
                 if let Some(song) = song.as_ref() {
                     e.play(song, Playing { from: beat, ..*lock(&self.how) })?;
@@ -185,6 +212,14 @@ impl Music {
     }
 }
 
+/// A slot the window sent: a number, or null to stop. `None` when it is neither.
+fn slot_of(value: &Value) -> Option<Option<usize>> {
+    match value {
+        Value::Null => Some(None),
+        v => v.as_u64().and_then(|n| usize::try_from(n).ok()).map(Some),
+    }
+}
+
 /// The loop the window sent: `{ start, end }` in beats, or nothing.
 fn cycle_of(value: &Value) -> Option<(f64, f64)> {
     let (start, end) = (value.get("start")?.as_f64()?, value.get("end")?.as_f64()?);
@@ -197,7 +232,18 @@ fn position_json(engine: &Engine) -> Value {
 
 fn position_json_of(p: &mobius_audio::engine::Position) -> Value {
     let meters: serde_json::Map<String, Value> = p.meters.iter().map(|(id, [l, r])| (id.clone(), json!([l, r]))).collect();
-    json!({ "playing": p.playing, "beat": p.beat, "meters": meters })
+    // The Session view: each track's slot playing and the beat it started on, and the launch waiting (a slot, or
+    // "stop"; null when none waits).
+    let session: serde_json::Map<String, Value> = p
+        .session
+        .iter()
+        .map(|(id, s)| (id.clone(), json!({ "slot": s.playing.map(|(slot, _)| slot), "start": s.playing.map(|(_, b)| b), "queued": s.queued.map(|q| q.map_or_else(|| json!("stop"), |n| json!(n))) })))
+        .collect();
+    if session.is_empty() {
+        json!({ "playing": p.playing, "beat": p.beat, "meters": meters })
+    } else {
+        json!({ "playing": p.playing, "beat": p.beat, "meters": meters, "session": session })
+    }
 }
 
 #[cfg(test)]
