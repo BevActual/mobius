@@ -176,13 +176,15 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
               {steps.map((st, i) => <StepRow key={i} step={st} current={busy && st.status === 'running' && i === steps.length - 1} />)}
             </ol>
           )}
-          {!waiting && steps.length > 0 && (() => {
-            const read = steps.filter((st) => st.kind === 'read' && st.status === 'done').length;
-            const searched = steps.filter((st) => st.kind === 'search').length;
+          {!waiting && (steps.length > 0 || sources.length > 0) && (() => {
+            // The trail stays with the report: this turn's steps while the conversation has them, else the pages it cites.
+            const trail: readonly ResearchStep[] = steps.length > 0 ? steps : sources.map((src) => ({ kind: 'read', text: src.site, url: src.url, status: 'done' }));
+            const read = trail.filter((st) => st.kind === 'read' && st.status === 'done').length;
+            const searched = trail.filter((st) => st.kind === 'search').length;
             return (
               <details className="research-steps-done">
                 <summary>{read > 0 ? `Read ${read} ${read === 1 ? 'source' : 'sources'}` : `Searched ${searched} ${searched === 1 ? 'time' : 'times'}`}{read > 0 && searched > 0 ? ` · ${searched} ${searched === 1 ? 'search' : 'searches'}` : ''}</summary>
-                <ol className="research-steps">{steps.map((st, i) => <StepRow key={i} step={st} current={false} />)}</ol>
+                <ol className="research-steps">{trail.map((st, i) => <StepRow key={i} step={st} current={false} />)}</ol>
               </details>
             );
           })()}
