@@ -323,6 +323,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     if (s.attach === 'photo' && surface?.photo) item = sheetItem(surface.photo);
     if (s.attach === 'cut' && surface?.cut) item = sheetItem(surface.cut);
     if (s.attach === 'mail' && surface?.mail) item = mailItem(surface.mail);
+    if (s.attach === 'chat' && surface?.chat) item = surface.chat.item;
     if (s.attach === 'page') {
       const result = await window.mobius.context.page();
       if (!result.ok) { setProblem(result.error); return; }

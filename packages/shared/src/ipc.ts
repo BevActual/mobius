@@ -304,7 +304,7 @@ export interface MatrixVerification {
 }
 
 export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean; /** Matrix: the network a bridge carries it from, such as WhatsApp. */ bridge?: string }
-export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean; /** Slack: up to five people who answered in the thread. */ repliers?: { id: string; name: string }[]; /** When the thread was last answered, in ms. */ lastReply?: number }
+export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; /** Who has replied in its thread, when the service says. */ repliers?: { name: string }[]; /** When its thread was last replied to, in ms. */ lastReply?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
 export interface ChatChanged { account: string; channel?: string | null }
 export type ChatSignIn = { ok: true; account: { id: string; service: ChatService; name: string } } | { ok: false; message: string };
 
@@ -895,12 +895,6 @@ export interface MobiusBridge {
     history(account: string, channel: string, options?: { before?: string; thread?: string; limit?: number }): Promise<ChatMessage[] | NotesFailure>;
     send(account: string, channel: string, text: string, thread?: string): Promise<ChatMessage | NotesFailure>;
     markRead(account: string, channel: string, upTo: string): Promise<void>;
-    /** Slack: unread from this message on. */
-    markUnread?(account: string, channel: string, message: string): Promise<{ ok: true } | NotesFailure>;
-    /** A link to one message (Slack, Matrix). */
-    permalink?(account: string, channel: string, message: string): Promise<{ url: string } | NotesFailure>;
-    /** The person's own reaction, added (`on`) or taken back. Slack only, once its app asks for reactions:write. */
-    react?(account: string, channel: string, message: string, emoji: string, on: boolean): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: ChatChanged) => void): () => void;
     /** Forgets the account and its sign-in; its messages stay on the service. */
     removeAccount?(id: string): Promise<{ ok: true } | NotesFailure>;
@@ -1470,6 +1464,8 @@ export interface AgentSettings {
   model: string;
   system: string;
   configured: boolean;
+  /** A saved model could not be set up when the core started: choose a model again rather than wait. */
+  setupFailed?: boolean;
   hasKey: boolean;
   /** The most model calls one request may use. */
   maxSteps: number;
@@ -1793,6 +1789,8 @@ export interface PreferencesSettings {
   muteSounds: boolean;
   /** Stop the computer sleeping while the agent is working. */
   keepAwake: boolean;
+  /** Minimising the window hides it to the tray (the notification area), off the taskbar. */
+  minimizeToTray: boolean;
   /** How much text a local model keeps in view. More uses more graphics memory. */
   localContext: number;
   /** Let the agent open, read and act on addresses on this computer or the local network. Off unless chosen. */
@@ -1866,7 +1864,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1874,6 +1872,7 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   notifyDownloads: isFlag,
   muteSounds: isFlag,
   keepAwake: isFlag,
+  minimizeToTray: isFlag,
   localContext: (v): v is number => typeof v === 'number' && CONTEXT_SIZES.includes(v),
   agentPrivateUrls: isFlag,
   approvalMode: oneOf<ApprovalModeChoice>('manual', 'propose', 'smart', 'off'),

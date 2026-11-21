@@ -276,6 +276,21 @@ fn a_model_the_core_refuses_is_reported_and_changes_nothing() {
 }
 
 #[test]
+fn a_saved_model_the_core_refuses_at_start_asks_for_a_model_again_instead_of_waiting() {
+    let s = service(true);
+    assert_eq!(s.service.settings()["setupFailed"], json!(false), "nothing saved: nothing failed");
+    std::fs::write(s.dir.path().join("agent.json"), r#"{"baseUrl":"http://a/v1","model":"reject","system":"","maxSteps":25,"keyStored":false}"#).unwrap();
+    let again = reopen(&s);
+    assert_eq!((again.settings()["configured"].clone(), again.settings()["setupFailed"].clone()), (json!(false), json!(false)), "not tried yet: still connecting");
+    again.apply();
+    let v = again.settings();
+    assert_eq!((v["baseUrl"].clone(), v["configured"].clone(), v["setupFailed"].clone()), (json!("http://a/v1"), json!(false), json!(true)));
+    // Choosing a model that works clears it; so does the core stopping (it is tried again when it is back).
+    assert_eq!(again.configure(&cfg("http://a/v1", "good")), json!({ "ok": true }));
+    assert_eq!(again.settings()["setupFailed"], json!(false));
+}
+
+#[test]
 fn seeding_for_tests_does_not_save_anything() {
     let s = service(true);
     assert_eq!(s.service.seed(&cfg("http://a/v1", "m")), json!({ "ok": true }));
