@@ -482,6 +482,14 @@ export interface MobiusBridge {
     quickEntryActive(): Promise<boolean>;
     /** Whether the launcher's key from anywhere is working: false when none is chosen or another program has it. */
     launcherKeyActive?(): Promise<boolean>;
+    /** The title row's window buttons: the main window minimised, maximised or restored, or closed (to the tray when Mobius keeps running there). */
+    minimize?(): Promise<void>;
+    toggleMaximize?(): Promise<void>;
+    close?(): Promise<void>;
+    /** Whether it is maximised, full screen and in front, as `onState` reports changes. */
+    getState?(): Promise<WindowState>;
+    /** The title the taskbar and Alt+Tab show: the open file, or "Mobius" when empty. */
+    setTitle?(title: string): Promise<void>;
   };
   surface: {
     setBounds(bounds: Bounds | null): void;
