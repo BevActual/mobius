@@ -15,10 +15,10 @@ use std::f64::consts::{PI, TAU};
 pub const QUANTUM: usize = 128;
 /// The longest a delay holds sound back, in seconds (as `createDelay(4)`).
 const MAX_DELAY: f64 = 4.0;
-/// A device's sound passes this ceiling on its way out (studio-audio.ts `softLimit`).
+/// A device's sound passes this ceiling on its way out (studio-audio.ts `softLimit`): unchanged up to 0.8, then
+/// bending toward 0.95. Louder than 1 takes the curve's end, as a wave shaper does.
 fn soft_limit(v: f64) -> f64 {
-    // The window's curve covers -2 to 2 across a wave shaper's input of -1 to 1: so its input is doubled first.
-    let x = (2.0 * v).clamp(-2.0, 2.0);
+    let x = v.clamp(-1.0, 1.0);
     let a = x.abs();
     let y = if a <= 0.8 { a } else { 0.8 + 0.2 * ((a - 0.8) / 0.2).tanh() };
     y.copysign(x)
