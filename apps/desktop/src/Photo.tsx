@@ -556,6 +556,16 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
     photos.change({ ...edits, adjustments: [...edits.adjustments.slice(0, at), a, ...edits.adjustments.slice(at)] });
     photos.setSelected('auto');
   };
+  // The basic sliders, shown when no layer is picked: they work on the photo straight away, through one "Basic" layer
+  // made on the first move (and left unpicked, so the sliders stay put while they are dragged).
+  const basic = edits.adjustments.find((a) => a.id === 'basic');
+  const setBasic = (k: 'exposure' | 'contrast' | 'warmth', v: number) => {
+    const next = structuredClone(edits);
+    let a = next.adjustments.find((x) => x.id === 'basic');
+    if (!a) { a = blankAdjustment('basic', 'Basic'); next.adjustments.push(a); }
+    a[k] = v;
+    photos.change(next, `slider:${k}:basic`);
+  };
   const revert = () => { photos.change({ version: 1, adjustments: [] }); photos.setSelected(null); };
   const exportIt = async () => {
     if (!img) return;
@@ -666,6 +676,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
             ))}
           </div>
         </ToolbarItem>
+        <span className="photo-tb-spacer" aria-hidden="true" />
         {/* Holding M still shows the original when this button has moved into the ⋯ menu, where a row cannot be held. */}
         <ToolbarItem priority="low" menu={[]}><HoldButton hold={hold} /></ToolbarItem>
         <ToolbarItem>
@@ -683,7 +694,7 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
           {/* The photo's facts along the foot of the content, as the mock has them: its name and size as it will export. */}
           <p className="photo-info" role="status">
             <span>{open.path.split('/').pop()}{img ? ` · ${shownSize(img, geometry)}` : ''}</span>
-            <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'Original' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
+            <span>{busy || (photos.saved ? (edits.adjustments.length === 0 && isPlain(edits.geometry) ? 'No edits' : `${edits.adjustments.length === 1 ? '1 edit' : `${edits.adjustments.length} edits`} · Original kept`) : 'Saving…')}</span>
           </p>
           <div className="photo-frame" ref={frame} onDoubleClick={() => { if (!cropping) setZoomed((z) => !z); }}>
             <BeforeAfter showing={before}><canvas ref={shown} className="photo-canvas" role="img" aria-label={before ? 'The photo before edits' : 'The photo with edits'} /></BeforeAfter>
@@ -781,7 +792,11 @@ function PhotoView({ photos, review, working, onDrop }: { photos: PhotosState; r
                   </Section>
                   <button type="button" className="photo-delete" onClick={() => remove(sel.id)}>Delete adjustment</button>
                 </div>
-              ) : null}
+              ) : (
+                <div className="photo-adjust photo-basic" role="group" aria-label="Basic adjustments">
+                  {(['exposure', 'contrast', 'warmth'] as const).map((k) => <Slider key={k} label={AMOUNT_NAMES[k]} value={basic?.[k] ?? 0} onChange={(v) => setBasic(k, v)} />)}
+                </div>
+              )}
             </>
           )}
           {tab === 'filters' && (
