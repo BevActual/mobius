@@ -26,7 +26,7 @@ const shell = () => mobius!.shell;
 // No rail (docs/design/panel-layouts.md): the Go button names the app you are in and opens the launcher.
 const onApp = (name: string) => expectOnApp(shell(), name);
 const open = (name: string) => (name === 'Home' ? goToPlace(shell(), 'Home') : goTo(shell(), name));
-const mobiusButton = (): Locator => shell().locator('.context-strip [data-mobius-face]');
+const mobiusButton = (): Locator => shell().locator('.strip-right [data-mobius-face]');
 const leftSide = (): Locator => shell().locator(':is(.dock.left, .ui-dock[data-dock="left"])');
 const composer = (): Locator => shell().getByRole('textbox', { name: 'Message Mobius' });
 

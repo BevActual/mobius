@@ -291,7 +291,7 @@ test('Assets places a copy of a component and puts a colour style on what is pic
   await inspector().getByRole('button', { name: 'Create component' }).click();
   await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['instance']);
   // Assets is a left panel, shown from the Panels menu.
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Assets' }).click();
   const assets = shell().getByRole('region', { name: 'Assets', exact: true });
   await assets.getByRole('button', { name: 'Place Card' }).click();

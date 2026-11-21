@@ -57,7 +57,8 @@ export function FilterBar({ groups, value, onChange, label = 'Filters', onClear 
         </div>
       ))}
       <div className="ui-filter-results" role="status">
-        <span>{count === 0 ? 'No filters' : count === 1 ? '1 filter' : `${count} filters`}</span>
+        {/* Nothing picked says nothing (Live's browser has no empty line): the row appears with the first tag. */}
+        {count > 0 && <span>{count === 1 ? '1 filter' : `${count} filters`}</span>}
         {count > 0 && <button type="button" className="ui-filter-clear" onClick={() => { onChange({}); onClear?.(); }}>Clear</button>}
       </div>
     </div>
@@ -128,7 +129,7 @@ export function PreviewStrip({ on, onToggle, raw, onRaw, name, peaks, position, 
             {!shape && <span className="ui-preview-name">{name}</span>}
             {position !== undefined && <span className="ui-preview-head" style={{ left: `${position * 100}%` }} />}
           </>
-        ) : <span className="ui-preview-name">Nothing chosen</span>}
+        ) : <span className="ui-preview-name">Preview</span>}
       </div>
       <button type="button" className="ui-preview-raw" aria-pressed={raw} title={raw ? 'Raw: at its own tempo, once' : 'Raw: off, so it starts on the next bar and loops in time'} onClick={() => onRaw(!raw)}>Raw</button>
       <Knob className="ui-preview-volume" label="Preview volume" value={volume} onChange={onVolume} min={-60} max={6} step={0.5} reset={0} unit="dB" />

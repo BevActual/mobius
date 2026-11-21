@@ -54,7 +54,7 @@ async function openProjects(): Promise<void> {
 }
 /** The toolbar's ⋯, where the open project's own commands come first. */
 async function openMenu(): Promise<void> {
-  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Project', exact: true }).click();
 }
 async function newProject(name: string): Promise<void> {
   await shell().getByRole('button', { name: 'New project' }).first().click();

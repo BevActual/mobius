@@ -158,7 +158,7 @@ test('Mobius sorting the board shows dashed, and is kept or discarded', async ()
 
 test('the Inspector shows the picked item and changes its text and size', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Inspector' }).click();
   const whole = shell().getByLabel('This board');
   await expect(whole).toContainText('Sticky');
