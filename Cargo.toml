@@ -30,3 +30,12 @@ panic = "warn"
 lto = "thin"
 codegen-units = 1
 strip = true
+
+# Sound is made in real time even in a dev build: the engine and its FFT are built optimised there too, or a reverb
+# alone takes a quarter of a core.
+[profile.dev.package.mobius-audio]
+opt-level = 3
+[profile.dev.package.realfft]
+opt-level = 3
+[profile.dev.package.rustfft]
+opt-level = 3

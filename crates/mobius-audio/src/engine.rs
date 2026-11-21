@@ -8,7 +8,7 @@
 // The audio side is driven by the Windows output device; elsewhere only the tests use it.
 #![cfg_attr(not(windows), allow(dead_code))]
 
-use crate::render::{Renderer, MAX_BLOCK};
+use crate::render::{Playing, Renderer, MAX_BLOCK};
 use crate::song::Song;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -77,6 +77,12 @@ impl AudioSide {
             }
         }
         let channels = channels.max(1);
+        // Played to the end and rung out: let it go.
+        if self.playing.as_ref().is_some_and(|r| r.finished()) {
+            if let Some(old) = self.playing.take() {
+                self.let_go(old);
+            }
+        }
         let Some(renderer) = self.playing.as_mut() else {
             data.fill(0.0);
             self.shared.playing.store(false, Ordering::Release);
@@ -105,7 +111,8 @@ impl AudioSide {
         }
         shared.tracks.store(count.saturating_sub(1), Ordering::Relaxed);
         shared.beat.store(renderer.beat().to_bits(), Ordering::Release);
-        shared.playing.store(true, Ordering::Release);
+        // At the song's end it says it has stopped, while what is ringing rings out.
+        shared.playing.store(!renderer.past_end(), Ordering::Release);
     }
 
     fn let_go(&mut self, old: Box<Renderer>) {
@@ -121,6 +128,8 @@ pub struct Engine {
     shared: Arc<Shared>,
     /// The tracks whose levels `position` reports, in the order the audio thread has them.
     tracks: Mutex<Vec<String>>,
+    /// How it was last asked to play: its loop and click carry on through a change to the song.
+    how: Mutex<Playing>,
     sample_rate: u32,
     device: String,
     /// Dropped to end the stream.
@@ -152,7 +161,7 @@ impl Engine {
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
         let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
-        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), sample_rate, device, _stream: None };
+        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), sample_rate, device, _stream: None };
         (engine, audio)
     }
 
@@ -188,14 +197,15 @@ impl Engine {
         self.shared.latency_us.load(Ordering::Relaxed) as f64 / 1000.0
     }
 
-    /// Plays `song` from `from_beat`. Playing already, it changes to this song at once, and notes still ringing
-    /// carry on.
+    /// Plays `song` as `how` says: from a beat, round a loop or to the end, with the metronome or not. Playing
+    /// already, it changes to this at once, and notes still ringing carry on.
     ///
     /// # Errors
     /// When the audio thread has not taken the last commands (it has stopped running).
-    pub fn play(&self, song: &Song, from_beat: f64) -> Result<(), String> {
+    pub fn play(&self, song: &Song, how: Playing) -> Result<(), String> {
         self.empty_trash();
-        let renderer = Box::new(Renderer::new(song, self.sample_rate, from_beat));
+        *lock(&self.how) = how;
+        let renderer = Box::new(Renderer::playing(song, self.sample_rate, how));
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         self.send(Command::Play(renderer))
     }
@@ -206,7 +216,8 @@ impl Engine {
     /// As [`Engine::play`].
     pub fn update(&self, song: &Song) -> Result<(), String> {
         let at = self.position();
-        if at.playing { self.play(song, at.beat) } else { Ok(()) }
+        let how = Playing { from: at.beat, ..*lock(&self.how) };
+        if at.playing { self.play(song, how) } else { Ok(()) }
     }
 
     /// Stops; what was sounding stops with it.
@@ -332,7 +343,7 @@ mod tests {
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().all(|s| *s == 0.0) && !engine.position().playing);
 
-        engine.play(&song, 0.0).unwrap();
+        engine.play(&song, Playing::default()).unwrap();
         audio.fill(&mut buffer, 2);
         let at = engine.position();
         assert!(at.playing && (at.beat - 0.04).abs() < 1e-9, "{at:?}");
@@ -355,7 +366,7 @@ mod tests {
     fn more_channels_than_two_get_silence_past_the_second() {
         let (engine, mut audio) = Engine::pair(48_000, "test".into());
         let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"t","instrument":"bass","notes":[{"pitch":45,"start":0,"length":1,"velocity":1}]}]}"#).unwrap();
-        engine.play(&song, 0.0).unwrap();
+        engine.play(&song, Playing::default()).unwrap();
         let mut buffer = vec![0f32; 480 * 4];
         audio.fill(&mut buffer, 4);
         assert!(buffer.chunks(4).all(|f| f[2] == 0.0 && f[3] == 0.0));
