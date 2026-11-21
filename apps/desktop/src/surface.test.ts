@@ -108,6 +108,16 @@ describe('what each app suggests', () => {
     expect(open.slice(0, 2).map((s) => s.label)).toEqual(['One-page brief', 'Make this a deck']);
     for (const bit of ['slides/Presentations/', '---', 'Notes:', 'Leave this document as it is.', 'read no other file', 'at most half the slides have bullets']) expect(MAKE_A_DECK).toContain(bit);
   });
+  it('offers Review this in Docs and Notes, in Review mode, which never edits the text', () => {
+    for (const app of ['docs', 'notes'] as const) {
+      const got = suggestionsFor({ app, hasPage: false, note: { path: 'Work/Plan.md', title: 'Plan', text: '# Plan', folder: app } });
+      const review = got.find((s) => s.label === 'Review this');
+      expect(review).toMatchObject({ attach: 'note', mode: 'review' });
+      expect(review!.prompt).toContain('change none of its text');
+      // The panel shows the first three.
+      expect(got.indexOf(review!)).toBeLessThan(3);
+    }
+  });
   it('writes meeting notes as a change to keep, and checks Tasks before adding to-dos', () => {
     const got = suggestionsFor({ app: 'notes', hasPage: false, note: { path: 'Work/Standup.md', title: 'Standup', text: '# Standup', folder: 'notes' } });
     const meeting = got.find((s) => s.label === 'Meeting notes')?.prompt ?? '';
