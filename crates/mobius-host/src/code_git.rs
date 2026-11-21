@@ -30,12 +30,17 @@ fn git(dir: &Path, args: &[&str], timeout: Duration) -> Result<String, String> {
         use std::os::windows::process::CommandExt;
         cmd.creation_flags(0x0800_0000);
     }
+    let started = std::time::Instant::now();
     let child = cmd.spawn().map_err(|_| "Git is not installed on this computer.".to_owned())?;
     let (tx, rx) = std::sync::mpsc::channel();
     std::thread::spawn(move || {
         let _ = tx.send(child.wait_with_output());
     });
     let out = rx.recv_timeout(timeout).map_err(|_| "Git took too long.".to_owned())?.map_err(|e| e.to_string())?;
+    let took = started.elapsed();
+    if took > Duration::from_secs(1) {
+        eprintln!("[mobius] git {} took {} ms", args.first().unwrap_or(&""), took.as_millis());
+    }
     let text = |b: &[u8]| String::from_utf8_lossy(b).trim().to_owned();
     if out.status.success() {
         Ok(text(&out.stdout))
@@ -47,21 +52,38 @@ fn git(dir: &Path, args: &[&str], timeout: Duration) -> Result<String, String> {
 
 const QUICK: Duration = Duration::from_secs(20);
 
-/// Whether the project is a repository, its branch, and its changed files (`M`, `A`, `D`, `?`...).
+/// Whether the project is a repository, its branch, and its changed files (`M`, `A`, `D`, `?`...). One git call:
+/// on Windows each one costs a process start, and Code reads this after every save and commit.
 pub fn status(dir: &Path) -> Value {
     if !dir.join(".git").exists() {
         return json!({ "repo": false });
     }
-    let branch = git(dir, &["symbolic-ref", "--short", "HEAD"], QUICK).unwrap_or_default();
-    let changes: Vec<Value> = git(dir, &["status", "--porcelain=v1", "--untracked-files=all"], QUICK)
-        .unwrap_or_default()
-        .lines()
+    let out = git(dir, &["status", "--porcelain=v1", "--branch", "--untracked-files=all"], QUICK).unwrap_or_default();
+    let mut lines = out.lines();
+    let (branch, ahead) = lines.next().and_then(|l| l.strip_prefix("## ")).map(branch_line).unwrap_or_default();
+    let changes: Vec<Value> = lines
         .filter(|l| l.len() > 3)
         .take(500)
         .map(|l| json!({ "status": l[..2].trim(), "path": l[3..].trim_matches('"') }))
         .collect();
-    let ahead = git(dir, &["rev-list", "--count", "@{u}..HEAD"], QUICK).ok().and_then(|n| n.parse::<u64>().ok());
     json!({ "repo": true, "branch": branch, "changes": changes, "ahead": ahead })
+}
+
+/// `## main...origin/main [ahead 2, behind 1]`, `## main`, `## No commits yet on main` or `## HEAD (no branch)`:
+/// the branch (empty when detached) and how many commits are not pushed (none without an upstream).
+fn branch_line(line: &str) -> (String, Option<u64>) {
+    if line.starts_with("HEAD (no branch)") {
+        return (String::new(), None);
+    }
+    let line = line.strip_prefix("No commits yet on ").or_else(|| line.strip_prefix("Initial commit on ")).unwrap_or(line);
+    let (name, rest) = line.split_once(' ').unwrap_or((line, ""));
+    match name.split_once("...") {
+        Some((branch, _)) => {
+            let ahead = rest.split_once("ahead ").and_then(|(_, n)| n.split(|c: char| !c.is_ascii_digit()).next()).and_then(|n| n.parse().ok()).unwrap_or(0);
+            (branch.to_owned(), Some(ahead))
+        }
+        None => (name.to_owned(), None),
+    }
 }
 
 /// Commits everything changed. Refused with nothing to commit, or a message that is empty or too long.
@@ -74,11 +96,18 @@ pub fn commit(dir: &Path, message: &str) -> Result<Value, String> {
         return Err("This project is not a git repository.".into());
     }
     git(dir, &["add", "-A"], QUICK)?;
-    if git(dir, &["diff", "--cached", "--quiet"], QUICK).is_ok() {
-        return Err("There is nothing to commit.".into());
-    }
-    git(dir, &["commit", "-q", "-m", message], QUICK)?;
-    let id = git(dir, &["rev-parse", "--short", "HEAD"], QUICK)?;
+    // Commit straight away and ask why only if it is refused: two git calls instead of four.
+    let said = match git(dir, &["commit", "-m", message], QUICK) {
+        Ok(said) => said,
+        Err(_) if git(dir, &["diff", "--cached", "--quiet"], QUICK).is_ok() => return Err("There is nothing to commit.".into()),
+        Err(e) => return Err(e),
+    };
+    // Its first line is `[main (root-commit) 1a2b3c4] Subject`.
+    let id = said.lines().next().and_then(|l| l.strip_prefix('[')).and_then(|l| l.split(']').next()).and_then(|l| l.split_whitespace().last()).map(str::to_owned);
+    let id = match id {
+        Some(id) if id.chars().all(|c| c.is_ascii_hexdigit()) => id,
+        _ => git(dir, &["rev-parse", "--short", "HEAD"], QUICK)?,
+    };
     Ok(json!({ "ok": true, "commit": id }))
 }
 
@@ -119,5 +148,19 @@ mod tests {
         assert_eq!(commit(&work, "again").unwrap_err(), "There is nothing to commit.");
         assert_eq!(push(&work).unwrap()["branch"], "main");
         assert_eq!(status(&work)["ahead"], 0);
+        std::fs::write(work.join("a.txt"), "two").unwrap();
+        commit(&work, "Change a").unwrap();
+        let s = status(&work);
+        assert_eq!((s["branch"].as_str(), s["ahead"].as_u64(), s["changes"].as_array().map(Vec::len)), (Some("main"), Some(1), Some(0)));
+    }
+
+    #[test]
+    fn the_branch_line_gives_the_branch_and_what_is_not_pushed() {
+        assert_eq!(branch_line("main"), ("main".into(), None));
+        assert_eq!(branch_line("No commits yet on main"), ("main".into(), None));
+        assert_eq!(branch_line("feature/x...origin/feature/x"), ("feature/x".into(), Some(0)));
+        assert_eq!(branch_line("main...origin/main [ahead 12, behind 1]"), ("main".into(), Some(12)));
+        assert_eq!(branch_line("main...origin/main [behind 3]"), ("main".into(), Some(0)));
+        assert_eq!(branch_line("HEAD (no branch)"), (String::new(), None));
     }
 }
