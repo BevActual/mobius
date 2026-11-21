@@ -5,7 +5,7 @@ import {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
-  WaveformView, peaksOf, type WaveRange, type WarpMarker,
+  WaveformView, peaksOf, type WaveRange, FilterBar, PreviewStrip, type TagPicks, type WarpMarker,
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
@@ -122,6 +122,22 @@ function Wave() {
         <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
       <div className="sheet-col"><span className="sheet-note">Warped: four markers (drag, arrows, Delete; double-click the warp strip to add one)</span>
         <WaveformView label="Sample, warped" peaks={peaks} duration={4} value={plain} onChange={setPlain} warp={warp} onWarpChange={setWarp} /></div>
+    </div>
+  );
+}
+
+function BrowseDemo() {
+  const [picks, setPicks] = useState<TagPicks>({ type: ['Keys'] });
+  const [on, setOn] = useState(true);
+  const [raw, setRaw] = useState(false);
+  const [at, setAt] = useState(0.35);
+  const [vol, setVol] = useState(-6);
+  const peaks = Array.from({ length: 120 }, (_, i) => Math.abs(Math.sin(i * 0.31)) * Math.exp(-(i % 30) / 12));
+  return (
+    <div className="sheet-col" style={{ maxWidth: 420 }}>
+      <span className="sheet-note">A browser's filter bar (click picks one, Ctrl-click more) and preview strip</span>
+      <FilterBar groups={[{ id: 'type', name: 'Type', tags: ['Bass', 'Keys', 'Pad', 'Lead', 'Pluck'] }, { id: 'mood', name: 'Character', tags: ['Warm', 'Dark', 'Bright', 'Glassy'] }]} value={picks} onChange={setPicks} />
+      <PreviewStrip on={on} onToggle={setOn} raw={raw} onRaw={setRaw} name="Warm keys" peaks={peaks} position={at} onScrub={setAt} volume={vol} onVolume={setVol} />
     </div>
   );
 }
@@ -681,6 +697,7 @@ export function Sheet() {
 
         <Card title="Waveform (Music's sampler)" shot="waveform" wide>
           <Wave />
+          <BrowseDemo />
         </Card>
         <Card title="Instrument controls (Music's Device panel and drum kit)" shot="instruments" wide>
           <Instruments />

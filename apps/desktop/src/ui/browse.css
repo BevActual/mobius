@@ -1,0 +1,43 @@
+/*
+ * Browser pieces (Browse.tsx): the filter bar under a browser's search, and the preview strip at its foot. After
+ * Live 12's browser (manual, "Working with the Browser", 4.4 and 4.9). Values come only from tokens.css.
+ */
+.ui-filters { display: grid; gap: var(--sp-1); min-width: 0; padding: var(--sp-1) 0; }
+.ui-filter-group { display: grid; grid-template-columns: minmax(0, 7em) minmax(0, 1fr); align-items: start; gap: var(--sp-2); min-width: 0; }
+.ui-filter-name { padding-top: calc(var(--sp-1) / 2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.ui-filter-tags { display: flex; flex-wrap: wrap; gap: calc(var(--sp-1) / 2); min-width: 0; }
+.ui-filter-results {
+  display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-list); padding-top: var(--sp-1);
+  border-top: var(--hairline-w) solid var(--line-soft); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums;
+}
+.ui-filter-clear { margin-left: auto; padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-small); background: none; color: var(--ink); font: inherit; font-weight: var(--fw-medium); cursor: default; }
+.ui-filter-clear:hover { background: color-mix(in srgb, var(--sel) 50%, transparent); }
+.ui-filter-clear:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: 0; }
+
+.ui-preview {
+  display: flex; align-items: center; gap: var(--sp-2); min-width: 0; height: var(--row-list); padding: 0 var(--sp-2);
+  border-top: var(--hairline-w) solid var(--line); background: var(--frame);
+}
+.ui-preview-toggle, .ui-preview-raw {
+  display: inline-grid; place-items: center; flex: none; height: var(--letter-size); min-width: var(--letter-size); padding: 0 calc(var(--sp-1) / 2);
+  border: var(--hairline-w) solid var(--line-strong); border-radius: var(--radius-small); background: transparent; color: var(--muted);
+  font: var(--fw-semibold) var(--fs-xs) / 1 var(--font-sans); cursor: default;
+}
+.ui-preview-toggle svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }
+:is(.ui-preview-toggle, .ui-preview-raw):hover { background: color-mix(in srgb, var(--sel) 50%, transparent); color: var(--ink); }
+:is(.ui-preview-toggle, .ui-preview-raw)[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+:is(.ui-preview-toggle, .ui-preview-raw):focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-preview-shape {
+  position: relative; flex: 1; min-width: 0; height: calc(var(--row-list) - var(--sp-2)); overflow: hidden;
+  border: var(--hairline-w) solid var(--line-soft); border-radius: var(--radius-small); background: var(--paper); outline: 0;
+}
+.ui-preview-shape[role="slider"]:not([data-empty]) { cursor: pointer; }
+.ui-preview-shape:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--focus-w); }
+.ui-preview-shape svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.ui-preview-shape path { fill: var(--muted); }
+.ui-preview-name { display: block; padding: 0 var(--sp-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); line-height: calc(var(--row-list) - var(--sp-2) - 2 * var(--hairline-w)); color: var(--muted); }
+.ui-preview-head { position: absolute; top: 0; bottom: 0; width: var(--focus-w); margin-left: calc(var(--focus-w) / -2); background: var(--ink); pointer-events: none; }
+/* The volume knob lies on its side in the strip: a small dial, then its value; the name is for assistive tech. */
+.ui-knob.ui-preview-volume { --knob-size: var(--letter-size); grid-auto-flow: column; align-items: center; gap: var(--sp-1); min-width: 0; }
+.ui-preview-volume .ui-knob-name { position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ui-preview-volume .ui-knob-value { min-width: 6ch; font-size: var(--fs-xs); }

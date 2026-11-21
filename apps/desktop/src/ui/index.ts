@@ -11,6 +11,7 @@ import './instrument.css';
 import './chart.css';
 import './pads.css';
 import './patch.css';
+import './browse.css';
 
 export { Menu, PointMenu, useAnyMenuOpen, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -42,6 +43,7 @@ export { AutomationLane, beatLabel, laneValueAt, type AutomationPoint } from './
 export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
 export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
+export { FilterBar, PreviewStrip, pickTag, filterCount, type FilterGroup, type TagPicks } from './Browse';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
