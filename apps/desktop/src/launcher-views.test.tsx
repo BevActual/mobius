@@ -43,6 +43,19 @@ describe('launcher views', () => {
     expect(none).not.toContain('About the selection');
   });
 
+  it('puts what an alias of yours stands for first after Ask, and chooses it', () => {
+    const store = new Map([['mobius.launcher.shortcuts', JSON.stringify([{ target: { type: 'app', ref: 'mail' }, label: 'Mail', alias: 'm', key: 'Ctrl+Alt+M' }])]]);
+    const was = (globalThis as { window?: unknown }).window;
+    (globalThis as { window?: unknown }).window = { localStorage: { getItem: (k: string) => store.get(k) ?? null, setItem: () => {} } };
+    try {
+      const html = renderToStaticMarkup(<Launcher {...base} pinned={['notes']} onAsk={() => {}} answered={{ question: 'm', answer: { conversation: 'c', text: '', state: 'failed', sources: [] } }} />);
+      expect(html).toContain('>Your alias<');
+      expect(html).toContain('aria-selected="true" aria-label="Mail, m · Ctrl+Alt+M"');
+    } finally {
+      (globalThis as { window?: unknown }).window = was;
+    }
+  });
+
   it('offers to create a quicklink from what is typed, showing what it read', () => {
     const html = renderToStaticMarkup(<Launcher {...base} pinned={['mail']} onOpenUrl={() => {}} answered={{ question: 'quicklink maps maps.example/?q={query}', answer: { conversation: 'c', text: '', state: 'failed', sources: [] } }} />);
     expect(html).toContain('Create quicklink');
