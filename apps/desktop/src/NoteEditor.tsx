@@ -419,7 +419,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       },
     },
     onUpdate: ({ editor: e, transaction }) => {
-      if (transaction.getMeta('mobius-load')) return;
+      // A transaction that changed nothing itself, only what the editor added after it (its empty last line when a
+      // page opens), is not an edit: saving it would write the page out again in the editor's own way.
+      if (transaction.getMeta('mobius-load') || !transaction.docChanged) return;
       const md = markdownOf(e);
       known.current = md;
       notes.edit(md);

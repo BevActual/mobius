@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { goTo, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Notes is built in the Tauri shell');
@@ -85,9 +85,18 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   fs.mkdirSync(file('Home'), { recursive: true });
   fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n- oat milk\n');
   fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n- tomatoes\n');
+  // A page written on Windows: line endings \r\n, and headings with no blank line under them.
+  const SUPPLIERS = '# Suppliers\r\n## Veltro\r\n- packs in six weeks\r\n## Axion\r\n- motors\r\n';
+  fs.writeFileSync(file('Home', 'Suppliers.md'), SUPPLIERS);
   await start();
+  await side().getByRole('button', { name: 'Suppliers', exact: true }).click();
+  await expect(text().locator('h2')).toHaveText(['Veltro', 'Axion']);
   await side().getByRole('button', { name: 'Garden', exact: true }).click();
   await expect(text().locator('h1')).toHaveText('Garden');
+  await expect(text().locator('li')).toHaveText(['tomatoes']);
+  // Coming back to Notes opens the same page again: that does not rewrite it either (checked at the end).
+  await goTo(shell(), 'Tasks');
+  await goTo(shell(), 'Notes');
   await expect(text().locator('li')).toHaveText(['tomatoes']);
   await side().getByRole('searchbox', { name: 'Search notes' }).fill('oat');
   const results = side().getByRole('region', { name: 'Results' });
@@ -103,6 +112,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   expect(fs.existsSync(file('Home', 'Groceries.md'))).toBe(false);
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
+  expect(onDisk('Home', 'Suppliers.md')).toBe(SUPPLIERS);
   await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
 });
 
