@@ -638,20 +638,21 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     const list = tasks.all[view.name] ?? [];
     const { open, done } = splitDone(nest(list).map((n) => n.task));
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
-    // The changed tasks are boxed where they are; the answers sit under the last of them, as under a change in Docs.
-    const lastNew = review ? [...open].reverse().find((task) => proposal.isNew(task.text)) : undefined;
-    changeShown = lastNew !== undefined;
+    // The changed tasks are boxed where they are; one indigo line above the first of them says so and holds the
+    // answers, as over a change in Notes, Docs and Mail.
+    const firstNew = review ? open.find((task) => proposal.isNew(task.text)) : undefined;
+    changeShown = firstNew !== undefined;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
           {open.map((task) => [
-            row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
-            task === lastNew && review && !working && (
+            task === firstNew && review && !working && (
               <li key="mobius-change" className="task-change">
-                <ChangeBar who={<><MobiusMark size={14} />Mobius changed this list</>} onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                <ChangeBar who={<><MobiusMark size={14} />Mobius changed this</>} onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
               </li>
             ),
+            row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
           ])}
         </ul>
         <div className="task-drop-end" data-drop={dropEnd || undefined}
@@ -718,6 +719,10 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     <PanelLayout app="tasks" panels={panels}>
       <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
         <div className="tasks-main">
+          {/* The list's name leads the page, as in Things, with how many are left beside it (subtasks not counted on their own, as in the top bar). */}
+          {!query && (
+            <h1 className="tasks-title">{title}{view.kind === 'list' && (() => { const left = nest(tasks.all[view.name] ?? []).filter((n) => !n.task.done).length; return <span className="tasks-title-count">{left === 0 ? 'All done' : `${left} to do`}</span>; })()}</h1>
+          )}
           {review && !working && view.kind === 'list' && !changeShown && (
             <div className="note-review" role="status">
               <span className="review-dot" aria-hidden="true" />

@@ -223,7 +223,12 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 /* Completed sits one row's gap under the list, as part of it. */
 .tasks-page .tasks-done { margin-top: var(--sp-2); }
 /* "Mobius changed this list": a quiet label with the Mobius mark, then Discard, Try another and Keep. */
-.task-change .doc-change-bar > span:first-child { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--muted); }
+.task-change .doc-change-bar > span:first-child { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--mobius); white-space: nowrap; }
 .task-change .doc-change-bar > span:first-child svg { color: var(--mobius); }
 /* A list Mobius changed keeps its count; the change itself is shown in the list (and under From Mobius), not as a dot. */
 .ui-dock[data-dock="left"] .side .list-row[data-proposed]:has(> .list-count)::after { content: none; }
+/* The page heading: the list's name, the size Settings and Knowledge use, and its count, muted. */
+.tasks-title { display: flex; align-items: baseline; gap: var(--sp-2); margin: 0 0 var(--sp-3); font-size: var(--fs-2xl); font-weight: var(--fw-semibold); line-height: var(--lh-tight); letter-spacing: -0.015em; color: var(--ink); }
+.tasks-title-count { font-size: var(--fs-md); font-weight: var(--fw-regular); letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* A done subtask stays in place, muted, and shows its tools only under the pointer (or keyboard focus), not after its tick. */
+.task-items .task[data-done]:not([data-picked]) > .task-line:not(:hover):not(:has(:focus-visible)) > .task-tools { display: none; }
