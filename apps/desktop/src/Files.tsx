@@ -239,6 +239,31 @@ export function filesTitle(files: FilesState): string {
   const parts = files.place.path ? files.place.path.split('/') : [];
   return parts.length === 0 ? 'Workspace' : parts.length === 1 ? folderName(parts[0]!) : parts[parts.length - 1]!;
 }
+/**
+ * The title inside a nested folder: its path as a breadcrumb, as Finder's path bar ("Workspace › notes › P2 build").
+ * Each part above opens that folder; the last is where you are, in ink. At the top or one folder down, the plain title.
+ */
+export function FilesCrumbs({ files }: { files: FilesState }): ReactNode {
+  if (files.place.kind !== 'folder') return filesTitle(files);
+  const parts = files.place.path ? files.place.path.split('/') : [];
+  if (parts.length < 2) return filesTitle(files);
+  const go = (to: string) => files.setPlace({ kind: 'folder', path: to });
+  return (
+    <nav className="files-crumbs" aria-label="Folder path">
+      <button type="button" className="files-crumb" onClick={() => go('')}>Workspace</button>
+      {parts.map((part, i) => {
+        const last = i === parts.length - 1;
+        const name = i === 0 ? folderName(part) : part;
+        return (
+          <span key={i} className="files-crumb-step">
+            <span className="files-crumb-sep" aria-hidden="true">›</span>
+            {last ? <span className="files-crumb" aria-current="page">{name}</span> : <button type="button" className="files-crumb" onClick={() => go(parts.slice(0, i + 1).join('/'))}>{name}</button>}
+          </span>
+        );
+      })}
+    </nav>
+  );
+}
 /** The grey line under the title: how many things are here, as Finder's status bar says. */
 export function filesSub(files: FilesState): ReactNode {
   if (!files.available || (files.place.kind === 'folder' && files.problem) || files.place.kind === 'add-drive') return undefined;

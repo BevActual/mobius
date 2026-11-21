@@ -128,3 +128,10 @@
 .files-info-facts dt { color: var(--muted); font-size: var(--fs-xs); }
 .files-info-facts dd { margin: 0; overflow-wrap: anywhere; user-select: text; font-variant-numeric: tabular-nums; }
 .files-info-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
+/* The path in the title inside a nested folder: the parts above are muted buttons, where you are is in ink. */
+.files-crumbs { display: inline-flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
+.files-crumb-step { display: inline-flex; align-items: baseline; min-width: 0; }
+.files-crumb-sep { margin: 0 var(--sp-1); color: var(--muted); font-weight: var(--fw-regular); }
+button.files-crumb { padding: 0 2px; border: 0; border-radius: var(--radius-small); background: none; font: inherit; color: var(--muted); cursor: pointer; }
+button.files-crumb:hover { background: var(--soft); color: var(--ink); }
+.files-crumb[aria-current] { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }

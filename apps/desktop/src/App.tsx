@@ -67,7 +67,7 @@ import { VideoEditor, VideoSidebar } from './Video';
 import { SkillEditor } from './Skills';
 // Abilities (marked): the toolbar's title, grey line and controls, the skills list, and New skill.
 import { AbilitiesSub, abilitiesTitle, ExtensionsPage, ExtensionsSidebar, requestNewSkill, SkillList, SkillsToolbar, type ExtensionPlace } from './Extensions';
-import { FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
+import { FilesCrumbs, FilesPage, FilesSidebar, filesSub, filesTitle, useFiles } from './Files';
 import { SyncGlyph } from './Sync';
 import { pairFor } from './sync-view';
 import { setChatMode } from './chat-mode';
@@ -1915,7 +1915,8 @@ export function App() {
         // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
         // start page, where the Go button already says Home.
         // Messages and Research with nothing open are blank too: the Go button names the app, and the title would only repeat it.
-        title: place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
+        // Files inside a nested folder: the path as a breadcrumb, each part opening its folder.
+        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
