@@ -813,11 +813,17 @@ impl Notes {
     /// A sound made from a page (Music's song rendered by the window), saved in `Exports` as WAV under a name not yet
     /// taken there. `base64` is the file; at most `MAX_SOUND_EXPORT` bytes.
     pub fn save_sound_export(&self, path: &str, name: &str, base64: &str) -> Res<Value> {
-        if !self.page(path)?.is_file() {
-            return Err("that page is not there".into());
-        }
         if base64.len() > MAX_SOUND_EXPORT / 3 * 4 + 8 {
             return Err("that sound is too big to save".into());
+        }
+        self.save_sound_bytes(path, name, &crate::photos::base64_decode(base64)?)
+    }
+
+    /// A WAV file for a page saved in `Exports` under a name not yet taken there: one the window sent, or one Music's
+    /// own engine rendered here (which has no size limit of the window's).
+    pub fn save_sound_bytes(&self, path: &str, name: &str, bytes: &[u8]) -> Res<Value> {
+        if !self.page(path)?.is_file() {
+            return Err("that page is not there".into());
         }
         let name = file_name_for(name);
         let stem = match name.rsplit_once('.') {
@@ -825,12 +831,11 @@ impl Notes {
             Some(_) => return Err("a sound is saved as WAV".into()),
             None => name.clone(),
         };
-        let bytes = crate::photos::base64_decode(base64)?;
         if bytes.len() < 12 || &bytes[..4] != b"RIFF" || &bytes[8..12] != b"WAVE" {
             return Err("that is not a WAV file".into());
         }
         let stem = if stem.is_empty() { "Untitled".to_owned() } else { stem };
-        let name = write_fresh(&self.exports()?, &stem, "wav", &bytes)?;
+        let name = write_fresh(&self.exports()?, &stem, "wav", bytes)?;
         Ok(json!({ "path": path, "saved": format!("{EXPORTS}/{name}"), "name": name }))
     }
 }
