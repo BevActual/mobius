@@ -169,6 +169,38 @@ test('layers are drawn with a tool, picked together, lined up, duplicated and ty
   await expect.poll(() => saved().frames[0]!.children[0]!.text).toBe('Lisbon offsite');
 });
 
+test('a line is drawn with L and given an arrow, and a picture is added and kept beside the design', async () => {
+  await start();
+  const tree = shell().getByRole('tree', { name: 'Frames and layers' });
+  // L, then a drag with Shift held, draws a flat line.
+  await canvas().focus();
+  await shell().keyboard.press('l');
+  const whole = (await canvas().getByLabel('Frame Home').boundingBox())!;
+  const view = (await canvas().boundingBox())!;
+  const left = Math.max(whole.x, view.x), top = Math.max(whole.y, view.y);
+  const width = Math.min(whole.x + whole.width, view.x + view.width) - left, height = Math.min(whole.y + whole.height, view.y + view.height) - top;
+  await shell().mouse.move(left + width * 0.2, top + height * 0.6);
+  await shell().mouse.down();
+  await shell().keyboard.down('Shift');
+  await shell().mouse.move(left + width * 0.6, top + height * 0.62, { steps: 5 });
+  await shell().mouse.up();
+  await shell().keyboard.up('Shift');
+  await expect.poll(() => saved().frames[0]!.children.map((c) => c.type)).toEqual(['text', 'rect', 'line']);
+  expect((saved().frames[0]!.children[2] as { h: number }).h).toBe(0);
+  await inspector().getByRole('radio', { name: 'Arrow at the end' }).click();
+  await inspector().getByRole('radio', { name: 'Dashed' }).click();
+  await expect.poll(() => { const l = saved().frames[0]!.children[2] as { ends?: string; dash?: boolean }; return [l.ends, l.dash]; }).toEqual(['end', true]);
+  // The toolbar's Image button picks a picture; it lands in the frame and is kept in "Home files".
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAEElEQVR4nGM4EaABRAwQCgAljgUBqTNxyAAAAABJRU5ErkJggg==', 'base64');
+  const chooser = shell().waitForEvent('filechooser');
+  await shell().getByRole('toolbar', { name: 'Design tools' }).getByRole('button', { name: 'Image' }).click();
+  await (await chooser).setFiles({ name: 'beach.png', mimeType: 'image/png', buffer: png });
+  await expect(tree.getByRole('button', { name: 'beach', exact: true })).toBeVisible();
+  await expect.poll(() => (saved().frames[0]!.children[3] as { type?: string; src?: string } | undefined)?.src).toBe('Home%20files/beach.png');
+  expect(fs.existsSync(path.join(userData, 'workspace', 'designs', 'Trip app', 'Home files', 'beach.png'))).toBe(true);
+  await expect(canvas().getByLabel('Image beach').locator('img')).toBeVisible();
+});
+
 test('a layer is hidden, locked and arranged from its row and its right-click menu', async () => {
   await start();
   // The canvas sits between the layer list and the inspector: a window this big shows the frame clear of both.

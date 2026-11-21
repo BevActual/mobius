@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
+import { changedIds, componentOf, contrast, copyOf, coverCrop, detach, freshId, lineEnds, lineFrom, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type DesignDoc } from './design-format';
 
 const FILE = JSON.stringify({
   version: 1,
@@ -108,5 +108,30 @@ describe('designs', () => {
     expect(new Set(d.frames[0]!.children.map((c) => c.id)).size).toBe(3);
     expect(makeComponent(d, 'f1', ['nope'], 'X')).toBeNull();
     expect(doc('{"frames":[{"children":[{"type":"instance"}]}]}').frames[0]!.children[0]!.type).toBe('rect');
+  });
+
+  it('keeps images and lines, with only what differs written back', () => {
+    const d = doc('{"frames":[{"id":"f1","children":[{"id":"i","type":"image","src":"Home%20files/hero.png","radius":12},{"id":"l","type":"line","w":120,"h":0,"flip":true,"dash":true,"ends":"end"},{"id":"x","type":"image"}]}]}');
+    const [img, line, bad] = d.frames[0]!.children;
+    expect(img).toMatchObject({ type: 'image', src: 'Home%20files/hero.png', radius: 12, fill: 'transparent', name: 'Image' });
+    expect(line).toMatchObject({ type: 'line', w: 120, h: 0, flip: true, dash: true, ends: 'end', stroke: '#1d1d1f', strokeWidth: 2 });
+    expect(bad!.type).toBe('rect');
+    const again = doc(writeDesign(d));
+    expect(again.frames[0]!.children.slice(0, 2)).toEqual([img, line]);
+    expect(writeDesign(d)).not.toMatch(/"src":"Home%20files\/hero.png","fill"/);
+  });
+
+  it('draws a line from point to point, Shift keeping it to 45°', () => {
+    expect(lineFrom(10, 10, 110, 60)).toEqual({ x: 10, y: 10, w: 100, h: 50 });
+    expect(lineFrom(110, 10, 10, 60)).toEqual({ x: 10, y: 10, w: 100, h: 50, flip: true });
+    expect(lineFrom(0, 0, 100, 20, true)).toEqual({ x: 0, y: 0, w: 100, h: 0 });
+    expect(lineFrom(0, 0, 10, -100, true)).toEqual({ x: 0, y: -100, w: 0, h: 100 });
+    expect(lineFrom(0, 0, 100, -80, true)).toEqual({ x: 0, y: -100, w: 100, h: 100, flip: true });
+    expect(lineEnds({ w: 100, h: 50, flip: true })).toEqual({ x1: 0, y1: 50, x2: 100, y2: 0 });
+  });
+
+  it('crops a picture to fill its box', () => {
+    expect(coverCrop({ w: 400, h: 200 }, { w: 100, h: 100 })).toEqual({ sx: 100, sy: 0, sw: 200, sh: 200 });
+    expect(coverCrop({ w: 100, h: 300 }, { w: 100, h: 100 })).toEqual({ sx: 0, sy: 100, sw: 100, sh: 100 });
   });
 });

@@ -1,19 +1,20 @@
 import { createPortal } from 'react-dom';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { isNotesFailure } from '@mobius/shared';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
 import { newestPage } from './useNotes';
 import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
-import { changedIds, componentOf, contrast, copyOf, detach, freshId, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type NodeType } from './design-format';
+import { changedIds, componentOf, contrast, copyOf, detach, freshId, lineEnds, lineFrom, makeComponent, moveLayer, nextFramePlace, withOverride, parseDesign, resolveColor, writeDesign, type Align, type DesignDoc, type DesignFrame, type DesignNode, type LineEnds, type NodeType } from './design-format';
 import type { NotesState } from './useNotes';
 import { onCommand } from './commands';
 import { useUndo } from './useUndo';
 import { ReviewActions, WhyThis } from './ReviewBar';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { alignBoxes, around, boxFrom, boxesTouching, distributeBoxes, HANDLES, resizeBox, snapBox, zoomOnto, type AlignHow, type Guide, type Handle } from './design-view';
-import { EXPORT_ALBUM, exportFrame } from './design-export';
+import { EXPORT_ALBUM, exportFrame, loadPictures } from './design-export';
 import './design.css';
 
 export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', groups: 'Folders', item: 'design', items: 'designs', about: 'Designs are kept as JSON files in your workspace, frames and their layers, so the agent can read and change them too.', defaultGroup: 'Designs' };
@@ -21,6 +22,17 @@ export const DESIGN_WORDS: SidebarWords = { app: 'Design', group: 'folder', grou
 export function DesignSidebar(props: { designs: NotesState; pin: ReactNode; changed?: ReadonlySet<string>; starts?: readonly import('./SideNew').Start[]; onStart?: (prompt: string) => void }) {
   const { designs, ...rest } = props;
   return <NotesSidebar notes={designs} words={DESIGN_WORDS} {...rest} />;
+}
+
+/** A new line: solid, 2 wide, in ink, with no arrowheads until they are asked for. */
+const lineNode = (id: string, box: { x: number; y: number; w: number; h: number; flip?: true }): DesignNode =>
+  ({ id, type: 'line', name: 'Line', ...box, fill: 'transparent', radius: 0, opacity: 1, text: '', size: 16, weight: 400, color: '#1d1d1f', align: 'left', stroke: '#1d1d1f', strokeWidth: 2 });
+
+/** A picture file as base64, and its size in pixels. */
+async function readPicture(file: Blob): Promise<{ base64: string; dataUrl: string; w: number; h: number }> {
+  const dataUrl = await new Promise<string>((done, fail) => { const r = new FileReader(); r.onload = () => done(String(r.result)); r.onerror = () => fail(new Error('That picture could not be read.')); r.readAsDataURL(file); });
+  const size = await new Promise<{ w: number; h: number }>((done) => { const img = new Image(); img.onload = () => done({ w: img.naturalWidth || 200, h: img.naturalHeight || 200 }); img.onerror = () => done({ w: 200, h: 200 }); img.src = dataUrl; });
+  return { base64: dataUrl.slice(dataUrl.indexOf(',') + 1), dataUrl, ...size };
 }
 
 /** A layer that a click or a box on the canvas can pick: not hidden, not locked. */
@@ -99,15 +111,17 @@ function ColorField({ label, value, doc, onChange, bare }: { label: string; valu
   );
 }
 
-type Tool = 'move' | 'frame' | 'rect' | 'ellipse' | 'text';
-const TOOL_KEYS: Record<string, Tool> = { v: 'move', f: 'frame', a: 'frame', r: 'rect', o: 'ellipse', t: 'text' };
-const TOOL_NAME: Record<Exclude<Tool, 'move'>, string> = { frame: 'a frame', rect: 'a rectangle', ellipse: 'an ellipse', text: 'a text box' };
+type Tool = 'move' | 'frame' | 'rect' | 'ellipse' | 'line' | 'text';
+const TOOL_KEYS: Record<string, Tool> = { v: 'move', f: 'frame', a: 'frame', r: 'rect', o: 'ellipse', l: 'line', t: 'text' };
+const TOOL_NAME: Record<Exclude<Tool, 'move'>, string> = { frame: 'a frame', rect: 'a rectangle', ellipse: 'an ellipse', line: 'a line (Shift keeps it to 45°)', text: 'a text box' };
+/** The pictures a design can take: what a browser can show. */
+const IMAGE_TYPES = /^image\/(png|jpeg|gif|webp|svg\+xml)$/;
 
 type Drag =
   | { kind: 'pan'; startX: number; startY: number; panX: number; panY: number }
   | { kind: 'move'; ids: string[]; startX: number; startY: number; dx: number; dy: number; guides: Guide[]; frame: string | null; moved: boolean }
   | { kind: 'resize'; id: string; handle: Handle; startX: number; startY: number; dx: number; dy: number; keep: boolean }
-  | { kind: 'draw'; tool: Exclude<Tool, 'move'>; frame: string | null; x0: number; y0: number; x1: number; y1: number }
+  | { kind: 'draw'; tool: Exclude<Tool, 'move'>; frame: string | null; x0: number; y0: number; x1: number; y1: number; snap?: boolean }
   | { kind: 'pick'; frame: string | null; x0: number; y0: number; x1: number; y1: number; add: string[]; moved: boolean };
 
 const ICON = {
@@ -116,6 +130,8 @@ const ICON = {
   rect: 'M4 5h12v10H4z',
   ellipse: 'M10 4.5c3.6 0 6.5 2.5 6.5 5.5s-2.9 5.5-6.5 5.5S3.5 13 3.5 10 6.4 4.5 10 4.5z',
   text: 'M5 5h10M10 5v11M8 16h4',
+  line: 'M4 16 16 4',
+  image: 'M3.5 4.5h13v11h-13zM3.5 13l4-4 3 3 2-2 4 4M13 8.2a1.2 1.2 0 1 0 0-.01',
   alignLeft: 'M4 3v14M7 6h9M7 11h5', alignCenter: 'M10 3v14M5 6h10M7 12h6', alignRight: 'M16 3v14M4 6h9M8 11h5',
   alignTop: 'M3 4h14M6 7v9M11 7v5', alignMiddle: 'M3 10h14M6 5v10M12 7v6', alignBottom: 'M3 16h14M6 4v9M11 8v5',
   spreadX: 'M3 4v12M17 4v12M8 7h4v6H8z', spreadY: 'M4 3h12M4 17h12M7 8h6v4H7z',
@@ -129,7 +145,7 @@ const ICON = {
   front: 'M6 3h8v6H6zM4 12h12M4 15h12', forward: 'M10 15V5M6 9l4-4 4 4', backward: 'M10 5v10M6 11l4 4 4-4', back: 'M4 5h12M4 8h12M6 11h8v6H6z',
 } as const;
 const Icon = ({ d }: { d: string }) => <svg viewBox="0 0 20 20" aria-hidden="true"><path d={d} /></svg>;
-const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle', instance: 'Copy' };
+const KIND: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', rect: 'Rectangle', instance: 'Copy', image: 'Image', line: 'Line' };
 
 /**
  * One design, as Sketch and Figma work: frames on a canvas, layers drawn with a tool (V, F, R, O, T) or added from the
@@ -251,7 +267,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
       }
       if (drag.kind === 'resize') { setDrag({ ...drag, dx: Math.round((e.clientX - drag.startX) / zoom), dy: Math.round((e.clientY - drag.startY) / zoom), keep: e.shiftKey }); return; }
       const p = toWorld(e.clientX, e.clientY);
-      if (drag.kind === 'draw') setDrag({ ...drag, x1: p.x, y1: p.y });
+      if (drag.kind === 'draw') setDrag({ ...drag, x1: p.x, y1: p.y, snap: e.shiftKey });
       else setDrag({ ...drag, x1: p.x, y1: p.y, moved: true });
     };
     const up = () => {
@@ -290,6 +306,13 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
       const f = doc2.frames.find((x) => x.id === d.frame);
       if (!f) return;
       const id = freshId(doc2, 'n');
+      if (d.tool === 'line') {
+        // A click without a drag lays a flat line of the usual length there.
+        const l = tiny ? { x: Math.round(d.x0), y: Math.round(d.y0), w: 120, h: 0 } : lineFrom(d.x0, d.y0, d.x1, d.y1, d.snap);
+        f.children.push(lineNode(id, { ...l, x: l.x - f.x, y: l.y - f.y }));
+        setSelected([id]);
+        return;
+      }
       const w = tiny ? (d.tool === 'text' ? 200 : 100) : box.w, h = tiny ? (d.tool === 'text' ? 32 : 100) : box.h;
       const node: DesignNode = { id, type: d.tool, name: KIND[d.tool], x: Math.round(box.x - f.x), y: Math.round(box.y - f.y), w: Math.round(w), h: Math.round(h), fill: d.tool === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: d.tool === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 };
       f.children.push(node);
@@ -311,10 +334,84 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
     const at = findNode(d, one) ?? (d.frames[0] ? { frame: d.frames[0], node: null } : null);
     if (!at) return;
     const id = freshId(d, 'n');
+    if (type === 'line') { at.frame.children.push(lineNode(id, { x: Math.round((at.frame.w - 120) / 2), y: Math.round(at.frame.h / 2), w: 120, h: 0 })); setSelected([id]); return; }
     const w = type === 'text' ? 200 : 120, h = type === 'text' ? 32 : 120;
     at.frame.children.push({ id, type, name: KIND[type], x: Math.round((at.frame.w - w) / 2), y: Math.round((at.frame.h - h) / 2), w, h, fill: type === 'text' ? 'transparent' : '#d9d9de', radius: 0, opacity: 1, text: type === 'text' ? 'Text' : '', size: 20, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 });
     setSelected([id]);
   });
+  /** The design's pictures, as `data:` addresses to draw, by the `src` each image layer keeps. */
+  const [pictures, setPictures] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => { if (!notice) return undefined; const t = window.setTimeout(() => setNotice(null), 4000); return () => window.clearTimeout(t); }, [notice]);
+  const pagePath = designs.page?.path ?? null;
+  const wanted = useMemo(() => [...new Set((doc?.frames ?? []).flatMap((f) => f.children).filter((n) => n.type === 'image' && n.src).map((n) => n.src!))].sort().join('\n'), [doc]);
+  useEffect(() => {
+    const asset = window.mobius.designs?.asset;
+    if (!pagePath || !asset || !wanted) return undefined;
+    let live = true;
+    for (const src of wanted.split('\n')) {
+      if (pictures[src]) continue;
+      void asset(pagePath, src).then((r) => { if (live && r && !isNotesFailure(r)) setPictures((was) => ({ ...was, [src]: r.dataUrl })); }).catch(() => undefined);
+    }
+    return () => { live = false; };
+  }, [pagePath, wanted]); // eslint-disable-line react-hooks/exhaustive-deps
+  const pickFile = useRef<HTMLInputElement>(null);
+  /**
+   * Pictures put on the canvas (picked, pasted or dropped): each is kept beside the design and becomes an image layer
+   * at its own size, made smaller to fit the frame, centred where it was dropped or in the frame.
+   */
+  const placePictures = async (files: readonly File[], at?: { x: number; y: number }) => {
+    const attach = window.mobius.designs?.attach;
+    if (!doc || !pagePath) return;
+    if (!attach) { setNotice('Adding pictures needs the Mobius app.'); return; }
+    const frame = (at ? frameAt(doc, at.x, at.y) : null) ?? findNode(doc, one)?.frame ?? doc.frames.find((f) => !f.component) ?? doc.frames[0];
+    if (!frame) { setNotice('Make a frame first, then add the picture to it.'); return; }
+    const pics = files.filter((f) => IMAGE_TYPES.test(f.type));
+    if (pics.length === 0) { setNotice('That is not a picture Design can show (PNG, JPEG, GIF, WebP or SVG).'); return; }
+    const placed: { src: string; name: string; w: number; h: number; dataUrl: string }[] = [];
+    for (const file of pics.slice(0, 20)) {
+      const pic = await readPicture(file).catch(() => null);
+      if (!pic) continue;
+      const saved = await attach(pagePath, file.name || 'Picture.png', pic.base64).catch(() => null);
+      if (!saved || isNotesFailure(saved)) { setNotice((saved && isNotesFailure(saved) && saved.message) || 'The picture could not be kept with the design.'); continue; }
+      placed.push({ src: saved.ref, name: (file.name || 'Image').replace(/\.[a-z0-9]+$/i, '').slice(0, 80) || 'Image', w: pic.w, h: pic.h, dataUrl: pic.dataUrl });
+    }
+    if (placed.length === 0) return;
+    setPictures((was) => ({ ...was, ...Object.fromEntries(placed.map((p) => [p.src, p.dataUrl])) }));
+    const ids: string[] = [];
+    change((d) => {
+      const f = d.frames.find((x) => x.id === frame.id);
+      if (!f) return;
+      placed.forEach((p, i) => {
+        const fit = Math.min(1, (f.w * 0.6) / p.w, (f.h * 0.6) / p.h);
+        const w = Math.max(1, Math.round(p.w * fit)), h = Math.max(1, Math.round(p.h * fit));
+        const cx = at ? at.x - f.x : f.w / 2, cy = at ? at.y - f.y : f.h / 2;
+        const id = freshId(d, 'n');
+        f.children.push({ id, type: 'image', name: p.name, src: p.src, x: Math.round(cx - w / 2 + i * 16), y: Math.round(cy - h / 2 + i * 16), w, h, fill: 'transparent', radius: 0, opacity: 1, text: '', size: 16, weight: 400, color: '#1d1d1f', align: 'left', stroke: 'transparent', strokeWidth: 0 });
+        ids.push(id);
+      });
+    });
+    setSelected(ids);
+    setTool('move');
+  };
+  const placeRef = useRef(placePictures);
+  placeRef.current = placePictures;
+  // A picture pasted from another app. Layers copied here are pasted by Ctrl+V itself, until the window is left.
+  useEffect(() => {
+    const onPaste = (e: ClipboardEvent) => {
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      if (!t?.closest('.design-page') && t !== document.body) return;
+      const files = [...(e.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'));
+      if (files.length === 0) return;
+      e.preventDefault();
+      void placeRef.current(files);
+    };
+    const onBlur = () => { copied.current = null; };
+    window.addEventListener('paste', onPaste);
+    window.addEventListener('blur', onBlur);
+    return () => { window.removeEventListener('paste', onPaste); window.removeEventListener('blur', onBlur); };
+  }, []);
   const remove = useCallback(() => change((d) => {
     // Copies of a component being deleted stay as they look, as plain layers.
     for (const f of d.frames) if (f.component && selected.includes(f.id)) for (const g of d.frames) for (const c of [...g.children]) if (c.type === 'instance' && c.of === f.id && !selected.includes(c.id)) detach(d, c.id);
@@ -404,6 +501,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
       if (mod && (key === 'z' || key === 'y')) { e.preventDefault(); if (key === 'y' || e.shiftKey) history.redo(); else history.undo(); return; }
       if (mod && key === 'a' && doc) { e.preventDefault(); const f = findNode(doc, selected[0] ?? null)?.frame ?? doc.frames[0]; setSelected(f ? f.children.filter(canPick).map((c) => c.id) : []); return; }
       if (mod && e.altKey && key === 'k') { e.preventDefault(); createComponent(); return; }
+      if (mod && e.shiftKey && key === 'k') { e.preventDefault(); pickFile.current?.click(); return; }
       if (mod && e.shiftKey && (key === 'h' || key === 'l')) { e.preventDefault(); toggle(key === 'h' ? 'hidden' : 'locked'); return; }
       if (mod && key === 'd') { e.preventDefault(); duplicate(); return; }
       if (mod && key === 'c') { if (copyPicked()) e.preventDefault(); return; }
@@ -464,7 +562,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
       left: p.x, top: p.y, width: p.w, height: p.h, opacity: n.opacity,
       background: n.fill === 'transparent' ? undefined : resolveColor(n.fill, doc.styles),
       borderRadius: n.type === 'ellipse' ? '50%' : n.radius,
-      ...(n.type !== 'text' ? strokeStyle(n, doc) : {}),
+      ...(n.type !== 'text' && n.type !== 'line' ? strokeStyle(n, doc) : {}),
       ...(n.type === 'text' ? { color: resolveColor(n.color, doc.styles), fontSize: n.size, fontWeight: n.weight, textAlign: n.align, lineHeight: 1.25 } : {}),
     };
   };
@@ -521,7 +619,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
     const f = doc.frames.find((x) => x.id === id);
     if (!f) return;
     setExported({ frame: id, text: 'Exporting…' });
-    const done = await exportFrame(doc, f, exportScale).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
+    const done = await loadPictures(pictures).then((loaded) => exportFrame(doc, f, exportScale, loaded)).catch((e: unknown) => ({ error: e instanceof Error ? e.message : 'The picture could not be saved.' }));
     setExported('error' in done ? { frame: id, text: done.error, bad: true } : { frame: id, text: `Saved to Photo › ${EXPORT_ALBUM} as ${done.path.slice(EXPORT_ALBUM.length + 1)}` });
   };
   /** Ctrl+Alt+K: the picked layers become a component, with a copy left where they were. */
@@ -719,7 +817,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
                   <Field label="Y" value={at.node.y} onChange={(v) => setNode((n) => { n.y = v; })} />
                   <Field label="W" value={at.node.w} min={1} onChange={(v) => setNode((n) => { n.w = v; })} />
                   <Field label="H" value={at.node.h} min={1} onChange={(v) => setNode((n) => { n.h = v; })} />
-                  {at.node.type === 'rect' && <Field label="Radius" value={at.node.radius} min={0} onChange={(v) => setNode((n) => { n.radius = v; })} />}
+                  {(at.node.type === 'rect' || at.node.type === 'image') && <Field label="Radius" value={at.node.radius} min={0} onChange={(v) => setNode((n) => { n.radius = v; })} />}
                   <Field label="Opacity" value={Math.round(at.node.opacity * 100)} min={0} onChange={(v) => setNode((n) => { n.opacity = Math.min(100, v) / 100; })} />
                 </div>
               </Section>
@@ -747,8 +845,9 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
                   {textContrast !== null && <p className="design-hint" data-bad={textContrast < 4.5 || undefined}>Contrast with the frame {textContrast}:1 · {textContrast >= 4.5 ? 'passes AA' : 'below AA (4.5:1)'}</p>}
                 </Section>
               )}
-              {at.node.type !== 'instance' && <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>}
-              {at.node.type !== 'text' && at.node.type !== 'instance' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })} />}
+              {at.node.type !== 'instance' && at.node.type !== 'image' && at.node.type !== 'line' && <Section title="Fill"><ColorField label="Fill" bare value={at.node.fill} doc={doc} onChange={(c) => setNode((n) => { n.fill = c; })} /></Section>}
+              {at.node.type !== 'text' && at.node.type !== 'instance' && <BorderSection item={at.node} doc={doc} onChange={(stroke, width) => setNode((n) => { n.stroke = stroke; n.strokeWidth = width; })}
+                line={at.node.type === 'line' ? { ends: at.node.ends ?? 'none', dash: at.node.dash === true, onEnds: (ends) => setNode((n) => { if (ends === 'none') delete n.ends; else n.ends = ends; }), onDash: (dash) => setNode((n) => { if (dash) n.dash = true; else delete n.dash; }) } : undefined} />}
               <Section title="Arrange">
                 <div className="design-align design-arrange" role="group" aria-label="Arrange">
                   {([['front', 'Bring to front (Ctrl+Alt+])', ICON.front], [1, 'Bring forward (Ctrl+])', ICON.forward], [-1, 'Send backward (Ctrl+[)', ICON.backward], ['back', 'Send to back (Ctrl+Alt+[)', ICON.back]] as const).map(([by, label, d]) => (
@@ -814,7 +913,10 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
             <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'frame'} aria-label="Frame" title="Frame (F): click to add one, or press F and drag on the canvas" onClick={() => add('frame')}><Icon d={ICON.frame} /></button>
             <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'rect'} aria-label="Rectangle" title="Rectangle (R): click to add one, or press R and drag" disabled={doc.frames.length === 0} onClick={() => add('rect')}><Icon d={ICON.rect} /></button>
             <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'ellipse'} aria-label="Ellipse" title="Ellipse (O): click to add one, or press O and drag" disabled={doc.frames.length === 0} onClick={() => add('ellipse')}><Icon d={ICON.ellipse} /></button>
+            <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'line'} aria-label="Line" title="Line (L): click to add one, or press L and drag; Shift keeps it to 45°" disabled={doc.frames.length === 0} onClick={() => add('line')}><Icon d={ICON.line} /></button>
             <button type="button" className="strip-btn design-tool" aria-pressed={tool === 'text'} aria-label="Text" title="Text (T): click to add one, or press T and drag" disabled={doc.frames.length === 0} onClick={() => add('text')}><Icon d={ICON.text} /></button>
+            <button type="button" className="strip-btn design-tool" aria-label="Image" title="Image (Ctrl+Shift+K): pick a picture, or paste or drop one on a frame" disabled={doc.frames.length === 0} onClick={() => pickFile.current?.click()}><Icon d={ICON.image} /></button>
+            <input ref={pickFile} type="file" accept="image/png,image/jpeg,image/gif,image/webp,image/svg+xml" multiple hidden aria-hidden="true" tabIndex={-1} onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; if (files.length) void placePictures(files); }} />
           </span>
           <span className="design-tools-group design-zoombox">
             <button type="button" className="strip-btn" aria-label="Zoom out" title="Zoom out (Ctrl+−)" onClick={() => zoomTo(zoom * 0.8)}><Icon d="M5 10h10" /></button>
@@ -836,6 +938,8 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
           data-panning={space || drag?.kind === 'pan' || undefined}
           onPointerDown={onCanvasDown}
           onContextMenu={(e) => { const p = toWorld(e.clientX, e.clientY); openMenu(e, frameAt(doc, p.x, p.y)?.id ?? null); }}
+          onDragOver={(e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } }}
+          onDrop={(e) => { const files = [...e.dataTransfer.files]; if (files.length === 0) return; e.preventDefault(); void placePictures(files, toWorld(e.clientX, e.clientY)); }}
           onWheel={(e) => {
             if (e.ctrlKey || e.metaKey) {
               const rect = e.currentTarget.getBoundingClientRect();
@@ -846,6 +950,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
             } else setPan((p) => ({ x: p.x - (e.shiftKey ? e.deltaY : e.deltaX), y: p.y - (e.shiftKey ? 0 : e.deltaY) }));
           }}
         >
+          {notice && tool === 'move' && <span className="design-tool-hint" role="status" data-bad>{notice}</span>}
           {tool !== 'move' && <span className="design-tool-hint" role="status">Drag on {tool === 'frame' ? 'the canvas' : 'a frame'} to draw {TOOL_NAME[tool]} · Esc to stop</span>}
           <div className="design-world" style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, ['--z' as string]: zoom }}>
             {doc.frames.map((f) => {
@@ -864,7 +969,8 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
                     {f.children.filter((n) => !n.hidden).map((n) => (
                       <div key={n.id} className="design-node" data-type={n.type} data-locked={n.locked || undefined} data-selected={isPicked(n.id) || undefined} data-proposed={changed.has(n.id) || undefined} data-editing={editing === n.id || undefined} aria-label={`${KIND[n.type]} ${n.name}`} style={nodeStyle(n)} onPointerDown={(e) => startMove(e, n.id, f.id)} onContextMenu={(e) => openMenu(e, n.id)} onDoubleClick={() => { if (n.type === 'text' && editing !== n.id) setEditing(n.id); }}>
                         {n.type === 'text' && editing !== n.id ? n.text : null}
-                        {n.type === 'instance' && <CopyView copy={n} main={componentOf(doc, n)} styleOf={nodeStyle} doc={doc} />}
+                        {n.type === 'instance' && <CopyView copy={n} main={componentOf(doc, n)} styleOf={nodeStyle} doc={doc} pictures={pictures} />}
+                        {(n.type === 'image' || n.type === 'line') && <NodeArt node={{ ...n, ...live(n) }} doc={doc} pictures={pictures} hit={12 / zoom} />}
                       </div>
                     ))}
                     {editingNode?.node && editingNode.frame.id === f.id && (
@@ -888,7 +994,8 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
               );
             })}
             {drag?.kind === 'move' && drag.frame === null && drag.guides.map((g, i) => <span key={i} className="design-guide" data-axis={g.axis} style={g.axis === 'x' ? { left: g.at, top: g.from, height: g.to - g.from } : { top: g.at, left: g.from, width: g.to - g.from }} />)}
-            {pickBox && <div className="design-pick" data-draw={drag?.kind === 'draw' ? drag.tool : undefined} style={{ left: pickBox.x, top: pickBox.y, width: pickBox.w, height: pickBox.h }} />}
+            {pickBox && !(drag?.kind === 'draw' && drag.tool === 'line') && <div className="design-pick" data-draw={drag?.kind === 'draw' ? drag.tool : undefined} style={{ left: pickBox.x, top: pickBox.y, width: pickBox.w, height: pickBox.h }} />}
+            {drag?.kind === 'draw' && drag.tool === 'line' && (() => { const l = lineFrom(drag.x0, drag.y0, drag.x1, drag.y1, drag.snap); const e = lineEnds(l); return <svg className="design-line design-line-draft" aria-hidden="true" style={{ left: l.x, top: l.y }} width={Math.max(1, l.w)} height={Math.max(1, l.h)}><line x1={e.x1} y1={e.y1} x2={e.x2} y2={e.y2} strokeWidth={2} /></svg>; })()}
           </div>
           {showReview && (
             <div className="design-review" role="group" aria-label="Mobius's change" onPointerDown={(e) => e.stopPropagation()}>
@@ -905,6 +1012,36 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
   );
 }
 
+/**
+ * What an image or a line draws inside its layer: the picture filling the box and cropped to it, or the line from
+ * corner to corner with its arrowheads. A line also has a wider, unseen stroke to pick it by (`hit`, on the canvas).
+ */
+function NodeArt({ node, doc, pictures, hit }: { node: DesignNode; doc: DesignDoc; pictures: Readonly<Record<string, string>>; hit?: number }) {
+  const marker = useId().replace(/:/g, '');
+  if (node.type === 'image') {
+    const url = node.src ? pictures[node.src] : undefined;
+    return url ? <img className="design-image" src={url} alt="" draggable={false} /> : <span className="design-image-missing" aria-hidden="true"><Icon d={ICON.image} /></span>;
+  }
+  const { x1, y1, x2, y2 } = lineEnds(node);
+  const colour = resolveColor(node.stroke, doc.styles);
+  const width = Math.max(0, node.strokeWidth);
+  const ends = node.ends ?? 'none';
+  return (
+    <svg className="design-line" aria-hidden="true" width={Math.max(1, node.w)} height={Math.max(1, node.h)}>
+      {ends !== 'none' && (
+        <defs>
+          <marker id={`arrow${marker}`} viewBox="0 0 10 10" refX="8" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse">
+            <path d="M0 1 9 5 0 9z" fill={colour} />
+          </marker>
+        </defs>
+      )}
+      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={colour} strokeWidth={width} strokeLinecap={ends === 'none' ? 'round' : 'butt'} strokeDasharray={node.dash ? `${width * 3} ${width * 2}` : undefined}
+        markerEnd={ends !== 'none' ? `url(#arrow${marker})` : undefined} markerStart={ends === 'both' ? `url(#arrow${marker})` : undefined} />
+      {hit !== undefined && <line className="design-line-hit" x1={x1} y1={y1} x2={x2} y2={y2} strokeWidth={Math.max(hit, width + hit / 2)} />}
+    </svg>
+  );
+}
+
 /** A border drawn inside the edge, as Figma's inside stroke: an outline pulled in by its own width, so it follows the corners. */
 function strokeStyle(t: { stroke: string; strokeWidth: number }, doc: DesignDoc): CSSProperties {
   if (t.strokeWidth <= 0 || t.stroke === 'transparent') return {};
@@ -912,18 +1049,31 @@ function strokeStyle(t: { stroke: string; strokeWidth: number }, doc: DesignDoc)
 }
 
 /** Border: none until it is added; then its colour and width, and a way to take it off again. */
-function BorderSection({ item, doc, onChange }: { item: { stroke: string; strokeWidth: number }; doc: DesignDoc; onChange: (stroke: string, width: number) => void }) {
-  const on = item.strokeWidth > 0 && item.stroke !== 'transparent';
+function BorderSection({ item, doc, onChange, line }: { item: { stroke: string; strokeWidth: number }; doc: DesignDoc; onChange: (stroke: string, width: number) => void; /** A line's stroke: always there, with its ends and dashes. */ line?: { ends: LineEnds; dash: boolean; onEnds: (ends: LineEnds) => void; onDash: (dash: boolean) => void } }) {
+  const on = line !== undefined || (item.strokeWidth > 0 && item.stroke !== 'transparent');
   return (
-    <section className="design-section" aria-label="Border">
+    <section className="design-section" aria-label={line ? 'Stroke' : 'Border'}>
       <div className="design-section-head">
-        <div className="design-section-title">Border</div>
-        <button type="button" className="design-section-add" aria-label={on ? 'Remove border' : 'Add border'} title={on ? 'Remove border' : 'Add border'} onClick={() => (on ? onChange('transparent', 0) : onChange('#1d1d1f', 1))}><Icon d={on ? 'M5 10h10' : 'M5 10h10M10 5v10'} /></button>
+        <div className="design-section-title">{line ? 'Stroke' : 'Border'}</div>
+        {!line && <button type="button" className="design-section-add" aria-label={on ? 'Remove border' : 'Add border'} title={on ? 'Remove border' : 'Add border'} onClick={() => (on ? onChange('transparent', 0) : onChange('#1d1d1f', 1))}><Icon d={on ? 'M5 10h10' : 'M5 10h10M10 5v10'} /></button>}
       </div>
       {on && (
         <div className="design-border">
-          <ColorField label="Border" bare value={item.stroke} doc={doc} onChange={(c) => onChange(c, item.strokeWidth)} />
-          <Field label="Width" value={item.strokeWidth} min={0} onChange={(v) => onChange(v > 0 ? item.stroke : 'transparent', v)} />
+          <ColorField label={line ? 'Stroke' : 'Border'} bare value={item.stroke} doc={doc} onChange={(c) => onChange(c, item.strokeWidth)} />
+          <Field label="Width" value={item.strokeWidth} min={line ? 1 : 0} onChange={(v) => onChange(v > 0 || line ? item.stroke : 'transparent', line ? Math.max(1, v) : v)} />
+        </div>
+      )}
+      {line && (
+        <div className="design-line-options">
+          <div className="design-segment" role="radiogroup" aria-label="Ends">
+            {([['none', 'No arrows', 'M3 10h14'], ['end', 'Arrow at the end', 'M3 10h13M12 6l4 4-4 4'], ['both', 'Arrows at both ends', 'M4 10h12M8 6l-4 4 4 4M12 6l4 4-4 4']] as const).map(([value, label, d]) => (
+              <button key={value} type="button" role="radio" aria-checked={line.ends === value} aria-label={label} title={label} onClick={() => line.onEnds(value)}><Icon d={d} /></button>
+            ))}
+          </div>
+          <div className="design-segment" role="radiogroup" aria-label="Style">
+            <button type="button" role="radio" aria-checked={!line.dash} aria-label="Solid" title="Solid" onClick={() => line.onDash(false)}><Icon d="M3 10h14" /></button>
+            <button type="button" role="radio" aria-checked={line.dash} aria-label="Dashed" title="Dashed" onClick={() => line.onDash(true)}><Icon d="M3 10h3M8.5 10h3M14 10h3" /></button>
+          </div>
         </div>
       )}
     </section>
@@ -934,13 +1084,13 @@ function BorderSection({ item, doc, onChange }: { item: { stroke: string; stroke
  * A copy of a component on the canvas: the component's layers as they are now, scaled to the copy's box, with the
  * copy's own text and colours. A copy whose component was removed says so.
  */
-function CopyView({ copy, main, styleOf, doc }: { copy: DesignNode; main: DesignFrame | null; styleOf: (n: DesignNode) => CSSProperties; doc: DesignDoc }) {
+function CopyView({ copy, main, styleOf, doc, pictures }: { copy: DesignNode; main: DesignFrame | null; styleOf: (n: DesignNode) => CSSProperties; doc: DesignDoc; pictures: Readonly<Record<string, string>> }) {
   if (!main) return <span className="design-copy-missing">Missing component</span>;
   return (
     <div className="design-copy" aria-hidden="true" style={{ width: main.w, height: main.h, transform: `scale(${copy.w / (main.w || 1)}, ${copy.h / (main.h || 1)})`, background: main.fill === 'transparent' ? undefined : resolveColor(main.fill, doc.styles), borderRadius: main.radius }}>
       {main.children.filter((c) => !c.hidden && c.type !== 'instance').map((c) => {
         const shown = withOverride(c, copy);
-        return <div key={c.id} className="design-node" data-type={c.type} style={{ ...styleOf(shown), left: c.x, top: c.y, width: c.w, height: c.h }}>{c.type === 'text' ? shown.text : null}</div>;
+        return <div key={c.id} className="design-node" data-type={c.type} style={{ ...styleOf(shown), left: c.x, top: c.y, width: c.w, height: c.h }}>{c.type === 'text' ? shown.text : null}{(c.type === 'image' || c.type === 'line') && <NodeArt node={shown} doc={doc} pictures={pictures} />}</div>;
       })}
     </div>
   );
