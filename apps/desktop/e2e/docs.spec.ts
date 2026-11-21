@@ -234,3 +234,17 @@ test('a comment on chosen words, a link to another document, and Share all work 
   await page().getByRole('link', { name: 'Venues' }).click();
   await expect(page()).toContainText('The lodge, or the farm.');
 });
+
+test('Review this in the Mobius panel switches to Review mode and sends the document in it', async () => {
+  fs.mkdirSync(path.dirname(file('Work/Offsite brief.md')), { recursive: true });
+  fs.writeFileSync(file('Work/Offsite brief.md'), BRIEF);
+  await start([says(['Two notes on the agenda.'])]);
+  await shell().getByRole('complementary', { name: 'Documents' }).getByRole('region', { name: 'Work' }).getByRole('button', { name: 'Offsite brief', exact: true }).click();
+  await expect(page()).toContainText('We have been talking');
+  await shell().getByRole('button', { name: 'Review this' }).click();
+  await expect(shell().getByRole('button', { name: /^Mode: / })).toContainText('Review');
+  await expect.poll(() => model!.requests.length).toBeGreaterThan(0);
+  expect(JSON.stringify(model!.requests.at(-1))).toContain('Review mode.');
+  // Review comments and suggests; the file is as it was.
+  expect(fs.readFileSync(file('Work/Offsite brief.md'), 'utf8')).toBe(BRIEF);
+});
