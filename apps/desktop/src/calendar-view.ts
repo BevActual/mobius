@@ -147,6 +147,14 @@ export const DAY_ENDS_AT = 18;
  * when the next one starts, and the free time between now and the end of the working day, 6 pm (left out once the
  * working day is over). All-day events take no time.
  */
+/** A length the glance's narrow column fits: "45 m", "6 h", "14 h 14 m". */
+export function shortLength(minutes: number): string {
+  const m = Math.max(0, Math.round(minutes));
+  if (m < 60) return `${m} m`;
+  const rest = m % 60;
+  return rest ? `${Math.floor(m / 60)} h ${rest} m` : `${Math.floor(m / 60)} h`;
+}
+
 export function calendarGlance(events: readonly CalendarEvent[], now: Date): { label: string; value: string | null }[] {
   const at = now.getTime();
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), DAY_ENDS_AT).getTime();
@@ -165,7 +173,7 @@ export function calendarGlance(events: readonly CalendarEvent[], now: Date): { l
       const to = Math.min(f, end);
       if (to > from) { busy += to - from; reach = to; }
     }
-    free = lengthLabel((end - at - busy) / 60000);
+    free = shortLength((end - at - busy) / 60000);
   }
   // Nothing left: one plain fact, not a zero in a box.
   if (timed.length === 0) return [{ label: 'Next', value: 'Nothing else today' }, { label: 'Free time', value: free }];
@@ -245,6 +253,22 @@ function minutesOf(h: string | undefined, m: string | undefined, ampm: string | 
   if (p === 'am' && hour === 12) hour = 0;
   if (p && hour > 23) return null;
   return hour * 60 + min;
+}
+
+/**
+ * As parseEventWords, and a place said last after "at" or "in" ("Lunch with Priya fri 1pm at Dock 2"). The place is
+ * taken only when the words before it still say a day or a time, so "Dentist at 3pm" stays a time.
+ */
+export function parseEventWithPlace(text: string, now: Date, parseDay: (text: string, now: Date) => { text: string; due: string } | null): { title: string; start: string; end: string; allDay: boolean; location?: string } | null {
+  const whole = parseEventWords(text, now, parseDay);
+  const at = /^(.*\S)\s+(?:at|in|@)\s+(\p{L}[^@]*)$/iu.exec(text.trim());
+  if (at) {
+    const place = at[2]!.trim();
+    const before = parseEventWords(at[1]!, now, parseDay);
+    // Not a time or a day itself ("at noon", "in 2 days"), and the rest still has its when.
+    if (before && !parseEventWords(`x ${place}`, now, parseDay) && !parseDay(`x ${place}`, now)) return { ...before, location: place };
+  }
+  return whole;
 }
 
 /**
