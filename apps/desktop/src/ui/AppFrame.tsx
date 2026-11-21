@@ -71,7 +71,7 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
         <header className="context-strip">
           <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
           <div className="toolbar-place" data-browser={toolbar.wideMiddle || undefined}>
-            {toolbar.title && <h1 className="strip-title">{toolbar.title}</h1>}
+            {toolbar.title && <h1 className="strip-title" title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}
             {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
           </div>
           {toolbar.middle}
