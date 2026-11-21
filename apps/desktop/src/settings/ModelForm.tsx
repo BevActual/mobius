@@ -1,6 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import type { AgentConfigureRequest, AgentResult, AgentSettings } from '@mobius/shared';
 import { PROVIDERS, findProvider, providerForUrl } from './providers';
+import { Select } from '../ui';
+
+/** The services a model can be on, by name, and Other for any address. */
+const SERVICE_CHOICES = [{ value: 'other', label: 'Other (type the address below)' }, ...PROVIDERS.map((p) => ({ value: p.id as string, label: p.name }))];
 
 export interface SettingsFormProps {
   settings: AgentSettings;
@@ -46,14 +50,11 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
   return (
     <form className="settings" role="form" aria-label="Model settings" onSubmit={(event) => void save(event)}>
       <p className="settings-intro">Connect a model. Any server that speaks the OpenAI chat format works, including ones running on this computer.</p>
-      <label className="field">
-        <span>Service</span>
-        <select value={provider?.id ?? 'other'} onChange={(event) => { const picked = findProvider(event.target.value); if (picked) { setBaseUrl(picked.baseUrl); setSaved(false); } }}>
-          <option value="other">Other (type the address below)</option>
-          {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-        </select>
+      <div className="field">
+        <span aria-hidden="true">Service</span>
+        <Select label="Service" hideLabel value={provider?.id ?? 'other'} onChange={(id) => { const picked = findProvider(id); if (picked) { setBaseUrl(picked.baseUrl); setSaved(false); } }} choices={SERVICE_CHOICES} />
         <small>{provider ? `${provider.note}${keyHost ? ` Make a key at ${keyHost}.` : ''}` : 'Any server that speaks the OpenAI chat format.'}</small>
-      </label>
+      </div>
       <label className="field">
         <span>Server address</span>
         <input type="text" value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.openai.com/v1" spellCheck={false} autoComplete="off" required />
@@ -82,13 +83,10 @@ export function SettingsForm({ settings, onSave, onDone }: SettingsFormProps) {
       </div>
       {useBackup && (
         <fieldset className="backup" aria-label="Second model">
-          <label className="field">
-            <span>Second model service</span>
-            <select value={backupProvider?.id ?? 'other'} onChange={(event) => { const picked = findProvider(event.target.value); if (picked) setBackupUrl(picked.baseUrl); }}>
-              <option value="other">Other (type the address below)</option>
-              {PROVIDERS.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-            </select>
-          </label>
+          <div className="field">
+            <span aria-hidden="true">Second model service</span>
+            <Select label="Second model service" hideLabel value={backupProvider?.id ?? 'other'} onChange={(id) => { const picked = findProvider(id); if (picked) setBackupUrl(picked.baseUrl); }} choices={SERVICE_CHOICES} />
+          </div>
           <label className="field">
             <span>Second model address</span>
             <input type="text" value={backupUrl} onChange={(event) => setBackupUrl(event.target.value)} placeholder="https://openrouter.ai/api/v1" spellCheck={false} autoComplete="off" />

@@ -2,7 +2,7 @@ import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
+import { choose, launch, startFixture, type Fixture, type Launched, removeTestData, openSettings } from './harness';
 import { says, startModel, type ModelFixture } from './model-fixture';
 
 test.skip(process.env.MOBIUS_SHELL !== 'tauri', 'Providers are built in the Tauri shell');
@@ -99,15 +99,16 @@ test('the second model is a pop-up of what the gateways offer, with its address 
   await expect(openai()).toContainText('Key saved');
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
   const second = page().getByRole('combobox', { name: 'Second model' });
-  await expect(second).toHaveValue('none');
-  await expect(second.locator('optgroup[label="OpenAI"] option')).toHaveText(['gpt-a', 'gpt-b']);
-  await second.selectOption({ label: 'gpt-a' });
+  await expect(second).toHaveText('None');
+  await second.click();
+  await expect(shell().getByRole('group', { name: 'OpenAI' }).getByRole('option')).toHaveText(['gpt-a', 'gpt-b']);
+  await shell().getByRole('option', { name: 'gpt-a', exact: true }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.agent.getSettings())).fallbackModel).toBe('gpt-a');
   const settings = await shell().evaluate(() => window.mobius.agent.getSettings());
   expect(settings.model).toBe('first-model');
   expect(settings.hasFallbackKey).toBe(true);
-  await expect(second).toHaveValue('provider|openai|gpt-a');
-  await second.selectOption('none');
+  await expect(second).toHaveText('gpt-a');
+  await choose(page(), 'Second model', 'None');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.agent.getSettings())).fallbackModel).toBe('');
 });
 
