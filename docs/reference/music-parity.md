@@ -66,7 +66,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| A MIDI keyboard and controllers | Computer keyboard | Web MIDI input, then mapping | M |
+| A MIDI keyboard and controllers | Computer keyboard | MIDI in through the engine (midir), then mapping | M |
 | Count-in and an arm button per track | No count-in, no arm | Both | S |
 | Scale awareness everywhere: fold to scale, highlight, devices follow the key | Key and out-of-key shown | Fold to scale, devices follow the key | M |
 | Transform tools (arpeggiate, chop, strum, ornament, connect, recombine, quantize, humanize) | Quantize | A Transform panel in Notes | L |
@@ -112,7 +112,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | Audio tracks and clips | None | Audio clips in the format; drawn with the library `Waveform` | XL |
 | Recording audio from an input | None | Input monitoring and recording | XL (engine) |
-| Warping: stretch to tempo, warp markers, modes | None | Time-stretch (a Wasm stretcher) | L |
+| Warping: stretch to tempo, warp markers, modes | None | Time-stretch in the engine | L |
 | Stem separation, audio to MIDI | None | Later, local models | L |
 | Export stems, MP3 and FLAC | WAV of the whole song | Stems first | S to M |
 
@@ -129,95 +129,93 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 ### Not for Mobius (for now)
 
 - Max for Live. Workbench devices are Music's answer: devices as files that Mobius can draft.
-- VST3, AU and CLAP plug-ins. These would need the native engine (option B below). Revisit after phase 3.
-- Ableton Link, CV and hardware sync. They need the native engine and are rare for people new to Music.
+- VST3, AU and CLAP plug-ins. The native engine makes them possible; revisit once it is stable.
+- Ableton Link, CV and hardware sync. Possible with the native engine; later, as they are rare for people new to Music.
 - Push-style hardware integration. Generic MIDI mapping covers the common case.
 
 ## Shaping Music
 
 There are two choices to make before the large work starts. The first is the one Andrew needs to decide.
 
-### 1. Where the sound is made
+### 1. Where the sound is made: a native engine (decided)
 
-Real parity needs audio clips, audio recording, low latency from a MIDI keyboard, and many tracks at once. Today's
-engine is Web Audio on the main thread. There are three ways forward:
+Andrew chose this on 21 November: **the native engine comes first.** Sound moves out of the window and into the Mobius
+host, written in Rust. The window becomes the UI only.
 
-- **A. Stay in the window, made stronger.** Move the scheduler and synth voices into an AudioWorklet, add Web MIDI and
-  `getUserMedia` input, and use a Wasm time-stretcher for warping. This works on WebView2 today, with no new process.
-  Its limits: input latency is roughly 20 to 40 ms, depending on the device, there is no ASIO, and there are no
-  plug-ins ever. Fastest: every phase below can start now.
-- **B. A native engine in the Mobius host (Rust).** cpal for audio (WASAPI exclusive mode or ASIO on Windows), a real
-  audio thread, and the window becomes only the UI. This gives the lowest latency, many tracks, and plug-ins
-  possible later. Its cost: a new engine to build and keep up (several weeks before it plays what Music plays today),
-  and the Builder owns it, since it is core.
-- **C. Both, in order (recommended).** Build phases 1 to 3 in the window (option A), behind one engine interface
-  (`play`, `render`, `record`, `meter`). The song file stays the contract. Start the native engine as its own track
-  once phase 2 has proved what Music needs, and switch over when it plays every song the same way. Nothing built in
-  the meantime is thrown away: the UI, the format and the devices' settings carry over.
+- **Audio out and in** through cpal: WASAPI on Windows (shared mode, and exclusive mode for low latency), with ASIO
+  later. There is a real audio thread with no allocation and no locks on it, and the UI talks to it through a
+  lock-free queue.
+- **MIDI in** through midir, so a keyboard reaches the audio thread without passing through the window.
+- **The graph**: tracks, then devices, then returns, then the master, with sample-accurate scheduling, offline render
+  for export and freeze, and meters sent back to the UI about 30 times a second.
+- **The song file stays the contract.** The engine reads the same `song.json` the window shows, so Mobius, the UI and
+  the engine never disagree about a song.
+- **First milestone: it plays what Music plays today.** The engine plays every built-in instrument and effect, and
+  sounds like today's Web Audio version, checked by rendering the demo songs both ways and comparing them. Then
+  `studio-audio.ts` retires.
+- **Plug-ins** (VST3 or CLAP) become possible later. They stay out of scope until the engine is stable.
+
+The engine is core work, so the Builder builds it in `crates/`. The Apps lead does the Music UI, the song format and
+the note tools, and keeps that work moving while the engine is built.
 
 ### 2. How the window is laid out
 
-This follows the new layout: each app owns its own panels, and Mobius stays docked on the right. Music takes the shape
-producers already know:
+This follows the new layout, checked with the Design lead against [panel layouts](../design/panel-layouts.md). Each app
+owns its panels, and Mobius stays docked on the right.
 
-- **Left: Library.** Songs at the top, then Sounds, Samples (from the workspace), Devices, Clips and Places. Search,
-  tags and preview. It replaces today's sidebar.
-- **Centre: Session or Arrange.** Toggled with Tab, the same key as Live. Session has a mixer strip under its grid.
-- **Bottom: Detail.** Notes, Audio (a waveform with warp markers) or Devices for the chosen clip or track, switched
-  with Shift+Tab. Wide devices live here, never beside Mobius.
-- **Optional bottom-right: Mixer**, as its own panel, for Arrange.
-- **Foot: the key-hint bar** as the info line.
-- **Top bar:** transport, tempo with tap, meter, count-in, follow, the loop and the metronome. It folds into ⋯ when
-  narrow (the toolbar-fit work).
-
-The Design lead owns the layout rule for app panels. This proposal goes to them as Music's input, and Music is where
-it is tried first.
+- **Left: Library.** One panel. Songs come first, then Sounds, Samples (from the workspace), Devices, Clips and
+  Places, with search, tags and preview. It folds away under 1200 px wide while Mobius is docked.
+- **Centre: Session or Arrange.** Tab switches between them, but only while the focus is on the grid or the timeline
+  (elsewhere Tab still moves the focus). Alt+1 and Alt+2 always switch. In Session, a mixer strip under the grid is
+  part of the content.
+- **Bottom: Detail** has two tabs. **Clip** shows the notes of a MIDI clip or the waveform (with warp markers) of an
+  audio clip. **Devices** shows the chain. Shift+Tab switches between them. **Mixer** is a third tab in the same dock,
+  with its own key.
+- **Foot: the info bar** (`infoBar: true`). It shows key hints, and what a control does while the pointer is over it.
+- **Top bar.** The tools start right after the title, in this order: the Session/Arrange switch, play, stop and
+  record, tempo with tap, and metre. When the bar is narrow, count-in, follow, loop and the metronome fold into ⋯
+  first. The transport and tempo never fold.
 
 ## Phases
 
-Each phase is a run of rounds: one pull request per round, as every app does. Gaps in controls go to the library
-first.
+Each phase is a run of rounds: one pull request per round, as for every app. Gaps in controls go to the library
+first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the same time, owned by different leads.
 
-1. **Foundation** (about 2 to 3 weeks)
-   - Real clips in Arrange, shared with Session, including a migration of existing songs.
-   - Master track, return tracks and sends.
-   - Meters (library `LevelMeter`).
-   - Time signature, plus tempo and meter changes.
-   - Scheduler and voices in an AudioWorklet.
-   - Web MIDI input, an arm button, count-in, and Capture.
-   - A mixer strip in Session.
-2. **Audio** (about 3 weeks)
-   - Audio clips and audio tracks.
-   - Importing samples from the workspace.
+1. **The engine** (Builder, about 3 to 4 weeks). It plays and renders what Music plays today, then adds meters, MIDI
+   in, a master track and returns. Then `studio-audio.ts` retires.
+2. **Foundation in the UI and format** (Apps lead, in parallel with phase 1):
+   - Real clips in Arrange, shared with Session, with a migration for existing songs.
+   - The master track, return tracks and sends in the file.
+   - Time signature, and tempo and metre changes.
+   - The layout above.
+   - Arm, count-in, follow and Capture.
+   - The Mixer tab.
+3. **Audio** (about 3 weeks, once the engine plays):
+   - Audio clips and tracks, recording from an input with monitoring.
    - The Sampler, and drum pads that hold samples.
-   - Warping with a Wasm stretcher.
-   - Recording from an input.
+   - Warping, with a stretcher in the engine.
    - Freeze, and exporting stems.
-3. **Devices and movement** (about 3 weeks)
+4. **Devices and movement** (about 3 weeks):
    - Automation for every setting, and clip envelopes.
-   - Modulators (LFO, envelope follower) and sidechain.
-   - Stacks with macros, for instruments and effects.
-   - Six more effects: saturation, auto filter, chorus, phaser, limiter and utility.
-4. **Notes tools** (about 2 weeks)
-   - Transform tools and Generators, Live 12's biggest step, done locally next to Ask Mobius.
-   - Fold to scale, devices that follow the key, chance, grooves, and editing many clips at once.
-   - Follow actions and launch modes.
-5. **Library and polish** (about 2 weeks)
-   - The Library panel: tags, preview, similar sounds, hot-swap.
-   - Templates, takes and comping, groups.
-   - More synths: the morph synth, FM and grain cloud.
-
-**The native engine** (option C) starts after phase 2 as the Builder's work, in parallel with phases 3 to 5.
+   - Modulators and sidechain.
+   - Stacks with macros.
+   - Six more effects.
+5. **Notes tools** (about 2 weeks):
+   - Transform and Generate.
+   - Fold to scale, chance, grooves and editing many clips at once.
+   - Follow actions and launch modes. Most of this needs no engine, so it can start early.
+6. **Library and polish** (about 2 weeks):
+   - The Library panel, with tags, preview and similar sounds.
+   - Templates, takes and groups.
+   - More synths.
 
 ## What starts now
 
-These are small and fit today's engine and format, so they start without waiting for the decision:
-
-- Count-in, and an arm button in the track header (the Music roadmap lists both as Next).
-- Web MIDI input: a MIDI keyboard plays and records the armed track.
-- Follow the playhead in Arrange.
-- Tap tempo.
-- `LevelMeter` in the library (Design lead), then meters on tracks.
+- **Builder:** the engine skeleton. That means cpal output, a clock, and one synth voice playing a song's notes from
+  `song.json`.
+- **Apps lead:** follow the playhead in Arrange and count-in before recording (both UI only), then real clips in the
+  song format.
+- **Design lead:** `LevelMeter` (started), then tap tempo and an arm toggle for track headers.
 
 Sources for Live's features: [Live 12 release notes](https://www.ableton.com/en/release-notes/live-12),
 [All new features in Live 12](https://ableton.com/en/live/all-new-features) and
