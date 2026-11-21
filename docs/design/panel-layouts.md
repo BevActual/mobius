@@ -9,7 +9,8 @@ in [Theme tokens](theme-tokens.md); [Design rules](rules.md) gives the rules.
 
 ```
 +------------------------------------------------------------------+
-| [Go: icon Mail •] Title of what is open | app controls | Panels ⋯ M |   top bar
+| [icon •] File Edit View Go Mail Window Help   Inbox · 3 unread    |   title row
+| app tools, from the left edge                   Comments ⋯ M      |   tool row
 +---------+------------------------------------------+------+--------+
 | App's   |                                          | App's| Mobius |
 | left    | Content (the current view)               | right| (just  |
@@ -18,6 +19,12 @@ in [Theme tokens](theme-tokens.md); [Design rules](rules.md) gives the rules.
 |         | App's bottom panels                      |      |        |
 +---------+------------------------------------------+------+--------+
 ```
+
+Andrew, 21 November 2026, after Ableton's window (its file name in the title bar, then the menus, then the control
+bar): the top bar is two rows, a slim title row with the menus and what is open, and a tool row with only tools. The
+Panels button and the menu ⋯ became redundant: the panels are in View and the ⋯ holds only tools that did not fit. On
+macOS the menus are in the system menu bar, so there the frame keeps one row with the Panels button. Windows still
+draws its own title bar above the window (decorations are native), which reads "Mobius".
 
 The shell draws only the **top bar**, the **content** area and **Mobius** at the right edge. The top bar spans the
 whole window, and every panel, Mobius included, starts below it (Andrew, 17 November 2026: it unifies the look and
@@ -29,7 +36,8 @@ time it is opened. There is no app rail and no shared sidebar.
 
 | Part | What is in it | Who owns it |
 |---|---|---|
-| Top bar | Leading: the **Go button** (the open app's icon and name; a dot while something waits anywhere), then the title of what is open with a grey subline. Middle: the app's controls and view switch. Trailing, always in this order: Panels, Comments and Share where they apply, ⋯, the Mobius button. | Shell; the app fills the middle |
+| Title row | The **Go button** (the open app's icon; a dot while something waits anywhere; it opens Ctrl+K), then every menu as a title (File, Edit, View, Go, the app's own, Window, Help), then what is open, centred, with its grey subline. View ends with the panels (a tick when shown, the key) and Reset layout: there is no Panels button. | Shell; the app fills its own menu with `AppMenu` and `menus.ts` |
+| Tool row | Only tools, from the left edge: the app's controls and view switch (`ToolbarControls`). Trailing: Comments and Share where they apply, ⋯ only when a tool did not fit (it holds just those), the Mobius button. An app with no tools (Home, Settings) has no tool row: its trailing end sits at the right of the title row. | Shell; the app fills it |
 | Content | The current view. | App |
 | Left, right and bottom docks | The app's panels. A dock with nothing shown takes no space. The bottom dock runs under the content only. | App |
 | Mobius | The Mobius panel and nothing else: the chat, its cards and the composer. Always the far right edge, docked (Andrew 2026-11-17: docked, not floating). Pop out makes it Little Mobius. | Shell |

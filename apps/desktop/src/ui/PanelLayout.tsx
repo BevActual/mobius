@@ -360,22 +360,23 @@ function DockEdge({ dock, size, onSize }: { dock: PanelDock; size: number; onSiz
   );
 }
 
+/** A panel the shell owns (Mobius), as the Panels menu and the View menu list it. */
+export interface ShellPanel { name: string; shown: boolean; keys?: string; disabled?: boolean; toggle: () => void }
+
 /**
- * The toolbar's Panels menu: every panel of the open app with a tick when shown and its key, the shell's own two (the
- * sidebar and Mobius), then Reset layout.
+ * The rows that show and hide panels: the shell's own (Mobius), the inspector's, the open app's with a tick when
+ * shown and its key, then Reset layout. The View menu ends with them; on macOS they are the Panels button's menu.
+ * Keys are given as written for this computer when `describeKeys` is given, and as bindings otherwise.
  */
-export function PanelsMenu({ app, shell, describeKeys, onReset }: {
+export function usePanelEntries({ app, shell, describeKeys = (k) => k, onReset }: {
   app: PanelsOfApp | null;
-  /** The sidebar and Mobius: panels the shell owns. */
-  shell: { name: string; shown: boolean; keys?: string; disabled?: boolean; toggle: () => void }[];
-  /** How a key is written for this computer ("Ctrl+Shift+O"). */
-  describeKeys: (keys: string) => string;
-  /** The shell's part of Reset layout (the sidebar and Mobius back as they start). */
+  shell: ShellPanel[];
+  describeKeys?: (keys: string) => string;
   onReset?: () => void;
-}) {
+}): MenuEntry[] {
   // The inspector's panels: shown means the inspector is open with that panel in front.
   const inspector = useInspector();
-  const entries: MenuEntry[] = [
+  return [
     ...shell.map((s) => ({ label: s.name, checked: s.shown, run: s.toggle, ...(s.keys ? { keys: describeKeys(s.keys) } : {}), ...(s.disabled ? { disabled: true } : {}) })),
     ...inspector.panels.map((p, i) => {
       const on = inspector.open && inspector.active === p.id;
@@ -384,6 +385,22 @@ export function PanelsMenu({ app, shell, describeKeys, onReset }: {
     ...(app?.panels ?? []).map((p, i) => ({ label: p.name, checked: p.shown, run: () => app!.toggle(p.id), separated: i === 0, ...(p.keys ? { keys: describeKeys(p.keys) } : {}) })),
     { label: 'Reset layout', separated: true, run: () => { app?.reset(); onReset?.(); } },
   ];
+}
+
+/**
+ * The Panels button, where the shell's menus are in the system menu bar (macOS): the rows of `usePanelEntries`.
+ * Everywhere else those rows end the View menu in the title row.
+ */
+export function PanelsMenu({ app, shell, describeKeys, onReset }: {
+  app: PanelsOfApp | null;
+  /** Mobius: panels the shell owns. */
+  shell: ShellPanel[];
+  /** How a key is written for this computer ("Ctrl+Shift+O"). */
+  describeKeys: (keys: string) => string;
+  /** The shell's part of Reset layout. */
+  onReset?: () => void;
+}) {
+  const entries = usePanelEntries({ app, shell, describeKeys, ...(onReset ? { onReset } : {}) });
   return (
     <Menu
       label="Panels"

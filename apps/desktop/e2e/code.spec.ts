@@ -172,7 +172,7 @@ test('a project that is a git repository is committed from Code, and Mobius comm
 test('the console runs the person\'s commands in the project, and Mobius runs one only when asked each time', async () => {
   await start([callsTool('code-run', { project: 'offsite-planner', command: 'node --version' }), says(['Node is installed.'])]);
   // Console is a bottom panel beside Tests, shown from the Panels menu.
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Console' }).click();
   const console_ = shell().getByRole('region', { name: 'Console' });
   await console_.getByRole('textbox', { name: 'Command' }).fill('node -e "console.log(require(\'fs\').readdirSync(\'src\').join())"');
@@ -197,7 +197,7 @@ test('a command can keep running, its output shows as it comes, and it stops whe
     says(['The server printed serving; I stopped it.']),
   ]);
   // Console is a bottom panel beside Tests, shown from the Panels menu.
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Console' }).click();
   const console_ = shell().getByRole('region', { name: 'Console' });
   await console_.getByRole('checkbox', { name: 'Keep running' }).check();
@@ -265,7 +265,7 @@ test('files open as tabs that keep what was typed; quick open, find and comment 
 
 test('Outline, on the right, lists what the open file defines and goes to its line', async () => {
   await start();
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Outline' }).click();
   const outline = shell().getByRole('list', { name: 'What this file defines' });
   await outline.getByRole('button', { name: /splitTotal/ }).click();

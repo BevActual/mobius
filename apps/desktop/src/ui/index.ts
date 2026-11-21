@@ -21,7 +21,7 @@ export { type ToolbarPriority } from './toolbarFit';
 export { useKeyboardClaim, keyboardClaimed } from './keyboardClaim';
 export { ViewSwitch, type ViewChoice } from './ViewSwitch';
 export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow, type SidebarRowDrop } from './AppSidebar';
-export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
+export { PanelLayout, PanelsMenu, usePanelEntries, type ShellPanel, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
 export { InspectorDock, PanelTab, PanelTabsProvider, useInspector, useShowPanelTab } from './PanelTabs';
 export { AppMenu, AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 export { TooltipLayer, KeyCaps, splitTitle } from './Tooltip';

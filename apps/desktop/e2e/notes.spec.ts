@@ -42,8 +42,7 @@ const source = (): Locator => shell().getByRole('textbox', { name: 'Page text' }
 const format = (): Locator => shell().getByRole('toolbar', { name: 'Format' });
 /** Chooses an item in the Notes menu, under the toolbar's Menu button. */
 const notesMenu = async (item: string): Promise<void> => {
-  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Menu', exact: true }).click();
-  await shell().locator('.menu-names').getByRole('button', { name: 'Notes', exact: true }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'Notes', exact: true }).click();
   await shell().getByRole('menu', { name: 'Notes' }).getByRole('menuitem', { name: item }).click();
 };
 const status = (): Locator => shell().locator('.note-status');
