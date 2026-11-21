@@ -145,6 +145,78 @@ pub struct Draft {
     /// Sent then, by Mobius on the person's say-so (Send later).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub send_at_ms: Option<i64>,
+    /// Remind if no reply: once sent, the person is reminded then unless someone it went to has answered.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub remind_ms: Option<i64>,
+}
+
+/// A sent message the person wants an answer to: "Remind if no reply".
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct FollowUp {
+    /// The sent message's Message-ID, without the angle brackets: how a reply is found.
+    pub message_id: String,
+    pub account: String,
+    /// Who it went to (To and Cc), lower case: an answer from any of them counts.
+    pub to: Vec<String>,
+    pub subject: String,
+    pub sent_ms: i64,
+    /// When to remind the person if no one has answered by then.
+    pub remind_ms: i64,
+    /// The answer that came, and when.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub replied_ms: Option<i64>,
+    /// The reminder was raised once already.
+    #[serde(default)]
+    pub reminded: bool,
+}
+
+/// At most this many follow-ups are kept; past it, the oldest answered ones go first.
+const MAX_FOLLOW_UPS: usize = 300;
+
+/// A subject without its Re:, Fwd: and the like, to tell whether an answer belongs to the same conversation.
+fn thread_subject(subject: &str) -> String {
+    let mut s = subject.trim().to_lowercase();
+    while let Some(rest) = ["re:", "fwd:", "fw:", "aw:", "sv:", "antw:"].iter().find_map(|p| s.strip_prefix(p)) {
+        s = rest.trim_start().to_owned();
+    }
+    s
+}
+
+fn bare_id(id: &str) -> &str {
+    id.trim().trim_matches(['<', '>'])
+}
+
+/// Whether `m` answers the follow-up: it names the sent message in its In-Reply-To or References, or it is from
+/// someone the message went to, on the same subject, after it was sent (for mail that loses its headers on the way).
+fn answers(f: &FollowUp, m: &Message) -> bool {
+    if m.mailbox != "inbox" || m.date_ms + 60_000 < f.sent_ms {
+        return false;
+    }
+    m.references.iter().any(|r| bare_id(r) == f.message_id) || (f.to.contains(&m.from.email.to_lowercase()) && !f.subject.trim().is_empty() && thread_subject(&m.subject) == thread_subject(&f.subject))
+}
+
+/// The sent copy of a message here, by its Message-ID, once Sent has it.
+fn sent_id<'a>(saved: &'a Saved, message_id: &str) -> Option<&'a str> {
+    saved.messages.iter().find(|m| m.mailbox == "sent" && bare_id(&m.message_id) == message_id).map(|m| m.id.as_str())
+}
+
+/// The Message-ID a `follow_up` id stands for: a sent message's here, or the Message-ID itself.
+fn message_id_of(saved: &Saved, id: &str) -> String {
+    saved.messages.iter().find(|m| m.id == id).map_or_else(|| bare_id(id).to_owned(), |m| bare_id(&m.message_id).to_owned())
+}
+
+fn follow_up_json(f: &FollowUp, sent_id: Option<&str>, now: i64) -> Value {
+    let status = if f.replied_ms.is_some() {
+        "replied"
+    } else if f.remind_ms <= now {
+        "due"
+    } else {
+        "waiting"
+    };
+    json!({ "messageId": f.message_id, "sentId": sent_id, "account": f.account, "to": f.to, "subject": f.subject, "sentMs": f.sent_ms, "remindMs": f.remind_ms, "replyId": f.reply_id, "repliedMs": f.replied_ms, "status": status })
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -160,6 +232,9 @@ struct Saved {
     /// What the last kept plan did, so Undo all can put it back.
     #[serde(default)]
     plan_undo: Option<PlanUndo>,
+    /// Sent messages waiting on an answer (Remind if no reply).
+    #[serde(default)]
+    follow_ups: Vec<FollowUp>,
 }
 
 #[derive(Default, Clone, Serialize, Deserialize)]
@@ -695,6 +770,7 @@ impl Mail {
         }
         saved.messages.retain(|m| m.account != id);
         saved.drafts.retain(|d| d.account != id);
+        saved.follow_ups.retain(|f| f.account != id);
         self.save(&saved);
         drop(saved);
         self.secrets.delete(&secret_name(id));
@@ -795,11 +871,20 @@ impl Mail {
         let (from, to, cc, subject, date_ms, text, attachments, message_id, references, list) = match &parsed {
             Some(m) => {
                 let text = m.body_text(0).map(|t| t.into_owned()).filter(|t| !t.trim().is_empty()).or_else(|| m.body_html(0).map(|h| html_text(&h))).unwrap_or_default();
-                let refs: Vec<String> = match m.references() {
-                    mail_parser::HeaderValue::Text(t) => vec![t.to_string()],
-                    mail_parser::HeaderValue::TextList(l) => l.iter().map(ToString::to_string).collect(),
-                    _ => Vec::new(),
+                let ids = |v: &mail_parser::HeaderValue| -> Vec<String> {
+                    match v {
+                        mail_parser::HeaderValue::Text(t) => vec![t.to_string()],
+                        mail_parser::HeaderValue::TextList(l) => l.iter().map(ToString::to_string).collect(),
+                        _ => Vec::new(),
+                    }
                 };
+                // What it answers: its References, and its In-Reply-To where References left that out.
+                let mut refs = ids(m.references());
+                for id in ids(m.in_reply_to()) {
+                    if !refs.iter().any(|r| bare_id(r) == bare_id(&id)) {
+                        refs.push(id);
+                    }
+                }
                 let list = !m.list_unsubscribe().is_empty() || !m.list_id().is_empty() || m.header_raw("Precedence").is_some_and(|p| p.to_lowercase().contains("bulk") || p.to_lowercase().contains("list"));
                 (person(m.from().and_then(|a| a.first())), people(m.to()), people(m.cc()), m.subject().unwrap_or("").to_owned(), m.date().map_or(0, |d| d.to_timestamp() * 1000), text, m.attachments().filter_map(|a| a.attachment_name()).map(str::to_owned).collect(), m.message_id().unwrap_or("").to_owned(), refs, list)
             }
@@ -1286,7 +1371,12 @@ impl Mail {
         if body.len() > 200_000 || subject.len() > 1000 || to.len() > 2000 {
             return Err("That draft is too long.".into());
         }
-        let draft = Draft { id: existing.map_or_else(new_id, |i| saved.drafts[i].id.clone()), account, to, cc: s("cc").unwrap_or_default(), subject, body, reply_to, by: by.to_owned(), why: s("why").unwrap_or_default(), updated_ms: now_ms(), send_at_ms: existing.and_then(|i| saved.drafts[i].send_at_ms) };
+        // Remind if no reply: given (a time, or null to clear) it is set; left out, it stays as it was.
+        let remind_ms = match draft.get("remindMs") {
+            Some(v) => v.as_i64(),
+            None => existing.and_then(|i| saved.drafts[i].remind_ms),
+        };
+        let draft = Draft { id: existing.map_or_else(new_id, |i| saved.drafts[i].id.clone()), account, to, cc: s("cc").unwrap_or_default(), subject, body, reply_to, by: by.to_owned(), why: s("why").unwrap_or_default(), updated_ms: now_ms(), send_at_ms: existing.and_then(|i| saved.drafts[i].send_at_ms), remind_ms };
         match existing {
             Some(i) => saved.drafts[i] = draft.clone(),
             None => {
@@ -1329,7 +1419,10 @@ impl Mail {
         if to.is_empty() {
             return Err("Who is it to?".into());
         }
-        let mut builder = lettre::Message::builder().from(account.email.parse::<Addr>().map_err(|e| e.to_string())?).subject(draft.subject.clone());
+        // Our own Message-ID, so a reply can be told apart from the rest of the inbox (Remind if no reply).
+        let domain = account.email.rsplit_once('@').map_or("mobius.local", |(_, d)| d);
+        let message_id = format!("{}{}.{}@{domain}", new_id(), new_id(), now_ms());
+        let mut builder = lettre::Message::builder().from(account.email.parse::<Addr>().map_err(|e| e.to_string())?).subject(draft.subject.clone()).message_id(Some(format!("<{message_id}>")));
         for t in to {
             builder = builder.to(t);
         }
@@ -1354,6 +1447,7 @@ impl Mail {
             let entry = Self::index_entry(&account.id, "sent", uid, &[], &raw);
             saved.messages.push(entry);
             saved.drafts.retain(|d| d.id != id);
+            Self::track(&mut saved, &draft, &account.id, &message_id);
             self.save(&saved);
             return Ok(json!({ "ok": true }));
         }
@@ -1372,8 +1466,102 @@ impl Mail {
         lettre::Transport::send(&transport, &message).map_err(|e| format!("The mail could not be sent: {e}"))?;
         let mut saved = self.lock();
         saved.drafts.retain(|d| d.id != id);
+        Self::track(&mut saved, &draft, &account.id, &message_id);
         self.save(&saved);
         Ok(json!({ "ok": true }))
+    }
+
+    /// A draft sent with Remind if no reply: kept as a follow-up.
+    fn track(saved: &mut Saved, draft: &Draft, account: &str, message_id: &str) {
+        let Some(remind_ms) = draft.remind_ms else { return };
+        let to: Vec<String> = format!("{},{}", draft.to, draft.cc).split([',', ';']).map(str::trim).filter(|x| !x.is_empty()).map(|x| x.rsplit('<').next().unwrap_or(x).trim_end_matches('>').trim().to_lowercase()).collect();
+        let sent_ms = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        Self::keep_follow_up(saved, FollowUp { message_id: message_id.to_owned(), account: account.to_owned(), to, subject: draft.subject.clone(), sent_ms, remind_ms, reply_id: None, replied_ms: None, reminded: false });
+    }
+
+    fn keep_follow_up(saved: &mut Saved, f: FollowUp) {
+        saved.follow_ups.retain(|x| x.message_id != f.message_id);
+        saved.follow_ups.push(f);
+        while saved.follow_ups.len() > MAX_FOLLOW_UPS {
+            // The oldest answered one goes first, or else the oldest.
+            let at = saved.follow_ups.iter().enumerate().filter(|(_, x)| x.replied_ms.is_some()).min_by_key(|(_, x)| x.sent_ms).or_else(|| saved.follow_ups.iter().enumerate().min_by_key(|(_, x)| x.sent_ms)).map_or(0, |(i, _)| i);
+            saved.follow_ups.remove(at);
+        }
+    }
+
+    /// Marks the follow-ups someone has answered. True when any changed.
+    fn note_replies(saved: &mut Saved) -> bool {
+        let Saved { follow_ups, messages, .. } = saved;
+        let mut changed = false;
+        for f in follow_ups.iter_mut().filter(|f| f.replied_ms.is_none()) {
+            if let Some(m) = messages.iter().filter(|m| answers(f, m)).min_by_key(|m| m.date_ms) {
+                f.reply_id = Some(m.id.clone());
+                f.replied_ms = Some(m.date_ms);
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    /// Remind if no reply on a message already sent, by its id here (`<account>/sent/<uid>`) or its Message-ID;
+    /// `None` stops waiting on it.
+    pub fn follow_up(&self, id: &str, remind_ms: Option<i64>) -> Res<Value> {
+        let mut saved = self.lock();
+        let sent = saved.messages.iter().find(|m| m.id == id && m.mailbox == "sent").cloned();
+        let message_id = match &sent {
+            Some(m) if !m.message_id.is_empty() => bare_id(&m.message_id).to_owned(),
+            Some(_) => return Err("That message has no Message-ID, so a reply to it cannot be found.".into()),
+            None => saved.follow_ups.iter().find(|f| f.message_id == bare_id(id)).map(|f| f.message_id.clone()).ok_or("That message is not one you sent.")?,
+        };
+        let Some(remind_ms) = remind_ms else {
+            saved.follow_ups.retain(|f| f.message_id != message_id);
+            self.save(&saved);
+            return Ok(json!({ "ok": true }));
+        };
+        let f = match (saved.follow_ups.iter().find(|f| f.message_id == message_id).cloned(), sent) {
+            (Some(f), _) => FollowUp { remind_ms, reminded: false, ..f },
+            (None, Some(m)) => FollowUp { message_id, account: m.account.clone(), to: m.to.iter().chain(&m.cc).map(|p| p.email.to_lowercase()).collect(), subject: m.subject.clone(), sent_ms: m.date_ms, remind_ms, reply_id: None, replied_ms: None, reminded: false },
+            (None, None) => return Err("That message is not one you sent.".into()),
+        };
+        Self::keep_follow_up(&mut saved, f);
+        Self::note_replies(&mut saved);
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let out = saved.follow_ups.iter().find(|f| f.message_id == bare_id(&message_id_of(&saved, id))).map_or(Value::Null, |f| follow_up_json(f, sent_id(&saved, &f.message_id), now));
+        self.save(&saved);
+        Ok(out)
+    }
+
+    /// The sent messages waiting on an answer, and those answered, soonest reminder first.
+    pub fn follow_ups(&self) -> Value {
+        let mut saved = self.lock();
+        if Self::note_replies(&mut saved) {
+            self.save(&saved);
+        }
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let mut list: Vec<&FollowUp> = saved.follow_ups.iter().collect();
+        list.sort_by_key(|f| (f.replied_ms.is_some(), f.remind_ms));
+        json!(list.iter().map(|f| follow_up_json(f, sent_id(&saved, &f.message_id), now)).collect::<Vec<_>>())
+    }
+
+    /// Run every minute: notes the answers that came, and returns the follow-ups whose time came with no answer and
+    /// that were not raised before (each is raised once).
+    pub fn follow_ups_due(&self) -> (bool, Vec<Value>) {
+        let mut saved = self.lock();
+        let mut changed = Self::note_replies(&mut saved);
+        let now = i64::try_from(now_ms()).unwrap_or(i64::MAX);
+        let mut due = Vec::new();
+        for i in 0..saved.follow_ups.len() {
+            let f = &saved.follow_ups[i];
+            if f.replied_ms.is_none() && !f.reminded && f.remind_ms <= now {
+                due.push(follow_up_json(f, sent_id(&saved, &f.message_id), now));
+                saved.follow_ups[i].reminded = true;
+                changed = true;
+            }
+        }
+        if changed {
+            self.save(&saved);
+        }
+        (changed, due)
     }
 
     // ---- the agent's tools ----
@@ -1492,6 +1680,97 @@ mod tests {
         let sent = mail.lock().messages.iter().find(|m| m.mailbox == "sent").cloned().unwrap();
         assert_eq!(sent.subject, "Re: Terrace + lunch for the 13th");
         assert!(mail.drafts().as_array().unwrap().is_empty());
+    }
+
+    fn local_mail() -> (Mail, tempfile::TempDir) {
+        let seed = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(seed.path().join("inbox")).unwrap();
+        std::fs::write(seed.path().join("account.json"), r#"{"name":"Ana Ruiz","email":"ana@northway.example"}"#).unwrap();
+        std::fs::write(seed.path().join("inbox/01-rui.eml"), RUI).unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        Mail::import_local(dir.path(), seed.path()).unwrap();
+        let mail = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Box::new(|_, _| Err("no network".into())));
+        (mail, dir)
+    }
+
+    /// A message arriving in the inbox, as a sync would add it.
+    fn arrives(mail: &Mail, uid: u32, raw: &str) {
+        let account = mail.lock().accounts[0].id.clone();
+        let entry = Mail::index_entry(&account, "inbox", uid, &[], raw.as_bytes());
+        let mut saved = mail.lock();
+        saved.messages.push(entry);
+        mail.save(&saved);
+    }
+
+    #[test]
+    fn remind_if_no_reply_waits_for_an_answer_and_is_raised_once_when_none_comes() {
+        let (mail, dir) = local_mail();
+        let rui = mail.lock().messages.iter().find(|m| m.mailbox == "inbox").cloned().unwrap();
+        let later = i64::try_from(now_ms()).unwrap() + 3_600_000;
+        let draft = mail.save_draft(&json!({ "replyTo": rui.id, "body": "Eight it is.", "remindMs": later }), "you").unwrap();
+        assert_eq!(draft["remindMs"], later);
+        // A change that leaves it out keeps it.
+        let draft = mail.save_draft(&json!({ "id": draft["id"], "replyTo": rui.id, "body": "Eight it is, thanks." }), "you").unwrap();
+        assert_eq!(draft["remindMs"], later);
+        mail.send(draft["id"].as_str().unwrap()).unwrap();
+        let list = mail.follow_ups();
+        let f = &list[0];
+        assert_eq!(f["status"], "waiting");
+        assert_eq!(f["to"], json!(["rui@example.com"]));
+        assert_eq!(f["subject"], "Re: Terrace + lunch for the 13th");
+        let sent = mail.lock().messages.iter().find(|m| m.mailbox == "sent").cloned().unwrap();
+        assert_eq!(f["sentId"], sent.id.as_str(), "the sent copy carries the Message-ID it was sent with");
+        let message_id = f["messageId"].as_str().unwrap().to_owned();
+        assert!(message_id.ends_with("@northway.example"));
+        // Not due yet: nothing raised.
+        assert!(mail.follow_ups_due().1.is_empty());
+
+        // Someone else writing on another subject is not an answer; Rui answering is, by its In-Reply-To.
+        arrives(&mail, 50, "From: Priya <priya@example.com>\r\nSubject: Lunch\r\nDate: Sat, 21 Nov 2099 09:00:00 +0000\r\n\r\nHi\r\n");
+        assert!(!mail.follow_ups_due().0);
+        arrives(&mail, 51, &format!("From: Rui <rui@example.com>\r\nSubject: Booked\r\nIn-Reply-To: <{message_id}>\r\nDate: Sat, 21 Nov 2099 10:00:00 +0000\r\n\r\nDone\r\n"));
+        let (changed, due) = mail.follow_ups_due();
+        assert!(changed && due.is_empty());
+        let f = &mail.follow_ups()[0];
+        assert_eq!(f["status"], "replied");
+        assert!(f["replyId"].as_str().unwrap().ends_with("/inbox/51"));
+
+        // Kept on disk.
+        let again = Mail::with_connector(dir.path(), Arc::new(MemorySecrets::new(true)), Box::new(|_, _| Err("no network".into())));
+        assert_eq!(again.follow_ups()[0]["status"], "replied");
+    }
+
+    #[test]
+    fn a_sent_message_can_be_followed_up_later_and_an_answer_on_its_subject_counts() {
+        let (mail, _dir) = local_mail();
+        let draft = mail.save_draft(&json!({ "to": "Sam Okafor <sam@example.com>", "cc": "kai@example.com", "subject": "Quote for the terrace", "body": "Could you send the quote?" }), "you").unwrap();
+        mail.send(draft["id"].as_str().unwrap()).unwrap();
+        assert_eq!(mail.follow_ups(), json!([]), "no follow-up unless asked");
+        let sent = mail.lock().messages.iter().find(|m| m.mailbox == "sent").cloned().unwrap();
+        // Remind now: due at once, and raised only the first time.
+        let f = mail.follow_up(&sent.id, Some(1)).unwrap();
+        assert_eq!(f["status"], "due");
+        assert_eq!(f["to"], json!(["sam@example.com", "kai@example.com"]));
+        let (_, due) = mail.follow_ups_due();
+        assert_eq!(due.len(), 1);
+        assert_eq!(due[0]["subject"], "Quote for the terrace");
+        assert!(mail.follow_ups_due().1.is_empty(), "raised once");
+        // Kai answers from a client that drops the headers: same subject, from someone it went to.
+        arrives(&mail, 60, "From: Kai <KAI@example.com>\r\nSubject: RE: Fwd: Quote for the terrace\r\nDate: Sat, 21 Nov 2099 10:00:00 +0000\r\n\r\nAttached\r\n");
+        assert_eq!(mail.follow_ups()[0]["status"], "replied");
+        // Stopped by its Message-ID as well as by its id here; a message that is not one you sent is refused.
+        assert!(mail.follow_up(&sent.message_id, None).is_ok());
+        assert_eq!(mail.follow_ups(), json!([]));
+        let rui = mail.lock().messages.iter().find(|m| m.mailbox == "inbox").cloned().unwrap();
+        assert!(mail.follow_up(&rui.id, Some(1)).is_err());
+    }
+
+    #[test]
+    fn a_reply_names_what_it_answers_from_in_reply_to_when_references_leave_it_out() {
+        let raw = b"From: Rui <rui@example.com>\r\nSubject: Re: x\r\nIn-Reply-To: <a1@example.com>\r\nReferences: <a0@example.com>\r\n\r\nok\r\n";
+        let m = Mail::index_entry("acc", "inbox", 1, &[], raw);
+        assert_eq!(m.references.iter().map(|r| bare_id(r)).collect::<Vec<_>>(), vec!["a0@example.com", "a1@example.com"]);
+        assert_eq!(thread_subject("RE: Fwd:  Re: Quote "), "quote");
     }
 
     fn connected(messages: Vec<(u32, &'static str, Vec<u8>)>) -> (Mail, tempfile::TempDir) {

@@ -744,6 +744,15 @@ fn main() {
                 if let WindowEvent::Focused(true) = event {
                     focus_bridge.window_activated(std::time::Duration::from_secs(120));
                 }
+                // Minimise to the tray, if chosen: a minimised window leaves the taskbar, and the tray brings it back.
+                if has_tray
+                    && let WindowEvent::Resized(_) = event
+                    && resize_window.is_minimized().unwrap_or(false)
+                    && focus_bridge.call("preferences", "get", &[]).ok().is_some_and(|p| p["minimizeToTray"].as_bool() == Some(true))
+                {
+                    let _ = resize_window.hide();
+                    return;
+                }
                 // The window's place is kept as it moves and resizes; while maximised only that is noted, so the size
                 // it goes back to is the one it had.
                 if keep_window && matches!(event, WindowEvent::Moved(_) | WindowEvent::Resized(_)) {

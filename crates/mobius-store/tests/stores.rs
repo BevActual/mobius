@@ -68,7 +68,7 @@ fn preferences_check_each_choice() {
     assert_eq!(p.get()["dictationModel"], "whisper-1");
     for bad in [
         json!({ "approvalMode": "yolo" }), json!({ "localContext": 1234 }), json!({ "localContext": 16384.5 }), json!({ "reasoningEffort": "extreme" }),
-        json!({ "dictationModel": "" }), json!({ "dictationModel": "a\nb" }), json!({ "dictationModel": "x".repeat(201) }), json!({ "keepAwake": 1 }),
+        json!({ "dictationModel": "" }), json!({ "dictationModel": "a\nb" }), json!({ "dictationModel": "x".repeat(201) }), json!({ "keepAwake": 1 }), json!({ "language": "klingon" }),
         json!({ "keybindings": { "launcher": "mod+k" } }),
     ] {
         assert!(!p.set(&bad), "{bad}");
