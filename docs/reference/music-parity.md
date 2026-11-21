@@ -156,6 +156,23 @@ host, written in Rust. The window becomes the UI only.
   `studio-audio.ts` retires.
 - **Plug-ins** (VST3 or CLAP) become possible later. They stay out of scope until the engine is stable.
 
+**What Live's manual says the engine should do**, and where Mobius's engine stands
+([Audio Fact Sheet](https://www.ableton.com/en/manual/audio-fact-sheet/),
+[MIDI Fact Sheet](https://www.ableton.com/en/live-manual/12/midi-fact-sheet/),
+[Mixing](https://www.ableton.com/en/live-manual/12/mixing/),
+[How to reduce latency](https://help.ableton.com/hc/en-us/articles/209072289-How-to-reduce-latency)):
+
+| Live | Mobius's engine |
+| --- | --- |
+| 32-bit float inside; a track can go over 0 dB without clipping, only the main output and export clip | The same: float all the way, clipped only by the output |
+| Volume automation is applied every sample | The same (part 5) |
+| Export matches playback when nothing non-neutral is applied; render at 32 bits, dither once at the end | Playback and export are the same code; WAV export is 32-bit float |
+| Constant-power pan: 0 dB in the middle, +3 dB hard to one side | Pan follows the window's Web Audio panner (also constant power) until `studio-audio.ts` retires; then match Live's law |
+| Devices' delays are compensated automatically | Every device today has no delay (the reverb is zero-latency), so nothing to compensate yet; needed with plug-ins or lookahead |
+| MIDI in: latency is preferred to jitter, using the driver's timestamps | The plan for MIDI in: place each event by its timestamp a buffer late, never as soon as it comes |
+| Clip start and end get a declick fade of up to 4 ms | Needed with audio clips (phase 3) |
+| Latency is set by the buffer; smaller costs CPU | The engine reports its latency; a buffer-size setting comes with recording |
+
 The engine is core work, so the Builder builds it in `crates/`. The Apps lead does the Music UI, the song format and
 the note tools, and keeps that work moving while the engine is built.
 
