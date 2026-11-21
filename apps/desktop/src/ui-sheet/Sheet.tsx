@@ -5,7 +5,7 @@ import {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
-  WaveformView, peaksOf, type WaveRange,
+  WaveformView, peaksOf, type WaveRange, type WarpMarker,
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
@@ -113,12 +113,15 @@ function Wave() {
   })();
   const [range, setRange] = useState<WaveRange>({ start: 0.12, end: 3.6, loop: { start: 1, end: 2 } });
   const [plain, setPlain] = useState<WaveRange>({ start: 0, end: 4, loop: null });
+  const [warp, setWarp] = useState<WarpMarker[]>([{ sample: 0, beat: 0 }, { sample: 1.02, beat: 2 }, { sample: 2.04, beat: 4 }, { sample: 3.1, beat: 6 }]);
   return (
     <div className="sheet-waves">
       <div className="sheet-col"><span className="sheet-note">Trimmed, with a loop (drag an edge or its tab; arrows 10 ms, Shift 100 ms, Home and End). Playing at 1.4 s.</span>
         <WaveformView label="Sample" peaks={peaks} duration={4} value={range} onChange={setRange} playhead={1.4} /></div>
       <div className="sheet-col"><span className="sheet-note">Untrimmed, no loop: press the strip along the top to add one</span>
         <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
+      <div className="sheet-col"><span className="sheet-note">Warped: four markers (drag, arrows, Delete; double-click the warp strip to add one)</span>
+        <WaveformView label="Sample, warped" peaks={peaks} duration={4} value={plain} onChange={setPlain} warp={warp} onWarpChange={setWarp} /></div>
     </div>
   );
 }
