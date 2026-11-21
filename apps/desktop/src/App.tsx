@@ -691,9 +691,13 @@ export function App() {
   // Mail (marked): below about 1200px wide, Mailboxes starts hidden so the list and the message keep their room; the
   // Panels menu (or the top bar) brings it back, and a choice made there is kept.
   const roomy = useWideWindow(1200);
+  // Every other app's list does the same while Mobius is docked beside it, so the page keeps a readable column (at
+  // 1024 wide, Notes had about 370px). Home is the chat itself and keeps its list. A choice made in the Panels menu is
+  // kept, as for Mail.
+  const mobiusDocked = chatOpen && appearance.value.rightSidebar !== 'floating';
   const ownListPanels = useMemo(() => Object.fromEntries(Object.entries(OWN_LIST).map(([id, name]) => [id, [
-    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'mail' || id === 'calendar' ? roomy : true, render: () => ownListRef.current(id as AppId) },
-  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy]);
+    { id: 'list', name: id === 'agent' ? homeListName : name, dock: 'left', shown: id === 'agent' ? true : id === 'mail' || id === 'calendar' ? roomy : roomy || !mobiusDocked, render: () => ownListRef.current(id as AppId) },
+  ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
   const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
