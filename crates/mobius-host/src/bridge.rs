@@ -3662,10 +3662,21 @@ impl Bridge {
                         json!({ "ok": true })
                     }),
                     // Files (Drives): copying between a drive and the workspace, never over anything on either side.
+                    // The version copied comes back too, so the copy can be saved back over exactly that version.
                     "download" => drive.read(path).and_then(|file| {
                         let name = path.rsplit('/').next().unwrap_or(path);
-                        self.workspace.add_file(text(2).unwrap_or(""), name, &file.bytes).map_err(|e| sentence(&e))
-                    }).map(|copied| json!({ "ok": true, "path": copied })),
+                        self.workspace.add_file(text(2).unwrap_or(""), name, &file.bytes).map_err(|e| sentence(&e)).map(|copied| json!({ "ok": true, "path": copied, "etag": file.version }))
+                    }),
+                    // A copy edited in the workspace, put back over the drive's file only while that is still the
+                    // version copied: changed on the server meanwhile, it answers a conflict and nothing is replaced.
+                    "saveBack" => match (text(2), text(3)) {
+                        (Some(copy), Some(etag)) => self.workspace.read_file(copy, crate::drives::MAX_FILE).map_err(|e| sentence(&e)).and_then(|bytes| drive.write(path, &bytes, Some(etag))).map(|etag| {
+                            changed(id, path);
+                            json!({ "ok": true, "etag": etag })
+                        }),
+                        (None, _) => Err("Which workspace file?".to_owned()),
+                        (Some(_), None) => Err("The drive gave no version for this file, so it cannot be saved back safely. Copy it to the drive under a new name instead.".to_owned()),
+                    },
                     "upload" => {
                         let folder = text(2).unwrap_or("");
                         let name = path.rsplit('/').next().unwrap_or(path);
