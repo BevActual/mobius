@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatAccount, ChatChannel, ChatMessage } from '@mobius/shared';
-import { catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, unreadLabel } from './messages-view';
+import { catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, toggled, unreadLabel } from './messages-view';
 
 const work: ChatAccount = { id: 'w', service: 'slack', name: 'Northway', status: 'ready' };
 const home: ChatAccount = { id: 'h', service: 'discord', name: 'Friends', status: 'ready' };
@@ -52,5 +52,18 @@ describe('mentions, the New line and threads', () => {
     expect(lastReplyLabel(0, 5 * 60_000)).toBe('Last reply 5 min ago');
     expect(lastReplyLabel(0, 3 * 3_600_000)).toBe('Last reply 3 h ago');
     expect(lastReplyLabel(0, 49 * 3_600_000)).toBe('Last reply 2 days ago');
+  });
+});
+
+describe('toggled', () => {
+  it('adds the person\'s reaction, to a new or an existing emoji', () => {
+    expect(toggled([], '👍', true)).toEqual([{ emoji: '👍', count: 1, mine: true }]);
+    expect(toggled([{ emoji: '👍', count: 2 }], '👍', true)).toEqual([{ emoji: '👍', count: 3, mine: true }]);
+    expect(toggled([{ emoji: '👍', count: 2, mine: true }], '👍', true)).toEqual([{ emoji: '👍', count: 2, mine: true }]);
+  });
+  it('takes it back, dropping an emoji no one else used', () => {
+    expect(toggled([{ emoji: '🎉', count: 3, mine: true }], '🎉', false)).toEqual([{ emoji: '🎉', count: 2, mine: false }]);
+    expect(toggled([{ emoji: '🎉', count: 1, mine: true }], '🎉', false)).toEqual([]);
+    expect(toggled([{ emoji: '🎉', count: 2 }], '🎉', false)).toEqual([{ emoji: '🎉', count: 2 }]);
   });
 });

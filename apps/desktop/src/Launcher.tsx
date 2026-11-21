@@ -27,7 +27,9 @@ import './launcher.css';
  * - Typing: one search over apps, items in every app, open pages and commands, with Ask Mobius always first, so a
  *   search that finds nothing becomes a question. Right-click an app to pin it.
  *
- * A modal dialog, so focus is trapped and Escape closes it.
+ * A dialog that acts modal (focus kept inside, Escape and a click outside close it, aria-modal), but is opened with
+ * show(), not showModal(): a modal dialog makes the whole page inert, and undoing that restyled every element on each
+ * close, which slowed every app switch made from here.
  */
 
 export interface LauncherItem {
@@ -205,6 +207,8 @@ export function noteChoice(choices: Choices, query: string, id: string): Choices
 }
 
 /** Within each kind, the ones picked most for this query first; the rest keep their order. Ask stays first. */
+const NOTHING: LauncherItem[] = [];
+
 export function rankByChoice<T extends { id: string; kind: string }>(items: readonly T[], choices: Choices, query: string): T[] {
   const counts = choices[choiceKey(query)];
   if (!counts) return [...items];
@@ -242,6 +246,10 @@ export function Launcher({
   places = {}, inline = false, now, again, startIn = 'start', onAskAbout, askInline, onContinue, answered, home, about, onOpenUrl, clipboard, system,
 }: Props) {
   const dialog = useRef<HTMLDialogElement>(null);
+  // Where the focus was before it opened, to give it back on close (showModal() did this by itself).
+  const returnTo = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
   const input = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState(answered?.question ?? '');
   // The answer to a question asked here, while the words asked are still what is typed.
@@ -314,10 +322,15 @@ export function Launcher({
       // The field is already empty: it was emptied as the launcher closed. Emptying it only now, after it shows, could
       // land after the first letters typed into it, and the same words typed again went unseen (the field already held
       // them), so Enter opened whatever was first for an empty field.
-      element.showModal();
+      returnTo.current = document.activeElement instanceof HTMLElement && !element.contains(document.activeElement) ? document.activeElement : null;
+      element.show();
       input.current?.focus();
     } else if (!open && element.open) {
+      const focusWasInside = element.contains(document.activeElement);
       element.close();
+      const back = returnTo.current;
+      returnTo.current = null;
+      if (focusWasInside && back?.isConnected) back.focus({ preventScroll: true });
     }
   }, [open, inline]);
   // However it closed (a choice, Escape, a click outside), it is empty and unchosen for next time.
@@ -343,8 +356,24 @@ export function Launcher({
       const element = dialog.current;
       if (element?.open && event.target instanceof Node && !element.contains(event.target)) input.current?.focus();
     };
+    // Not a modal dialog (see the top of this file), so Tab is kept inside here, and Escape closes it wherever the focus is.
+    const trap = (event: globalThis.KeyboardEvent) => {
+      const element = dialog.current;
+      if (!element?.open || event.defaultPrevented) return;
+      if (event.key === 'Escape' && !element.contains(event.target as Node)) { event.preventDefault(); onCloseRef.current(); return; }
+      if (event.key !== 'Tab') return;
+      const stops = [...element.querySelectorAll<HTMLElement>('input, select, textarea, button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])')].filter((el) => el.offsetParent !== null);
+      if (stops.length === 0) return;
+      const first = stops[0]!, last = stops[stops.length - 1]!;
+      const at = document.activeElement;
+      if (!element.contains(at) || (event.shiftKey && at === first) || (!event.shiftKey && at === last)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      }
+    };
     document.addEventListener('focusin', keep, true);
-    return () => document.removeEventListener('focusin', keep, true);
+    document.addEventListener('keydown', trap);
+    return () => { document.removeEventListener('focusin', keep, true); document.removeEventListener('keydown', trap); };
   }, [open, inline]);
 
   const pins = useMemo(() => dragOrder ?? pinnedApps(pinned), [dragOrder, pinned]);
@@ -605,7 +634,9 @@ export function Launcher({
     const at = rest.findIndex((item) => item.kind !== 'ask');
     return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
   }, [listFor, choices, actionsFor, naming, scope, view, shortcuts, resolveShortcut]);
-  const items = useMemo(() => listRanked(query), [listRanked, query]);
+  // Shut, it lists nothing: worked out on every draw of the window (an app switch among them), the whole search came
+  // to more than the app being opened. It is worked out again as it opens.
+  const items = useMemo(() => (open || inline ? listRanked(query) : NOTHING), [open, inline, listRanked, query]);
   // Keys of your own work anywhere in this window while the launcher is shut.
   useEffect(() => {
     if (open || inline || !shortcuts.some((s) => s.key)) return;
@@ -938,9 +969,15 @@ export function Launcher({
 
   if (inline) return <div className="launcher" data-inline="true" role="dialog" aria-label="Launcher">{body}</div>;
   return (
-    <dialog ref={dialog} className="launcher" aria-label="Launcher" onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === dialog.current) onClose(); }}>
-      {body}
-    </dialog>
+    <>
+      {/* The shade behind it: a click on it closes the launcher, as a click outside a modal dialog did. */}
+      {open && <div className="launcher-backdrop" aria-hidden="true" onClick={onClose} />}
+      <dialog ref={dialog} className="launcher" aria-label="Launcher" aria-modal={open || undefined}
+        onCancel={(event) => { event.preventDefault(); onClose(); }}
+        onKeyDown={(event) => { if (event.key === 'Escape' && !event.defaultPrevented) { event.preventDefault(); onClose(); } }}>
+        {body}
+      </dialog>
+    </>
   );
 }
 

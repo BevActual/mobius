@@ -177,13 +177,33 @@ export function useSheets(active = true) {
     if (left) await open(d.workbook, left);
   }, [api, refresh, open]);
 
+  /** A copy of a sheet, just after it, opened (the host names it "Budget copy"). */
+  const duplicateSheet = useCallback(async (sheet: string) => {
+    const d = live.current;
+    if (!api?.duplicateSheet || !d) return;
+    const made = await api.duplicateSheet(d.workbook, sheet);
+    if (isNotesFailure(made)) { setMessage(made.message); return; }
+    await refresh();
+    await open(made.workbook, made.sheet);
+  }, [api, refresh, open]);
+
+  /** Moves a sheet's tab to `to` (from 0). */
+  const moveSheet = useCallback(async (sheet: string, to: number) => {
+    const d = live.current;
+    if (!api?.moveSheet || !d) return;
+    const done = await api.moveSheet(d.workbook, sheet, to);
+    if (isNotesFailure(done)) { setMessage(done.message); return; }
+    await refresh();
+    await reload();
+  }, [api, refresh, reload]);
+
   /** Opens a workbook only when none is open or on its way: for one Mobius changed, offered on arrival. */
   const openIfIdle = useCallback((workbook: string, sheet: string) => {
     if (live.current || loading.current > 0) return;
     void open(workbook, sheet);
   }, [open]);
 
-  return { available: api !== undefined, settled, openIfIdle, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, refresh, reload };
+  return { available: api !== undefined, settled, openIfIdle, workbooks, data, message, fresh, open, set, shift, createWorkbook, addSheet, renameSheet, removeSheet, duplicateSheet, moveSheet, canDuplicate: Boolean(api?.duplicateSheet), canMove: Boolean(api?.moveSheet), refresh, reload };
 }
 
 export type SheetsState = ReturnType<typeof useSheets>;

@@ -22,12 +22,18 @@ export function systemLocale(): string | undefined {
   if (override !== undefined) return override;
   const given = (globalThis as { __MOBIUS_SYSTEM__?: { locale?: unknown } }).__MOBIUS_SYSTEM__?.locale;
   if (typeof given !== 'string' || given === '') return undefined;
+  // Asked of every date written (a calendar week writes hundreds), so the answer for a locale is kept.
+  if (checked?.given === given) return checked.locale;
+  let locale: string | undefined;
   try {
-    return Intl.DateTimeFormat.supportedLocalesOf([given]).length > 0 ? given : undefined;
+    locale = Intl.DateTimeFormat.supportedLocalesOf([given]).length > 0 ? given : undefined;
   } catch {
-    return undefined;
+    locale = undefined;
   }
+  checked = { given, locale };
+  return locale;
 }
+let checked: { given: string; locale: string | undefined } | undefined;
 
 const cache = new Map<string, Intl.DateTimeFormat>();
 

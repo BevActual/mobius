@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
+import { Select } from '../ui';
 import { ChatModelPopUp, FallbackPopUp, ImagesRow, QuickPopUp } from './ModelDefaults';
 import { SoftwareUpdate } from './SoftwareUpdate';
 import {
@@ -282,9 +283,7 @@ export function ModelSection({ subpage, highlight, settings, onSaveSettings, pre
       )}
       <Row path={rowPath('model', subpage, 'effort')} title="Effort" description="How hard the model is asked to think. Also in the message box. Only models that can reason use it." highlight={highlight === 'effort'}>
         {/* A pop-up, like the other rows of this card: five choices side by side were the odd one out. */}
-        <select className="popup" aria-label="Effort" value={preferences.reasoningEffort} onChange={(event) => void onPreferences({ reasoningEffort: event.target.value as EffortChoice })}>
-          {EFFORT_OPTIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-        </select>
+        <Select label="Effort" hideLabel value={preferences.reasoningEffort} onChange={(reasoningEffort: EffortChoice) => void onPreferences({ reasoningEffort })} choices={EFFORT_OPTIONS.map((o) => ({ value: o.id, label: o.label }))} />
       </Row>
     </>
   );
@@ -916,9 +915,7 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
           <Toggle label="Minimise to the tray" checked={preferences.minimizeToTray} onChange={(minimizeToTray) => void onPreferences({ minimizeToTray })} />
         </Row>
         <Row path={rowPath('advanced', subpage, 'language')} title={t('settings.language.title')} description={t('settings.language.description')} highlight={highlight === 'language'}>
-          <select className="popup" aria-label={t('settings.language.title')} value={preferences.language} onChange={(event) => { if (isLanguage(event.target.value)) void onPreferences({ language: event.target.value }); }}>
-            {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
-          </select>
+          <Select label={t('settings.language.title')} hideLabel value={preferences.language} onChange={(language: string) => { if (isLanguage(language)) void onPreferences({ language }); }} choices={LANGUAGES.map((l) => ({ value: l.id as string, label: l.label }))} />
         </Row>
         <Row path={rowPath('advanced', subpage, 'keep-awake')} title="Keep the computer awake while working" description="Stop the computer sleeping while the agent is working on a request. It may sleep while the agent is only waiting for you." highlight={highlight === 'keep-awake'}>
           <Toggle label="Keep the computer awake while working" checked={preferences.keepAwake} onChange={(keepAwake) => void onPreferences({ keepAwake })} />
