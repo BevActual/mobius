@@ -85,3 +85,6 @@
 .act-embed .change-row .clist-main { padding-left: 0; }
 .act-icon-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .act-embed .act-icon { flex: none; }
+/* On an agent's own page every run is that agent's, so the state's dot leads each row in the icon's slot (text at 34). */
+.agent-run .act-main { grid-template-columns: 18px 1fr auto; }
+.agent-run .act-mark { justify-self: center; }

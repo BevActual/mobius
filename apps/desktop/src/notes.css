@@ -229,8 +229,8 @@
 .notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible), :has(> .confirm)) > .note-side-when { visibility: hidden; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .confirm) > .note-pin { display: none; }
 .notes-side .ui-side-section + .ui-side-section, .notes-side .notes-new-group { margin-top: var(--sp-2); }
-.notes-side .notes-new-group { color: var(--muted); }
-.notes-side .notes-new-group:hover { color: var(--ink); }
+.notes-new-group, .notes-side .notes-new-group { color: var(--muted); font-weight: var(--fw-regular, 400); }
+.notes-new-group:hover, .notes-side .notes-new-group:hover { color: var(--ink); }
 /* While the list is read: grey placeholder bars the shape of the rows, not a spinner. */
 .notes-loading { display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); list-style: none; }
 .notes-loading li { display: grid; gap: var(--sp-1); height: calc(var(--row-list) + var(--sp-4)); align-content: center; }

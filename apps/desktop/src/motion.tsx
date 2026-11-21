@@ -42,12 +42,12 @@ const reduced = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').ma
 const origins = new WeakMap<HTMLElement, string>();
 
 function originOf(node: HTMLElement, side: 'left' | 'right'): string {
-  const box = node.getBoundingClientRect();
   const fresh = lastPointer !== null && performance.now() - lastPointer.at < 1500;
+  // Asked from the keyboard, the origin is a corner: no need to measure, which would lay out the whole new page early.
+  if (!fresh) return side === 'right' ? '100% 0px' : '0px 0px';
+  const box = node.getBoundingClientRect();
   const clamp = (v: number, max: number) => Math.min(max, Math.max(0, v));
-  const x = fresh ? clamp(lastPointer!.x - box.left, box.width) : side === 'right' ? box.width : 0;
-  const y = fresh ? clamp(lastPointer!.y - box.top, box.height) : 0;
-  return `${Math.round(x)}px ${Math.round(y)}px`;
+  return `${Math.round(clamp(lastPointer!.x - box.left, box.width))}px ${Math.round(clamp(lastPointer!.y - box.top, box.height))}px`;
 }
 
 /** Grow a node in from where it was asked for (or fade it in, with Reduce Motion). */

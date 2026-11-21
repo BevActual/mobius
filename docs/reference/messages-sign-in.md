@@ -23,7 +23,7 @@ Slack only returns to an address registered with it.
    - Add the redirect URL `http://localhost:47615/slack`, and save.
    - Under **User Token Scopes**, add: `channels:read`, `channels:history`, `channels:write`, `groups:read`,
      `groups:history`, `groups:write`, `im:read`, `im:history`, `im:write`, `mpim:read`, `mpim:history`, `mpim:write`,
-     `users:read`, `chat:write`. Add no bot scopes, because a desktop sign-in can't have them.
+     `users:read`, `chat:write`, `reactions:write`. Add no bot scopes, because a desktop sign-in can't have them.
    - Turn on **PKCE**. This can't be undone without asking Slack's support. It marks the app as a public client,
      which is what Mobius is.
 3. Optional: under **Basic Information**, add the Mobius mark as the app icon.
@@ -34,6 +34,11 @@ Slack only returns to an address registered with it.
 **Done** (18 November 2026): the app is registered in Andrew's BevingtonSystems workspace with PKCE on, and its
 Client ID is built into Mobius (`CLIENT_ID` in `crates/mobius-host/src/slack.rs`). Public distribution (step 5) is not
 turned on yet, so for now only people in that workspace can sign in.
+
+**Still to do:** add the `reactions:write` user scope to the registered app (step 2), so the Messages hover tools can
+react. Mobius doesn't ask for it until the app lists it, because asking for a scope the app doesn't have breaks sign-in.
+Once it's added, the Builder adds it to `USER_SCOPES` in `crates/mobius-host/src/slack.rs`, and anyone already signed in
+signs in to Slack once more.
 
 What it unlocks: Settings › Messages › **Sign in to Slack**, then that workspace's channels, direct messages, groups and
 threads in Messages.
