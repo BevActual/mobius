@@ -135,7 +135,7 @@ function transformEntries(drums: boolean, apply: (fn: (n: SongNote[], picked: Re
     ...(drums ? [] : [
       { label: 'Arpeggiate up', detail: 'Each chord a note at a time, low to high', separated: true, run: () => apply((n, p) => arpeggiate(n, p, grid, 'up')) },
       { label: 'Arpeggiate down', detail: 'High to low', run: () => apply((n, p) => arpeggiate(n, p, grid, 'down')) },
-      { label: 'Arpeggiate up and down', run: () => apply((n, p) => arpeggiate(n, p, grid, 'updown')) },
+      { label: 'Arpeggiate up and down', detail: 'Low to high and back', run: () => apply((n, p) => arpeggiate(n, p, grid, 'updown')) },
       { label: 'Strum', detail: 'Each chord spread from the lowest note', separated: true, run: () => apply((n, p) => strum(n, p, Math.min(0.0625, grid / 4))) },
       { label: 'Fit to key', detail: `Notes outside ${key} moved to the nearest in it`, run: () => apply((n, p) => fitKey(n, p, key)) },
     ]),

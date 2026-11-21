@@ -69,7 +69,8 @@ export function strum(notes: readonly SongNote[], picked: Picked, step: number, 
     order.forEach((i, k) => {
       const n = notes[i]!;
       const shift = Math.min(k * step, Math.max(0, n.length - 0.0625));
-      made.set(i, [{ ...n, start: round(n.start + shift), length: round(n.length - shift) }]);
+      const start = round(n.start + shift);
+      made.set(i, [{ ...n, start, length: round(n.start + n.length - start) }]);
     });
   }
   return rebuild(notes, chosen, made, picked.size > 0);

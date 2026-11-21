@@ -21,7 +21,9 @@ describe('the Transform tools', () => {
     expect(strum(C, none, 0.125).notes.map((x) => [x.pitch, x.start, x.length])).toEqual([[60, 0, 2], [64, 0.125, 1.875], [67, 0.25, 1.75]]);
     expect(strum(C, none, 0.125, true).notes.map((x) => [x.pitch, x.start])).toEqual([[67, 0], [64, 0.125], [60, 0.25]]);
     // Never past a sixty-fourth of what is left.
-    expect(strum([n(60, 0, 0.1), n(64, 0, 0.1)], none, 1).notes[1]!.length).toBe(0.063);
+    expect(strum([n(60, 0, 0.1), n(64, 0, 0.1)], none, 1).notes[1]!.length).toBe(0.062);
+    // A step that rounds still ends each note exactly where it ended.
+    expect(strum([n(57, 0, 4), n(60, 0, 4)], none, 0.0625).notes.map((x) => x.start + x.length)).toEqual([4, 4]);
   });
 
   it('chop cuts long notes into grid steps and leaves short ones', () => {
