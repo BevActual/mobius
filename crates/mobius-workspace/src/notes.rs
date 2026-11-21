@@ -583,13 +583,13 @@ impl Notes {
     /// as other Markdown apps do, so the page's links work outside Mobius too.
     fn files_folder(&self, path: &str) -> Option<PathBuf> {
         let (notebook, file) = page_ok(path, self.ext)?;
-        Some(self.root.join(notebook).join(files_folder_name(file.strip_suffix(".md")?)))
+        Some(self.root.join(notebook).join(files_folder_name(file.strip_suffix(&format!(".{}", self.ext))?)))
     }
 
     /// Add a file to a page: saved in the page's files folder under a safe name (never replacing one there), and the
     /// link to put in the page returned as `ref`, relative to the page and with spaces written `%20`.
     pub fn attach(&self, path: &str, name: &str, base64: &str) -> Res<Value> {
-        if self.ext != "md" || (self.named_by_file && !self.takes_files) {
+        if self.named_by_file && !self.takes_files {
             return Err("only pages take files".into());
         }
         let page = self.page(path)?;
@@ -1200,6 +1200,21 @@ mod tests {
         assert_eq!(slides.list().unwrap()[0]["pages"].as_array().unwrap().len(), 1);
         slides.remove_page(&path).unwrap();
         assert!(!dir.path().join("workspace/slides/Presentations/Kickoff files").exists());
+    }
+
+    #[test]
+    fn a_design_takes_pictures_beside_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let designs = Notes::in_folder(dir.path().join("workspace"), dir.path().join("checkpoints"), "designs").of_files("json", design_starter).with_files();
+        designs.create_notebook("Trip app").unwrap();
+        let path = designs.create_page("Trip app", "Home").unwrap()["path"].as_str().unwrap().to_owned();
+        let png = to_base64(b"\x89PNG fake");
+        let added = designs.attach(&path, "hero.png", &png).unwrap();
+        assert_eq!(added["ref"], "Home%20files/hero.png");
+        assert_eq!(designs.asset(&path, "Home%20files/hero.png").unwrap()["dataUrl"], format!("data:image/png;base64,{png}"));
+        assert_eq!(designs.list().unwrap()[0]["pages"].as_array().unwrap().len(), 1, "the files folder is not a design");
+        designs.remove_page(&path).unwrap();
+        assert!(!dir.path().join("workspace/designs/Trip app/Home files").exists());
     }
 
     #[test]

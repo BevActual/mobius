@@ -508,7 +508,7 @@ impl Bridge {
             skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
-            designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter),
+            designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
             views: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "views").of_files("json", mobius_workspace::notes::view_starter),
             research: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "research"),

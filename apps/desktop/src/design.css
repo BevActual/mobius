@@ -169,3 +169,23 @@
 .design-asset-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .design-asset-size { color: var(--muted); font: var(--fs-sm) var(--font-mono); font-variant-numeric: tabular-nums; }
 .design-asset-swatch { flex: none; width: 14px; height: 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, currentColor 18%, transparent); }
+
+/* Images fill their box and are cropped to it; one still loading shows a quiet picture mark. Never dashed: that is Mobius's. */
+.design-image { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.design-image-missing { display: grid; place-items: center; width: 100%; height: 100%; background: var(--fill, color-mix(in srgb, var(--ink) 6%, transparent)); color: var(--faint); }
+.design-image-missing svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+/* A line is drawn corner to corner across its box, which may be flat; it is picked by a wider unseen stroke. */
+.design-node[data-type="line"] { overflow: visible; pointer-events: none; }
+.design-node[data-type="line"]:hover:not([data-selected]) { box-shadow: none; }
+.design-line { position: absolute; left: 0; top: 0; overflow: visible; }
+.design-line-hit { stroke: transparent; pointer-events: stroke; }
+.design-node[data-type="line"]:not([data-locked]) .design-line-hit { cursor: default; }
+.design-node[data-type="line"][data-selected] .design-line-hit { cursor: move; }
+.design-node[data-type="line"]:hover:not([data-selected]) .design-line-hit { stroke: var(--accent); stroke-opacity: 0.35; }
+.design-node[data-type="line"][data-locked] .design-line-hit { pointer-events: none; }
+.design-line-draft { z-index: 6; pointer-events: none; }
+.design-line-draft line { stroke: var(--accent); stroke-linecap: round; }
+.design-line-options { display: flex; gap: var(--sp-2); margin-top: var(--sp-2); }
+.design-tool-hint[data-bad] { color: var(--ink); }
+.design-line-options .design-segment { flex: 1; }
+.design-line-options .design-segment:last-child { grid-template-columns: repeat(2, 1fr); }
