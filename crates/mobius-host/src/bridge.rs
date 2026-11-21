@@ -3700,6 +3700,19 @@ impl Bridge {
                 (Some(a), Some(c), Some(ts)) => accounts.mark_read(a, c, ts).map(|()| json!({ "ok": true })),
                 _ => Err("a conversation is needed".to_owned()),
             },
+            "markUnread" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(m)) => accounts.mark_unread(a, c, m).map(|()| json!({ "ok": true })).inspect(|_| changed(a, Some(c))),
+                _ => Err("a message is needed".to_owned()),
+            },
+            "permalink" => match (text(0), text(1), text(2)) {
+                (Some(a), Some(c), Some(m)) => accounts.permalink(a, c, m).map(|url| json!({ "url": url })),
+                _ => Err("a message is needed".to_owned()),
+            },
+            // The person's own reaction, from the hover tools: never the agent's.
+            "react" => match (text(0), text(1), text(2), text(3), args.get(4).and_then(Value::as_bool)) {
+                (Some(a), Some(c), Some(m), Some(e), Some(on)) => accounts.react(a, c, m, e, on).map(|()| json!({ "ok": true })).inspect(|_| changed(a, Some(c))),
+                _ => Err("a message and a reaction are needed".to_owned()),
+            },
             "removeAccount" => text(0).ok_or_else(|| "an account is needed".to_owned()).and_then(|a| accounts.remove(a)).inspect(|_| changed(text(0).unwrap_or(""), None)),
             // Slack: a sign-in on Slack's page; the window hears how it ended (`mobius:messages-sign-in`).
             "slackStatus" => Ok(accounts.slack_status()),

@@ -305,7 +305,7 @@ export interface MatrixVerification {
 }
 
 export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean; /** Matrix: the network a bridge carries it from, such as WhatsApp. */ bridge?: string }
-export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; /** Who has replied in its thread, when the service says. */ repliers?: { name: string }[]; /** When its thread was last replied to, in ms. */ lastReply?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
+export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; /** Who has replied in its thread, when the service says. */ repliers?: { id?: string; name: string }[]; /** When its thread was last replied to, in ms. */ lastReply?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
 export interface ChatChanged { account: string; channel?: string | null }
 export type ChatSignIn = { ok: true; account: { id: string; service: ChatService; name: string } } | { ok: false; message: string };
 
@@ -896,6 +896,12 @@ export interface MobiusBridge {
     history(account: string, channel: string, options?: { before?: string; thread?: string; limit?: number }): Promise<ChatMessage[] | NotesFailure>;
     send(account: string, channel: string, text: string, thread?: string): Promise<ChatMessage | NotesFailure>;
     markRead(account: string, channel: string, upTo: string): Promise<void>;
+    /** Slack: unread from this message on. */
+    markUnread?(account: string, channel: string, message: string): Promise<{ ok: true } | NotesFailure>;
+    /** A link to one message (Slack, Matrix). */
+    permalink?(account: string, channel: string, message: string): Promise<{ url: string } | NotesFailure>;
+    /** The person's own reaction, added (`on`) or taken back. Slack only, once its app asks for reactions:write. */
+    react?(account: string, channel: string, message: string, emoji: string, on: boolean): Promise<{ ok: true } | NotesFailure>;
     onChanged(listener: (change: ChatChanged) => void): () => void;
     /** Forgets the account and its sign-in; its messages stay on the service. */
     removeAccount?(id: string): Promise<{ ok: true } | NotesFailure>;

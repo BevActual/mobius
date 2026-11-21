@@ -64,6 +64,12 @@ fn secret_name(id: &str) -> String {
     format!("messages-account:{id}")
 }
 
+/// A Matrix event's address on matrix.to, which any Matrix app opens.
+fn matrix_link(room: &str, event: &str) -> String {
+    let part = |s: &str| url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
+    format!("https://matrix.to/#/{}/{}", part(room), part(event))
+}
+
 fn lock<T>(m: &Mutex<T>) -> std::sync::MutexGuard<'_, T> {
     m.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
 }
@@ -242,6 +248,46 @@ impl Accounts {
             return self.with_matrix(id, |m, s| m.mark_read(id, s, channel, up_to));
         }
         self.with(id, |slack, tokens| slack.mark_read(&tokens.access, channel, up_to))
+    }
+
+    fn service_name(&self, id: &str) -> String {
+        let service = lock(&self.state).iter().find(|a| a.id == id).map(|a| a.service.clone()).unwrap_or_default();
+        match service.as_str() {
+            "matrix" => "Matrix",
+            "teams" => "Teams",
+            "telegram" => "Telegram",
+            _ => "this account",
+        }
+        .to_owned()
+    }
+
+    /// The person's reaction on a message, added or taken back. Slack only, once it may ([`crate::slack::REACTION_SCOPE`]).
+    pub fn react(&self, id: &str, channel: &str, message: &str, emoji: &str, on: bool) -> Res<()> {
+        if !self.is_service(id, "slack") {
+            return Err(format!("Reacting from Mobius isn't available for {} yet.", self.service_name(id)));
+        }
+        self.with(id, |slack, tokens| slack.react(&tokens.access, channel, message, emoji, on)).map_err(|e| {
+            if e.contains("didn't give Mobius that permission") { "Reacting needs a Slack permission Mobius doesn't ask for yet.".to_owned() } else { e }
+        })
+    }
+
+    /// A link to the message on its service, to copy or open.
+    pub fn permalink(&self, id: &str, channel: &str, message: &str) -> Res<String> {
+        if self.is_matrix(id) {
+            return Ok(matrix_link(channel, message));
+        }
+        if !self.is_service(id, "slack") {
+            return Err(format!("Message links aren't available for {} yet.", self.service_name(id)));
+        }
+        self.with(id, |slack, tokens| slack.permalink(&tokens.access, channel, message))
+    }
+
+    /// Unread again from this message on.
+    pub fn mark_unread(&self, id: &str, channel: &str, message: &str) -> Res<()> {
+        if !self.is_service(id, "slack") {
+            return Err(format!("Marking unread isn't available for {} yet.", self.service_name(id)));
+        }
+        self.with(id, |slack, tokens| slack.mark_unread(&tokens.access, channel, message))
     }
 
     pub fn slack_status(&self) -> Value {
