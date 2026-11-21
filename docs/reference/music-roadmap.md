@@ -30,6 +30,7 @@ not designs to copy.
 | The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Building |
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Building (notes from the computer keyboard into the chosen track; count-in next) |
 | Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
+| Sound from the native engine | Music plays, previews notes, counts in and exports through Mobius's own audio engine in the desktop app (the computer's sound output, with meters). Where the engine can't open an output, Music plays in the window as before. | Have |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
 | Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; Arrange clips: drag to move, drag the edge to stretch, Ctrl+D, 0 and Delete) |
 | Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
