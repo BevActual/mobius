@@ -370,12 +370,16 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
 /** Sent messages whose reminder came with no answer, over the inbox: who it waits on, Open, and Done to stop waiting. */
 function NoReplyNudges({ mail }: { mail: MailState }) {
   const follow = useFollowUps();
+  // Two or more fold under one row, "Waiting on a reply · 2", so they never push the inbox down.
+  const [open, setOpen] = useState(false);
   if (follow.due.length === 0) return null;
-  return (
-    <ul className="mail-nudges" role="list" aria-label="No reply yet">
+  const folded = follow.due.length > 1;
+  const rows = (
+    <ul className="mail-nudges" role="list" aria-label="No reply yet" id="mail-nudges">
       {follow.due.map((f) => (
         <li key={f.messageId} className="mail-nudge">
-          <button type="button" className="mail-nudge-main" disabled={!f.sentId} onClick={() => { if (f.sentId) void mail.read(f.sentId); }}>
+          <button type="button" className="mail-nudge-main" disabled={!f.sentId} title={f.sentId ? 'Open the sent message' : undefined} onClick={() => { if (f.sentId) void mail.read(f.sentId); }}>
+            <span className="mail-nudge-icon" aria-hidden="true"><Glyph name="later" /></span>
             <span className="mail-nudge-what">No reply from {waitingOn(f.to)}</span>
             <span className="mail-nudge-subject">{f.subject || '(no subject)'}</span>
             <span className="mail-when">Sent {when(f.sentMs)}</span>
@@ -384,6 +388,17 @@ function NoReplyNudges({ mail }: { mail: MailState }) {
         </li>
       ))}
     </ul>
+  );
+  if (!folded) return rows;
+  return (
+    <div className="mail-nudge-fold" data-open={open || undefined}>
+      <button type="button" className="mail-nudge-main mail-nudge-head" aria-expanded={open} aria-controls="mail-nudges" onClick={() => setOpen(!open)}>
+        <span className="mail-nudge-icon" aria-hidden="true"><Glyph name="later" /></span>
+        <span className="mail-nudge-what">Waiting on a reply · {follow.due.length}</span>
+        <span className="mail-nudge-chev" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m4.5 3 3 3-3 3" /></svg></span>
+      </button>
+      {open && rows}
+    </div>
   );
 }
 
