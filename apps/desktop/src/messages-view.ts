@@ -95,7 +95,7 @@ export function firstUnread(messages: readonly ChatMessage[], unread: number): s
 
 /** "Last reply 2 h ago" style words for when a thread was last answered. */
 export function lastReplyLabel(at: number, now = Date.now()): string {
-  const min = Math.max(0, Math.round((now - at) / 60_000));
+  const min = Math.max(0, Math.floor((now - at) / 60_000));
   if (min < 1) return 'Last reply just now';
   if (min < 60) return `Last reply ${min} min ago`;
   const h = Math.round(min / 60);
