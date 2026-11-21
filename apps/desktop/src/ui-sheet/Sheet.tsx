@@ -120,7 +120,7 @@ function Wave() {
         <WaveformView label="Sample" peaks={peaks} duration={4} value={range} onChange={setRange} playhead={1.4} /></div>
       <div className="sheet-col"><span className="sheet-note">Untrimmed, no loop: press the strip along the top to add one</span>
         <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
-      <div className="sheet-col"><span className="sheet-note">Warped: four markers (drag, arrows, Delete; double-click the warp strip to add one)</span>
+      <div className="sheet-col"><span className="sheet-note">Warped: four markers (drag, arrows; double-click the strip to add one, double-click one or Delete to remove it)</span>
         <WaveformView label="Sample, warped" peaks={peaks} duration={4} value={plain} onChange={setPlain} warp={warp} onWarpChange={setWarp} /></div>
     </div>
   );

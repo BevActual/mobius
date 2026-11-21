@@ -7,8 +7,9 @@ import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerE
  * Home and End go to the limits it can reach. `onCommit` runs once a drag is let go.
  *
  * With `warp`, a second strip under the loop strip holds warp markers, as Live's clip view does: each pins a moment of
- * the file to a beat, and the engine stretches the audio between them. Double-click the strip to add one (its beat is
- * read from its neighbours), drag one or use the arrows to move it in the file, and Delete removes it.
+ * the file to a beat, and the engine stretches the audio between them. As in Live (manual, "Audio Clips, Tempo and
+ * Warping", Warp Markers): double-click the strip to add one (its beat read from its neighbours), drag one or use the
+ * arrows to move it, and double-click it or press Delete to remove it.
  */
 
 export interface WaveRange { start: number; end: number; loop: { start: number; end: number } | null }
@@ -156,17 +157,16 @@ export function WaveformView({ label, peaks, duration, value, onChange, onCommit
     onWarpChange?.(next);
     onWarpCommit?.(next);
   };
+  const removeWarp = (i: number) => {
+    const next = latestWarp.current.filter((_, j) => j !== i);
+    latestWarp.current = next;
+    onWarpChange?.(next);
+    onWarpCommit?.(next);
+  };
   const warpKey = (i: number) => (e: KeyboardEvent<HTMLSpanElement>) => {
     if (disabled) return;
     const list = latestWarp.current;
-    if (e.key === 'Delete' || e.key === 'Backspace') {
-      e.preventDefault();
-      const next = list.filter((_, j) => j !== i);
-      latestWarp.current = next;
-      onWarpChange?.(next);
-      onWarpCommit?.(next);
-      return;
-    }
+    if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeWarp(i); return; }
     const by = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? -1 : 0;
     const [lo, hi] = warpLimits(i, list);
     let to: number | null = null;
@@ -252,10 +252,11 @@ export function WaveformView({ label, peaks, duration, value, onChange, onCommit
               aria-valuenow={m.sample}
               aria-valuetext={`${sampleTime(m.sample)} on ${warpBeatLabel(m.beat)}`}
               aria-keyshortcuts="Delete"
-              title={`${warpBeatLabel(m.beat)} · Delete removes it`}
+              title={`${warpBeatLabel(m.beat)} · Double-click or Delete removes it`}
               data-at={m.sample <= 0 ? 'first' : m.sample >= duration ? 'last' : undefined}
               style={{ left: at(m.sample) }}
               onPointerDown={grabWarp(i)}
+              onDoubleClick={(e) => { e.stopPropagation(); if (!disabled) removeWarp(i); }}
               onKeyDown={warpKey(i)}
             />
           );
