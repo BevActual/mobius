@@ -1,4 +1,4 @@
-import { linkOf } from './drive-links';
+import { forgetLink, linkOf, moveLink } from './drive-links';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FileEntry, FilePeek, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { RichText } from './RichText';
@@ -113,9 +113,15 @@ export function useFiles(conversation: string, busy: boolean) {
     for (let n = 2; taken.has(name.toLowerCase()); n++) name = `New folder ${n}`;
     return after(window.mobius.files?.newFolder?.(folder, name));
   };
-  const rename = (path: string, name: string) => after(window.mobius.files?.rename?.(path, name));
+  // A copy of a drive's file keeps its link to that file when renamed or moved, and loses it in the Trash.
+  const rename = async (path: string, name: string) => {
+    const to = await after(window.mobius.files?.rename?.(path, name));
+    if (to) moveLink(path, to);
+    return to;
+  };
   const trash = async (path: string) => {
     const held = await after(window.mobius.files?.trash?.(path));
+    if (held) forgetLink(path);
     setTrashed(held ? { held, path } : null);
     if (held) { setMoved(null); if (cut === path) setCut(null); }
   };
@@ -123,13 +129,14 @@ export function useFiles(conversation: string, busy: boolean) {
   const [moved, setMoved] = useState<{ path: string; from: string; to: string } | null>(null);
   const moveTo = async (path: string, into: string): Promise<string | null> => {
     const to = await after(window.mobius.files?.move?.(path, into));
+    if (to) moveLink(path, to);
     if (to) { setTrashed(null); setMoved({ path: to, from: parentOf(path), to: into }); }
     return to;
   };
   const undoMove = async () => {
     if (!moved) return;
     const back = await after(window.mobius.files?.move?.(moved.path, moved.from));
-    if (back) setMoved(null);
+    if (back) { moveLink(moved.path, back); setMoved(null); }
   };
   // What is being dragged, and the folder it hovers over: a drag's data cannot be read until the drop.
   const [dragging, setDragging] = useState<string | null>(null);

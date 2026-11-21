@@ -317,6 +317,20 @@ test('a drive on the person\'s own server: added from its address, browsed, and 
     // A workspace file dragged onto the drive in the sidebar goes to the drive's top, never over one there.
     await workspaceRow.click();
     const files = shell().getByRole('region', { name: 'Files', exact: true });
+
+    // The copy, changed here, is saved back over the drive's file: it is still the version that was copied.
+    fs.writeFileSync(path.join(userData, 'workspace', 'Budget.csv'), 'Item,Cost\nVenue,900\nFood,300\n');
+    await files.getByRole('row', { name: 'Budget.csv', exact: true }).click({ button: 'right' });
+    await shell().getByRole('menu', { name: 'Budget.csv' }).getByRole('menuitem', { name: 'Save Back to Home cloud' }).click();
+    await expect(shell().getByRole('status').filter({ hasText: 'Saved “Budget.csv” back to Home cloud' })).toBeVisible();
+    expect(dav.files.get('Shared/Budget.csv')?.body.toString()).toBe('Item,Cost\nVenue,900\nFood,300\n');
+    // Changed on the server by someone else since, it is not replaced, and the message says so.
+    dav.touch('Shared/Budget.csv', 'Item,Cost\nVenue,925\n');
+    await files.getByRole('row', { name: 'Budget.csv', exact: true }).click({ button: 'right' });
+    await shell().getByRole('menu', { name: 'Budget.csv' }).getByRole('menuitem', { name: 'Save Back to Home cloud' }).click();
+    await expect(shell().getByText('“Budget.csv” has changed on Home cloud since it was copied, so it was not replaced.')).toBeVisible();
+    expect(dav.files.get('Shared/Budget.csv')?.body.toString()).toBe('Item,Cost\nVenue,925\n');
+
     await files.getByRole('row', { name: 'notes', exact: true }).dblclick();
     await files.getByRole('row', { name: 'Work', exact: true }).dblclick();
     const driveRow = side.getByRole('button', { name: 'Home cloud', exact: true });
