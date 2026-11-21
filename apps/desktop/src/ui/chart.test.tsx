@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { Chart, Sparkline, chartNumber, chartTicks } from './Chart';
+import { Chart, Sparkline, chartLabels, chartNumber, chartTicks } from './Chart';
 
 const months = ['Jun', 'Jul', 'Aug'];
 
@@ -47,5 +47,14 @@ describe('chart', () => {
     const html = renderToStaticMarkup(<Sparkline label="Unread, 14 days" values={[3, 2, 4]} color="green" />);
     expect(html).toContain('aria-label="Unread, 14 days"');
     expect(html).toContain('ui-spark-end');
+  });
+
+  it('names every bar of a short list, cut to fit, and thins only long series', () => {
+    expect(chartLabels(['Jan', 'Feb', 'Mar', 'Apr'], 300)).toEqual({ every: 1, letters: 10 });
+    // Five suppliers in the panel: all five keep a name, shortened.
+    expect(chartLabels(['Veltro', 'Harlow Steel', 'Lumen Glass', 'Ardent Cells', 'Pike Fasteners'], 240)).toEqual({ every: 1, letters: 6 });
+    expect(chartLabels(['A', 'B'], 2000).letters).toBe(16);
+    expect(chartLabels(Array.from({ length: 12 }, (_, i) => `Name ${i}`), 60).letters).toBe(3);
+    expect(chartLabels(Array.from({ length: 24 }, (_, i) => `M${i}`), 240).every).toBe(8);
   });
 });
