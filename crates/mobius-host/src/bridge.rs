@@ -2008,6 +2008,15 @@ impl Bridge {
                 if bridge.mail.send_due() > 0 {
                     (bridge.emit)("mobius:mail-changed", json!({ "by": "person" }));
                 }
+                // Remind if no reply: an answer that came marks its follow-up; one whose time came unanswered is
+                // raised once, for Mail to show.
+                let (answered, due) = bridge.mail.follow_ups_due();
+                if answered {
+                    (bridge.emit)("mobius:mail-changed", json!({ "by": "reminder" }));
+                }
+                if !due.is_empty() {
+                    (bridge.emit)("mobius:mail-no-reply", json!({ "due": due }));
+                }
                 drop(bridge);
                 std::thread::sleep(Duration::from_secs(60));
             }
@@ -3458,11 +3467,13 @@ impl Bridge {
             "remind" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.remind(id, args.get(1).and_then(Value::as_i64))),
             "schedule" => text(0).ok_or_else(|| "a draft is needed".to_owned()).and_then(|id| m.schedule(id, args.get(1).and_then(Value::as_i64))),
             "suggestSend" => Ok(text(0).map_or(Value::Null, |id| m.suggest_send(id))),
+            "followUp" => text(0).ok_or_else(|| "a message is needed".to_owned()).and_then(|id| m.follow_up(id, args.get(1).and_then(Value::as_i64))),
+            "followUps" => Ok(m.follow_ups()),
             _ => return json!({ "ok": false, "message": "unknown" }),
         };
         match result {
             Ok(value) => {
-                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read" | "plan" | "suggestSend") {
+                if !matches!(method, "accounts" | "list" | "counts" | "drafts" | "read" | "plan" | "suggestSend" | "followUps") {
                     (self.emit)("mobius:mail-changed", json!({ "by": "person" }));
                 }
                 value

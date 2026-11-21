@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, LauncherAnswer, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -405,6 +405,9 @@ export function createTauriBridge(): MobiusBridge {
       remind: (id, atMs) => call('mail', 'remind', [id, atMs], () => ({ ok: false as const, message: 'Not available.' })),
       schedule: (id, atMs) => call('mail', 'schedule', [id, atMs], () => ({ ok: false as const, message: 'Not available.' })),
       suggestSend: (id) => call('mail', 'suggestSend', [id], () => null),
+      followUp: (id, remindMs) => call('mail', 'followUp', [id, remindMs], () => ({ ok: false as const, message: 'Not available.' })),
+      followUps: () => call('mail', 'followUps', [], () => []),
+      onNoReply: (listener) => on<{ due: MailFollowUp[] }>('mobius:mail-no-reply', listener),
       send: (id) => call('mail', 'send', [id], () => ({ ok: false as const, message: 'Mail is not available.' })),
       onChanged: (listener) => on<{ by: string }>('mobius:mail-changed', listener),
     },
