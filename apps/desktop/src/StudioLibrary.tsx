@@ -7,6 +7,8 @@ import { previewNote } from './studio-audio';
 const COLLECTION_COLORS = CONTENT_COLORS.slice(0, 7);
 /** Key names as the song's key is written (song-format's KEYS). */
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
+/** What a row is, shown in grey when several kinds are listed together (as Live's icons do under All). */
+const KIND: Record<LibraryItem['category'], string> = { sounds: 'Sound', drums: 'Kit', instruments: 'Instrument', effects: 'Effect' };
 const STORE = 'mobius.music.collections';
 const PREVIEW = 'mobius.music.preview';
 
@@ -94,6 +96,7 @@ export function StudioLibrary({ songKey, target, onUse }: {
             className="studio-library-row" title={`${useTitle(it)} (Enter). 1 to 7 put it in a collection, 0 clears.`}
             onClick={() => choose(it, preview.on)} onDoubleClick={() => onUse(it)} onKeyDown={(e) => onKey(e, it)}>
             <span className="studio-library-name">{it.name}</span>
+            {category === 'all' || inCollection ? <span className="studio-library-kind">{KIND[it.category]}</span> : null}
             <span className="studio-library-dots">{(collections[it.id] ?? []).slice(0, 3).map((k) => <Dot key={k} color={COLLECTION_COLORS[k - 1]!} />)}</span>
           </li>
         ))}

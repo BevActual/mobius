@@ -529,9 +529,9 @@ test('the Library finds a sound by words and tags, puts it on the chosen track o
   const search = lib.getByRole('searchbox', { name: 'Search the library' });
   // Every word must match; #word matches tags only.
   await search.fill('keys soft');
-  await expect(lib.getByRole('option')).toHaveText(['Electric Keys', 'Felt Keys']);
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Electric Keys', 'Felt Keys']);
   await search.fill('#pluck');
-  await expect(lib.getByRole('option')).toHaveText(['Mallet', 'Pluck']);
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Mallet', 'Pluck']);
   // A sound onto the chosen melodic track replaces its sound (hot-swap), as one Undo step.
   await search.fill('felt');
   await lib.getByRole('option', { name: 'Felt Keys' }).click();
@@ -548,7 +548,7 @@ test('the Library finds a sound by words and tags, puts it on the chosen track o
   await search.fill('');
   await lib.getByRole('combobox', { name: 'Show' }).click();
   await shell().getByRole('option', { name: /^Collection 3/ }).click();
-  await expect(lib.getByRole('option')).toHaveText(['Reverb']);
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Reverb']);
 });
 
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
