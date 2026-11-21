@@ -153,6 +153,10 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .tasks-group-head .list-dot { width: var(--check); height: var(--check); }
 .tasks-group-head button { padding: 0; font: inherit; color: inherit; background: none; }
 .tasks-group-head button:hover { background: none; text-decoration: underline; text-underline-offset: 3px; }
+.tasks-group-add { display: grid; place-items: center; width: 22px; height: 22px; margin-left: calc(-1 * var(--sp-2)); padding: 0; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); cursor: pointer; opacity: 0; }
+.tasks-group-head:hover .tasks-group-add, .tasks-group-add:focus-visible { opacity: 1; }
+.tasks-group-head .tasks-group-add:hover { background: var(--sel); color: var(--ink); text-decoration: none; }
+.tasks-group-add svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .tasks-group-count { margin-left: auto; font-weight: var(--fw-regular); color: var(--muted); font-variant-numeric: tabular-nums; }
 .tasks-day[data-overdue] .tasks-group-head { color: var(--danger); }
 .tasks-searching { display: flex; align-items: center; justify-content: space-between; margin-top: 0; color: var(--muted); font-size: var(--fs-sm); }
