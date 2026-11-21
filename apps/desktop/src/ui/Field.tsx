@@ -45,7 +45,18 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
   );
 });
 
-export interface SelectChoice<T extends string> { value: T; label: string; disabled?: boolean }
+export interface SelectChoice<T extends string> { value: T; label: string; disabled?: boolean; /** Choices with the same group are listed together under its name (a gateway's models, say). */ group?: string }
+
+/** Choices in runs by group, in their order: ungrouped ones stand alone, a group's members sit under its name. */
+export function selectGroups<T extends string>(choices: readonly SelectChoice<T>[]): { group: string | undefined; members: SelectChoice<T>[] }[] {
+  const out: { group: string | undefined; members: SelectChoice<T>[] }[] = [];
+  for (const c of choices) {
+    const last = out[out.length - 1];
+    if (last && last.group === c.group) last.members.push(c);
+    else out.push({ group: c.group, members: [c] });
+  }
+  return out;
+}
 
 /**
  * A pop-up: looks like a field with up and down chevrons at the trailing end, and opens a menu of its choices with the
@@ -65,6 +76,14 @@ export function Select<T extends string>({ label, hideLabel, inline, quiet, valu
   className?: string;
 }) {
   const items = choices.map((c) => ({ value: c.value, label: c.label }));
+  const item = (c: SelectChoice<T>) => (
+    <BaseSelect.Item key={c.value} value={c.value} disabled={c.disabled} className="ui-menu-item">
+      <BaseSelect.ItemIndicator className="ui-select-tick" keepMounted>
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" /></svg>
+      </BaseSelect.ItemIndicator>
+      <BaseSelect.ItemText className="ui-menu-label">{c.label}</BaseSelect.ItemText>
+    </BaseSelect.Item>
+  );
   const labelId = useId();
   return (
     <div className={className ? `ui-field ${className}` : 'ui-field'} data-inline={inline || undefined}>
@@ -86,14 +105,14 @@ export function Select<T extends string>({ label, hideLabel, inline, quiet, valu
         <BaseSelect.Portal>
           <BaseSelect.Positioner className="ui-menu-positioner" sideOffset={4} alignItemWithTrigger={false}>
             <BaseSelect.Popup className="ui-menu ui-select-menu">
-              {choices.map((c) => (
-                <BaseSelect.Item key={c.value} value={c.value} disabled={c.disabled} className="ui-menu-item">
-                  <BaseSelect.ItemIndicator className="ui-select-tick" keepMounted>
-                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5 6.5 11.5 12.5 4.5" /></svg>
-                  </BaseSelect.ItemIndicator>
-                  <BaseSelect.ItemText className="ui-menu-label">{c.label}</BaseSelect.ItemText>
-                </BaseSelect.Item>
-              ))}
+              {selectGroups(choices).map(({ group, members }, i) => (group === undefined
+                ? members.map(item)
+                : (
+                  <BaseSelect.Group key={`${group}-${i}`} className="ui-select-group">
+                    <BaseSelect.GroupLabel className="ui-select-group-label">{group}</BaseSelect.GroupLabel>
+                    {members.map(item)}
+                  </BaseSelect.Group>
+                )))}
             </BaseSelect.Popup>
           </BaseSelect.Positioner>
         </BaseSelect.Portal>

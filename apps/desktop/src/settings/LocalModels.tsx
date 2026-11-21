@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { CONTEXT_SIZES, type EngineStatus, type Hardware, type LocalEntry, type ModelsEvent, type Recommendation, type RuntimeSnapshot } from '@mobius/shared';
 import { usePreferences } from '../usePreferences';
 import { Empty, Row } from './primitives';
+import { Select } from '../ui';
 import { compactCount, fitText, formatBytes, hardwareSummary, modelTitle, paramsText, percent } from './models-format';
 
 interface DownloadState {
@@ -351,12 +352,8 @@ export function LocalModelsSection({ subpage, highlight }: { subpage: string; hi
       </Row>
 
       <Row path={path('context-size')} title="Context size" description="How much text a model keeps in view. A larger size remembers more of a long conversation but uses more graphics memory. It applies the next time you run a model." highlight={highlight === 'context-size'}>
-        <label className="field compact">
-          <span>Context size</span>
-          <select value={preferences.value.localContext} onChange={(event) => void preferences.set({ localContext: Number(event.target.value) })}>
-            {CONTEXT_SIZES.map((size) => <option key={size} value={size}>{size.toLocaleString('en-US')} tokens</option>)}
-          </select>
-        </label>
+        <Select label="Context size" hideLabel value={String(preferences.value.localContext)} onChange={(size) => void preferences.set({ localContext: Number(size) })}
+          choices={CONTEXT_SIZES.map((size) => ({ value: String(size), label: `${size.toLocaleString('en-US')} tokens` }))} />
       </Row>
 
       <Row path={path('local-models')} title="On this computer" description="Models you have downloaded. Run one to use it for the agent." highlight={highlight === 'local-models'}>

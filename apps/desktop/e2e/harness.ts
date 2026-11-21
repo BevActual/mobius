@@ -1,4 +1,4 @@
-import { chromium, expect, test, type Page } from '@playwright/test';
+import { chromium, expect, test, type Locator, type Page } from '@playwright/test';
 import { spawn, execSync, execFileSync } from 'node:child_process';
 import http from 'node:http';
 import net from 'node:net';
@@ -441,4 +441,13 @@ export async function openSettings(shell: Page): Promise<void> {
  *  message box has Stop instead of Send, and a message typed then is not sent. */
 export async function turnEnded(box: import('@playwright/test').Locator): Promise<void> {
   await expect(box.page().getByRole('button', { name: 'Stop' })).toHaveCount(0);
+}
+
+/**
+ * Picks `option` in the library's Select named `name` (a button with role combobox that opens a list of options in a
+ * pop-up laid over the page, not a native select).
+ */
+export async function choose(scope: Locator, name: string, option: string): Promise<void> {
+  await scope.getByRole('combobox', { name, exact: true }).click();
+  await scope.page().getByRole('option', { name: option, exact: true }).click();
 }

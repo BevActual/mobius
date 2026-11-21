@@ -1,7 +1,7 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
-import { interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
+import { choose, interfaceZoom, launch, openSettings as openSettingsIn, startFixture, views, windowIsDark, type Fixture, type Launched } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 let fixture: Fixture;
@@ -317,8 +317,8 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await openSettings();
   await go('Voice', 'Listening');
   // The chat model's server in these tests is a plain OpenAI-format one, so listening through it is offered.
-  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveValue('chat');
-  await page().getByRole('combobox', { name: 'Listen with' }).selectOption('local');
+  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('Chat server');
+  await choose(page(), 'Listen with', 'This computer');
   const address = page().getByRole('textbox', { name: 'Listening server address' });
   await address.fill('ftp://nope');
   await expect(page().getByRole('alert')).toContainText('http:// or https://');
@@ -328,7 +328,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await page().getByRole('button', { name: 'Try listening' }).click();
   await expect(page().getByRole('alert')).toContainText('127.0.0.1:9');
   await go('Voice', 'Speaking');
-  await page().getByRole('combobox', { name: 'Speak with' }).selectOption('elevenlabs');
+  await choose(page(), 'Speak with', 'ElevenLabs');
   await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
   await page().getByRole('button', { name: 'Try speaking' }).click();
   await expect(page().getByRole('alert')).toContainText('Gateways');

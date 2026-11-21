@@ -4,6 +4,7 @@ import { appName } from '../apps';
 import { dayLabel, systemLocale } from '../dates';
 import { settingPath } from './manifest';
 import { Empty, Placeholder, Row } from './primitives';
+import { Select } from '../ui';
 import type { SectionProps } from './sections';
 import { GROUP_OPTIONS, RANGE_OPTIONS, byDay, costText, gatewayName, groupBy, rangeDays, shortCount, toCsv, total, type UsageGroup, type UsageRange } from './usage-data';
 
@@ -64,9 +65,7 @@ export function UsageSection({ subpage, highlight }: SectionProps) {
   return (
     <>
       <Row path={path('usage-period')} title="Period" description="Counted on this computer, from every model call Mobius makes." highlight={highlight === 'usage-period'}>
-        <select className="popup" aria-label="Period" value={range} onChange={(e) => setRange(e.target.value as UsageRange)}>
-          {RANGE_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-        </select>
+        <Select label="Period" hideLabel value={range} onChange={setRange} choices={RANGE_OPTIONS.map((o) => ({ value: o.id, label: o.label }))} />
       </Row>
       <section className="srow usage-summary" data-setting={path('usage-summary')} aria-label="Totals">
         <dl className="usage-tiles">

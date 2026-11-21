@@ -3,6 +3,7 @@ import { isVoiceUrl, type ListenWith, type PreferencesSettings, type SpeakWith }
 import { localStatusText } from './voice-status';
 import { settingPath } from './manifest';
 import { Row } from './primitives';
+import { Select } from '../ui';
 import { AdvancedSection, AppearanceSection, RemoveDataRow, SafetySection, Toggle, type SectionProps } from './sections';
 
 const LISTEN: ReadonlyArray<{ id: ListenWith; label: string }> = [
@@ -30,9 +31,7 @@ export function chatCannotListen(baseUrl: string): string | null {
 /** A choice of several, as a pop-up. */
 function PopUp<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
   return (
-    <select className="popup" aria-label={label} value={value} onChange={(e) => onChange(e.target.value as T)}>
-      {options.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
-    </select>
+    <Select label={label} hideLabel value={value} onChange={onChange} choices={options.map((o) => ({ value: o.id, label: o.label }))} />
   );
 }
 

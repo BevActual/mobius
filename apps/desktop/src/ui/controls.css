@@ -374,3 +374,6 @@ button.ui-chip[aria-pressed="true"] { background: var(--sel); border-color: var(
 .ui-ba-tag:empty { display: none; }
 .ui-hold { touch-action: none; user-select: none; }
 @media (prefers-reduced-motion: reduce) { .ui-ba-layer { transition: none; } }
+/* A group of choices in a Select (a gateway's models): its name, small and muted, over its members. */
+.ui-select-group + .ui-select-group, .ui-menu-item + .ui-select-group { margin-top: var(--sp-1); padding-top: var(--sp-1); border-top: var(--hairline-w) solid var(--hairline); }
+.ui-select-group-label { padding: var(--sp-1) var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); font-weight: var(--fw-semibold); }

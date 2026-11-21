@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
-import { launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
+import { choose, launch, startFixture, type Fixture, type Launched, openSettings } from './harness';
 
 let fixture: Fixture;
 let mobius: Launched | undefined;
@@ -28,26 +28,26 @@ test('choosing a provider fills in its address and says where to get a key', asy
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
   await page().getByRole('button', { name: 'Custom server…' }).click();
   const address = page().getByLabel('Server address');
-  await page().getByLabel('Service').selectOption('openrouter');
+  await choose(page(), 'Service', 'OpenRouter');
   await expect(address).toHaveValue('https://openrouter.ai/api/v1');
   await expect(page().getByText(/Make a key at openrouter\.ai/)).toBeVisible();
-  await page().getByLabel('Service').selectOption('ollama');
+  await choose(page(), 'Service', 'Ollama (this computer)');
   await expect(address).toHaveValue('http://127.0.0.1:11434/v1');
   await expect(page().getByText(/No key needed/)).toBeVisible();
   await address.fill('https://my.own.example/v1');
-  await expect(page().getByLabel('Service')).toHaveValue('other');
+  await expect(page().getByRole('combobox', { name: 'Service', exact: true })).toHaveText('Other (type the address below)');
   await address.fill('https://api.groq.com/openai/v1');
-  await expect(page().getByLabel('Service')).toHaveValue('groq');
+  await expect(page().getByRole('combobox', { name: 'Service', exact: true })).toHaveText('Groq');
 });
 
 test('the context size for local models is chosen from a list and remembered', async () => {
   mobius = await launch(fixture.origin + '/');
   await open('This computer');
   const size = page().getByRole('combobox', { name: 'Context size' });
-  await expect(size).toHaveValue('16384');
-  await size.selectOption('32768');
+  await expect(size).toHaveText('16,384 tokens');
+  await choose(page(), 'Context size', '32,768 tokens');
   await expect.poll(() => shell().evaluate(() => window.mobius.preferences.get().then((p) => p?.localContext))).toBe(32768);
-  await size.selectOption('4096');
+  await choose(page(), 'Context size', '4,096 tokens');
   await expect.poll(() => shell().evaluate(() => window.mobius.preferences.get().then((p) => p?.localContext))).toBe(4096);
 });
 
