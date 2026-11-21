@@ -4,6 +4,7 @@
 
 use crate::clock::Clock;
 use crate::drum::Hit;
+use crate::fx::{pan, Chain};
 use crate::song::{Instrument, Kit, Note, Pad, Song, Sound};
 use crate::voice::{pan_gains, Voice};
 
@@ -27,6 +28,13 @@ struct Lane {
     kit: Kit,
     pads: Vec<(u8, Pad)>,
     gains: (f64, f64),
+    volume: f64,
+    pan: f64,
+    /// Whether its sound comes in with two channels: a drum panned on its pad.
+    stereo: bool,
+    /// Its effects, and what they were made from (so a song changed while it plays keeps them ringing if unchanged).
+    chain: Option<Chain>,
+    fx_key: String,
     voices: Vec<Voice>,
     hits: Vec<Hit>,
     /// Varies each drum hit's noise.
@@ -65,11 +73,16 @@ impl Renderer {
                     id: t.id.clone(),
                     notes,
                     next,
-                    sound: t.sound.or_else(|| Sound::default_for(t.instrument)),
+                    sound: t.sound,
                     instrument: t.instrument,
                     kit: t.kit.unwrap_or_default(),
                     pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, *pad))).collect(),
                     gains: { let (l, r) = pan_gains(t.pan); (l * t.volume, r * t.volume) },
+                    volume: t.volume,
+                    pan: t.pan,
+                    stereo: t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9),
+                    chain: Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9)),
+                    fx_key: serde_json::to_string(&t.fx).unwrap_or_default(),
                     voices: Vec::with_capacity(MAX_VOICES),
                     hits: Vec::with_capacity(MAX_VOICES),
                     seed: 0x9E37_79B9,
@@ -99,6 +112,10 @@ impl Renderer {
             if let Some(was) = old.lanes.iter_mut().find(|w| w.id == lane.id) {
                 std::mem::swap(&mut lane.voices, &mut was.voices);
                 std::mem::swap(&mut lane.hits, &mut was.hits);
+                // Effects that are just as they were keep their echoes and rooms ringing.
+                if lane.fx_key == was.fx_key && lane.chain.is_some() {
+                    std::mem::swap(&mut lane.chain, &mut was.chain);
+                }
             }
         }
     }
@@ -157,8 +174,11 @@ impl Renderer {
                     lane.hits.push(Hit::new(note.pitch, note.velocity, lane.kit, pad, lane.seed).waiting(offset));
                     continue;
                 }
-                let Some(sound) = lane.sound else { continue };
-                let mut voice = Voice::new(lane.instrument, &sound, note.pitch, note.length * spb, note.velocity);
+                // A track with no sound of its own plays its instrument's own voices, as the window does.
+                let mut voice = match &lane.sound {
+                    Some(sound) => Voice::new(lane.instrument, sound, note.pitch, note.length * spb, note.velocity),
+                    None => Voice::legacy(lane.instrument, note.pitch, note.length * spb, note.velocity),
+                };
                 voice.add_to(&mut scratch[offset..], rate);
                 if lane.voices.len() >= MAX_VOICES {
                     lane.voices.remove(0);
@@ -173,9 +193,31 @@ impl Renderer {
                 hit.add_to(&mut scratch[offset..], &mut right_scratch[offset..], rate);
             }
             lane.hits.retain(|h| !h.done());
+            if let Some(chain) = &mut lane.chain {
+                // The track's way into the mix, as the window's: its volume, then its effects, then its pan.
+                let v = lane.volume as f32;
+                for (a, b) in scratch.iter_mut().zip(right_scratch.iter_mut()) {
+                    *a *= v;
+                    *b *= v;
+                }
+                chain.process(scratch, right_scratch, rate);
+                let stereo = chain.stereo_out();
+                for i in 0..frames {
+                    let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
+                    let (a, b) = if lane.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, lane.pan, stereo) };
+                    let (l, r) = ((a * MASTER) as f32, (b * MASTER) as f32);
+                    lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
+                    left[i] += l;
+                    right[i] += r;
+                }
+                continue;
+            }
             let (gl, gr) = lane.gains;
             for i in 0..frames {
-                let (l, r) = ((f64::from(scratch[i]) * MASTER * gl) as f32, (f64::from(right_scratch[i]) * MASTER * gr) as f32);
+                let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
+                // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
+                let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * lane.volume, b * lane.volume, lane.pan, true) } else { (a * gl, b * gr) };
+                let (l, r) = ((l * MASTER) as f32, (r * MASTER) as f32);
                 lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
                 left[i] += l;
                 right[i] += r;

@@ -56,6 +56,9 @@ pub struct Track {
     pub kit: Option<Kit>,
     #[serde(default)]
     pub pads: std::collections::BTreeMap<String, Pad>,
+    /// Its effects in order, as the file has them (read by [`crate::fx::Chain`]).
+    #[serde(default)]
+    pub fx: Vec<serde_json::Value>,
 }
 
 /// A drums track's kit (song-format.ts `KitSound`): tune in semitones, decay as a multiple, tone from dark to bright.
