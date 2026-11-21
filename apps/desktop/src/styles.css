@@ -1110,10 +1110,14 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 @keyframes welcome-band { to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .welcome-mark .mark-band { animation: none; opacity: 1; } }
 .welcome-title { margin: 0; font-size: var(--fs-display); font-weight: var(--fw-bold, 700); letter-spacing: -0.03em; }
-.welcome-lede { margin: 0; max-width: 32ch; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-body, 1.45); }
+.welcome-lede { margin: 0; max-width: 42ch; color: var(--muted); font-size: var(--fs-md); line-height: var(--lh-body, 1.45); }
 /* How much Mobius should do: three one-line choices in one group, the chosen one ticked in ink. */
 .welcome-levels { display: flex; flex-direction: column; gap: var(--sp-2); width: 100%; max-width: 420px; margin-top: var(--sp-4); padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
 .welcome-h { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+/* The step's number: a quiet mono figure in a ring, before the question. */
+.welcome-step { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-right: var(--sp-2); border-radius: 50%; box-shadow: inset 0 0 0 1px var(--line-strong); color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-xs); font-weight: 500; vertical-align: 1px; }
+/* A step's one line of help lines up with its question's words, not the number. */
+.first-run-models > .srow-desc { padding-left: 28px; }
 .welcome-next { width: 100%; max-width: 420px; margin: var(--sp-4) auto 0; padding: 0 var(--sp-4); box-sizing: border-box; text-align: left; }
 .welcome-level {
   display: flex; align-items: center; gap: var(--sp-3); min-height: var(--row-list-2, 48px); padding: var(--sp-2) var(--sp-3);

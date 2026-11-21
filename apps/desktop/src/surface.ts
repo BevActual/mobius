@@ -15,7 +15,7 @@ export interface Suggestion {
   /** What is sent. */
   prompt: string;
   /** What it needs attached first. */
-  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'code' | 'photo' | 'cut' | 'album';
+  attach?: 'page' | 'note' | 'tasks' | 'sheet' | 'mail' | 'chat' | 'code' | 'photo' | 'cut' | 'album';
   /** For a starter: the words put in the box for the person to finish, instead of the prompt itself. What they type
    * after them goes on the end of the prompt, which is sent behind Details. */
   box?: string;
@@ -68,6 +68,8 @@ export interface SurfaceState {
   code?: { title: string; source: string; text: string; failing: boolean } | null;
   /** The email open in Mail, if any. */
   mail?: { id: string; title: string; text: string } | null;
+  /** The conversation open in Messages: its recent messages as an attachment, and what Catch me up asks of it. */
+  chat?: { id: string; title: string; item: ContextItem; catchUp: string } | null;
   /** The folder open in Files, relative to the workspace ('' is the workspace itself), if a folder is open there. */
   folder?: string | null;
   /** Settings is open over the app: nothing the app offers applies, so nothing is suggested. */
@@ -176,6 +178,15 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'Add a column…', prompt: 'Add a column to this sheet that works out ', attach: 'sheet' },
           ]
         : [{ label: 'Make a budget', prompt: 'Make a budget workbook in my Sheets for ' }];
+    case 'messages':
+      // Other people's words go as an attachment, never as the prompt; Mobius drafts and the person sends.
+      return state.chat
+        ? [
+            { label: 'Catch me up', prompt: state.chat.catchUp, attach: 'chat' },
+            { label: 'Draft a reply', prompt: 'Draft a short reply in my voice to the latest message in the attached conversation that asks me something or waits on me, answering what it asks. Write only the reply, ready to paste. Do not send anything; I will.', attach: 'chat' },
+            { label: 'Make a task from this', prompt: 'If the attached conversation asks me to do something, add it to my Tasks with tasks.add, worded as something to do, with its date when one is said (as YYYY-MM-DD). Look at tasks.list first and add nothing a task there already covers. Say in one line what you added, or that nothing in it asks something of me.', attach: 'chat' },
+          ]
+        : [];
     case 'mail':
       if (state.mail) {
         return [
@@ -407,6 +418,7 @@ export function hereOf(s: SurfaceState | undefined): Here | null {
   if (s.photo) return { key: `photo:${s.photo.source}`, label: bare(s.photo.title), what: 'this photo', item: sheetItem(s.photo) };
   if (s.cut) return { key: `cut:${s.cut.source}`, label: bare(s.cut.title), what: 'this cut', item: sheetItem(s.cut) };
   if (s.code) return { key: `code:${s.code.source}`, label: s.code.title, what: 'this file', item: sheetItem(s.code) };
+  if (s.chat) return { key: `chat:${s.chat.id}`, label: s.chat.title, what: 'this conversation', item: s.chat.item };
   // Not the browser's page: a page can be long and is not yours, so it goes only when asked for (Add context › This page).
   return null;
 }
