@@ -9,6 +9,7 @@ import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
 import { AppSidebar, SidebarRow, SidebarSection, SidebarSearch } from './ui';
+import { afterPaint } from './ui/frame';
 
 /** Notebooks and their pages, newest first, with search. Creating asks for a name inline, never in a dialog. */
 /** `changed`: pages the agent's last turn changed, marked until it is undone or another turn ends. */
@@ -18,6 +19,9 @@ export interface SidebarWords { app: string; group: string; groups: string; item
  *  A notebook of thousands of pages then opens as fast as a short one (docs/developers/speed.md). */
 export const FIRST_ROWS = 100;
 const MORE_ROWS = 200;
+/** What the first frame of a visit draws: more than a tall window shows. The rest of FIRST_ROWS follows a frame
+ *  later, so opening Notes on a long notebook draws one screenful before the page shows, not a hundred rows. */
+const FIRST_FRAME_ROWS = 30;
 
 /** The end of a list drawn in part: when it scrolls into view, more rows are drawn. */
 function MoreRows({ onMore }: { onMore: () => void }) {
@@ -88,8 +92,13 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
   const [menu, setMenu] = useState<{ x: number; y: number; page: NotePage } | null>(null);
   const openNotebook = notes.page?.path.split('/')[0] ?? notes.notebooks[0]?.name;
   // Long notebooks are drawn in part, and more as the list is scrolled; the open page is always drawn.
-  const [rows, setRows] = useState(FIRST_ROWS);
+  const [rows, setRows] = useState(FIRST_FRAME_ROWS);
   const more = useCallback(() => setRows((n) => n + MORE_ROWS), []);
+  // Two frames on: the first shows the page with a screenful of rows, the next fills in the rest of the first hundred.
+  useEffect(() => {
+    let cancel = afterPaint(() => { cancel = afterPaint(() => setRows((n) => Math.max(n, FIRST_ROWS))); });
+    return () => cancel();
+  }, []);
   const drawn = (pages: NotePage[]) => {
     const open = notes.page ? pages.findIndex((pg) => pg.path === notes.page?.path) : -1;
     return pages.slice(0, Math.max(rows, open + 1));
@@ -197,7 +206,7 @@ export function NotesSidebar({ notes, pin, changed, pinned, onPin, words = NOTES
             </>}>
               {nb.pages.length === 0 && <li className="side-empty">No {words.items} yet.</li>}
               {drawn(nb.pages).map((pg) => pageRow(pg))}
-              {nb.pages.length > drawn(nb.pages).length && <MoreRows onMore={more} />}
+              {rows >= FIRST_ROWS && nb.pages.length > drawn(nb.pages).length && <MoreRows onMore={more} />}
             </SidebarSection>
           ))}
           {/* Design, Canvas and Research: New folder waits until there is something to put in one. Notes keeps New
