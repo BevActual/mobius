@@ -46,8 +46,12 @@
 .studio-ruler:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
 .studio-ruler-bar { position: absolute; top: 0; bottom: 0; display: flex; align-items: flex-end; padding: 0 0 var(--sp-1) var(--sp-1); border-left: var(--hairline-w) solid var(--line); font: var(--fs-xs) / 1 var(--font-mono); color: var(--muted); }
 /* The loop: a dark bar along the top of the ruler, its ends marked when it is only some bars. */
-.studio-cycle { position: absolute; left: 0; top: 2px; height: 5px; border-radius: var(--radius-small); background: color-mix(in srgb, var(--ink) 22%, transparent); pointer-events: none; }
-.studio-cycle[data-part] { background: var(--ink); }
+.studio-cycle { position: absolute; left: 0; top: 0; bottom: 0; border-top: 2px solid var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); pointer-events: none; }
+/* The loop as a brace over the bars it covers, as in Ableton: an ink bar along the top with its ends turned down,
+   and a soft fill under it. Looping the whole song draws it the same, over every bar. */
+.studio-cycle::before, .studio-cycle::after { content: ""; position: absolute; top: -2px; width: 2px; height: 7px; background: var(--ink); }
+.studio-cycle::before { left: 0; }
+.studio-cycle::after { right: 0; }
 .studio-cycle-zone { position: absolute; left: 0; right: 0; top: 0; height: 11px; cursor: ew-resize; }
 .studio-cycle-zone:hover { background: var(--sel); }
 

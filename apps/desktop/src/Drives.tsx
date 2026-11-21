@@ -1,3 +1,4 @@
+import { keepLink, linkOf } from './drive-links';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { DriveAccount, DriveEntry, DriveFailure, FileEntry, NewCloudDrive, NewDrive } from '@mobius/shared';
 
@@ -130,8 +131,27 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     if (!r) { setNotice('That could not be copied here.'); return null; }
     if (failed(r)) { setNotice(driveSaying(r, nameOf(path))); return null; }
     setNotice(null);
+    // The copy remembers the version it came from, so it can be saved back over it later.
+    if (r.etag) keepLink(r.path, { drive: from, path, etag: r.etag });
     if (!quiet) setCopied(`Copied “${nameOf(path)}” to ${into ? nameOf(into) : 'Workspace'}`);
     return r.path;
+  };
+  /** Saves the workspace copy `workspacePath` back over the drive file it came from, if that is still the version copied. */
+  const saveBack = async (workspacePath: string): Promise<boolean> => {
+    const link = linkOf(workspacePath);
+    if (!link || !api?.saveBack) return false;
+    const r = await api.saveBack(link.drive, link.path, workspacePath, link.etag).catch(() => null);
+    const where = nameOfDrive(link.drive);
+    if (!r) { setNotice('That could not be saved back.'); return false; }
+    if (failed(r)) {
+      setNotice(r.conflict ? `“${nameOf(link.path)}” has changed on ${where} since it was copied, so it was not replaced. Copy it again to see the new version.` : driveSaying(r, nameOf(link.path)));
+      return false;
+    }
+    if (r.etag) keepLink(workspacePath, { ...link, etag: r.etag });
+    setNotice(null);
+    setCopied(`Saved “${nameOf(link.path)}” back to ${where}`);
+    if (link.drive === drive) void list();
+    return true;
   };
   /** A copy of the workspace file `path` in the drive's folder `into`; never over one already there. */
   const upload = async (to: string, path: string, into: string): Promise<boolean> => {
@@ -150,7 +170,8 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     accounts, drive, folder, entries, problem, loading, notice, copied, dragging, setDragging,
     account: accounts.find((a) => a.id === drive) ?? null,
     clouds, addCloud, cancelCloud,
-    list, add, remove, newFolder, rename, moveInto, del, download, upload, nameOfDrive,
+    list, add, remove, newFolder, rename, moveInto, del, download, upload, saveBack, nameOfDrive,
+    canSaveBack: typeof api?.saveBack === 'function',
     dismissNotice: () => setNotice(null), dismissCopied: () => setCopied(null),
   };
 }

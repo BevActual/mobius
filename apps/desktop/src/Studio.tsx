@@ -110,6 +110,12 @@ const DRUM_KEYS_W = 96;
 const VEL_H = 64;
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>;
+/** How a clip opens is said on it until the person has opened clips a few times; after that the tip only gets in the way. */
+const CLIP_TIP_KEY = 'mobius.studio.clipEdits';
+const CLIP_TIP_UNTIL = 3;
+const clipTipWanted = (): boolean => { try { return Number(window.localStorage.getItem(CLIP_TIP_KEY) ?? 0) < CLIP_TIP_UNTIL; } catch { return true; } };
+const clipEdited = () => { try { window.localStorage.setItem(CLIP_TIP_KEY, String(Number(window.localStorage.getItem(CLIP_TIP_KEY) ?? 0) + 1)); } catch { /* not kept */ } };
+
 const ICONS = {
   play: 'M6.5 4.2v11.6L15.8 10z',
   stop: 'M5.5 5.5h9v9h-9z',
@@ -144,10 +150,9 @@ function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: numb
             data-proposed={proposed || undefined}
             style={{ left: c.from * bar + 1, width: (c.to - c.from) * bar - 3 }}
             aria-label={`${track.name}, ${words}${proposed ? ', proposed by Mobius' : ''}`}
-            title="Double-click to edit the notes"
-            data-tip-at="pointer"
-            onDoubleClick={(e) => { e.stopPropagation(); onOpen(from); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); onOpen(from); } }}
+            {...(clipTipWanted() ? { title: 'Double-click to edit the notes', 'data-tip-at': 'pointer' } : {})}
+            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(from); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(from); } }}
           >
             <span className="studio-clip-notes" aria-hidden="true">
               {track.notes.filter((n) => n.start >= from && n.start < to).map((n, i) => (

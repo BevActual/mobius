@@ -609,6 +609,15 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   const ask = onAsk ?? tasks.ask.current ?? undefined;
   // A task typed in Today is due today; anything typed outside a list lands in the Inbox.
   const target = view.kind === 'list' ? view.name : DEFAULT_LIST_NAME;
+  // A group's + (a list in All, a day in Scheduled): the box above adds there until the view changes.
+  const [addTo, setAddTo] = useState<{ list?: string; due?: string; label: string; token: number } | null>(null);
+  useEffect(() => { setAddTo(null); }, [view]);
+  const addHere = (to: { list?: string; due?: string; label: string }) => setAddTo((cur) => ({ ...to, token: (cur?.token ?? 0) + 1 }));
+  const groupAdd = (to: { list?: string; due?: string; label: string }) => (
+    <button type="button" className="tasks-group-add" aria-label={`Add a task ${to.label}`} title={`Add a task ${to.label}`} onClick={() => addHere(to)}>
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" /></svg>
+    </button>
+  );
   const proposal = useListReview(review?.conversation ?? null, review && view.kind === 'list' ? view.name : null);
   const picked = tasks.picked;
 
@@ -684,14 +693,14 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     if (view.id === 'all' || view.id === 'completed') {
       body = byList(rows).map((g) => (
         <section key={g.list} className="tasks-group" data-color={listColor(g.list)} aria-label={g.list}>
-          <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" /><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button><span className="tasks-group-count">{g.rows.length}</span></h2>
+          <h2 className="tasks-group-head"><span className="list-dot" data-color={listColor(g.list)} aria-hidden="true" /><button type="button" onClick={() => tasks.setView({ kind: 'list', name: g.list })}>{g.list}</button><span className="tasks-group-count">{g.rows.length}</span>{view.id === 'all' && groupAdd({ list: g.list, label: `to ${g.list}` })}</h2>
           <ul className="task-items" role="list" aria-label={view.id === 'completed' ? 'Completed' : 'To do'}>{withSubtasks(g.rows).map(({ at, subtasks }) => row(at, { showList: false, subtasks }))}</ul>
         </section>
       ));
     } else if (view.id === 'scheduled') {
       body = byDay(rows, now).map((g) => (
         <section key={g.key} className="tasks-group tasks-day" data-overdue={g.key === 'overdue' || undefined} aria-label={g.label}>
-          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span></h2>
+          <h2 className="tasks-group-head">{g.label}<span className="tasks-group-count">{g.rows.length}</span>{g.exact && groupAdd({ due: g.key, label: `for ${g.label.toLowerCase().startsWith('to') ? g.label.toLowerCase() : g.label}` })}</h2>
           <ul className="task-items" role="list" aria-label="To do">{g.rows.map((r) => row(r, { showList: true, hideDue: g.exact }))}</ul>
         </section>
       ));
@@ -733,8 +742,8 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
           )}
           {query && <p className="tasks-searching">Results for “{query}” <button type="button" className="btn" onClick={() => tasks.setQuery('')}>Clear</button></p>}
           {!query && view.kind === 'smart' && view.id === 'completed' ? null : !query && (
-            <NewTask tasks={tasks} target={target} focusToken={focusToken} defaultDue={view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null}
-              placeholder={view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
+            <NewTask tasks={tasks} target={addTo?.list ?? target} focusToken={focusToken + (addTo?.token ?? 0)} defaultDue={addTo?.due ?? (view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null)}
+              placeholder={addTo ? `Add a task ${addTo.label}` : view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
           )}
           {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}
           {body}

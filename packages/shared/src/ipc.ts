@@ -993,7 +993,13 @@ export interface MobiusBridge {
     move(id: string, from: string, to: string): Promise<{ ok: true } | DriveFailure>;
     delete(id: string, path: string, etag: string | null): Promise<{ ok: true } | DriveFailure>;
     /** Files: a copy of the drive's file in the workspace's `folder`, under a free name. Answers its workspace path. */
-    download?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
+    download?(id: string, path: string, folder: string): Promise<{ ok: true; path: string; etag?: string | null } | DriveFailure>;
+    /**
+     * Files: puts the workspace copy `workspacePath` back over the drive's `drivePath`, only while the drive's file is
+     * still at `etag` (the one `download` answered). Changed on the server meanwhile, it answers `conflict: true` and
+     * replaces nothing. Answers the drive file's new version.
+     */
+    saveBack?(id: string, drivePath: string, workspacePath: string, etag: string): Promise<{ ok: true; etag: string | null } | DriveFailure>;
     /** Files: a copy of the workspace file `path` in the drive's `folder`; never replaces one there. */
     upload?(id: string, path: string, folder: string): Promise<{ ok: true; path: string } | DriveFailure>;
     onChanged(listener: (change: DrivesChanged) => void): () => void;

@@ -2,9 +2,12 @@ import { useCallback, useEffect, useState } from 'react';
 import type { ImageModelChoice, ModelCatalog, ModelGroup } from '@mobius/shared';
 import { asCatalog } from '../composer/model-catalog';
 import { Row } from './primitives';
+import { Select } from '../ui';
 
 /** The value a pop-up keeps for one model: where it comes from, and its name. */
 const keyOf = (group: ModelGroup, model: string) => `${group.kind}|${group.id}|${model}`;
+/** Every gateway's models as choices, each under its gateway's name. */
+const grouped = (groups: readonly ModelGroup[]) => groups.flatMap((g) => g.models.map((m) => ({ value: keyOf(g, m.id), label: m.label, group: g.name })));
 
 /** The model in use, as the pop-up shows it. */
 export function currentKey(catalog: ModelCatalog): string {
@@ -47,14 +50,7 @@ export function ChatModelPopUp({ localContext, onChanged }: { localContext: numb
   };
   return (
     <>
-      <select className="popup" aria-label="Chat model" value={value} onChange={(e) => void choose(e.target.value)}>
-        {value === '' && <option value="">Choose a model</option>}
-        {groups.map((g) => (
-          <optgroup key={`${g.kind}-${g.id}`} label={g.name}>
-            {g.models.map((m) => <option key={m.id} value={keyOf(g, m.id)}>{m.label}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <Select label="Chat model" hideLabel value={value} onChange={(v) => void choose(v)} choices={[...(value === '' ? [{ value: '', label: 'Choose a model', disabled: true }] : []), ...grouped(groups)]} />
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </>
   );
@@ -96,15 +92,7 @@ export function FallbackPopUp({ baseUrl, model, onChanged }: { baseUrl: string; 
   };
   return (
     <>
-      <select className="popup" aria-label="Second model" value={value} onChange={(e) => void choose(e.target.value)}>
-        <option value="none">None</option>
-        {value === 'other' && <option value="other" disabled>{model} (Custom server)</option>}
-        {groups.map((g) => (
-          <optgroup key={`${g.kind}-${g.id}`} label={g.name}>
-            {g.models.map((m) => <option key={m.id} value={keyOf(g, m.id)}>{m.label}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <Select label="Second model" hideLabel value={value} onChange={(v) => void choose(v)} choices={[{ value: 'none', label: 'None' }, ...(value === 'other' ? [{ value: 'other', label: `${model} (Custom server)`, disabled: true }] : []), ...grouped(groups)]} />
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </>
   );
@@ -146,14 +134,7 @@ export function QuickPopUp({ quick, onChanged }: { quick: string; onChanged?: ()
   };
   return (
     <>
-      <select className="popup" aria-label="Quick model" value={value} onChange={(e) => void choose(e.target.value)}>
-        <option value="none">Same as chat</option>
-        {groups.map((g) => (
-          <optgroup key={`${g.kind}-${g.id}`} label={g.name}>
-            {g.models.map((m) => <option key={m.id} value={keyOf(g, m.id)}>{m.label}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <Select label="Quick model" hideLabel value={value} onChange={(v) => void choose(v)} choices={[{ value: 'none', label: 'Same as chat' }, ...grouped(groups)]} />
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </>
   );
@@ -187,14 +168,8 @@ export function ImagesRow({ path, highlight, chosen }: { path: string; highlight
   const value = choices.some((c) => `${c.gateway}|${c.model}` === chosen) ? chosen : 'none';
   return (
     <Row path={path} title="Images" description={description} highlight={highlight}>
-      <select className="popup" aria-label="Image model" value={value} onChange={(e) => void choose(e.target.value)}>
-        <option value="none">None</option>
-        {gateways.map((g) => (
-          <optgroup key={g} label={g}>
-            {choices.filter((c) => c.gatewayName === g).map((c) => <option key={`${c.gateway}|${c.model}`} value={`${c.gateway}|${c.model}`}>{c.label}</option>)}
-          </optgroup>
-        ))}
-      </select>
+      <Select label="Image model" hideLabel value={value} onChange={(v) => void choose(v)}
+        choices={[{ value: 'none', label: 'None' }, ...gateways.flatMap((g) => choices.filter((c) => c.gatewayName === g).map((c) => ({ value: `${c.gateway}|${c.model}`, label: c.label, group: g })))]} />
       {problem && <span className="field-error" role="alert">{problem}</span>}
     </Row>
   );

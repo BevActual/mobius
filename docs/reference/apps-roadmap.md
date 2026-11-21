@@ -29,15 +29,15 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 
 | App | Last round on `main` | Next round | Waiting on |
 | --- | --- | --- | --- |
-| Home | Instrument (#181), sidebar head and toolbar line (#213) | Conversations grouped by day | Builder: Home's reading column and row sizes |
+| Home | Chats newest first with day headings, quick starts above the message box (#679) | | |
 | Mail | Triage in the panel (#251), and it switches the composer to Triage (#278) | Triage's own Glance and Result | |
-| Calendar | Rest of today in Glance: still to come, next, free time (#272) | Find a time in Actions | |
-| Tasks | Shared fields in Details (#248); overdue, due today and flagged in Glance (#271) | "+" on group heads; Plan my day in Actions | |
-| Notes | Instrument (#152) | Review mode in the panel | |
-| Docs | Instrument (#188) | Find and replace (Ctrl+F, Ctrl+H) | |
-| Files | Drives: the person's own WebDAV servers, browsed and copied both ways | Edit a drive's file in place, saved back with its version; copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
-| Browser | Instrument (#163) | One idea of "keep" (bookmark, pin, pinned tab); one New tab button | |
-| Settings | Permission wording (#241) | Shared selects | |
+| Calendar | Rest of today in Glance (#272); Find a time with… in Actions | | |
+| Tasks | "+" on group heads (a list in All, a day in Scheduled); Plan my day in Actions | | |
+| Notes | Review this in Actions, in Review mode | | |
+| Docs | Find and replace (Ctrl+F, Ctrl+H); Review this in Actions, in Review mode | | |
+| Files | Save Back to a drive: a copy goes back over its file while that is still the version copied | Copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
+| Browser | One New tab button, in the top bar (Ctrl+T); Bookmark and Pin page kept together in the tab menu | One idea of "keep" (bookmark, pin, pinned tab): a product decision | |
+| Settings | Shared selects (models, voice, effort, language, usage period, context size); a model list can group by gateway | The two model choices in Gateways' sign-in rows | |
 | Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
 | Projects | Instrument round and Permission names (#186) | Projects in Ctrl+K; drag a conversation onto a project | |
 | Sheets | Sum, average and count of the selection in Glance (#261); Analyse… in the panel (#540), its charts drawn in the reply | | |
@@ -65,10 +65,10 @@ These are the same change made in many apps. Each still lands as one pull reques
 | Round | What changes | Apps | Status |
 | --- | --- | --- | --- |
 | Permission wording | "Ask first, Propose, Act" and "Follow the mode" become the composer's Permission names: Ask each time, Review changes, Apply changes, Auto. | Settings, Agents, Projects | Have (#241, #243, #186) |
-| Shared selects | Native `<select>` becomes the library's `Select` or `ChoiceMenu`. | Calendar, Tasks and Agents (Have); Photo (Building); Settings, Slides, Design, Knowledge, Projects, Canvas | Next |
+| Shared selects | Native `<select>` becomes the library's `Select` or `ChoiceMenu`. | Calendar, Tasks, Agents and Settings (Have); Photo (Building); Slides, Design, Knowledge, Projects, Canvas | Next |
 | Shared date fields | Native date and time inputs become `DateField` and `TimeField`. | Calendar (#246), Tasks (#248) and Agents (#243) Have; Settings (Schedules) | Next |
 | Actions in the panel | Each app puts its own actions in the panel's Actions slot with `AppAction`, as Mail does with Get to zero. | Calendar, Tasks, Files, Docs, Notes, then the rest | Next, one app at a time |
-| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Have, #251, #278), Sheets and Database (Have, #540), then Docs and Notes, Code | Next |
+| App modes | Triage, Review, Analyse and Debug are in the composer (#239). Each app makes its mode reachable from its panel actions. Research, Schedule and Rehearse come later. | Mail (Have, #251, #278), Sheets and Database (Have, #540), Docs and Notes (Have, Review this), then Code | Next |
 | Glance and Result slots | What each app shows in the panel's Glance and Result slots. | Sheets (#261), Tasks (#271) and Calendar (#272) Have; then every app | Next |
 | App panels out of the Mobius panel | The Mobius panel is just Mobius (Andrew, 14 November). Each app's own panel (Docs outline, Reader highlights, the Design, Photo, Video and Slides inspectors, Code and Sheets panels) moves out of the tabs beside Mobius to where the design lead's rule puts it. No app adds a tab beside Mobius meanwhile. | Docs, Reader, Design, Photo, Video, Slides, Code, Sheets | Waiting: the design lead's rule, then the Builder's shell change |
 

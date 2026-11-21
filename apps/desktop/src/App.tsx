@@ -188,7 +188,7 @@ const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
   reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
-  skills: 'Kinds', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
+  skills: 'Abilities', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
 /** Apps that lay out panels of their own already: their list is handed to them, as one more of their panels. */
@@ -222,8 +222,9 @@ export function App() {
   const preferences = usePreferences();
   // The apps added from Abilities decide what opens, what the switcher lists and what loads.
   setInstalledApps(preferences.value.installedApps);
-  // Mobius's own words, in the language chosen (English for now).
-  setLanguage(preferences.value.language);
+  // Mobius's own words, in the language chosen (English for now): set once it changes, not on every draw.
+  const language = preferences.value.language;
+  useEffect(() => setLanguage(language), [language]);
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');

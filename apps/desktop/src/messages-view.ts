@@ -103,3 +103,11 @@ export function lastReplyLabel(at: number, now = Date.now()): string {
   const d = Math.round(h / 24);
   return `Last reply ${d} day${d === 1 ? '' : 's'} ago`;
 }
+
+/** A message's reactions with the person's own `emoji` added (`on`) or taken back. */
+export function toggled(list: NonNullable<ChatMessage['reactions']>, emoji: string, on: boolean): NonNullable<ChatMessage['reactions']> {
+  const had = list.find((r) => r.emoji === emoji);
+  if (on) return had ? list.map((r) => (r.emoji === emoji ? { ...r, count: r.count + (r.mine ? 0 : 1), mine: true } : r)) : [...list, { emoji, count: 1, mine: true }];
+  if (!had || !had.mine) return list;
+  return had.count <= 1 ? list.filter((r) => r.emoji !== emoji) : list.map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r));
+}

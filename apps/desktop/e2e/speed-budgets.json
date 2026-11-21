@@ -5,6 +5,7 @@
   "switch to an app, first visit": 350,
   "switch apps": 200,
   "switch apps, slowest tenth": 600,
+  "switch to the slowest app": 150,
   "interface memory after long use": 40,
   "interface memory growth over long use": 20,
   "DOM nodes after long use": 6000,

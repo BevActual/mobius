@@ -350,6 +350,13 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   const metaMark = useMemo(() => noteMeta(() => metaNow.current), []);
   const tryAnother = useContext(TryAnotherContext);
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
+  // The page already read when the editor is made is its first content, parsed once: made empty and then filled, the
+  // editor drew the page twice and laid it out three times on every visit to Notes.
+  const firstText = useRef<string | null>(null);
+  if (firstText.current === null) {
+    firstText.current = !source && path ? notes.text : '';
+    if (firstText.current) known.current = firstText.current;
+  }
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ link: { openOnClick: false, autolink: true } }),
@@ -369,7 +376,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       metaMark,
       FindMarks,
     ],
-    content: '',
+    content: firstText.current,
+    contentType: 'markdown',
     editorProps: {
       attributes: { class: 'note-page', 'aria-label': 'Note text', role: 'textbox', 'aria-multiline': 'true', spellcheck: 'true' },
       // Files pasted or dropped on the page are added to it: pictures show, anything else is a link.
@@ -411,7 +419,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       },
     },
     onUpdate: ({ editor: e, transaction }) => {
-      if (transaction.getMeta('mobius-load')) return;
+      // A transaction that changed nothing itself, only what the editor added after it (its empty last line when a
+      // page opens), is not an edit: saving it would write the page out again in the editor's own way.
+      if (transaction.getMeta('mobius-load') || !transaction.docChanged) return;
       const md = markdownOf(e);
       known.current = md;
       notes.edit(md);
@@ -428,7 +438,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     onBlur: () => setSelection(null),
   });
   // The page's text, from the store: put into the editor when it did not come from the editor itself.
-  const placed = useRef<string | null>(null);
+  const placed = useRef<string | null>(firstText.current ? path ?? null : null);
   useEffect(() => {
     if (!editor || editor.isDestroyed || source || notes.text === known.current) return;
     known.current = notes.text;

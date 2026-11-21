@@ -73,6 +73,9 @@ async function switchTo(shell: Page, name: string, panel: string): Promise<numbe
   );
 }
 
+/** The everyday start on CI's faster machines (21 November 2026): the yardstick the slowest switch is scaled to. */
+const START_ON_A_FAST_MACHINE = 1500;
+
 const median = (values: number[]) => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)] ?? 0;
 const p90 = (values: number[]) => [...values].sort((a, b) => a - b)[Math.min(values.length - 1, Math.floor(values.length * 0.9))] ?? 0;
 
@@ -190,7 +193,8 @@ test('start, switching apps, a long list and memory after long use stay within t
   measured('first start', await start(), 'ms');
   await mobius!.close({ keepUserData: true });
   mobius = undefined;
-  measured('start', await start(), 'ms');
+  const started = await start();
+  measured('start', started, 'ms');
   const shell = mobius!.shell;
 
   // A long list: Notes opens with the 2,000-page notebook in its panel.
@@ -232,4 +236,13 @@ test('start, switching apps, a long list and memory after long use stay within t
     measured('core memory after long use', core, 'MB');
     measured('core memory growth over long use', core - coreBefore, 'MB');
   }
+
+  // The slowest app to switch to (its median over the 20 rounds) has a budget of its own, so one app getting slower
+  // is caught even while the others keep the overall median down. CI's machines differ about twofold from run to run,
+  // and every figure here with them, so this one is scaled to a machine that starts Mobius in START_ON_A_FAST_MACHINE:
+  // on a machine that starts it in twice the time, half the time counts. (Start has its own budget, so a slower start
+  // cannot hide a slower switch for long.)
+  const slowest = Math.max(...APPS.map((_, i) => median(again.filter((_v, j) => j % APPS.length === i))));
+  console.log(`[speed] switch to the slowest app, as measured: ${Math.round(slowest)} ms (start ${Math.round(started)} ms)`);
+  measured('switch to the slowest app', slowest * Math.min(1, START_ON_A_FAST_MACHINE / started), 'ms');
 });

@@ -1,3 +1,4 @@
+import { toggled } from '../messages-view';
 import type { ChatAccount, ChatChanged, ChatChannel, ChatMessage } from '@mobius/shared';
 
 /**
@@ -70,5 +71,18 @@ export const PREVIEW_MESSAGES: Record<string, (...args: never[]) => unknown> = {
     return sent;
   }) as never,
   'messages.markRead': ((_account: string, channel: string) => { channels = channels.map((c) => (c.id === channel ? { ...c, unread: 0, mentions: 0 } : c)); }) as never,
+  'messages.markUnread': ((account: string, channel: string, message: string) => {
+    const list = HISTORY[channel] ?? [];
+    const from = list.findIndex((m) => m.id === message);
+    const unread = from < 0 ? 0 : list.length - from;
+    channels = channels.map((c) => (c.id === channel ? { ...c, unread } : c));
+    listeners.forEach((l) => l({ account }));
+    return { ok: true };
+  }) as never,
+  'messages.permalink': ((_account: string, channel: string, message: string) => ({ url: `https://northway.slack.com/archives/${channel}/p${message}` })) as never,
+  'messages.react': ((_account: string, channel: string, message: string, emoji: string, on: boolean) => {
+    for (const key of Object.keys(HISTORY)) HISTORY[key] = HISTORY[key]!.map((m) => (m.id === message && m.channel === channel ? { ...m, reactions: toggled(m.reactions ?? [], emoji, on) } : m));
+    return { ok: true };
+  }) as never,
   'messages.onChanged': ((listener: (change: ChatChanged) => void) => { listeners.push(listener); return () => { listeners = listeners.filter((l) => l !== listener); }; }) as never,
 };
