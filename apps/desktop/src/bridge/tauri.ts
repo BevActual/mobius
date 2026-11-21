@@ -483,6 +483,8 @@ export function createTauriBridge(): MobiusBridge {
       addSheet: (workbook, name) => call('sheets', 'addSheet', [workbook, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       renameSheet: (workbook, sheet, name) => call('sheets', 'renameSheet', [workbook, sheet, name], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       removeSheet: (workbook, sheet) => call('sheets', 'removeSheet', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      duplicateSheet: (workbook, sheet) => call('sheets', 'duplicateSheet', [workbook, sheet], () => ({ ok: false as const, message: 'Sheets is not available.' })),
+      moveSheet: (workbook, sheet, to) => call('sheets', 'moveSheet', [workbook, sheet, to], () => ({ ok: false as const, message: 'Sheets is not available.' })),
       onChanged: (listener) => on<SheetsChanged>('mobius:sheets-changed', listener),
     },
     contacts: {

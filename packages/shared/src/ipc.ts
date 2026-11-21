@@ -1081,6 +1081,10 @@ export interface MobiusBridge {
     addSheet(workbook: string, name: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
     renameSheet(workbook: string, sheet: string, name: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
     removeSheet(workbook: string, sheet: string): Promise<{ workbook: string; removed: string } | NotesFailure>;
+    /** Copies a sheet and its charts into a new tab just after it ("Budget copy"). */
+    duplicateSheet?(workbook: string, sheet: string): Promise<{ workbook: string; sheet: string } | NotesFailure>;
+    /** Moves a tab to place `to`, counted from 0; answers the new order. */
+    moveSheet?(workbook: string, sheet: string, to: number): Promise<{ workbook: string; sheet: string; sheets: string[] } | NotesFailure>;
     onChanged(listener: (change: SheetsChanged) => void): () => void;
   };
   /** The Code app: projects are folders in `code/`; the test command of each is the person's. Only the Tauri shell has it. */
