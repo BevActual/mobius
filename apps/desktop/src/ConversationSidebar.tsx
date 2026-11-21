@@ -6,6 +6,7 @@ import { MobiusMark } from './MobiusMark';
 import { characterState, EMPTY_DRAFT, type AgentView } from './AgentPage';
 import { describeWhen } from './settings/Schedules';
 import { relativeTime } from './relative-time';
+import { chatsByDay, DAY_HEADINGS_FROM } from './chat-days';
 import { activityBoard } from './activity-board';
 import { KEPT_EVENT, keepTurn, keptTurns, movesIn, turnId } from './ReviewStrip';
 import { ReviewActions } from './ReviewBar';
@@ -342,6 +343,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
     return next;
   });
   const needle = query.trim().toLowerCase();
+  const now = Date.now();
   const known = bots.map((bot) => bot.id);
   const activeBot = botOfConversation(active, known);
   // The agent whose page is open: the one chosen, or else the one you are talking to.
@@ -392,6 +394,7 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
             const rows = needle ? all.filter((c) => c.title.toLowerCase().includes(needle)) : all;
             if (rows.length === 0) return null;
             const shut = grouped && !needle && collapsed.includes(bot.id);
+            const headed = !needle && rows.length >= DAY_HEADINGS_FROM;
             const working = all.filter((c) => c.activity === 'working').length;
             const waiting = all.filter((c) => c.activity === 'needs_you').length;
             return (
@@ -407,13 +410,17 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
                     </button>
                   </h3>
                 )}
-                {!shut && (
-                  <ul className="clist" role="list">
-                    {rows.map((conversation) => (
-                      <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => removeChat(conversation)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
-                    ))}
-                  </ul>
-                )}
+                {/* Newest first; a long list gets day headings (not while searching). */}
+                {!shut && chatsByDay(rows, now).map((day) => (
+                  <div key={day.label} className="clist-dayset">
+                    {headed && <h4 className="clist-day">{day.label}</h4>}
+                    <ul className="clist" role="list" aria-label={headed ? day.label : undefined}>
+                      {day.rows.map((conversation) => (
+                        <Row key={conversation.id} conversation={conversation} current={conversation.id === active} onSelect={() => onSelect(conversation.id)} onDelete={() => removeChat(conversation)} {...(onArchive ? { onArchive: (on: boolean) => onArchive(conversation.id, on) } : {})} onMakeBot={() => void makeBot(conversation)} />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
               </section>
             );
           })}
