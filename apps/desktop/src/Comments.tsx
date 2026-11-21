@@ -12,6 +12,8 @@ import { RichText } from './RichText';
 
 const api = () => window.mobius.comments;
 const isThreads = (v: unknown): v is CommentThread[] => Array.isArray(v);
+/** The same list when nothing is in it either way: a new empty array would draw the whole window again (each app switch). */
+const orSame = (next: CommentThread[]) => (prev: CommentThread[]) => (next.length === 0 && prev.length === 0 ? prev : next);
 const newId = () => `c${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
 /** Threads of one document, kept as they change. */
@@ -24,10 +26,10 @@ export function useCommentThreads(app: string, doc: string | null) {
   const writing = useRef<Promise<unknown>>(Promise.resolve());
   const saves = useRef(0);
   const load = useCallback(async () => {
-    if (!doc || !api()) { setThreads([]); return; }
+    if (!doc || !api()) { setThreads(orSame([])); return; }
     const before = saves.current;
     const got = await api()!.list(app, doc).catch(() => []);
-    if (live.current.app === app && live.current.doc === doc && saves.current === before) setThreads(isThreads(got) ? got : []);
+    if (live.current.app === app && live.current.doc === doc && saves.current === before) setThreads(orSame(isThreads(got) ? got : []));
   }, [app, doc]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api()?.onChanged((changed) => { if (!changed || changed === app) void load(); }), [app, load]);
@@ -48,7 +50,7 @@ export function useOpenComments(app: string) {
   const [open, setOpen] = useState<CommentThread[]>([]);
   const load = useCallback(async () => {
     const got = await api()?.all(app).catch(() => []);
-    setOpen(Array.isArray(got) ? got.flatMap((d) => d.threads).filter((t) => t.state !== 'resolved') : []);
+    setOpen(orSame(Array.isArray(got) ? got.flatMap((d) => d.threads).filter((t) => t.state !== 'resolved') : []));
   }, [app]);
   useEffect(() => { void load(); }, [load]);
   useEffect(() => api()?.onChanged((changed) => { if (!changed || changed === app) void load(); }), [app, load]);

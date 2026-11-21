@@ -56,15 +56,19 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const stillOpen = useRef(open);
   stillOpen.current = open;
   const [query, setQuery] = useState('');
+  // Shut, it draws only its frame: its thirty-odd tiles were drawn again on every change in the window (each app switch
+  // among them) while nobody could see them. They are there from the moment it opens until it has gone away.
+  const [live, setLive] = useState(open);
+  const drawn = open || live;
   // It grows out of the All apps button that opened it, not from the middle of the window.
   useMorphIn(dialog, open, 'left');
 
   useEffect(() => {
     const el = dialog.current;
     if (!el) return;
-    if (open && !el.open) { setQuery(''); el.showModal(); input.current?.focus(); }
+    if (open && !el.open) { setLive(true); setQuery(''); el.showModal(); input.current?.focus(); }
     // Put away, it goes back toward the button that opened it before it closes.
-    else if (!open && el.open) void morphOut(el, 'left').then(() => { if (!el.isConnected || stillOpen.current) return; el.close(); el.getAnimations().forEach((a) => a.cancel()); });
+    else if (!open && el.open) void morphOut(el, 'left').then(() => { if (!el.isConnected || stillOpen.current) return; el.close(); el.getAnimations().forEach((a) => a.cancel()); setLive(false); });
   }, [open]);
 
   const q = query.trim().toLowerCase();
@@ -110,6 +114,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
 
   return (
     <dialog ref={dialog} className="hub" aria-label="Applications" onCancel={(e) => { e.preventDefault(); onClose(); }} onClick={(e) => { if (e.target === dialog.current) onClose(); }}>
+      {drawn && (<>
       <form className="hub-search" role="search" onSubmit={(e) => { e.preventDefault(); const first = built[0]; const mine = ownShown[0]; if (first && (!mine || rank(first.name) <= rank(mine.name))) go(() => onOpenApp(first.id)); else if (mine) go(mine.run); else if (starts[0]) go(starts[0].run); }}>
         <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="9" cy="9" r="5" /><path d="m13 13 3.5 3.5" /></svg>
         <input ref={input} type="search" aria-label="Find apps" placeholder="Find apps and actions" value={query} onChange={(e) => setQuery(e.target.value)} />
@@ -175,6 +180,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
         </button>
       )}
       {built.length === 0 && later.length === 0 && starts.length === 0 && ownShown.length === 0 && <p className="hub-empty" role="status">No apps match “{query.trim()}”.</p>}
+      </>)}
     </dialog>
   );
 }
