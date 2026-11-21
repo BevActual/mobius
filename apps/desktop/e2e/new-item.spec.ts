@@ -30,7 +30,7 @@ async function open(shell: Page, name: string): Promise<void> {
   await shell.keyboard.press('Control+k');
   await shell.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
   await shell.keyboard.press('Enter');
-  await expect(shell.locator('.context-strip .go-button')).toHaveAccessibleName(new RegExp(`^${name}\\.`));
+  await expect(shell.locator('.strip-left .go-button')).toHaveAccessibleName(new RegExp(`^${name}\\.`));
 }
 
 test('Ctrl+N starts something new in each default app, ready to type in', async () => {
