@@ -197,6 +197,10 @@ function Panel({ label, buttonLabel, title, button, marked, children }: { label:
 /** The styles in the Aa panel, biggest first, as Apple Notes and Pages list them. */
 const STYLES_SHOWN = [STYLES[1], STYLES[2], STYLES[3], STYLES[0], STYLES[4]];
 
+/** Earlier versions' key, as in Google Docs: Ctrl+Alt+Shift+H (⌘⌥⇧H on a Mac). */
+const HISTORY_KEYS = /Mac|iPhone|iPad/.test(typeof navigator === 'undefined' ? '' : navigator.platform) ? '⌘⌥⇧H' : 'Ctrl+Alt+Shift+H';
+const isHistoryKey = (e: KeyboardEvent) => (e.ctrlKey || e.metaKey) && e.altKey && e.shiftKey && e.code === 'KeyH';
+
 /**
  * The format bar in one row, as Notes has it: Aa opens a panel with the styles, marks and lists; the bar keeps what is
  * reached for while writing (checklist, link, insert, and the table's rows and columns while in one), then the
@@ -274,7 +278,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       // Mobius's writing tools: on the chosen words, or the whole document when none are chosen.
       ...(onTool ? WRITING_TOOLS.map((t, i) => ({ label: t.label, icon: mobiusIcon, disabled: busy, separated: i === 0, run: () => onTool(t.id, t.id === 'summarise' ? null : selectedText()) })) : []),
       ...(extras.onComments ? [{ label: extras.commentsOpen ? 'Hide comments in the margin' : extras.comments ? `Show comments in the margin (${extras.comments} open)` : 'Show comments in the margin', run: extras.onComments, separated: true }] : []),
-      ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory, separated: !extras.onComments }] : []),
+      ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory, separated: !extras.onComments }] : []),
       extras.font === 'serif'
         ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans') }
         : { label: 'Use a serif font', run: () => extras.onFont('serif') },
@@ -405,7 +409,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
       <Menu label="Document options" align="end" entries={[
         { label: extras.outline ? 'Hide the outline' : 'Show the outline', run: extras.onOutline },
         ...(extras.onComments && inFrame ? [{ label: extras.commentsOpen ? 'Hide comments' : extras.comments ? `Show comments (${extras.comments} open)` : 'Show comments', run: extras.onComments }] : []),
-        ...(extras.onHistory ? [{ label: 'Earlier versions…', run: extras.onHistory }] : []),
+        ...(extras.onHistory ? [{ label: 'Earlier versions…', keys: HISTORY_KEYS, run: extras.onHistory }] : []),
         extras.font === 'serif'
           ? { label: 'Use the sans-serif font', run: () => extras.onFont('sans'), separated: true }
           : { label: 'Use a serif font', run: () => extras.onFont('serif'), separated: true },
@@ -620,6 +624,14 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   useEffect(() => (inFrame ? () => publishOutline(null) : undefined), [inFrame]);
   const [outlineOpen, setOutlineOpen] = useState(readOutline);
   const toggleOutline = () => setOutlineOpen((o) => { try { window.localStorage.setItem(OUTLINE_KEY, o ? '0' : '1'); } catch { /* Not kept. */ } return !o; });
+  // Ctrl+Alt+Shift+H opens the earlier versions, as in Google Docs.
+  const canHistory = Boolean(own?.versions);
+  useEffect(() => {
+    if (!canHistory) return undefined;
+    const onKey = (e: KeyboardEvent) => { if (isHistoryKey(e)) { e.preventDefault(); setHistory(true); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [canHistory]);
   const openComments = commentState.comments.filter((c) => !c.resolved).length;
   const [marginOpen, setMarginOpen] = useState(true);
   // In the window, comments are the inspector's Comments panel (right, beside the outline); elsewhere, a margin.
