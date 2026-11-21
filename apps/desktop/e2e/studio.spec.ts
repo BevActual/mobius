@@ -669,7 +669,7 @@ test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied
   await shell().mouse.move(b.x + 10 + bar * 2, b.y + b.height / 2, { steps: 6 });
   await shell().mouse.up();
   await expect(clip()).toHaveAccessibleName('Keys, bar 3');
-  await expect.poll(() => saved().tracks[0]!.clips.map((c) => [c.start, c.length])).toEqual([[8, 4]]);
+  await expect.poll(() => saved().tracks[0]!.clips?.map((c) => [c.start, c.length])).toEqual([[8, 4]]);
   expect(saved().tracks[0]!.notes.map((n) => n.start)).toEqual([8, 8]);
   // Its right edge, dragged a bar further, makes it two bars long.
   b = (await clip().boundingBox())!;
@@ -682,7 +682,7 @@ test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied
   await clip().focus();
   await shell().keyboard.press('0');
   await expect(clip()).toHaveAccessibleName('Keys, bars 3 to 4, muted');
-  await expect.poll(() => saved().tracks[0]!.clips[0]!.muted).toBe(true);
+  await expect.poll(() => saved().tracks[0]!.clips?.[0]?.muted).toBe(true);
   await shell().keyboard.press('Control+d');
   await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
   await shell().getByRole('button', { name: 'Keys, bars 5 to 6, muted' }).focus();
