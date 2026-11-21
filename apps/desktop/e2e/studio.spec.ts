@@ -485,6 +485,25 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
   await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
 });
 
+test('the Transform menu arpeggiates a chord and strums it, each undone', async () => {
+  await start();
+  const transform = async (row: string) => {
+    await shell().getByRole('toolbar', { name: 'Notes' }).getByRole('button', { name: 'Transform' }).click();
+    await shell().getByRole('menu', { name: 'Transform' }).getByRole('menuitem', { name: new RegExp(`^${row}`) }).first().click();
+  };
+  const order = () => saved().tracks[0]!.notes.map((n) => n.pitch);
+  // With nothing picked it works on every note: the two-note chord becomes one note at a time, low then high.
+  await transform('Arpeggiate up');
+  await expect.poll(() => order().slice(0, 4)).toEqual([57, 60, 57, 60]);
+  expect(new Set(saved().tracks[0]!.notes.map((n) => n.start)).size).toBe(saved().tracks[0]!.notes.length);
+  await shell().getByRole('grid', { name: 'Notes of Keys' }).focus();
+  await shell().keyboard.press('Control+z');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`)).toEqual(['57@0+4', '60@0+4']);
+  // Strum puts the upper note a little after the lower, both still ending on beat 4.
+  await transform('Strum');
+  await expect.poll(() => saved().tracks[0]!.notes.map((n) => [n.pitch, n.start > 0, n.start + n.length])).toEqual([[57, false, 4], [60, true, 4]]);
+});
+
 test('the view switch leads the toolbar: Alt+1 and Alt+2 pick Session or Arrange, Tab on the page swaps them, and Tap sets the tempo', async () => {
   await start();
   const view = (name: string) => shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name });

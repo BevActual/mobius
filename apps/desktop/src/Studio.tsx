@@ -7,9 +7,10 @@ import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneN
 import type { CSSProperties } from 'react';
 import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
+import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -121,11 +122,29 @@ const ICONS = {
   stop: 'M5.5 5.5h9v9h-9z',
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
-  quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
+  transform: 'M4 16 12 8M12 3.5v2.5M15.5 5 14 6.5M16.5 9H14',
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
   auto: 'M3.5 14.5l4-6 4 3 5-7',
   export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
 };
+
+/** The notes editor's Transform menu, Quantize first: each row changes the picked notes, or all of them when none are picked. */
+function transformEntries(drums: boolean, apply: (fn: (n: SongNote[], picked: ReadonlySet<number>) => { notes: SongNote[]; picked: Set<number> }) => void, grid: number, span: number, key: string): MenuEntry[] {
+  return [
+    { label: 'Quantize', detail: 'Notes lined up to the grid', keys: 'Q', run: () => apply((n, p) => quantizeNotes(n, p, grid, span)) },
+    ...(drums ? [] : [
+      { label: 'Arpeggiate up', detail: 'Each chord a note at a time, low to high', separated: true, run: () => apply((n, p) => arpeggiate(n, p, grid, 'up')) },
+      { label: 'Arpeggiate down', detail: 'High to low', run: () => apply((n, p) => arpeggiate(n, p, grid, 'down')) },
+      { label: 'Arpeggiate up and down', detail: 'Low to high and back', run: () => apply((n, p) => arpeggiate(n, p, grid, 'updown')) },
+      { label: 'Strum', detail: 'Each chord spread from the lowest note', separated: true, run: () => apply((n, p) => strum(n, p, Math.min(0.0625, grid / 4))) },
+      { label: 'Fit to key', detail: `Notes outside ${key} moved to the nearest in it`, run: () => apply((n, p) => fitKey(n, p, key)) },
+    ]),
+    { label: 'Chop', detail: 'Long notes cut into grid steps', separated: !drums, run: () => apply((n, p) => chop(n, p, grid)) },
+    { label: 'Connect', detail: 'Each note held until the next', run: () => apply((n, p) => connect(n, p)) },
+    { label: 'Reverse', detail: 'Played backwards', run: () => apply((n, p) => reverse(n, p)) },
+    { label: 'Humanize', detail: 'Timing and velocity loosened a little', separated: true, run: () => apply((n, p) => humanize(n, p, span, Date.now())) },
+  ];
+}
 
 /** A clip in Arrange or Session: a button that Space doesn't press, since Space plays the song. */
 const isClip = (t: HTMLElement) => t.closest('.studio-clip, .studio-clip-body') !== null;
@@ -1307,7 +1326,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         {drumView === 'steps' && !drums && <Select inline hideLabel label="Range" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
         {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
         {!(drumView === 'steps') && <IconButton label="Draw" keys="B" pressed={draw} title={draw ? 'Draw mode: drag to write notes a grid step long, or drag over notes to take them out' : 'Draw mode'} icon={<Icon d={ICONS.draw} />} onClick={() => setDraw((d) => !d)} />}
-        {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" icon={<Icon d={ICONS.quantize} />} onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
+        {!(drumView === 'steps') && <Menu label="Transform" trigger={<Button kind="quiet" title={picked.size ? 'Change the picked notes' : 'Change all the notes'} icon={<Icon d={ICONS.transform} />}>Transform</Button>} entries={transformEntries(drums, (fn) => setNotes((n) => fn(n, picked)), grid, span, song.key)} />}
         <span className="studio-gap" />
         {velocity !== null && !(drumView === 'steps') ? (
           <span className="studio-picked-group">

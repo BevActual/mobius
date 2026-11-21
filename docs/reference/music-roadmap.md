@@ -110,6 +110,7 @@ notes for good, so the file always shows what you hear.
 | --- | --- | --- |
 | Tracks and clips | Tracks of clips, each with its own notes, kept in the song file (version 2); zoom. Clips move and stretch by dragging (a bar at a time, a beat with Alt), and mute, copy and delete from the keys or their menu; looping next. | Have |
 | Notes editor | Draw, move, stretch, box-select, copy, duplicate, paste. | Have |
+| Transform | A menu in the notes editor: Quantize, arpeggiate (up, down, both), strum, fit to key, chop, connect, reverse and humanize, on the picked notes or all of them. Settings for each (rate, spread, amount) next. | Have |
 | Loop and metronome | Loop some bars or the song; a click in time. | Have |
 | Keys and scales | The song's key, with notes outside it shown. | Have |
 | Undo everything | Every edit can be taken back. | Have |
