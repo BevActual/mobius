@@ -149,6 +149,15 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
     setUndo({ label: `Shared “${m.text}” with Knowledge. It waits there until it is kept.`, run: async () => { if ('id' in r) await window.mobius.wiki?.declineChange?.(r.id); } });
   };
   const learned = items.filter((m) => m.learned);
+  // Every learned line at once, as the Changes card keeps all; one Undo puts them all back.
+  const keepAll = async (these: readonly MemoryItem[]) => {
+    for (const m of these) { const r = await api.keep?.(m.text, true); if (r && !r.ok) { setProblem(r.error ?? 'That could not be kept.'); break; } }
+    await done(undefined, { label: `Kept ${these.length} lines.`, run: () => Promise.all(these.map((m) => api.keep!(m.text, false))) });
+  };
+  const notTrueAll = async (these: readonly MemoryItem[]) => {
+    for (const m of these) { const r = await api.forget(m.text); if (r && !r.ok) { setProblem(r.error ?? 'That could not be forgotten.'); break; } }
+    await done(undefined, { label: `Forgot ${these.length} lines.`, run: () => Promise.all(these.map((m) => api.restore!(m.text, m.category, m.source))) });
+  };
   const forget = (m: MemoryItem) => { const to = besideIfFocused(m.text); return api.forget(m.text).then((r) => done(r, { label: `Forgot “${m.text}”.`, run: () => api.restore!(m.text, m.category, m.source) })).then(() => focusLine(to)); };
   const line = (m: MemoryItem) => (
     <li key={m.text} className="wiki-line" data-line={m.text} data-proposed={m.learned || undefined} data-editing={editing?.old === m.text || undefined} aria-label={m.learned ? `${m.text}, Mobius learned this` : m.text}
@@ -179,7 +188,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
           <span className="wiki-line-body">
             <span className="wiki-line-text">{m.text}</span>
             {m.learned
-              ? <span className="wiki-learned">Mobius learned this{m.source ? ` · ${m.source}` : ''}</span>
+              ? m.source && <span className="wiki-learned">From {m.source}</span>
               : m.source && m.source !== 'you added it' && <span className="wiki-from-line">From {m.source}</span>}
           </span>
           {m.learned ? (
@@ -191,7 +200,7 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
             <span className="wiki-line-actions">
               <button type="button" className="review-btn" onClick={() => setEditing({ old: m.text, text: m.text, category: m.category })}>Edit</button>
               <button type="button" className="review-btn" title="Offer this line to the Knowledge others share" onClick={() => void share(m)}>Share</button>
-              <button type="button" className="review-btn" data-kind="danger" aria-label={`Forget: ${m.text}`} title="Forget this line (Del)" onClick={() => void forget(m)}>Forget</button>
+              <button type="button" className="review-btn" aria-label={`Forget: ${m.text}`} title="Forget this line (Del)" onClick={() => void forget(m)}>Forget</button>
             </span>
           )}
         </>
@@ -203,7 +212,8 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
         ] : [
           { action: 'rename', label: 'Edit', keys: 'Enter', run: () => setEditing({ old: m.text, text: m.text, category: m.category }) },
           { action: 'share', label: 'Share', run: () => void share(m) },
-          { action: 'delete', label: 'Forget', danger: true, separated: true, keys: 'Del', run: () => void forget(m) },
+          // Forgetting can be undone, so it is in ink like the rest; red is for what can't be.
+          { action: 'delete', label: 'Forget', separated: true, keys: 'Del', run: () => void forget(m) },
         ]} />,
         document.body,
       )}
@@ -221,7 +231,14 @@ export function HowIWork({ asking = [], onAnswer }: { asking?: readonly Item[]; 
       {(asks.length > 0 || learned.length > 0) && (
         // Named for what it holds, so its count never reads as the panel's Suggested changes (offers for the pages).
         <section className="kn-group" aria-label="Mobius learned" data-waiting>
-          <h2 className="kn-group-head">Mobius learned <span className="kn-badge" aria-label={`${asks.length + learned.length} waiting`}>{asks.length + learned.length}</span></h2>
+          <h2 className="kn-group-head">Mobius learned <span className="kn-badge" aria-label={`${asks.length + learned.length} waiting`}>{asks.length + learned.length}</span>
+            {learned.length >= 2 && (
+              <span className="kn-group-actions">
+                <button type="button" className="review-btn" onClick={() => void notTrueAll(learned)}>Not true</button>
+                <button type="button" className="review-btn" data-kind="keep" onClick={() => void keepAll(learned)}>Keep all</button>
+              </span>
+            )}
+          </h2>
           {asks.map((w) => {
             const args = (w.args ?? {}) as { text?: string; source?: string };
             return (
@@ -374,13 +391,34 @@ export function WikiPage({ wiki, autoFocus, busy }: { wiki: NotesState; autoFocu
   ) : null;
   return (
     <div className="wiki-doc">
-      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} />
+      <DocEditor docs={wiki} autoFocus={autoFocus} busy={busy} toolbarEnd={button} inFrame afterPage={<LinkedFrom wiki={wiki} path={path} />} />
       {putBack && !open && (
         <UndoToast text={`Put back the version from ${putBack.label}.`} onUndo={() => { wiki.edit(putBack.was); setPutBack(null); }} onDismiss={() => setPutBack(null)} />
       )}
       <PanelTab id="links" name="Links here"><LinksHere wiki={wiki} path={path} /></PanelTab>
       {open && path && <WikiVersions path={path} text={wiki.text} onPutBack={(v) => { setPutBack({ was: wiki.text, label: whenLabel(v.whenMs) }); wiki.edit(v.content); setOpen(false); }} onClose={() => setOpen(false)} />}
     </div>
+  );
+}
+
+/** Linked from, under a page as in Notes: the pages that link to this one; a click opens one. Nothing when none do. */
+function LinkedFrom({ wiki, path }: { wiki: NotesState; path: string | null }) {
+  const pages = useMemo(() => (path ? linkedFrom(wiki.notebooks, path) : []), [wiki.notebooks, path]);
+  if (pages.length === 0) return null;
+  return (
+    <section className="note-backlinks kn-linked-from" aria-label="Linked from">
+      <h2>Linked from</h2>
+      <ul>
+        {pages.map((pg) => (
+          <li key={pg.path}>
+            <button type="button" onClick={() => void wiki.open(pg.path, pg.title)}>
+              <span className="note-link-title">{pg.title}</span>
+              <span className="note-link-book">{pg.notebook}{pg.preview ? ` · ${pg.preview}` : ''}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

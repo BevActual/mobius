@@ -316,6 +316,7 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame }: {
               ]} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Share" title="Copy, export or print this document"><Icon d="M10 3.5v9M6.5 7 10 3.5 13.5 7M5.5 10.5v5h9v-5" /></button>} />
             );
           })()}
+          {trailing}
           {/* The rest is at the top of the toolbar's one ⋯ (the window's), which opens on it. */}
           <AppMenu label="Docs" entries={more} />
         </div>
@@ -435,8 +436,10 @@ type ShareHow = 'markdown' | 'formatted' | 'html' | 'md' | 'print';
  * earlier version back; Share copies, exports or prints it. A document the agent changed shows those changes as
  * proposals to keep or discard.
  */
-export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd, inFrame = false }: {
+export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, busy = false, toolbarEnd, inFrame = false, afterPage }: {
   docs: NotesState;
+  /** What goes under the page, in its scroll (Knowledge's Linked from). */
+  afterPage?: ReactNode;
   /** The format bar goes in the window's toolbar (Docs, on the frame); without it, it stays above the page (the wiki). */
   inFrame?: boolean;
   /** The folder's own controls, at the end of the format bar (Knowledge's versions), so the page keeps one bar. */
@@ -954,6 +957,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
                 </aside>
               )}
             </div>
+            {afterPage}
           </div>
         </div>
       )}
