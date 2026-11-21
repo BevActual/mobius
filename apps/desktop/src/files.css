@@ -129,9 +129,21 @@
 .files-info-facts dd { margin: 0; overflow-wrap: anywhere; user-select: text; font-variant-numeric: tabular-nums; }
 .files-info-actions { display: flex; gap: var(--sp-2); flex-wrap: wrap; }
 /* The path in the title inside a nested folder: the parts above are muted buttons, where you are is in ink. */
-.files-crumbs { display: inline-flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
+.files-title-path { display: inline-flex; align-items: baseline; min-width: 0; overflow: hidden; white-space: nowrap; }
 .files-crumb-step { display: inline-flex; align-items: baseline; min-width: 0; }
 .files-crumb-sep { margin: 0 var(--sp-1); color: var(--muted); font-weight: var(--fw-regular); }
-button.files-crumb { padding: 0 2px; border: 0; border-radius: var(--radius-small); background: none; font: inherit; color: var(--muted); cursor: pointer; }
-button.files-crumb:hover { background: var(--soft); color: var(--ink); }
+.files-title-path button.files-crumb { padding: 0 2px; border: 0; border-radius: var(--radius-small); background: none; font: inherit; color: var(--muted); cursor: pointer; }
+.files-title-path button.files-crumb:hover { background: var(--soft); color: var(--ink); }
 .files-crumb[aria-current] { color: var(--ink); overflow: hidden; text-overflow: ellipsis; }
+/* Space's preview: a sheet over the list, as Quick Look. */
+.files-peek-scrim { position: absolute; inset: 0; z-index: 20; display: grid; place-items: center; padding: var(--sp-6); background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.files-peek { display: flex; flex-direction: column; width: min(720px, 100%); max-height: 100%; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--shadow-2); outline: none; overflow: hidden; }
+.files-peek-head { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-4); border-bottom: var(--hairline-w) solid var(--line); }
+.files-peek-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-medium); color: var(--ink); }
+.files-peek-body { overflow: auto; padding: var(--sp-5) var(--sp-6); }
+.files-peek-body img { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto; object-fit: contain; }
+.files-peek-text { margin: 0; white-space: pre-wrap; word-break: break-word; font-family: var(--font-mono); font-size: var(--fs-sm); line-height: 1.55; color: var(--body); }
+.files-peek-md { font-size: var(--fs-reading); line-height: var(--lh-body); color: var(--body); }
+.files-peek-none { margin: var(--sp-3) 0 0; color: var(--muted); font-size: var(--fs-sm); }
+.files-page { position: relative; }
+.files-peek:focus, .files-peek:focus-visible { outline: none; }

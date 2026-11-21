@@ -244,6 +244,8 @@ export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' |
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
 export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string; /** The whole list of who is invited; left out, it stays as it was. A status left out is kept (or needs-action for someone new). */ attendees?: { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[]; /** Who sends it; null for no one; left out, it stays as it was. */ organizer?: { name?: string; email: string } | null }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
+/** What Files' Space preview shows. */
+export type FilePeek = { kind: 'text'; text: string; cut: boolean; markdown: boolean } | { kind: 'image'; src: string } | { kind: 'none'; reason: string };
 export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox' | 'onedrive'; name: string; /** For Dropbox, `dropbox:` and the folder in it; for OneDrive and SharePoint, `onedrive:`, the drive's id and the folder. */ url: string; /** For S3, the access key id; for Dropbox, OneDrive and SharePoint, the account that signed in. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
 export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
@@ -814,6 +816,8 @@ export interface MobiusBridge {
     emptyTrash?(held: string): Promise<{ ok: true; gone: number } | { ok: false; error: string }>;
     /** Shows the item in Explorer or Finder. */
     show?(path: string): Promise<void>;
+    /** Space in Files: the start of a text file, or a picture as a data URL, or why there is no preview. Read only. */
+    peek?(path: string): Promise<FilePeek>;
   };
   /** Only the desktop app: what extends Mobius. */
   extensions?: {
