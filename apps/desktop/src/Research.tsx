@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { NotesSidebar, type SidebarWords } from './NotesSidebar';
-import { RichText } from './RichText';
+import { Citations, RichText } from './RichText';
 import { useFileReview } from './useFileReview';
-import { DEPTHS, claimCounts, followUpPrompt, isWaiting, researchPrompt, sourcesOf, startingPage, titleFor, type Depth } from './research-format';
+import { DEPTHS, citeOf, claimCounts, followUpPrompt, isWaiting, nextQuestions, researchPrompt, sourcesOf, startingPage, titleFor, type Depth, type ResearchStep } from './research-format';
 import type { NotesState } from './useNotes';
 import { ReviewActions, WhyThis } from './ReviewBar';
-import { PanelLayout, ToolbarControls, type PanelSpec } from './ui';
+import { DotMatrix, PanelLayout, ToolbarControls, type PanelSpec } from './ui';
 
 export const RESEARCH_WORDS: SidebarWords = { app: 'Research', group: 'folder', groups: 'Folders', item: 'report', items: 'reports', about: 'Reports are kept as Markdown files in your workspace, with their sources, so Docs and the agent can open them too.', defaultGroup: 'Research' };
 export const RESEARCH_FOLDER = 'Research';
@@ -24,12 +24,29 @@ const EXAMPLES = [
   'Compare the three most popular home espresso machines under $700.',
 ];
 
+const ARROW = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" /></svg>;
+
+/** One step of the research: muted, with Mobius's matrix on the one under way. */
+function StepRow({ step, current }: { step: ResearchStep; current: boolean }) {
+  const words = step.kind === 'search'
+    ? `${step.status === 'running' ? 'Searching for' : 'Searched for'} “${step.text}”`
+    : `${step.status === 'running' ? 'Reading' : step.status === 'failed' ? 'Could not read' : 'Read'} ${step.text}`;
+  return (
+    <li className="research-step" data-current={current || undefined} data-failed={step.status === 'failed' || undefined}>
+      {current ? <DotMatrix mode={step.kind === 'search' ? 'searching' : 'reading'} cols={6} rows={3} className="research-step-matrix" /> : <span className="research-step-mark" aria-hidden="true" />}
+      {step.url ? <a href={step.url} title={step.url} onClick={(e) => { e.preventDefault(); void window.mobius.browser.open(step.url!); }}>{words}</a> : <span>{words}</span>}
+    </li>
+  );
+}
+
 /**
  * Research: ask a question, and Mobius searches the web from several angles, reads the best pages and writes a report
  * with its sources. The report is a page like any other; follow-ups add to it.
  */
-export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone, listPanels = [] }: {
+export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone, steps = [], listPanels = [] }: {
   research: NotesState;
+  /** The searches and reads of the turn that wrote (or is writing) the open report. */
+  steps?: readonly ResearchStep[];
   review?: { conversation: string } | null;
   /** The agent is working on something now. */
   busy: boolean;
@@ -50,6 +67,8 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
   const { before, keep, discard } = useFileReview(review, file, page?.base);
   const sources = useMemo(() => sourcesOf(research.text), [research.text]);
   const claims = useMemo(() => claimCounts(research.text), [research.text]);
+  const { body, questions } = useMemo(() => nextQuestions(research.text), [research.text]);
+  const cite = useMemo(() => (source: string) => { const c = citeOf(source, sources); return c ? { n: c.n, title: c.source.title, site: c.source.site, url: c.source.url } : null; }, [sources]);
   useEffect(() => setEditing(false), [page?.path]);
 
   const showForm = asking || !page || isBlank(research.text);
@@ -103,7 +122,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
             <section className="research-try" aria-label="Examples">
               <h2 className="research-try-title">Try</h2>
               <ul className="research-examples">
-                {EXAMPLES.map((x) => <li key={x}><button type="button" className="research-example" onClick={() => setQuestion(x)}><span>{x}</span><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 10h10M11 6l4 4-4 4" /></svg></button></li>)}
+                {EXAMPLES.map((x) => <li key={x}><button type="button" className="research-example" onClick={() => setQuestion(x)}><span>{x}</span>{ARROW}</button></li>)}
               </ul>
             </section>
           )}
@@ -151,6 +170,24 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
             </div>
           )}
           {waiting && <p className="research-working" role="status">{busy ? 'Mobius is researching. The report appears here when it is written.' : 'Waiting for Mobius. If it stopped, ask again.'}</p>}
+          {waiting && steps.length > 0 && (
+            // As it goes: each search and page, quiet, with the matrix on the one under way.
+            <ol className="research-steps" aria-label="What Mobius has done">
+              {steps.map((st, i) => <StepRow key={i} step={st} current={busy && st.status === 'running' && i === steps.length - 1} />)}
+            </ol>
+          )}
+          {!waiting && (steps.length > 0 || sources.length > 0) && (() => {
+            // The trail stays with the report: this turn's steps while the conversation has them, else the pages it cites.
+            const trail: readonly ResearchStep[] = steps.length > 0 ? steps : sources.map((src) => ({ kind: 'read', text: src.site, url: src.url, status: 'done' }));
+            const read = trail.filter((st) => st.kind === 'read' && st.status === 'done').length;
+            const searched = trail.filter((st) => st.kind === 'search').length;
+            return (
+              <details className="research-steps-done">
+                <summary>{read > 0 ? `Read ${read} ${read === 1 ? 'source' : 'sources'}` : `Searched ${searched} ${searched === 1 ? 'time' : 'times'}`}{read > 0 && searched > 0 ? ` · ${searched} ${searched === 1 ? 'search' : 'searches'}` : ''}</summary>
+                <ol className="research-steps">{trail.map((st, i) => <StepRow key={i} step={st} current={false} />)}</ol>
+              </details>
+            );
+          })()}
           {!waiting && sources.length > 0 && (
             // As in Perplexity: where the answer comes from, at a glance, before reading it.
             <div className="research-chips" aria-label="Sources at a glance">
@@ -164,7 +201,15 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
           {editing ? (
             <textarea className="research-edit" aria-label="Report text" spellCheck value={research.text} onChange={(e) => research.edit(e.target.value)} />
           ) : (
-            <div className="research-text"><RichText text={research.text} /></div>
+            <div className="research-text"><Citations.Provider value={cite}><RichText text={body} /></Citations.Provider></div>
+          )}
+          {!waiting && !editing && questions.length > 0 && file && (
+            <section className="research-try research-next" aria-label="Ask next">
+              <h2 className="research-try-title">Ask next</h2>
+              <ul className="research-examples">
+                {questions.map((q) => <li key={q}><button type="button" className="research-example" disabled={busy} onClick={() => onAsk(followUpPrompt(q, file), true)}><span>{q}</span>{ARROW}</button></li>)}
+              </ul>
+            </section>
           )}
           {!waiting && (
             <form className="research-follow" onSubmit={(e) => { e.preventDefault(); if (!followUp.trim() || !file) return; onAsk(followUpPrompt(followUp, file), true); setFollowUp(''); }}>

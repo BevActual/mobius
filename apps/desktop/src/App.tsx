@@ -53,6 +53,7 @@ import { DesignEditor, DesignSidebar } from './Design';
 import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
+import { researchSteps } from './research-format';
 import { ReaderPage, ReaderSidebar, readerSub, saveToReader } from './Reader';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
 import { useDatabases } from './useDatabases';
@@ -1683,7 +1684,7 @@ export function App() {
       case 'reader':
         return <ReaderPage reading={reading} onAsk={startWithMobius} tab={active ? { url: active.url, title: active.title } : null} review={reading.page && liveMarks.reading.has(reading.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'research':
-        return <ResearchPage research={research} listPanels={listFor('research')} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && liveMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
+        return <ResearchPage research={research} listPanels={listFor('research')} steps={research.page ? researchSteps(conversation.state.items, `research/${research.page.path}`) : []} busy={conversation.state.busy} asking={askingResearch} onAskDone={() => setAskingResearch(false)} onAsk={onResearch} review={research.page && liveMarks.research.has(research.page.path) ? { conversation: conversation.state.conversation } : null} />;
       case 'views':
         return (
           <ViewPage

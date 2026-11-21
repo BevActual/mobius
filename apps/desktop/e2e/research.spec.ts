@@ -25,11 +25,15 @@ test.afterEach(async () => {
 const FILE = 'research/Research/Boutique hotels in Principe Real.md';
 const report = (origin: string, extra = '') => `# Boutique hotels in Príncipe Real
 
-Casa Amora is the closest fit: [nine rooms](trust:web "casa-amora") and breakfast included.
+Casa Amora is the closest fit: [nine rooms](trust:web "Casa Amora") and breakfast included.
 ${extra}
 ## Sources
 
 - [Casa Amora](${origin}/casa-amora) — rooms and breakfast
+
+## Next questions
+
+- Is there parking nearby?
 `;
 
 test('a question becomes a report with its sources, written by Mobius from the web; a follow-up adds to it and can be discarded', async () => {
@@ -71,6 +75,11 @@ test('a question becomes a report with its sources, written by Mobius from the w
   await expect(sources.getByRole('link')).toContainText('rooms and breakfast');
   // The count of sources sits in the window's toolbar, with Edit.
   await expect(shell.getByRole('group', { name: 'Report' })).toContainText('1 source · 1 fact marked from the web');
+  // What Mobius did folds into one row; the fact is numbered as in Sources; and the next questions are offered.
+  await expect(report1.locator('summary')).toHaveText('Read 1 source · 1 search');
+  await expect(report1.getByRole('link', { name: /^Source 1: Casa Amora/ })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Ask next' }).getByRole('button', { name: 'Is there parking nearby?' })).toBeVisible();
+  await expect(report1.getByRole('heading', { name: 'Next questions' })).toBeHidden();
   await expect(report1).toContainText('Mobius wrote this report in its last turn.');
   await report1.getByRole('button', { name: 'Keep' }).click();
   await expect(report1).not.toContainText('in its last turn');
