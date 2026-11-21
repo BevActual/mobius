@@ -205,6 +205,8 @@ export function noteChoice(choices: Choices, query: string, id: string): Choices
 }
 
 /** Within each kind, the ones picked most for this query first; the rest keep their order. Ask stays first. */
+const NOTHING: LauncherItem[] = [];
+
 export function rankByChoice<T extends { id: string; kind: string }>(items: readonly T[], choices: Choices, query: string): T[] {
   const counts = choices[choiceKey(query)];
   if (!counts) return [...items];
@@ -605,7 +607,9 @@ export function Launcher({
     const at = rest.findIndex((item) => item.kind !== 'ask');
     return at < 0 ? [...rest, row] : [...rest.slice(0, at), row, ...rest.slice(at)];
   }, [listFor, choices, actionsFor, naming, scope, view, shortcuts, resolveShortcut]);
-  const items = useMemo(() => listRanked(query), [listRanked, query]);
+  // Shut, it lists nothing: worked out on every draw of the window (an app switch among them), the whole search came
+  // to more than the app being opened. It is worked out again as it opens.
+  const items = useMemo(() => (open || inline ? listRanked(query) : NOTHING), [open, inline, listRanked, query]);
   // Keys of your own work anywhere in this window while the launcher is shut.
   useEffect(() => {
     if (open || inline || !shortcuts.some((s) => s.key)) return;

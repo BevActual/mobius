@@ -387,7 +387,8 @@ function TimeGrid({ calendar, days, onNew, onOpen, onMove, picking, pending, onS
     if (!box) return;
     const morning = 7.5 * HOUR_PX;
     const nowY = nowMinutes / 60 * HOUR_PX;
-    box.scrollTop = todayShown ? Math.max(morning, nowY + 2 * HOUR_PX - box.clientHeight) : morning;
+    // The box's height is read only when it can matter: reading it lays the window out before the app has shown.
+    box.scrollTop = todayShown && nowY + 2 * HOUR_PX > morning ? Math.max(morning, nowY + 2 * HOUR_PX - box.clientHeight) : morning;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [drag, setDragState] = useState<Drag | null>(null);
   const [sweep, setSweepState] = useState<Sweep | null>(null);
