@@ -48,15 +48,23 @@ export function chartNumber(v: number): string {
   return `${sign}${a.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 }
 
-/** How many categories apart the x labels are, so that none run into the next: 1, 2, 4, 8... */
-export function chartLabelEvery(categories: readonly string[], plotW: number): number {
+/** Up to this many categories every bar keeps its name, cut to fit; more (months, numbers) thin out instead. */
+const NAMED_MAX = 12;
+/** A label is at most this many letters (about 6.5px each at the axis size); the whole name is in the tooltip and table. */
+const MAX_LABEL = 16;
+
+/**
+ * How the x labels fit: every one, each cut to `letters`, when there are a dozen categories or fewer (a reader cannot
+ * count along a list of names); above that, every second, fourth... label, so none run into the next.
+ */
+export function chartLabels(categories: readonly string[], plotW: number): { every: number; letters: number } {
+  const n = Math.max(1, categories.length);
+  if (categories.length <= NAMED_MAX) return { every: 1, letters: Math.min(MAX_LABEL, Math.max(3, Math.floor((plotW / n - 8) / 6.5))) };
   const longest = categories.reduce((m, c) => Math.max(m, c.length), 0);
   const slot = Math.max(48, Math.min(MAX_LABEL, longest) * 6.5 + 12);
-  return Math.max(1, 2 ** Math.ceil(Math.log2(Math.max(1, (categories.length * slot) / Math.max(1, plotW)))));
+  return { every: Math.max(1, 2 ** Math.ceil(Math.log2(Math.max(1, (n * slot) / Math.max(1, plotW))))), letters: MAX_LABEL };
 }
-/** A label longer than this many letters is cut short with an ellipsis (the whole name is in the tooltip and table). */
-const MAX_LABEL = 16;
-const shortLabel = (c: string) => (c.length > MAX_LABEL ? `${c.slice(0, MAX_LABEL - 1).trimEnd()}…` : c);
+const shortLabel = (c: string, letters: number) => (c.length > letters ? `${c.slice(0, Math.max(1, letters - 1)).trimEnd()}…` : c);
 
 const seriesColor = (s: ChartSeries, i: number): ContentColor => s.color ?? CHART_ORDER[i % CHART_ORDER.length]!;
 
@@ -127,7 +135,7 @@ export function Chart({ label, kind = 'column', categories, series, format = cha
 
   // Show every x label when they fit, otherwise every second, fourth... A label needs room for its own words (about
   // 6.5px a letter at the axis size, and a gap), so long names thin out sooner than months do.
-  const labelEvery = chartLabelEvery(categories, plotW);
+  const { every: labelEvery, letters: labelLetters } = chartLabels(categories, plotW);
 
   const lineOf = (s: ChartSeries) => {
     let d = '';
@@ -203,7 +211,7 @@ export function Chart({ label, kind = 'column', categories, series, format = cha
             </g>
           ))}
           {categories.map((c, i) => (i % labelEvery === 0 ? (
-            <text key={i} className="ui-chart-cat" x={xMid(i)} y={height - 6} textAnchor="middle">{shortLabel(c)}</text>
+            <text key={i} className="ui-chart-cat" x={xMid(i)} y={height - 6} textAnchor="middle">{shortLabel(c, labelLetters)}</text>
           ) : null))}
           {active !== null && <rect className="ui-chart-hover" x={AXIS_W + band * active} y={PLOT_TOP} width={band} height={plotH} />}
           {kind === 'column' && series.map((s, si) => (
