@@ -39,6 +39,7 @@ const hour = 3_600_000;
 
 const person = (name: string, email: string) => ({ name, email });
 /** Mail's drafts in the preview: Mobius's suggested reply to Priya. */
+let FOLLOW_UPS: import('@mobius/shared').MailFollowUp[] = [{ messageId: '<p2-loan@northway.example>', sentId: null, account: 'a1', to: ['Veltro Cells <sales@veltro.example>'], subject: 'Loan pack for the sled test?', sentMs: Date.now() - 3 * 86_400_000, remindMs: Date.now() - 3_600_000, replyId: null, repliedMs: null, status: 'due' }];
 const MAIL_DRAFTS = [{ id: 'd1', account: 'a1', to: 'priya@northway.example', cc: '', subject: 'Re: P2 build dates', body: 'Hi Priya,\n\nThe build week is the 23rd. I will send the plan to the team today.\n\nThanks', replyTo: 'm1' as string | null, by: 'mobius' as 'mobius' | 'you', why: 'you asked me to confirm the build week', updatedMs: Date.now() }];
 const MAIL = [
   { id: 'm1', account: 'a1', box: 'inbox', uid: 1, from: person('Priya Nair', 'priya@northway.example'), to: [person('You', 'you@northway.example')], cc: [person('Sam Okafor', 'sam@northway.example')], subject: 'P2 build dates', dateMs: now - 2 * hour, seen: false, flagged: false, preview: 'Can you confirm the build week and send the plan to the team?', category: 'primary' },
@@ -211,6 +212,12 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   // A reply Mobius suggested to Priya, waiting to be kept.
   'mail.drafts': () => MAIL_DRAFTS.map((d) => ({ ...d })),
   // Mail: drafts are kept in memory, so Keep and Close show the reply as yours under the message.
+  // Remind if no reply: one sent message waiting on an answer whose day has come.
+  'mail.followUps': (() => FOLLOW_UPS) as never,
+  'mail.followUp': ((id: string, remindMs: number | null) => {
+    FOLLOW_UPS = remindMs === null ? FOLLOW_UPS.filter((f) => f.messageId !== id && f.sentId !== id) : [...FOLLOW_UPS.filter((f) => f.messageId !== id && f.sentId !== id), { messageId: id, sentId: id, account: 'a1', to: ['Veltro Cells <sales@veltro.example>'], subject: 'Loan pack?', sentMs: Date.now(), remindMs, replyId: null, repliedMs: null, status: 'waiting' as const }];
+    return { ok: true };
+  }) as never,
   'mail.saveDraft': ((draft: Partial<(typeof MAIL_DRAFTS)[number]>) => {
     const at = MAIL_DRAFTS.findIndex((d) => d.id === draft.id);
     const saved = { ...(at >= 0 ? MAIL_DRAFTS[at]! : MAIL_DRAFTS[0]!), ...draft, id: draft.id || `d${Date.now()}`, updatedMs: Date.now() };

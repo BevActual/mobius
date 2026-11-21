@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AppMenu, AppSidebar, Button, EmptyState, KeyHintBar, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type EmptyKind } from './ui';
+import { AppMenu, AppSidebar, Button, EmptyState, KeyHintBar, Menu, PanelTab, PointMenu, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls, UndoToast, type EmptyKind } from './ui';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
 import type { MailCategory, MailContent, MailDraft, MailMessage } from '@mobius/shared';
 import type { MailBox, MailState } from './useMail';
@@ -8,6 +8,8 @@ import { ChangeBar } from './ReviewBar';
 import { EmptyState as AppEmpty } from './EmptyState';
 import { SideNew, newKeys, type Start } from './SideNew';
 import { MobiusMark } from './MobiusMark';
+import { REMIND_AFTER, remindAt, remindDay, useFollowUps, waitingOn } from './mail-follow-ups';
+
 import './mail.css';
 import { AccountDialog } from './MailAccounts';
 import { dayLabel, formatWith, timeLabel, weekdayLabel } from './dates';
@@ -149,6 +151,16 @@ function SendLater({ mail, draft, onScheduled }: { mail: MailState; draft: MailD
   );
 }
 
+/** Remind if no reply, beside Send later: once sent, Mail brings it back on that day unless someone has answered. */
+function RemindNoReply({ at, onPick }: { at: number | null | undefined; onPick: (at: number | null) => void }) {
+  return (
+    <Menu label="Remind if no reply" entries={[
+      ...REMIND_AFTER.map((r) => ({ label: r.label, checked: at === remindAt(r.days), run: () => onPick(remindAt(r.days)) })),
+      ...(at ? [{ label: 'Don’t remind me', separated: true, run: () => onPick(null) }] : []),
+    ]} trigger={<button type="button" className="btn mail-remind" aria-pressed={Boolean(at)} title="Remind me if no one replies">{at ? `No reply by ${remindDay(at)}` : 'Remind if no reply'}</button>} />
+  );
+}
+
 function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   const [d, setD] = useState(draft);
   const [problem, setProblem] = useState<string | null>(null);
@@ -205,6 +217,7 @@ function DraftEditor({ mail, draft }: { mail: MailState; draft: MailDraft }) {
         <div className="mail-compose-bar">
           <button type="submit" className="btn primary" disabled={sending || !d.to.trim()}>{sending ? 'Sending…' : 'Send'}</button>
           {d.id && d.by === 'you' && <SendLater mail={mail} draft={d} onScheduled={(at) => setD((cur) => ({ ...cur, sendAtMs: at }))} />}
+          <RemindNoReply at={d.remindMs} onPick={(at) => { const next = { ...d, remindMs: at }; setD(next); void keep(next); }} />
           <button type="button" className="btn" title="Close (Esc)" onClick={close}>Close</button>
           <span className="spacer" />
           {d.id && <button type="button" className="btn cal-delete" onClick={() => void mail.deleteDraft(d.id)}>Delete Draft</button>}
@@ -289,6 +302,8 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
   const row = mail.messages.find((m) => m.id === content.id);
   const flagged = row?.flagged ?? false;
   const archived = row?.archived ?? (mail.view.kind === 'box' && mail.view.box === 'archive');
+  const follow = useFollowUps(row?.box === 'sent');
+  const waiting = follow.of(content.id);
   const tool = (name: keyof typeof MAIL_ICONS, label: string, run: (e: ReactMouseEvent<HTMLButtonElement>) => void, extra: { keys?: string; pressed?: boolean; filled?: boolean } = {}) => (
     <button type="button" className="strip-btn" aria-label={label} title={extra.keys ? `${label} (${extra.keys})` : label} {...(extra.keys ? { 'aria-keyshortcuts': extra.keys } : {})} {...(extra.pressed !== undefined ? { 'aria-pressed': extra.pressed } : {})} onClick={run}>
       <Glyph name={name} filled={extra.filled ?? false} />
@@ -305,6 +320,12 @@ function MessageTools({ mail, content }: { mail: MailState; content: MailContent
         {archived ? tool('unarchive', 'Move to Inbox', () => void mail.archive(content.id, false)) : tool('archive', 'Archive', () => void mail.archive(content.id), { keys: 'E' })}
         {!archived && row?.box !== 'sent' && tool('later', 'Remind Me Tomorrow', () => void mail.remindTomorrow(content.id), { keys: 'H' })}
         {tool('flag', flagged ? 'Unflag' : 'Flag', () => void mail.flag(content.id, 'flagged', !flagged), { pressed: flagged, filled: flagged })}
+        {row?.box === 'sent' && follow.available && (
+          <Menu label="Remind if no reply" entries={[
+            ...REMIND_AFTER.map((r) => ({ label: r.label, checked: waiting?.remindMs === remindAt(r.days), run: () => void follow.set(content.id, remindAt(r.days)) })),
+            ...(waiting ? [{ label: 'Stop waiting for a reply', separated: true, run: () => void follow.set(content.id, null) }] : []),
+          ]} trigger={<button type="button" className="strip-btn" aria-label="Remind if no reply" aria-pressed={Boolean(waiting)} title={waiting ? `Reminding you ${remindDay(waiting.remindMs).toLowerCase()} if no one replies` : 'Remind if no reply'}><Glyph name="later" filled={Boolean(waiting)} /></button>} />
+        )}
         {/* The rest, used less often, go at the top of the toolbar's one ⋯ (the shell's), which opens on them. */}
         <AppMenu label="Message" entries={[
           { label: 'Mark as Unread', icon: <Glyph name="unread" />, keys: 'U', run: () => { void mail.flag(content.id, 'seen', false); mail.setOpen(null); } },
@@ -343,6 +364,26 @@ function Reader({ mail, content, onDraftReply }: { mail: MailState; content: Mai
         <div className="mail-reader-actions"><button type="button" className="btn mail-draft-it" onClick={() => onDraftReply(content)}>Draft a reply with Mobius</button></div>
       )}
     </article>
+  );
+}
+
+/** Sent messages whose reminder came with no answer, over the inbox: who it waits on, Open, and Done to stop waiting. */
+function NoReplyNudges({ mail }: { mail: MailState }) {
+  const follow = useFollowUps();
+  if (follow.due.length === 0) return null;
+  return (
+    <ul className="mail-nudges" role="list" aria-label="No reply yet">
+      {follow.due.map((f) => (
+        <li key={f.messageId} className="mail-nudge">
+          <button type="button" className="mail-nudge-main" disabled={!f.sentId} onClick={() => { if (f.sentId) void mail.read(f.sentId); }}>
+            <span className="mail-nudge-what">No reply from {waitingOn(f.to)}</span>
+            <span className="mail-nudge-subject">{f.subject || '(no subject)'}</span>
+            <span className="mail-when">Sent {when(f.sentMs)}</span>
+          </button>
+          <button type="button" className="review-btn" title="Stop waiting for a reply" onClick={() => void follow.set(f.messageId, null)}>Done</button>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -481,9 +522,12 @@ export function MailPage({ mail, onDraftReply }: { mail: MailState; onDraftReply
             ))}
           </div>
         ) : (
+          <>
+          {v.kind === 'box' && v.box === 'inbox' && <NoReplyNudges mail={mail} />}
           <div role="listbox" aria-label="Messages" className="mail-list" aria-keyshortcuts="E R Shift+R F U H">
             {mail.messages.map((m) => <Row key={m.id} m={m} on={mail.open?.id === m.id} onOpen={() => void mail.read(m.id)} onMenu={(x, y) => setRowMenu({ m, x, y })} />)}
           </div>
+          </>
         )}
         {!mail.loaded ? <ListLoading /> : <ListEnd mail={mail} count={v.kind === 'drafts' ? drafts.length : mail.messages.length} />}
       </div>
