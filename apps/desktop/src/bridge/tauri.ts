@@ -21,6 +21,7 @@ import {
   type MobiusBridge,
   type ModelsEvent,
   type NotesChange,
+  type MusicPosition,
   type DbChange,
   type TasksChanged,
   type ChatChanged,
@@ -739,6 +740,15 @@ export function createTauriBridge(): MobiusBridge {
       saveExport: (path, name, data) => call('songs', 'saveExport', [path, name, data], () => ({ ok: false as const, message: 'Music is not available.' })),
       showExports: () => call('songs', 'showExports', [], () => ({ ok: false as const, message: 'Music is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:songs-changed', listener),
+    },
+    music: {
+      engine: () => call('music', 'engine', [], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      load: (song) => call('music', 'load', [song], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      play: (fromBeat, loop, click) => call('music', 'play', [fromBeat ?? null, loop ?? null, click ?? false], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      stop: () => call('music', 'stop', [], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      seek: (beat) => call('music', 'seek', [beat], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      render: (path, name, song) => call('music', 'render', [path, name, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      onPosition: (listener) => on<MusicPosition>('mobius:music-position', listener),
     },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),

@@ -2,11 +2,13 @@ import { parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting
 /**
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
- *     { "version": 1, "tempo": 112, "key": "A minor", "bars": 8,
+ *     { "version": 2, "tempo": 112, "key": "A minor", "bars": 8,
  *       "tracks": [{ "id": "t1", "name": "Bass", "instrument": "bass", "color": "blue", "volume": 0.8,
- *         "notes": [{ "pitch": 45, "start": 0, "length": 1.5, "velocity": 0.9 }] }] }
+ *         "clips": [{ "id": "c1", "start": 0, "length": 16,
+ *           "notes": [{ "pitch": 45, "start": 0, "length": 1.5, "velocity": 0.9 }] }] }] }
  *
- * Bars are four beats. A note's `start` and `length` are in beats from the start of the song; `pitch` is a MIDI note
+ * Bars are four beats. A clip's `start` and `length` are in beats from the start of the song, and its notes' `start`
+ * from the clip's start (a track's `notes` in song time, as version 1 had them, are read into clips); `pitch` is a MIDI note
  * number (60 is middle C); `velocity` runs from 0 to 1. On a drums track the pitch picks the drum: 36 kick, 38 snare,
  * 42 closed hat, 46 open hat, 39 clap, 45 tom. Mobius writes notes, never audio over recordings.
  */
@@ -152,8 +154,14 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
   return points[points.length - 1]!.value;
 }
 
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; notes: SongNote[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
-export interface Song { version: 1; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
+/**
+ * A clip in the Arrange view: where it sits in the song (`start` and `length`, in beats) and its notes, timed from the
+ * clip's own start. Clips on a track are in time order and never overlap. A muted clip is kept but not played.
+ */
+export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; notes: SongNote[] }
+
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
   { pitch: 46, name: 'Open hat' }, { pitch: 42, name: 'Closed hat' }, { pitch: 45, name: 'Tom' }, { pitch: 39, name: 'Clap' }, { pitch: 38, name: 'Snare' }, { pitch: 36, name: 'Kick' },
@@ -227,9 +235,13 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     while (taken.has(id)) id = `${id}-${i}`;
     taken.add(id);
     const instrument = INSTRUMENTS.includes(to.instrument as Instrument) ? (to.instrument as Instrument) : 'piano';
-    const notes = readNotes(to.notes, bars * BEATS_PER_BAR);
+    // Version 2 keeps Arrange's notes in clips. A version 1 track's notes (one list for the song), or notes written
+    // beside the clips, are put into the clips they fall in, and new clips are made for the rest.
+    const written = readClips(to.clips, bars * BEATS_PER_BAR);
+    const loose = readNotes(to.notes, bars * BEATS_PER_BAR);
+    const clips = loose.length > 0 ? putNotes(written, [...trackNotes({ clips: written }), ...loose], bars) : written;
     const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
-    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, notes };
+    const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, clips };
     if (to.instrumentOn === false) track.instrumentOn = false;
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
@@ -272,7 +284,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     return track;
   });
   if (refused) return { error: refused };
-  const song: Song = { version: 1, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
+  const song: Song = { version: 2, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
   return { song };
 }
@@ -284,7 +296,7 @@ export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || 
 
 /** One note to a line, so a change reads as the notes it touched. */
 export function writeSong(song: Song): string {
-  const lines = ['{', '  "version": 1,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []), '  "tracks": ['];
+  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []), '  "tracks": ['];
   song.tracks.forEach((t, i) => {
     const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
@@ -301,9 +313,16 @@ export function writeSong(song: Song): string {
     if (t.volumeAuto && t.volumeAuto.length > 0) head.volumeAuto = t.volumeAuto;
     if (t.slots && t.slots.some((c) => c !== null)) head.slots = t.slots;
     const last = i === song.tracks.length - 1;
-    if (t.notes.length === 0) { lines.push(`    ${JSON.stringify({ ...head, notes: [] })}${last ? '' : ','}`); return; }
-    lines.push(`    ${JSON.stringify(head).slice(0, -1)}, "notes": [`);
-    t.notes.forEach((n, j) => lines.push(`      ${JSON.stringify(n)}${j < t.notes.length - 1 ? ',' : ''}`));
+    if (t.clips.length === 0) { lines.push(`    ${JSON.stringify({ ...head, clips: [] })}${last ? '' : ','}`); return; }
+    lines.push(`    ${JSON.stringify(head).slice(0, -1)}, "clips": [`);
+    t.clips.forEach((c, k) => {
+      const { notes, ...rest } = c;
+      const end = k < t.clips.length - 1 ? ',' : '';
+      if (notes.length === 0) { lines.push(`      ${JSON.stringify({ ...rest, notes: [] })}${end}`); return; }
+      lines.push(`      ${JSON.stringify(rest).slice(0, -1)}, "notes": [`);
+      notes.forEach((n, j) => lines.push(`        ${JSON.stringify(n)}${j < notes.length - 1 ? ',' : ''}`));
+      lines.push(`      ]}${end}`);
+    });
     lines.push(`    ]}${last ? '' : ','}`);
   });
   lines.push('  ]', '}', '');
@@ -343,4 +362,83 @@ export function freshTrackId(song: Song): string {
   let n = song.tracks.length + 1;
   while (used.has(`t${n}`)) n++;
   return `t${n}`;
+}
+
+const byStart = (a: SongNote, b: SongNote) => a.start - b.start || a.pitch - b.pitch;
+const round = (v: number) => Math.round(v * 1e4) / 1e4;
+
+/** Arrange's clips from a file: in the song, in time order, never overlapping (a later one cuts an earlier one short), with ids. */
+function readClips(list: unknown, beats: number): ArrangeClip[] {
+  const taken = new Set<string>();
+  const read = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((v, i): ArrangeClip[] => {
+    const c = obj(v);
+    if (typeof c.start !== 'number' || typeof c.length !== 'number' || !Number.isFinite(c.start) || !Number.isFinite(c.length)) return [];
+    const start = round(num(c.start, 0, 0, beats));
+    if (beats - start < 0.25) return [];
+    const length = round(num(c.length, BEATS_PER_BAR, 0.25, beats - start));
+    let id = typeof c.id === 'string' && c.id ? c.id.slice(0, 40) : `c${i + 1}`;
+    while (taken.has(id)) id = `${id}-${i}`;
+    taken.add(id);
+    const clip: ArrangeClip = { id, start, length, notes: readNotes(c.notes, length).filter((n) => n.start < length) };
+    if (typeof c.name === 'string' && c.name) clip.name = c.name.slice(0, 60);
+    if (c.muted === true) clip.muted = true;
+    return [clip];
+  }).sort((a, b) => a.start - b.start);
+  return read.flatMap((c, i): ArrangeClip[] => {
+    const next = read[i + 1];
+    if (!next || c.start + c.length <= next.start) return [c];
+    const length = round(next.start - c.start);
+    return length > 0 ? [{ ...c, length, notes: c.notes.filter((n) => n.start < length) }] : [];
+  });
+}
+
+/** A track's notes in song time, in order: what the notes editor shows. `playing` leaves out muted clips. */
+export function trackNotes(track: Pick<Track, 'clips'>, playing = false): SongNote[] {
+  return track.clips.flatMap((c) => (playing && c.muted ? [] : c.notes.map((n) => ({ ...n, start: round(c.start + n.start) })))).sort(byStart);
+}
+
+/** A fresh clip id among a track's clips. */
+export function newClipId(clips: readonly ArrangeClip[]): string {
+  const taken = new Set(clips.map((c) => c.id));
+  let n = clips.length + 1;
+  while (taken.has(`c${n}`)) n++;
+  return `c${n}`;
+}
+
+/**
+ * Puts notes (in song time) into a track's clips: each into the clip it starts in, and the rest into new clips made a
+ * whole bar at a time around them, where no clip is. A clip left with no notes goes, as an empty stretch of the lane
+ * did before clips were kept; new clips next to each other join.
+ */
+export function putNotes(clips: readonly ArrangeClip[], notes: readonly SongNote[], bars: number): ArrangeClip[] {
+  const kept = clips.map((c) => ({ ...c, notes: [] as SongNote[] }));
+  const rest: SongNote[] = [];
+  for (const n of [...notes].sort(byStart)) {
+    const home = kept.find((c) => n.start >= c.start - 1e-9 && n.start < c.start + c.length - 1e-9);
+    if (home) home.notes.push({ ...n, start: round(n.start - home.start) }); else rest.push(n);
+  }
+  const made: ArrangeClip[] = [];
+  for (const n of rest) {
+    // A note at or after the song's end has no bar to go in, and is never heard.
+    if (n.start >= bars * BEATS_PER_BAR - 1e-9) continue;
+    const into = made.find((c) => n.start >= c.start - 1e-9 && n.start < c.start + c.length - 1e-9);
+    if (into) { into.notes.push({ ...n, start: round(n.start - into.start) }); continue; }
+    // A new clip from the note's bar to the bar its end falls in, kept clear of the clips around it.
+    const all = [...kept, ...made];
+    const bar = Math.floor(n.start / BEATS_PER_BAR) * BEATS_PER_BAR;
+    const lo = Math.max(bar, ...all.filter((c) => c.start + c.length <= n.start + 1e-9).map((c) => c.start + c.length));
+    const want = Math.min(bars * BEATS_PER_BAR, Math.max(bar + BEATS_PER_BAR, Math.ceil((n.start + n.length) / BEATS_PER_BAR - 1e-9) * BEATS_PER_BAR));
+    const hi = Math.min(want, ...all.filter((c) => c.start > n.start).map((c) => c.start));
+    const start = round(lo);
+    made.push({ id: newClipId(all), start, length: round(Math.max(0.25, hi - lo)), notes: [{ ...n, start: round(n.start - start) }] });
+  }
+  const joined: ArrangeClip[] = [];
+  for (const c of made.sort((a, b) => a.start - b.start)) {
+    const was = joined[joined.length - 1];
+    if (was && Math.abs(was.start + was.length - c.start) < 1e-9) {
+      was.notes.push(...c.notes.map((n) => ({ ...n, start: round(n.start + c.start - was.start) })));
+      was.length = round(was.length + c.length);
+    } else joined.push(c);
+  }
+  return [...kept.filter((c) => c.notes.length > 0), ...joined].map((c) => ({ ...c, notes: c.notes.sort(byStart) })).sort((a, b) => a.start - b.start);
 }

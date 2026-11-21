@@ -8,10 +8,15 @@ use crate::voice::{pan_gains, Voice};
 
 /// The master's level.
 const MASTER: f64 = 0.8;
+/// The longest block made at once: a longer one is made in pieces of this.
+pub const MAX_BLOCK: usize = 4096;
+/// The most notes one track sounds at once: a note past it takes the place of the oldest.
+const MAX_VOICES: usize = 64;
 /// How long a render runs past the song's end, so the last notes ring out (studio-audio.ts `RENDER_TAIL`).
 pub const RENDER_TAIL: f64 = 2.0;
 
 struct Lane {
+    id: String,
     notes: Vec<Note>,
     /// The first note not yet started.
     next: usize,
@@ -20,14 +25,18 @@ struct Lane {
     gains: (f64, f64),
     voices: Vec<Voice>,
     scratch: Vec<f32>,
+    /// The loudest sample of the last block, left and right, after volume and pan.
+    peak: (f32, f32),
 }
 
-/// Plays a song from a beat, a block at a time.
+/// Plays a song from a beat, a block at a time. Everything it needs is made when it is made, so `render` allocates
+/// nothing and can run on the audio thread.
 pub struct Renderer {
     clock: Clock,
     lanes: Vec<Lane>,
     /// The next sample to make, counted from the song's start.
     sample: u64,
+    peak: (f32, f32),
 }
 
 impl Renderer {
@@ -44,17 +53,39 @@ impl Renderer {
                 // Notes that started before the play position are not caught up: they begin where they begin.
                 let next = notes.iter().position(|n| clock.sample_of_beat(n.start) >= start).unwrap_or(notes.len());
                 Lane {
+                    id: t.id.clone(),
                     notes,
                     next,
                     sound: t.sound.or_else(|| Sound::default_for(t.instrument)),
                     instrument: t.instrument,
                     gains: { let (l, r) = pan_gains(t.pan); (l * t.volume, r * t.volume) },
-                    voices: Vec::new(),
-                    scratch: Vec::new(),
+                    voices: Vec::with_capacity(MAX_VOICES),
+                    scratch: vec![0.0; MAX_BLOCK],
+                    peak: (0.0, 0.0),
                 }
             })
             .collect();
-        Renderer { clock, lanes, sample: start }
+        Renderer { clock, lanes, sample: start, peak: (0.0, 0.0) }
+    }
+
+    /// The tracks heard, in the order `peaks` gives their levels.
+    pub fn track_ids(&self) -> impl Iterator<Item = &str> {
+        self.lanes.iter().map(|l| l.id.as_str())
+    }
+
+    /// Each track's loudest sample in the last block (left, right), then the master's.
+    pub fn peaks(&self) -> impl Iterator<Item = (f32, f32)> + '_ {
+        self.lanes.iter().map(|l| l.peak).chain(std::iter::once(self.peak))
+    }
+
+    /// Takes over the notes still sounding in `old`, track by track, so a song changed while it plays does not cut
+    /// what is ringing. Nothing is allocated: the voice lists are swapped.
+    pub fn adopt(&mut self, old: &mut Renderer) {
+        for lane in &mut self.lanes {
+            if let Some(was) = old.lanes.iter_mut().find(|w| w.id == lane.id) {
+                std::mem::swap(&mut lane.voices, &mut was.voices);
+            }
+        }
     }
 
     /// The beat the next sample is on.
@@ -65,18 +96,32 @@ impl Renderer {
 
     /// Makes the next block: `left` and `right` are overwritten, and must be the same length.
     pub fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
+        let frames = left.len().min(right.len());
+        self.peak = (0.0, 0.0);
+        for lane in &mut self.lanes {
+            lane.peak = (0.0, 0.0);
+        }
+        let mut done = 0;
+        while done < frames {
+            let n = (frames - done).min(MAX_BLOCK);
+            self.piece(&mut left[done..done + n], &mut right[done..done + n]);
+            done += n;
+        }
+    }
+
+    fn piece(&mut self, left: &mut [f32], right: &mut [f32]) {
         left.fill(0.0);
         right.fill(0.0);
-        let frames = left.len().min(right.len());
+        let frames = left.len();
         let rate = self.clock.sample_rate;
         let spb = self.clock.seconds_per_beat();
         let (from, to) = (self.sample, self.sample + frames as u64);
         for lane in &mut self.lanes {
-            lane.scratch.clear();
-            lane.scratch.resize(frames, 0.0);
+            let scratch = &mut lane.scratch[..frames];
+            scratch.fill(0.0);
             // Voices already sounding, for the whole block.
             for voice in &mut lane.voices {
-                voice.add_to(&mut lane.scratch, rate);
+                voice.add_to(scratch, rate);
             }
             // Notes starting in this block, each from its own sample.
             while let Some(note) = lane.notes.get(lane.next) {
@@ -88,16 +133,24 @@ impl Renderer {
                 let Some(sound) = lane.sound else { continue };
                 let mut voice = Voice::new(lane.instrument, &sound, note.pitch, note.length * spb, note.velocity);
                 let offset = usize::try_from(at.saturating_sub(from)).unwrap_or(frames).min(frames);
-                voice.add_to(&mut lane.scratch[offset..], rate);
+                voice.add_to(&mut scratch[offset..], rate);
+                if lane.voices.len() >= MAX_VOICES {
+                    lane.voices.remove(0);
+                }
                 lane.voices.push(voice);
             }
             lane.voices.retain(|v| !v.done());
             let (gl, gr) = lane.gains;
-            for (i, s) in lane.scratch.iter().enumerate() {
+            for (i, s) in scratch.iter().enumerate() {
                 let s = f64::from(*s) * MASTER;
-                left[i] += (s * gl) as f32;
-                right[i] += (s * gr) as f32;
+                let (l, r) = ((s * gl) as f32, (s * gr) as f32);
+                lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
+                left[i] += l;
+                right[i] += r;
             }
+        }
+        for (l, r) in left.iter().zip(right.iter()) {
+            self.peak = (self.peak.0.max(l.abs()), self.peak.1.max(r.abs()));
         }
         self.sample = to;
     }
@@ -157,6 +210,22 @@ mod tests {
         assert_eq!(peak(&muted.0), 0.0);
         let solo = render_song(&song(&format!("{},{}", track("a", r#""solo":true,"#), track("b", ""))), 48_000);
         assert!((peak(&solo.0) - peak(&centre.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_song_changed_while_playing_keeps_its_ringing_notes_and_reports_levels() {
+        let s = song(r#"{"id":"t","instrument":"pad","notes":[{"pitch":60,"start":0,"length":4,"velocity":1}]}"#);
+        let mut old = Renderer::new(&s, 48_000, 0.0);
+        let (mut l, mut r) = (vec![0f32; 9_600], vec![0f32; 9_600]);
+        old.render(&mut l, &mut r);
+        let (track, master) = (old.peaks().next().unwrap(), old.peaks().last().unwrap());
+        assert!(track.0 > 0.01 && (track.0 - master.0).abs() < 1e-6);
+        // The same song from where it had got to: without the old voices it would be silent until the next note.
+        let mut new = Renderer::new(&s, 48_000, old.beat());
+        new.adopt(&mut old);
+        new.render(&mut l, &mut r);
+        assert!(l.iter().any(|x| x.abs() > 0.01));
+        assert_eq!(new.track_ids().collect::<Vec<_>>(), ["t"]);
     }
 
     #[test]

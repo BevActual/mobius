@@ -29,7 +29,15 @@ test.afterEach(async () => {
 
 const shell = () => mobius!.shell;
 function file() { return path.join(userData, 'workspace', 'studio', 'Songs', 'Night Drive.json'); }
-const saved = () => JSON.parse(fs.readFileSync(file(), 'utf8')) as typeof SONG;
+type Note = { pitch: number; start: number; length: number; velocity: number };
+type SavedClip = { id: string; start: number; length: number; name?: string; muted?: boolean; notes: Note[] };
+/** The saved song, with each track's notes also read out of its clips into song time, as the notes editor shows them. */
+const saved = () => {
+  const song = JSON.parse(fs.readFileSync(file(), 'utf8')) as { version: number; tracks: { clips?: SavedClip[]; notes: Note[] }[] };
+  // A file the app has not saved since it was written (by a test or by Mobius) may still be version 1, notes and all.
+  for (const t of song.tracks) if (t.clips) t.notes = t.clips.flatMap((c) => c.notes.map((n) => ({ ...n, start: c.start + n.start }))).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
+  return song as unknown as typeof SONG & { version: number; tracks: (typeof SONG.tracks[number] & { clips: SavedClip[] })[] };
+};
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
 /** Adds a track from Sounds in the sidebar. */
@@ -68,6 +76,9 @@ test('a song is tracks of notes: added by clicking, with tracks to add, mute and
   const roll = shell().getByRole('grid', { name: 'Notes of Keys' });
   await roll.getByRole('gridcell', { name: 'E4 row' }).click({ position: { x: 4 * 40 + 5, y: 6 } });
   await expect.poll(() => saved().tracks[0]!.notes.find((n) => n.pitch === 64)).toEqual({ pitch: 64, start: 4, length: 1, velocity: 0.8 });
+  // Saved as version 2: Arrange's notes are kept in clips, each note timed from its clip's start.
+  expect(saved().version).toBe(2);
+  expect(saved().tracks[0]!.clips.find((c) => c.start === 4)?.notes).toEqual([{ pitch: 64, start: 0, length: 1, velocity: 0.8 }]);
   // A click picks a note; a double-click takes it out.
   await roll.getByLabel('E4 at beat 5, 1 beats').dblclick();
   await expect.poll(() => saved().tracks[0]!.notes.some((n) => n.pitch === 64)).toBe(false);
