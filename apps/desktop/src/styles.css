@@ -2353,7 +2353,8 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 /* The title takes only what it needs: at most about 24 characters (the whole name is in its tooltip), and when the row
    is short it trims before any tool drops. The grey line after it goes first, by wrapping out of sight. */
 .app .context-strip .toolbar-place, .app .context-strip:has(.cal-tools) .toolbar-place { flex-shrink: 8; min-width: 6ch; flex-wrap: wrap; height: 22px; overflow: hidden; align-content: flex-start; }
-.app .context-strip .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; max-width: 24ch; }
+.app .context-strip .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; max-width: 20ch; }
+.app .context-strip .toolbar-sub { max-width: 18ch; }
 .app .context-strip .ui-toolbar-slot:has(.cal-tools) { flex: 1 1 320px; }
 .context-strip .cap-group { height: auto; padding: 0; background: none; box-shadow: none; border-radius: 0; gap: 2px; }
 .context-strip .cap-group > .strip-btn + .strip-btn::before { content: none; }
