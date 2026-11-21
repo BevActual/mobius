@@ -782,7 +782,7 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
           >
             {state.items.length === 0 && (
               configured && desk ? (
-                <div className="empty" data-desk>{desk(<div ref={setStarterSlot} className="empty-starters" />)}</div>
+                <div className="empty" data-desk>{desk(null)}</div>
               ) : configured && variant === 'panel' ? (
                 // Beside an app, never empty: what waits for you, ideas for what is open, then earlier chats.
                 <RestingPanel conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onOpenItem={onOpenItem}
@@ -896,6 +896,8 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
               onSendNext={sendNextQueued}
             />
           )}
+          {/* On Home the quick starts sit just above the message box, where the hand already is. */}
+          {state.items.length === 0 && configured && desk && <div ref={setStarterSlot} className="empty-starters desk-starters" />}
           <Composer
             takeFocus={takeFocus}
             contextUse={state.context}
