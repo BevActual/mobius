@@ -9,7 +9,7 @@ import { countIn, play, playSession, previewNote, renderSong, type Player, type 
 import { SessionGrid } from './StudioSession';
 import { StudioWorkbench } from './StudioBench';
 import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -327,7 +327,7 @@ function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
 
 const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Devices' }] as const;
 /** The song's two views: its clips to launch and try against each other, and the song laid out from start to end. */
-const VIEWS = [{ id: 'session', name: 'Session' }, { id: 'arrange', name: 'Arrange' }] as const;
+const VIEWS = [{ id: 'session', name: 'Session', keys: 'Alt+1' }, { id: 'arrange', name: 'Arrange', keys: 'Alt+2' }] as const;
 const LENGTH_CHOICES = CLIP_BARS.map((b) => ({ value: String(b), label: `${b} ${b === 1 ? 'bar' : 'bars'}` }));
 /** The octaves a melody's steps can start from, named by the two octaves they show. */
 const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label: `C${o}–C${o + 2}` }));
@@ -1267,6 +1267,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
+    // Alt+1 and Alt+2 switch between Session and Arrange from anywhere; Tab does too while the focus is on the page or
+    // the timeline itself, not on a clip or a control (where Tab moves on as usual).
+    if (e.altKey && !mod && !e.shiftKey && (e.key === '1' || e.key === '2')) { setView(e.key === '1' ? 'session' : 'arrange'); return true; }
+    if (e.key === 'Tab' && !e.shiftKey && !mod && !e.altKey && (t === page.current || t.classList.contains('studio-arrange'))) { setView((v) => (v === 'session' ? 'arrange' : 'session')); return true; }
     // Shift+Tab switches the bottom area between the chosen track's notes and its devices, opening it if it's shut.
     if (e.key === 'Tab' && e.shiftKey && !mod && !e.altKey && track) { if (!editing) { setEditing(true); setDetail('device'); } else setDetail((d) => (d === 'notes' ? 'device' : 'notes')); return true; }
     if (track && clip && clipAt !== null && t.closest('.studio-session')) {
@@ -1420,7 +1424,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     <section className="studio-page" aria-label="Music" ref={page} tabIndex={-1} data-editing={editing || undefined}>
       {keyboard && <span className="studio-sr" role="status">{`Computer keyboard from C${keyOctave}, velocity ${keyVelocity}`}</span>}
       <ToolbarControls label="Transport">
-        {/* The transport and the tempo never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
+        {/* Left to right as in a studio: the view, the transport, then tempo. The view, the transport and the tempo
+            never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
+        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
+        <span className="studio-sep" aria-hidden="true" />
         <ToolbarItem priority="keep">
           <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
             recording={recording} onRecord={view === 'arrange' && track ? record : undefined}
@@ -1435,6 +1442,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             <span aria-hidden="true">bpm</span>
           </label>
         </ToolbarItem>
+        <ToolbarItem priority="keep">
+          <TapTempo onTempo={(bpm) => change((s) => { s.tempo = Math.round(bpm); }, 'tempo')} min={30} max={300} />
+        </ToolbarItem>
         {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Show automation: a volume line under each track'} icon={<Icon d={ICONS.auto} />} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
@@ -1444,8 +1454,6 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         <ToolbarItem priority="low">
           <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         </ToolbarItem>
-        <span className="studio-sep" aria-hidden="true" />
-        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>
       <PanelLayout app="studio" panels={detailPanel ? [...listPanels, detailPanel] : listPanels}>
       <div className="studio-main">

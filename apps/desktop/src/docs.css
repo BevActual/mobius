@@ -88,7 +88,6 @@
 .doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; }
 .doc-toolbar[data-frame] > .spacer { flex: 1; }
 /* Knowledge: the tools start right after the page's name, as in Sheets. */
-.context-strip:has(.doc-toolbar[data-flush]) .toolbar-place { flex: 0 1 auto; }
 .context-strip:has(.doc-toolbar[data-flush]) .ui-toolbar-slot { justify-content: flex-start; }
 .doc-toolbar .doc-tool-writing { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
 

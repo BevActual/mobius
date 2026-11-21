@@ -178,7 +178,6 @@
 /* The reading pane stacks its message and its keys: the key bar sits at the pane's foot. */
 .mail-reading-pane { display: flex; flex-direction: column; }
 .mail-reading-pane > .ui-key-hints { margin: auto 0 0; align-self: flex-start; position: sticky; bottom: var(--sp-3); }
-.context-strip:has(.mail-tools) .toolbar-place { flex: 0 1 auto; }
 .context-strip:has(.mail-tools) .ui-toolbar-slot { flex: 1 1 auto; justify-content: flex-start; }
 .mail-suggested .doc-change-bar { gap: var(--sp-1); }
 .mail-suggested .doc-change-bar .review-btn { padding: 0 8px; }
