@@ -148,7 +148,7 @@ function commentDecorations(doc: PmNode, quotes: readonly string[]): DecorationS
     for (const q of [...left]) {
       const at = text.indexOf(q);
       if (at < 0) continue;
-      marks.push(Decoration.inline(pos + 1 + at, pos + 1 + at + q.length, { class: 'note-commented' }));
+      marks.push(Decoration.inline(pos + 1 + at, pos + 1 + at + q.length, { class: 'note-commented', 'data-quote': q }));
       left.delete(q);
     }
     return false;
@@ -462,6 +462,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const openPage = useRef<(page: string) => void>(() => undefined);
   const image = useMemo(() => noteImage(() => pathNow.current ?? undefined, 'docs'), []);
   const commentState = useNoteComments(own ? path ?? undefined : undefined, 'docs');
+  const toThread = useRef<(quote: string) => void>(() => {});
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => docComments(() => quotesNow.current), []);
@@ -519,6 +520,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       },
       // A link to another document opens it.
       handleClick: (_view, _pos, event) => {
+        // Words with a comment on them: the Comments panel opens at that thread (the caret still lands where pressed).
+        const tinted = (event.target as HTMLElement | null)?.closest<HTMLElement>('.note-commented');
+        if (tinted?.dataset.quote) toThread.current(tinted.dataset.quote);
         const a = (event.target as HTMLElement | null)?.closest<HTMLAnchorElement>('a[href]');
         const page = a && pathNow.current ? pageOfLink(a.getAttribute('href') ?? '', pathNow.current) : null;
         if (!page) return false;
@@ -641,6 +645,17 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!inFrame) setMarginOpen(open);
     else if (open) inspector.show('comments');
     else inspector.setOpen(false);
+  };
+  toThread.current = (quote: string) => {
+    setCommentsOpen(true);
+    // The panel may only now be drawn: find the thread once it is, bring it into view and mark it for a moment.
+    window.setTimeout(() => {
+      const card = [...document.querySelectorAll<HTMLElement>('.note-comment[data-quote]')].find((el) => el.dataset.quote === quote);
+      if (!card) return;
+      card.scrollIntoView({ block: 'nearest' });
+      card.setAttribute('data-flash', '');
+      window.setTimeout(() => card.removeAttribute('data-flash'), 1200);
+    }, 60);
   };
   const [composing, setComposing] = useState<{ quote: string; top: number; left: number } | null>(null);
   // The page's own right-click menu, in place of the web view's (which offers Inspect Element and the like).

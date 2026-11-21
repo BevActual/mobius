@@ -107,7 +107,7 @@ export function CommentList({ state, text, onShow, onAsk }: { state: NoteComment
   const card = (c: NoteComment) => {
     const gone = quoteAt(text, c.quote) === null;
     return (
-      <li key={c.id} className="note-comment" data-resolved={c.resolved || undefined} data-by={c.by === 'Mobius' ? 'mobius' : undefined}>
+      <li key={c.id} className="note-comment" data-quote={c.quote || undefined} data-resolved={c.resolved || undefined} data-by={c.by === 'Mobius' ? 'mobius' : undefined}>
         <button type="button" className="note-comment-body" title={gone ? 'Those words are no longer in the page' : 'Show the words in the page'} disabled={gone} onClick={() => onShow(c.quote)}>
           {c.quote && <span className={`note-comment-quote${gone ? ' gone' : ''}`}>{c.quote}</span>}
           <span className="note-comment-text">{c.text}</span>
