@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { channelGroups } from './messages-view';
+import { channelGroups, toggled } from './messages-view';
 import { isNotesFailure, type ChatAccount, type ChatChannel, type ChatMessage } from '@mobius/shared';
 
 export interface OpenChannel { account: string; channel: string; thread?: string }
@@ -30,6 +30,8 @@ export function useMessages(active = true) {
   const [message, setMessage] = useState<string | null>(null);
   const openNow = useRef(open);
   openNow.current = open;
+  const messagesNow = useRef(messages);
+  messagesNow.current = messages;
   const channelsNow = useRef(channels);
   channelsNow.current = channels;
   // How many messages were unread when the conversation was opened: reading it marks them read at once, but the
@@ -123,9 +125,47 @@ export function useMessages(active = true) {
     return true;
   }, [api]);
 
+  /** Adds or takes back the person's own reaction, shown at once and put back if the service says no. */
+  const react = useCallback(async (m: ChatMessage, emoji: string) => {
+    const to = openNow.current;
+    if (!api?.react || !to) return;
+    const on = !(m.reactions ?? []).some((r) => r.emoji === emoji && r.mine);
+    const flip = (list: ChatMessage[]) => list.map((x) => (x.id === m.id ? { ...x, reactions: toggled(x.reactions ?? [], emoji, on) } : x));
+    const undo = (list: ChatMessage[]) => list.map((x) => (x.id === m.id ? { ...x, reactions: toggled(x.reactions ?? [], emoji, !on) } : x));
+    setMessages(flip); setReplies(flip);
+    const done = await api.react(to.account, to.channel, m.id, emoji, on);
+    if (isNotesFailure(done)) { setMessages(undo); setReplies(undo); setMessage(done.message); }
+  }, [api]);
+
+  /** A link to one message, or null when the service gives none (the reason is shown). */
+  const permalink = useCallback(async (m: ChatMessage): Promise<string | null> => {
+    const to = openNow.current;
+    if (!api?.permalink || !to) return null;
+    const got = await api.permalink(to.account, to.channel, m.id);
+    if (isNotesFailure(got)) { setMessage(got.message); return null; }
+    return got.url;
+  }, [api]);
+
+  /** Unread from this message on. The conversation closes, since reading it would mark it read again. */
+  const markUnread = useCallback(async (m: ChatMessage) => {
+    const to = openNow.current;
+    if (!api?.markUnread || !to) return;
+    const done = await api.markUnread(to.account, to.channel, m.id);
+    if (isNotesFailure(done)) { setMessage(done.message); return; }
+    const after = messagesNow.current.filter((x) => x.at >= m.at).length;
+    setChannels((list) => list.map((c) => (c.account === to.account && c.id === to.channel ? { ...c, unread: Math.max(c.unread, after) } : c)));
+    setMessages([]); setUnreadAtOpen(0); counted.current = ''; setReplies([]); setThread(null); setOpen(null);
+  }, [api]);
+
   const account = accounts.find((a) => a.id === open?.account) ?? null;
   const channel = channels.find((c) => c.account === open?.account && c.id === open?.channel) ?? null;
-  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, unreadAtOpen, choose, send, refresh, thread, replies, openThread };
+  // Reacting and marking unread are Slack's; a link to a message, Slack's and Matrix's.
+  const can = {
+    react: api?.react !== undefined && account?.service === 'slack',
+    markUnread: api?.markUnread !== undefined && account?.service === 'slack',
+    link: api?.permalink !== undefined && (account?.service === 'slack' || account?.service === 'matrix'),
+  };
+  return { available: api !== undefined, loaded, accounts, channels, open, account, channel, messages, message, unreadAtOpen, choose, send, refresh, thread, replies, openThread, react, permalink, markUnread, can };
 }
 
 export type MessagesState = ReturnType<typeof useMessages>;
