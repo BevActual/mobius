@@ -6,15 +6,15 @@ Alcântara and Santos are the two areas within a short walk of LX Factory. Mid-r
 
 ## Walking distance
 
-Alcântara is closest: [most hotels are under ten minutes on foot from the LX Factory gate](trust:web "lisbon-walks.example"). Santos is [a 20-minute walk along the river, or two stops on tram 15](trust:web "carris-guide.example"), and it has more places to eat in the evening.
+Alcântara is closest: [most hotels are under ten minutes on foot from the LX Factory gate](trust:web "https://lisbon-walks.example/alcantara"). Santos is [a 20-minute walk along the river, or two stops on tram 15](trust:web "https://carris-guide.example/tram-15"), and it has more places to eat in the evening.
 
 ## What it costs in March
 
-March is shoulder season: [mid-range rooms in Alcântara averaged €152 a night last March](trust:web "stay-index.example"), and [Santos ran about €20 higher](trust:web "stay-index.example"). [Group rates for ten or more rooms are usually 10 to 15% lower when booked six weeks ahead](trust:web "offsite-planner.example").
+March is shoulder season: [mid-range rooms in Alcântara averaged €152 a night last March](trust:web "https://stay-index.example/lisbon/march"), and [Santos ran about €20 higher](trust:web "https://stay-index.example/lisbon/march"). [Group rates for ten or more rooms are usually 10 to 15% lower when booked six weeks ahead](trust:web "https://offsite-planner.example/group-rates").
 
 ## Worth knowing
 
-- The 25 de Abril bridge runs over Alcântara, so [rooms facing it can be noisy](trust:web "lisbon-walks.example"). Ask for the river side.
+- The 25 de Abril bridge runs over Alcântara, so [rooms facing it can be noisy](trust:web "https://lisbon-walks.example/alcantara"). Ask for the river side.
 - I could not find March prices for Belém's two larger hotels. Their sites quote only on request.
 
 ## Sources
