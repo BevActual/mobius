@@ -343,10 +343,10 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(composer()).toBeEnabled({ timeout: 15_000 });
   await openSettings();
   await go('Voice', 'Listening');
-  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveValue('local');
+  await expect(page().getByRole('combobox', { name: 'Listen with' })).toHaveText('This computer');
   await expect(page().getByRole('textbox', { name: 'Listening server address' })).toHaveValue('http://127.0.0.1:9/v1');
   await go('Voice', 'Speaking');
-  await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveValue('elevenlabs');
+  await expect(page().getByRole('combobox', { name: 'Speak with' })).toHaveText('ElevenLabs');
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
 });
 
