@@ -84,7 +84,7 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
 | The Builder's queue below: speed, then accessibility | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
-| Design and Research weak points, Database's Analyse mode | Apps lead | Now, after the daily-use fixes |
+| Music parity with Ableton, native engine first (Andrew, 21 November 2026): [plan](music-parity.md). The Builder builds a Rust audio engine (first milestone: play what Music plays today); the Apps lead does the layout, real clips in the song format and note tools; the Design lead the meters and Music controls | Builder, Apps lead, Design lead | Starting |
 | Sign-in for Google, Microsoft (with Teams chats) and Dropbox; Telegram keys | Builder | Built; waits on Andrew ([drive sign-in](drive-sign-in.md), [messages sign-in](messages-sign-in.md)) |
 | Clips and the reel | Launch | At launch, after one real-model run of each moment |
 
@@ -98,8 +98,8 @@ minimise to tray (#688), the language setting (#692)) is on `main`.
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
 | 1 | Shell fixes from Andrew's daily use | Andrew | Ongoing, ahead of everything |
-| 2 | Unstable tests in [testing](../developers/testing.md): sweep the last three days of CI, fix each one seen twice or more | Every pull request | Next |
-| 3 | Speed: the slowest number in the budget run made faster, without raising a budget | Everyone | After 2 |
+| 2 | Music's native audio engine in Rust: see [Music parity](music-parity.md) | Music | Next |
+| 3 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 | 4 | Video: a first cut | Video's moment | Waits on footage |
 
 ## Library queue

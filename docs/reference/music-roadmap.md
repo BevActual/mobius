@@ -12,6 +12,8 @@ What makes it Mobius's own:
 - **Every control comes from the shared component library** (`apps/desktop/src/ui/`). When Music needs a control the
   library lacks, the library gets it first, so every app benefits. Music is where the library is proven.
 
+The plan for reaching a full studio, measured against Ableton Live, is [Music: the road to a full studio](music-parity.md).
+
 Status: **Have** (on main), **Building** (in a pull request), **Next**, **Later**, and **Not for Mobius**, with a
 reason.
 
