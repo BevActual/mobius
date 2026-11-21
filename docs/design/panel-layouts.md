@@ -175,7 +175,7 @@ Bracketed panels start hidden. Every app has Mobius at the right edge, closed un
 | Canvas | (Boards) | none | (Inspector) | Tools, zoom |
 | Photo | (Library and albums) | Filmstrip | Adjust, (Layers), (History) | Tools, zoom, view switch |
 | Video | Media, (Titles), (Sound) as tabs | Timeline | Inspector, (Scopes) | Transport, timecode, view switch |
-| Music | Sounds: instruments, effects, places | Clip (notes) and Devices, Shift+Tab switches; (Mixer), (Groove) | none | Transport, tempo, metre, view switch |
+| Music | Library: Songs, Sounds, Samples, Devices, Clips, Places | Detail (Clip: notes or waveform; Devices), Shift+Tab switches; Mixer as a tab beside it; (Groove) | none | View switch, transport, tempo with tap, metre; count-in, follow, loop and metronome fold first |
 
 Notes:
 
@@ -217,7 +217,7 @@ and bottom docks are now panels too (#542 onward), so each can be hidden, resize
 | Canvas | Boards; (Inspector) right | |
 | Photo | Albums; Adjust right; Filmstrip bottom | |
 | Video | Videos; Shot right; Timeline bottom | |
-| Music | Songs; Clip and Devices bottom | (Mixer), (Groove) |
+| Music | Library left; Detail (Clip, Devices) and Mixer bottom | (Groove) |
 | Sheets | Sheets; Format right | |
 | Database | Tables; (Record) right; (Query) bottom | |
 | Code | Explorer; (Outline) right; Tests and (Console) bottom, as tabs | |
