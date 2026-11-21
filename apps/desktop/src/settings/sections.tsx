@@ -912,6 +912,9 @@ export function AdvancedSection({ subpage, highlight, settings, onSaveSettings, 
   if (subpage === 'desktop') {
     return (
       <>
+        <Row path={rowPath('advanced', subpage, 'minimize-to-tray')} title="Minimise to the tray" description="When you minimise Mobius, it leaves the taskbar and waits in the tray. Click its icon there to bring it back." highlight={highlight === 'minimize-to-tray'}>
+          <Toggle label="Minimise to the tray" checked={preferences.minimizeToTray} onChange={(minimizeToTray) => void onPreferences({ minimizeToTray })} />
+        </Row>
         <Row path={rowPath('advanced', subpage, 'language')} title={t('settings.language.title')} description={t('settings.language.description')} highlight={highlight === 'language'}>
           <select className="popup" aria-label={t('settings.language.title')} value={preferences.language} onChange={(event) => { if (isLanguage(event.target.value)) void onPreferences({ language: event.target.value }); }}>
             {LANGUAGES.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
