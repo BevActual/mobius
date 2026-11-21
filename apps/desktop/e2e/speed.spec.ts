@@ -232,4 +232,20 @@ test('start, switching apps, a long list and memory after long use stay within t
     measured('core memory after long use', core, 'MB');
     measured('core memory growth over long use', core - coreBefore, 'MB');
   }
+
+  // The slowest app to switch to (its median over the 20 rounds) has a budget of its own, so one app getting slower
+  // is caught even while the others keep the overall median down. The machines CI runs on differ by about a third
+  // from run to run, so a figure over budget is measured twice more (ten rounds each) and the median of the three
+  // is kept: one slow machine does not fail it, an app that really got slower does.
+  const slowest = (values: number[]) => Math.max(...APPS.map((_, i) => median(values.filter((_v, j) => j % APPS.length === i))));
+  const tries = [slowest(again)];
+  if (tries[0]! > (budgets['switch to the slowest app'] ?? Infinity)) {
+    for (let more = 0; more < 2; more++) {
+      const batch: number[] = [];
+      for (let round = 0; round < 10; round++) for (const [name, panel] of APPS) batch.push(await switchTo(shell, name, panel));
+      tries.push(slowest(batch));
+    }
+    console.log(`[speed] switch to the slowest app, measured again: ${tries.map(Math.round).join(', ')} ms`);
+  }
+  measured('switch to the slowest app', median(tries), 'ms');
 });
