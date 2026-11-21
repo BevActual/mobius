@@ -61,3 +61,45 @@ export function catchUpAsk(channel: ChatChannel, unread: number): string {
 
 /** The words for a channel's unread count in its row: mentions first, as the services show them. */
 export const unreadLabel = (c: Pick<ChatChannel, 'unread' | 'mentions'>): string => (c.mentions > 0 ? `${c.mentions} mention${c.mentions === 1 ? '' : 's'}` : c.unread > 0 ? `${c.unread} unread` : '');
+
+/** The person's own name in a conversation, from a message they wrote there; null when they have written none. */
+export const myName = (messages: readonly ChatMessage[]): string | null => messages.find((m) => m.author.me)?.author.name ?? null;
+
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A message's text cut at each mention of the person (@ and their full or first name, or @here and @channel, which
+ * reach everyone), so those can show as chips. `mine` says whether any part is one.
+ */
+export function mentionParts(text: string, me: string | null): { parts: { text: string; me?: true }[]; mine: boolean } {
+  const names = ['here', 'channel', 'everyone'];
+  if (me) { names.unshift(me); const first = me.split(/\s+/)[0]; if (first && first !== me) names.push(first); }
+  const re = new RegExp(`@(?:${names.map(escapeRe).join('|')})(?![\\w-])`, 'gi');
+  const parts: { text: string; me?: true }[] = [];
+  let at = 0;
+  for (const m of text.matchAll(re)) {
+    if (m.index! > at) parts.push({ text: text.slice(at, m.index) });
+    parts.push({ text: m[0], me: true });
+    at = m.index! + m[0].length;
+  }
+  if (at < text.length) parts.push({ text: text.slice(at) });
+  return { parts, mine: parts.some((p) => p.me) };
+}
+
+/** The id of the first message not yet read when the conversation opened, for the "New" line; null when none were. */
+export function firstUnread(messages: readonly ChatMessage[], unread: number): string | null {
+  const theirs = messages.filter((m) => !m.author.me);
+  if (unread <= 0 || theirs.length === 0) return null;
+  return theirs[Math.max(0, theirs.length - unread)]!.id;
+}
+
+/** "Last reply 2 h ago" style words for when a thread was last answered. */
+export function lastReplyLabel(at: number, now = Date.now()): string {
+  const min = Math.max(0, Math.round((now - at) / 60_000));
+  if (min < 1) return 'Last reply just now';
+  if (min < 60) return `Last reply ${min} min ago`;
+  const h = Math.round(min / 60);
+  if (h < 24) return `Last reply ${h} h ago`;
+  const d = Math.round(h / 24);
+  return `Last reply ${d} day${d === 1 ? '' : 's'} ago`;
+}
