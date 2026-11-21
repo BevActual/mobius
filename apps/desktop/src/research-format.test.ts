@@ -83,5 +83,9 @@ describe('research as it goes', () => {
     expect(citeOf('www.timeout.com', sources)?.n).toBe(1);
     expect(citeOf('Time Out', sources)?.n).toBe(1);
     expect(citeOf('nowhere.example', sources)).toBeNull();
+    // Two pages on one site: each fact is numbered by its own page.
+    const same = sourcesOf('## Sources\n- [Intro](https://webassembly.org/docs/intro) — a\n- [Spec](https://webassembly.org/specs/) — b\n');
+    expect(citeOf('https://webassembly.org/specs', same)?.n).toBe(2);
+    expect(citeOf('https://www.webassembly.org/docs/intro#why', same)?.n).toBe(1);
   });
 });
