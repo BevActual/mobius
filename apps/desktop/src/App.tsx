@@ -38,6 +38,7 @@ import { saveAll } from './saveBeforeQuit';
 import { NotesSidebar } from './NotesSidebar';
 import { TasksGlance, TasksPage, TasksSidebar } from './Tasks';
 import { CalendarGlance, CalendarPage, CalendarSidebar } from './Calendar';
+import { setLanguage } from './i18n';
 import { DEFAULT_FOLDER, DocEditor, DocsSidebar, type WritingTool } from './Docs';
 import { fillTemplate, isTemplate, TEMPLATES_FOLDER, templateName, templatesIn } from './docs-view';
 import { SheetGrid, SheetsGlance, SheetsSidebar } from './Sheets';
@@ -221,6 +222,8 @@ export function App() {
   const preferences = usePreferences();
   // The apps added from Abilities decide what opens, what the switcher lists and what loads.
   setInstalledApps(preferences.value.installedApps);
+  // Mobius's own words, in the language chosen (English for now).
+  setLanguage(preferences.value.language);
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');
