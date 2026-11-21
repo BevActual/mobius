@@ -153,6 +153,9 @@ Your whole workspace as a drive.
 - **Copy between a drive and the workspace** by dragging: a drive's file onto Workspace or a folder in the sidebar
   copies it there, and a workspace file onto a drive in the sidebar copies it to the drive's top. Neither ever writes
   over a file already there. Double-click a drive's file to open a copy in its app (it lands in `workspace/Drives/`).
+- **Save Back to <drive>**: right-click a copy of a drive's file, once you've changed it, and it goes back over the
+  file it came from. Files does that only while the drive's file is still the version that was copied. If someone
+  changed it there since, nothing is replaced and Files says so; copy it again to see their version.
 - **Delete** on a drive deletes from the server for good, after asking. If someone changed the file on the server
   since Files listed it, the delete is refused and Files says so; the server's version stays. Right-click a drive in
   the sidebar to remove it: Files forgets its password, and everything on the server stays.

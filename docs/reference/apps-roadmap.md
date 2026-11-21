@@ -35,7 +35,7 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 | Tasks | "+" on group heads (a list in All, a day in Scheduled); Plan my day in Actions | | |
 | Notes | Review this in Actions, in Review mode | | |
 | Docs | Find and replace (Ctrl+F, Ctrl+H); Review this in Actions, in Review mode | | |
-| Files | Drives: the person's own WebDAV servers, browsed and copied both ways | Edit a drive's file in place, saved back with its version; copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
+| Files | Save Back to a drive: a copy goes back over its file while that is still the version copied | Copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
 | Browser | One New tab button, in the top bar (Ctrl+T); Bookmark and Pin page kept together in the tab menu | One idea of "keep" (bookmark, pin, pinned tab): a product decision | |
 | Settings | Shared selects (models, voice, effort, language, usage period, context size); a model list can group by gateway | The two model choices in Gateways' sign-in rows | |
 | Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
