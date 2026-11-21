@@ -1,3 +1,4 @@
+import { linkOf } from './drive-links';
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { FileEntry, FilePeek, FilesActionResult, TrashEntry } from '@mobius/shared';
 import { RichText } from './RichText';
@@ -511,6 +512,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
     ...(movable(path) ? [{ label: 'Cut', keys: 'Ctrl+X', run: () => files.setCut(path) }] : []),
     ...(type === 'folder' && files.cut && canMoveInto(files.cut, path) ? [{ label: `Move “${files.cut.split('/').pop()}” Here`, run: () => void files.paste(path) }] : []),
     { label: 'Copy path', keys: 'Ctrl+Shift+C', run: () => copyPath(path) },
+    // A copy of a drive's file goes back over it, as long as no one has changed it there since.
+    ...(type !== 'folder' && files.drives.canSaveBack && linkOf(path) ? [{ label: `Save Back to ${files.drives.nameOfDrive(linkOf(path)!.drive)}`, run: () => void files.drives.saveBack(path) }] : []),
     ...(files.can.show ? [{ label: SHOW_IN, run: () => files.show(path) }] : []),
     ...(onAsk ? [{ label: 'Ask Mobius about this', separated: true, run: () => onAsk(type === 'folder' ? `What is in the folder ${path}/?` : `Tell me about ${path}.`) }] : []),
     ...(type === 'folder' ? syncItems(path) : []),
