@@ -656,8 +656,8 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
       <FilesTools files={files} onNewFolder={files.can.change ? () => void startNewFolder() : undefined}>
         {/* List or grid, as Finder and Drive switch: one two-way control. */}
         <span className="seg files-view" role="radiogroup" aria-label="View">
-          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'list'} aria-selected={view === 'list'} title="As a list" aria-label="List" onClick={() => changeView('list')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" /></svg></button>
-          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'grid'} aria-selected={view === 'grid'} title="As a grid" aria-label="Grid" onClick={() => changeView('grid')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /></svg></button>
+          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'list'} title="As a list" aria-label="List" onClick={() => changeView('list')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M4 10h12M4 14h12" /></svg></button>
+          <button type="button" role="radio" className="seg-btn" aria-checked={view === 'grid'} title="As a grid" aria-label="Grid" onClick={() => changeView('grid')}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 4h5v5H4zM11 4h5v5h-5zM4 11h5v5H4zM11 11h5v5h-5z" /></svg></button>
         </span>
         {herePair && <>
           <IconButton label={herePair.paused ? 'Resume syncing' : 'Pause syncing'} icon={<svg viewBox="0 0 20 20" aria-hidden="true">{herePair.paused ? <path d="M7 5.5v9l7.5-4.5z" /> : <path d="M7.5 5.5v9M12.5 5.5v9" />}</svg>} onClick={() => void files.sync.pause(herePair, !herePair.paused)} />
