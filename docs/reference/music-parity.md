@@ -151,7 +151,8 @@ host, written in Rust. The window becomes the UI only.
 - **The song file stays the contract.** The engine reads the same `song.json` the window shows, so Mobius, the UI and
   the engine never disagree about a song.
 - **First milestone: it plays what Music plays today.** The engine plays every built-in instrument and effect, and
-  sounds like today's Web Audio version, checked by rendering the demo songs both ways and comparing them. Then
+  sounds like today's Web Audio version, checked by rendering the demo songs both ways and comparing them
+  (`node crates/mobius-audio/parity/compare.cjs <song.json>`, which prints how far apart each track is). Then
   `studio-audio.ts` retires.
 - **Plug-ins** (VST3 or CLAP) become possible later. They stay out of scope until the engine is stable.
 

@@ -13,6 +13,7 @@ serde.workspace = true
 serde_json.workspace = true
 # The queue between the window's side and the audio thread: wait-free, nothing allocated on either end.
 rtrb = "0.3"
+realfft = "3.5"
 
 # Sound out through WASAPI. Windows first (Mobius's platform); elsewhere the engine reports no output and Music keeps
 # its Web Audio version.
