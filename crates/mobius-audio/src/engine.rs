@@ -8,18 +8,24 @@
 // The audio side is driven by the Windows output device; elsewhere only the tests use it.
 #![cfg_attr(not(windows), allow(dead_code))]
 
-use crate::render::{Playing, Renderer, MAX_BLOCK};
+use crate::render::{Oneshot, Oneshots, Playing, Renderer, SessionState, MAX_BLOCK};
 use crate::song::Song;
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI32, AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, PoisonError};
 
 /// The most tracks whose levels are reported; the master's comes after them.
 pub const MAX_METERS: usize = 128;
 
+// Carried by value through a fixed ring: boxing the big variant would free memory on the audio thread.
+#[allow(clippy::large_enum_variant)]
 pub(crate) enum Command {
     /// Play this from where it starts, taking over what the one before it still has sounding.
     Play(Box<Renderer>),
     Stop,
+    /// In the Session view: start a track's clip in a slot (or stop it) at the next bar line.
+    Launch(usize, Option<usize>),
+    /// A sound apart from the song: a note heard as it is played or put in, or a count-in.
+    Oneshot(Oneshot),
 }
 
 /// What the audio thread reports.
@@ -33,7 +39,12 @@ pub(crate) struct Shared {
     tracks: AtomicU32,
     /// From the audio being made to it being heard, in microseconds.
     latency_us: AtomicU64,
+    /// In the Session view, each track's slot playing (-1 for none), the beat it started on (f64 bits), and the
+    /// launch waiting (`NO_LAUNCH` for none, -1 to stop).
+    session: Vec<(AtomicI32, AtomicU64, AtomicI32)>,
 }
+
+const NO_LAUNCH: i32 = i32::MIN;
 
 impl Shared {
     fn new() -> Shared {
@@ -43,6 +54,7 @@ impl Shared {
             peaks: (0..=MAX_METERS).map(|_| (AtomicU32::new(0), AtomicU32::new(0))).collect(),
             tracks: AtomicU32::new(0),
             latency_us: AtomicU64::new(0),
+            session: (0..MAX_METERS).map(|_| (AtomicI32::new(-1), AtomicU64::new(0), AtomicI32::new(NO_LAUNCH))).collect(),
         }
     }
 }
@@ -53,6 +65,8 @@ pub(crate) struct AudioSide {
     trash: rtrb::Producer<Box<Renderer>>,
     shared: Arc<Shared>,
     playing: Option<Box<Renderer>>,
+    oneshots: Oneshots,
+    rate: f64,
     left: Vec<f32>,
     right: Vec<f32>,
 }
@@ -69,6 +83,12 @@ impl AudioSide {
                     }
                     self.playing = Some(next);
                 }
+                Command::Launch(track, slot) => {
+                    if let Some(renderer) = self.playing.as_mut() {
+                        renderer.launch(track, slot);
+                    }
+                }
+                Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
                 Command::Stop => {
                     if let Some(old) = self.playing.take() {
                         self.let_go(old);
@@ -83,15 +103,22 @@ impl AudioSide {
                 self.let_go(old);
             }
         }
-        let Some(renderer) = self.playing.as_mut() else {
+        if self.playing.is_none() && !self.oneshots.busy() {
             data.fill(0.0);
             self.shared.playing.store(false, Ordering::Release);
             return;
-        };
+        }
         for frames in data.chunks_mut(MAX_BLOCK * channels) {
             let n = frames.len() / channels;
             let (left, right) = (&mut self.left[..n], &mut self.right[..n]);
-            renderer.render(left, right);
+            match self.playing.as_mut() {
+                Some(renderer) => renderer.render(left, right),
+                None => {
+                    left.fill(0.0);
+                    right.fill(0.0);
+                }
+            }
+            self.oneshots.add_to(left, right, self.rate);
             for (i, frame) in frames.chunks_mut(channels).enumerate() {
                 for (c, out) in frame.iter_mut().enumerate() {
                     *out = match c {
@@ -102,6 +129,10 @@ impl AudioSide {
                 }
             }
         }
+        let Some(renderer) = self.playing.as_ref() else {
+            self.shared.playing.store(false, Ordering::Release);
+            return;
+        };
         let shared = &self.shared;
         let mut count = 0u32;
         for (slot, (l, r)) in shared.peaks.iter().zip(renderer.peaks()) {
@@ -110,6 +141,12 @@ impl AudioSide {
             count += 1;
         }
         shared.tracks.store(count.saturating_sub(1), Ordering::Relaxed);
+        for (slot, (_, state)) in shared.session.iter().zip(renderer.session()) {
+            let as_i32 = |n: usize| i32::try_from(n).unwrap_or(i32::MAX);
+            slot.0.store(state.playing.map_or(-1, |(s, _)| as_i32(s)), Ordering::Relaxed);
+            slot.1.store(state.playing.map_or(0.0, |(_, b)| b).to_bits(), Ordering::Relaxed);
+            slot.2.store(state.queued.map_or(NO_LAUNCH, |q| q.map_or(-1, as_i32)), Ordering::Relaxed);
+        }
         shared.beat.store(renderer.beat().to_bits(), Ordering::Release);
         // At the song's end it says it has stopped, while what is ringing rings out.
         shared.playing.store(!renderer.past_end(), Ordering::Release);
@@ -128,6 +165,8 @@ pub struct Engine {
     shared: Arc<Shared>,
     /// The tracks whose levels `position` reports, in the order the audio thread has them.
     tracks: Mutex<Vec<String>>,
+    /// In the Session view, every track's id, in the order launches name them.
+    session: Mutex<Vec<String>>,
     /// How it was last asked to play: its loop and click carry on through a change to the song.
     how: Mutex<Playing>,
     sample_rate: u32,
@@ -143,6 +182,8 @@ pub struct Position {
     pub beat: f64,
     /// Each track's level, left and right in dB, then `"master"`'s.
     pub meters: Vec<(String, [f64; 2])>,
+    /// In the Session view, each track's id and what it is doing.
+    pub session: Vec<(String, SessionState)>,
 }
 
 fn db(level: f32) -> f64 {
@@ -160,8 +201,8 @@ impl Engine {
         let (commands, consumer) = rtrb::RingBuffer::new(64);
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
-        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
-        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), sample_rate, device, _stream: None };
+        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
+        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), sample_rate, device, _stream: None };
         (engine, audio)
     }
 
@@ -207,7 +248,68 @@ impl Engine {
         *lock(&self.how) = how;
         let renderer = Box::new(Renderer::playing(song, self.sample_rate, how));
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
+        *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
         self.send(Command::Play(renderer))
+    }
+
+    /// Plays the Session view from the first beat, with the clips in `launches` (track id, slot) starting at once.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn play_session(&self, song: &Song, click: bool, launches: &[(String, Option<usize>)]) -> Result<(), String> {
+        self.empty_trash();
+        let how = Playing { from: 0.0, cycle: None, click, session: true };
+        *lock(&self.how) = how;
+        let mut renderer = Box::new(Renderer::playing(song, self.sample_rate, how));
+        let ids: Vec<String> = renderer.session().map(|(id, _)| id.to_owned()).collect();
+        for (id, slot) in launches {
+            if let Some(index) = ids.iter().position(|t| t == id) {
+                renderer.launch(index, *slot);
+            }
+        }
+        *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
+        *lock(&self.session) = ids;
+        self.send(Command::Play(renderer))
+    }
+
+    /// In the Session view, starts a track's clip in `slot` (or stops the track, with `None`) at the next bar line.
+    ///
+    /// # Errors
+    /// When the track is not in the song playing, or as [`Engine::play`].
+    pub fn launch(&self, track: &str, slot: Option<usize>) -> Result<(), String> {
+        let index = lock(&self.session).iter().position(|t| t == track).ok_or_else(|| format!("No track \"{track}\" is playing in Session."))?;
+        self.send(Command::Launch(index, slot))
+    }
+
+    /// Sounds a note of `track` at once, playing or not, as the window does when a key is pressed or a note is put on
+    /// the roll: its instrument and sound (a drum through its kit and pad), straight out, `seconds` long.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn preview(&self, track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
+        let shot = if track.instrument == crate::song::Instrument::Drums {
+            let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
+            Oneshot::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)))
+        } else {
+            Oneshot::Voice(match &track.sound {
+                Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
+                None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
+            })
+        };
+        self.send(Command::Oneshot(shot))
+    }
+
+    /// A count-in of `beats` ticks at `tempo`, a high one first, starting 50 ms from now (studio-audio.ts `countIn`).
+    /// `None` for `beats` cuts one short.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn count_in(&self, tempo: f64, beats: Option<usize>) -> Result<(), String> {
+        let shot = match beats {
+            Some(beats) if tempo > 0.0 => Oneshot::CountIn { beats, seconds_per_beat: 60.0 / tempo },
+            _ => Oneshot::Hush,
+        };
+        self.send(Command::Oneshot(shot))
     }
 
     /// Changes the song being played, from the beat it has reached. Stopped, it does nothing.
@@ -243,7 +345,20 @@ impl Engine {
         if playing {
             meters.push(("master".to_owned(), level(count)));
         }
-        Position { playing, beat, meters }
+        let session = lock(&self.session)
+            .iter()
+            .zip(&shared.session)
+            .map(|(id, (slot, start, queued))| {
+                let slot = slot.load(Ordering::Relaxed);
+                let queued = queued.load(Ordering::Relaxed);
+                let state = SessionState {
+                    playing: usize::try_from(slot).ok().map(|s| (s, f64::from_bits(start.load(Ordering::Relaxed)))),
+                    queued: (queued != NO_LAUNCH).then(|| usize::try_from(queued).ok()),
+                };
+                (id.clone(), state)
+            })
+            .collect();
+        Position { playing, beat, meters, session }
     }
 
     fn send(&self, command: Command) -> Result<(), String> {
@@ -371,5 +486,60 @@ mod tests {
         audio.fill(&mut buffer, 4);
         assert!(buffer.chunks(4).all(|f| f[2] == 0.0 && f[3] == 0.0));
         assert!(buffer.chunks(4).any(|f| f[0] != 0.0));
+    }
+
+    #[test]
+    fn the_session_view_launches_through_the_audio_side_and_reports_each_track() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":2,"tracks":[{"id":"a","instrument":"bass","slots":[{"bars":1,"notes":[{"pitch":45,"start":0,"length":1,"velocity":1}]},{"bars":1,"notes":[]}]},{"id":"b","instrument":"lead","slots":[]}]}"#).unwrap();
+        engine.play_session(&song, false, &[("a".to_owned(), Some(0))]).unwrap();
+        let mut buffer = vec![0f32; 960 * 2];
+        audio.fill(&mut buffer, 2);
+        let at = engine.position();
+        assert_eq!(at.session[0], ("a".to_owned(), SessionState { playing: Some((0, 0.0)), queued: None }));
+        assert_eq!(at.session[1].1, SessionState::default());
+        assert!(buffer.iter().any(|s| s.abs() > 0.01));
+        engine.launch("a", Some(1)).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert_eq!(engine.position().session[0].1.queued, Some(Some(1)));
+        assert!(engine.launch("nope", None).is_err());
+    }
+
+    #[test]
+    fn a_previewed_note_and_a_count_in_sound_while_stopped_and_a_count_in_can_be_cut_short() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"piano"},{"id":"d","instrument":"drums"}]}"#).unwrap();
+        let mut buffer = vec![0f32; 4_800 * 2];
+        engine.preview(&song.tracks[0], 60, 0.8, 0.35).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert!(buffer.iter().any(|s| s.abs() > 0.01) && !engine.position().playing);
+        // It rings out and goes quiet.
+        for _ in 0..30 {
+            audio.fill(&mut buffer, 2);
+        }
+        assert!(buffer.iter().all(|s| *s == 0.0));
+        engine.preview(&song.tracks[1], 36, 1.0, 0.35).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert!(buffer.iter().any(|s| s.abs() > 0.01));
+        for _ in 0..30 {
+            audio.fill(&mut buffer, 2);
+        }
+        // A count-in at 120: ticks at 50 ms and every half second after, the first louder.
+        engine.count_in(120.0, Some(4)).unwrap();
+        let mut out = vec![0f32; 48_000 * 2 * 2];
+        for chunk in out.chunks_mut(960 * 2) {
+            audio.fill(chunk, 2);
+        }
+        let left: Vec<f32> = out.iter().step_by(2).copied().collect();
+        let onsets: Vec<usize> = (0..4).map(|i| 2_400 + i * 24_000).collect();
+        for at in &onsets {
+            assert!(left[at - 10..*at].iter().all(|s| *s == 0.0) && left[*at..at + 200].iter().any(|s| s.abs() > 0.05), "{at}");
+        }
+        let peak = |at: usize| left[at..at + 200].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!(peak(onsets[0]) > peak(onsets[1]) * 1.5);
+        engine.count_in(120.0, Some(4)).unwrap();
+        engine.count_in(120.0, None).unwrap();
+        audio.fill(&mut out, 2);
+        assert!(out.iter().all(|s| *s == 0.0));
     }
 }

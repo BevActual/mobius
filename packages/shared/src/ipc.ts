@@ -141,6 +141,8 @@ export interface MusicPosition {
   playing: boolean;
   beat: number;
   meters: Record<string, [number, number]>;
+  /** In the Session view: each track's slot playing (null for none) since `start`, and the launch waiting for the next bar. */
+  session?: Record<string, { slot: number | null; start: number | null; queued: number | 'stop' | null }>;
 }
 
 export interface NotesFailure { ok: false; message: string; conflict?: boolean }
@@ -1218,6 +1220,14 @@ export interface MobiusBridge {
     load(song: unknown): Promise<{ ok: true } | NotesFailure>;
     /** Play from a beat, or from where the playhead was left; round `loop` (beats) if given, with the metronome if `click`. */
     play(fromBeat?: number, loop?: { start: number; end: number } | null, click?: boolean): Promise<{ ok: true; beat: number } | NotesFailure>;
+    /** Play the Session view from the first beat; `launches` (track id to slot, or null) start at once. */
+    playSession?(click?: boolean, launches?: Record<string, number | null>): Promise<{ ok: true } | NotesFailure>;
+    /** Start a track's clip in `slot` (or stop it, with null) at the next bar line. */
+    launch?(trackId: string, slot: number | null): Promise<{ ok: true } | NotesFailure>;
+    /** Sound a note of a track of the loaded song at once, playing or not (a key pressed, a note put in): `seconds` long (0.35). */
+    preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
+    /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
+    countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
     seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;
