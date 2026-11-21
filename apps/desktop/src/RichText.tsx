@@ -19,17 +19,37 @@ const TIERS = {
 /** A source that is only a tool's id ("id 1", "#3", "work/inbox/7") means nothing to the person: it is not shown. */
 export const readableSource = (source: string): string => (/^(id\s*)?#?\d+$/i.test(source.trim()) || /^[^\s/]+\/(inbox|sent)\/\d+$/i.test(source.trim()) ? '' : source);
 
+/**
+ * Numbered sources for a report: a fact marked from the web gets a small [n] after it that matches its place in the
+ * report's Sources, with the page's title and site on hover. Research provides it; elsewhere facts have no numbers.
+ */
+export const Citations = createContext<((source: string) => { n: number; title: string; site: string; url: string } | null) | null>(null);
+
+function Cite({ n, title, site, url }: { n: number; title: string; site: string; url: string }) {
+  return (
+    <sup className="cite-wrap">
+      <a className="cite" href={url} aria-label={`Source ${n}: ${title}, ${site}`} onClick={(event) => { event.preventDefault(); openLink(url); }}>
+        {n}
+        <span className="cite-card" aria-hidden="true"><span className="cite-card-title">{title}</span><span className="cite-card-site">{site}</span></span>
+      </a>
+    </sup>
+  );
+}
+
 /** A fact with where it came from: underlined by how sure it is, the source a click away. */
 function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web' | 'unsure'; source: string; words: string; children: ReactNode }) {
   const source = readableSource(given);
   const [open, setOpen] = useState(false);
   const checks = useContext(ClaimChecks);
+  const cite = useContext(Citations)?.(given) ?? null;
   const key = claimKey(words, given);
   const checked = tier === 'unsure' && (checks?.checked.has(key) ?? false);
   const shown = checked ? 'Checked by you' : TIERS[tier].name;
   return (
     <span className="claim-wrap">
-      <button type="button" className="claim" data-tier={checked ? 'checked' : tier} aria-expanded={open} aria-label={`${words} — ${shown}${source ? `: ${source}` : ''}`} onClick={() => setOpen((o) => !o)}>{children}</button>
+      {/* A span, not a button: a button is drawn as one box, so a long fact would leave the line and stand on its own. */}
+      <span role="button" tabIndex={0} className="claim" data-tier={checked ? 'checked' : tier} aria-expanded={open} aria-label={`${words} — ${shown}${source ? `: ${source}` : ''}`} onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen((o) => !o); } }}>{children}</span>
       {open && (
         <span className="claim-card" role="note">
           <b>{shown}</b>
@@ -38,6 +58,7 @@ function Claim({ tier, source: given, words, children }: { tier: 'yours' | 'web'
           {tier === 'unsure' && !checked && checks && <button type="button" className="btn" onClick={() => { checks.check(key); setOpen(false); }}>I checked this</button>}
         </span>
       )}
+      {tier === 'web' && cite && <Cite {...cite} />}
     </span>
   );
 }

@@ -2672,3 +2672,26 @@ body { font-variant-numeric: tabular-nums; }
 .canvas-inspector-facts > div { display: flex; justify-content: space-between; gap: var(--sp-2); }
 .canvas-inspector-facts dt { color: var(--muted); font-size: var(--fs-xs); }
 .canvas-inspector-facts dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+/* Research as it goes: quiet rows, the matrix only on the step under way; folded into one row once the report is written. */
+.research-steps { list-style: none; margin: var(--sp-2) 0 var(--sp-3); padding: 0; display: flex; flex-direction: column; gap: var(--sp-1); font-size: var(--fs-sm); color: var(--muted); }
+.research-step { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--sp-5); }
+.research-step a { color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-step a:hover { color: var(--ink); }
+.research-step span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.research-step-mark { flex: none; width: var(--sp-5); display: grid; place-items: center; }
+.research-step-mark::before { content: ""; width: var(--sp-1); height: var(--sp-1); border-radius: var(--radius-pill); background: var(--faint); }
+.research-step[data-failed] { color: var(--faint); }
+.research-step-matrix { width: var(--sp-5); }
+.research-steps-done { margin: 0 0 var(--sp-3); font-size: var(--fs-sm); color: var(--muted); }
+.research-steps-done summary { cursor: default; width: max-content; padding: var(--sp-1) 0; }
+.research-steps-done summary:hover { color: var(--ink); }
+.research-next { margin-top: var(--sp-5); }
+/* A fact's source, numbered as in Sources: small and muted, ink on hover, with the page's title and site. */
+.cite-wrap { position: relative; line-height: 0; }
+.cite { margin-left: 1px; padding: 0 2px; font-size: var(--fs-xs); font-variant-numeric: tabular-nums; color: var(--muted); text-decoration: none; border-radius: var(--radius-control); }
+.cite:hover, .cite:focus-visible { color: var(--ink); }
+.cite-card { position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 4; display: none; flex-direction: column; gap: 2px; width: max-content; max-width: 280px; padding: var(--sp-2) var(--sp-3); border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-2); font-size: var(--fs-sm); line-height: 1.35; white-space: normal; }
+.cite:hover .cite-card, .cite:focus-visible .cite-card { display: flex; }
+.cite-card-title { color: var(--ink); font-weight: var(--fw-medium, 500); }
+.cite-card-site { color: var(--muted); font-size: var(--fs-xs); }

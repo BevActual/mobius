@@ -80,6 +80,11 @@ keep.
 
 - **Reports** are on the left, and **Sources**, numbered as the report cites them, are on the right. Each is a panel you can hide or resize.
 - **The toolbar** shows how many sources the report has and how many facts are marked as coming from the web. It also has **Edit**, which shows the report's text so you can change it.
+- **While Mobius works**, the report shows each search it runs and each page it reads. When the report is written,
+  they fold into one row ("Read 6 sources") that you can open again.
+- **Each fact from the web** has a small number after it, the same as its place in Sources. Hover the number for the
+  page's title and site, or click it to open the page.
+- **Ask next** under the report suggests three follow-up questions. Choose one, or type your own below it.
 
 **Kept in:** `workspace/research/`, each report a Markdown file.
 
