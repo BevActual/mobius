@@ -120,11 +120,69 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| A browser for sounds, samples, devices, clips and places, with tags, preview and similar-sound search | Five sounds in the sidebar | A Library panel: workspace samples, presets, tags, preview, drag in | L |
+| A browser for sounds, samples, devices, clips and places, with tags, preview and similar-sound search | Five sounds in the sidebar | The Library panel, below | L |
 | Hot-swap a device or sample in place | Swap instrument from a menu | Swap from the Library | S |
 | Keyboard navigation of every part of the window | Partial | Kept with each round | — |
 | Info view (what the pointer is over) | Key-hint bar (Next, shell) | Shell | — |
 | Undo history, saved sets, templates | Undo; songs are files | Templates | S |
+
+### The Library panel (moved up: right after the layout round)
+
+Modelled on [the Live 12 Browser](https://help.ableton.com/hc/en-us/articles/12927340213660-The-Live-12-Browser),
+which Andrew pointed to on 21 November. It is the left panel of the new layout, so it comes straight after the layout
+round rather than in phase 6.
+
+How Live lays it out, and what Music takes from it:
+
+- **Sidebar, top to bottom.** Collections (up to seven colour tags), then Library categories (All, Sounds, Drums,
+  Instruments, Audio Effects, MIDI Effects, Samples, Clips), then Places (folders). Music's Places are workspace
+  folders, and songs are a Place too, so the Songs list moves in here.
+- **Results.** Results list next to or under the sidebar, sorted by name, with a search field that filters within the
+  chosen category. Back and forward step through where you have been.
+- **Filters.** A filter bar of tag groups (for a sound: Bass, Keys, Pad, Lead, Drums; character: Warm, Bright, Dark,
+  Short, Long). Filters combine with the category and the search. Saving a view (search, category and filters) makes
+  it a label in the sidebar.
+- **Preview.** A Preview toggle (auto-preview): with it on, Up and Down audition each result; Shift+Enter or Right
+  previews one without it. Previews start on the next bar and loop while the song plays. Raw plays a sample at its own
+  tempo, unlooped. Preview volume is its own knob.
+- **Collections.** Keys 1 to 7 put the chosen item in a colour, 0 clears; an item can hold several colours.
+- **Filters.** Ctrl-click picks several tags in a group; the results bar counts active filters and has Clear. `#tag`
+  in the search field searches tags; several words must all match.
+- **Similar sounds.** "Show similar files" (a row icon, the context menu, or Ctrl+Shift+F) fills the search with the
+  file and sorts results most similar first.
+- **Hot-swap.** Q, or the swap button in a device's title, links the device to the browser on its own kind and folder;
+  Up and Down pick, Enter or double-click loads, Q or Esc leaves.
+- **Use.** Drag onto a track, or below the last track to make a new one; a preset dropped on a device replaces it.
+  Double-click adds to the chosen track, or makes a track when none is chosen.
+- **Keys.** Ctrl+F goes to All and the search field; Down moves into results; Esc clears search and tags; Ctrl+[ and
+  Ctrl+] go back and forward.
+
+**First cut (one round):**
+- The panel in the left slot with search, categories (Sounds, Drums, Instruments, Audio Effects, Clips), Places
+  (Songs and workspace folders) and Collections.
+- Tag filters from built-in tags on Music's sounds and devices.
+- Preview on choosing, with the Preview toggle on by default, starting on the next bar while the song plays.
+- Collections with 1 to 7 and 0, and `#tag` and all-words search.
+- Hot-swap with Q from the Devices tab, Enter or double-click from results, and drag onto a track or below the last
+  one. Ctrl+F, Esc, and Ctrl+[ and Ctrl+].
+- Shared pieces go in the library first: tag chips, the filter bar and the preview row (Design).
+
+**Later:**
+- Samples and Raw preview, once audio clips play (phase 3).
+- Similar-sound search, from the same tags first and from analysis once the engine reads audio.
+- Saved views as labels, a tag editor, and auto-tags on the user's own samples.
+- MIDI Effects, once Music has them.
+
+Sources: [The Live 12 Browser (help)](https://help.ableton.com/hc/en-us/articles/12927340213660-The-Live-12-Browser),
+[Live 12 manual, 4. Working with the Browser](https://www.ableton.com/en/live-manual/12/working-with-the-browser/),
+[3. Live Concepts](https://www.ableton.com/en/live-manual/12/live-concepts/) (sound similarity),
+[23. Working with Instruments and Effects](https://www.ableton.com/en/live-manual/12/working-with-instruments-and-effects/) (hot-swap).
+Copied: the sidebar's order, preview keys, collections keys, hot-swap. Adapted: Places are workspace folders, and
+Songs are a Place. Skipped: Packs, Cloud, Push, Splice, Max for Live, plug-ins and Cue outputs.
+
+**How this plan is checked against Live.** Each row's round reads the matching chapter of the
+[Live 12 manual](https://www.ableton.com/en/live-manual/12/) and the help articles for it first. The pull request says
+what Live does, which pages were read, and what Music copies, adapts or skips, and the row gets a sources line here.
 
 ### Not for Mobius (for now)
 
@@ -247,7 +305,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Fold to scale, chance, grooves and editing many clips at once.
    - Follow actions and launch modes. Most of this needs no engine, so it can start early.
 6. **Library and polish** (about 2 weeks):
-   - The Library panel, with tags, preview and similar sounds.
+   - The rest of the Library panel (its first cut moved up to follow the layout round; see above).
    - Templates, takes and groups.
    - More synths.
 
