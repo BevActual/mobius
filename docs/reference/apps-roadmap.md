@@ -29,14 +29,14 @@ Every app has passed the Instrument round. Mobius's own panel is only for Mobius
 
 | App | Last round on `main` | Next round | Waiting on |
 | --- | --- | --- | --- |
-| Home | Instrument (#181), sidebar head and toolbar line (#213) | Conversations grouped by day | Builder: Home's reading column and row sizes |
+| Home | Chats newest first with day headings, quick starts above the message box (#679) | | |
 | Mail | Triage in the panel (#251), and it switches the composer to Triage (#278) | Triage's own Glance and Result | |
 | Calendar | Rest of today in Glance (#272); Find a time with… in Actions | | |
 | Tasks | "+" on group heads (a list in All, a day in Scheduled); Plan my day in Actions | | |
 | Notes | Review this in Actions, in Review mode | | |
 | Docs | Find and replace (Ctrl+F, Ctrl+H); Review this in Actions, in Review mode | | |
 | Files | Drives: the person's own WebDAV servers, browsed and copied both ways | Edit a drive's file in place, saved back with its version; copy folders; Actions in the panel; preview pane | Preview pane: where app panels go |
-| Browser | Instrument (#163) | One idea of "keep" (bookmark, pin, pinned tab); one New tab button | |
+| Browser | One New tab button, in the top bar (Ctrl+T); Bookmark and Pin page kept together in the tab menu | One idea of "keep" (bookmark, pin, pinned tab): a product decision | |
 | Settings | Permission wording (#241) | Shared selects | |
 | Agents | Permission wording and shared controls (#243); failed runs in red (Builder, #250) | | |
 | Projects | Instrument round and Permission names (#186) | Projects in Ctrl+K; drag a conversation onto a project | |
