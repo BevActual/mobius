@@ -1,5 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { coreCall, coreHistory, crashCore, launch, startFixture, type Fixture, type Launched } from './harness';
 import { callsTool, dataOf, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
@@ -180,6 +181,17 @@ test('a new person is welcomed, and chooses how much Mobius does before choosing
   await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toHaveCount(0);
   await choose.getByRole('button', { name: 'Custom server…' }).click();
   await expect(mobius.shell.getByRole('form', { name: 'Model settings' })).toBeVisible();
+});
+
+test('a saved model that cannot be set up offers the model choice, not a Connecting that never ends', async () => {
+  // A model saved before, at an address the core refuses (as a sign-in that ran out would be): the core starts, the
+  // model cannot be set up, and the person chooses again.
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-e2e-'));
+  fs.writeFileSync(path.join(userData, 'agent-settings.json'), JSON.stringify({ baseUrl: 'ftp://models.example/v1', model: 'gone', system: '', maxSteps: 25, keyStored: false }));
+  mobius = await launch(fixture.origin + '/', { userData });
+  await expect(mobius.shell.getByRole('group', { name: 'Choose a model' })).toBeVisible({ timeout: 15_000 });
+  await expect(mobius.shell.getByRole('heading', { name: 'Connecting…' })).toHaveCount(0);
+  expect((await mobius.shell.evaluate(() => window.mobius.agent.getSettings())).setupFailed).toBe(true);
 });
 
 test('settings: the model can be set up from the panel, survives a restart, and the key stays out of sight', async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatAccount, ChatChannel, ChatMessage } from '@mobius/shared';
-import { catchUpAsk, channelGroups, channelLabel, chatItem, runs, unreadLabel } from './messages-view';
+import { catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, unreadLabel } from './messages-view';
 
 const work: ChatAccount = { id: 'w', service: 'slack', name: 'Northway', status: 'ready' };
 const home: ChatAccount = { id: 'h', service: 'discord', name: 'Friends', status: 'ready' };
@@ -29,5 +29,28 @@ describe('Messages', () => {
     expect(catchUpAsk(general, 0)).toContain('Do not send anything');
     expect(unreadLabel({ unread: 4, mentions: 1 })).toBe('1 mention');
     expect(unreadLabel({ unread: 4, mentions: 0 })).toBe('4 unread');
+  });
+});
+
+describe('mentions, the New line and threads', () => {
+  const m = (id: string, text: string, me = false): ChatMessage => ({ id, channel: 'c', author: { id: me ? 'me' : 'p', name: me ? 'Sam Lee' : 'Priya', ...(me ? { me: true } : {}) }, text, at: 0 });
+  it('finds the person by their full or first name, and @here', () => {
+    expect(myName([m('1', 'hi'), m('2', 'yo', true)])).toBe('Sam Lee');
+    expect(mentionParts('@Sam can you look?', 'Sam Lee')).toEqual({ parts: [{ text: '@Sam', me: true }, { text: ' can you look?' }], mine: true });
+    expect(mentionParts('ping @here now', null).mine).toBe(true);
+    expect(mentionParts('@Samantha hi', 'Sam Lee').mine).toBe(false);
+    expect(mentionParts('mail sam@x.org', 'Sam Lee').mine).toBe(false);
+  });
+  it('puts the New line at the first of the unread, counting only other people', () => {
+    const list = [m('1', 'a'), m('2', 'b', true), m('3', 'c'), m('4', 'd')];
+    expect(firstUnread(list, 2)).toBe('3');
+    expect(firstUnread(list, 0)).toBeNull();
+    expect(firstUnread(list, 9)).toBe('1');
+  });
+  it('says when a thread was last answered', () => {
+    expect(lastReplyLabel(0, 30_000)).toBe('Last reply just now');
+    expect(lastReplyLabel(0, 5 * 60_000)).toBe('Last reply 5 min ago');
+    expect(lastReplyLabel(0, 3 * 3_600_000)).toBe('Last reply 3 h ago');
+    expect(lastReplyLabel(0, 49 * 3_600_000)).toBe('Last reply 2 days ago');
   });
 });
