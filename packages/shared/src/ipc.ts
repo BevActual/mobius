@@ -136,6 +136,13 @@ export interface Notebook { name: string; pages: NotePage[] }
 export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
 /** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
+/** Where Music's engine is playing, and the levels, left and right in dB, by track id then `master`. */
+export interface MusicPosition {
+  playing: boolean;
+  beat: number;
+  meters: Record<string, [number, number]>;
+}
+
 export interface NotesFailure { ok: false; message: string; conflict?: boolean }
 /** `undo` is something put back from the review strip: open pages reload, as for the assistant, without new marks. */
 export interface NotesChange { path: string | null; by: 'person' | 'assistant' | 'another app' | 'undo' }
@@ -1201,6 +1208,23 @@ export interface MobiusBridge {
     saveExport?(path: string, name: string, base64: string): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
     /** Open the workspace's `Exports` folder in the system's file manager. */
     showExports?(): Promise<{ ok: true } | NotesFailure>;
+  };
+  /** Music's own sound engine, playing through the computer's sound output (Windows for now). Only the Tauri shell
+   *  has it; without it Music plays in the window. Each call answers `{ ok: false, message }` when it can't. */
+  music?: {
+    /** Open the sound output if it isn't yet, and say which one it is. */
+    engine(): Promise<{ ok: true; device: string; sampleRate: number; latencyMs: number } | NotesFailure>;
+    /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. */
+    load(song: unknown): Promise<{ ok: true } | NotesFailure>;
+    /** Play from a beat, or from where the playhead was left. Loop and click are taken and come in a later part. */
+    play(fromBeat?: number, loop?: { start: number; end: number } | null, click?: boolean): Promise<{ ok: true; beat: number } | NotesFailure>;
+    stop(): Promise<{ ok: true } | NotesFailure>;
+    /** Move the playhead: playing goes on from there, stopped starts there next. */
+    seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;
+    /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. */
+    render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
+    /** Where playback is, about 30 times a second while playing: each track's level and `master`'s, in dB. */
+    onPosition(listener: (position: MusicPosition) => void): () => void;
   };
   /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
   designs?: NonNullable<MobiusBridge['notes']>;
