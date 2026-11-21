@@ -92,15 +92,15 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 
 The Builder's order. Everything in earlier versions of this table (turn speed, tools for Photo and Design, drives
 and sync, contacts, CalDAV task lists, the cloud drives, updates in the app and from the tray, scheduled agents
-from the tray, Take over beside Stop) is on `main`.
+from the tray, Take over beside Stop, the speed budget (#605), the accessibility check (#610), reply tracking (#686),
+minimise to tray (#688), the language setting (#692)) is on `main`.
 
 | Order | Piece | Who waits | Status |
 | --- | --- | --- | --- |
-| 1 | Speed: a budget for a cold start, switching apps, opening a long list and memory after an hour, measured in CI on every pull request, then the slowest fixed | Everyone | Next |
-| 2 | Accessibility in the shell and library: every control reachable by keyboard with a visible focus, names a screen reader reads (no tool ids), contrast in all four themes, and an axe check in the e2e run | Everyone; each app's polish pass builds on it | After 1 |
-| 3 | Shell fixes from Andrew's daily use | Andrew | Ongoing, ahead of 1 and 2 |
+| 1 | Shell fixes from Andrew's daily use | Andrew | Ongoing, ahead of everything |
+| 2 | Unstable tests in [testing](../developers/testing.md): sweep the last three days of CI, fix each one seen twice or more | Every pull request | Next |
+| 3 | Speed: the slowest number in the budget run made faster, without raising a budget | Everyone | After 2 |
 | 4 | Video: a first cut | Video's moment | Waits on footage |
-| 5 | Unstable tests in [testing](../developers/testing.md): three sightings makes one a blocker | Every pull request | Ongoing |
 
 ## Library queue
 
