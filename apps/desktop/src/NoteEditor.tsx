@@ -420,6 +420,10 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     },
     onUpdate: ({ editor: e, transaction }) => {
       if (transaction.getMeta('mobius-load')) return;
+      // Only an edit is saved. A transaction that changes nothing itself (the comment, change and meta marks drawn
+      // again) can still bring the page's own tidying with it, such as a Windows file's line endings read the first
+      // time: saving that would rewrite the file on open, with nothing typed.
+      if (!transaction.docChanged) return;
       const md = markdownOf(e);
       known.current = md;
       notes.edit(md);
