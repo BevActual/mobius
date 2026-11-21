@@ -15,15 +15,22 @@
  * Components: a frame with `"component": true` is a component, such as a button. A copy of it, placed in any frame, is
  * a layer `{ "type": "instance", "of": "<component frame id>", "overrides": { "<layer id>": { "text", "fill", "color" } } }`
  * drawn as the component is now, scaled to its own box, with its own text and colours where it overrides them. Changing
- * the component changes every copy. Anything missing takes a plain default,
+ * the component changes every copy.
+ *
+ * An image is `{ "type": "image", "src": "Home%20files/hero.png" }`: a picture kept beside the design (`<design> files/`),
+ * filling its box and cropped to it. A line is `{ "type": "line" }` drawn corner to corner across its box, from the top
+ * left (or, with `"flip": true`, from the bottom left), in its `stroke` and `strokeWidth`, with `"dash": true` for a
+ * dashed one and `"ends": "end"` or `"both"` for arrowheads. Anything missing takes a plain default,
  * so a hand-written file still opens.
  */
-export type NodeType = 'rect' | 'ellipse' | 'text' | 'instance';
+export type NodeType = 'rect' | 'ellipse' | 'text' | 'instance' | 'image' | 'line';
+/** Where a line has arrowheads. */
+export type LineEnds = 'none' | 'end' | 'both';
 /** What a copy of a component changes in one of the component's layers. */
 export interface Override { text?: string; fill?: string; color?: string }
 export type Align = 'left' | 'center' | 'right';
 export interface DesignStyle { name: string; color: string }
-export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align; stroke: string; strokeWidth: number; hidden?: boolean; locked?: boolean; of?: string; overrides?: Record<string, Override> }
+export interface DesignNode { id: string; type: NodeType; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; opacity: number; text: string; size: number; weight: number; color: string; align: Align; stroke: string; strokeWidth: number; hidden?: boolean; locked?: boolean; of?: string; overrides?: Record<string, Override>; src?: string; flip?: boolean; dash?: boolean; ends?: LineEnds }
 export interface DesignFrame { id: string; name: string; x: number; y: number; w: number; h: number; fill: string; radius: number; stroke: string; strokeWidth: number; component?: boolean; children: DesignNode[] }
 export interface DesignDoc { version: 1; styles: DesignStyle[]; frames: DesignFrame[] }
 
@@ -35,21 +42,26 @@ const obj = (v: unknown): Record<string, unknown> => (typeof v === 'object' && v
 
 function readNode(v: unknown, i: number, taken: Set<string>): DesignNode {
   const o = obj(v);
-  const type: NodeType = o.type === 'ellipse' || o.type === 'text' ? o.type : o.type === 'instance' && typeof o.of === 'string' && o.of ? 'instance' : 'rect';
+  const type: NodeType = o.type === 'ellipse' || o.type === 'text' || o.type === 'line' ? o.type : o.type === 'instance' && typeof o.of === 'string' && o.of ? 'instance' : o.type === 'image' && typeof o.src === 'string' && o.src ? 'image' : 'rect';
   let id = str(o.id, '', 40) || `n${i + 1}`;
   while (taken.has(id)) id = `${id}-${i}`;
   taken.add(id);
   return {
-    id, type, name: str(o.name, type === 'text' ? 'Text' : type === 'ellipse' ? 'Ellipse' : type === 'instance' ? 'Copy' : 'Rectangle', 80),
-    x: num(o.x, 0), y: num(o.y, 0), w: num(o.w, 100, 1), h: num(o.h, type === 'text' ? 24 : 100, 1),
-    fill: color(o.fill, type === 'text' || type === 'instance' ? 'transparent' : '#d9d9de'), radius: num(o.radius, 0, 0, 10_000), opacity: num(o.opacity, 1, 0, 1),
+    id, type, name: str(o.name, NAMES[type], 80),
+    // A line can lie flat or stand straight up, so one side of its box may be nothing.
+    x: num(o.x, 0), y: num(o.y, 0), w: num(o.w, 100, type === 'line' ? 0 : 1), h: num(o.h, type === 'text' ? 24 : type === 'line' ? 0 : 100, type === 'line' ? 0 : 1),
+    fill: color(o.fill, type === 'rect' || type === 'ellipse' ? '#d9d9de' : 'transparent'), radius: num(o.radius, 0, 0, 10_000), opacity: num(o.opacity, 1, 0, 1),
     text: str(o.text, type === 'text' ? 'Text' : ''), size: num(o.size, 16, 4, 400), weight: num(o.weight, 400, 100, 900), color: color(o.color, '#1d1d1f'),
     align: o.align === 'center' || o.align === 'right' ? o.align : 'left',
-    stroke: color(o.stroke, 'transparent'), strokeWidth: num(o.strokeWidth, 0, 0, 1000),
+    stroke: color(o.stroke, type === 'line' ? '#1d1d1f' : 'transparent'), strokeWidth: num(o.strokeWidth, type === 'line' ? 2 : 0, 0, 1000),
     ...(o.hidden === true ? { hidden: true } : {}), ...(o.locked === true ? { locked: true } : {}),
     ...(type === 'instance' ? { of: str(o.of, '', 40), overrides: readOverrides(o.overrides) } : {}),
+    ...(type === 'image' ? { src: str(o.src, '', 500) } : {}),
+    ...(type === 'line' ? { ...(o.flip === true ? { flip: true } : {}), ...(o.dash === true ? { dash: true } : {}), ...(o.ends === 'end' || o.ends === 'both' ? { ends: o.ends } : {}) } : {}),
   };
 }
+
+const NAMES: Record<NodeType, string> = { text: 'Text', ellipse: 'Ellipse', instance: 'Copy', rect: 'Rectangle', image: 'Image', line: 'Line' };
 
 function readOverrides(v: unknown): Record<string, Override> {
   const out: Record<string, Override> = {};
@@ -89,12 +101,14 @@ export function parseDesign(text: string): { doc: DesignDoc } | { error: string 
 export function writeDesign(doc: DesignDoc): string {
   const node = (n: DesignNode) => {
     const out: Record<string, unknown> = { id: n.id, type: n.type, name: n.name, x: n.x, y: n.y, w: n.w, h: n.h };
-    if ((n.type !== 'text' && n.type !== 'instance') || n.fill !== 'transparent') out.fill = n.fill;
+    if (n.type === 'rect' || n.type === 'ellipse' || n.fill !== 'transparent') out.fill = n.fill;
+    if (n.type === 'image') out.src = n.src;
+    if (n.type === 'line') Object.assign(out, { stroke: n.stroke, strokeWidth: n.strokeWidth }, n.flip ? { flip: true } : {}, n.dash ? { dash: true } : {}, n.ends && n.ends !== 'none' ? { ends: n.ends } : {});
     if (n.type === 'instance') Object.assign(out, { of: n.of }, n.overrides && Object.keys(n.overrides).length ? { overrides: n.overrides } : {});
     if (n.radius) out.radius = n.radius;
     if (n.opacity !== 1) out.opacity = n.opacity;
     if (n.type === 'text') Object.assign(out, { text: n.text, size: n.size, weight: n.weight, color: n.color }, n.align !== 'left' ? { align: n.align } : {});
-    if (n.strokeWidth > 0 && n.stroke !== 'transparent') Object.assign(out, { stroke: n.stroke, strokeWidth: n.strokeWidth });
+    if (n.type !== 'line' && n.strokeWidth > 0 && n.stroke !== 'transparent') Object.assign(out, { stroke: n.stroke, strokeWidth: n.strokeWidth });
     if (n.hidden) out.hidden = true;
     if (n.locked) out.locked = true;
     return out;
@@ -238,4 +252,33 @@ export function detach(doc: DesignDoc, copyId: string): string[] {
   const at = frame.children.indexOf(copy);
   frame.children.splice(at, 1, ...layers);
   return ids;
+}
+
+/** A line's two ends, in its own box: top left to bottom right, or bottom left to top right when flipped. */
+export function lineEnds(n: { w: number; h: number; flip?: boolean }): { x1: number; y1: number; x2: number; y2: number } {
+  return n.flip ? { x1: 0, y1: n.h, x2: n.w, y2: 0 } : { x1: 0, y1: 0, x2: n.w, y2: n.h };
+}
+
+/**
+ * A line drawn from one point to another, as its box and which way it runs. With `snap` (Shift held) it keeps to
+ * steps of 45°: flat, straight up, or a true diagonal.
+ */
+export function lineFrom(x0: number, y0: number, x1: number, y1: number, snap = false): { x: number; y: number; w: number; h: number; flip?: true } {
+  let dx = x1 - x0, dy = y1 - y0;
+  if (snap) {
+    const ax = Math.abs(dx), ay = Math.abs(dy);
+    // tan(22.5°): nearer flat than diagonal, or nearer upright.
+    if (ay < ax * 0.4142) dy = 0;
+    else if (ax < ay * 0.4142) dx = 0;
+    else { const m = Math.max(ax, ay); dx = Math.sign(dx) * m; dy = Math.sign(dy) * m; }
+  }
+  const box = { x: Math.round(Math.min(x0, x0 + dx)), y: Math.round(Math.min(y0, y0 + dy)), w: Math.round(Math.abs(dx)), h: Math.round(Math.abs(dy)) };
+  return dx * dy < 0 ? { ...box, flip: true } : box;
+}
+
+/** Where to draw a picture of `natural` size so it fills `box` and is cropped to it, as CSS's object-fit: cover. */
+export function coverCrop(natural: { w: number; h: number }, box: { w: number; h: number }): { sx: number; sy: number; sw: number; sh: number } {
+  const scale = Math.max(box.w / (natural.w || 1), box.h / (natural.h || 1));
+  const sw = box.w / scale, sh = box.h / scale;
+  return { sx: (natural.w - sw) / 2, sy: (natural.h - sh) / 2, sw, sh };
 }
