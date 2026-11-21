@@ -114,7 +114,8 @@ describe('what each app suggests', () => {
       const review = got.find((s) => s.label === 'Review this');
       expect(review).toMatchObject({ attach: 'note', mode: 'review' });
       expect(review!.prompt).toContain('change none of its text');
-      expect(got.indexOf(review!)).toBeLessThan(4);
+      // The panel shows the first three.
+      expect(got.indexOf(review!)).toBeLessThan(3);
     }
   });
   it('writes meeting notes as a change to keep, and checks Tasks before adding to-dos', () => {

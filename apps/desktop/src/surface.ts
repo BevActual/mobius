@@ -147,8 +147,8 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             // The demo's Notes moment: record a meeting into the note, then one press writes it up, and one more sends who does what to Tasks.
             { label: 'Meeting notes', prompt: 'This note holds a meeting as it was said. Write it up in the note itself with files.edit, under its first heading and above the rest: a short summary, the decisions, and a checklist of who does what, by when, with - [ ] items: only things someone agreed to do (an arrival or a piece of news is not one), each day as its date. Keep the heading and the words below exactly as they are. Make the change without asking first: I keep or discard it.', attach: 'note' },
             { label: 'Make a to-do list', prompt: 'Turn the actions in this note into tasks with tasks.add, each with its date (a day like "end of week" or "Friday" as YYYY-MM-DD); an arrival or a piece of news is not an action. Look at tasks.list first: put them in the list for the note\'s project if there is one, otherwise in my Inbox, and leave out any action a task there already covers. Word each as something to do with no name in front; for an action someone else owns, end it with their name in brackets. List them back as a short to-do list, and say which you left out because they were already there. Change nothing in the note.', attach: 'note' },
-            { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
             { label: 'Review this', prompt: 'Review this note: what is unclear, what is missing, and what could be shorter. Comment and suggest; change none of its text.', attach: 'note', mode: 'review' },
+            { label: 'Tidy this note', prompt: 'Tidy this note: fix spelling and grammar and make the structure clearer. Keep my meaning and my voice. Show me the changes before saving.', attach: 'note' },
           ]
         : [{ label: 'Find in my notes', prompt: 'Search my notes and tell me what I have written about ' }];
     case 'tasks':
@@ -164,9 +164,9 @@ export function suggestionsFor(state: SurfaceState): Suggestion[] {
             { label: 'One-page brief', prompt: 'Make a one-page brief from this document, as a new document beside it in my Docs, named after it with brief at the end (when its name already ends in brief, with one-page at the end instead): a title, two or three sentences on what it is and why it matters, then at most four short sections that follow its outline, each two or three lines, and what is decided and what is next in two lines. At most 450 words in all, so leave out detail a reader of one page can do without, and do not state its length. Keep its facts and numbers exactly; add nothing it does not say. Leave this document as it is.', attach: 'note' },
             // The demo's Slides moment, from Docs: a brief becomes a deck ready to play.
             { label: 'Make this a deck', prompt: MAKE_A_DECK, attach: 'note' },
-            { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
             // Review mode (comments and suggestions, never an edit to the text), reachable from the panel as Mail's Triage is.
             { label: 'Review this', prompt: 'Review this document as an editor would: what is unclear, what a reader would still want to know, and what could be shorter. Comment and suggest; change none of its text.', attach: 'note', mode: 'review' },
+            { label: 'Tighten it', prompt: 'Make this document shorter and clearer, keeping its meaning and my voice. Make the changes in the document itself.', attach: 'note' },
           ]
         : [{ label: 'Draft a document', prompt: 'Draft a document in my Docs about ' }];
     case 'sheets':
