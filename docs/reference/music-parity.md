@@ -165,7 +165,12 @@ How Live lays it out, and what Music takes from it:
 - Collections with 1 to 7 and 0, and `#tag` and all-words search.
 - Hot-swap with Q from the Devices tab, Enter or double-click from results, and drag onto a track or below the last
   one. Ctrl+F, Esc, and Ctrl+[ and Ctrl+].
-- Shared pieces go in the library first: tag chips, the filter bar and the preview row (Design).
+- Layout (Design): the sidebar and the results side by side with a divider; under about 440 px the sidebar folds
+  into a select above the search. A row shows up to three collection colours. The preview strip sits at the panel's
+  foot: the Preview toggle, the chosen item's waveform to scrub, Raw, and a small volume knob (which moves to the
+  master strip once that exists).
+- Shared pieces from the library: tag chips are the existing `Chip` with `aria-pressed`; `FilterBar` (groups,
+  Ctrl-click, the results bar with Clear, no per-tag counts) and `PreviewStrip` come from Design.
 
 **Later:**
 - Samples and Raw preview, once audio clips play (phase 3).
