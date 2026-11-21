@@ -193,7 +193,11 @@ export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; c
 /** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
 export interface MailDraft {
   /** Send later: when it goes, as you scheduled it. */
-  sendAtMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+  sendAtMs?: number | null;
+  /** Remind if no reply: once sent, when to remind you unless someone it went to has answered (null: no reminder). */
+  remindMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+/** A sent message waiting on an answer (Remind if no reply). `due`: its time came with no answer. */
+export interface MailFollowUp { messageId: string; /** Its copy in Sent here, once Sent has it. */ sentId: string | null; account: string; to: string[]; subject: string; sentMs: number; remindMs: number; replyId: string | null; repliedMs: number | null; status: 'waiting' | 'due' | 'replied' }
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
@@ -1051,6 +1055,12 @@ export interface MobiusBridge {
     schedule?(id: string, atMs: number | null): Promise<MailDraft | NotesFailure>;
     /** When the person a draft is to is usually on mail, as Mobius's suggestion for Send later. */
     suggestSend?(id: string): Promise<{ atMs: number; why: string } | null>;
+    /** Remind if no reply on a message already sent, by its id here or its Message-ID (null: stop waiting on it). */
+    followUp?(id: string, remindMs: number | null): Promise<MailFollowUp | { ok: true } | NotesFailure>;
+    /** Sent messages waiting on an answer, and those answered: soonest reminder first, answered last. */
+    followUps?(): Promise<MailFollowUp[] | NotesFailure>;
+    /** Raised once for each follow-up whose time came with no answer. */
+    onNoReply?(listener: (event: { due: MailFollowUp[] }) => void): () => void;
     onChanged(listener: (change: { by: string }) => void): () => void;
   };
   /** The Sheets app: workbooks of CSV sheets in `sheets/<workbook>/`. Only the Tauri shell has it. */
