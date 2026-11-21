@@ -2370,6 +2370,15 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .title-end .strip-right .menu-panel { left: auto; right: 0; }
 .context-strip[data-titled] { padding-left: var(--sp-2); }
 .context-strip[hidden] { display: none; }
+/* The window's own buttons, where the title row is the title bar (Windows, Linux): Windows' sizes and its red close. */
+.window-buttons { display: flex; align-self: stretch; margin-right: calc(-1 * var(--sp-2)); }
+.window-btn { display: grid; place-items: center; width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink); }
+.window-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1; }
+.window-btn:hover { background: var(--sel); }
+.window-btn[data-window="close"]:hover { background: var(--danger); color: white; }
+.title-row:has(.window-buttons) .title-end { gap: var(--sp-2); align-self: stretch; }
+/* macOS: the system's traffic lights sit over the top bar's start, so it starts after them. */
+.app[data-platform="darwin"] > .context-strip { padding-left: 78px; }
 .app:has(> .title-row) { grid-template-rows: auto var(--context) minmax(0, 1fr); }
 .app:has(> .context-strip[hidden]) { grid-template-rows: auto minmax(0, 1fr); }
 .menu-panel[data-compact]:not(:has(.menu-names)) { min-width: 200px; }

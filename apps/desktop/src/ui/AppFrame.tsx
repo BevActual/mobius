@@ -4,6 +4,7 @@ import { PanelTabsProvider } from './PanelTabs';
 import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
 import type { MenuEntry } from './Menu';
+import { WindowButtons, useWindowTitle } from './WindowButtons';
 import { fitToolbar, menuRowsOf, type ToolbarPriority } from './toolbarFit';
 
 /**
@@ -72,6 +73,7 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
     const own = appMenu?.entries ?? [];
     return { label: appMenu?.label ?? 'View', entries: [...dropped, ...own.map((e, i) => (i === 0 ? { ...e, separated: true } : e))] };
   }, [appMenu, dropped, titled]);
+  useWindowTitle(typeof toolbar.title === 'string' ? toolbar.title : undefined);
   const trail = typeof toolbar.trail === 'function' ? toolbar.trail(menu) : toolbar.trail;
   return (
     <AppMenuProvider value={setAppMenu}>
@@ -82,18 +84,19 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
         {titled ? <>
           {/* The title row: the Go icon and the menus at the start, what is open in the middle; the window's own buttons
               are the system's, above. An app with no tools has its trailing end here too, and no second row. */}
-          <div className="title-row">
-            <div className="title-start">
+          <div className="title-row" data-tauri-drag-region>
+            <div className="title-start" data-tauri-drag-region>
               <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
               {toolbar.menus!(appMenu, panels)}
             </div>
-            <div className="toolbar-place">
-              {toolbar.title && <h1 className="strip-title" title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}
+            <div className="toolbar-place" data-tauri-drag-region>
+              {toolbar.title && <h1 className="strip-title" data-tauri-drag-region title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}
               {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
             </div>
-            <div className="title-end">
+            <div className="title-end" data-tauri-drag-region>
               {toolbar.status}
               {noTools && <div className="strip-right" role="group" aria-label="Applications">{trail}</div>}
+              <WindowButtons />
             </div>
           </div>
           <header className="context-strip" data-titled hidden={noTools}>
@@ -102,7 +105,7 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
             {!noTools && <div className="strip-right" role="group" aria-label="Applications">{trail}</div>}
           </header>
         </> : (
-        <header className="context-strip">
+        <header className="context-strip" data-tauri-drag-region>
           <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
           <div className="toolbar-place" data-browser={toolbar.wideMiddle || undefined}>
             {toolbar.title && <h1 className="strip-title" title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}

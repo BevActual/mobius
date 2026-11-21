@@ -1933,7 +1933,7 @@ export function App() {
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
-      data={{ 'data-keys-ready': keysReady || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-chat': rightOpen ? 'open' : 'closed' }}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-platform': window.mobius.platform, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-chat': rightOpen ? 'open' : 'closed' }}
       toolbar={{
         // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
         wideMiddle: inBrowser && !settingsOpen,
