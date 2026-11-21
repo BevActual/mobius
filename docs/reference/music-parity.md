@@ -176,6 +176,48 @@ owns its panels, and Mobius stays docked on the right.
   record, tempo with tap, and metre. When the bar is narrow, count-in, follow, loop and the metronome fold into ⋯
   first. The transport and tempo never fold.
 
+### 3. The song file, version 2
+
+Both the engine and the UI read this, so it is settled before either builds on it. Version 1 files keep opening: they
+are read as version 2 on load, and saved as version 2 when next changed.
+
+```ts
+interface Song {
+  version: 2; tempo: number; key: string; bars: number;
+  meter?: [number, number];                 // [4, 4] when absent
+  changes?: { beat: number; tempo?: number; meter?: [number, number] }[];   // along the song
+  tracks: Track[];
+  returns?: Return[];                       // shared effects that tracks send to
+  master?: { volume: number; fx?: Effect[] };
+  scenes?: string[];
+}
+interface Track {
+  id: string; name: string; instrument: Instrument; color: TrackColour;
+  volume: number; pan: number; muted: boolean; solo: boolean; armed?: boolean;
+  sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; instrumentOn?: false;
+  sends?: Record<string, number>;           // return id -> level 0..1
+  clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
+  slots?: (Clip | null)[];                  // Session, one per scene
+  auto?: Record<string, AutoPoint[]>;       // "volume", "pan", "fx:<id>:<setting>" -> points in song beats
+}
+interface ArrangeClip {
+  id: string; start: number; length: number;   // song beats
+  name?: string; color?: TrackColour; muted?: boolean;
+  loop?: { start: number; end: number };       // beats in the clip's own time; repeats to fill `length`
+  offset?: number;                             // where in its own time the clip starts playing
+  notes: SongNote[];                           // starts in the clip's own time, from 0
+}
+interface Return { id: string; name: string; volume: number; fx: Effect[] }
+```
+
+- In version 1, `notes` is one list per track. On load, it becomes one clip per run of notes, cut where Arrange draws
+  clips today (`clipsOf`). `volumeAuto` becomes `auto.volume`.
+- Session's `Clip` keeps its shape (`name`, `bars`, `notes`). Dragging a Session clip into Arrange makes an
+  `ArrangeClip` with the same notes.
+- Audio comes in phase 3 as `audio?: { file: string; warp?: WarpMarker[] }` on a clip, in place of `notes`.
+- Mobius writes clips too: its guide (`docs/agent/music.md`) changes in the same pull request as the format, with one
+  Launch run on the PC before it merges.
+
 ## Phases
 
 Each phase is a run of rounds: one pull request per round, as for every app. Gaps in controls go to the library
