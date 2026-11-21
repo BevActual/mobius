@@ -13,7 +13,7 @@ const byTime = (a: SongNote, b: SongNote) => a.start - b.start || a.pitch - b.pi
 const round = (n: number) => Math.round(n * 1000) / 1000;
 
 /** Notes in order with the ones marked `picked` found again after sorting. */
-function settle(notes: { note: SongNote; picked: boolean }[]): { notes: SongNote[]; picked: Set<number> } {
+export function settle(notes: { note: SongNote; picked: boolean }[]): { notes: SongNote[]; picked: Set<number> } {
   const sorted = [...notes].sort((a, b) => byTime(a.note, b.note));
   return { notes: sorted.map((n) => n.note), picked: new Set(sorted.flatMap((n, i) => (n.picked ? [i] : []))) };
 }
