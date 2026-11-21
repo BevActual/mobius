@@ -137,7 +137,7 @@ export function agentWhen(bot: { id: string; name: string }, schedules: readonly
  */
 function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => void }) {
   const waiting = c.activity === 'needs_you' || c.waiting > 0;
-  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions for you` : 'A question for you') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? 'Failed' : 'Finished';
+  const state = waiting ? (c.waiting > 1 ? `${c.waiting} questions need your answer` : 'Needs your answer') : c.activity === 'working' ? 'Working…' : c.activity === 'failed' ? 'Failed' : 'Finished';
   return (
     <li className="act-row">
       <button type="button" className="act-main" onClick={() => onOpen(c.id)}>
@@ -145,7 +145,7 @@ function RunRow({ c, onOpen }: { c: ConversationInfo; onOpen: (id: string) => vo
         <svg viewBox="0 0 20 20" aria-hidden="true" className="act-icon">{APP_ICONS.agent}</svg>
         <span className="act-text">
           <span className="act-what">{c.title || 'A session'}</span>
-          <span className="act-sub" data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>
+          <span className="act-sub" data-needs={waiting || undefined} data-failed={(!waiting && c.activity === 'failed') || undefined}>{state}</span>
         </span>
         <time className="act-time" dateTime={new Date(c.updated_ms).toISOString()} title={dateTimeLabel(c.updated_ms)}>{relativeTime(c.updated_ms, Date.now())}</time>
       </button>
@@ -215,6 +215,7 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
   }
   return (
     <section className="agent-page" aria-label={bot.name}>
+      <h1 className="agent-title">{bot.name}</h1>
       {!main && (() => {
         const state = characterState(sessions);
         return (
@@ -231,10 +232,11 @@ export function AgentPage({ view, bots, loading = false, conversations, onShow, 
       <Part title="When it runs" action={runs.length > 0 && onOpenSchedules && <button type="button" className="link-btn" onClick={onOpenSchedules}>Schedules</button>}>
         <p className="agent-text agent-when">{agentWhen(bot, schedules)}</p>
       </Part>
-      <Part title="What it can use" action={onOpenSafety && <button type="button" className="link-btn" onClick={onOpenSafety}>Approvals and safety</button>}>
+      <Part title="What it can use" action={onOpenSafety && <button type="button" className="quiet-btn agent-go" onClick={onOpenSafety}>Approvals and safety<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M4.5 3 7.5 6 4.5 9" /></svg></button>}>
         <p className="agent-text">{mayTouch(preferences.value.appAccess, permissionOf(preferences.value.approvalMode, loadApply()).name)}</p>
       </Part>
-      <Part title="Recent runs" label="Recent runs" action={sessions.length > 0 && <button type="button" className="link-btn" onClick={() => onNewSession(bot.id)}>New session</button>}>
+      {/* New session is the top bar's; with no runs yet, the empty line offers it too. */}
+      <Part title="Recent runs" label="Recent runs">
         {sessions.length === 0 ? (
           <p className="agent-text agent-muted agent-empty">No runs yet.<button type="button" className="btn" onClick={() => onNewSession(bot.id)}>New session</button></p>
         ) : (

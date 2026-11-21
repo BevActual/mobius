@@ -152,7 +152,7 @@ export function MessagesPage({ messages, onAsk, onAddAccount, listPanels = [] }:
     </PanelLayout>
   );
   if (!messages.loaded) return <PanelLayout app="messages" panels={listPanels}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
-  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Discord and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
+  if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Teams and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
   // The last conversation opens again by itself, so this shows only before one has ever been chosen.
   if (!account || !channel) return empty('No conversation open', 'Choose a channel or a person on the left.');
   const unread = channel.unread;

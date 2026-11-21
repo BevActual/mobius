@@ -654,7 +654,7 @@ export function DesignEditor({ designs, review, listPanels = [] }: { designs: No
                   </li>
                 ))}
               </ul>
-              <button type="button" className="btn" onClick={() => change((d) => { let n = d.styles.length + 1; while (d.styles.some((s) => s.name === `Colour ${n}`)) n++; d.styles.push({ name: `Colour ${n}`, color: '#5856d6' }); })}>Add style</button>
+              <button type="button" className="side-new-row design-add-style" onClick={() => change((d) => { let n = d.styles.length + 1; while (d.styles.some((s) => s.name === `Colour ${n}`)) n++; d.styles.push({ name: `Colour ${n}`, color: '#5856d6' }); })}><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>Add style</button>
             </>
           )}
           {selected.length > 1 && (

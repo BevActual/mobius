@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { splitTitle } from './Tooltip';
+import { splitTitle, tipPlace } from './Tooltip';
 
 describe('tooltip titles', () => {
   it('draws a shortcut in brackets as key caps after the name', () => {
@@ -17,5 +17,18 @@ describe('tooltip titles', () => {
   it('keeps a bracket that is not a shortcut as part of the name', () => {
     expect(splitTitle('Forget this line (you can undo it)')).toEqual({ name: 'Forget this line (you can undo it)', keys: [] });
     expect(splitTitle('Hide Mobius')).toEqual({ name: 'Hide Mobius', keys: [] });
+  });
+});
+
+describe('tooltip placement', () => {
+  const box = { left: 100, right: 300, top: 50, bottom: 80 };
+  it('centres a tip under its element, or above it near the foot of the window', () => {
+    expect(tipPlace(box, 900)).toEqual({ x: 200, y: 86, below: true });
+    expect(tipPlace(box, 100)).toEqual({ x: 200, y: 44, below: false });
+  });
+  it('shows a data-tip-at="pointer" tip above the pointer, kept within its element', () => {
+    expect(tipPlace(box, 900, 140)).toEqual({ x: 140, y: 44, below: false });
+    expect(tipPlace(box, 900, 20)).toEqual({ x: 100, y: 44, below: false });
+    expect(tipPlace(box, 900, 500)).toEqual({ x: 300, y: 44, below: false });
   });
 });

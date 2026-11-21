@@ -241,3 +241,5 @@
 /* Mobius's changed-page dot sits in the trailing slot of the first line, as in Docs, and the time moves to its left. */
 .ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; top: calc(var(--sp-2) + (var(--fs-md) * var(--lh-tight) - 6px) / 2); right: var(--sp-2); margin: 0; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .list-row[data-proposed]) > .note-side-when { right: calc(var(--sp-2) + 6px + var(--sp-2)); }
+/* Design, Canvas and Research: the date trails a one-line row. */
+.notes-side:not([data-app="notes"]) .note-side-when { align-self: center; padding-right: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
