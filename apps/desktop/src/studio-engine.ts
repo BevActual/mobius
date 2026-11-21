@@ -10,6 +10,18 @@ import { countIn as windowCountIn, play as windowPlay, playSession as windowSess
  */
 const music = () => (typeof window === 'undefined' ? undefined : window.mobius?.music);
 
+/**
+ * Calls to the engine, one after another. The bridge runs each call on its own task, so calls not awaited can land in
+ * any order; a stop, a load and a play sent together must arrive as sent.
+ */
+let chain: Promise<unknown> = Promise.resolve();
+function send(call: () => Promise<unknown> | undefined): void {
+  chain = chain.then(call).catch(() => {});
+}
+
+/** Resolves once every call sent so far has been answered (for tests). */
+export const engineIdle = () => chain;
+
 let ready: boolean | null = null;
 let asking: Promise<boolean> | null = null;
 /** Opens the engine's sound output once; false (and the window plays) when there is no engine or no output. */
@@ -33,7 +45,7 @@ export function loadSong(song: Song): void {
   const text = JSON.stringify(song);
   if (text === loaded) return;
   loaded = text;
-  void m.load(song).catch(() => {});
+  send(() => m.load(song));
 }
 
 /** The engine's last position, carried forward between its events (about 30 a second) by the clock and the tempo. */
@@ -61,9 +73,10 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
   let song = songIn;
   const f = follow(() => song.tempo, loop, fromBeat);
   loaded = JSON.stringify(song);
-  void m.load(song).then(() => m.play(fromBeat, loop ? { start: loop.from, end: loop.to } : null, click)).catch(() => {});
+  send(() => m.load(song));
+  send(() => m.play(fromBeat, loop ? { start: loop.from, end: loop.to } : null, click));
   return {
-    stop() { f.off(); void m.stop().catch(() => {}); },
+    stop() { f.off(); send(() => m.stop()); },
     beat: f.beat,
     update(next) { song = next; loadSong(next); },
     level: f.level,
@@ -79,12 +92,13 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
   // A launch is shown as waiting at once, until the engine says otherwise.
   let asked: SessionQueued = { ...launches };
   loaded = JSON.stringify(song);
-  void m.load(song).then(() => m.playSession!(click, launches)).catch(() => {});
+  send(() => m.load(song));
+  send(() => m.playSession!(click, launches));
   return {
-    stop() { f.off(); void m.stop().catch(() => {}); },
+    stop() { f.off(); send(() => m.stop()); },
     beat: f.beat,
     level: f.level,
-    launch(trackId, slot) { asked = { ...asked, [trackId]: slot }; void m.launch!(trackId, slot).catch(() => {}); },
+    launch(trackId, slot) { asked = { ...asked, [trackId]: slot }; send(() => m.launch!(trackId, slot)); },
     update(next) { song = next; loadSong(next); },
     playing() {
       const out: SessionPlaying = {};
@@ -114,13 +128,13 @@ export function countIn(tempo: number, beats = BEATS_PER_BAR): { done: Promise<v
   let timer: ReturnType<typeof setTimeout> | undefined;
   // The engine answers no "done": the wait is a bar long, from 50 ms on, as it ticks.
   const done = new Promise<void>((resolve) => { timer = setTimeout(resolve, (0.05 + (beats * 60) / tempo) * 1000); });
-  void m.countIn(beats, tempo).catch(() => {});
-  return { done, stop() { clearTimeout(timer); void m.countIn!(null).catch(() => {}); } };
+  send(() => m.countIn!(beats, tempo));
+  return { done, stop() { clearTimeout(timer); send(() => m.countIn!(null)); } };
 }
 
 /** A note on a track, at once: through the engine (the track's own sound, kit and pad) or the window. */
 export function previewOn(track: Pick<Track, 'id' | 'instrument' | 'sound' | 'kit'>, pitch: number, velocity = 0.8, seconds?: number, pad?: DrumPad): void {
   const m = music();
-  if (engineOn() && m?.preview) { void m.preview(track.id, pitch, velocity, seconds).catch(() => {}); return; }
+  if (engineOn() && m?.preview) { send(() => m.preview!(track.id, pitch, velocity, seconds)); return; }
   previewNote(track.instrument as Instrument, pitch, velocity, seconds, track.sound as Sound | undefined, track.kit as KitSound | undefined, pad);
 }

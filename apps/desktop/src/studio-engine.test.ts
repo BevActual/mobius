@@ -27,10 +27,11 @@ describe('Music on the native engine', () => {
     const m = await import('./studio-engine');
     expect(await m.engineReady()).toBe(true);
     const p = m.play(SONG, 4, { from: 0, to: 8 }, true);
-    await new Promise((r) => setTimeout(r, 0));
+    await m.engineIdle();
     expect(e.calls.map((c) => c[0])).toEqual(['load', 'play']);
     expect(e.calls[1]).toEqual(['play', 4, { start: 0, end: 8 }, true]);
     p.stop();
+    await m.engineIdle();
     expect(e.calls.at(-1)).toEqual(['stop']);
     expect(e.listening()).toBe(false);
   });
@@ -72,7 +73,22 @@ describe('Music on the native engine', () => {
     m.previewOn({ id: 't1', instrument: 'piano' }, 60, 0.5, 0.3);
     const c = m.countIn(120, 4);
     c.stop();
+    await m.engineIdle();
     expect(e.calls).toEqual([['preview', 't1', 60, 0.5, 0.3], ['countIn', 4, 120], ['countIn', null]]);
+  });
+
+  it('sends calls one after another, so a stop, a load and a play arrive in that order however long each takes', async () => {
+    const e = fakeEngine();
+    const m = await import('./studio-engine');
+    await m.engineReady();
+    const music = (window as unknown as { mobius: { music: Record<string, (...a: unknown[]) => Promise<unknown>> } }).mobius.music;
+    const slow = music.stop!;
+    music.stop = (...a) => new Promise((r) => setTimeout(() => r(slow(...a)), 30));
+    const first = m.play(SONG, 0);
+    first.stop();
+    m.play(SONG, 8);
+    await m.engineIdle();
+    expect(e.calls.map((c) => c[0])).toEqual(['load', 'play', 'stop', 'load', 'play']);
   });
 
   it('leaves the window to play when the engine has no sound output', async () => {
