@@ -40,8 +40,10 @@ const saved = () => {
 };
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
-/** Adds a track from Sounds in the sidebar. */
+/** Adds a track from Sounds in the songs list (a tab beside the Library). */
 async function addTrack(name: string): Promise<void> {
+  const songsTab = shell().getByRole('tab', { name: 'Songs' });
+  if ((await songsTab.getAttribute('aria-selected')) !== 'true') await songsTab.click();
   await shell().getByRole('complementary', { name: 'Songs' }).getByRole('region', { name: 'Sounds' }).getByRole('button', { name, exact: true }).click();
 }
 /** Opens the notes editor on a track, with a double-click on its first clip. */
@@ -519,6 +521,34 @@ test('the view switch leads the toolbar: Alt+1 and Alt+2 pick Session or Arrange
   const tap = shell().getByRole('button', { name: 'Tap tempo' });
   for (let i = 0; i < 4; i++) { await tap.click(); await shell().waitForTimeout(400); }
   await expect.poll(() => saved().tempo).not.toBe(112);
+});
+
+test('the Library finds a sound by words and tags, puts it on the chosen track or adds an effect, and keeps collections', async () => {
+  await start();
+  const lib = shell().locator('.studio-library');
+  const search = lib.getByRole('searchbox', { name: 'Search the library' });
+  // Every word must match; #word matches tags only.
+  await search.fill('keys soft');
+  await expect(lib.getByRole('option')).toHaveText(['Electric Keys', 'Felt Keys']);
+  await search.fill('#pluck');
+  await expect(lib.getByRole('option')).toHaveText(['Mallet', 'Pluck']);
+  // A sound onto the chosen melodic track replaces its sound (hot-swap), as one Undo step.
+  await search.fill('felt');
+  await lib.getByRole('option', { name: 'Felt Keys' }).click();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBe(1800);
+  expect(saved().tracks.length).toBe(1);
+  // An effect is added to the chosen track.
+  await search.fill('reverb');
+  await lib.getByRole('option', { name: 'Reverb' }).click();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((f) => f.kind)).toEqual(['reverb']);
+  // 3 puts the chosen item in the third collection, which then lists only it.
+  await shell().keyboard.press('3');
+  await search.fill('');
+  await lib.getByRole('combobox', { name: 'Show' }).click();
+  await shell().getByRole('option', { name: /^Collection 3/ }).click();
+  await expect(lib.getByRole('option')).toHaveText(['Reverb']);
 });
 
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {

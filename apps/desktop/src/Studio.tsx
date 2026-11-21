@@ -7,6 +7,8 @@ import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneN
 import type { CSSProperties } from 'react';
 import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
+import { StudioLibrary } from './StudioLibrary';
+import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
@@ -1308,6 +1310,34 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
 
   // The chosen track's clip notes or devices (Shift+Tab switches), as the bottom panel, as Ableton keeps them under
   // the arrangement. It is there while a track is open in it; hiding it closes it, so the next track opens it again.
+  /**
+   * The Library's Enter or double-click: a sound or kit replaces the chosen track's (hot-swap) when the kinds match
+   * (melodic onto melodic, a kit onto drums), else it comes in as a new track; an effect is added to the chosen track.
+   * One Undo step either way.
+   */
+  const applyLibraryItem = (it: LibraryItem) => {
+    if (it.effect) {
+      if (!track) return;
+      change((s) => { const t = s.tracks.find((x) => x.id === track.id); if (t) t.fx = [...(t.fx ?? []), newEffect(it.effect!, freshEffectId(t))]; });
+      return;
+    }
+    const instrument = it.instrument!;
+    const swap = track && (track.instrument === 'drums') === (instrument === 'drums') ? track.id : null;
+    change((s) => {
+      let t = swap ? s.tracks.find((x) => x.id === swap) : undefined;
+      if (!t) {
+        t = { id: freshTrackId(s), name: it.name, instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] };
+        s.tracks.push(t);
+      }
+      t.instrument = instrument;
+      if (it.sound) t.sound = { ...it.sound }; else delete t.sound;
+      if (it.kit) t.kit = { ...it.kit }; else if (instrument === 'drums') delete t.kit;
+      setSelected(t.id);
+    });
+  };
+  const libraryPanel: PanelSpec = { id: 'library', name: 'Library', dock: 'left', shown: true, group: 'browse', keys: 'mod+alt+b', render: () => (
+    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} />
+  ) };
   const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', shown: true, size: 340, onHide: () => setEditing(false), render: () => (
     <div ref={setEditorEl} className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
       <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Devices'}>
@@ -1474,7 +1504,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         </ToolbarItem>
       </ToolbarControls>
-      <PanelLayout app="studio" panels={detailPanel ? [...listPanels, detailPanel] : listPanels}>
+      <PanelLayout app="studio" panels={[libraryPanel, ...listPanels.map((p) => ({ ...p, group: 'browse' })), ...(detailPanel ? [detailPanel] : [])]}>
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
