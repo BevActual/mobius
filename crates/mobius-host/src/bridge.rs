@@ -3522,6 +3522,14 @@ impl Bridge {
                 (Some(w), Some(sh), Some(n)) => s.rename_sheet(w, sh, n),
                 _ => Err("a name is needed".to_owned()),
             },
+            "duplicateSheet" => match (text(0), text(1)) {
+                (Some(w), Some(sh)) => s.duplicate_sheet(w, sh),
+                _ => Err("a sheet is needed".to_owned()),
+            },
+            "moveSheet" => match (text(0), text(1), num(2)) {
+                (Some(w), Some(sh), Some(to)) => s.move_sheet(w, sh, to),
+                _ => Err("a sheet and a place are needed".to_owned()),
+            },
             "removeSheet" => match (text(0), text(1)) {
                 (Some(w), Some(sh)) => s.remove_sheet(w, sh),
                 _ => Err("a sheet is needed".to_owned()),
