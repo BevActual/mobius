@@ -1509,8 +1509,16 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 .research-form textarea:focus { border-color: var(--ink); }
 .research-depth { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-2); }
 .research-depth-option { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); cursor: pointer; }
-.research-depth-option[data-on] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-.research-depth-option input { grid-row: span 2; margin: 3px 0 0; accent-color: var(--accent); }
+.research-depth-option[data-on] { border-color: var(--ink); background: none; }
+/* The question box with its start arrow inside, at the bottom right, as Message Mobius has it. */
+.research-box { position: relative; display: flex; }
+.research-box textarea { flex: 1; padding-right: 48px; }
+.research-go { position: absolute; right: 8px; bottom: 8px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 999px; background: var(--soft); color: var(--muted); cursor: pointer; }
+.research-go:not(:disabled) { background: var(--ink); color: var(--paper); }
+.research-go:disabled { cursor: default; }
+.research-go:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.research-go svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.research-depth-option input { grid-row: span 2; margin: 3px 0 0; accent-color: var(--ink); }
 .research-depth-label { font-weight: 600; }
 .research-depth-detail { color: var(--muted); font-size: var(--fs-sm); }
 .research-actions { display: flex; justify-content: flex-end; gap: var(--sp-2); }

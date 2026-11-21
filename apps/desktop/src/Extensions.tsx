@@ -124,7 +124,7 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
   const shownSkills = skills.list.filter((s) => matches(q, s.name, s.description));
   const row = (p: ExtensionPlace, count: number) => <SidebarRow label={PLACE_NAMES[p]} {...(count ? { count } : {})} current={place === p && !(p === 'skills' && skills.open)} onSelect={() => { onPlace(p); if (p === 'skills') skills.close(); }} />;
   return (
-    <AppSidebar label="Kinds">
+    <AppSidebar label="Abilities">
       <SidebarSearch label="Search abilities" value={q} onChange={setQ} />
       <SidebarSection title="Apps" action={pin}>
         {row('installed', installed.length)}
@@ -245,28 +245,37 @@ function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; on
     { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void set(app, false) },
   ];
   const icon = (app: AppInfo) => <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon">{APP_ICONS[app.id]}</svg>;
+  const row = (app: AppInfo, kind: 'installed' | 'available') => (
+    <li key={app.id} className="abl-item" onKeyDown={(e) => { if (kind === 'installed' && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.abl-main')) { e.preventDefault(); void set(app, false); } }} onContextMenu={(e) => { if (kind !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
+      {kind === 'installed' && onOpenApp
+        ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
+        : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
+      {kind === 'installed' && onOpenApp && <button type="button" className="btn abl-open" tabIndex={-1} aria-hidden="true" onClick={() => onOpenApp(app.id)}>Open</button>}
+      {kind === 'installed'
+        ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
+        : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
+    </li>
+  );
+  // Searching Installed also shows what matches in Available, under its own heading, so a search has one answer.
+  const also = which === 'installed' && q.trim() ? available.filter((a) => appMatches(q, a)) : [];
   return (
     <>
       {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
-      {list.length === 0 && <p className="abl-empty">{q.trim() ? `No apps match “${q.trim()}”.` : which === 'available' ? 'Every app is installed.' : 'No apps are installed.'}</p>}
+      {list.length === 0 && also.length === 0 && <p className="abl-empty">{q.trim() ? `No apps match “${q.trim()}”.` : which === 'available' ? 'Every app is installed.' : 'No apps are installed.'}</p>}
       {groups.map(({ group, members }) => (
         <section key={group} className="abl-group" aria-label={group}>
           <h2 className="abl-group-title">{group}</h2>
           <ul role="list" className="abl-rows">
-            {members.map((app) => (
-              <li key={app.id} className="abl-item" onKeyDown={(e) => { if (which === 'installed' && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.abl-main')) { e.preventDefault(); void set(app, false); } }} onContextMenu={(e) => { if (which !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
-                {which === 'installed' && onOpenApp
-                  ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
-                  : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
-                {which === 'installed' && onOpenApp && <button type="button" className="btn abl-open" tabIndex={-1} aria-hidden="true" onClick={() => onOpenApp(app.id)}>Open</button>}
-                {which === 'installed'
-                  ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
-                  : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
-              </li>
-            ))}
+            {members.map((app) => row(app, which))}
           </ul>
         </section>
       ))}
+      {also.length > 0 && (
+        <section className="abl-group" aria-label="Available">
+          <h2 className="abl-group-title">Available</h2>
+          <ul role="list" className="abl-rows">{also.map((app) => row(app, 'available'))}</ul>
+        </section>
+      )}
       {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.app.name} onClose={() => setMenu(null)} items={entries(menu.app)} />}
       {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
     </>

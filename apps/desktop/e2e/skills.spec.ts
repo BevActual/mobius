@@ -35,7 +35,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
   await shell().keyboard.press('Enter');
   // Abilities opens on its installed apps; the skills are a place beside them.
-  await shell().getByRole('complementary', { name: 'Kinds' }).getByRole('button', { name: /^Skills/ }).click();
+  await shell().getByRole('complementary', { name: 'Abilities' }).getByRole('button', { name: /^Skills/ }).click();
 }
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
@@ -111,7 +111,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await openAllApps(shell());
   await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
-  const side = shell().getByRole('complementary', { name: 'Kinds' });
+  const side = shell().getByRole('complementary', { name: 'Abilities' });
   await expect(side.getByRole('region', { name: 'Apps' }).locator('button.list-row')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
   await expect(side.getByRole('region', { name: 'Tools' }).locator('button.list-row')).toHaveText([/^Skills\d*$/, /^Connectors\d*$/]);
   await expect(side.getByRole('button', { name: /^Installed/ })).toHaveAttribute('aria-current', 'page');

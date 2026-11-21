@@ -33,9 +33,11 @@ const say = async (text: string) => {
   await composer().fill(text);
   await composer().press('Enter');
 };
+// The launcher opens from the Go button: at start the web page can hold the keyboard, and Ctrl+K then goes to the page.
 const openApp = async (name: string) => {
-  await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
+  await goButton(shell()).click();
+  const launcher = shell().getByRole('dialog', { name: 'Launcher' });
+  await launcher.getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name);
   await shell().keyboard.press('Enter');
 };
 const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visible);
@@ -43,7 +45,8 @@ const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visi
 test('the launcher opens the Agent as a full app: the page is hidden and the side panel gives way', async () => {
   await start([]);
   await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toBeVisible();
-  expect(await visibleViews()).toHaveLength(1);
+  // The page shows once it has loaded, a moment after the window.
+  await expect.poll(async () => (await visibleViews()).length).toBe(1);
   await openApp('Agent');
   await expect(shell().getByRole('region', { name: 'Agent conversation' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Agent', exact: true })).toHaveCount(0);

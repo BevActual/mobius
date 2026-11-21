@@ -95,16 +95,22 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
         <form className="research-form" onSubmit={(e) => void start(e)}>
           <h1>What should Mobius find out?</h1>
           <p className="research-lede">Mobius searches the web from a few angles, reads the best pages, and writes you a report with every source, here in Research.</p>
-          <textarea
-            aria-label="Research question"
-            placeholder="Ask a question, as you would a person who will go and look it up"
-            rows={2}
-            maxLength={1000}
-            value={question}
-            autoFocus
-            onChange={(e) => setQuestion(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
-          />
+          {/* The start arrow sits in the box, as in Message Mobius: lit in ink once there is a question. Ctrl+Enter starts. */}
+          <div className="research-box">
+            <textarea
+              aria-label="Research question"
+              placeholder="Ask a question, as you would a person who will go and look it up"
+              rows={2}
+              maxLength={1000}
+              value={question}
+              autoFocus
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.form?.requestSubmit(); } }}
+            />
+            <button type="submit" className="research-go" aria-label="Start research" title="Start research (Ctrl+Enter)" disabled={!question.trim()}>
+              <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3.5M3.5 8 8 3.5 12.5 8" /></svg>
+            </button>
+          </div>
           <div className="research-depth" role="radiogroup" aria-label="How deep">
             {DEPTHS.map((d) => (
               <label key={d.id} className="research-depth-option" data-on={depth === d.id || undefined}>
@@ -114,10 +120,7 @@ export function ResearchPage({ research, review, busy, asking, onAsk, onAskDone,
               </label>
             ))}
           </div>
-          <div className="research-actions">
-            {asking && page && <button type="button" className="btn" onClick={onAskDone}>Cancel</button>}
-            <button type="submit" className="btn primary" disabled={!question.trim()}>Start research</button>
-          </div>
+          {asking && page && <div className="research-actions"><button type="button" className="btn" onClick={onAskDone}>Cancel</button></div>}
           {!question && (
             <section className="research-try" aria-label="Examples">
               <h2 className="research-try-title">Try</h2>
