@@ -1876,6 +1876,7 @@ export function App() {
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
+      onRead={() => { if (!active) return; void saveToReader(reading, active.url).then((done) => { if (!done.ok) { setToast(done.message); return; } openApp('reader'); void reading.open(done.path, active.title); }); }}
     />
   );
   // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
