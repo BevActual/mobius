@@ -14,7 +14,6 @@
 /* The tools start the toolbar's middle, right after the title, as Notes' and Docs' do. */
 .ui-toolbar-slot:has(.sheet-tools) { flex: 1 1 auto; min-width: 0; }
 /* The tools start after the title, as in every app (app-bar.md), not in the middle of the bar. */
-.context-strip:has(.sheet-tools) .toolbar-place { flex: 0 1 auto; }
 .context-strip:has(.sheet-tools) .ui-toolbar-slot { justify-content: flex-start; }
 .ui-toolbar-group:has(> .sheet-tools) { flex: 1; }
 .sheet-tools { display: flex; flex: 1; align-items: center; gap: var(--sp-2); }
