@@ -5,10 +5,10 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { StudioWorkbench } from './StudioBench';
-import { GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { followScroll, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -290,6 +290,7 @@ const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label:
 const STEP_VIEWS = [{ value: 'notes', label: 'Piano roll' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
+const COUNT_IN_KEY = 'mobius.music.countIn';
 /** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
 const PAD_KEYS = ['Q', 'W', 'E', 'A', 'S', 'D'];
 const STEP_ROWS = DRUMS.map((d) => ({ id: String(d.pitch), name: d.name }));
@@ -439,6 +440,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [beat, setBeat] = useState(0);
   // Recording: keys played on the computer keyboard while it plays are written into the chosen track, as one take.
   const [recording, setRecording] = useState(false);
+  // A bar of ticks before recording starts from a stop, as in other studios. On unless turned off; kept for every song.
+  const [counts, setCounts] = useState(() => { try { return window.localStorage.getItem(COUNT_IN_KEY) !== '0'; } catch { return true; } });
+  const counting = useRef<{ stop(): void } | null>(null);
+  // While playing, Arrange scrolls a page at a time to keep the playhead in sight, until the person scrolls it.
+  const following = useRef(true);
+  const beatW = useRef(0);
   const takeKeys = useRef<Map<string, { pitch: number; start: number; velocity: number }>>(new Map());
   const take = useRef('');
   const finishKey = useRef<((key: string) => void) | null>(null);
@@ -602,6 +609,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
   const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
   const stop = useCallback(() => {
+    counting.current?.stop(); counting.current = null;
     finishAll.current?.();
     setRecording(false);
     player.current?.stop(); player.current = null;
@@ -626,6 +634,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     player.current?.stop();
     heard.current = playedAs(song, cycleFor(song));
     player.current = play(song, from >= song.bars * BEATS_PER_BAR ? 0 : from, cycleFor(song), click);
+    following.current = true;
     setPlaying(true);
   }, [song, cycleFor, click]);
   const start = useCallback(() => (view === 'session' ? startSession() : startAt(Math.floor(beat))), [view, startSession, startAt, beat]);
@@ -650,6 +659,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const b = p.beat();
       if (!loop && b >= song.bars * BEATS_PER_BAR) { stop(); setBeat(0); return; }
       setBeat(Math.max(0, b));
+      const el = arrangeEl.current;
+      if (el && following.current && beatW.current > 0) {
+        const to = followScroll(el.scrollLeft, el.clientWidth, HEAD_W, Math.max(0, b) * beatW.current);
+        if (to !== null) el.scrollLeft = to;
+      }
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -779,6 +793,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const rbw = clip ? Math.max(ROLL_BEAT_W * zoom, (laneW + HEAD_W - keysW) / span) : ROLL_BEAT_W * zoom;
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
+  beatW.current = view === 'arrange' ? bw : 0;
   const notes = clip ? clip.notes : (track?.notes ?? []);
   const heldPitches = new Set(held.values());
   const lastHeld = [...held.values()].at(-1);
@@ -1110,7 +1125,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
     </div>
   ) : null;
-  const stopOrRewind = () => { if (playing) stop(); else seek(0); };
+  const stopOrRewind = () => { if (playing || counting.current) stop(); else seek(0); };
   // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys.
   playKeys.current = (e) => {
     const k = e.key.toLowerCase();
@@ -1143,8 +1158,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     take.current = `record:${Date.now()}`;
     setKeyboard(true);
     setRecording(true);
-    if (!playing) start();
     page.current?.focus();
+    if (playing) return;
+    if (!counts) { start(); return; }
+    // The count-in: a bar of ticks, then the song plays from the playhead and what is played is written.
+    const bar = countIn(song.tempo, BEATS_PER_BAR);
+    counting.current = bar;
+    void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; start(); });
   };
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
   const exportWav = async () => {
@@ -1359,7 +1379,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
-          onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
+          onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) { following.current = false; return; } e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           {view === 'session' ? (
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
               onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
@@ -1385,6 +1405,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               { label: 'Loop Whole Song', disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
               { label: click ? 'Turn Metronome Off' : 'Turn Metronome On', keys: 'K', run: () => setClick((c) => !c) },
+              { label: counts ? 'Turn Count-In Off' : 'Turn Count-In On', run: () => setCounts((c) => { try { window.localStorage.setItem(COUNT_IN_KEY, c ? '0' : '1'); } catch { /* not kept */ } return !c; }) },
               { label: 'Add 4 Bars', separated: true, disabled: song.bars >= 512, run: () => change((s) => { s.bars = Math.min(512, s.bars + 4); }) },
               { label: 'Remove Last 4 Bars', disabled: song.bars <= 4, run: () => change((s) => { s.bars = Math.max(4, s.bars - 4); }) },
               { label: 'Zoom In', separated: true, disabled: zoom >= ZOOMS[ZOOMS.length - 1]!, run: () => setZoom((z) => ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + 1)] ?? z) },

@@ -482,6 +482,9 @@ test('Record plays from the playhead and writes what is played on the computer k
   await rec.click();
   await expect(rec).toHaveAttribute('aria-pressed', 'true');
   await expect(shell().getByRole('button', { name: 'Computer keyboard' })).toHaveAttribute('aria-pressed', 'true');
+  // A bar of ticks counts in first: the song is not playing yet, then it plays from the playhead.
+  await expect(shell().getByRole('button', { name: 'Play', exact: true })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible({ timeout: 10_000 });
   // A plays C4 and H plays A4, each held a moment, once the playhead has moved off the song's own notes' start.
   await shell().waitForTimeout(400);
   await shell().keyboard.down('a');
