@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
-import { AppSidebar, Avatar, PanelLayout, SidebarRow, SidebarSearch, SidebarSection, type PanelSpec } from './ui';
+import { AppSidebar, Avatar, Menu, PanelLayout, Popover, SidebarRow, SidebarSearch, SidebarSection, type MenuEntry, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import type { MessagesState } from './useMessages';
 import { SERVICE_NAMES, channelGroups, channelLabel, firstUnread, lastReplyLabel, mentionParts, myName, runs, unreadLabel } from './messages-view';
@@ -62,22 +62,55 @@ function ThreadLink({ m, onOpen }: { m: ChatMessage; onOpen: () => void }) {
   );
 }
 
-/** A message's tools, shown while the pointer or the keyboard is on it: reply in its thread, and copy its text. */
-function MessageTools({ m, onThread }: { m: ChatMessage; onThread?: (id: string) => void }) {
-  const [copied, setCopied] = useState(false);
-  const copy = () => { void navigator.clipboard?.writeText(m.text).then(() => { setCopied(true); window.setTimeout(() => setCopied(false), 1200); }).catch(() => undefined); };
+/** What can be done to a message besides replying and copying, where its service allows it. */
+export interface MessageActions {
+  react?: (m: ChatMessage, emoji: string) => void;
+  link?: (m: ChatMessage) => Promise<string | null>;
+  unread?: (m: ChatMessage) => void;
+}
+
+/** The quick reactions offered on a message. */
+export const QUICK_REACTIONS = ['👍', '❤️', '😄', '🎉', '👀', '✅'] as const;
+
+/** A message's tools, shown while the pointer or the keyboard is on it: react, reply in its thread, copy, and more. */
+function MessageTools({ m, onThread, actions }: { m: ChatMessage; onThread?: (id: string) => void; actions?: MessageActions }) {
+  const [copied, setCopied] = useState<'text' | 'link' | null>(null);
+  const [picking, setPicking] = useState(false);
+  const flash = (what: 'text' | 'link') => { setCopied(what); window.setTimeout(() => setCopied(null), 1200); };
+  const copy = () => { void navigator.clipboard?.writeText(m.text).then(() => flash('text')).catch(() => undefined); };
+  const copyLink = async () => {
+    const url = await actions?.link?.(m);
+    if (url) await navigator.clipboard?.writeText(url).then(() => flash('link')).catch(() => undefined);
+  };
+  const more: MenuEntry[] = [
+    ...(actions?.link ? [{ label: copied === 'link' ? 'Link copied' : 'Copy link', run: () => { void copyLink(); } }] : []),
+    ...(actions?.unread ? [{ label: 'Mark unread from here', run: () => actions.unread!(m) }] : []),
+  ];
   return (
-    <span className="messages-tools" role="toolbar" aria-label="Message">
+    <span className="messages-tools" role="toolbar" aria-label="Message" data-open={picking || undefined}>
+      {actions?.react && (
+        <Popover label="React" side="top" align="end" open={picking} onOpenChange={setPicking} className="messages-react-pick"
+          trigger={<button type="button" className="icon-btn" aria-label="React" title="React"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" /><path d="M5.8 9.4c.5.8 1.3 1.2 2.2 1.2s1.7-.4 2.2-1.2M6 6.4h.01M10 6.4h.01" /></svg></button>}>
+          {QUICK_REACTIONS.map((e) => {
+            const mine = (m.reactions ?? []).some((r) => r.emoji === e && r.mine);
+            return <button key={e} type="button" aria-pressed={mine} aria-label={mine ? `Take back ${e}` : `React ${e}`} onClick={() => { setPicking(false); actions.react!(m, e); }}>{e}</button>;
+          })}
+        </Popover>
+      )}
       {onThread && !m.thread && (
         <button type="button" className="icon-btn" aria-label="Reply in thread" title="Reply in thread" onClick={() => onThread(m.id)}>
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 3.5h10v7H7l-3 2.5v-2.5H3z" /></svg>
         </button>
       )}
-      <button type="button" className="icon-btn" aria-label={copied ? 'Copied' : 'Copy text'} title={copied ? 'Copied' : 'Copy text'} onClick={copy}>
-        {copied
+      <button type="button" className="icon-btn" aria-label={copied === 'text' ? 'Copied' : 'Copy text'} title={copied === 'text' ? 'Copied' : 'Copy text'} onClick={copy}>
+        {copied === 'text'
           ? <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m3.5 8.5 3 3 6-7" /></svg>
           : <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5.5" y="5.5" width="7.5" height="7.5" rx="1.5" /><path d="M10.5 3.5v-.5a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v5.5a1 1 0 0 0 1 1h.5" /></svg>}
       </button>
+      {more.length > 0 && (
+        <Menu label="More for this message" side="bottom" align="end" entries={more}
+            trigger={<button type="button" className="icon-btn" aria-label="More for this message" title="More"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" strokeWidth="2.4" /></svg></button>} />
+      )}
     </span>
   );
 }
@@ -86,7 +119,7 @@ function MessageTools({ m, onThread }: { m: ChatMessage; onThread?: (id: string)
  * Messages by sender, oldest first, stacked against the box to write in and kept scrolled to the newest; `onThread`
  * opens a message's replies. `newFrom` is the first message not read when the conversation opened, under a "New" line.
  */
-function MessageLog({ label, list, onThread, onPerson, newFrom = null }: { label: string; list: readonly ChatMessage[]; onThread?: (id: string) => void; /** Shows who wrote a run in the Person panel. */ onPerson?: (author: ChatMessage['author']) => void; newFrom?: string | null }) {
+function MessageLog({ label, list, onThread, onPerson, newFrom = null, actions }: { label: string; list: readonly ChatMessage[]; onThread?: (id: string) => void; actions?: MessageActions; /** Shows who wrote a run in the Person panel. */ onPerson?: (author: ChatMessage['author']) => void; newFrom?: string | null }) {
   const log = useRef<HTMLDivElement>(null);
   const grouped = useMemo(() => runs(list), [list]);
   const me = useMemo(() => myName(list), [list]);
@@ -103,18 +136,24 @@ function MessageLog({ label, list, onThread, onPerson, newFrom = null }: { label
           <div className="messages-day" role="separator"><span>{nearDayLabel(run.at) ?? dayLabel(run.at, { weekday: 'short' })}</span></div>
         )}
         {isNew && run.messages[0]!.id === newFrom && <div className="messages-new" role="separator" aria-label="New messages"><span>New</span></div>}
-        <article className="messages-run" data-me={run.author.me || undefined}>
+        <article className="messages-run" data-me={run.author.me || undefined} data-mention={!run.author.me && run.messages.some((m) => mentionParts(m.text, me).mine) ? true : undefined}>
           <header>{onPerson && !run.author.me ? <button type="button" className="messages-author" title={`About ${run.author.name}`} onClick={() => onPerson(run.author)}><strong>{run.author.name}</strong></button> : <strong>{run.author.name}</strong>} <time dateTime={new Date(run.at).toISOString()}>{timeLabel(new Date(run.at))}</time></header>
           {run.messages.map((m, j) => (
             <Fragment key={m.id}>
             {isNew && j > 0 && m.id === newFrom && <div className="messages-new" role="separator" aria-label="New messages"><span>New</span></div>}
-            <div className="messages-one" data-mention={!m.author.me && mentionParts(m.text, me).mine ? true : undefined}>
+            <div className="messages-one">
               <p><MessageText text={m.text} me={m.author.me ? null : me} />{m.edited && <span className="messages-edited"> (edited)</span>}</p>
               {(m.reactions?.length ?? 0) > 0 && (
-                <ul className="messages-reactions" aria-label="Reactions">{m.reactions!.map((r) => <li key={r.emoji} data-mine={r.mine || undefined}>{r.emoji} {r.count}</li>)}</ul>
+                <ul className="messages-reactions" aria-label="Reactions">{m.reactions!.map((r) => (
+                  <li key={r.emoji} data-mine={r.mine || undefined}>
+                    {actions?.react
+                      ? <button type="button" aria-pressed={r.mine ?? false} aria-label={`${r.emoji} ${r.count}${r.mine ? ', yours: take back' : ''}`} onClick={() => actions.react!(m, r.emoji)}>{r.emoji} {r.count}</button>
+                      : <>{r.emoji} {r.count}</>}
+                  </li>
+                ))}</ul>
               )}
               {onThread && (m.replies ?? 0) > 0 && <ThreadLink m={m} onOpen={() => onThread(m.id)} />}
-              <MessageTools m={m} onThread={onThread} />
+              <MessageTools m={m} onThread={onThread} actions={actions} />
             </div>
             </Fragment>
           ))}
@@ -218,12 +257,17 @@ export function MessagesPage({ messages, onAddAccount, listPanels = [] }: { mess
   // The first unread conversation, or the last one open, opens by itself, so this shows only when there is neither.
   if (!account || !channel) return empty('No conversation open', '', undefined, true);
   const name = channelLabel(channel);
+  const actions: MessageActions = {
+    ...(messages.can.react ? { react: (m: ChatMessage, e: string) => { void messages.react(m, e); } } : {}),
+    ...(messages.can.link ? { link: messages.permalink } : {}),
+    ...(messages.can.markUnread ? { unread: (m: ChatMessage) => { void messages.markUnread(m); } } : {}),
+  };
   const where = `${open?.account}/${open?.channel}`;
   const from = thread ? messages.messages.find((m) => m.id === thread) : undefined;
   // Thread (right dock, while one is open): the message it hangs from, its replies, and a box to reply in.
   const threadPanel: PanelSpec | null = thread ? { id: 'thread', name: 'Thread', dock: 'right', group: 'side', shown: true, onHide: () => messages.openThread(null), render: () => (
     <div className="messages-thread-panel">
-      <MessageLog label={`Thread in ${name}`} list={from ? [from, ...messages.replies.filter((r) => r.id !== from.id)] : messages.replies} />
+      <MessageLog label={`Thread in ${name}`} list={from ? [from, ...messages.replies.filter((r) => r.id !== from.id)] : messages.replies} actions={actions} />
       <Compose label="Reply in thread" reset={`${where}/${thread}`} onSend={(text) => messages.send(text, true)} />
     </div>
   ) } : null;
@@ -237,7 +281,7 @@ export function MessagesPage({ messages, onAddAccount, listPanels = [] }: { mess
         ? <p className="messages-encrypted" role="status">Encrypted: verify this device in Settings &gt; Messages to read</p>
         : (
           <>
-            <MessageLog label={name} list={messages.messages} onThread={messages.openThread} onPerson={setPerson} newFrom={firstUnread(messages.messages, messages.unreadAtOpen)} />
+            <MessageLog label={name} list={messages.messages} onThread={messages.openThread} onPerson={setPerson} newFrom={firstUnread(messages.messages, messages.unreadAtOpen)} actions={actions} />
             {messages.message && <p className="tasks-message" role="alert">{messages.message}</p>}
             <Compose label={`Message ${name}`} reset={where} onSend={(text) => messages.send(text)} />
           </>
