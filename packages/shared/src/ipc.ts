@@ -3,6 +3,7 @@ import type { AgentEvent, Assessment, ConversationInfo, Duration, Hardware, Loca
 import type { Bot, BotDraft, BotResult, BotsState } from './bots';
 import { isContextList, type ContextItem } from './context';
 import { DEFAULT_KEYBINDINGS, isKeyBindings, type KeyBindings } from './keys';
+import { DEFAULT_LANGUAGE, isLanguage, type LanguageId } from './language';
 
 /** Everything that crosses the renderer -> main boundary is validated here. The renderer is untrusted input. */
 export interface Bounds { x: number; y: number; width: number; height: number }
@@ -193,7 +194,11 @@ export interface MailContent { id: string; from: MailPerson; to: MailPerson[]; c
 /** A draft: the person's, or one Mobius suggested (`by` mobius), which waits as a suggestion until opened. */
 export interface MailDraft {
   /** Send later: when it goes, as you scheduled it. */
-  sendAtMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+  sendAtMs?: number | null;
+  /** Remind if no reply: once sent, when to remind you unless someone it went to has answered (null: no reminder). */
+  remindMs?: number | null; id: string; account: string; to: string; cc: string; subject: string; body: string; replyTo: string | null; by: 'you' | 'mobius'; why: string; updatedMs: number }
+/** A sent message waiting on an answer (Remind if no reply). `due`: its time came with no answer. */
+export interface MailFollowUp { messageId: string; /** Its copy in Sent here, once Sent has it. */ sentId: string | null; account: string; to: string[]; subject: string; sentMs: number; remindMs: number; replyId: string | null; repliedMs: number | null; status: 'waiting' | 'due' | 'replied' }
 export interface MailAccount { id: string; name: string; email: string; lastSyncMs: number; problem: string | null }
 export interface MailCounts { primary: number; transactions: number; updates: number; all: number; drafts: number; suggested: number }
 /** A sheet in the Sheets app: each cell as typed (`cells`, a formula starts with =) and as worked out (`values`). */
@@ -300,7 +305,7 @@ export interface MatrixVerification {
 }
 
 export interface ChatChannel { id: string; account: string; name: string; kind: 'channel' | 'direct' | 'group'; unread: number; mentions: number; /** When the last message came, in ms. */ last?: number; /** Matrix: end-to-end encrypted, so it can't be read until this device is verified. */ encrypted?: boolean; /** Matrix: the network a bridge carries it from, such as WhatsApp. */ bridge?: string }
-export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
+export interface ChatMessage { id: string; channel: string; author: { id: string; name: string; me?: boolean }; text: string; /** When it was sent, in ms. */ at: number; /** The message this one answers, in a thread. */ thread?: string; replies?: number; /** Who has replied in its thread, when the service says. */ repliers?: { name: string }[]; /** When its thread was last replied to, in ms. */ lastReply?: number; reactions?: { emoji: string; count: number; mine?: boolean }[]; edited?: boolean }
 export interface ChatChanged { account: string; channel?: string | null }
 export type ChatSignIn = { ok: true; account: { id: string; service: ChatService; name: string } } | { ok: false; message: string };
 
@@ -1051,6 +1056,12 @@ export interface MobiusBridge {
     schedule?(id: string, atMs: number | null): Promise<MailDraft | NotesFailure>;
     /** When the person a draft is to is usually on mail, as Mobius's suggestion for Send later. */
     suggestSend?(id: string): Promise<{ atMs: number; why: string } | null>;
+    /** Remind if no reply on a message already sent, by its id here or its Message-ID (null: stop waiting on it). */
+    followUp?(id: string, remindMs: number | null): Promise<MailFollowUp | { ok: true } | NotesFailure>;
+    /** Sent messages waiting on an answer, and those answered: soonest reminder first, answered last. */
+    followUps?(): Promise<MailFollowUp[] | NotesFailure>;
+    /** Raised once for each follow-up whose time came with no answer. */
+    onNoReply?(listener: (event: { due: MailFollowUp[] }) => void): () => void;
     onChanged(listener: (change: { by: string }) => void): () => void;
   };
   /** The Sheets app: workbooks of CSV sheets in `sheets/<workbook>/`. Only the Tauri shell has it. */
@@ -1454,6 +1465,8 @@ export interface AgentSettings {
   model: string;
   system: string;
   configured: boolean;
+  /** A saved model could not be set up when the core started: choose a model again rather than wait. */
+  setupFailed?: boolean;
   hasKey: boolean;
   /** The most model calls one request may use. */
   maxSteps: number;
@@ -1777,6 +1790,10 @@ export interface PreferencesSettings {
   muteSounds: boolean;
   /** Stop the computer sleeping while the agent is working. */
   keepAwake: boolean;
+  /** Minimising the window hides it to the tray (the notification area), off the taskbar. */
+  minimizeToTray: boolean;
+  /** The language Mobius's own words are shown in. */
+  language: LanguageId;
   /** How much text a local model keeps in view. More uses more graphics memory. */
   localContext: number;
   /** Let the agent open, read and act on addresses on this computer or the local network. Off unless chosen. */
@@ -1850,7 +1867,7 @@ export function parseContextSize(value: unknown): number | undefined | null {
   if (value === undefined) return undefined;
   return typeof value === 'number' && CONTEXT_SIZES.includes(value) ? value : null;
 }
-export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
+export const DEFAULT_PREFERENCES: PreferencesSettings = { notifyNeedsYou: true, notifyFinished: true, notifyDownloads: true, muteSounds: false, keepAwake: false, minimizeToTray: false, language: DEFAULT_LANGUAGE, localContext: DEFAULT_CONTEXT, agentPrivateUrls: false, approvalMode: 'propose', keybindings: DEFAULT_KEYBINDINGS, reasoningEffort: '', dictationModel: DEFAULT_DICTATION_MODEL, listenWith: 'chat', listenFallback: 'off', listenUrl: 'http://127.0.0.1:8000/v1', speakWith: 'off', speakFallback: 'off', speakUrl: 'http://127.0.0.1:8880/v1', speakModel: 'kokoro', speakVoice: '', autoUpdate: true, readAloud: false, appAccess: DEFAULT_APP_ACCESS, quickModel: '', imageModel: '', installedApps: null, mailSignatures: {} };
 const isFlag = (v: unknown): v is boolean => typeof v === 'boolean';
 export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown) => v is PreferencesSettings[K] } = {
   notifyNeedsYou: isFlag,
@@ -1858,6 +1875,8 @@ export const PREFERENCES_CHECKS: { [K in keyof PreferencesSettings]: (v: unknown
   notifyDownloads: isFlag,
   muteSounds: isFlag,
   keepAwake: isFlag,
+  minimizeToTray: isFlag,
+  language: isLanguage,
   localContext: (v): v is number => typeof v === 'number' && CONTEXT_SIZES.includes(v),
   agentPrivateUrls: isFlag,
   approvalMode: oneOf<ApprovalModeChoice>('manual', 'propose', 'smart', 'off'),
