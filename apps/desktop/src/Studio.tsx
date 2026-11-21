@@ -779,7 +779,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const rbw = clip ? Math.max(ROLL_BEAT_W * zoom, (laneW + HEAD_W - keysW) / span) : ROLL_BEAT_W * zoom;
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
-  const notes = useMemo(() => (clip ? clip.notes : track ? trackNotes(track) : []), [clip, track]);
+  // Worked out on each render: this is after the early returns above, where no hook may be.
+  const notes = clip ? clip.notes : track ? trackNotes(track) : [];
   const heldPitches = new Set(held.values());
   const lastHeld = [...held.values()].at(-1);
   const heldName = lastHeld === undefined ? null : spellIn(lastHeld, song.key);
