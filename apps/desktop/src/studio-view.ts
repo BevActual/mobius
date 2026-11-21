@@ -1,6 +1,6 @@
 import type { EqBand } from './ui';
 import { PART_KINDS, type Device, type PartSetting } from './device-format';
-import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track, trackNotes } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -476,7 +476,7 @@ export function deviceChanges(id: string, was: Device, now: Device): SoundChange
 
 /** Whether two versions of a track have different notes (by pitch, start, length and velocity). */
 export function notesDiffer(a: Track | undefined, b: Track): boolean {
-  return !a || JSON.stringify(a.notes) !== JSON.stringify(b.notes);
+  return !a || JSON.stringify(trackNotes(a)) !== JSON.stringify(trackNotes(b));
 }
 
 /**

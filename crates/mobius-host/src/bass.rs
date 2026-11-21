@@ -49,6 +49,17 @@ fn low(pc: u8) -> u8 {
     p
 }
 
+/// A track's notes in song time: from its clips (version 2, muted clips left out), or its own list (version 1).
+fn track_notes(track: &Value) -> Vec<(u8, f64, f64)> {
+    let read = |n: &Value, at: f64| Some((n["pitch"].as_u64()? as u8, at + n["start"].as_f64()?, n["length"].as_f64().unwrap_or(1.0)));
+    let mut out: Vec<(u8, f64, f64)> = track["notes"].as_array().into_iter().flatten().filter_map(|n| read(n, 0.0)).collect();
+    for clip in track["clips"].as_array().into_iter().flatten().filter(|c| c["muted"] != true) {
+        let at = clip["start"].as_f64().unwrap_or(0.0);
+        out.extend(clip["notes"].as_array().into_iter().flatten().filter_map(|n| read(n, at)));
+    }
+    out
+}
+
 /// The bass line and the warmer pad, as the new song, or why it can't be done.
 pub fn bass_and_pad(song: &Value) -> Result<(Value, String), String> {
     let tracks = song["tracks"].as_array().ok_or("that is not a song")?;
@@ -61,11 +72,11 @@ pub fn bass_and_pad(song: &Value) -> Result<(Value, String), String> {
         .iter()
         .filter(|t| !matches!(t["instrument"].as_str(), Some("drums" | "bass")))
         .max_by_key(|t| {
-            let notes = t["notes"].as_array().map(Vec::len).unwrap_or(0);
+            let notes = track_notes(t).len();
             (u8::from(t["instrument"] != "pad"), notes)
         })
         .ok_or("the song has no chords to follow")?;
-    let notes: Vec<(u8, f64, f64)> = chords["notes"].as_array().into_iter().flatten().filter_map(|n| Some((n["pitch"].as_u64()? as u8, n["start"].as_f64()?, n["length"].as_f64().unwrap_or(1.0)))).collect();
+    let notes = track_notes(chords);
     let end = notes.iter().map(|(_, s, l)| s + l).fold(0.0, f64::max);
     let bars = song["bars"].as_u64().map(|b| b as f64).unwrap_or((end / beats_per_bar).ceil()).max(1.0) as usize;
     let (_, scale) = key_of(song);
@@ -171,6 +182,21 @@ mod tests {
     }
 
     #[test]
+    fn a_song_with_its_notes_in_clips_gets_the_same_bass() {
+        // Version 2: the same chords, moved into two clips, the second muted copy left out.
+        let mut song = demo();
+        let tracks = song["tracks"].as_array_mut().unwrap();
+        let notes = tracks[1]["notes"].take();
+        let shifted: Vec<Value> = notes.as_array().unwrap().iter().filter(|n| n["start"].as_f64().unwrap() >= 4.0).map(|n| json!({ "pitch": n["pitch"], "start": n["start"].as_f64().unwrap() - 4.0, "length": n["length"], "velocity": n["velocity"] })).collect();
+        let first: Vec<Value> = notes.as_array().unwrap().iter().filter(|n| n["start"].as_f64().unwrap() < 4.0).cloned().collect();
+        tracks[1]["clips"] = json!([{ "id": "c1", "start": 0, "length": 4, "notes": first }, { "id": "c2", "start": 4, "length": 12, "notes": shifted }, { "id": "c3", "start": 16, "length": 4, "muted": true, "notes": [{ "pitch": 61, "start": 0, "length": 4, "velocity": 0.5 }] }]);
+        let (from_clips, _) = bass_and_pad(&song).unwrap();
+        let (from_notes, _) = bass_and_pad(&demo()).unwrap();
+        let bass = |s: &Value| s["tracks"].as_array().unwrap().iter().find(|t| t["instrument"] == "bass").unwrap()["notes"].clone();
+        assert_eq!(bass(&from_clips), bass(&from_notes));
+    }
+
+        #[test]
     fn a_chord_whose_lowest_note_is_not_its_root_still_gets_its_root() {
         // C major in first inversion: E lowest, then G and C.
         let notes = [(52, 0.0, 4.0), (55, 0.0, 4.0), (60, 0.0, 4.0)];
