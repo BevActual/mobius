@@ -85,7 +85,12 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   fs.mkdirSync(file('Home'), { recursive: true });
   fs.writeFileSync(file('Home', 'Groceries.md'), '# Groceries\n- oat milk\n');
   fs.writeFileSync(file('Home', 'Garden.md'), '# Garden\n- tomatoes\n');
+  // A page written on Windows: line endings \r\n, and headings with no blank line under them.
+  const SUPPLIERS = '# Suppliers\r\n## Veltro\r\n- packs in six weeks\r\n## Axion\r\n- motors\r\n';
+  fs.writeFileSync(file('Home', 'Suppliers.md'), SUPPLIERS);
   await start();
+  await side().getByRole('button', { name: 'Suppliers', exact: true }).click();
+  await expect(text().locator('h2')).toHaveText(['Veltro', 'Axion']);
   await side().getByRole('button', { name: 'Garden', exact: true }).click();
   await expect(text().locator('h1')).toHaveText('Garden');
   await expect(text().locator('li')).toHaveText(['tomatoes']);
@@ -107,6 +112,7 @@ test('pages survive a restart, search finds them, and a deleted page is gone fro
   expect(fs.existsSync(file('Home', 'Groceries.md'))).toBe(false);
   // Opening a page does not rewrite it: the file stays as it was written.
   expect(onDisk('Home', 'Garden.md')).toBe('# Garden\n- tomatoes\n');
+  expect(onDisk('Home', 'Suppliers.md')).toBe(SUPPLIERS);
   await expect(shell().getByRole('region', { name: 'No page open' })).toBeVisible();
 });
 
