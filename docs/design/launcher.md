@@ -155,6 +155,8 @@ The screens are in `/mnt/project-files/design/mockups/launcher/` (Andrew, 19 Nov
 
 - **Files on disk.** A moment after typing stops (two letters or more), files whose names hold every word, from Desktop, Documents, Downloads, Pictures, Music and Videos, show under Files with the folder they are in. Enter opens one; Shift+Enter offers Show in folder and Copy path. Programs, scripts and installers are never listed. (`system.files` from #645)
 
+- **Aliases and keys of your own.** Shift+Enter on an app, place, command, quicklink or snippet offers Add an alias and Set a key. An alias is one short word ("m"): typed alone, what it stands for comes first after Ask, under Your alias, and Enter opens it. A key needs Ctrl or Alt with one more of Ctrl, Alt or Shift, and a letter, number or F-key (Ctrl+Alt+M), so it never takes typing or an app's own Ctrl+letter; it is taken as it is pressed, and works anywhere in the window. An alias or key given to a second thing moves to it. Change and Remove are in the same actions. Kept on this computer, at most 100. (`launcher-shortcuts.ts`)
+
 All of the plan above is built. What comes next is polish from use.
 
 ## How apps take part

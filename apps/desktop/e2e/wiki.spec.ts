@@ -46,7 +46,7 @@ test('How I work is what Mobius remembers: what it learned is dashed until Keep,
   await expect(page.getByRole('img', { name: /Only you and your Mobius see this page\./ })).toBeVisible();
   const learned = page.getByRole('listitem', { name: 'Answers mail in the morning, Mobius learned this' });
   await expect(learned).toHaveAttribute('data-proposed');
-  await expect(learned).toContainText('Mobius learned this · Mail');
+  await expect(learned).toContainText('From Mail');
   await expect(page.getByRole('listitem', { name: 'Vegetarian', exact: true })).not.toHaveAttribute('data-proposed');
 
   await learned.getByRole('button', { name: 'Keep' }).click();

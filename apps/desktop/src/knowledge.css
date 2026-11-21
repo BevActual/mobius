@@ -138,3 +138,5 @@
 .wiki-links button:hover { background: var(--sel); }
 .wiki-link-book { color: var(--muted); font-size: var(--fs-sm); }
 .wiki-links-empty { margin: 0; padding: var(--sp-3); color: var(--muted); font-size: var(--fs-sm); }
+/* Keep all and Not true for every learned line, at the right of the Mobius learned heading. */
+.kn-group-actions { display: inline-flex; gap: var(--sp-1); margin-left: auto; font-weight: var(--fw-regular, 400); }

@@ -12,6 +12,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, movesIn, turnId } from './ReviewStrip'
 import { ReviewActions } from './ReviewBar';
 import { Turns } from './Rewind';
 import { botFromConversation } from './bot-view';
+import { SideNew } from './SideNew';
 import { AppSidebar, DotCharacter, SidebarRow, SidebarSearch, SidebarSection, type CharacterState } from './ui';
 import './conversation-sidebar.css';
 
@@ -362,8 +363,8 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
   const [showArchived, setShowArchived] = useState(false);
   const searchable = mode !== 'bots' && everything.length > 0;
   const sessionsOf = (id: string) => conversations.filter((c) => botOfConversation(c.id, known) === id);
-  // Agents' runs (not Mobius's own sessions) that are waiting for you.
-  const waiting = conversations.filter((c) => botOfConversation(c.id, known) !== MAIN_BOT_ID && c.activity === 'needs_you').length;
+  // Runs that are waiting for you, Mobius's own among them, as From Mobius counts everywhere else.
+  const waiting = conversations.filter((c) => c.activity === 'needs_you' || c.waiting > 0).length;
   return (
     <AppSidebar label="Chats" className="agent-side">
       {/* Agents and Activity open from the rail; the sidebar shows the list of the one you are in. */}
@@ -374,14 +375,15 @@ export function ConversationSidebar({ conversations: everything, archived = [], 
         <ActivityBoard conversations={conversations} active={active} onSelect={onSelect} onDelete={removeChat} onOpenSchedules={onOpenSchedules} />
       ) : mode === 'bots' ? (
         <>
-          <SidebarSection title="Agents" action={<>{pin}<button type="button" className="strip-btn" aria-label="New agent" title="New agent" onClick={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button></>}>
+          <SideNew item="agent" onNew={() => onShowAgent({ kind: 'new', draft: EMPTY_DRAFT })} />
+          <SidebarSection title="Agents" {...(pin ? { action: pin } : {})}>
             {bots.map((bot, index) => (
               <BotRow key={bot.id} bot={bot} first={index <= 1} last={index === bots.length - 1} onMove={onMoveBot} sessions={sessionsOf(bot.id).length} state={characterState(sessionsOf(bot.id))} current={shownBot === bot.id} onOpen={() => onShowAgent({ kind: 'show', id: bot.id })} onEdit={() => onShowAgent({ kind: 'show', id: bot.id, editing: true })} onNew={() => { onNewWithBot(bot.id); onMode('sessions'); }} onRemove={onRemoveBot} />
             ))}
           </SidebarSection>
           {/* What agents did that waits for you, as Mail's Suggested replies: it opens in Activity. */}
           <SidebarSection title="From Mobius">
-            <SidebarRow label="Runs waiting for you" count={waiting} title={waiting > 0 ? `${waiting} to review` : undefined} onSelect={() => onMode('activity')} />
+            <SidebarRow label="Runs waiting for you" count={waiting} title={waiting > 0 ? `${waiting} to review` : 'Nothing waiting'} onSelect={() => onMode('activity')} />
           </SidebarSection>
         </>
       ) : shown.length === 0 ? (

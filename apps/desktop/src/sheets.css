@@ -13,6 +13,9 @@
 /* In the top bar's middle, centred as Notes' and Docs' tools are. */
 /* The tools start the toolbar's middle, right after the title, as Notes' and Docs' do. */
 .ui-toolbar-slot:has(.sheet-tools) { flex: 1 1 auto; min-width: 0; }
+/* The tools start after the title, as in every app (app-bar.md), not in the middle of the bar. */
+.context-strip:has(.sheet-tools) .toolbar-place { flex: 0 1 auto; }
+.context-strip:has(.sheet-tools) .ui-toolbar-slot { justify-content: flex-start; }
 .ui-toolbar-group:has(> .sheet-tools) { flex: 1; }
 .sheet-tools { display: flex; flex: 1; align-items: center; gap: var(--sp-2); }
 .sheet-tools-group { display: inline-flex; align-items: center; gap: 2px; }
@@ -160,3 +163,16 @@
 .sheet-format-row { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-side); font-size: var(--fs-md); cursor: pointer; }
 .sheet-format-example { margin-left: auto; color: var(--muted); font-family: var(--font-mono); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 .sheet-format-header { padding-top: var(--sp-2); border-top: var(--hairline-w) solid var(--line); }
+
+/* The selection's figure: mono and muted, and a click offers the others. */
+.sheet-page .sheet-stat { padding: 2px 6px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-family: var(--font-mono, "JetBrains Mono", monospace); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; cursor: pointer; }
+.sheet-page span.sheet-stat { cursor: default; }
+.sheet-page .sheet-stat b { color: var(--ink); font-weight: var(--fw-medium); }
+.sheet-page button.sheet-stat:hover, .sheet-page button.sheet-stat[aria-expanded="true"] { background: var(--soft); }
+/* A tab's ⋯ shows on hover or focus, with the same choices as its right-click menu. */
+.sheet-tab-wrap { position: relative; display: inline-flex; align-items: center; }
+.sheet-page .sheet-tab-wrap .sheet-tab { padding-right: 26px; }
+.sheet-tab-more { display: none; position: absolute; right: 4px; width: 18px; height: 18px; place-items: center; padding: 0; border: 0; border-radius: 4px; background: var(--paper); color: var(--muted); cursor: pointer; }
+.sheet-tab-more svg { width: 14px; height: 14px; fill: currentColor; }
+.sheet-tab-wrap:hover .sheet-tab-more, .sheet-tab-wrap:focus-within .sheet-tab-more { display: grid; }
+.sheet-tab-more:hover { background: var(--soft); color: var(--ink); }

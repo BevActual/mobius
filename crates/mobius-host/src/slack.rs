@@ -331,7 +331,72 @@ impl Slack {
     pub fn mark_read(&self, token: &str, channel: &str, up_to: &str) -> Res<()> {
         self.call(token, "conversations.mark", &[("channel", channel), ("ts", up_to)]).map(|_| ())
     }
+
+    /// Unread from this message on: the conversation's read mark goes back to just before it.
+    pub fn mark_unread(&self, token: &str, channel: &str, ts: &str) -> Res<()> {
+        let before = just_before(ts).ok_or("That message cannot be marked unread.")?;
+        self.call(token, "conversations.mark", &[("channel", channel), ("ts", &before)]).map(|_| ())
+    }
+
+    /// The message's own address on Slack, to copy or open.
+    pub fn permalink(&self, token: &str, channel: &str, ts: &str) -> Res<String> {
+        let answer = self.call(token, "chat.getPermalink", &[("channel", channel), ("message_ts", ts)])?;
+        answer.get("permalink").and_then(Value::as_str).filter(|u| u.starts_with("https://")).map(str::to_owned).ok_or_else(|| "Slack did not give the message's link.".to_owned())
+    }
+
+    /// Adds (or takes back) the person's reaction. Needs the `reactions:write` permission ([`REACTION_SCOPE`]).
+    pub fn react(&self, token: &str, channel: &str, ts: &str, emoji: &str, on: bool) -> Res<()> {
+        let name = reaction_name(emoji).ok_or("Slack does not know that reaction.")?;
+        match self.call(token, if on { "reactions.add" } else { "reactions.remove" }, &[("channel", channel), ("timestamp", ts), ("name", &name)]) {
+            Ok(_) => Ok(()),
+            // Already there, or already gone: what the person wanted is so.
+            Err(e) if e.contains("already_reacted") || e.contains("no_reaction") => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
 }
+
+/// The permission reacting needs. Not asked for yet: the registered Slack app has to list it first, or every
+/// sign-in would be refused.
+pub const REACTION_SCOPE: &str = "reactions:write";
+
+/// The Slack time just before `ts` (`secs.micros`), so a read mark set there leaves `ts` unread.
+fn just_before(ts: &str) -> Option<String> {
+    let (secs, micros) = ts.split_once('.')?;
+    let (secs, micros): (u64, u64) = (secs.parse().ok()?, micros.parse().ok()?);
+    let total = (secs * 1_000_000 + micros).checked_sub(1)?;
+    Some(format!("{}.{:06}", total / 1_000_000, total % 1_000_000))
+}
+
+/// The emoji Messages shows, as Slack's reaction name: one of the known few, or `:name:` as shown for the rest.
+fn reaction_name(shown: &str) -> Option<String> {
+    let shown = shown.trim();
+    if let Some(name) = shown.strip_prefix(':').and_then(|s| s.strip_suffix(':')) {
+        return (!name.is_empty() && name.len() <= 100 && name.chars().all(|c| c.is_ascii_alphanumeric() || "_+-'".contains(c))).then(|| name.to_owned());
+    }
+    KNOWN.iter().find(|(_, e)| *e == shown).map(|(n, _)| (*n).to_owned())
+}
+
+const KNOWN: [(&str, &str); 18] = [
+    ("+1", "👍"),
+    ("-1", "👎"),
+    ("eyes", "👀"),
+    ("heart", "❤️"),
+    ("joy", "😂"),
+    ("smile", "😄"),
+    ("tada", "🎉"),
+    ("white_check_mark", "✅"),
+    ("fire", "🔥"),
+    ("pray", "🙏"),
+    ("raised_hands", "🙌"),
+    ("100", "💯"),
+    ("rocket", "🚀"),
+    ("thinking_face", "🤔"),
+    ("wave", "👋"),
+    ("clap", "👏"),
+    ("x", "❌"),
+    ("warning", "⚠️"),
+];
 
 /// A Slack conversation as Messages shows it.
 pub fn channel_of(c: &Value, account: &str, people: &HashMap<String, String>) -> Option<Value> {
@@ -458,6 +523,14 @@ pub fn message_of(m: &Value, channel: &str, me: &str, people: &HashMap<String, S
     }
     if let Some(n) = m.get("reply_count").and_then(Value::as_u64).filter(|n| *n > 0) {
         out["replies"] = json!(n);
+        // Who answered in the thread (the first few), and when the last answer came.
+        let repliers: Vec<Value> = m.get("reply_users").and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_str).take(5).map(|u| json!({ "id": u, "name": people.get(u).cloned().unwrap_or_else(|| u.to_owned()) })).collect();
+        if !repliers.is_empty() {
+            out["repliers"] = json!(repliers);
+        }
+        if let Some(last) = m.get("latest_reply").and_then(Value::as_str).and_then(at_of) {
+            out["lastReply"] = json!(last);
+        }
     }
     let reactions: Vec<Value> = m
         .get("reactions")
@@ -619,6 +692,9 @@ pub(crate) mod tests {
                         ] }),
                         "chat.postMessage" => json!({ "ok": true, "channel": arg("channel"), "ts": "1731920900.000500", "message": { "ts": "1731920900.000500", "user": "U1", "text": arg("text") } }),
                         "conversations.mark" => json!({ "ok": true }),
+                        "chat.getPermalink" => json!({ "ok": true, "channel": arg("channel"), "permalink": format!("https://northway.slack.com/archives/{}/p{}", arg("channel"), arg("message_ts").replace('.', "")) }),
+                        "reactions.add" if arg("name") == "eyes" => json!({ "ok": false, "error": "already_reacted" }),
+                        "reactions.add" | "reactions.remove" => json!({ "ok": true }),
                         _ => json!({ "ok": false, "error": "unknown_method" }),
                     }
                 };
@@ -666,11 +742,34 @@ pub(crate) mod tests {
         let sent = slack.send(&tokens.access, "C1", "Looking & fixing", Some("1731920700.000200"), &tokens.user, &people).unwrap();
         assert_eq!(sent["text"], "Looking & fixing");
         slack.mark_read(&tokens.access, "C1", "1731920760.000300").unwrap();
+        let seen = log.lock().unwrap();
+        assert!(seen.iter().any(|l| l.starts_with("chat.postMessage ") && l.contains("thread_ts=1731920700.000200") && l.contains("text=Looking+%26+fixing")));
+        assert!(seen.iter().any(|l| l.starts_with("conversations.mark ") && l.contains("ts=1731920760.000300")));
+        drop(seen);
+        // Hover tools: a link to the message, unread from it on, and a reaction added and taken back.
+        assert_eq!(slack.permalink(&tokens.access, "C1", "1731920760.000300").unwrap(), "https://northway.slack.com/archives/C1/p1731920760000300");
+        slack.mark_unread(&tokens.access, "C1", "1731920760.000300").unwrap();
+        slack.react(&tokens.access, "C1", "1731920760.000300", "👍", true).unwrap();
+        slack.react(&tokens.access, "C1", "1731920760.000300", ":partyparrot:", false).unwrap();
+        slack.react(&tokens.access, "C1", "1731920760.000300", "👀", true).expect("already there is what was wanted");
+        assert!(slack.react(&tokens.access, "C1", "1731920760.000300", "🦄", true).is_err());
         let log = log.lock().unwrap();
-        assert!(log.iter().any(|l| l.starts_with("chat.postMessage ") && l.contains("thread_ts=1731920700.000200") && l.contains("text=Looking+%26+fixing")));
-        assert!(log.iter().any(|l| l.starts_with("conversations.mark ") && l.contains("ts=1731920760.000300")));
+        assert!(log.iter().any(|l| l.starts_with("conversations.mark ") && l.contains("ts=1731920760.000299")));
+        assert!(log.iter().any(|l| l.starts_with("reactions.add ") && l.contains("name=%2B1") && l.contains("timestamp=1731920760.000300")));
+        assert!(log.iter().any(|l| l.starts_with("reactions.remove ") && l.contains("name=partyparrot")));
         // The sign-in sent no secret: a PKCE app has none.
         assert!(log.iter().filter(|l| l.starts_with("oauth.v2.access ")).all(|l| !l.contains("client_secret")));
+    }
+
+    #[test]
+    fn a_thread_says_who_answered_and_when_and_a_read_mark_goes_back_one_tick() {
+        let m = json!({ "ts": "2.000000", "thread_ts": "2.000000", "reply_count": 2, "reply_users": ["U1", "U9"], "latest_reply": "5.250000", "user": "U2", "text": "q" });
+        let got = message_of(&m, "C1", "U1", &people()).unwrap();
+        assert_eq!(got["repliers"], json!([{ "id": "U1", "name": "Ana" }, { "id": "U9", "name": "U9" }]));
+        assert_eq!(got["lastReply"], json!(5250));
+        assert_eq!(just_before("1731920760.000000").as_deref(), Some("1731920759.999999"));
+        assert_eq!(just_before("nonsense"), None);
+        assert_eq!((reaction_name("✅").as_deref(), reaction_name(":ship_it:").as_deref(), reaction_name(":bad name:")), (Some("white_check_mark"), Some("ship_it"), None));
     }
 
     #[test]

@@ -45,7 +45,7 @@ test('with no accounts yet, Messages says where its channels will come from', as
   await expect(shell().getByRole('region', { name: 'No accounts yet' })).toBeVisible();
 });
 
-test('channels by account, a channel read and its thread, Send only from the person, and Catch me up put to Mobius', async () => {
+test('channels by account, a channel read and its thread, Send only from the person, and Catch me up asked of Mobius with the channel attached', async () => {
   await start();
   // The accounts' bridge comes from the host (the Builder's part); this stands in for it with one Slack workspace.
   await shell().evaluate(() => {
@@ -106,10 +106,14 @@ test('channels by account, a channel read and its thread, Send only from the per
   await side.getByRole('button', { name: /^general/ }).click();
   await expect(box).toHaveValue('Half a thought');
   await box.fill('');
-  // Catch me up: the channel attached as someone else's words, and the ask in Mobius's box, not sent.
-  await shell().getByRole('group', { name: 'Messages' }).getByRole('button', { name: 'Catch me up' }).click();
-  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveValue(/^Catch me up on #general/);
-  expect(model!.requests).toHaveLength(0);
+  // Catch me up is one of Mobius's ideas for this conversation: the channel goes attached as someone else's words.
+  await expect(shell().getByRole('button', { name: 'Catch me up' })).toHaveCount(1);
+  await shell().getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'Catch me up' }).click();
+  await expect.poll(() => model!.requests.length).toBe(1);
+  const asked = JSON.stringify(model!.requests[0]);
+  expect(asked).toContain('Catch me up on #general');
+  expect(asked).toContain('Can someone look before standup?');
+  expect(await shell().evaluate(() => (window as unknown as { sentMessages: string[] }).sentMessages)).toEqual(['Thanks Lee', 'Looking now']);
 });
 
 test('a Matrix room this device cannot read yet shows one line instead of its messages', async () => {

@@ -351,6 +351,9 @@ pub struct AgentService {
     secrets: Arc<dyn Secrets>,
     saved: Mutex<Saved>,
     configured: AtomicBool,
+    /// A saved model could not be set up when the core started (a sign-in that ran out, an address the core refuses):
+    /// the window offers the model choice again instead of waiting.
+    setup_failed: AtomicBool,
     /// The model for quick jobs (address, name and key), from a gateway. Kept by the bridge in the preferences.
     quick: Mutex<Option<(String, String, Option<String>)>>,
 }
@@ -364,7 +367,7 @@ fn failed(message: impl Into<String>) -> Value {
 
 impl AgentService {
     pub fn new(core: Arc<CoreProcess>, settings_path: PathBuf, secrets: Arc<dyn Secrets>) -> AgentService {
-        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false), quick: Mutex::default() };
+        let service = AgentService { token_sources: Mutex::default(), token_expires: Mutex::default(), core, settings_path, secrets, saved: Mutex::default(), configured: AtomicBool::new(false), setup_failed: AtomicBool::new(false), quick: Mutex::default() };
         service.load();
         service
     }
@@ -388,6 +391,7 @@ impl AgentService {
         }
         *lock(&self.saved) = next;
         self.configured.store(true, Ordering::SeqCst);
+        self.setup_failed.store(false, Ordering::SeqCst);
         self.save();
         ok()
     }
@@ -402,7 +406,7 @@ impl AgentService {
         let s = lock(&self.saved);
         json!({
             "baseUrl": s.base_url, "model": s.model, "system": s.system,
-            "configured": self.configured.load(Ordering::SeqCst), "hasKey": s.key.is_some(), "maxSteps": s.max_steps,
+            "configured": self.configured.load(Ordering::SeqCst), "setupFailed": self.setup_failed.load(Ordering::SeqCst), "hasKey": s.key.is_some(), "maxSteps": s.max_steps,
             "keyStorage": if s.key.is_none() { "none" } else if s.persisted { "keychain" } else { "session" },
             "fallbackBaseUrl": s.fallback.as_ref().map_or("", |f| f.base_url.as_str()),
             "fallbackModel": s.fallback.as_ref().map_or("", |f| f.model.as_str()),
@@ -412,6 +416,7 @@ impl AgentService {
 
     pub fn mark_stopped(&self) {
         self.configured.store(false, Ordering::SeqCst);
+        self.setup_failed.store(false, Ordering::SeqCst);
     }
 
     fn describe(error: &CallError) -> String {
@@ -433,6 +438,7 @@ impl AgentService {
         }
         let ok = self.params(&s).is_ok_and(|p| self.call("agent.configure", p).is_ok());
         self.configured.store(ok, Ordering::SeqCst);
+        self.setup_failed.store(!ok, Ordering::SeqCst);
     }
 
     pub fn configure(&self, request: &Configure) -> Value {
@@ -464,6 +470,7 @@ impl AgentService {
         }
         *lock(&self.saved) = next;
         self.configured.store(true, Ordering::SeqCst);
+        self.setup_failed.store(false, Ordering::SeqCst);
         if persist {
             self.save();
         }
