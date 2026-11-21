@@ -2409,7 +2409,7 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .doc-change-bar { display: flex; align-items: center; gap: 6px; }
 .doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
 .doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
-.task-items > .task-change { list-style: none; margin: 6px 0 10px; }
+.task-items > .task-change { list-style: none; margin: 10px 0 4px; }
 .task[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; border-radius: 6px; }
 .task[data-proposed] > .task-line { outline: 0; }
 /* The work area takes focus after an app opens from All apps; it is a landing place, not a control, so no ring. */
