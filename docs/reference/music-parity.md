@@ -99,7 +99,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| Meters on every track and the master | None | `LevelMeter` in the library (Next) | S to M |
+| Meters on every track and the master | None | `LevelMeter` in the library (have) | S to M |
 | Master track with its own effects | None | Master | M (format) |
 | Return tracks and sends | None | Returns and sends | M (format) |
 | A mixer view | None | Mixer, in Session and as a panel in Arrange | M (library `Mixer` exists) |
@@ -257,7 +257,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
   `song.json`.
 - **Apps lead:** follow the playhead in Arrange and count-in before recording (both UI only), then real clips in the
   song format.
-- **Design lead:** `LevelMeter` (started), then tap tempo and an arm toggle for track headers.
+- **Design lead:** done: `LevelMeter` and the armed `LetterToggle` were already in the library, `TapTempo` (#722), and warp markers on `WaveformView` (`warp`, `WarpMarker`, `warpBeatAt`).
 
 Sources for Live's features: [Live 12 release notes](https://www.ableton.com/en/release-notes/live-12),
 [All new features in Live 12](https://ableton.com/en/live/all-new-features) and

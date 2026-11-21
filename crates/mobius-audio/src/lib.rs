@@ -7,11 +7,12 @@
 //! [`engine::Engine`] plays it live: a device stream whose audio thread only renders, fed new songs through a
 //! wait-free queue and handing back its position and levels through atomics.
 //!
-//! This first part plays the synth voice every melodic instrument uses ([`voice`]), with each track's volume, pan,
-//! mute and solo, through the master. Drums, effects and automation come next, matched one by one against
+//! It plays the synth voice every melodic instrument uses ([`voice`]) and the drum kit ([`drum`]), with each track's
+//! volume, pan, mute and solo, through the master. Effects and automation come next, matched one by one against
 //! `apps/desktop/src/studio-audio.ts`.
 
 pub mod clock;
+pub mod drum;
 pub mod engine;
 pub mod param;
 pub mod render;

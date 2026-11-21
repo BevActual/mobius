@@ -51,6 +51,40 @@ pub struct Track {
     pub notes: Vec<Note>,
     #[serde(default)]
     pub sound: Option<Sound>,
+    /// A drums track's kit, and each drum's own settings by its pitch (`"36"` and so on).
+    #[serde(default)]
+    pub kit: Option<Kit>,
+    #[serde(default)]
+    pub pads: std::collections::BTreeMap<String, Pad>,
+}
+
+/// A drums track's kit (song-format.ts `KitSound`): tune in semitones, decay as a multiple, tone from dark to bright.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Kit {
+    pub tune: f64,
+    pub decay: f64,
+    pub tone: f64,
+}
+
+impl Default for Kit {
+    fn default() -> Kit {
+        Kit { tune: 0.0, decay: 1.0, tone: 0.5 }
+    }
+}
+
+/// One drum's own settings on top of the kit (song-format.ts `DrumPad`).
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Pad {
+    pub tune: f64,
+    pub decay: f64,
+    pub level: f64,
+    pub pan: f64,
+}
+
+impl Default for Pad {
+    fn default() -> Pad {
+        Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0 }
+    }
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it
