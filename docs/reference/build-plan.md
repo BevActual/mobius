@@ -70,7 +70,7 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
-As of 19 November 2026. Building comes first; demo runs are stopped until recording.
+As of 21 November 2026. Building comes first; demo runs are stopped until recording.
 
 On `main` since 18 November: apps own their panels and the rail is gone (#520, #526 to #531), the launcher from
 anywhere with each app's finds and commands (#566 to #574, #581, #582), first run (#577), Meetings (#533, #535),
@@ -80,11 +80,11 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 
 | Item | Owner | Status |
 | --- | --- | --- |
-| Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request, then the next app. Order: Home, Mail, Calendar, Tasks, Notes, Docs, Files, Browser, Messages, then the rest | Design lead, Apps lead | First nine done 20 November 2026: Mail #649, Home #650, Calendar #652, Tasks #653, Notes and Docs #655, Files #656, Browser #657, Messages #659. The rest open two at a time: Sheets, Knowledge, Settings, Agents, Abilities, Music, Design, Research, Photo |
+| Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request | Design lead, Apps lead | First pass done 21 November 2026: all 17 apps, #649 to #669. Left: a tooltip on Files' sidebar counts |
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
 | The Builder's queue below: speed, then accessibility | Builder | Next |
 | Launcher step 7, and the first-run screens' look | Design lead | Building |
-| Design and Research weak points, Database's Analyse mode | Apps lead | Next |
+| Design and Research weak points, Database's Analyse mode | Apps lead | Now, after the daily-use fixes |
 | Sign-in for Google, Microsoft (with Teams chats) and Dropbox; Telegram keys | Builder | Built; waits on Andrew ([drive sign-in](drive-sign-in.md), [messages sign-in](messages-sign-in.md)) |
 | Clips and the reel | Launch | At launch, after one real-model run of each moment |
 
