@@ -36,7 +36,7 @@ not designs to copy.
 | Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
 | Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |
 | Info on hover | A line at the foot names what the pointer is over and its key, so the app teaches itself. It's the key-hint bar every app shares. | Next (shell) |
-| Tap tempo and nudge | Tap the tempo field in time to set it, and drag or arrow it like any number. | Next (library NumberField Have) |
+| Tap tempo | A Tap button beside the tempo: tap in time to set it. The view switch leads the toolbar, with Alt+1 for Session, Alt+2 for Arrange, and Tab on the page to swap them. | Have |
 | Everything is a value Mobius can set | Every knob, switch and note is in the song file, so asking Mobius for "a darker pad" or "double-time hats" changes the same settings you would, dashed until you keep it. | Have, kept with each change |
 
 ## Instruments

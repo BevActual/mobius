@@ -504,6 +504,23 @@ test('the Transform menu arpeggiates a chord and strums it, each undone', async 
   await expect.poll(() => saved().tracks[0]!.notes.map((n) => [n.pitch, n.start > 0, n.start + n.length])).toEqual([[57, false, 4], [60, true, 4]]);
 });
 
+test('the view switch leads the toolbar: Alt+1 and Alt+2 pick Session or Arrange, Tab on the page swaps them, and Tap sets the tempo', async () => {
+  await start();
+  const view = (name: string) => shell().getByRole('radiogroup', { name: 'View' }).getByRole('radio', { name });
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Alt+1');
+  await expect(view('Session')).toHaveAttribute('aria-checked', 'true');
+  await shell().keyboard.press('Alt+2');
+  await expect(view('Arrange')).toHaveAttribute('aria-checked', 'true');
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Tab');
+  await expect(view('Session')).toHaveAttribute('aria-checked', 'true');
+  // Tapping in time sets the tempo, kept in the song.
+  const tap = shell().getByRole('button', { name: 'Tap tempo' });
+  for (let i = 0; i < 4; i++) { await tap.click(); await shell().waitForTimeout(400); }
+  await expect.poll(() => saved().tempo).not.toBe(112);
+});
+
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
   await start();
   // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.

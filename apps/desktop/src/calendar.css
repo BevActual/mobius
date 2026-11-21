@@ -16,7 +16,6 @@
 .ui-toolbar-slot:has(.cal-tools) { flex: 1 1 auto; min-width: 0; }
 .ui-toolbar-group:has(> .cal-tools) { flex: 1; }
 /* Calendar's title ("November 2026") takes only its own width, so the controls get the rest of the toolbar. */
-.context-strip:has(.cal-tools) .toolbar-place { flex: 0 1 auto; }
 .cal-tools { flex: 1; min-width: 0; container-type: inline-size; }
 .cal-tools-row { display: flex; align-items: center; justify-content: center; gap: var(--sp-2); min-width: 0; }
 /* When the toolbar is narrow (Mobius open beside a small window), Today's word goes first, then the view switch. T, N, D, W, M and the arrow keys still do what they did. */
