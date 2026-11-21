@@ -293,6 +293,62 @@ export function Transport({ playing, onPlay, onStop, recording, onRecord, loop, 
   );
 }
 
+/** Taps further apart than this start a new count. */
+const TAP_GAP_MS = 2000;
+
+/**
+ * The tempo a run of taps gives, from their times in milliseconds (oldest first): the mean of the last four gaps, so
+ * one late tap doesn't throw it, to two decimals and within `min` to `max`. Null until there are two taps, and a gap
+ * over two seconds starts the count again.
+ */
+export function tapTempo(times: readonly number[], min = 20, max = 999): number | null {
+  let from = times.length - 1;
+  while (from > 0 && times[from]! - times[from - 1]! <= TAP_GAP_MS) from -= 1;
+  const run = times.slice(Math.max(from, times.length - 5));
+  if (run.length < 2) return null;
+  const mean = (run[run.length - 1]! - run[0]!) / (run.length - 1);
+  if (mean <= 0) return null;
+  return clamp(Math.round((60000 / mean) * 100) / 100, min, max);
+}
+
+/**
+ * Tap tempo: a small "Tap" button that sits after the tempo field. Each press (or its key, which the app binds and
+ * passes) counts; from the second tap on, `onTempo` gets the tempo the taps give. It flashes ink on each tap, as
+ * Live's does, and the tooltip says how it works.
+ */
+export function TapTempo({ onTempo, keys, min, max, label = 'Tap tempo' }: {
+  onTempo: (bpm: number) => void;
+  keys?: string;
+  min?: number;
+  max?: number;
+  label?: string;
+}) {
+  const taps = useRef<number[]>([]);
+  const [lit, setLit] = useState(false);
+  const off = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(off.current), []);
+  const tap = () => {
+    const now = performance.now();
+    const list = taps.current;
+    if (list.length && now - list[list.length - 1]! > TAP_GAP_MS) list.length = 0;
+    list.push(now);
+    if (list.length > 8) list.shift();
+    const bpm = tapTempo(list, min, max);
+    if (bpm !== null) onTempo(bpm);
+    setLit(true);
+    window.clearTimeout(off.current);
+    off.current = window.setTimeout(() => setLit(false), 90);
+  };
+  const tip = `${label}: tap in time${keys ? ` (${keys})` : ''}`;
+  return (
+    <button type="button" className="ui-tap" aria-label={label} title={tip} data-lit={lit || undefined}
+      onPointerDown={(event) => { if (event.button === 0) { event.preventDefault(); tap(); } }}
+      onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!event.repeat) tap(); } }}>
+      Tap
+    </button>
+  );
+}
+
 /** Where a level in dB sits on a meter from `floor` to `ceiling` dB, 0 to 1 (linear in dB). */
 export const levelPosition = (db: number, floor = -60, ceiling = 6): number => clamp((db - floor) / (ceiling - floor), 0, 1);
 

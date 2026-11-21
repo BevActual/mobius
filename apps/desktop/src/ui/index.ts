@@ -45,7 +45,7 @@ export { KeyHintBar, type KeyHint } from './KeyHintBar';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
-export { NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
+export { NumberField, Readout, LetterToggle, Transport, TapTempo, tapTempo, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
 export { MixerStrip, faderLabel, type MixerStripProps } from './Mixer';
 export {
   PatchCanvas, Port, layoutFlow, cablePath, defaultCanConnect,
