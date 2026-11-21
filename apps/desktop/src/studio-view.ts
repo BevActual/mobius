@@ -1,6 +1,6 @@
 import type { EqBand } from './ui';
 import { PART_KINDS, type Device, type PartSetting } from './device-format';
-import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track, trackNotes } from './song-format';
+import { BEATS_PER_BAR, EFFECT_NAMES, EFFECT_PARAMS, KIT_DEFAULTS, kitOf, soundOf, type Effect, type EffectKind, type KitSound, type SongNote, type Sound, type Track, trackNotes, type ArrangeClip } from './song-format';
 
 /**
  * The piano roll's editing, kept apart from the screen so it can be tested: notes picked by their place in the track,
@@ -490,4 +490,42 @@ export function followScroll(scrollLeft: number, width: number, head: number, x:
   if (width - head <= 0) return null;
   if (x >= left && x < right - 16) return null;
   return Math.max(0, x - 16);
+}
+
+/** Where a clip may sit: from the end of the clip before it to the start of the one after, within the song. */
+function roomFor(clips: readonly ArrangeClip[], id: string, songBeats: number): { lo: number; hi: number } {
+  const i = clips.findIndex((c) => c.id === id);
+  return { lo: i > 0 ? clips[i - 1]!.start + clips[i - 1]!.length : 0, hi: i >= 0 && i < clips.length - 1 ? clips[i + 1]!.start : songBeats };
+}
+const cleanBeat = (v: number) => Math.round(v * 1e4) / 1e4;
+
+/** A clip moved to start at `start` (beats), kept between its neighbours and inside the song; clips never pass each other. */
+export function moveClip(clips: readonly ArrangeClip[], id: string, start: number, songBeats: number): ArrangeClip[] {
+  const c = clips.find((x) => x.id === id);
+  if (!c) return [...clips];
+  const { lo, hi } = roomFor(clips, id, songBeats);
+  const at = cleanBeat(Math.max(lo, Math.min(hi - c.length, start)));
+  return clips.map((x) => (x.id === id ? { ...x, start: at } : x));
+}
+
+/** A clip made `length` beats long, at least a beat, up to the next clip or the song's end; notes past its new end go. */
+export function resizeClip(clips: readonly ArrangeClip[], id: string, length: number, songBeats: number): ArrangeClip[] {
+  const c = clips.find((x) => x.id === id);
+  if (!c) return [...clips];
+  const { hi } = roomFor(clips, id, songBeats);
+  const to = cleanBeat(Math.max(Math.min(1, hi - c.start), Math.min(hi - c.start, length)));
+  return clips.map((x) => (x.id === id ? { ...x, length: to, notes: x.notes.filter((n) => n.start < to) } : x));
+}
+
+/** A copy of a clip straight after it, when there is room there before the next clip and the song's end; else null. */
+export function duplicateClip(clips: readonly ArrangeClip[], id: string, songBeats: number): { clips: ArrangeClip[]; id: string } | null {
+  const c = clips.find((x) => x.id === id);
+  if (!c) return null;
+  const { hi } = roomFor(clips, id, songBeats);
+  if (c.start + 2 * c.length > hi + 1e-9) return null;
+  const taken = new Set(clips.map((x) => x.id));
+  let n = clips.length + 1;
+  while (taken.has(`c${n}`)) n++;
+  const copy: ArrangeClip = { ...c, id: `c${n}`, start: cleanBeat(c.start + c.length), notes: c.notes.map((x) => ({ ...x })) };
+  return { clips: [...clips, copy].sort((a, b) => a.start - b.start), id: copy.id };
 }

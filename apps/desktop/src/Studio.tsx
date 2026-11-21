@@ -3,12 +3,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, soundOf, trackNotes, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
 import { StudioWorkbench } from './StudioBench';
-import { followScroll, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -130,15 +130,45 @@ const ICONS = {
 /** A clip in Arrange or Session: a button that Space doesn't press, since Space plays the song. */
 const isClip = (t: HTMLElement) => t.closest('.studio-clip, .studio-clip-body') !== null;
 
-/** A track's clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
-function Clips({ track, proposed, bw, onOpen }: { track: Track; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void }) {
+/** What a clip in Arrange can be asked to do: moved or stretched by dragging, and the rest from its menu or keys. */
+interface ClipActions { onMove: (id: string, start: number) => void; onResize: (id: string, length: number) => void; onMenu: (id: string, x: number, y: number) => void; onKey: (id: string, key: 'delete' | 'duplicate' | 'mute') => void }
+
+/**
+ * A track's clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while
+ * Mobius proposes them, faded when muted. Drag one to move it and its right edge to stretch it, a bar at a time (a
+ * beat with Alt held); it never passes the clips beside it.
+ */
+function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void; actions: ClipActions }) {
   const pitches = track.clips.flatMap((c) => c.notes.map((n) => n.pitch));
   const lo = Math.min(...pitches, 127), hi = Math.max(...pitches, 0);
   const span = Math.max(1, hi - lo);
+  // A drag under way: the clip, how, where it began, and where it is now (in beats), shown before it is let go.
+  const [drag, setDrag] = useState<{ id: string; size: boolean; x: number; start: number; length: number; now: number } | null>(null);
+  const grab = (e: React.PointerEvent, id: string, size: boolean) => {
+    if (e.button !== 0 || proposed) return;
+    const c = track.clips.find((x) => x.id === id);
+    if (!c) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ id, size, x: e.clientX, start: c.start, length: c.length, now: size ? c.length : c.start });
+  };
+  const follow = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const step = e.altKey ? 1 : BEATS_PER_BAR;
+    const from = drag.size ? drag.length : drag.start;
+    setDrag({ ...drag, now: Math.max(drag.size ? step : 0, from + Math.round((e.clientX - drag.x) / bw / step) * step) });
+  };
+  const drop = () => {
+    if (!drag) return;
+    const was = drag.size ? drag.length : drag.start;
+    if (drag.now !== was) { if (drag.size) actions.onResize(drag.id, drag.now); else actions.onMove(drag.id, drag.now); }
+    setDrag(null);
+  };
   return (
     <>
       {track.clips.map((c) => {
-        const from = c.start;
+        const start = drag?.id === c.id && !drag.size ? drag.now : c.start;
+        const length = drag?.id === c.id && drag.size ? drag.now : c.length;
         const first = Math.floor(c.start / BEATS_PER_BAR) + 1, last = Math.ceil((c.start + c.length) / BEATS_PER_BAR - 1e-9);
         const words = first >= last ? `bar ${first}` : `bars ${first} to ${last}`;
         return (
@@ -148,11 +178,24 @@ function Clips({ track, proposed, bw, onOpen }: { track: Track; proposed: boolea
             className="studio-clip"
             data-proposed={proposed || undefined}
             data-muted={c.muted || undefined}
-            style={{ left: c.start * bw + 1, width: c.length * bw - 3 }}
-            aria-label={`${track.name}, ${words}${proposed ? ', proposed by Mobius' : ''}`}
-            {...(clipTipWanted() ? { title: 'Double-click to edit the notes', 'data-tip-at': 'pointer' } : {})}
-            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(from); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(from); } }}
+            data-dragging={drag?.id === c.id || undefined}
+            style={{ left: start * bw + 1, width: length * bw - 3 }}
+            aria-label={`${c.name ?? track.name}, ${words}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
+            {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
+            onPointerDown={(e) => grab(e, c.id, false)}
+            onPointerMove={follow}
+            onPointerUp={drop}
+            onPointerCancel={() => setDrag(null)}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); actions.onMenu(c.id, e.clientX, e.clientY); }}
+            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(c.start); }}
+            onKeyDown={(e) => {
+              const mod = e.ctrlKey || e.metaKey;
+              if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start); return; }
+              if (proposed) return;
+              if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'delete'); }
+              else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'duplicate'); }
+              else if (e.key === '0' && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'mute'); }
+            }}
           >
             <span className="studio-clip-notes" aria-hidden="true">
               {c.notes.map((n, i) => (
@@ -160,6 +203,7 @@ function Clips({ track, proposed, bw, onOpen }: { track: Track; proposed: boolea
               ))}
             </span>
             <span className="studio-clip-name">{c.name ?? track.name}</span>
+            {!proposed && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
           </button>
         );
       })}
@@ -896,6 +940,32 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setSlot(id, to, structuredClone(c));
     chooseClip(id, to);
   };
+  /** A track's clips in Arrange: moved, stretched, copied, muted and deleted, each one Undo. */
+  const editClips = (trackId: string, fn: (clips: ArrangeClip[], beats: number) => ArrangeClip[], tag: string) => change((s) => {
+    const t = s.tracks.find((x) => x.id === trackId);
+    if (t) t.clips = fn(t.clips, s.bars * BEATS_PER_BAR);
+  }, tag);
+  const arrangeClip = (trackId: string, id: string, act: 'delete' | 'duplicate' | 'mute') => {
+    if (act === 'delete') editClips(trackId, (cs) => cs.filter((c) => c.id !== id), '');
+    else if (act === 'mute') editClips(trackId, (cs) => cs.map((c) => (c.id !== id ? c : c.muted ? (({ muted: _, ...rest }) => rest)(c) : { ...c, muted: true })), '');
+    else editClips(trackId, (cs, beats) => duplicateArrange(cs, id, beats)?.clips ?? cs, '');
+  };
+  const clipActions = (trackId: string): ClipActions => ({
+    onMove: (id, start) => editClips(trackId, (cs, beats) => moveClip(cs, id, start, beats), ''),
+    onResize: (id, length) => editClips(trackId, (cs, beats) => resizeClip(cs, id, length, beats), ''),
+    onKey: (id, key) => arrangeClip(trackId, id, key),
+    onMenu: (id, x, y) => {
+      const c = song.tracks.find((t) => t.id === trackId)?.clips.find((k) => k.id === id);
+      if (!c) return;
+      setSelected(trackId);
+      setMenu({ x, y, label: c.name ?? 'Clip', items: [
+        { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(trackId, c.start) },
+        { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
+        { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
+        { label: 'Delete', keys: 'Delete', run: () => arrangeClip(trackId, id, 'delete') },
+      ] });
+    },
+  });
   const clipMenu = (id: string, slot: number, x: number, y: number) => {
     const c = song.tracks.find((t) => t.id === id)?.slots?.[slot];
     if (!c) return;
@@ -1434,7 +1504,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}>
-                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
+                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && <>
                   <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>

@@ -650,3 +650,45 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Lead' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
 });
+
+test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied with Ctrl+D and deleted, each undone', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  // The four-bar song's notes are one clip, bar 1; the song is made eight bars so there is room to move it.
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  await ruler.click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Add 4 Bars' }).click();
+  const r = (await ruler.boundingBox())!;
+  const bar = r.width / 8;
+  const clip = () => shell().getByRole('button', { name: /^Keys, bar/ }).first();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 1');
+  // Dragged two bars right, it lands on bar 3, its notes going with it.
+  let b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + 10, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + 10 + bar * 2, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 3');
+  await expect.poll(() => saved().tracks[0]!.clips?.map((c) => [c.start, c.length])).toEqual([[8, 4]]);
+  expect(saved().tracks[0]!.notes.map((n) => n.start)).toEqual([8, 8]);
+  // Its right edge, dragged a bar further, makes it two bars long.
+  b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + b.width - 2, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + b.width - 2 + bar, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 3 to 4');
+  // 0 mutes it (kept, not played), Ctrl+D copies it straight after, Delete takes the copy out; Undo goes back a step.
+  await clip().focus();
+  await shell().keyboard.press('0');
+  await expect(clip()).toHaveAccessibleName('Keys, bars 3 to 4, muted');
+  await expect.poll(() => saved().tracks[0]!.clips?.[0]?.muted).toBe(true);
+  await shell().keyboard.press('Control+d');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
+  await shell().getByRole('button', { name: 'Keys, bars 5 to 6, muted' }).focus();
+  await shell().keyboard.press('Delete');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(1);
+  await shell().locator('.studio-page').focus();
+  await shell().keyboard.press('Control+z');
+  await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
+});
