@@ -55,7 +55,7 @@
 /* The app's controls keep their own width; the title beside them gives way (ellipsizes) first. When even that is not
    enough, controls drop out whole into the ⋯ menu (toolbarFit.ts), lowest priority first, so nothing spills over the
    buttons at the toolbar's end or the panel beside it. The slot never clips: a control's popover opens from it. */
-/* The app's tools start right after the title (#655, #660) and the slot takes the rest of the row, so Panels, ⋯ and
+/* The app's tools start right after the title (the toolbar rule) and the slot takes the rest of the row, so Panels, ⋯ and
    Mobius stay at the right edge. With no tools, the title takes the room instead. */
 .ui-toolbar-slot { display: flex; align-items: center; gap: var(--sp-2); flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
 .context-strip:has(> .ui-toolbar-slot:not(:empty):not([hidden])) .toolbar-place { flex: 0 1 auto; }
