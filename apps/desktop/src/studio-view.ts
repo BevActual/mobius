@@ -478,3 +478,16 @@ export function deviceChanges(id: string, was: Device, now: Device): SoundChange
 export function notesDiffer(a: Track | undefined, b: Track): boolean {
   return !a || JSON.stringify(a.notes) !== JSON.stringify(b.notes);
 }
+
+/**
+ * Where the song's view should scroll to keep the playhead in sight while playing, as a page turn: null while it is in
+ * view. `x` is the playhead from the start of the lanes; `head` is the track headers' width, which covers the lanes'
+ * left edge.
+ */
+export function followScroll(scrollLeft: number, width: number, head: number, x: number): number | null {
+  const left = scrollLeft;
+  const right = scrollLeft + width - head;
+  if (width - head <= 0) return null;
+  if (x >= left && x < right - 16) return null;
+  return Math.max(0, x - 16);
+}
