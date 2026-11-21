@@ -33,7 +33,7 @@ export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, Swatches, initials,
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
-export { WaveformView, peaksOf, sampleTime, type WaveRange } from './Waveform';
+export { WaveformView, peaksOf, sampleTime, warpBeatAt, warpBeatLabel, type WaveRange, type WarpMarker } from './Waveform';
 export {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, ENVELOPE_RANGES, musicQ, envelopePoints, filterLevel, secondsLabel, hertzLabel, panLabel,
   type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { WaveformView, peaksOf, sampleTime } from './Waveform';
+import { WaveformView, peaksOf, sampleTime, warpBeatAt, warpBeatLabel } from './Waveform';
 
 const noop = () => {};
 
@@ -33,5 +33,33 @@ describe('waveform view', () => {
     expect(html.match(/role="slider"/g)).toHaveLength(2);
     expect(html).toContain('title="Press to add a loop"');
     expect(html).toContain('<dd>Off</dd>');
+  });
+
+  it('reads the beat a moment falls on from the warp markers around it', () => {
+    expect(warpBeatAt([], 1, 120)).toBe(2);
+    expect(warpBeatAt([{ sample: 0.5, beat: 4 }], 1, 120)).toBe(5);
+    const markers = [{ sample: 0, beat: 0 }, { sample: 1, beat: 2 }, { sample: 3, beat: 4 }];
+    expect(warpBeatAt(markers, 0.5)).toBe(1);
+    expect(warpBeatAt(markers, 2)).toBe(3);
+    // Beyond the last marker, on from the last pair.
+    expect(warpBeatAt(markers, 5)).toBe(6);
+    expect(warpBeatLabel(0)).toBe('1.1.1');
+    expect(warpBeatLabel(5.25)).toBe('2.2.2');
+    expect(warpBeatLabel(6, 3)).toBe('3.1.1');
+  });
+
+  it('draws warp markers as sliders in their own strip, each held between its neighbours', () => {
+    const html = renderToStaticMarkup(
+      <WaveformView label="Sample" peaks={[0.5]} duration={4} value={{ start: 0, end: 4, loop: null }} onChange={noop}
+        warp={[{ sample: 0, beat: 0 }, { sample: 1.5, beat: 4 }, { sample: 3, beat: 8 }]} />,
+    );
+    expect(html).toContain('ui-wave-warp');
+    expect(html).toContain('data-warp="true"');
+    expect(html.match(/class="ui-wave-marker"/g)).toHaveLength(3);
+    expect(html).toMatch(/aria-label="Warp marker 2, beat 2.1.1" aria-valuemin="0.01" aria-valuemax="2.99" aria-valuenow="1.5" aria-valuetext="0:01.500 on 2.1.1"/);
+    const none = renderToStaticMarkup(<WaveformView label="Sample" peaks={[0.5]} duration={2} value={{ start: 0, end: 2, loop: null }} onChange={noop} />);
+    expect(none).not.toContain('ui-wave-warp');
+    const empty = renderToStaticMarkup(<WaveformView label="Sample" peaks={[0.5]} duration={2} value={{ start: 0, end: 2, loop: null }} onChange={noop} warp={[]} />);
+    expect(empty).toContain('title="Double-click to add a warp marker"');
   });
 });
