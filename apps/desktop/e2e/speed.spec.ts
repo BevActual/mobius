@@ -58,7 +58,7 @@ async function switchTo(shell: Page, name: string, panel: string): Promise<numbe
         const w = window as unknown as { speedPressed: number };
         const shown = () => {
           const side = document.querySelector<HTMLElement>(`aside[aria-label="${panel}"]`);
-          const go = document.querySelector('.context-strip .go-button')?.getAttribute('aria-label') ?? '';
+          const go = document.querySelector('.strip-left .go-button')?.getAttribute('aria-label') ?? '';
           return w.speedPressed >= 0 && !!side?.checkVisibility() && go.startsWith(`${name}.`);
         };
         const given = performance.now();
@@ -172,7 +172,7 @@ test.afterEach(async () => {
 async function start(): Promise<number> {
   const began = Date.now();
   mobius = await launch('about:blank', { userData });
-  await expect(mobius.shell.locator('.context-strip .go-button')).toBeVisible({ timeout: 60_000 });
+  await expect(mobius.shell.locator('.strip-left .go-button')).toBeVisible({ timeout: 60_000 });
   await mobius.shell.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => resolve(null))));
   const took = Date.now() - began;
   // A laptop-sized window, wide enough that Mail and Calendar show their panels (they hide them below 1200 px).

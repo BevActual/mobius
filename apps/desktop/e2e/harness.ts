@@ -384,7 +384,7 @@ export function removeTestData(folder: string): void {
 }
 
 /** The Go button at the top bar's start: the open app's name, and the way to every other (the launcher). */
-export const goButton = (shell: Page) => shell.locator('.context-strip .go-button');
+export const goButton = (shell: Page) => shell.locator('.strip-left .go-button');
 
 /** The launcher, opened from the Go button as a person would. */
 async function openLauncherFromGo(shell: Page) {

@@ -2356,6 +2356,32 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .app .context-strip .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; max-width: 20ch; }
 .app .context-strip .toolbar-sub { max-width: 18ch; }
 .app .context-strip .ui-toolbar-slot:has(.cal-tools) { flex: 1 1 320px; }
+/* The title row (docs/design/panel-layouts.md): the Go icon and the menus at the start, what is open in the middle, the
+   core's state at the end. Below it the tool row holds only tools, from the left edge. An app with no tools has only
+   this row, with its trailing end (Mobius) at the right. */
+.title-row { position: relative; z-index: 4; display: grid; grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr); align-items: center; gap: var(--sp-3); height: 34px; padding: 0 var(--sp-2) 0 var(--sp-2); background: var(--toolbar); border-bottom: 0.5px solid var(--hairline); min-width: 0; }
+.title-start { display: flex; align-items: center; gap: var(--sp-1); min-width: 0; }
+.title-row .menubar { margin: 0; }
+.title-row .menu-title { height: 26px; padding: 0 8px; }
+.title-row .toolbar-place { justify-content: center; align-items: center; gap: var(--sp-2); min-width: 0; overflow: hidden; white-space: nowrap; }
+.title-row .toolbar-place .strip-title { flex: 0 1 auto; min-width: 0; max-width: 40ch; font-size: var(--fs-md); font-weight: var(--fw-semibold); letter-spacing: 0; }
+.title-row .toolbar-sub { display: inline-flex; align-items: center; flex: 0 1 auto; min-width: 0; max-width: 28ch; overflow: hidden; text-overflow: ellipsis; white-space: pre; }
+.title-end { display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); min-width: 0; }
+.title-end .strip-right .menu-panel { left: auto; right: 0; }
+.context-strip[data-titled] { padding-left: var(--sp-2); }
+.context-strip[hidden] { display: none; }
+/* The window's own buttons, where the title row is the title bar (Windows, Linux): Windows' sizes and its red close. */
+.window-buttons { display: flex; align-self: stretch; margin-right: calc(-1 * var(--sp-2)); }
+.window-btn { display: grid; place-items: center; width: 46px; height: 100%; padding: 0; border: 0; border-radius: 0; background: none; color: var(--ink); }
+.window-btn svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1; }
+.window-btn:hover { background: var(--sel); }
+.window-btn[data-window="close"]:hover { background: var(--danger); color: white; }
+.title-row:has(.window-buttons) .title-end { gap: var(--sp-2); align-self: stretch; }
+/* macOS: the system's traffic lights sit over the top bar's start, so it starts after them. */
+.app[data-platform="darwin"] > .context-strip { padding-left: 78px; }
+.app:has(> .title-row) { grid-template-rows: auto var(--context) minmax(0, 1fr); }
+.app:has(> .context-strip[hidden]) { grid-template-rows: auto minmax(0, 1fr); }
+.menu-panel[data-compact]:not(:has(.menu-names)) { min-width: 200px; }
 .context-strip .cap-group { height: auto; padding: 0; background: none; box-shadow: none; border-radius: 0; gap: 2px; }
 .context-strip .cap-group > .strip-btn + .strip-btn::before { content: none; }
 .context-strip .cap-group + .cap-group, .context-strip .ui-toolbar-group + .ui-toolbar-group { position: relative; margin-left: var(--sp-2); padding-left: var(--sp-2); }

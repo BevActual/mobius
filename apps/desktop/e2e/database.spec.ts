@@ -99,7 +99,7 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await cell.press('Enter');
   await expect(casaPrice()).toContainText('180.5');
   // Record, the right panel, shows the active row one column to a line; a change there changes the cell.
-  await shell.getByRole('button', { name: 'Panels' }).click();
+  await shell.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell.getByRole('menuitemcheckbox', { name: 'Record' }).click();
   const record = shell.getByRole('region', { name: 'Record' });
   await expect(record.getByRole('textbox', { name: 'Rooms' })).toHaveValue('9');
@@ -110,7 +110,7 @@ test('a CSV becomes a table to query; Mobius reads it without asking to change i
   await shell.getByRole('radio', { name: 'Structure' }).click();
   await expect(page.getByRole('table', { name: 'Columns' }).getByRole('row', { name: /Rooms/ })).toContainText('INTEGER');
   // Query, the bottom panel, runs a statement under the table's columns.
-  await shell.getByRole('button', { name: 'Panels' }).click();
+  await shell.getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell.getByRole('menuitemcheckbox', { name: 'Query' }).click();
   const query = shell.getByRole('region', { name: 'Query' });
   await query.getByRole('textbox', { name: 'SQL' }).fill('SELECT COUNT(*) AS n FROM hotels');
