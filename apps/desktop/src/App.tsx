@@ -222,8 +222,9 @@ export function App() {
   const preferences = usePreferences();
   // The apps added from Abilities decide what opens, what the switcher lists and what loads.
   setInstalledApps(preferences.value.installedApps);
-  // Mobius's own words, in the language chosen (English for now).
-  setLanguage(preferences.value.language);
+  // Mobius's own words, in the language chosen (English for now): set once it changes, not on every draw.
+  const language = preferences.value.language;
+  useEffect(() => setLanguage(language), [language]);
   const bookmarks = useBookmarks();
   const notes = useNotes();
   const docs = useNotes('docs');

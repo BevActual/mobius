@@ -138,7 +138,13 @@ const mac = () => typeof navigator !== 'undefined' && /mac/i.test(navigator.plat
 
 export function PanelLayout({ app, panels, children }: { app: string; panels: readonly PanelSpec[]; children: ReactNode }) {
   const [saved, setSaved] = useState<SavedLayout>(() => readLayout(app));
-  useEffect(() => setSaved(readLayout(app)), [app]);
+  // Another app's layout is read when the app changes; not again on mount, which would draw everything a second time.
+  const readFor = useRef(app);
+  useEffect(() => {
+    if (readFor.current === app) return;
+    readFor.current = app;
+    setSaved(readLayout(app));
+  }, [app]);
   const update = useCallback((change: (was: SavedLayout) => SavedLayout) => {
     setSaved((was) => { const next = change(was); writeLayout(app, next); return next; });
   }, [app]);
@@ -202,6 +208,16 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   }, [panels, isShown, toggle, update]);
 
   const main = useRef<HTMLDivElement>(null);
+  // The content's height, for how tall the bottom dock may be: kept from a ResizeObserver, since reading it while
+  // drawing would make the browser lay out the page there and then, on every render.
+  const mainHeight = useRef(Infinity);
+  useEffect(() => {
+    const node = main.current;
+    if (!node || typeof ResizeObserver === 'undefined') return undefined;
+    const seen = new ResizeObserver(() => { mainHeight.current = node.clientHeight; });
+    seen.observe(node);
+    return () => seen.disconnect();
+  }, []);
   const leftDock = useRef<HTMLDivElement>(null);
   const left = panels.filter((p) => p.dock === 'left' && isShown(p));
   // The lists on the left fold their sections, as every sidebar does (side-fold.ts).
@@ -210,10 +226,10 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   const leftSize = clampDock('left', saved.size.left ?? left.find((p) => p.size)?.size ?? DOCK_SIZE.left.initial);
   const bottom = panels.filter((p) => p.dock === 'bottom' && isShown(p));
   const rightSize = clampDock('right', saved.size.right ?? right.find((p) => p.size)?.size ?? DOCK_SIZE.right.initial);
-  const bottomSize = clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, main.current?.clientHeight ?? Infinity);
+  const bottomSize = clampDock('bottom', saved.size.bottom ?? bottom.find((p) => p.size)?.size ?? DOCK_SIZE.bottom.initial, mainHeight.current);
   const resize = (dock: PanelDock, size: number | undefined) => update((was) => {
     const next = { ...was.size };
-    if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, main.current?.clientHeight ?? Infinity);
+    if (size === undefined) delete next[dock]; else next[dock] = clampDock(dock, size, mainHeight.current);
     return { ...was, size: next };
   });
   // Close in a tab group's header hides the whole group.
