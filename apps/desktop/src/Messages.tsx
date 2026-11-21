@@ -84,7 +84,7 @@ function MessageTools({ m, onThread, actions }: { m: ChatMessage; onThread?: (id
   };
   const more: MenuEntry[] = [
     ...(actions?.link ? [{ label: copied === 'link' ? 'Link copied' : 'Copy link', run: () => { void copyLink(); } }] : []),
-    ...(actions?.unread ? [{ label: 'Mark unread from here', run: () => actions.unread!(m) }] : []),
+    ...(actions?.unread ? [{ label: 'Mark unread', run: () => actions.unread!(m) }] : []),
   ];
   return (
     <span className="messages-tools" role="toolbar" aria-label="Message" data-open={picking || undefined}>

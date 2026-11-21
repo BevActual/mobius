@@ -188,7 +188,15 @@
 /* Sent messages with no reply by their day, over the inbox: one quiet row each, Open on the row and Done at its end. */
 .mail-nudges { margin: 0; padding: var(--sp-1) 0; list-style: none; border-bottom: var(--hairline-w) solid var(--line); }
 .mail-nudge { display: flex; align-items: center; gap: var(--sp-2); padding: 0 var(--sp-3) 0 0; }
-.mail-nudge-main { flex: 1; min-width: 0; display: grid; grid-template-columns: auto 1fr auto; gap: var(--sp-2); align-items: baseline; padding: 8px var(--sp-3); border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: default; }
+/* The Later clock in the leading slot, as the list's icons sit: icon at 10px, text at 34px. */
+.mail-nudge-main { flex: 1; min-width: 0; display: grid; grid-template-columns: 16px auto 1fr auto; column-gap: var(--sp-2); align-items: center; padding: 8px var(--sp-3) 8px 10px; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: default; }
+.mail-nudge-icon { display: grid; place-items: center; width: 16px; height: 16px; color: var(--muted); }
+.mail-nudge-icon svg { width: 16px; height: 16px; }
+.mail-nudge-fold { border-bottom: var(--hairline-w) solid var(--line); }
+.mail-nudge-fold > .mail-nudges { border-bottom: 0; padding-top: 0; }
+.mail-nudge-head { width: 100%; grid-template-columns: 16px 1fr auto; }
+.mail-nudge-chev svg { width: 12px; height: 12px; fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--dur-fast) var(--ease); }
+.mail-nudge-fold[data-open] .mail-nudge-chev svg { transform: rotate(90deg); }
 .mail-nudge-main:hover:not(:disabled) { background: color-mix(in srgb, var(--sel) 35%, transparent); }
 .mail-nudge-what { font-weight: var(--fw-semibold); color: var(--ink); white-space: nowrap; }
 .mail-nudge-subject { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
