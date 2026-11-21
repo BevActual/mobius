@@ -56,6 +56,9 @@ pub struct Track {
     pub kit: Option<Kit>,
     #[serde(default)]
     pub pads: std::collections::BTreeMap<String, Pad>,
+    /// How its volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`.
+    #[serde(default)]
+    pub volume_auto: Vec<AutoPoint>,
     /// Its effects in order, as the file has them (read by [`crate::fx::Chain`]).
     #[serde(default)]
     pub fx: Vec<serde_json::Value>,
@@ -88,6 +91,32 @@ impl Default for Pad {
     fn default() -> Pad {
         Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0 }
     }
+}
+
+/// A point on an automation line: the value at a beat, with straight lines between points.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct AutoPoint {
+    pub beat: f64,
+    pub value: f64,
+}
+
+/// The value of an automation line at a beat (song-format.ts `autoValueAt`): flat before the first point and after
+/// the last, straight between. `points` are in beat order.
+#[must_use]
+pub fn auto_value_at(points: &[AutoPoint], beat: f64, empty: f64) -> f64 {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else {
+        return empty;
+    };
+    if beat <= first.beat {
+        return first.value;
+    }
+    for pair in points.windows(2) {
+        let (a, b) = (pair[0], pair[1]);
+        if beat <= b.beat {
+            return if b.beat == a.beat { b.value } else { a.value + (beat - a.beat) / (b.beat - a.beat) * (b.value - a.value) };
+        }
+    }
+    last.value
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it

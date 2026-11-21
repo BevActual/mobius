@@ -6,6 +6,7 @@
 //! The engine opens the computer's sound output the first time it is needed and keeps it open.
 
 use mobius_audio::engine::Engine;
+use mobius_audio::render::Playing;
 use mobius_audio::song::Song;
 use serde_json::{json, Value};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,6 +23,8 @@ pub struct Music {
     song: Mutex<Option<Song>>,
     /// Where `play` starts when the window gives no beat: the last place it moved the playhead to.
     start: Mutex<f64>,
+    /// The loop and click of the last `play`, kept when the playhead moves.
+    how: Mutex<Playing>,
     /// Set while a thread is sending the position, so only one does.
     reporting: Arc<AtomicBool>,
     emit: crate::bridge::Emit,
@@ -46,7 +49,7 @@ pub fn song_of(value: &Value) -> Result<Song, String> {
 
 impl Music {
     pub fn new(emit: crate::bridge::Emit) -> Music {
-        Music { engine: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), reporting: Arc::new(AtomicBool::new(false)), emit }
+        Music { engine: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), reporting: Arc::new(AtomicBool::new(false)), emit }
     }
 
     /// The engine, opening the sound output the first time.
@@ -65,8 +68,7 @@ impl Music {
         let result = match method {
             "engine" => self.engine().map(|e| json!({ "ok": true, "device": e.device(), "sampleRate": e.sample_rate(), "latencyMs": e.latency_ms() })),
             "load" => self.load(arg(0)),
-            // Looping and the click come with the next part of the engine; until then they are taken and not used.
-            "play" => self.play(arg(0).as_f64()),
+            "play" => self.play(arg(0).as_f64(), cycle_of(arg(1)), arg(2).as_bool().unwrap_or(false)),
             "stop" => self.stop(),
             "seek" => match arg(0).as_f64() {
                 Some(beat) if beat.is_finite() => self.seek(beat.max(0.0)),
@@ -92,7 +94,7 @@ impl Music {
         Ok(json!({ "ok": true }))
     }
 
-    fn play(&self, from: Option<f64>) -> Result<Value, String> {
+    fn play(&self, from: Option<f64>, cycle: Option<(f64, f64)>, click: bool) -> Result<Value, String> {
         let from = match from {
             Some(beat) if beat.is_finite() => beat.max(0.0),
             _ => *lock(&self.start),
@@ -101,7 +103,9 @@ impl Music {
         {
             let song = lock(&self.song);
             let song = song.as_ref().ok_or("load a song first")?;
-            engine.play(song, from)?;
+            let how = Playing { from, cycle, click };
+            engine.play(song, how)?;
+            *lock(&self.how) = how;
         }
         *lock(&self.start) = from;
         self.report(engine);
@@ -123,7 +127,7 @@ impl Music {
             if e.position().playing {
                 let song = lock(&self.song);
                 if let Some(song) = song.as_ref() {
-                    e.play(song, beat)?;
+                    e.play(song, Playing { from: beat, ..*lock(&self.how) })?;
                 }
             }
         }
@@ -179,6 +183,12 @@ impl Music {
         mobius_audio::wav::write(&mut bytes, &left, &right, RENDER_RATE).map_err(|e| e.to_string())?;
         songs.save_sound_bytes(path, name, &bytes)
     }
+}
+
+/// The loop the window sent: `{ start, end }` in beats, or nothing.
+fn cycle_of(value: &Value) -> Option<(f64, f64)> {
+    let (start, end) = (value.get("start")?.as_f64()?, value.get("end")?.as_f64()?);
+    (start.is_finite() && end.is_finite() && end > start).then_some((start, end))
 }
 
 fn position_json(engine: &Engine) -> Value {

@@ -5,7 +5,7 @@
 use crate::clock::Clock;
 use crate::drum::Hit;
 use crate::fx::{pan, Chain};
-use crate::song::{Instrument, Kit, Note, Pad, Song, Sound};
+use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
 /// The master's level.
@@ -29,6 +29,10 @@ struct Lane {
     pads: Vec<(u8, Pad)>,
     gains: (f64, f64),
     volume: f64,
+    /// How its volume moves along the song; empty keeps `volume`.
+    auto: Vec<AutoPoint>,
+    /// Its volume at each sample of a block, when it moves.
+    volumes: Vec<f32>,
     pan: f64,
     /// Whether its sound comes in with two channels: a drum panned on its pad.
     stereo: bool,
@@ -54,19 +58,91 @@ pub struct Renderer {
     /// The next sample to make, counted from the song's start.
     sample: u64,
     peak: (f32, f32),
+    /// The loop, in samples: at its end, playing goes back to its start.
+    cycle: Option<(u64, u64)>,
+    /// The loop's end in beats, where a note running past it is cut.
+    cycle_end: f64,
+    /// Where the song ends, in samples and in beats.
+    end: u64,
+    total: f64,
+    /// Whether the metronome ticks, and the ticks sounding.
+    click: bool,
+    ticks: Vec<Tick>,
+}
+
+/// What to play: from a beat, round a loop or not, with the metronome or not.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Playing {
+    pub from: f64,
+    /// The loop's start and end in beats (a whole-song loop is from 0 to the end).
+    pub cycle: Option<(f64, f64)>,
+    pub click: bool,
+}
+
+/// A metronome tick (studio-audio.ts `tick`): a sine, 1760 Hz on a bar's first beat and 1320 Hz on the others, falling
+/// from 0.28 (or 0.16) to silence over 50 ms and cut at 60 ms.
+struct Tick {
+    /// Samples into the block it starts at, then samples since it started.
+    wait: usize,
+    time: u64,
+    accent: bool,
+}
+
+impl Tick {
+    const FALL: f64 = 0.05;
+    const LENGTH: f64 = 0.06;
+
+    /// Adds the tick into `out` from its start, and says whether it is over.
+    fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) -> bool {
+        let (freq, level) = if self.accent { (1760.0, 0.28) } else { (1320.0, 0.16) };
+        let end = (Tick::LENGTH * rate).ceil() as u64;
+        let wait = std::mem::take(&mut self.wait).min(left.len());
+        for (l, r) in left[wait..].iter_mut().zip(right[wait..].iter_mut()) {
+            if self.time >= end {
+                return true;
+            }
+            let t = self.time as f64 / rate;
+            let gain = level * (0.0001f64 / level).powf((t / Tick::FALL).min(1.0));
+            let y = ((std::f64::consts::TAU * freq * t).sin() * gain * MASTER) as f32;
+            *l += y;
+            *r += y;
+            self.time += 1;
+        }
+        self.time >= end
+    }
 }
 
 impl Renderer {
     /// Ready to play `song` from `from_beat`, at `sample_rate`.
     #[must_use]
     pub fn new(song: &Song, sample_rate: u32, from_beat: f64) -> Renderer {
+        Renderer::playing(song, sample_rate, Playing { from: from_beat, ..Playing::default() })
+    }
+
+    /// Ready to play `song` as `how` says, at `sample_rate`. Played from after a loop, it starts at the loop.
+    #[must_use]
+    pub fn playing(song: &Song, sample_rate: u32, how: Playing) -> Renderer {
         let clock = Clock::new(sample_rate, song.tempo);
+        let total = song.beats();
+        let cycle = how.cycle.map(|(a, b)| (a.max(0.0), b.min(total))).filter(|(a, b)| b - a > 1e-9);
+        let from_beat = match cycle {
+            Some((a, b)) if how.from >= b => a,
+            _ => how.from.max(0.0),
+        };
         let start = clock.sample_of_beat(from_beat);
         let lanes = song
             .audible()
             .filter(|t| t.instrument_on != Some(false))
             .map(|t| {
-                let notes = Song::notes_of(t);
+                let mut notes = Song::notes_of(t);
+                // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
+                if let Some((_, to)) = cycle {
+                    for n in &mut notes {
+                        n.length = n.length.min(to - n.start);
+                    }
+                }
+                let mut auto = t.volume_auto.clone();
+                auto.sort_by(|a, b| a.beat.total_cmp(&b.beat));
                 // Notes that started before the play position are not caught up: they begin where they begin.
                 let next = notes.iter().position(|n| clock.sample_of_beat(n.start) >= start).unwrap_or(notes.len());
                 Lane {
@@ -79,6 +155,8 @@ impl Renderer {
                     pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, *pad))).collect(),
                     gains: { let (l, r) = pan_gains(t.pan); (l * t.volume, r * t.volume) },
                     volume: t.volume,
+                    volumes: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
+                    auto,
                     pan: t.pan,
                     stereo: t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9),
                     chain: Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9)),
@@ -92,7 +170,18 @@ impl Renderer {
                 }
             })
             .collect();
-        Renderer { clock, lanes, sample: start, peak: (0.0, 0.0) }
+        Renderer {
+            clock,
+            lanes,
+            sample: start,
+            peak: (0.0, 0.0),
+            cycle: cycle.map(|(a, b)| (clock.sample_of_beat(a), clock.sample_of_beat(b))),
+            cycle_end: cycle.map_or(f64::INFINITY, |(_, b)| b),
+            end: clock.sample_of_beat(total),
+            total,
+            click: how.click,
+            ticks: Vec::with_capacity(8),
+        }
     }
 
     /// The tracks heard, in the order `peaks` gives their levels.
@@ -126,6 +215,18 @@ impl Renderer {
         self.clock.beat(self.sample)
     }
 
+    /// Whether it has played to the song's end (never, round a loop): what is ringing still rings out.
+    #[must_use]
+    pub fn past_end(&self) -> bool {
+        self.cycle.is_none() && self.sample >= self.end
+    }
+
+    /// Whether it has played past the song's end and the tail after it, so nothing more will sound.
+    #[must_use]
+    pub fn finished(&self) -> bool {
+        self.past_end() && self.sample >= self.end + (RENDER_TAIL * self.clock.sample_rate) as u64
+    }
+
     /// Makes the next block: `left` and `right` are overwritten, and must be the same length.
     pub fn render(&mut self, left: &mut [f32], right: &mut [f32]) {
         let frames = left.len().min(right.len());
@@ -135,9 +236,27 @@ impl Renderer {
         }
         let mut done = 0;
         while done < frames {
-            let n = (frames - done).min(MAX_BLOCK);
+            let mut n = (frames - done).min(MAX_BLOCK);
+            // A piece stops at the loop's end, and playing goes back to the loop's start.
+            if let Some((_, to)) = self.cycle {
+                n = n.min(usize::try_from(to.saturating_sub(self.sample)).unwrap_or(usize::MAX).max(1));
+            }
             self.piece(&mut left[done..done + n], &mut right[done..done + n]);
             done += n;
+            if let Some((from, to)) = self.cycle {
+                if self.sample >= to {
+                    self.go_to(from);
+                }
+            }
+        }
+    }
+
+    /// Moves to `sample`: the next notes are the first at or after it.
+    fn go_to(&mut self, sample: u64) {
+        self.sample = sample;
+        let clock = self.clock;
+        for lane in &mut self.lanes {
+            lane.next = lane.notes.iter().position(|n| clock.sample_of_beat(n.start) >= sample).unwrap_or(lane.notes.len());
         }
     }
 
@@ -186,6 +305,13 @@ impl Renderer {
                 lane.voices.push(voice);
             }
             lane.voices.retain(|v| !v.done());
+            // The volume at each sample, where it moves.
+            if !lane.auto.is_empty() {
+                let clock = self.clock;
+                for (i, v) in lane.volumes[..frames].iter_mut().enumerate() {
+                    *v = auto_value_at(&lane.auto, clock.beat(from + i as u64), lane.volume) as f32;
+                }
+            }
             let right_scratch = &mut lane.scratch_right[..frames];
             right_scratch.copy_from_slice(scratch);
             for hit in &mut lane.hits {
@@ -195,8 +321,8 @@ impl Renderer {
             lane.hits.retain(|h| !h.done());
             if let Some(chain) = &mut lane.chain {
                 // The track's way into the mix, as the window's: its volume, then its effects, then its pan.
-                let v = lane.volume as f32;
-                for (a, b) in scratch.iter_mut().zip(right_scratch.iter_mut()) {
+                for (i, (a, b)) in scratch.iter_mut().zip(right_scratch.iter_mut()).enumerate() {
+                    let v = if lane.auto.is_empty() { lane.volume as f32 } else { lane.volumes[i] };
                     *a *= v;
                     *b *= v;
                 }
@@ -215,18 +341,44 @@ impl Renderer {
             let (gl, gr) = lane.gains;
             for i in 0..frames {
                 let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
+                // Moving, the volume scales the pan's gains (made with the track's own volume).
+                let (volume, scale) = if lane.auto.is_empty() { (lane.volume, 1.0) } else { let v = f64::from(lane.volumes[i]); (v, if lane.volume > 0.0 { v / lane.volume } else { 0.0 }) };
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
-                let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * lane.volume, b * lane.volume, lane.pan, true) } else { (a * gl, b * gr) };
+                let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * volume, b * volume, lane.pan, true) } else { (a * gl * scale, b * gr * scale) };
                 let (l, r) = ((l * MASTER) as f32, (r * MASTER) as f32);
                 lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
                 left[i] += l;
                 right[i] += r;
             }
         }
+        // The metronome, on each beat in this piece (inside the song), straight to the master.
+        if self.click {
+            let clock = self.clock;
+            let mut beat = clock.beat(from).floor().max(0.0);
+            while clock.sample_of_beat(beat) < from {
+                beat += 1.0;
+            }
+            while clock.sample_of_beat(beat) < to && beat < self.end_beat() {
+                if self.ticks.len() >= self.ticks.capacity() {
+                    self.ticks.remove(0);
+                }
+                let wait = usize::try_from(clock.sample_of_beat(beat) - from).unwrap_or(0);
+                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9 });
+                beat += 1.0;
+            }
+        }
+        self.ticks.retain_mut(|t| !t.add_to(left, right, rate));
         for (l, r) in left.iter().zip(right.iter()) {
             self.peak = (self.peak.0.max(l.abs()), self.peak.1.max(r.abs()));
         }
         self.sample = to;
+    }
+}
+
+impl Renderer {
+    /// Where the song (or the loop) ends, in beats.
+    fn end_beat(&self) -> f64 {
+        self.cycle_end.min(self.total)
     }
 }
 
@@ -327,5 +479,68 @@ mod tests {
         let (mut l, mut r) = (vec![0f32; 4_800], vec![0f32; 4_800]);
         from_two.render(&mut l, &mut r);
         assert!(onset(&l, 1e-6).is_some_and(|i| i < 10));
+    }
+
+    /// Plays `how` for `frames` samples in blocks of 333, and gives the left side.
+    fn play_for(s: &Song, how: Playing, frames: usize) -> (Vec<f32>, Renderer) {
+        let mut r = Renderer::playing(s, 48_000, how);
+        let (mut l, mut rt) = (vec![0f32; frames], vec![0f32; frames]);
+        for (a, b) in l.chunks_mut(333).zip(rt.chunks_mut(333)) {
+            r.render(a, b);
+        }
+        (l, r)
+    }
+
+    #[test]
+    fn a_loop_goes_round_and_cuts_a_note_at_its_end() {
+        // A note at beat 1 lasting two beats, in a loop of beats 1 to 2 (24 000 samples a time round).
+        let s = song(r#"{"id":"t","instrument":"lead","sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5},"notes":[{"pitch":72,"start":1,"length":2,"velocity":1}]}"#);
+        let how = Playing { from: 0.0, cycle: Some((1.0, 2.0)), click: false };
+        let (l, r) = play_for(&s, how, 24_000 * 4);
+        // The note starts at 24 000, then again each time round: 48 000 and 72 000, where its last pass dies away first.
+        assert!(l[..24_000].iter().all(|x| *x == 0.0));
+        // Cut at the loop's end, the last pass has released (20 ms) by 1 200 samples in, so only one note sounds then.
+        let level = |at: usize| l[at + 1_200..at + 2_400].iter().fold(0f32, |m, x| m.max(x.abs()));
+        for start in [48_000usize, 72_000] {
+            assert!((level(start) / level(24_000) - 1.0).abs() < 0.02, "{start}");
+        }
+        assert!(level(24_000) > 0.01);
+        assert!((r.beat() - 1.0).abs() < 1e-9 && !r.past_end());
+        // Played from after the loop, it starts at the loop.
+        let r = Renderer::playing(&s, 48_000, Playing { from: 3.0, ..how });
+        assert!((r.beat() - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn the_metronome_ticks_each_beat_higher_and_louder_on_the_bar() {
+        let s = song("");
+        let (l, r) = play_for(&s, Playing { from: 0.0, cycle: None, click: true }, 48_000 * 3);
+        // Ticks at 0, 24 000, 48 000 and 72 000 (the song's 4 beats), then nothing past its end.
+        for at in [0usize, 24_000, 48_000, 72_000] {
+            assert_eq!(onset(&l[at..], 1e-6), Some(1), "{at}");
+            assert!(l[at + 2_880..at + 24_000.min(l.len() - at)].iter().all(|x| *x == 0.0), "{at}");
+        }
+        assert!(l[96_000..].iter().all(|x| *x == 0.0));
+        let peak = |a: usize| l[a..a + 200].iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!((f64::from(peak(0)) - 0.28 * MASTER).abs() < 0.02 && (f64::from(peak(24_000)) - 0.16 * MASTER).abs() < 0.02);
+        assert!(r.past_end() && !r.finished());
+        // Without the click, silence.
+        let (quiet, _) = play_for(&s, Playing::default(), 48_000);
+        assert!(quiet.iter().all(|x| *x == 0.0));
+    }
+
+    #[test]
+    fn volume_automation_moves_the_track_along_its_line() {
+        let held = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5},"notes":[{"pitch":69,"start":0,"length":4,"velocity":1}]"#;
+        let flat = song(&format!(r#"{{"id":"t","instrument":"lead",{held}}}"#));
+        let moving = song(&format!(r#"{{"id":"t","instrument":"lead","volumeAuto":[{{"beat":2,"value":0}},{{"beat":0,"value":1}}],{held}}}"#));
+        let level = |x: &[f32]| x.iter().fold(0f32, |m, v| m.max(v.abs()));
+        let a = render_song(&flat, 48_000).0;
+        let b = render_song(&moving, 48_000).0;
+        // From full at beat 0 (points in any order) down to nothing at beat 2 and after: half way at beat 1.
+        let at = |x: &[f32], s: usize| level(&x[s..s + 480]);
+        assert!((at(&b, 2_400) / at(&a, 2_400) - 0.95).abs() < 0.03);
+        assert!((at(&b, 23_760) / at(&a, 23_760) - 0.5).abs() < 0.03);
+        assert!(level(&b[48_000..96_000]) < 1e-4);
     }
 }

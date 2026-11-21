@@ -1216,7 +1216,7 @@ export interface MobiusBridge {
     engine(): Promise<{ ok: true; device: string; sampleRate: number; latencyMs: number } | NotesFailure>;
     /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. */
     load(song: unknown): Promise<{ ok: true } | NotesFailure>;
-    /** Play from a beat, or from where the playhead was left. Loop and click are taken and come in a later part. */
+    /** Play from a beat, or from where the playhead was left; round `loop` (beats) if given, with the metronome if `click`. */
     play(fromBeat?: number, loop?: { start: number; end: number } | null, click?: boolean): Promise<{ ok: true; beat: number } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
