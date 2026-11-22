@@ -82,7 +82,7 @@ export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pi
         <div className="msg-rail-list">
           <SidebarSearch label="Find a conversation" value={query} onChange={setQuery} />
           {chosen === 'space' && !space.available && <p className="side-empty">Your Mobius space runs in the desktop app.</p>}
-          {chosen === 'space' && space.available && spaceWaiting && <p className="side-empty">{space.status.state === 'failed' ? 'Your Mobius space couldn’t start.' : 'Setting up your Mobius space…'}</p>}
+          {chosen === 'space' && space.available && spaceWaiting && <p className="side-empty">Channels appear here once it’s ready.</p>}
           {chosen !== 'space' && groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
           {groups.map(({ account, channels }, i) => {
             const shown = channels.filter((c) => !q || c.name.toLowerCase().includes(q));
