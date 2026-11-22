@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatAccount, ChatChannel, ChatMessage } from '@mobius/shared';
-import { accountsFor, isSpaceAccount, railEntries, spaceStatusText, catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, toggled, unreadLabel } from './messages-view';
+import { accountsFor, isSpaceAccount, railEntries, spaceStatusText, spaceSizeText, catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, toggled, unreadLabel } from './messages-view';
 
 const work: ChatAccount = { id: 'w', service: 'slack', name: 'Northway', status: 'ready' };
 const home: ChatAccount = { id: 'h', service: 'discord', name: 'Friends', status: 'ready' };
@@ -80,7 +80,9 @@ describe('the rail', () => {
     expect(isSpaceAccount(acc('x', 'Mobius space'))).toBe(false);
   });
   it('says what the space is doing until it runs, the first download with its size', () => {
-    expect(spaceStatusText({ state: 'downloading', done: 12_000_000, total: 44_000_000 })).toBe('Getting your Mobius space ready, the first time only: 12 of 44 MB');
+    expect(spaceStatusText({ state: 'downloading', done: 12_000_000, total: 44_000_000 })).toBe('Setting up your Mobius space · first time only');
+    expect(spaceSizeText({ state: 'downloading', done: 12_000_000, total: 44_000_000 })).toBe('12 of 44 MB');
+    expect(spaceSizeText({ state: 'starting' })).toBeNull();
     expect(spaceStatusText({ state: 'failed', message: 'x', offline: true })).toMatch(/connection/);
     expect(spaceStatusText({ state: 'running', url: 'http://127.0.0.1:1' })).toBeNull();
   });

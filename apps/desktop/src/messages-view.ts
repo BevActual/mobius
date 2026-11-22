@@ -133,12 +133,17 @@ export function accountsFor(rail: string, accounts: readonly ChatAccount[]): Cha
 
 /** What the space is doing, in words, while it is not yet running; null once it is. */
 export function spaceStatusText(s: SpaceStatus): string | null {
-  const mb = (n: number) => Math.max(1, Math.round(n / 1_000_000));
   switch (s.state) {
     case 'running': return null;
     case 'idle': return 'Opening your Mobius space…';
-    case 'downloading': return s.total > 0 ? `Getting your Mobius space ready, the first time only: ${mb(s.done)} of ${mb(s.total)} MB` : 'Getting your Mobius space ready, the first time only…';
+    case 'downloading': return 'Setting up your Mobius space · first time only';
     case 'starting': return 'Starting your Mobius space…';
     case 'failed': return s.offline ? 'Mobius couldn’t download your space. Check your connection, then try again.' : s.message;
   }
+}
+/** The first download's progress, as "12 of 44 MB"; null when there is no size to show. */
+export function spaceSizeText(s: SpaceStatus): string | null {
+  if (s.state !== 'downloading' || s.total <= 0) return null;
+  const mb = (n: number) => Math.max(1, Math.round(n / 1_000_000));
+  return `${Math.min(mb(s.done), mb(s.total))} of ${mb(s.total)} MB`;
 }
