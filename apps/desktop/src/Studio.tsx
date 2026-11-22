@@ -30,7 +30,10 @@ export const STUDIO_WORDS: SidebarWords = { app: 'Music', group: 'folder', group
 
 /** The sidebar's Sounds put a track on the open song; the editor listens while it is on screen. */
 const ADD_TRACK = 'mobius:studio-add-track';
-const askToAddTrack = (instrument: Instrument) => window.dispatchEvent(new CustomEvent<Instrument>(ADD_TRACK, { detail: instrument }));
+/** An audio clip's file, by its own name: "Samples/Recorded/take 1.wav" is "take 1". */
+const fileName = (file: string) => file.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || file;
+/** Adds a track of a sound to the open song, or an audio track (Live 12, chapter 9: it plays recordings and samples). */
+const askToAddTrack = (instrument: Instrument | 'audio') => window.dispatchEvent(new CustomEvent<Instrument | 'audio'>(ADD_TRACK, { detail: instrument }));
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
 const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead'];
 
@@ -205,16 +208,17 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
             data-proposed={proposed || undefined}
             data-muted={c.muted || undefined}
             data-looped={c.loop ? true : undefined}
+            data-audio={c.audio ? true : undefined}
             data-dragging={drag?.id === c.id || undefined}
             style={{ left: start * bw + 1, width: length * bw - 3 }}
-            aria-label={`${c.name ?? track.name}, ${words}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
+            aria-label={`${c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}, ${words}${c.audio ? ', audio' : ''}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
             {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
             onPointerDown={(e) => grab(e, c.id, false)}
             onPointerMove={follow}
             onPointerUp={drop}
             onPointerCancel={() => setDrag(null)}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); actions.onMenu(c.id, e.clientX, e.clientY); }}
-            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(c.start, c.id); }}
+            onDoubleClick={(e) => { e.stopPropagation(); if (c.audio) return; clipEdited(); onOpen(c.start, c.id); }}
             onKeyDown={(e) => {
               const mod = e.ctrlKey || e.metaKey;
               if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start, c.id); return; }
@@ -226,13 +230,14 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
               else if (mod && c.loop && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, e.key === 'ArrowUp' ? 'double' : 'halve'); }
             }}
           >
-            <span className="studio-clip-notes" aria-hidden="true">
+            {/* An audio clip: its sound as a band (the file's waveform comes with the engine's peaks); a MIDI clip: its notes. */}
+            {c.audio ? <span className="studio-clip-wave" aria-hidden="true" /> : <span className="studio-clip-notes" aria-hidden="true">
               {heard.map((n, i) => (
                 <span key={i} style={{ left: n.start * bw, width: Math.max(1, n.length * bw - 1), top: `${(1 - (n.pitch - lo) / span) * 85}%` }} />
               ))}
-            </span>
+            </span>}
             {turns.map((at) => <span key={at} className="studio-clip-turn" aria-hidden="true" style={{ left: at * bw }} />)}
-            <span className="studio-clip-name">{c.name ?? track.name}</span>
+            <span className="studio-clip-name">{c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}</span>
             {!proposed && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
           </button>
         );
@@ -811,10 +816,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The sidebar's Sounds and the menus' Play or stop reach the open song while Music is on screen.
   useEffect(() => {
     const onAdd = (e: Event) => {
-      const instrument = (e as CustomEvent<Instrument>).detail;
+      const asked = (e as CustomEvent<Instrument | 'audio'>).detail;
       change((s) => {
         const id = freshTrackId(s);
-        s.tracks.push({ id, name: INSTRUMENT_NAMES[instrument], instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
+        // An audio track keeps an instrument for the file's sake (the engine ignores it); its clips play sounds.
+        if (asked === 'audio') s.tracks.push({ id, name: 'Audio', kind: 'audio', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
+        else s.tracks.push({ id, name: INSTRUMENT_NAMES[asked], instrument: asked, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
         setSelected(id);
       });
     };
@@ -926,7 +933,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     return { notes: moved.notes.map((x, i) => (moved.picked.has(i) ? { ...x, pitch: rows[rowOf(x.pitch) + dr]!.pitch } : x)), picked: moved.picked };
   });
   /** The sounds to add a track from, as a menu at a point: the sidebar's Sounds, for the row at the end of the tracks. */
-  const soundsMenu = (x: number, y: number) => setMenu({ x, y, label: 'Add track', items: SOUNDS.map((i) => ({ label: INSTRUMENT_NAMES[i], run: () => askToAddTrack(i) })) });
+  const soundsMenu = (x: number, y: number) => setMenu({ x, y, label: 'Add track', items: [...SOUNDS.map((i) => ({ label: INSTRUMENT_NAMES[i], run: () => askToAddTrack(i) })), { label: 'Audio track', run: () => askToAddTrack('audio') }] });
   const setTrack = (id: string, fn: (t: Track) => void, tag = '') => change((s) => { const t = s.tracks.find((x) => x.id === id); if (t) fn(t); }, tag);
   const duplicateTrack = (id: string) => change((s) => {
     const i = s.tracks.findIndex((x) => x.id === id);
@@ -1636,7 +1643,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                 <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openDevice(t.id); }}>
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
-                  {t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
+                  {t.kind !== 'audio' && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
                     <button type="button" className="studio-ms" aria-label={`Mute ${t.name}`} title="Mute (M)" aria-pressed={t.muted} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.muted = !x.muted; }); }}>M</button>
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
