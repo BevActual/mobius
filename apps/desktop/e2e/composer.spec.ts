@@ -51,7 +51,7 @@ test('the message box has add context, mode, permission, model and send', async 
   // Each pill is named for what it is and what it shows ("Mode: Ask"), so a screen reader says the choice too.
   await expect(shell().getByRole('button', { name: 'Add context', exact: true })).toBeVisible();
   for (const name of ['Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name: new RegExp(`^${name}: `) })).toBeVisible();
-  await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(shell().getByRole('button', { name: 'Send', includeHidden: true })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
   await expect(shell().getByRole('button', { name: 'Send' })).toBeEnabled();

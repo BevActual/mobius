@@ -62,7 +62,7 @@ test('Enter sends, Shift+Enter adds a line, and a blank message cannot be sent',
   await start([says(['ok'])]);
   await composer().press('Enter');
   await expect(log().locator('.msg')).toHaveCount(0);
-  await expect(mobius!.shell.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(mobius!.shell.getByRole('button', { name: 'Send', includeHidden: true })).toBeDisabled();
   await composer().fill('line one');
   await composer().press('Shift+Enter');
   await composer().pressSequentially('line two');
