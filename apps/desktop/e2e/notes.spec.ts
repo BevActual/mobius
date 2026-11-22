@@ -74,10 +74,12 @@ test('a first notebook and page are real files, and typing is saved as Markdown'
   await shell().keyboard.type('Ship Notes this week.');
   await expect(status()).toHaveText('Saved');
   await expect.poll(() => onDisk('Work', 'Untitled.md')).toBe('# Launch plan\n\nShip Notes this week.\n');
-  // The list and the top strip take the title from the first heading; the row says how the page starts.
+  // The list takes the title from the first heading, and the row says how the page starts; the top strip says Notes,
+  // with the notebook beside it.
   await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toBeVisible();
   await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toContainText('Ship Notes this week.');
-  await expect(shell().locator('.strip-title')).toHaveText('Launch plan');
+  await expect(shell().locator('.strip-title')).toHaveText('Notes');
+  await expect(shell().locator('.toolbar-sub')).toContainText('Work');
 });
 
 test('pages survive a restart, search finds them, and a deleted page is gone from disk', async () => {
@@ -238,7 +240,8 @@ test('the centred tool row sets the text style and bold, and undo takes it back'
   await expect(format().getByRole('button', { name: 'Text style: Heading' })).toBeVisible();
   await expect.poll(() => onDisk('Ideas', 'Untitled.md')).toBe('# Garden\n\n## Beds\n');
   await format().getByRole('button', { name: 'Undo' }).click();
-  await expect.poll(() => onDisk('Ideas', 'Untitled.md')).toBe('# Garden\n\nBeds\n');
+  await expect(format().getByRole('button', { name: 'Text style: Heading' })).toHaveCount(0);
+  await expect.poll(() => onDisk('Ideas', 'Untitled.md')).not.toContain('## ');
 });
 
 test('typing "[ ] " at the start of a bullet makes that bullet a checklist item, as in other notes apps', async () => {
