@@ -84,8 +84,8 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await openSettings();
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
-  await expect(nav.locator('.side-title')).toHaveText(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['General', 'Appearance', 'Notifications', 'Keyboard', 'Gateways', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Chats with Mobius', 'Schedules', 'Abilities', 'Advanced', 'About']);
+  await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Chats with Mobius', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Abilities', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -398,4 +398,16 @@ test('Usage counts a model call, groups it by model and app, and clears after as
   await page().getByRole('button', { name: 'Clear Usage…' }).click();
   await page().getByRole('group', { name: 'Confirm clearing usage' }).getByRole('button', { name: 'Clear All Usage' }).click();
   await expect(page().getByText('Nothing used in this period.').first()).toBeVisible();
+});
+
+test('Accounts lists every connection in one place, and Adjust goes to its own page', async () => {
+  await start([]);
+  await openSettings();
+  await go('Accounts');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Accounts');
+  await expect(page().getByRole('button', { name: 'Add a connection…' })).toBeVisible();
+  await expect(page().getByRole('button', { name: 'Find more in Abilities' })).toBeVisible();
+  await page().getByRole('button', { name: 'Add a connection…' }).click();
+  await shell().getByRole('menuitem', { name: 'Model gateway…' }).click();
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Gateways');
 });

@@ -3,9 +3,9 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['general', 'appearance', 'notifications', 'keyboard', 'providers', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'messages', 'sessions', 'schedules', 'extensions', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['connections', 'providers', 'general', 'appearance', 'notifications', 'keyboard', 'sessions', 'schedules', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'messages', 'extensions', 'advanced', 'about']);
     // Under headings, as in System Settings.
-    expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Mobius', 'Models', 'Safety', 'Apps', 'System']);
+    expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
     for (const section of SETTINGS) {
       expect(section.label).not.toBe('');
       expect(section.subpages.length).toBeGreaterThan(0);

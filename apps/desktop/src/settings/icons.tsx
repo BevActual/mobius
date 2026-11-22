@@ -4,6 +4,7 @@ import type { SectionId } from './manifest';
 
 /** Each section's line icon in the Settings panel (20×20 line drawings, as the app icons). */
 export const SECTION_ICONS: Record<SectionId, ReactNode> = {
+  connections: <><circle cx="6" cy="10" r="3" /><circle cx="14" cy="10" r="3" /><path d="M9 10h2" /></>,
   general: <><circle cx="10" cy="10" r="2.5" /><path d="M10 2.5v2M10 15.5v2M2.5 10h2M15.5 10h2M4.7 4.7l1.4 1.4M13.9 13.9l1.4 1.4M4.7 15.3l1.4-1.4M13.9 6.1l1.4-1.4" /></>,
   appearance: <><path d="M2.5 10s3-5.5 7.5-5.5 7.5 5.5 7.5 5.5-3 5.5-7.5 5.5S2.5 10 2.5 10Z" /><circle cx="10" cy="10" r="2.2" /></>,
   notifications: <path d="M5 13.5V9a5 5 0 0 1 10 0v4.5l1.5 1.5h-13zM8.5 17h3" />,
