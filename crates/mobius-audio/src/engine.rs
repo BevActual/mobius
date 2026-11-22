@@ -691,8 +691,10 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn monitor(&self, track: Option<(&str, crate::render::Gains)>) -> Result<(), String> {
-        // Stopped, its meter is the one that moves with Main's.
-        *lock(&self.heard) = track.map(|(id, _)| id.to_owned());
+        // Stopped, its meter is the one that moves with Main's. Monitoring nothing leaves the armed track's.
+        if let Some((id, _)) = track {
+            *lock(&self.heard) = Some(id.to_owned());
+        }
         self.send(Command::Monitor(track.map(|(_, gains)| gains)))
     }
 
@@ -1381,6 +1383,8 @@ mod tests {
         let mut song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"s","kind":"sampler","sampler":{"file":"a.wav","loop":true},"sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0,"sustain":1,"release":0.05,"vibrato":0,"rate":5}},{"id":"d","instrument":"drums","pads":{"36":{"tune":0,"decay":1,"level":1,"pan":0,"sample":{"file":"a.wav","mode":"oneshot","end":0.05}}}}]}"#).unwrap();
         song.sounds.insert("a.wav".into(), Arc::new(crate::wav::Sound { rate: 48_000.0, left: vec![0.5; 4_800], right: vec![0.5; 4_800] }));
         engine.arm(Some(&song.tracks[0]), &song.sounds);
+        // Arming a track that is not audio hears no input, and its keys still move its meter while stopped.
+        engine.monitor(None).unwrap();
         engine.press(60, 1.0).unwrap();
         let mut block = vec![0f32; 480 * 2];
         // Held for half a second of a tenth-of-a-second sound: its loop keeps it going.
@@ -1388,6 +1392,7 @@ mod tests {
             audio.fill(&mut block, 2);
         }
         assert!(block.iter().all(|s| (s - 0.5).abs() < 0.01), "{}", block[0]);
+        assert!(engine.position().meters.iter().any(|(id, _)| id == "s"), "{:?}", engine.position().meters);
         engine.lift(60).unwrap();
         for _ in 0..10 {
             audio.fill(&mut block, 2);
