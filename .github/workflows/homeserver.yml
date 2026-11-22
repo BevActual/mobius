@@ -62,7 +62,9 @@ jobs:
           TUWUNEL_ADDRESS: 127.0.0.1
           TUWUNEL_PORT: '8448'
         run: |
-          bin=tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}
+          # A copy runs, and is left running: the build itself stays free to be signed (Windows locks a running exe).
+          bin="$RUNNER_TEMP/check-${{ matrix.exe }}"
+          cp "tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}" "$bin"
           ( "$bin" > hs.log 2>&1 & )
           for i in $(seq 1 60); do curl -sf http://127.0.0.1:8448/_matrix/client/versions > /dev/null && { echo "It answers."; exit 0; }; sleep 1; done
           cat hs.log; exit 1
