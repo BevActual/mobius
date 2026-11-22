@@ -51,10 +51,11 @@ Mobius never sends mail itself. It writes drafts; you press Send.
 
 ## Messages
 
-Slack, Discord and Telegram in one place, with a catch-up when you come back. Add it from **Abilities**.
+Slack, Discord and Telegram in one place, with a catch-up when you come back. Add it from **Store**.
 
 - **Accounts** use each service's official API. They are on their way: until one is added, Messages says so.
-- **The sidebar** lists each account's channels, then group and direct messages, most recent first. A number shows mentions, or else unread messages. **Find a channel** narrows the list.
+- **Conversations** has a rail down its left: **All conversations**, then **Mobius space**, then one mark for each account. The list beside it shows the chosen one's channels, then group and direct messages, most recent first. A number shows mentions, or else unread messages. **Find a conversation** narrows the list.
+- **Mobius space** is your own space, run on this computer. The first time you choose it, Mobius downloads its server (about 44 MB, checked against a pinned hash) and shows the progress. After that it opens straight to its first channel.
 - **A channel** shows each person's messages together under their name, with reactions. **N replies** opens the thread in place, and **Back to #channel** returns.
 - **Write** at the bottom. Enter sends and Shift+Enter starts a new line. Only you send: Mobius never sends a message.
 - **Catch me up** (in the toolbar) attaches the open channel as someone else's words, which Mobius treats as data, as it does an email. It puts the ask in Mobius's box: at most five lines on what was said and decided, and a reply drafted to anything that waits on you, for you to send.
