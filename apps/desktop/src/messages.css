@@ -87,3 +87,35 @@
 .messages-react-pick button { width: 32px; height: 32px; display: grid; place-items: center; padding: 0; border: 0; border-radius: var(--radius-control); background: none; font-size: 18px; cursor: pointer; }
 .messages-react-pick button:hover { background: var(--sel); }
 .messages-react-pick button[aria-pressed="true"] { background: var(--soft); box-shadow: inset 0 0 0 1px var(--ink); }
+
+/* The rail down the left of Conversations (Discord): All, your Mobius space, then each account; the chosen one on the
+   selection grey with an ink bar at its edge. The list beside it scrolls on its own. */
+.messages-side:has(> .msg-rail-wrap) { padding: 0; overflow: hidden; }
+.messages-side .msg-rail-wrap { display: flex; height: 100%; min-height: 0; }
+.messages-side .msg-rail { flex: none; display: flex; flex-direction: column; align-items: center; gap: 6px; width: 44px; padding: 8px 0; border-right: var(--hairline-w) solid var(--line-soft); overflow-y: auto; }
+.messages-side .msg-rail-entry { position: relative; display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9px; background: none; color: var(--muted); cursor: pointer; }
+.messages-side .msg-rail-entry:hover { background: var(--soft); color: var(--ink); }
+.messages-side .msg-rail-entry[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+.messages-side .msg-rail-entry[aria-pressed="true"]::before { content: ''; position: absolute; left: -6px; top: 8px; bottom: 8px; width: 3px; border-radius: 0 2px 2px 0; background: var(--ink); }
+.messages-side .msg-rail-entry:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: 1px; }
+.messages-side .msg-rail-entry > svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.messages-side .msg-rail-chip { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 6px; font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1; color: #fff; background: var(--chip, var(--muted)); }
+.msg-rail-chip[data-hue="0"] { --chip: #4a86c8; }
+.msg-rail-chip[data-hue="1"] { --chip: #c99a2e; }
+.msg-rail-chip[data-hue="2"] { --chip: #3f9f74; }
+.msg-rail-chip[data-hue="3"] { --chip: #d0703a; }
+.msg-rail-chip[data-hue="4"] { --chip: #2f9aa0; }
+.msg-rail-chip[data-hue="5"] { --chip: #7c8591; }
+.messages-side .msg-rail-list { flex: 1 1 auto; min-width: 0; overflow-y: auto; padding: var(--sp-2) var(--sp-1); display: flex; flex-direction: column; gap: var(--sp-1); }
+.ui-panel:has(.messages-side) > .ui-panel-head > .ui-panel-name { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.messages-page .msg-space-setup { margin: auto; display: grid; justify-items: center; gap: var(--sp-3); width: min(380px, 100%); padding: var(--sp-4); text-align: center; }
+.messages-page .msg-space-setup .msg-space-status { width: 100%; justify-items: center; }
+.messages-page .msg-space-setup progress { width: 100%; }
+.msg-space-status .msg-space-size { font-family: var(--font-mono); font-size: var(--fs-xs); color: var(--muted); }
+.msg-space-status { display: grid; gap: var(--sp-2); padding: var(--sp-2); font-size: var(--fs-sm); color: var(--muted); }
+.msg-space-status p { margin: 0; }
+.msg-space-status[role="alert"] p { color: var(--ink); }
+.msg-space-status progress { width: 100%; height: 4px; appearance: none; border: 0; border-radius: 2px; background: var(--soft); overflow: hidden; }
+.msg-space-status progress::-webkit-progress-bar { background: var(--soft); }
+.msg-space-status progress::-webkit-progress-value { background: var(--ink); }
+.msg-space-status .btn { justify-self: start; }
