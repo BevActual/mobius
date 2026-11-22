@@ -514,7 +514,7 @@ export function createTauriBridge(): MobiusBridge {
       create: (name) => call('calendar', 'create', [name], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       add: (calendar, draft) => call('calendar', 'add', [calendar, draft], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       update: (calendar, id, draft) => call('calendar', 'update', [calendar, { ...draft, id }], () => ({ ok: false as const, message: 'Calendar is not available.' })),
-      remove: (calendar, id) => call('calendar', 'remove', [calendar, id], () => ({ ok: false as const, message: 'Calendar is not available.' })),
+      remove: (calendar, id, occurrence, scope) => call('calendar', 'remove', [calendar, id, occurrence ?? null, scope ?? null], () => ({ ok: false as const, message: 'Calendar is not available.' })),
       sources: () => call('calendar', 'sources', [], () => []),
       suggestions: () => call('calendar', 'suggestions', [], () => []),
       accept: (id) => call('calendar', 'accept', [id], () => ({ ok: false as const, message: 'Calendar is not available.' })),

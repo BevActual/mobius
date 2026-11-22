@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure, type TaskItem } from '@mobius/shared';
+import { isNotesFailure, type CalendarAccount, type CalendarDraft, type CalendarEvent, type CalendarSource, type CalendarSuggestion, type NotesFailure, type RepeatScope, type TaskItem } from '@mobius/shared';
 import { CALENDAR_ACCOUNTS_EVENT, daysFor, hiddenCalendars, isoDay, keepHidden, type CalendarMode } from './calendar-view';
 
 const MODE_KEY = 'mobius.calendar.mode';
@@ -112,9 +112,12 @@ export function useCalendar() {
 
   const add = useCallback(async (calendar: string, draft: CalendarDraft) => settle(await api?.add(calendar, draft)), [api, settle]);
   const update = useCallback(async (event: CalendarEvent, draft: CalendarDraft) => settle(await api?.update(event.calendar, event.id, draft)), [api, settle]);
-  const remove = useCallback(async (event: CalendarEvent) => {
-    setEvents((cur) => cur.filter((e) => e.id !== event.id));
-    return settle(await api?.remove(event.calendar, event.id));
+  const remove = useCallback(async (event: CalendarEvent, scope: RepeatScope = 'all') => {
+    const at = event.occurrence ?? event.start;
+    const series = event.repeats && scope !== 'all';
+    // Gone at once from what is shown: that time, it and the times after, or every time.
+    setEvents((cur) => cur.filter((e) => e.id !== event.id || (series && (scope === 'one' ? (e.occurrence ?? e.start) !== at : (e.occurrence ?? e.start) < at))));
+    return settle(await (series ? api?.remove(event.calendar, event.id, at, scope) : api?.remove(event.calendar, event.id)));
   }, [api, settle]);
   const createCalendar = useCallback(async (name: string) => {
     const made = await settle(await api?.create(name));

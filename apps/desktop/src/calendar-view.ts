@@ -1,5 +1,5 @@
 import { formatWith, timeLabel as timeOf } from './dates';
-import type { CalendarAnswer, CalendarEvent, CalendarPerson } from '@mobius/shared';
+import type { CalendarAnswer, CalendarDraft, CalendarEvent, CalendarPerson, RepeatScope } from '@mobius/shared';
 import { lengthLabel } from './ui/dateText';
 
 /** What the Calendar app shows: one day, a week (Monday first), or a month as whole weeks. */
@@ -477,4 +477,23 @@ export const answerWord = (status: CalendarAnswer): string => ({ accepted: 'goin
 export function meetingLink(text: string): string | null {
   const found = text.match(/https:\/\/(?:[\w-]+\.)*(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|webex\.com|whereby\.com|meet\.jit\.si)\/[^\s<>"')]*/i);
   return found ? found[0] : null;
+}
+
+/** The three answers calendars give to "which times?" for a repeating event, this one first. */
+export const SCOPE_CHOICES: readonly { scope: RepeatScope; label: string }[] = [
+  { scope: 'one', label: 'This event' },
+  { scope: 'following', label: 'This and following events' },
+  { scope: 'all', label: 'All events' },
+];
+
+/**
+ * What to send for a change to `event` once the person has said which times it is for. All events keeps the old way:
+ * a new time moves every time by as much as this one moved. This event never changes how the series repeats.
+ */
+export function scoped(event: CalendarEvent, change: CalendarDraft, scope: RepeatScope): CalendarDraft {
+  if (!event.repeats) return change;
+  if (scope === 'all') return change.start !== undefined ? { ...change, occurrence: event.start } : change;
+  const out: CalendarDraft = { ...change, scope, occurrence: event.occurrence ?? event.start };
+  if (scope === 'one') delete out.repeat;
+  return out;
 }
