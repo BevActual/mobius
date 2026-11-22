@@ -72,6 +72,8 @@ struct AudioClip {
     cycle: Option<(f64, f64)>,
     placed: Placed,
     stretch: Stretch,
+    /// Whether it fades in and out (a clip does; a frozen track's file, which starts and ends with the song, does not).
+    fades: bool,
 }
 
 impl AudioClip {
@@ -83,7 +85,7 @@ impl AudioClip {
             return None;
         }
         let own = self.offset + elapsed;
-        let fade = ((elapsed.min(self.length - elapsed) * spb) / AudioClip::FADE).min(1.0) as f32;
+        let fade = if self.fades { ((elapsed.min(self.length - elapsed) * spb) / AudioClip::FADE).min(1.0) as f32 } else { 1.0 };
         Some((
             match self.cycle {
                 Some((from, to)) if own >= to => from + (own - to).rem_euclid(to - from),
@@ -561,6 +563,7 @@ impl Renderer {
                     cycle: None,
                     placed: Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, markers: Vec::new() }, sound.clone(), song.tempo),
                     stretch: Stretch::default(),
+                    fades: false,
                 });
                 let is_frozen = frozen.is_some();
                 if is_frozen {
@@ -582,6 +585,7 @@ impl Renderer {
                                 cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)),
                                 placed: placed(song, Song::is_audio(t), c.audio.as_ref())?,
                                 stretch: Stretch::default(),
+                                fades: true,
                             })
                         })
                         .collect()
@@ -1380,7 +1384,7 @@ mod tests {
     #[test]
     fn a_frozen_track_plays_its_file_through_its_volume_and_sends_and_sounds_as_before() {
         let mut s = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"returns":[{"id":"r","volume":1}],"tracks":[
-            {"id":"a","instrument":"lead","volume":0.5,"pan":0,"sends":{"r":0.25},"fx":[{"id":"f","kind":"filter","on":true}],"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0.5,"length":1,"velocity":1},{"pitch":67,"start":2,"length":1,"velocity":1}]}]}]}"#).unwrap();
+            {"id":"a","instrument":"lead","volume":0.5,"pan":0,"sends":{"r":0.25},"fx":[{"id":"f","kind":"filter","on":true}],"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0,"length":1,"velocity":1},{"pitch":67,"start":2,"length":1,"velocity":1}]}]}]}"#).unwrap();
         let before = render_song(&s, 48_000);
         // Frozen: its instrument, clips and effects at full volume, in the middle.
         let (fl, fr) = render_song(&s.for_freezing("a").unwrap(), 48_000);
