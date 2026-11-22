@@ -208,3 +208,17 @@
 .doc-comments-panel .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
 .doc-comments-panel .note-comment { flex-direction: column; align-items: stretch; gap: 2px; background: var(--bg); border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--line); }
 .doc-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
+/* The outline on the frame (panel look): its own panel between Documents and the page, no tab. The heading you are in
+   is ink, the others grey; sub-headings one step in. Hidden, one small button at the page's left brings it back. */
+.doc-editor[data-frame] .doc-outline-side { flex: none; width: 200px; display: flex; flex-direction: column; gap: 1px; padding: var(--sp-3) var(--sp-2); border-right: 0; background: none; overflow-y: auto; }
+.doc-outline-side .doc-outline-head { display: flex; align-items: center; justify-content: space-between; padding: 0 0 var(--sp-2) var(--sp-2); }
+.doc-outline-side .doc-outline-title { padding: 0; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
+.doc-outline-side .doc-outline-head .strip-btn { width: 24px; height: 24px; }
+.doc-outline-side .doc-outline-head svg, .doc-outline-show svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.doc-editor[data-frame] .doc-outline-side .doc-outline-item { flex: none; height: var(--row-side); padding: 0 var(--sp-2); border-radius: var(--radius-control); background: none; color: var(--muted); font-size: var(--fs-sm); text-align: left; }
+.doc-editor[data-frame] .doc-outline-side .doc-outline-item[data-step="1"] { padding-left: var(--sp-5, 20px); }
+.doc-editor[data-frame] .doc-outline-side .doc-outline-item[data-step="2"] { padding-left: calc(var(--sp-5, 20px) + var(--sp-3)); }
+.doc-editor[data-frame] .doc-outline-side .doc-outline-item:hover { background: var(--sel); color: var(--ink); }
+.doc-editor[data-frame] .doc-outline-side .doc-outline-item[aria-current="true"] { background: none; color: var(--ink); font-weight: var(--fw-medium); }
+.doc-editor[data-frame] .doc-outline-show { position: absolute; z-index: 2; top: var(--sp-3); left: var(--sp-3); color: var(--muted); }
+.doc-editor[data-frame] .doc-body { position: relative; }

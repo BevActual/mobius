@@ -40,7 +40,6 @@ import { APP_ICONS } from './Rail';
 import { timeLabel } from './dates';
 import { relativeTime } from './relative-time';
 import { publishOutline } from './docs-outline';
-import { DocOutlinePanel } from './DocOutlinePanel';
 import './docs.css';
 import { afterPaint } from './ui/frame';
 
@@ -923,8 +922,6 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           )}
         </form>
       )}
-      {/* The outline, as its own panel beside the page (Word's Navigation pane), there once the document has headings. */}
-      {inFrame && outline.length > outlineFrom && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
       {/* Comments, as the inspector's Comments panel: each opens its words in the page. Hidden until asked for. */}
       {inFrame && own && commentState.available && (
         <PanelTab id="comments" name="Comments">
@@ -936,6 +933,30 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       )}
       {history && path ? <NoteHistory path={path} text={docs.text} kind="docs" onRestore={restore} onClose={() => setHistory(false)} /> : (
         <div className="doc-body">
+          {/* On the frame (panel look): the outline is its own panel between Documents and the page, as Google Docs has it,
+              there once the document has headings: the heading you are in, in ink, sub-headings one step in. */}
+          {inFrame && outline.length > outlineFrom && (outlineOpen ? (
+            <nav className="doc-outline doc-outline-side" aria-label="Outline">
+              <div className="doc-outline-head">
+                <span className="doc-outline-title">Outline</span>
+                <button type="button" className="strip-btn" aria-label="Hide the outline" title="Hide the outline" onClick={toggleOutline}>
+                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m11.5 6-4 4 4 4" /></svg>
+                </button>
+              </div>
+              {outline.slice(outlineFrom).map((h, j) => {
+                const i = j + outlineFrom;
+                const top = Math.min(...outline.slice(outlineFrom).map((o) => o.level));
+                return (
+                  <button key={`${h.pos}:${i}`} type="button" className="doc-outline-item" data-step={Math.min(h.level - top, 2)} aria-current={i === current || undefined}
+                    onClick={() => { editor?.chain().focus().setTextSelection(h.pos + 1).scrollIntoView().run(); }}>{h.text || 'Untitled'}</button>
+                );
+              })}
+            </nav>
+          ) : (
+            <button type="button" className="strip-btn doc-outline-show" aria-label="Show the outline" title="Show the outline" onClick={toggleOutline}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M7 10h9M7 14h9" /></svg>
+            </button>
+          ))}
           {outlineOpen && !inFrame && (
             <nav className="doc-outline" aria-label="Outline">
               <span className="doc-outline-title">Outline</span>
