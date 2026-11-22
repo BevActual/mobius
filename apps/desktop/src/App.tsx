@@ -1246,7 +1246,7 @@ export function App() {
   };
   ownListRef.current = ownListBody;
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
-    { id: 'list', name: 'Settings', label: 'Settings sections', dock: 'left', shown: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
+    { id: 'list', name: 'Settings', label: 'Sections', dock: 'left', shown: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
   ], []);
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
