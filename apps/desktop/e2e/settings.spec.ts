@@ -85,7 +85,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Chats with Mobius', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Abilities', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Chats with Mobius', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -352,7 +352,7 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await expect(page().getByRole('textbox', { name: 'Voice', exact: true })).toHaveValue('Rachel');
 });
 
-test('search at the top of the sidebar finds settings by their old names too, and Abilities opens its app', async () => {
+test('search at the top of the sidebar finds settings by their old names too', async () => {
   await start([]);
   await openSettings();
   const search = shell().getByRole('searchbox', { name: 'Search settings' });
@@ -361,10 +361,6 @@ test('search at the top of the sidebar finds settings by their old names too, an
   await search.fill('kokoro');
   await page().getByRole('button', { name: /Voice model/ }).click();
   await expect(page().locator('.settings-group[aria-label="Speaking"]')).toBeVisible();
-  await go('Abilities');
-  await page().getByRole('button', { name: 'Open Abilities' }).click();
-  await expect(page()).toHaveCount(0);
-  await expect(shell().locator('.app')).toHaveAttribute('data-app', 'skills');
 });
 
 test('Software Update: About shows the version and says the updater is off in this build; the switch is kept', async () => {
@@ -406,7 +402,7 @@ test('Accounts lists every connection in one place, and Adjust goes to its own p
   await go('Accounts');
   await expect(shell().locator('.toolbar-sub')).toHaveText('Accounts');
   await expect(page().getByRole('button', { name: 'Add a connection…' })).toBeVisible();
-  await expect(page().getByRole('button', { name: 'Find more in Abilities' })).toBeVisible();
+  await expect(page().getByRole('button', { name: 'Find more in Store' })).toBeVisible();
   await page().getByRole('button', { name: 'Add a connection…' }).click();
   await shell().getByRole('menuitem', { name: 'Model gateway…' }).click();
   await expect(shell().locator('.toolbar-sub')).toHaveText('Gateways');

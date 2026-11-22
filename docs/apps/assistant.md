@@ -69,9 +69,9 @@ Activity is the history of what Mobius did, and what is waiting for you. Open it
   running commands).
 - It reads the same log as **Settings › Approvals and safety › Activity**, which stays on this computer.
 
-## Abilities
+## Store
 
-Where you add apps, skills, connectors and plugins. See the [Abilities guide](../guide/abilities.md).
+Where you add apps, skills, connectors and plugins (it was called Abilities). Store is a place, like Settings: open it from **Go › Store…** or Ctrl K, not from All apps. See the [Store guide](../guide/abilities.md).
 
 
-![The Abilities app in Mobius](../readme/apps/abilities.png)
+![Store in Mobius](../readme/apps/abilities.png)

@@ -15,7 +15,8 @@ export const APP_ICONS: Record<string, ReactNode> = {
   messages: <><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4h9A1.5 1.5 0 0 1 16 5.5v6a1.5 1.5 0 0 1-1.5 1.5H9l-3.5 3v-3h0A1.5 1.5 0 0 1 4 11.5z" /><path d="M7 7.5h6M7 10h4" /></>,
   mail: <><rect x="3" y="5" width="14" height="10.5" rx="2" /><path d="m3.5 6 6.5 5 6.5-5" /></>,
   slides: <><rect x="3" y="4" width="14" height="9.5" rx="1.5" /><path d="M10 13.5V16M7 16.5h6M8.5 7l3 1.8-3 1.8z" /></>,
-  skills: <><path d="M5 4.5h10M5 8.5h10M5 12.5h6" /><path d="m12.5 14.5 1.5 1.5 3-3" /></>,
+  // Store: a shopping bag (a place to add things), not the lines that read as a menu.
+  skills: <><path d="M4.5 7h11l-.8 9.5h-9.4z" /><path d="M7.5 7V6a2.5 2.5 0 0 1 5 0v1" /></>,
   video: <><rect x="3" y="5" width="10.5" height="10" rx="2" /><path d="m13.5 8.5 3.5-2v7l-3.5-2" /></>,
   studio: <><path d="M8 15.5V5l8-1.5V14" /><circle cx="6" cy="15.5" r="2" /><circle cx="14" cy="14" r="2" /></>,
   photo: <><rect x="3" y="4.5" width="14" height="11" rx="2" /><path d="m3.5 13.5 4-4 3 3 2-2 4 4" /><circle cx="13" cy="8" r="1.3" /></>,
@@ -47,6 +48,6 @@ export interface OwnApp {
 export const OWN_ICONS: Record<OwnApp['id'], ReactNode> = {
   bots: <><rect x="4.5" y="7" width="11" height="8.5" rx="2.5" /><path d="M10 7V4.5M8 11h.01M12 11h.01" /></>,
   activity: <path d="M3 10.5h3l2-5 4 9 2-4h3" />,
-  extensions: <path d="M8 4.5h3v2a1.5 1.5 0 0 0 3 0v-2h1.5v4h-2a1.5 1.5 0 0 0 0 3h2v4h-4v-2a1.5 1.5 0 0 0-3 0v2h-4v-11z" />,
-  settings: <><path d="M4 6h8M15 6h1M4 14h1M8 14h8" /><circle cx="13.5" cy="6" r="1.8" /><circle cx="6.5" cy="14" r="1.8" /></>,
+  extensions: <><path d="M4.5 7h11l-.8 9.5h-9.4z" /><path d="M7.5 7V6a2.5 2.5 0 0 1 5 0v1" /></>,
+  settings: <><circle cx="10" cy="10" r="2.5" /><path d="M10 2.8v1.9M10 15.3v1.9M2.8 10h1.9M15.3 10h1.9M4.9 4.9l1.35 1.35M13.75 13.75l1.35 1.35M4.9 15.1l1.35-1.35M13.75 6.25l1.35-1.35" /><circle cx="10" cy="10" r="5.2" /></>,
 };
