@@ -337,6 +337,43 @@ struct Device {
     /// The part its sound leaves from, or none to pass the input straight through.
     output: Option<usize>,
     limit: bool,
+    /// Its effect's id, as [`fx_key`] makes it: how the Workbench names the device it has open.
+    key: u64,
+    /// While the Workbench has it open: each part's sum of squares since its levels were last read, and over how
+    /// many samples.
+    watched: bool,
+    energy: Vec<f64>,
+    samples: usize,
+}
+
+/// An effect's id as a number the audio thread can compare without its text (FNV-1a).
+#[must_use]
+pub fn fx_key(id: &str) -> u64 {
+    id.bytes().fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+}
+
+/// The ids of an effect's parts, in the order [`Chain::levels`] numbers them (a built-in effect's are the ones
+/// song-format.ts `builtinDevice` gives it).
+#[must_use]
+pub fn part_ids(e: &Value) -> Vec<String> {
+    let def = match e.get("kind").and_then(Value::as_str) {
+        Some("device") => e.get("device").cloned(),
+        _ => builtin(e),
+    };
+    def.as_ref()
+        .and_then(|d| d.get("parts"))
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .take(24)
+        .filter_map(|p| p.get("id").and_then(Value::as_str).map(str::to_owned))
+        .collect()
+}
+
+/// A level in dB from a sum of squares over `n` samples: their RMS, with silence at -90 (studio-audio.ts `rmsDb`).
+fn rms_db(energy: f64, n: usize) -> f64 {
+    let rms = (energy / n.max(1) as f64).sqrt();
+    if rms > 0.0 { (20.0 * rms.log10()).max(-90.0) } else { -90.0 }
 }
 
 fn num(o: &Value, key: &str, fallback: f64) -> f64 {
@@ -494,7 +531,8 @@ impl Device {
                 seen[from]
             })
             .collect();
-        Some(Device { parts, cables, late, order, input, output: into_out.then_some(out_part), limit })
+        let energy = vec![0.0; parts.len()];
+        Some(Device { parts, cables, late, order, input, output: into_out.then_some(out_part), limit, key: 0, watched: false, energy, samples: 0 })
     }
 
     fn stereo_out(&self) -> bool {
@@ -524,6 +562,18 @@ impl Device {
             if let Kind::Delay { feedback: true, .. } = self.parts[p].kind {
                 self.feed_delay(p, n);
             }
+        }
+        if self.watched {
+            // What leaves each part, mixed down to one channel as an analyser hears it.
+            for (part, sum) in self.parts.iter().zip(&mut self.energy) {
+                let [a, b] = &part.out;
+                *sum += if part.stereo {
+                    a[..n].iter().zip(&b[..n]).map(|(x, y)| f64::from((x + y) * 0.5).powi(2)).sum::<f64>()
+                } else {
+                    a[..n].iter().map(|x| f64::from(*x).powi(2)).sum::<f64>()
+                };
+            }
+            self.samples += n;
         }
         let from = self.output.unwrap_or(input);
         for i in 0..n {
@@ -783,7 +833,8 @@ impl Chain {
                 Some("device") => e.get("device").and_then(|d| Device::new(d, rate, seconds_per_beat, true, stereo, &mut seed)),
                 _ => builtin(e).and_then(|d| Device::new(&d, rate, seconds_per_beat, false, stereo, &mut seed)),
             };
-            if let Some(d) = device {
+            if let Some(mut d) = device {
+                d.key = fx_key(e.get("id").and_then(Value::as_str).unwrap_or_default());
                 stereo = d.stereo_out();
                 devices.push(d);
             }
@@ -795,6 +846,33 @@ impl Chain {
     #[must_use]
     pub fn stereo_out(&self) -> bool {
         self.stereo_out
+    }
+
+    /// Listens to the parts of the effect whose [`fx_key`] is `key` (and to no others), or to none.
+    pub fn watch(&mut self, key: Option<u64>) {
+        for d in &mut self.devices {
+            let on = key == Some(d.key);
+            if d.watched != on {
+                d.watched = on;
+                d.energy.fill(0.0);
+                d.samples = 0;
+            }
+        }
+    }
+
+    /// The level of each part of the effect being listened to since this was last asked, in dB, by its place in
+    /// [`part_ids`]: all but an LFO's (which sends no sound) and the output's (which is the effect's own sound).
+    /// Nothing when nothing has played since.
+    pub fn levels(&mut self, mut level: impl FnMut(usize, f64)) {
+        for d in self.devices.iter_mut().filter(|d| d.watched && d.samples > 0) {
+            for (i, (part, sum)) in d.parts.iter().zip(&mut d.energy).enumerate() {
+                if !matches!(part.kind, Kind::Lfo { .. } | Kind::Output) {
+                    level(i, rms_db(*sum, d.samples));
+                }
+                *sum = 0.0;
+            }
+            d.samples = 0;
+        }
     }
 
     /// Runs a block through every effect, in place.

@@ -171,6 +171,7 @@ function MixerDemo() {
     { name: 'Lead', color: 'violet', level: [-30, -26] },
   ];
   const [mix, setMix] = useState(() => tracks.map((t, i) => ({ volume: [0, -3, -4.5, -60][i]!, pan: [0, 0, -0.3, 0.25][i]!, mute: i === 3, solo: false, arm: i === 0 })));
+  const [main, setMain] = useState(0);
   const meters = useRef<(LevelFeed | null)[]>([]);
   useEffect(() => { tracks.forEach((t, i) => meters.current[i]?.set(...t.level)); }); // eslint-disable-line react-hooks/exhaustive-deps
   const put = (i: number, patch: Partial<(typeof mix)[number]>) => setMix((all) => all.map((m, j) => (j === i ? { ...m, ...patch } : m)));
@@ -186,6 +187,8 @@ function MixerDemo() {
           meter={(m) => { meters.current[i] = m; }}
         />
       ))}
+      {/* Main: no pan, mute or solo, so only its fader and meter, level with the tracks'. */}
+      <MixerStrip name="Main" volume={main} onVolume={setMain} meter={(m) => { meters.current[tracks.length] = m; m?.set(-9, -8); }} />
     </div>
   );
 }

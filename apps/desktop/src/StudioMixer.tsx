@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { LevelMeter, MixerStrip, type LevelFeed } from './ui';
+import { MixerStrip, type LevelFeed } from './ui';
 import type { Song, Track } from './song-format';
 import type { Player } from './studio-audio';
 
@@ -50,10 +50,8 @@ export function StudioMixer({ song, selected, onSelect, setTrack, source, playin
           solo={t.solo} onSolo={(on) => setTrack(t.id, (x) => { x.solo = on; })}
           dimmed={anySolo && !t.solo} meter={feed(t.id)} />
       ))}
-      <div className="studio-mixer-main">
-        <span className="studio-mixer-main-name">Main</span>
-        <LevelMeter ref={feed('master')} label="Main level" ceiling={6} />
-      </div>
+      {/* Live's Main: no pan, mute or solo; its volume isn't in the song yet, so its fader stays fixed. */}
+      <MixerStrip name="Main" className="studio-mixer-main" meter={feed('master')} />
     </div>
   );
 }

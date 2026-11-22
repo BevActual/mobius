@@ -1,7 +1,7 @@
 // Renders a song with the window's code (in headless Chromium) and with the engine, whole and track by track, and
 // says how far apart they are: overall level, and the level every 100 ms.
 //
-//   node crates/mobius-audio/parity/compare.cjs demo/workspace/studio/Songs/Demo.json
+//   node crates/mobius-audio/parity/compare.cjs crates/mobius-host/tests/fixtures/song.json
 //
 // Noise differs between the two (drums, reverb rooms), so those tracks stay about a dB apart window to window;
 // everything else should agree to a tenth of a dB.

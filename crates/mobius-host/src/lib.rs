@@ -46,7 +46,6 @@ pub mod sync_pairs;
 pub mod bass;
 pub mod music;
 pub mod day;
-pub mod demo;
 pub mod mail;
 pub mod chatgpt;
 pub mod key_sign_in;
