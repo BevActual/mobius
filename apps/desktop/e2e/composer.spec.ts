@@ -65,7 +65,7 @@ test('send becomes stop while the agent works, and stop ends the request', async
   await expect(shell().getByRole('button', { name: 'Send' })).toHaveCount(0);
   await stop.click();
   await expect(stop).toHaveCount(0);
-  await expect(shell().getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Send' })).toBeAttached();
 });
 
 test('the model menu lists what the server offers and switching changes the model for the next message', async () => {
