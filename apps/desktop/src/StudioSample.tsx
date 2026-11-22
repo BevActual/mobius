@@ -35,12 +35,12 @@ export function SampleSlot({ label, songPath, sample, onSample }: { label: strin
       onDragOver={(e) => { if (!carriesFiles(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; setOver(true); }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => { if (!carriesFiles(e)) return; e.preventDefault(); e.stopPropagation(); setOver(false); void take(e.dataTransfer.files[0]); }}>
-      <span className="studio-sample-name" title={sample?.file}>{busy ? 'Adding…' : sample ? sampleName(sample.file) : 'Drop a sound file here'}</span>
+      <span className="studio-sample-name" title={sample?.file}>{busy ? 'Adding…' : sample ? sampleName(sample.file) : 'Drop a WAV file here'}</span>
       <span className="studio-sample-actions">
         <button type="button" className="studio-sample-btn" onClick={() => pick.current?.click()}>{sample ? 'Replace…' : 'Choose…'}</button>
         {sample && <button type="button" className="studio-sample-btn" onClick={() => onSample(null)}>Remove</button>}
       </span>
-      <input ref={pick} type="file" accept=".wav,.wave,.aif,.aiff,.flac,.mp3,.ogg,audio/*" hidden onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ''; }} />
+      <input ref={pick} type="file" accept=".wav,.wave,audio/wav,audio/x-wav" hidden onChange={(e) => { void take(e.target.files?.[0]); e.target.value = ''; }} />
       {problem && <p className="studio-sample-problem" role="alert">{problem}</p>}
     </div>
   );

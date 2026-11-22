@@ -8,7 +8,7 @@ const noop = () => {};
 describe('the sample slot', () => {
   it('asks for a file when empty, and names the sample with Replace and Remove once it has one', () => {
     const empty = renderToStaticMarkup(<SampleSlot label="Sample" songPath="Songs/a.song" sample={undefined} onSample={noop} />);
-    expect(empty).toContain('Drop a sound file here');
+    expect(empty).toContain('Drop a WAV file here');
     expect(empty).toContain('Choose…');
     expect(empty).not.toContain('Remove');
     const held = renderToStaticMarkup(<SampleSlot label="Sample" songPath="Songs/a.song" sample={{ file: 'Samples/kick 01.wav' }} onSample={noop} />);

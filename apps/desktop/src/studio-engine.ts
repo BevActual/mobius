@@ -314,7 +314,8 @@ export function toBase64(bytes: Uint8Array): string {
 export async function importSample(songPath: string, file: File): Promise<{ file: string } | { problem: string }> {
   const m = music() as (ReturnType<typeof music> & { importSample?: ImportSample }) | undefined;
   if (!m?.importSample) return { problem: 'Adding samples needs a newer Mobius desktop app.' };
-  if (!/\.(wav|wave|aif|aiff|flac|mp3|ogg)$/i.test(file.name)) return { problem: `“${file.name}” isn’t a sound file.` };
+  // The engine reads WAV for now (as Live's own recordings are); others say so before their bytes are sent.
+  if (!/\.(wav|wave)$/i.test(file.name)) return { problem: `“${file.name}” isn’t a WAV file. Samples are WAV for now.` };
   if (file.size > 200 * 1024 * 1024) return { problem: `“${file.name}” is too big for a sample (over 200 MB).` };
   const bytes = new Uint8Array(await file.arrayBuffer());
   const r = await m.importSample(songPath, file.name, toBase64(bytes));
