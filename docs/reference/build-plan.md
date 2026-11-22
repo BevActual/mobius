@@ -58,9 +58,9 @@ Work is taken in this order. A lower line never holds up a higher one.
 1. **Keep `main` green and the queue short.** An open pull request that is green and reviewed lands before new work
    starts. A flaky test is fixed, never skipped.
 2. **Build the product.** Finishing apps, the shell and connections comes first (Andrew, 18 November 2026: "focus on
-   getting it done instead of constantly running a demo"). Each app's [demo moment](demo-plan.md) is a feature like
-   any other: it is built, covered by unit and end-to-end tests, and lands on its tests. There are no real-model
-   reliability rounds while building; Launch runs each moment once on a real model just before recording, at launch.
+   getting it done instead of constantly running a demo"). Features are tested directly with unit and end-to-end tests;
+   there is no scripted demo story, made-up team or per-app demo moment to keep working (Andrew, 22 November 2026:
+   "we can just test things without that"). The old demo plan is in the [archive](../archive/demo-plan.md).
 3. **One wording and one set of controls everywhere.** The Permission names, shared selects and shared date fields
    replace what is left of the old ones, in the apps and in the docs.
 4. **The shell pieces apps are waiting on,** in the order under [Shell queue](#shell-queue).
@@ -138,7 +138,6 @@ either. The proposal is a few lines in a pull request to this page, answering th
 - It holds a kind of thing no app holds yet, with its own list, its own open document and its own settings.
 - A person opens it on purpose, as a job in itself, and other apps would link to it more than contain it.
 - Two or more apps need it equally, so putting it inside one would hide it from the other.
-- It has a moment of its own that could stand in the [demo plan](demo-plan.md).
 - Folding it in would make the host app harder to explain or crowd its toolbar.
 
 **Either way:**
@@ -270,7 +269,7 @@ What has to be true before Mobius is shared widely. The Launch lead keeps the ch
 | The cross-app run works end to end on real accounts: mail in, tasks made, time blocked, drafts ready | Apps lead, Builder | App modes; the Mail, Tasks and Calendar rounds |
 | README shows every app in the current look | Launch | Nothing |
 | First run takes five minutes or less from install to a first answer | Builder, Launch | Nothing |
-| A clip of each app's moment and a 60 to 90 second reel of the best ([demo plan](demo-plan.md)) | Launch | The demo workspace; each app's moment |
+| Pictures and short clips of real features for the README and site, chosen at launch | Launch | Nothing |
 | The name: Mobius Workspace at mobiusworkspace.com ([below](#the-name)) | Launch | Andrew: registering the domain; a trademark attorney's clearance before any filing or branding spend |
 | Signed Windows installer | Builder | Andrew: the SignPath application |
 | v0.1.0 published | Builder | Andrew: Publish on the draft release |
@@ -323,7 +322,7 @@ Mobius reads a drive freely and asks before every change on one. In order:
 Cloud drives sign in on the service's own page and Mobius keeps only the token, in the system's secret store. Sync is
 built against the drive interface, not WebDAV, so each drive added after it can sync too.
 
-This work started after the first group of the [demo plan](demo-plan.md). WebDAV for Files is first because it opens the
+WebDAV for Files is first because it opens the
 most with one piece: every app that keeps plain files gains a server.
 
 ## Later

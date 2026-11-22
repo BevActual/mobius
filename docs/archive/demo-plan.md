@@ -1,11 +1,13 @@
 # Demo plan: one moment for every app
 
+> Retired 22 November 2026 (Andrew: "we can just test things without that"). Features are tested directly; this page is kept for history only.
+
 How Mobius is shown. The demo used to be one story, a supplier email that becomes tasks and a meeting. That proves the
 agent works across apps, but it shows three apps and gives nobody a reason to open the other twenty-five. The demo is
 now a tour: **each app gets one moment that makes someone want to use that app.**
 
 The orchestrator keeps this page. Each lead builds the moments in their column and changes a row's status in the same
-pull request that makes it true. The order of work is in the [build plan](build-plan.md); the steps before sharing are
+pull request that makes it true. The order of work is in the [build plan](../reference/build-plan.md); the steps before sharing are
 in the [launch checklist](../launch.md).
 
 ## What a moment is
@@ -117,7 +119,7 @@ others are a first read that the owning lead corrects.
 5. **Everything else,** strongest first. An app whose moment is still a Gap at launch is labelled "early" in the
    README and left out of the reel, not shown weak.
 
-An app round that builds its moment comes before that app's other rounds on the [apps roadmap](apps-roadmap.md).
+An app round that builds its moment comes before that app's other rounds on the [apps roadmap](../reference/apps-roadmap.md).
 
 ## Timing
 
