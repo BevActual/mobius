@@ -878,7 +878,10 @@ test('the Library lists the song’s samples, and one put on the song becomes a 
   const lib = shell().locator('.studio-library');
   await lib.getByRole('navigation', { name: 'Places' }).getByRole('button', { name: 'Samples in this song' }).click();
   // Its text says what's wrong if it can't list them.
-  await expect(lib.getByRole('listbox', { name: 'Samples' })).toContainText('Pluck');
+  await expect(lib.getByRole('listbox', { name: 'Samples' })).toContainText('Pluck').catch(async (err: unknown) => {
+    console.log(`[e2e debug] the Library shows: ${JSON.stringify(await lib.innerText())}`);
+    throw err;
+  });
   const row = lib.getByRole('listbox', { name: 'Samples' }).getByRole('option', { name: /Pluck/ });
   // On a track that isn't a sampler, Enter adds a Sampler track for it, named by it.
   await row.click();

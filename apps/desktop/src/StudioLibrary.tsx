@@ -67,7 +67,9 @@ export function StudioLibrary({ songKey, target, onUse, songs, songPath = '', on
     setSamplesProblem(null);
     const m = typeof window === 'undefined' ? undefined : window.mobius?.music;
     if (!songPath || !m?.samples) { setSamples([]); return; }
-    void m.samples(songPath).then((r) => { if (!live) return; setSamples(r.ok ? r.files : []); if (!r.ok) setSamplesProblem(r.message); }, (err) => { if (!live) return; setSamples([]); setSamplesProblem(err instanceof Error ? err.message : String(err)); });
+    // Asked inside a promise, so a refusal however it comes is shown, not thrown into the page.
+    const list = m.samples;
+    void Promise.resolve().then(() => list(songPath)).then((r) => { if (!live) return; setSamples(r.ok ? r.files : []); if (!r.ok) setSamplesProblem(r.message); }, (err) => { if (!live) return; setSamples([]); setSamplesProblem(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [place, songPath]);
   const shownSamples = (samples ?? []).filter((f) => !query.trim() || f.toLowerCase().includes(query.trim().toLowerCase()));
