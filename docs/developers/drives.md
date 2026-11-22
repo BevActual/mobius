@@ -159,6 +159,22 @@ The app's client ID, client secret and picker key are built in from `MOBIUS_GOOG
 kept secret). A build without them says Google Drive isn't set up. `tests/google_drive.rs` runs the whole flow against
 a pretend Google. Files bigger than 32 MB aren't opened or saved back yet.
 
+## This computer (folders on the PC)
+
+A folder on the person's own computer is a drive of kind `local` (`crates/mobius-host/src/local_drive.rs`), so Files
+shows it under **This computer** and opens, saves, moves and deletes in it as on any drive. Desktop, Documents and
+Downloads are added the first time Mobius runs with places (`Bridge::seed_places`, called by the app, not in tests).
+The person adds others with `drives.addPlace()`, which opens the system's folder picker. Removing a place takes it off
+the list and leaves its files alone.
+
+- **Only the folders listed.** Every path is checked to stay inside its place: `..`, a drive letter, or a link inside
+  that leads elsewhere is refused, and links are left out of listings.
+- **Versions.** A file's version is its size and modified time, so a save over a file changed on disk since it was
+  read is refused as a conflict, as on a server.
+- **Delete** sends to the Recycle Bin (or the Trash), where the person can bring it back.
+- **No checkpoints.** Review and checkpoints cover the workspace only. The agent's changes in these folders go through
+  `drives.write`, which asks every time.
+
 ## Known limits and quirks
 
 - **Big files.** Opening a drive file in an app, and the agent's `drives.*` tools, read and write a whole file in

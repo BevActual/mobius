@@ -219,6 +219,10 @@ fn failed(message: impl Into<String>) -> Value {
 pub trait Dialogs: Send + Sync {
     /// Ask the person to choose a text file. `None` when they cancel.
     fn pick_text_file(&self) -> Option<PathBuf>;
+    /// Ask the person to choose a folder on this computer. `None` when they cancel, or where there is no such dialog.
+    fn pick_folder(&self) -> Option<PathBuf> {
+        None
+    }
     fn open_path(&self, path: &Path);
     fn show_path(&self, path: &Path);
     /// Stop a download that is being saved at `path`.
@@ -1307,6 +1311,12 @@ impl Bridge {
     }
 
     /// The browser app and the dialogs are provided by the window system once it exists.
+    /// The first time the app runs with places in Files: the person's Desktop, Documents and Downloads are added as
+    /// places ("This computer"). Called by the app, not in tests, so a test's drives start empty.
+    pub fn seed_places(&self) {
+        self.drives.seed_places(&self.data_dir);
+    }
+
     pub fn attach(&self, browser: Arc<Browser>, dialogs: Arc<dyn Dialogs>) {
         let _ = self.browser.set(browser);
         let blocker = dialogs.awake_blocker();
@@ -3615,6 +3625,11 @@ impl Bridge {
                     Err(message) => emit("mobius:drive-sign-in", json!({ "kind": "onedrive", "ok": false, "message": message })),
                 }))
             }
+            // This computer: a folder the person picks (or names) becomes a place in Files.
+            ("addPlace", path) => match path.map(PathBuf::from).or_else(|| self.dialogs.get().and_then(|d| d.pick_folder())) {
+                Some(path) => drives.add_place(&path).inspect(|place| changed(place.get("id").and_then(Value::as_str).unwrap_or(""), "")),
+                None => Ok(json!({ "ok": false, "cancelled": true })),
+            },
             ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
             ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
             // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").

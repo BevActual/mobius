@@ -71,6 +71,10 @@ impl Dialogs for SystemDialogs {
         use tauri_plugin_dialog::DialogExt;
         self.handle.dialog().file().add_filter("Text", &["txt", "md", "json", "csv", "log", "rs", "ts", "tsx", "js", "py", "html", "css", "toml", "yaml", "yml"]).blocking_pick_file().and_then(|f| f.into_path().ok())
     }
+    fn pick_folder(&self) -> Option<PathBuf> {
+        use tauri_plugin_dialog::DialogExt;
+        self.handle.dialog().file().blocking_pick_folder().and_then(|f| f.into_path().ok())
+    }
     fn open_path(&self, path: &std::path::Path) {
         #[cfg(windows)]
         let _ = std::process::Command::new("explorer").arg(path).spawn();
@@ -741,6 +745,7 @@ fn main() {
                 bridge.set_downloads_dir(dir);
             }
             bridge.attach(browser.clone(), Arc::new(SystemDialogs { keep_hidden: hidden, engine: engine_slot, handle: handle.clone(), window: window.clone() }));
+            bridge.seed_places();
             // The first tab: an address given for tests, or a blank page.
             let start = std::env::var("MOBIUS_START_URL").ok().filter(|_| test_mode);
             let reopened = if restore_tabs && start.is_none() {

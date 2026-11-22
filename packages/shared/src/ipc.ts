@@ -265,7 +265,7 @@ export interface CalendarDraft { title?: string; start?: string; end?: string; l
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
 /** What Files' Space preview shows. */
 export type FilePeek = { kind: 'text'; text: string; cut: boolean; markdown: boolean } | { kind: 'image'; src: string } | { kind: 'none'; reason: string };
-export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox' | 'onedrive'; name: string; /** For Dropbox, `dropbox:` and the folder in it; for OneDrive and SharePoint, `onedrive:`, the drive's id and the folder. */ url: string; /** For S3, the access key id; for Dropbox, OneDrive and SharePoint, the account that signed in. */ username: string; /** S3's region. */ region?: string }
+export interface DriveAccount { id: string; kind: 'webdav' | 's3' | 'dropbox' | 'onedrive' | 'local'; name: string; /** For Dropbox, `dropbox:` and the folder in it; for OneDrive and SharePoint, `onedrive:`, the drive's id and the folder; for a folder on this computer (`local`, "This computer" in Files), its full path. */ url: string; /** For S3, the access key id; for Dropbox, OneDrive and SharePoint, the account that signed in. */ username: string; /** S3's region. */ region?: string }
 /** A drive to add. For S3: `server` is the service's address, `username` the access key id and `password` its secret; `folder` is a folder in the bucket, and `region` may be left out where the address names it. */
 export interface NewDrive { kind?: 'webdav' | 's3'; name: string; server: string; username: string; password: string; bucket?: string; folder?: string; region?: string }
 /** One thing in a drive folder. `path` is from the drive's top, without leading or trailing slashes. */
@@ -991,6 +991,11 @@ export interface MobiusBridge {
     /** Checks the account can open the folder first. A Nextcloud or ownCloud address alone is enough. */
     add(drive: NewDrive): Promise<DriveAccount | DriveFailure>;
     remove(id: string): Promise<{ ok: true } | DriveFailure>;
+    /** This computer: a folder on it becomes a place in Files, a drive of kind `local` (browse, read, write, mkdir, move
+     *  and delete work on it as on any drive, and never reach outside it; delete sends to the Recycle Bin). With no
+     *  path the system's folder picker asks; cancelled, it answers `cancelled`. The same folder twice is one place.
+     *  Desktop, Documents and Downloads are added the first time Mobius runs with places; `remove` takes one off. */
+    addPlace?(path?: string): Promise<DriveAccount | DriveFailure | { ok: false; cancelled: true }>;
     /** A new password for a drive whose sign-in stopped working: checked with the server, then kept in place of the old one. */
     signIn?(id: string, password: string): Promise<{ ok: true } | DriveFailure>;
     /** Whether this build can sign in to Dropbox (it needs Mobius's app key), and the sign-in page while one waits. */

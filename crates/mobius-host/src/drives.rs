@@ -567,12 +567,13 @@ impl WebDav {
 #[serde(rename_all = "camelCase")]
 pub struct DriveAccount {
     pub id: String,
-    /// `webdav`, `s3`, `dropbox` or `onedrive` (OneDrive and SharePoint).
+    /// `webdav`, `s3`, `dropbox`, `onedrive` (OneDrive and SharePoint) or `local` (a folder on this computer).
     pub kind: String,
     pub name: String,
     /// The drive's top folder. For S3, its path-style address: `https://host/bucket/folder/`; for Dropbox,
     /// `dropbox:` and the folder in it (`dropbox:/Notes`, or `dropbox:/` for the whole Dropbox); for OneDrive and
-    /// SharePoint, `onedrive:`, Graph's id of the drive, and the folder (`onedrive:b!x7…/Projects`).
+    /// SharePoint, `onedrive:`, Graph's id of the drive, and the folder (`onedrive:b!x7…/Projects`); for a folder on this
+    /// computer, its full path.
     pub url: String,
     /// The account name; for S3, the access key id; for Dropbox, OneDrive and SharePoint, the account it signed in with.
     pub username: String,
@@ -902,6 +903,49 @@ impl Drives {
         Ok(json!(account))
     }
 
+    /// A folder on this computer as a place in Files ("This computer"). Mobius reaches only the folders kept so.
+    pub fn add_place(&self, path: &Path) -> Res<Value> {
+        let folder = crate::local_drive::LocalFolder::new(path)?;
+        drop(folder);
+        let path = path.canonicalize().map_err(|e| e.to_string())?;
+        let url = path.to_string_lossy().trim_start_matches(r"\\?\").to_owned();
+        let mut all = self.lock();
+        if let Some(there) = all.iter().find(|a| a.kind == "local" && a.url == url) {
+            return Ok(json!(there));
+        }
+        if all.len() >= MAX_DRIVES {
+            return Err(format!("There can be at most {MAX_DRIVES} drives and places."));
+        }
+        let name = path.file_name().map_or_else(|| url.clone(), |n| n.to_string_lossy().into_owned());
+        let account = DriveAccount { id: new_id(), kind: "local".into(), name, url, username: String::new(), region: None };
+        all.push(account.clone());
+        self.save(&all);
+        Ok(json!(account))
+    }
+
+    /// The first time Mobius runs with places: Desktop, Documents and Downloads are added. Removed later, they stay
+    /// removed.
+    pub fn seed_places(&self, data_dir: &Path) {
+        let marker = data_dir.join("places-seeded");
+        if marker.exists() {
+            return;
+        }
+        for (name, path) in crate::local_drive::known_folders() {
+            if let Ok(place) = self.add_place(&path) {
+                // Its own name, as the system calls it, not the folder's (a redirected Documents may be "Documents - OneDrive").
+                if let Some(id) = place.get("id").and_then(Value::as_str) {
+                    let mut all = self.lock();
+                    if let Some(a) = all.iter_mut().find(|a| a.id == id) {
+                        name.clone_into(&mut a.name);
+                    }
+                    let snapshot = all.clone();
+                    self.save(&snapshot);
+                }
+            }
+        }
+        let _ = std::fs::write(marker, "");
+    }
+
     pub fn remove(&self, id: &str) -> Res<Value> {
         let mut all = self.lock();
         let before = all.len();
@@ -917,6 +961,9 @@ impl Drives {
 
     pub fn open(&self, id: &str) -> Res<Box<dyn Drive>> {
         let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That drive is gone.")?;
+        if account.kind == "local" {
+            return Ok(Box::new(crate::local_drive::LocalFolder::new(Path::new(&account.url))?));
+        }
         let password = self.secrets.get(&secret_name(id)).ok_or("The drive's password is missing; remove the drive and add it again.")?;
         self.connect(&account, &password)
     }
@@ -1455,5 +1502,30 @@ pub(crate) mod tests {
         run("drives.delete", json!({ "drive": "Cloud", "path": "Trips/photo.bin" })).unwrap();
         let left: Vec<String> = store.lock().unwrap().keys().filter(|k| k.starts_with("/remote.php/dav/files/")).cloned().collect();
         assert_eq!(left, vec!["/remote.php/dav/files/ana/", "/remote.php/dav/files/ana/Trips/", "/remote.php/dav/files/ana/Trips/Portugal/", "/remote.php/dav/files/ana/Trips/Portugal/plan.md"]);
+    }
+
+    #[test]
+    fn a_folder_on_this_computer_is_a_place_the_agent_and_files_open_like_a_drive() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = tempfile::tempdir().unwrap();
+        std::fs::write(folder.path().join("todo.txt"), "milk").unwrap();
+        let drives = Drives::new(dir.path(), Arc::new(MemorySecrets::new(true)));
+        let place = drives.add_place(folder.path()).unwrap();
+        assert_eq!(place["kind"], "local");
+        // The same folder twice is one place.
+        assert_eq!(drives.add_place(folder.path()).unwrap()["id"], place["id"]);
+        assert!(drives.add_place(&folder.path().join("missing")).is_err());
+        let id = place["id"].as_str().unwrap();
+        let d = drives.open(id).unwrap();
+        assert_eq!(d.read("todo.txt").unwrap().bytes, b"milk");
+        // The agent finds it by its name, as a drive.
+        let name = place["name"].as_str().unwrap();
+        let ws = mobius_workspace::files::Workspace::new(dir.path().join("ws"), dir.path().join("store"));
+        let (said, _) = drives.run("drives.read", &serde_json::json!({ "drive": name, "path": "todo.txt" }), &ws).unwrap();
+        assert!(said.contains("milk"), "{said}");
+        // Removed, it is gone; its files are not touched.
+        drives.remove(id).unwrap();
+        assert!(drives.open(id).is_err());
+        assert!(folder.path().join("todo.txt").is_file());
     }
 }
