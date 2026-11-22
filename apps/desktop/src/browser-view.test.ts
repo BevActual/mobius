@@ -81,7 +81,7 @@ describe('sidebarMatch', () => {
 
 describe('nextTabId', () => {
   const t = (id: string, extra: Partial<BrowserTabState> = {}) => ({ id, url: `https://${id}.example/`, title: id, loading: false, canGoBack: false, canGoForward: false, active: false, icon: null, ...extra }) as BrowserTabState;
-  // As the core keeps them: pinned first. The sidebar lists the open tabs first, so Ctrl+Tab goes in that order.
+  // As the core keeps them and the tabs panel lists them: Pinned first, then Today.
   const tabs = [t('p', { pinned: true }), t('a', { active: true }), t('b')];
   it('steps through the tabs in the order the sidebar shows, going round', () => {
     expect(nextTabId(tabs, 1)).toBe('b');
