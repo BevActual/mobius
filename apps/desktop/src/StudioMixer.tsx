@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Button, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
 import { MAIN_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
-import type { Player } from './studio-audio';
+import type { Player } from './studio-engine';
 
 /** A track's volume (0 to 1, as kept in the song) in dB for the fader, and back. The fader stops at 0 dB, the most a track's volume can be. */
 export const gainToDb = (v: number): number => (v <= 0.001 ? -60 : Math.max(-60, Math.round(20 * Math.log10(v) * 10) / 10));
