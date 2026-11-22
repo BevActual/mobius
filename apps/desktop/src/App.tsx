@@ -118,6 +118,7 @@ import { contactSheet } from './picture';
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
+import { checkedLast, setCheckedLast } from './checked-last';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -831,6 +832,8 @@ export function App() {
   // Comments: on anything in the open document, in comment mode (the button, or C).
   const [commenting, setCommenting] = useState(false);
   const [commentFocus, setCommentFocus] = useState<string | null>(null);
+  // Notes (marked): Move checked items to the bottom, in the Notes menu.
+  const [checkedLastOn, setCheckedLastOn] = useState(checkedLast);
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
@@ -1345,7 +1348,7 @@ export function App() {
       sidebarShown: ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
-      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
       docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
@@ -1402,6 +1405,7 @@ export function App() {
         history: () => sendCommand('show-history'),
         clip: () => sendCommand('clip-page'),
         markdown: () => sendCommand('show-markdown'),
+        checkedLast: () => { setCheckedLast(!checkedLastOn); setCheckedLastOn(!checkedLastOn); },
       },
       tasks: {
         newList: () => sendCommand('new-list'),

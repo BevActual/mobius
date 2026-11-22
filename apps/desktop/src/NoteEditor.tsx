@@ -18,7 +18,7 @@ import { Markdown } from '@tiptap/markdown';
 import { TableKit } from '@tiptap/extension-table';
 import { TaskItem, TaskList } from '@tiptap/extension-list';
 import { BulletToTask } from './task-shortcut';
-import { CheckedLast, checkedLast, setCheckedLast } from './checked-last';
+import { CheckedLast } from './checked-last';
 import { Placeholder } from '@tiptap/extensions';
 import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state';
 import { loadIntoEditor } from './editor-load';
@@ -211,7 +211,6 @@ function FormatButtons({ editor, onLink, onAttach, table }: { editor: Editor; on
       undo: e.can().undo(), redo: e.can().redo(),
     }),
   });
-  const [sortChecked, setSortChecked] = useState(checkedLast);
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
   const setStyle = (id: string) => () => {
     const chain = editor.chain().focus();
@@ -238,8 +237,6 @@ function FormatButtons({ editor, onLink, onAttach, table }: { editor: Editor; on
         { label: 'Code', checked: state.code, run: run((c) => c.toggleCode()) },
         { label: 'Numbered list', checked: state.ordered, run: run((c) => c.toggleOrderedList()) },
         { label: 'Quote', checked: state.quote, run: run((c) => c.toggleBlockquote()) },
-        // Apple Notes' Sort checked items: off until turned on, and kept for every note.
-        { label: 'Move checked items to the bottom', checked: sortChecked, separated: true, run: () => { setCheckedLast(!sortChecked); setSortChecked(!sortChecked); } },
       ]} trigger={
         <button type="button" className="doc-tool text note-style-btn" aria-label={`Text style: ${STYLE_NAMES[state.style]}`} title="Text style">
           <span>{STYLE_NAMES[state.style]}</span>
