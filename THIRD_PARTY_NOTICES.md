@@ -24,3 +24,16 @@ ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEAL
 
 The licence text above was reproduced from the Hermes Agent repository's LICENSE header and standard MIT wording; verify
 against the repository's LICENSE file before distributing.
+
+## Tuwunel (the local Mobius space's homeserver)
+
+The local Mobius space in Messages runs Tuwunel, a Matrix homeserver. Mobius doesn't bundle it in the installer: it downloads a build of it the first time the space opens, checks the download against a SHA-256 pinned in Mobius, and runs it on 127.0.0.1 only. The build comes from `.github/workflows/homeserver.yml`, at the commit pinned there.
+Source: https://github.com/matrix-construct/tuwunel (a successor of Conduit and conduwuit)
+
+Licensed under the Apache License, Version 2.0. You may obtain a copy of the License at
+https://www.apache.org/licenses/LICENSE-2.0. Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either
+express or implied. See the License for the specific language governing permissions and limitations under the License.
+
+Copyright: Timo Kösters, June Clementine Strawberry, Jason Volk, and the Conduit, conduwuit and Tuwunel contributors (as
+listed in Tuwunel's Cargo.toml). Licence checked against its LICENSE file and Cargo.toml on 2026-11-22.
