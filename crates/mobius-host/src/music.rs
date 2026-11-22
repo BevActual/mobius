@@ -24,6 +24,8 @@ pub struct Music {
     samples: mobius_audio::sample::Samples,
     /// The loaded song's folder, where recordings are saved (none until the window says which song it is).
     folder: Mutex<Option<std::path::PathBuf>>,
+    /// The sound input chosen to record from (none for the computer's default).
+    input_device: Mutex<Option<String>>,
     /// The track a take is being recorded on.
     recording: Mutex<Option<String>>,
     song: Mutex<Option<Song>>,
@@ -57,7 +59,7 @@ pub fn song_of(value: &Value) -> Result<Song, String> {
 
 impl Music {
     pub fn new(emit: crate::bridge::Emit) -> Music {
-        Music { engine: Mutex::new(None), samples: mobius_audio::sample::Samples::new(), folder: Mutex::new(None), recording: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
+        Music { engine: Mutex::new(None), samples: mobius_audio::sample::Samples::new(), folder: Mutex::new(None), input_device: Mutex::new(None), recording: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
     }
 
     /// The engine, opening the sound output the first time.
@@ -114,6 +116,12 @@ impl Music {
             "countIn" => self.count_in(arg(0).as_u64().and_then(|b| usize::try_from(b).ok()), arg(1).as_f64()),
             "stop" => self.stop(),
             "record" => self.record(arg(0).as_bool().unwrap_or(false)),
+            "inputs" => Ok(json!({
+                "ok": true,
+                "inputs": mobius_audio::engine::inputs().into_iter().map(|(name, channels)| json!({ "name": name, "channels": channels })).collect::<Vec<_>>(),
+                "using": *lock(&self.input_device),
+            })),
+            "useInput" => self.use_input(arg(0).as_str()),
             "peaks" => match (arg(0).as_str(), arg(1).as_str()) {
                 (Some(path), Some(file)) => self.peaks(path, file, arg(2).as_u64().unwrap_or(256), songs),
                 _ => Err("a song and a file are needed".to_owned()),
@@ -254,7 +262,7 @@ impl Music {
         // An armed audio track hears its input (Live's Auto monitoring); anything else closes it.
         let audio = found.filter(|t| Song::is_audio(t));
         let input = match audio {
-            Some(t) => match engine.open_input(t.input) {
+            Some(t) => match engine.open_input(lock(&self.input_device).as_deref(), t.input) {
                 Ok(name) => {
                     engine.monitor(Some((t.id.as_str(), mobius_audio::render::track_gains(t))))?;
                     // Heard while stopped: its meters go to the window as a preview's do.
@@ -270,6 +278,17 @@ impl Music {
             }
         };
         Ok(json!({ "ok": true, "input": input["input"], "inputProblem": input.get("inputProblem"), "inputFrames": engine.input_frames() }))
+    }
+
+    /// Record from the sound input called `name` (as `inputs` lists them), or the computer's default with none. An
+    /// armed audio track switches to it at once.
+    fn use_input(&self, name: Option<&str>) -> Result<Value, String> {
+        *lock(&self.input_device) = name.map(str::to_owned);
+        let armed = lock(&self.armed).clone();
+        match armed {
+            Some(id) => self.arm(Some(&id)),
+            None => Ok(json!({ "ok": true, "input": null })),
+        }
     }
 
     /// A key pressed on the armed track, held until `press` again with no velocity (0) lifts it.
@@ -570,6 +589,11 @@ mod tests {
         assert_eq!(m.call("record", &[json!(true)], &songs)["ok"], false);
         let armed = m.call("arm", &[json!("v")], &songs);
         assert_eq!(armed["ok"], true, "{armed}");
+        // Inputs to choose from (none here off Windows and macOS); choosing one re-arms the armed track.
+        assert!(m.call("inputs", &[], &songs)["inputs"].is_array());
+        assert_eq!(m.call("useInput", &[json!("USB Mic")], &songs)["ok"], true);
+        assert_eq!(m.call("inputs", &[], &songs)["using"], "USB Mic");
+        m.call("useInput", &[Value::Null], &songs);
         // No song folder yet: nowhere to save the take.
         assert_eq!(m.call("record", &[json!(true)], &songs)["ok"], false);
         if cfg!(not(any(windows, target_os = "macos"))) {
