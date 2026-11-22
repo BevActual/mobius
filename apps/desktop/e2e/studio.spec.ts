@@ -570,9 +570,13 @@ test('the Mixer opens beside the Detail with a strip per track: the fader and Mu
   await shell().getByRole('button', { name: 'Mixer', exact: true }).click();
   const mixer = shell().getByRole('region', { name: 'Mixer' });
   await expect(mixer.getByRole('slider', { name: 'Keys volume' })).toBeVisible();
-  await mixer.getByRole('slider', { name: 'Keys volume' }).focus();
-  for (let i = 0; i < 3; i++) await shell().keyboard.press('ArrowDown');
-  await expect.poll(() => saved().tracks[0]!.volume).toBeLessThan(0.6);
+  const fader = mixer.getByRole('slider', { name: 'Keys volume' });
+  const before = Number(await fader.getAttribute('aria-valuenow'));
+  await fader.focus();
+  // Page Down takes 6 dB off: about half the gain.
+  await shell().keyboard.press('PageDown');
+  await expect(fader).toHaveAttribute('aria-valuenow', String(Math.round((before - 6) * 10) / 10));
+  await expect.poll(() => saved().tracks.find((t) => t.name === 'Keys')!.volume).toBeLessThan(0.6);
   await mixer.getByRole('button', { name: 'Mute Keys' }).click();
   await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
 });
