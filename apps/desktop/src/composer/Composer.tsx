@@ -394,7 +394,8 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
   const permission = permissionOf(preferences.value.approvalMode, apply);
   const choosePermission = (p: PermissionInfo) => { setApplyState(p.id === 'apply'); saveApply(p.id === 'apply'); void preferences.set({ approvalMode: p.approval }); };
   const modeInfo = chatModeOf(mode, surface?.app);
-  // The row gives way in one order and never truncates: first Permission drops to its shield, then the effort suffix, then the model to its chip.
+  // The row gives way in one order and never truncates: first the effort suffix, then the model to its chip, then Permission's words to
+  // their short form ("Review") and only then to its shield (they say what Mobius may do, so they stay longest; Andrew, 21 November 2026).
   const toolsRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const row = toolsRef.current;
@@ -402,7 +403,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const fit = () => {
       delete row.dataset.fit;
       if (row.scrollWidth <= row.clientWidth) return;
-      for (const step of ['perm', 'effort', 'model']) {
+      for (const step of ['effort', 'model', 'short', 'perm']) {
         row.dataset.fit = step;
         if (row.scrollWidth <= row.clientWidth) return;
       }
@@ -412,7 +413,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
     const watch = new ResizeObserver(fit);
     watch.observe(row);
     return () => watch.disconnect();
-  }, [bestFit, pillName, effortLabel, permission.short, modeInfo.name]);
+  }, [bestFit, pillName, effortLabel, permission.name, modeInfo.name]);
   const shown = models.state === 'ready' ? filterCatalog(models.catalog.groups, find) : [];
 
   return (
@@ -565,7 +566,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
               onChange={(id) => { const option = PERMISSIONS.find((p) => p.id === id); if (option) choosePermission(option); }}
               choices={PERMISSIONS.map((option) => ({ value: option.id, label: option.name, meaning: option.hint }))}
               footer={[{ label: 'Always ask and never lists…', run: () => onOpenSettings('safety') }]}
-              trigger={<button type="button" className="pill pill-compact" aria-label={`Permission: ${permission.short}`} title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text">{permission.short}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
+              trigger={<button type="button" className="pill pill-compact" aria-label={`Permission: ${permission.name}`} title={`Permission: ${permission.name}. ${permission.hint}`}><svg className="pill-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2 3 4v4c0 3 2.2 5 5 6 2.8-1 5-3 5-6V4z" /></svg><span className="pill-text"><span className="pill-long">{permission.name}</span><span className="pill-short">{permission.short}</span></span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></button>}
             />
           </span>
           <PopMenu label="Model" buttonLabel={modelShown === 'Model' ? 'Model' : `Model: ${modelShown}`} className="pill pill-model" disabled={!configured || busy} onOpen={loadModels} title={bestFit ? `Model: Best fit (${quickName} for short questions, ${modelName} for the rest)${effort ? ` · ${effortLabel} effort` : ''}` : modelName ? `Model: ${modelName}${effort ? ` · ${effortLabel} effort` : ''}` : 'Model'} trigger={<><svg className="pill-model-icon" viewBox="0 0 16 16" aria-hidden="true"><rect x="4" y="4" width="8" height="8" rx="1.5" /><path d="M6 2v2M10 2v2M6 12v2M10 12v2M2 6h2M2 10h2M12 6h2M12 10h2" /></svg><span className="pill-text">{bestFit ? 'Best fit' : pillName || 'Model'}{effort ? <span className="pill-suffix"> · {effortLabel}</span> : null}</span><svg className="chev" viewBox="0 0 12 12" aria-hidden="true"><path d="M3 4.5 6 7.5 9 4.5" /></svg></>}>
