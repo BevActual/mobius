@@ -668,8 +668,10 @@ test('Export as WAV renders the song and saves it in the Exports folder', async 
   const wav = fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Night Drive.wav'));
   expect(wav.subarray(0, 4).toString('latin1')).toBe('RIFF');
   expect(wav.subarray(8, 12).toString('latin1')).toBe('WAVE');
-  // Four bars at 112 bpm plus a two-second tail, 16-bit stereo at 44.1 kHz.
-  expect(wav.length).toBe(44 + Math.ceil((16 * 60 / 112 + 2) * 44100) * 4);
+  // Rendered by the engine (silent on a computer with no sound output): four bars at 112 bpm plus a two-second tail,
+  // 32-bit float stereo at 44.1 kHz.
+  expect(wav.readUInt16LE(20)).toBe(3);
+  expect(wav.length).toBe(44 + Math.ceil((16 * 60 / 112 + 2) * 44100) * 8);
   // A second export never writes over the first.
   await shell().getByRole('status').filter({ hasText: 'Exported' }).getByRole('button', { name: 'Dismiss' }).click();
   await shell().locator('.studio-page').focus();
