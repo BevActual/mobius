@@ -17,6 +17,9 @@ pub fn peak_of(instrument: Instrument) -> f64 {
     }
 }
 
+/// How long a held note is made to last: far longer than any key is held, so only letting it go ends it.
+pub const HELD_SECONDS: f64 = 3_600.0;
+
 /// The frequency of a MIDI pitch.
 #[must_use]
 pub fn hz(pitch: f64) -> f64 {
@@ -82,6 +85,10 @@ pub struct Voice {
     end: f64,
     /// Seconds since the note started.
     time: f64,
+    /// How long it takes to die away once let go.
+    release: f64,
+    /// Let go early (a key lifted): when, and the level it fell from.
+    fade: Option<(f64, f64)>,
 }
 
 impl Voice {
@@ -131,6 +138,8 @@ impl Voice {
             filter: LowPass::default(),
             end: held + release + 0.05,
             time: 0.0,
+            release,
+            fade: None,
         }
     }
 
@@ -180,6 +189,17 @@ impl Voice {
             filter: LowPass::default(),
             end: held + release + 0.05,
             time: 0.0,
+            release,
+            fade: None,
+        }
+    }
+
+    /// Lets the note go now (a key lifted): it dies away over its release from wherever its envelope has reached, as
+    /// Web Audio's `setTargetAtTime` takes over from the level a ramp is at. A note already let go is left alone.
+    pub fn release(&mut self) {
+        if self.fade.is_none() && self.time < self.end {
+            self.fade = Some((self.time, self.gain.at(self.time)));
+            self.end = self.end.min(self.time + self.release + 0.05);
         }
     }
 
@@ -214,7 +234,11 @@ impl Voice {
                 x = shape(x, self.drive);
             }
             let cutoff = self.cutoff.at(self.time);
-            let y = self.filter.run(x, cutoff, self.q_db, rate) * self.gain.at(self.time);
+            let gain = match self.fade {
+                Some((from, level)) => level * (-(self.time - from) / (self.release / 4.0)).exp(),
+                None => self.gain.at(self.time),
+            };
+            let y = self.filter.run(x, cutoff, self.q_db, rate) * gain;
             *sample += y as f32;
             self.time += dt;
         }
@@ -328,6 +352,24 @@ mod tests {
             out.windows(2).map(|w| f64::from(w[1] - w[0]).powi(2)).sum::<f64>()
         };
         assert!(energy(6_000.0) > energy(300.0) * 4.0);
+    }
+
+    #[test]
+    fn a_held_note_sounds_until_it_is_let_go_then_dies_away_over_its_release() {
+        let sound = Sound { shape: 0.0, detune: 0.0, sub: 0.0, drive: 0.0, cutoff: 12_000.0, resonance: 0.0, env_amount: 0.0, attack: 0.001, decay: 0.3, sustain: 1.0, release: 0.2, vibrato: 0.0, rate: 5.0 };
+        let mut voice = Voice::new(Instrument::Bass, &sound, 69, HELD_SECONDS, 1.0);
+        let mut out = vec![0f32; 48_000];
+        voice.add_to(&mut out, 48_000.0);
+        // A second in, still at full level.
+        let top = out[40_000..].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!((f64::from(top) - 0.35).abs() < 0.02, "{top}");
+        voice.release();
+        let mut tail = vec![0f32; 24_000];
+        voice.add_to(&mut tail, 48_000.0);
+        // A release's quarter in it is down by e, and gone by its end.
+        let near = tail[2_200..2_600].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!((f64::from(near) - 0.35 / std::f64::consts::E).abs() < 0.03, "{near}");
+        assert!(voice.done() && tail[12_500..].iter().all(|s| *s == 0.0));
     }
 
     #[test]

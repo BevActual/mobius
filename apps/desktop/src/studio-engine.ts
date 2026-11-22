@@ -136,6 +136,28 @@ export function watchDevice(trackId: string | null, fxId: string | null): void {
   send(() => m.watch!(trackId, fxId));
 }
 
+let listening: string | null = null;
+/**
+ * The chosen track plays from a MIDI keyboard, as selecting a track arms it in Live: through the engine only (the
+ * window has no MIDI of its own). Until a keyboard is listened to, the first one the computer has is.
+ */
+export function armKeys(trackId: string | null): void {
+  const m = music();
+  if (!engineOn() || !m?.arm) return;
+  send(() => m.arm!(trackId));
+  if (trackId === null || listening !== null || !m.midiInputs || !m.listen) return;
+  send(async () => {
+    const found = await m.midiInputs!();
+    if (!found.ok) return;
+    listening = found.listening;
+    const first = found.inputs[0];
+    if (listening === null && first !== undefined) {
+      const opened = await m.listen!(first);
+      if (opened.ok) listening = opened.listening;
+    }
+  });
+}
+
 /** A bar of ticks before recording. */
 export function countIn(tempo: number, beats = BEATS_PER_BAR): { done: Promise<void>; stop(): void } {
   const m = music();

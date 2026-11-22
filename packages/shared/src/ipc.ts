@@ -1244,6 +1244,14 @@ export interface MobiusBridge {
     preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
     /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
     countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
+    /** The MIDI keyboards the computer has, and the one listened to (null for none). */
+    midiInputs?(): Promise<{ ok: true; inputs: string[]; listening: string | null } | NotesFailure>;
+    /** Listen to the MIDI keyboard called `input` (or to none, with null): it plays the armed track. */
+    listen?(input: string | null): Promise<{ ok: true; listening: string | null } | NotesFailure>;
+    /** The track of the loaded song a keyboard plays (or none, with null). */
+    arm?(trackId: string | null): Promise<{ ok: true } | NotesFailure>;
+    /** A key pressed on the armed track, held until it is pressed again with velocity 0 (lifted). */
+    press?(pitch: number, velocity: number): Promise<{ ok: true } | NotesFailure>;
     /** Listen to one effect's parts while playing, for the Workbench's cables (position `levels`), or to none. */
     watch?(trackId: string | null, fxId: string | null): Promise<{ ok: true } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;

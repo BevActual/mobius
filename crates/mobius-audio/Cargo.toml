@@ -19,6 +19,8 @@ realfft = "3.5"
 # its Web Audio version.
 [target.'cfg(windows)'.dependencies]
 cpal = "0.16"
+# MIDI keyboards in, through the Windows MIDI driver.
+midir = "0.10"
 
 [lints]
 workspace = true

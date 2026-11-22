@@ -17,6 +17,7 @@ pub mod conv;
 pub mod drum;
 pub mod engine;
 pub mod fx;
+pub mod midi;
 pub mod param;
 pub mod render;
 pub mod song;
