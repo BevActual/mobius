@@ -51,18 +51,20 @@ export function loadSong(song: Song): void {
 /** The engine's last position, carried forward between its events (about 30 a second) by the clock and the tempo. */
 function follow(tempo: () => number, cycle: Cycle | null, from: number) {
   const m = music()!;
-  const at = { beat: from, time: performance.now(), playing: false, meters: {} as MusicPosition['meters'], session: undefined as MusicPosition['session'] };
-  const off = m.onPosition((p) => { at.beat = p.beat; at.time = performance.now(); at.playing = p.playing; at.meters = p.meters; at.session = p.session; });
+  const at = { beat: from, time: performance.now(), playing: false, meters: {} as MusicPosition['meters'], levels: {} as Record<string, number>, session: undefined as MusicPosition['session'] };
+  const off = m.onPosition((p) => {
+    at.beat = p.beat; at.time = performance.now(); at.playing = p.playing; at.meters = p.meters; at.session = p.session;
+    at.levels = (p as MusicPosition & { levels?: Record<string, number> }).levels ?? {};
+  });
   const beat = () => {
     if (!at.playing) return at.beat;
     let b = at.beat + ((performance.now() - at.time) / 60000) * tempo();
-    if (cycle && b >= cycle.to) b = cycle.from + ((b - cycle.from) % (cycle.to - cycle.from));
+    // As in Live (and the engine): the loop goes round only once the playhead is inside it; from past its end it plays on.
+    if (cycle && at.beat < cycle.to && b >= cycle.to) b = cycle.from + ((b - cycle.from) % (cycle.to - cycle.from));
     return b;
   };
-  const level = (track: string, fx: string, part: string) => {
-    const v = at.meters[`${track}/${fx}/${part}`];
-    return v ? Math.max(v[0], v[1]) : null;
-  };
+  /** The level of a part of the device being watched (see watchDevice), in dB, or null when it isn't reported. */
+  const level = (track: string, fx: string, part: string) => at.levels[`${track}/${fx}/${part}`] ?? null;
   const meter = (id: string) => at.meters[id] ?? null;
   return { at, off, beat, level, meter };
 }
@@ -122,6 +124,16 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
       return out;
     },
   };
+}
+
+/**
+ * The device open in the Workbench, whose parts' levels the engine then reports while playing (one at a time; null
+ * for none). It holds across loads and plays.
+ */
+export function watchDevice(trackId: string | null, fxId: string | null): void {
+  const m = music() as (ReturnType<typeof music> & { watch?: (track: string | null, fx: string | null) => Promise<unknown> }) | undefined;
+  if (!engineOn() || !m?.watch) return;
+  send(() => m.watch!(trackId, fxId));
 }
 
 /** A bar of ticks before recording. */

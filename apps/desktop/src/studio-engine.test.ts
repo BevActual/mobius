@@ -42,11 +42,15 @@ describe('Music on the native engine', () => {
     await m.engineReady();
     const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
     const p = m.play(SONG, 0, { from: 0, to: 8 });
-    e.send({ playing: true, beat: 7, meters: { 't1/f1/out': [-12, -9] } });
+    e.send({ playing: true, beat: 7, meters: { t1: [-12, -9] }, levels: { 't1/f1/out': -9 } } as MusicPosition);
     now.mockReturnValue(1500); // half a second at 120 bpm: one beat on, past the loop's end
     expect(p.beat()).toBeCloseTo(0);
     expect(p.level!('t1', 'f1', 'out')).toBe(-9);
     expect(p.level!('t1', 'f1', 'in')).toBeNull();
+    // From past the loop's end it plays on, as in Live.
+    e.send({ playing: true, beat: 9, meters: {} });
+    now.mockReturnValue(2000);
+    expect(p.beat()).toBeCloseTo(10);
   });
 
   it('shows a launch as waiting until the engine answers, then what is playing', async () => {

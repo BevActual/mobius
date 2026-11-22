@@ -306,14 +306,16 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn preview(&self, track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
+        // Heard at the track's volume and pan, as its notes are when it plays.
+        let gains = crate::render::track_gains(track);
         let shot = if track.instrument == crate::song::Instrument::Drums {
             let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
-            Oneshot::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)))
+            Oneshot::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
         } else {
             Oneshot::Voice(match &track.sound {
                 Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
                 None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
-            })
+            }, gains)
         };
         self.send(Command::Oneshot(shot))
     }
@@ -568,5 +570,26 @@ mod tests {
         engine.count_in(120.0, None).unwrap();
         audio.fill(&mut out, 2);
         assert!(out.iter().all(|s| *s == 0.0));
+    }
+
+    #[test]
+    fn a_previewed_note_is_heard_at_its_tracks_volume_and_pan() {
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"a","instrument":"piano","volume":1},{"id":"b","instrument":"piano","volume":0.1},{"id":"c","instrument":"piano","volume":1,"pan":-1},{"id":"d","instrument":"drums","volume":0.1}]}"#).unwrap();
+        let peaks = |track: usize, pitch: u8| {
+            let (engine, mut audio) = Engine::pair(48_000, "test".into());
+            engine.preview(&song.tracks[track], pitch, 0.8, 0.35).unwrap();
+            let mut buffer = vec![0f32; 4_800 * 2];
+            audio.fill(&mut buffer, 2);
+            let peak = |c: usize| buffer.iter().skip(c).step_by(2).fold(0f32, |m, s| m.max(s.abs()));
+            (peak(0), peak(1))
+        };
+        let (full, _) = peaks(0, 60);
+        let (quiet, _) = peaks(1, 60);
+        assert!((quiet / full - 0.1).abs() < 0.01, "{quiet} {full}");
+        let (left, right) = peaks(2, 60);
+        assert!(left > 0.01 && right < 1e-6, "{left} {right}");
+        let (drum, _) = peaks(3, 36);
+        let loud = { let mut s = song.clone(); s.tracks[3].volume = 1.0; let (engine, mut audio) = Engine::pair(48_000, "test".into()); engine.preview(&s.tracks[3], 36, 0.8, 0.35).unwrap(); let mut b = vec![0f32; 4_800 * 2]; audio.fill(&mut b, 2); b.iter().step_by(2).fold(0f32, |m, x| m.max(x.abs())) };
+        assert!((drum / loud - 0.1).abs() < 0.01, "{drum} {loud}");
     }
 }
