@@ -16,19 +16,11 @@ request that makes it true. Nothing is posted publicly until Andrew says so.
      - [ ] The app says the same: the first-run screen, Settings › Approvals and safety and Projects rules still say
            Ask first, Propose and Act, and per-app access says "Follow the mode". *Builder*
      - [ ] Retake the pictures in `docs/` that show the old frame.
-     - [ ] Mark the "early" apps in the README and the app guide: any app whose moment in the
-           [demo plan](reference/demo-plan.md) is still a Gap at launch. *With the Apps lead*
-     - [ ] A clip beside each app (see step 4): its picture links to the clip, and the reel sits at the top.
+     - [ ] Mark the "early" apps in the README and the app guide. *With the Apps lead*
 3. - [ ] **Five-minute first run.** A fresh install reaches the first useful answer in under five minutes. *Builder,
        Launch times it*
-4. - [ ] **A clip per app and a reel**, per the [demo plan](reference/demo-plan.md). Step 1 stays the cross-app run and
-       its end-to-end test. *Launch writes the scripts and cuts; Andrew records the final takes or approves
-       driver-recorded ones*
-     - [x] The [demo workspace](../demo/README.md): one made-up team, the names from the end-to-end test.
-     - [ ] Its mail, photos, footage and recording, and the "Demo workspace" profile. *Builder for the profile*
-     - [ ] A clip per app: 10 to 15 seconds, uncut, light theme, 1440 by 900, from a driver script that doubles as
-           the moment's test.
-     - [ ] The reel: 60 to 90 seconds of the best six to eight clips, opening on Home and closing on Rewind.
+4. - [ ] **Pictures and short clips of real features** for the README and the site, chosen at launch. No scripted
+       story or made-up team (Andrew, 22 November 2026). *Launch*
 5. - [ ] **Signed installer** with Azure Artifact Signing (Andrew chose it on 14 November 2026; testers get unsigned
        builds until it's in place). *Andrew sets up Azure, Launch wired the workflow*
      - [x] Release workflow signs the installer once its settings exist.

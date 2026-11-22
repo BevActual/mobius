@@ -13,7 +13,6 @@ and `reading/` to see every place below in a working app.
 
 - [ ] The new-app test is passed and recorded in the build plan, with a row in the
   [Apps roadmap](../reference/apps-roadmap.md).
-- [ ] Its moment is written in the [demo plan](../reference/demo-plan.md): what it does in one clip that impresses.
 - [ ] Shared data goes in the core, not in the app. If the app holds something another app also needs (people,
   messages, events), the store lives in a crate and the app is one view of it.
 - [ ] It uses [Instrument](../design/instrument.md) from the first screen and only the [shared
