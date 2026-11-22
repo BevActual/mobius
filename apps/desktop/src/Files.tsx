@@ -13,7 +13,7 @@ import { fileKind, sortEntries, type FilesSort } from './files-view';
 import { relativeTime } from './relative-time';
 import { EmptyState } from './EmptyState';
 import { FileIcon, GLYPH, placeIcon, size } from './file-icons';
-import { AddDrivePage, DriveBars, DrivePage, useDrives, type DrivePlace } from './Drives';
+import { AddDrivePage, DriveBars, DrivePage, isPlace, useDrives, type DrivePlace } from './Drives';
 import { PairDialog, SignInDialog, SyncConflicts, SyncDeletes, SyncGlyph, SyncSub, useSync } from './Sync';
 import { conflictStem, pairFor } from './sync-view';
 import './files.css';
@@ -298,6 +298,8 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
       <SidebarSearch label={files.place.kind === 'made' ? 'Search Made by Mobius' : files.place.kind === 'trash' ? 'Search the Trash' : 'Search this folder'} value={files.query} onChange={files.setQuery} />
       <SidebarSection title="This computer" {...(pin ? { action: pin } : {})}>
         <SidebarRow icon={placeIcon('workspace')} label="Workspace" current={here === ''} onSelect={() => files.setPlace({ kind: 'folder', path: '' })} drop={files.can.move ? files.drop('') : undefined} />
+        {files.drives.available && <DriveRows files={files} local />}
+        {files.drives.canAddPlace && <SidebarRow icon={placeIcon('add')} label="Add a folder…" title="Show a folder on this computer in Files" onSelect={() => void files.drives.addPlace()} />}
         {files.can.trash && <SidebarRow icon={placeIcon('trash')} label="Trash" current={files.place.kind === 'trash'} onSelect={() => files.setPlace({ kind: 'trash' })} />}
       </SidebarSection>
       {files.roots.length > 0 && (
@@ -310,7 +312,7 @@ export function FilesSidebar({ files, pin }: { files: FilesState; pin?: ReactNod
           ))}
         </SidebarSection>
       )}
-      {files.drives.available && <DrivesSection files={files} />}
+      {files.drives.available && <SidebarSection title="Drives"><DriveRows files={files} /></SidebarSection>}
       <SidebarSection title="From Mobius">
         <SidebarRow icon={placeIcon('made')} label="Made by Mobius" count={files.made.files.length} title={files.made.files.length === 1 ? '1 file Mobius made or changed' : `${files.made.files.length} files Mobius made or changed`} current={files.place.kind === 'made'} onSelect={() => files.setPlace({ kind: 'made' })} />
       </SidebarSection>
@@ -325,8 +327,13 @@ function syncTrail(files: FilesState, folder: string): ReactNode {
 }
 
 /** Drives: the person's own servers, each a row to open; a workspace file dropped on one is copied to its top. */
-function DrivesSection({ files }: { files: FilesState }) {
+/**
+ * The rows for drives, or (`local`) for folders on this computer, which sit under This computer as Explorer's Quick
+ * access does. A local folder taken off the list stays on the disk; a drive taken off forgets its password.
+ */
+function DriveRows({ files, local = false }: { files: FilesState; local?: boolean }) {
   const drives = files.drives;
+  const shown = drives.accounts.filter((a) => isPlace(a) === local);
   const [menu, setMenu] = useState<{ id: string; name: string; x: number; y: number } | null>(null);
   const [removing, setRemoving] = useState<{ id: string; name: string } | null>(null);
   const [over, setOver] = useState<string | null>(null);
@@ -342,20 +349,21 @@ function DrivesSection({ files }: { files: FilesState }) {
     };
   };
   return (
-    <SidebarSection title="Drives">
-      {drives.accounts.map((a) => (
-        <SidebarRow key={a.id} icon={placeIcon('drive')} label={a.name} title={a.url} current={here === a.id}
+    <>
+      {shown.map((a) => (
+        <SidebarRow key={a.id} icon={local ? <FileIcon path={a.name} type="folder" size="side" /> : placeIcon('drive')} label={a.name} title={a.url} current={here === a.id}
           onSelect={() => files.setPlace({ kind: 'drive', drive: a.id, path: '' })} drop={drop(a.id)}
           onContextMenu={(e) => { e.preventDefault(); setMenu({ id: a.id, name: a.name, x: e.clientX, y: e.clientY }); }} />
       ))}
-      <SidebarRow icon={placeIcon('add')} label="Add a drive" current={files.place.kind === 'add-drive'} onSelect={() => files.setPlace({ kind: 'add-drive' })} />
+      {!local && <SidebarRow icon={placeIcon('add')} label="Add a drive" current={files.place.kind === 'add-drive'} onSelect={() => files.setPlace({ kind: 'add-drive' })} />}
       {menu && <PointMenu x={menu.x} y={menu.y} label={menu.name} entries={[
         { label: 'Open', run: () => files.setPlace({ kind: 'drive', drive: menu.id, path: '' }) },
-        { label: 'Remove Drive…', danger: true, separated: true, run: () => setRemoving({ id: menu.id, name: menu.name }) },
+        { label: local ? 'Remove from This Computer…' : 'Remove Drive…', danger: true, separated: true, run: () => setRemoving({ id: menu.id, name: menu.name }) },
       ]} onClose={() => setMenu(null)} />}
-      <Confirm open={removing !== null} title={`Remove “${removing?.name ?? ''}”?`} description="Files stops showing it and forgets its password. Everything on the server stays as it is."
-        action="Remove drive" onCancel={() => setRemoving(null)} onConfirm={() => { const r = removing; setRemoving(null); if (r) void drives.remove(r.id); }} />
-    </SidebarSection>
+      <Confirm open={removing !== null} title={`Remove “${removing?.name ?? ''}”?`}
+        description={local ? 'Files stops showing it. The folder and its files stay on this computer as they are.' : 'Files stops showing it and forgets its password. Everything on the server stays as it is.'}
+        action={local ? 'Remove' : 'Remove drive'} onCancel={() => setRemoving(null)} onConfirm={() => { const r = removing; setRemoving(null); if (r) void drives.remove(r.id); }} />
+    </>
   );
 }
 
@@ -538,7 +546,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
         { label: 'Stop Syncing…', run: () => setStopping(pair.id) },
       ];
     }
-    return files.drives.accounts.length > 0 && files.sync.canPair(path) ? [{ label: 'Sync with a Drive…', separated: true, run: () => files.setSyncDialog({ kind: 'pair', folder: path }) }] : [];
+    return files.drives.accounts.some((a) => !isPlace(a)) && files.sync.canPair(path) ? [{ label: 'Sync with a Drive…', separated: true, run: () => files.setSyncDialog({ kind: 'pair', folder: path }) }] : [];
   };
   const startNewFolder = async () => {
     const path = await files.newFolder();
@@ -573,7 +581,7 @@ export function FilesPage({ files, onOpenFile, onAsk }: { files: FilesState; onO
   const stopPair = files.sync.pairs.find((p) => p.id === stopping);
   const syncLayer = (
     <>
-      {files.syncDialog?.kind === 'pair' && <PairDialog sync={files.sync} accounts={files.drives.accounts} folder={files.syncDialog.folder} folderName={placeName(files.syncDialog.folder)} onClose={() => files.setSyncDialog(null)} />}
+      {files.syncDialog?.kind === 'pair' && <PairDialog sync={files.sync} accounts={files.drives.accounts.filter((a) => !isPlace(a))} folder={files.syncDialog.folder} folderName={placeName(files.syncDialog.folder)} onClose={() => files.setSyncDialog(null)} />}
       {files.syncDialog?.kind === 'signIn' && <SignInDialog sync={files.sync} drive={files.syncDialog.drive} onClose={() => files.setSyncDialog(null)} />}
       {asking && <SyncDeletes sync={files.sync} pair={asking} folderName={placeName(asking.folder)} onClose={() => undefined} />}
       <Confirm open={stopPair !== undefined} title={`Stop syncing ${stopPair ? placeName(stopPair.folder) : ''}?`} description="No files change on either side. Both stay as they are now." action="Stop syncing"
