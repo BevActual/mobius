@@ -6,14 +6,23 @@ import { isNotesFailure, type MailAccount, type MailCategory, type MailContent, 
 /** How long Send waits, with Undo, before the message goes. */
 export const UNDO_SEND_MS = 5000;
 
-/** Inbox and Sent are mirrored mailboxes; Flagged and Archive are the person's flagged and archived mail from both. */
-export type MailBox = 'inbox' | 'sent' | 'flagged' | 'archive';
-export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' } | { kind: 'drafts'; only?: 'mobius' };
+/**
+ * Inbox and Sent are mirrored mailboxes; Flagged, Later and Done (archive) are picked from all mail. The inbox splits
+ * as Superhuman's split inbox does: Important (the Primary label), Other (the rest), and Waiting, sent mail that waits
+ * on a reply.
+ */
+export type MailBox = 'inbox' | 'sent' | 'flagged' | 'later' | 'archive';
+export type MailView = { kind: 'box'; box: MailBox; category: MailCategory | 'all' | 'other' } | { kind: 'drafts'; only?: 'mobius' } | { kind: 'waiting' };
 
-/** What the list shows for a mailbox: Flagged and Archive are read from all mail and picked here. */
-export function inBox(box: MailBox, all: readonly MailMessage[]): MailMessage[] {
+/** Where Mail opens: the inbox's Important tab. */
+export const IMPORTANT: MailView = { kind: 'box', box: 'inbox', category: 'primary' };
+
+/** What the list shows for a mailbox: Flagged, Later and Done are read from all mail and picked here. */
+export function inBox(box: MailBox, all: readonly MailMessage[], category: MailCategory | 'all' | 'other' = 'all', now = Date.now()): MailMessage[] {
   if (box === 'flagged') return all.filter((m) => m.flagged);
   if (box === 'archive') return all.filter((m) => m.archived && m.box === 'inbox');
+  if (box === 'later') return all.filter((m) => m.box === 'inbox' && !m.archived && (m.laterMs ?? 0) > now).sort((a, b) => (a.laterMs ?? 0) - (b.laterMs ?? 0));
+  if (category === 'other') return all.filter((m) => m.category !== 'primary');
   return [...all];
 }
 
@@ -50,13 +59,24 @@ export function replyAllTo(m: MailContent, mine: readonly string[]): { to: strin
 }
 const reSubject = (s: string) => (/^re:/i.test(s) ? s : `Re: ${s}`);
 const fwdSubject = (s: string) => (/^(fwd?|fw):/i.test(s) ? s : `Fwd: ${s}`);
+/** "tomorrow at 8:00", "Sat at 9:00", "at 13:15": when a put-off message comes back, for its Undo toast and its row. */
+export function backAt(at: number, now = new Date()): string {
+  const d = new Date(at);
+  const time = formatWith(at, { hour: 'numeric', minute: '2-digit' });
+  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const days = Math.round((day(d) - day(now)) / 86_400_000);
+  if (days === 0) return `at ${time}`;
+  if (days === 1) return `tomorrow at ${time}`;
+  if (days < 7) return `${formatWith(at, { weekday: 'short' })} at ${time}`;
+  return `${formatWith(at, { day: 'numeric', month: 'short' })} at ${time}`;
+}
 const NO_COUNTS: MailCounts = { primary: 0, transactions: 0, updates: 0, all: 0, drafts: 0, suggested: 0 };
 
 /** The Mail app's state: accounts, the list on screen, the message open, and drafts. */
 export function useMail() {
   const api = window.mobius.mail;
   const [accounts, setAccounts] = useState<MailAccount[]>([]);
-  const [view, setView] = useState<MailView>({ kind: 'box', box: 'inbox', category: 'all' });
+  const [view, setView] = useState<MailView>(IMPORTANT);
   const [query, setQuery] = useState('');
   const [messages, setMessages] = useState<MailMessage[]>([]);
   const [counts, setCounts] = useState<MailCounts>(NO_COUNTS);
@@ -90,10 +110,10 @@ export function useMail() {
     if (!api) return;
     const mine = ++reading.current;
     const v = live.current.view;
-    const [a, list, c, d] = await Promise.all([api.accounts(), v.kind === 'box' ? (v.box === 'inbox' || v.box === 'sent' ? api.list(v.box, v.category, live.current.query) : api.list('all', 'all', live.current.query))  : Promise.resolve([] as MailMessage[]), api.counts(), api.drafts()]);
+    const [a, list, c, d] = await Promise.all([api.accounts(), v.kind === 'box' ? (v.box === 'inbox' || v.box === 'sent' ? api.list(v.box, v.category === 'other' ? 'all' : v.category, live.current.query) : api.list('all', 'all', live.current.query)) : Promise.resolve([] as MailMessage[]), api.counts(), api.drafts()]);
     if (mine !== reading.current) return;
     if (!isNotesFailure(a)) setAccounts(a);
-    if (!isNotesFailure(list)) setMessages(v.kind === 'box' ? inBox(v.box, list) : list);
+    if (!isNotesFailure(list)) setMessages(v.kind === 'box' ? inBox(v.box, list, v.category) : list);
     if (!isNotesFailure(c)) setCounts(c);
     if (!isNotesFailure(d)) setDrafts(d);
     setLoaded(true);
@@ -201,19 +221,20 @@ export function useMail() {
     const done = await api?.archive?.(id, on);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
     setOpen((cur) => (cur?.id === id ? null : cur));
-    setUndo(on ? { text: `Archived “${subjectOf(id)}”`, run: async () => { setUndo(null); await archive(id, false); } } : null);
+    setUndo(on ? { text: `Done: “${subjectOf(id)}”`, run: async () => { setUndo(null); await archive(id, false); } } : null);
     await refresh();
     if (next) await read(next);
   }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
-  /** H: back in the inbox tomorrow at 8:00. */
-  const remindTomorrow = useCallback(async (id: string) => {
-    const at = new Date(); at.setDate(at.getDate() + 1); at.setHours(8, 0, 0, 0);
-    const next = live.current.open?.id === id ? after(id) : null;
+  /** H: out of the inbox until `at`, then back at its top (null: back now). The next message opens. */
+  const later = useCallback(async (id: string, at: number | null) => {
+    const next = at !== null && live.current.open?.id === id ? after(id) : null;
     reading.current += 1;
-    const done = await api?.remind?.(id, at.getTime());
+    const done = await api?.remind?.(id, at);
     if (!done || isNotesFailure(done)) { if (done) setMessage(done.message); return; }
-    setOpen((cur) => (cur?.id === id ? null : cur));
-    setUndo({ text: `“${subjectOf(id)}” comes back tomorrow at 8:00`, run: async () => { setUndo(null); await api?.remind?.(id, null); await refresh(); } });
+    if (at !== null) {
+      setOpen((cur) => (cur?.id === id ? null : cur));
+      setUndo({ text: `“${subjectOf(id)}” comes back ${backAt(at)}`, run: async () => { setUndo(null); await api?.remind?.(id, null); await refresh(); } });
+    }
     await refresh();
     if (next) await read(next);
   }, [api, refresh, read, messages]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -243,7 +264,7 @@ export function useMail() {
 
   // A message waiting out its Undo seconds is not shown as a draft.
   const shownDrafts = useMemo(() => (holding.size === 0 ? drafts : drafts.filter((d) => !holding.has(d.id))), [drafts, holding]);
-  return { available: api !== undefined, loaded, accounts, view, setView, query, setQuery, messages, counts, drafts: shownDrafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, remindTomorrow, schedule };
+  return { available: api !== undefined, loaded, accounts, view, setView, query, setQuery, messages, counts, drafts: shownDrafts, open, setOpen, read, editing, setEditing, connect, sync, syncing, removeAccount, sort, flag, saveDraft, deleteDraft, send, reply, forward, compose, undo, clearUndo, message, refresh, archive, later, schedule };
 }
 
 export type MailState = ReturnType<typeof useMail>;
