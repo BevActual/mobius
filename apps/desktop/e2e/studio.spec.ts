@@ -245,8 +245,8 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
   // The four bars go round, as in the demo (without the loop they end after 8.6 s, mid-test). Space plays them even with
   // a clip focused, as anywhere else in Music.
-  await shell().getByRole('button', { name: 'Loop' }).click();
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await shell().getByRole('button', { name: 'Loop', exact: true }).click();
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
   await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -503,7 +503,7 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
   await shell().keyboard.press('Control+j');
   await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+4', '60@0+4']);
   await shell().keyboard.press('Control+l');
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('the Transform menu arpeggiates a chord and strums it, each undone', async () => {
