@@ -160,6 +160,9 @@ pub struct Oneshots {
     hits: Vec<(Hit, Gains)>,
     samples: Vec<HeldSample>,
     ticks: Vec<Tick>,
+    /// The song's Main level: notes go through it as the song's own do (Live: a played note is heard through the
+    /// Main track). A count-in's ticks do not, as Live's metronome has a level of its own.
+    pub main: f32,
     mono: Vec<f32>,
     left: Vec<f32>,
     right: Vec<f32>,
@@ -233,7 +236,7 @@ const ONESHOTS: usize = 16;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
-        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), main: 1.0, mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
     }
 }
 
@@ -307,15 +310,17 @@ impl Oneshots {
 
     /// Adds what is sounding into `left` and `right`.
     pub fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
+        let main = self.main;
         for (l, r) in left.chunks_mut(MAX_BLOCK).zip(right.chunks_mut(MAX_BLOCK)) {
             let n = l.len();
             let mono = &mut self.mono[..n];
             for (v, (gl, gr)) in &mut self.voices {
                 mono.fill(0.0);
                 v.add_to(mono, rate);
+                let (gl, gr) = (*gl * main, *gr * main);
                 for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
-                    *a += *m * *gl;
-                    *b += *m * *gr;
+                    *a += *m * gl;
+                    *b += *m * gr;
                 }
             }
             for h in &mut self.held {
@@ -335,8 +340,8 @@ impl Oneshots {
                 }
                 h.wait -= start;
                 for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
-                    *a += *m * h.gains.0;
-                    *b += *m * h.gains.1;
+                    *a += *m * h.gains.0 * main;
+                    *b += *m * h.gains.1 * main;
                 }
             }
             let (hl, hr) = (&mut self.left[..n], &mut self.right[..n]);
@@ -346,8 +351,8 @@ impl Oneshots {
                 let wait = h.wait_within(n);
                 h.add_to(&mut hl[wait..], &mut hr[wait..], rate);
                 for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
-                    *a += *x * *gl;
-                    *b += *y * *gr;
+                    *a += *x * *gl * main;
+                    *b += *y * *gr * main;
                 }
             }
             for h in &mut self.samples {
@@ -368,8 +373,8 @@ impl Oneshots {
                 }
                 h.wait -= start;
                 for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
-                    *a += *x * h.gains.0;
-                    *b += *y * h.gains.1;
+                    *a += *x * h.gains.0 * main;
+                    *b += *y * h.gains.1 * main;
                 }
             }
             self.ticks.retain_mut(|t| !t.add_to(l, r, rate));

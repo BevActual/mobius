@@ -36,6 +36,8 @@ pub(crate) enum Command {
     Monitor(Option<(f32, f32)>),
     /// A take: what comes in is handed to it while the song plays, or the take ends.
     Record(Option<rtrb::Producer<f32>>),
+    /// The song's Main level, which notes played apart from it go through as its own do.
+    Main(f32),
 }
 
 /// What the audio thread reports.
@@ -142,6 +144,7 @@ impl AudioSide {
                     }
                 }
                 Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
+                Command::Main(level) => self.oneshots.main = level,
                 Command::Played(shot, at) => {
                     let wait = place(at, now, frames, self.rate);
                     let shot = match shot {
@@ -587,6 +590,7 @@ impl Engine {
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
         self.aim(Some(song));
+        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
         self.send(Command::Play(renderer))
     }
 
@@ -811,6 +815,7 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn update(&self, song: &Song) -> Result<(), String> {
+        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
         let at = self.position();
         let how = Playing { from: at.beat, ..*lock(&self.how) };
         if at.playing { self.play(song, how) } else { Ok(()) }
@@ -1412,5 +1417,11 @@ mod tests {
         engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
         audio.fill(&mut out, 2);
         assert!((out[1_000 * 2] - 0.5).abs() < 0.01);
+        // Through the song's Main level, as its notes are when it plays.
+        song.main.volume = 0.5;
+        engine.update(&song).unwrap();
+        engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
+        audio.fill(&mut out, 2);
+        assert!((out[1_000 * 2] - 0.25).abs() < 0.01, "{}", out[1_000 * 2]);
     }
 }
