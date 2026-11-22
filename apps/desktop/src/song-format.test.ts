@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -314,5 +314,29 @@ describe('audio tracks', () => {
     expect(read.song.tracks[0]!.kind).toBeUndefined();
     expect(read.song.tracks[0]!.clips[0]!.audio).toBeUndefined();
     expect(writeSong(read.song)).not.toContain('"kind"');
+  });
+});
+
+describe('samplers', () => {
+  it('keeps a sampler track’s sound and a drum pad’s sample through a read and a write, as the engine reads them', () => {
+    const sampler = { file: 'Samples/pluck.wav', mode: 'oneshot', root: 57, gainDb: -6, start: 0.1, end: 1.5, gate: true, fadeIn: 0.01, fadeOut: 0.2 };
+    const text = JSON.stringify({ version: 2, bars: 4, tracks: [
+      { id: 's1', name: 'Pluck', kind: 'sampler', instrument: 'piano', sampler, clips: [] },
+      { id: 'd1', name: 'Drums', instrument: 'drums', pads: { 36: { tune: 0, decay: 1, level: 0.9, pan: 0, sample: { file: 'Samples/kick.wav' } }, 38: { sample: { file: 'Samples/snare.wav', loop: true, loopStart: 0.2 } } }, clips: [] },
+    ] });
+    const read = parseSong(text);
+    if ('error' in read) throw new Error(read.error);
+    const [s, d] = read.song.tracks;
+    expect(s!.kind).toBe('sampler');
+    expect(s!.sampler).toEqual(sampler);
+    expect(d!.pads?.[36]?.sample).toEqual({ file: 'Samples/kick.wav' });
+    expect(d!.pads?.[38]).toMatchObject({ level: 1, sample: { file: 'Samples/snare.wav', loop: true, loopStart: 0.2 } });
+    const again = parseSong(writeSong(read.song));
+    if ('error' in again) throw new Error(again.error);
+    expect(again.song).toEqual(read.song);
+  });
+  it('drops what the engine would not read: no file, a classic mode and root 60 left out', () => {
+    expect(readSampler({ mode: 'oneshot' })).toBeUndefined();
+    expect(readSampler({ file: 'a.wav', mode: 'classic', root: 60, gainDb: 0, start: 0 })).toEqual({ file: 'a.wav' });
   });
 });

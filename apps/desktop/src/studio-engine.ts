@@ -299,3 +299,25 @@ function clockSession(song: Song, launches: SessionQueued): SessionPlayer {
     queued() { land(); return queued; },
   };
 }
+
+/** The shell's sample import, once it has one: saves bytes into the song's Samples folder, answering the file's path in it. */
+type ImportSample = (path: string, name: string, base64: string) => Promise<{ ok: true; file: string } | { ok: false; message: string }>;
+
+/** Base64 of bytes, in chunks so a long sample doesn't overflow the call stack. */
+export function toBase64(bytes: Uint8Array): string {
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(text);
+}
+
+/** A sound file from the computer, put in the song's Samples folder for a sampler or a pad: its path there, or why not. */
+export async function importSample(songPath: string, file: File): Promise<{ file: string } | { problem: string }> {
+  const m = music() as (ReturnType<typeof music> & { importSample?: ImportSample }) | undefined;
+  if (!m?.importSample) return { problem: 'Adding samples needs a newer Mobius desktop app.' };
+  // The engine reads WAV for now (as Live's own recordings are); others say so before their bytes are sent.
+  if (!/\.(wav|wave)$/i.test(file.name)) return { problem: `“${file.name}” isn’t a WAV file. Samples are WAV for now.` };
+  if (file.size > 200 * 1024 * 1024) return { problem: `“${file.name}” is too big for a sample (over 200 MB).` };
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const r = await m.importSample(songPath, file.name, toBase64(bytes));
+  return r.ok ? { file: r.file } : { problem: r.message };
+}
