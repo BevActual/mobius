@@ -102,6 +102,14 @@ impl Homeserver {
         lock(&self.state).clone()
     }
 
+    /// Where it answers, while it runs.
+    pub fn url(&self) -> Option<String> {
+        match self.status() {
+            State::Running { url } => Some(url),
+            _ => None,
+        }
+    }
+
     fn set(&self, state: State) {
         (self.emit)(EVENT, state.to_json());
         *lock(&self.state) = state;
