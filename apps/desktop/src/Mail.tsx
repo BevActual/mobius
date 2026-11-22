@@ -548,7 +548,7 @@ function LaterPicker({ onPick, onClose }: { onPick: (at: number) => void; onClos
       <p className="mail-later-title">Bring it back</p>
       {choices.map((c) => (
         <button key={c.id} type="button" className="mail-later-choice" onClick={() => onPick(c.at)}>
-          <span>{c.label}</span><span className="mail-when">{c.id === 'today' ? formatWith(c.at, { hour: 'numeric', minute: '2-digit' }) : formatWith(c.at, { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span>
+          <span>{c.label}</span><span className="mail-when">{c.id === 'today' ? formatWith(c.at, { hour: 'numeric', minute: '2-digit' }) : formatWith(c.at, c.at - Date.now() > 6 * 86_400_000 ? { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' } : { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span>
         </button>
       ))}
       <form className="mail-later-words" onSubmit={(e) => { e.preventDefault(); if (typed) onPick(typed); }}>
