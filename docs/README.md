@@ -53,7 +53,6 @@ you want to build or change Mobius, go to **Developers**.
 | [Shared controls](developers/shared-controls.md) | The component library every app uses, from `src/ui`, one page per group with pictures |
 | [Drives](developers/drives.md) | Drives of every kind (WebDAV, S3, Dropbox, OneDrive and SharePoint), and two-way sync |
 | [App guides for the agent](agent/README.md) | The longer guide to each app's files that the agent reads when it needs one |
-| [The demo workspace](../demo/README.md) | The made-up team every demo runs on, and how to open it |
 | [Driving the app from an agent](developers/driving-the-app.md) | The `mobius-drive` MCP server for Claude Code |
 | [Releases and updates](developers/releasing.md) | Packaging the installer, signing, and the in-app updater |
 | [Architecture decisions](adr/README.md) | Why Mobius is built the way it is (ADRs) |
