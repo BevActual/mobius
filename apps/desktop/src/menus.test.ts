@@ -52,6 +52,9 @@ describe('menus', () => {
     expect(buildMenus(context('calendar')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Calendar', 'Window', 'Help']);
     expect(find(buildMenus(context('calendar')), 'week')).toMatchObject({ checked: true });
     expect(buildMenus(context('search')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
+    // Settings and Store are places, not apps: after the apps in Go, on their own, and Store never among the apps.
+    const go = buildMenus({ ...context('notes'), apps: [{ id: 'notes', name: 'Notes' }, { id: 'skills', name: 'Store' }] }).find((m) => m.id === 'go')!;
+    expect(go.items.map((i) => ('label' in i ? i.label : '—'))).toEqual(['Notes', '—', 'Settings…', 'Store…', '—', 'All apps…', 'Find apps, pages and commands…']);
     // Settings is a place over the app: the app's own menu goes.
     expect(buildMenus({ ...context('browser'), place: true }).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
   });

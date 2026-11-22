@@ -66,7 +66,7 @@ export type Place = 'home' | 'activity' | 'abilities' | 'settings';
 export interface LauncherHomeRow { id: string; label: string; detail?: string; app?: AppId; run: () => void }
 /** An agent at work, drawn as its dot character. */
 export interface LauncherAgentRow { id: string; name: string; state: CharacterState; detail?: string; run: () => void }
-const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Abilities', settings: 'Settings' };
+const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Store', settings: 'Settings' };
 const HOME_ICON = <><path d="M3.5 9 10 3.5 16.5 9" /><path d="M5 7.8V16h10V7.8" /></>;
 const PLACE_ICONS: Record<Place, ReactNode> = { home: HOME_ICON, activity: OWN_ICONS.activity, abilities: OWN_ICONS.extensions, settings: OWN_ICONS.settings };
 
@@ -595,7 +595,7 @@ export function Launcher({
         label: app.name,
         waiting: waiting[app.id] ?? 0,
         // An app not added yet is found too: choosing it opens Abilities to add it.
-        detail: !app.available ? 'Not built yet' : !isInstalled(app.id) ? 'Add from Abilities' : pins.indexOf(app.id) >= 0 && pins.indexOf(app.id) < 9 ? `Ctrl+${pins.indexOf(app.id) + 1}` : undefined,
+        detail: !app.available ? 'Not built yet' : !isInstalled(app.id) ? 'Add from Store' : pins.indexOf(app.id) >= 0 && pins.indexOf(app.id) < 9 ? `Ctrl+${pins.indexOf(app.id) + 1}` : undefined,
         disabled: !app.available,
         run: () => onOpenApp(app.id),
       })),

@@ -411,8 +411,8 @@ export async function goTo(shell: Page, name: string): Promise<void> {
   await pointerAway(shell);
 }
 
-/** Opens one of the places at the launcher's foot: Home, Activity, Abilities or Settings. */
-export async function goToPlace(shell: Page, name: 'Home' | 'Activity' | 'Abilities' | 'Settings'): Promise<void> {
+/** Opens one of the places at the launcher's foot: Home, Activity, Store or Settings. */
+export async function goToPlace(shell: Page, name: 'Home' | 'Activity' | 'Store' | 'Settings'): Promise<void> {
   const launcher = await openLauncherFromGo(shell);
   await launcher.getByRole('group', { name: 'Places' }).getByRole('option', { name, exact: true }).click();
   await expect(launcher).toBeHidden();

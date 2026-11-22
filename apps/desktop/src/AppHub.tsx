@@ -79,8 +79,8 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
     .sort((a, b) => (q ? rank(a.name) - rank(b.name) : 0));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));
-  // Settings lives at the foot of the rail, so it is listed here only when it is looked for.
-  const ownShown = own.filter((o) => (q ? true : o.id !== 'settings') && has(o.name));
+  // Settings and Store are places, not apps: they open from Ctrl+, the Go menu and Ctrl K, never from this grid.
+  const ownShown = own.filter((o) => o.id !== 'settings' && o.id !== 'extensions' && has(o.name));
   // Eight to start from; the rest when asked for, or found by typing.
   const [allStarts, setAllStarts] = useState(false);
   useEffect(() => { if (!open) setAllStarts(false); }, [open]);

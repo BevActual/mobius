@@ -121,7 +121,11 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('zoom-reset', 'Actual size', () => d.zoom(1), { disabled: s.zoom === 1 }),
   ] };
   const go: Menu = { id: 'go', label: 'Go', items: [
-    ...c.apps.map((a) => item(`go-${a.id}`, a.name, () => d.open(a.id), { checked: a.id === c.app })),
+    // Settings and Store are places, not apps: after the apps, on their own.
+    ...c.apps.filter((a) => a.id !== 'skills').map((a) => item(`go-${a.id}`, a.name, () => d.open(a.id), { checked: !c.place && a.id === c.app })),
+    separator,
+    item('go-settings', 'Settings…', d.settings, { keys: keys.settings, checked: !!c.place }),
+    item('go-store', 'Store…', () => d.open('skills'), { checked: !c.place && c.app === 'skills' }),
     separator,
     item('all-apps', 'All apps…', d.allApps),
     item('launcher', 'Find apps, pages and commands…', d.launcher, { keys: keys.launcher }),

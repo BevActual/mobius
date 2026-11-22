@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { expectOnApp, launch, openAllApps, startFixture, type Fixture, type Launched, removeTestData } from './harness';
+import { expectOnApp, launch, startFixture, type Fixture, type Launched, removeTestData } from './harness';
 import { callsTool, says, startModel, type ModelFixture, type ModelReply } from './model-fixture';
 
 const SKILL = '---\nname: compare-stays\ndescription: When choosing where to stay, compare places side by side\n---\n\n1. List the places with price and walk to the venue\n2. Put them in a table in Sheets\n';
@@ -32,10 +32,10 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Store');
   await shell().keyboard.press('Enter');
-  // Abilities opens on its installed apps; the skills are a place beside them.
-  await shell().getByRole('complementary', { name: 'Abilities' }).getByRole('button', { name: /^Skills/ }).click();
+  // Store opens on its installed apps; the skills are a place beside them.
+  await shell().getByRole('complementary', { name: 'Store' }).getByRole('button', { name: /^Skills/ }).click();
 }
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
@@ -105,13 +105,14 @@ test('a skill someone shared shows what it is for and what it can touch before i
   expect(fs.readFileSync(file('compare-stays'), 'utf8')).toContain('name: compare-stays\ndescription: When choosing where to stay');
 });
 
-test('Abilities is one of Mobius’s own apps: apps, skills and connectors as plain rows', async () => {
+test('Store is a place of Mobius’s own: apps, skills and connectors as plain rows', async () => {
   model = await startModel([]);
   mobius = await launch(fixture.origin + '/', { userData, env: { MOBIUS_AGENT_URL: model.url, MOBIUS_AGENT_MODEL: 'fake-model' } });
   await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeEnabled({ timeout: 15_000 });
-  await openAllApps(shell());
-  await shell().getByRole('dialog', { name: 'Applications' }).getByRole('region', { name: 'Mobius' }).getByRole('button', { name: 'Abilities', exact: true }).click();
-  const side = shell().getByRole('complementary', { name: 'Abilities' });
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Store');
+  await shell().keyboard.press('Enter');
+  const side = shell().getByRole('complementary', { name: 'Store' });
   await expect(side.getByRole('region', { name: 'Apps' }).locator('button.list-row')).toHaveText([/^Installed\d+$/, /^Available\d*$/]);
   await expect(side.getByRole('region', { name: 'Tools' }).locator('button.list-row')).toHaveText([/^Skills\d*$/, /^Connectors\d*$/]);
   await expect(side.getByRole('button', { name: /^Installed/ })).toHaveAttribute('aria-current', 'page');
@@ -141,7 +142,7 @@ test('Abilities is one of Mobius’s own apps: apps, skills and connectors as pl
   await installed.getByRole('button', { name: 'Open Sheets' }).click();
   await expectOnApp(shell(), 'Sheets');
   await shell().keyboard.press('Control+k');
-  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Abilities');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Store');
   await shell().keyboard.press('Enter');
   await side.getByRole('button', { name: /^Connectors/ }).click();
   const page = shell().getByRole('region', { name: 'Connectors', exact: true });

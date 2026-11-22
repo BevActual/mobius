@@ -477,7 +477,7 @@ function Composer() {
         <PopoverTitle>This chat</PopoverTitle>
         <Switch label="Web search" checked={web} onChange={setWeb} />
         <Switch label="Knowledge" detail="Reads and adds to Knowledge" checked={know} onChange={setKnow} />
-        <PopoverLink onClick={() => {}}>Manage in Abilities</PopoverLink>
+        <PopoverLink onClick={() => {}}>Manage in Store</PopoverLink>
       </Popover>
       <ChoiceMenu label="Mode" title="Mode" value={mode} onChange={setMode} trigger={quiet({ agent: 'Agent', ask: 'Ask', plan: 'Plan' }[mode], 'Mode')}
         choices={[{ value: 'agent', label: 'Agent', keys: 'Ctrl+1' }, { value: 'ask', label: 'Ask', keys: 'Ctrl+2' }, { value: 'plan', label: 'Plan', keys: 'Ctrl+3' }]} />

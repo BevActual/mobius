@@ -113,7 +113,7 @@ export function ConnectionsList({ onGo, onOpenApp }: { onGo: (section: SectionId
         </section>
       ))}
       <p className="conn-foot">
-        <button type="button" className="conn-find" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Abilities <span aria-hidden="true">→</span></button>
+        <button type="button" className="conn-find" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Store <span aria-hidden="true">→</span></button>
       </p>
     </div>
   );
