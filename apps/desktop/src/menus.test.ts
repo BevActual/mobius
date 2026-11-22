@@ -52,6 +52,8 @@ describe('menus', () => {
     expect(buildMenus(context('calendar')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Calendar', 'Window', 'Help']);
     expect(find(buildMenus(context('calendar')), 'week')).toMatchObject({ checked: true });
     expect(buildMenus(context('search')).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
+    // Settings is a place over the app: the app's own menu goes.
+    expect(buildMenus({ ...context('browser'), place: true }).map((m) => m.label)).toEqual(['File', 'Edit', 'View', 'Go', 'Window', 'Help']);
   });
 
   it('shows what is on and what cannot be done now, and the keys for each', () => {

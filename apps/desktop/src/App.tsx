@@ -1321,6 +1321,7 @@ export function App() {
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
+    place: settingsOpen,
     apps: APPS.filter((a) => isAvailable(a.id)),
     keys: bindings,
     state: {
