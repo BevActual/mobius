@@ -43,6 +43,8 @@ export interface ContextMenuItem {
   separated?: boolean;
   /** Its keyboard shortcut, shown at the right, such as "Ctrl+D". */
   keys?: string;
+  /** A choice of several, ticked when it's the one in use (Music's input picker). */
+  checked?: boolean;
 }
 
 /**
@@ -59,6 +61,7 @@ export function ContextMenu({ x, y, label, items, onClose }: { x: number; y: num
     disabled: item.disabled,
     separated: item.separated,
     keys: item.keys,
+    ...(item.checked !== undefined ? { checked: item.checked } : {}),
   }));
   return <PointMenu x={x} y={y} label={label} entries={entries} onClose={onClose} />;
 }

@@ -5,7 +5,7 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
+import { soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -1098,6 +1098,19 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setRange((was) => (was && was.a === d.a && was.b === bar ? was : { a: d.a, b: bar }));
   };
   /** A track's menu, from a right-click on its header: the same things as its buttons. */
+  /** An audio track's input, as Live's Audio From chooser (19.1): the computer's default or one of its inputs. A choice
+   *  that isn't plugged in stays chosen, and is used once it is. */
+  const inputMenu = async (t: Track, x: number, y: number) => {
+    const found = await soundInputs();
+    if (!found) { setExported({ text: 'Choosing an input needs the Mobius desktop app.', kind: 'note' }); return; }
+    const pick = (name: string | null) => chooseInput(name, (heard) => setArmed({ track: t.id, ...heard }));
+    const missing = found.using !== null && !found.inputs.some((i) => i.name === found.using);
+    setMenu({ x, y, label: 'Audio From', items: [
+      { label: 'Computer default', checked: found.using === null, run: () => pick(null) },
+      ...found.inputs.map((i, n) => ({ label: i.name, checked: found.using === i.name, separated: n === 0, run: () => pick(i.name) })),
+      ...(missing ? [{ label: `${found.using} (not connected)`, checked: true, disabled: true, separated: true, run: () => {} }] : []),
+    ] });
+  };
   const trackMenu = (t: Track, x: number, y: number) => setMenu({ x, y, label: t.name, items: [
     { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(t.id) },
     { action: 'duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateTrack(t.id) },
@@ -1673,8 +1686,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
                   {t.kind !== 'audio' && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
                   {t.kind === 'audio' && armed?.track === t.id && (armed.input !== null
-                    ? <span className="studio-track-sub" title="The sound input this track hears and records">{armed.input}</span>
-                    : <span className="studio-track-sub" data-problem title={armed.problem ?? 'No sound input'}>No input</span>)}
+                    ? <button type="button" className="studio-track-sub studio-track-input" title="The sound input this track records: choose another" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>{armed.input}</button>
+                    : <button type="button" className="studio-track-sub studio-track-input" data-problem title={`${armed.problem ?? 'No sound input'}. Choose an input`} onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>No input</button>)}
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
                     <button type="button" className="studio-ms" aria-label={`Mute ${t.name}`} title="Mute (M)" aria-pressed={t.muted} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.muted = !x.muted; }); }}>M</button>
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
