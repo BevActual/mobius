@@ -181,7 +181,7 @@ const inspectorWidth = (): number => {
 };
 
 /**
- * The inspector column, drawn by the shell between the content and Mobius: nothing while the app has no panels or it
+ * The inspector column, drawn by the shell between the content and Mobius: hidden while the app has no panels or it
  * is closed; otherwise a head (the panel's name, or the panels as tabs) with a close button, over the panel in front.
  * Every panel's body stays mounted behind the others, so each keeps its place.
  */
@@ -190,13 +190,15 @@ export function InspectorDock() {
   const [width, setWidth] = useState(inspectorWidth);
   const [drag, setDrag] = useState<number | null>(null);
   const tabs = api?.tabs ?? [];
-  if (!api || tabs.length === 0) return null;
+  if (!api) return null;
   const { active, choose, open, setOpen, front } = api;
   const shown = drag ?? width;
+  // Kept (hidden) while the app has no panels: dropping it and drawing it again on every visit to such an app left the
+  // old one held in the full app (about 31 nodes a visit in the speed test's DOM node growth).
   return (
-    <aside className="dock inspector" aria-label="Inspector" hidden={!open} data-front={front === 'inspector' || undefined} style={{ width: shown }}>
+    <aside className="dock inspector" aria-label="Inspector" hidden={!open || tabs.length === 0} data-front={front === 'inspector' || undefined} style={{ width: shown }}>
       <div className="panel-tabs-head">
-        {tabs.length === 1 ? <h2 className="inspector-title">{tabs[0]!.name}</h2> : (
+        {tabs.length <= 1 ? <h2 className="inspector-title">{tabs[0]?.name ?? ''}</h2> : (
           <div className="panel-tabs" role="tablist" aria-label="Panel"
             onKeyDown={(e) => {
               if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;

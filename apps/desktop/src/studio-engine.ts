@@ -175,3 +175,14 @@ export function previewOn(track: Pick<Track, 'id' | 'instrument' | 'sound' | 'ki
   if (engineOn() && m?.preview) { send(() => m.preview!(track.id, pitch, velocity, seconds)); return; }
   previewNote(track.instrument as Instrument, pitch, velocity, seconds, track.sound as Sound | undefined, track.kit as KitSound | undefined, pad);
 }
+
+/** A sound from the Library on its own (no track): through the engine, or the window. */
+export function previewSound(item: { instrument: Instrument; sound?: Sound; kit?: KitSound }, pitch: number, velocity = 0.8, seconds?: number): void {
+  const m = music();
+  if (engineOn() && m?.preview) {
+    const sound = { instrument: item.instrument, ...(item.sound ? { sound: item.sound } : {}), ...(item.kit ? { kit: item.kit } : {}) };
+    send(() => m.preview!(sound, pitch, velocity, seconds));
+    return;
+  }
+  previewNote(item.instrument, pitch, velocity, seconds, item.sound, item.kit);
+}

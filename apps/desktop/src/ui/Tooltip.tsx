@@ -90,7 +90,10 @@ export function TooltipLayer() {
       const title = el.dataset.tip ?? el.getAttribute('title') ?? '';
       if (!title.trim() || !el.isConnected) return;
       shownRef.current = true;
-      setShown({ ...splitTitle(title), ...tipPlace(el.getBoundingClientRect(), window.innerHeight, el.dataset.tipAt === 'pointer' ? pointerX.current : undefined) });
+      // Tasks (marked): a row with Mobius's floating bar under it keeps its tips above, off the bar.
+      const place = tipPlace(el.getBoundingClientRect(), window.innerHeight, el.dataset.tipAt === 'pointer' ? pointerX.current : undefined);
+      const box = el.getBoundingClientRect();
+      setShown({ ...splitTitle(title), ...(el.closest('[data-tip-above]') && place.below ? { x: place.x, y: box.top - 6, below: false } : place) });
     };
     const over = (event: Event) => {
       if ('clientX' in event) pointerX.current = (event as PointerEvent).clientX;

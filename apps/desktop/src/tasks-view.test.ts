@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { setLocaleForTests } from './dates';
 import type { TaskItem } from '@mobius/shared';
-import { byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksGlance, tasksIn, timeWords } from './tasks-view';
+import { arrange, byDay, byList, dueLabel, LIST_COLORS, listColor, nest, parseWhen, parseWhenAndTime, searchTasks, smartView, splitDone, tasksGlance, tasksIn, timeWords } from './tasks-view';
 
 const t = (text: string, due: string | null = null, done = false, line = 0): TaskItem => ({ line, text, done, due });
 const today = new Date(2026, 10, 6, 15, 0); // 6 November 2026, afternoon
@@ -147,5 +147,22 @@ describe('the Glance in the Mobius panel', () => {
     expect(tasksGlance(lists, new Date(2026, 10, 14, 9))).toEqual([
       { label: 'Overdue', value: '2' }, { label: 'Due today', value: '1' }, { label: 'Flagged', value: '2' },
     ]);
+  });
+});
+
+describe('arrange', () => {
+  const t = (text: string, extra: Partial<TaskItem> = {}): { task: TaskItem } => ({ task: { line: 0, text, done: false, due: null, ...extra } });
+  const now = new Date(2026, 10, 22);
+  const rows = [t('Pay rent', { due: '2026-12-01' }), t('buy milk', { flagged: true }), t('Call Sam', { due: '2026-11-24', time: '09:00' }), t('Book sled', { due: '2026-11-24' })];
+  const names = (r: { task: TaskItem }[]) => r.map((x) => x.task.text);
+  it('keeps the hand-made order for Manual and sorts by due date (undated last) or name', () => {
+    expect(names(arrange(rows, 'manual', 'all', now))).toEqual(['Pay rent', 'buy milk', 'Call Sam', 'Book sled']);
+    expect(names(arrange(rows, 'due', 'all', now))).toEqual(['Call Sam', 'Book sled', 'Pay rent', 'buy milk']);
+    expect(names(arrange(rows, 'name', 'all', now))).toEqual(['Book sled', 'buy milk', 'Call Sam', 'Pay rent']);
+  });
+  it('filters to flagged, dated, or due within the week', () => {
+    expect(names(arrange(rows, 'manual', 'flagged', now))).toEqual(['buy milk']);
+    expect(names(arrange(rows, 'manual', 'dated', now))).toEqual(['Pay rent', 'Call Sam', 'Book sled']);
+    expect(names(arrange(rows, 'due', 'week', now))).toEqual(['Call Sam', 'Book sled']);
   });
 });

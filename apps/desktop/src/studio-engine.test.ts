@@ -89,10 +89,12 @@ describe('Music on the native engine', () => {
     const m = await import('./studio-engine');
     await m.engineReady();
     m.previewOn({ id: 't1', instrument: 'piano' }, 60, 0.5, 0.3);
+    // A Library sound goes as itself, on no track.
+    m.previewSound({ instrument: 'drums', kit: 'tight' as never }, 36, 0.6, 0.3);
     const c = m.countIn(120, 4);
     c.stop();
     await m.engineIdle();
-    expect(e.calls).toEqual([['preview', 't1', 60, 0.5, 0.3], ['countIn', 4, 120], ['countIn', null]]);
+    expect(e.calls).toEqual([['preview', 't1', 60, 0.5, 0.3], ['preview', { instrument: 'drums', kit: 'tight' }, 36, 0.6, 0.3], ['countIn', 4, 120], ['countIn', null]]);
   });
 
   it('sends calls one after another, so a stop, a load and a play arrive in that order however long each takes', async () => {
