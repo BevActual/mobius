@@ -4,10 +4,10 @@
 
 use crate::clock::Clock;
 use crate::drum::Hit;
-use crate::fx::{pan, Chain};
+use crate::fx::{pan, Aim, Chain, QUANTUM};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
-use crate::song::{fill_auto, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
+use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
 /// The longest block made at once: a longer one is made in pieces of this.
@@ -37,6 +37,8 @@ struct Lane {
     pan: f64,
     /// Whether its sound comes in with two channels: a drum panned on its pad.
     stereo: bool,
+    /// Its effects' automated settings, each with where it lives in `chain` (none in the Session view).
+    fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
     /// Its effects, and what they were made from (so a song changed while it plays keeps them ringing if unchanged).
     chain: Option<Chain>,
     fx_key: String,
@@ -420,6 +422,7 @@ pub struct Renderer {
     /// Main's effects (and what they were made from) and its level.
     main: Option<Chain>,
     main_key: String,
+    main_fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
     main_volume: f64,
     /// Main's volume automation (none in the Session view) and its level at each sample of a piece.
     main_auto: Vec<AutoPoint>,
@@ -617,6 +620,7 @@ impl Renderer {
                 let samplers = if is_frozen { Samplers::default() } else { Samplers::of(t, &song.sounds) };
                 // An audio track's sound comes in with two channels, as a sampler's does.
                 let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
+                let chain = if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) };
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -631,7 +635,8 @@ impl Renderer {
                     auto,
                     pan: t.pan,
                     stereo,
-                    chain: if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) },
+                    fx_auto: fx_autos(chain.as_ref(), &t.fx, t.auto.keys(), |name| arranged(name), 60.0 / song.tempo),
+                    chain,
                     fx_key: serde_json::to_string(&t.fx).unwrap_or_default(),
                     voices: Vec::with_capacity(MAX_VOICES),
                     hits: Vec::with_capacity(MAX_VOICES),
@@ -659,11 +664,14 @@ impl Renderer {
                 }
             })
             .collect();
+        let main = Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true);
+        let main_fx_auto = fx_autos(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, 60.0 / song.tempo);
         Renderer {
             clock,
             lanes,
             returns,
-            main: Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true),
+            main,
+            main_fx_auto,
             main_key: serde_json::to_string(&song.main.fx).unwrap_or_default(),
             main_volume: song.main.volume.max(0.0),
             main_auto: if how.session { Vec::new() } else { song.main_auto_of("volume") },
@@ -777,6 +785,7 @@ impl Renderer {
                 // Effects that are just as they were keep their echoes and rooms ringing.
                 if lane.fx_key == was.fx_key && lane.chain.is_some() {
                     std::mem::swap(&mut lane.chain, &mut was.chain);
+                    let_go(lane.chain.as_mut(), was.chain.as_ref(), &was.fx_auto);
                 }
             }
         }
@@ -787,6 +796,7 @@ impl Renderer {
         }
         if self.main_key == old.main_key {
             std::mem::swap(&mut self.main, &mut old.main);
+            let_go(self.main.as_mut(), old.main.as_ref(), &old.main_fx_auto);
         }
         // The Session view's clips go on where they were.
         if let (Some(new), Some(old)) = (self.session.as_mut(), old.session.as_ref()) {
@@ -998,7 +1008,7 @@ impl Renderer {
                     *a *= v;
                     *b *= v;
                 }
-                chain.process(scratch, right_scratch, rate);
+                run_chain(chain, &lane.fx_auto, scratch, right_scratch, rate, beat_of);
                 let stereo = chain.stereo_out();
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
@@ -1043,7 +1053,7 @@ impl Renderer {
         }
         // Main: its effects, then its level.
         if let Some(chain) = &mut self.main {
-            chain.process(left, right, rate);
+            run_chain(chain, &self.main_fx_auto, left, right, rate, |i| clock.beat(from + i as u64));
         }
         for ((l, r), v) in left.iter_mut().zip(right.iter_mut()).zip(&self.main_volumes) {
             *l *= v;
@@ -1105,6 +1115,49 @@ pub fn render_song(song: &Song, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
         renderer.render(l, r);
     }
     (left, right)
+}
+
+/// The automation of a chain's effect settings (`"fx:<effect id>:<setting>"` among `names`), each with where it lives
+/// in `chain`; one the chain can't move is left out. `points` gives a name's points (none when overridden).
+fn fx_autos<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Iterator<Item = &'a String>, points: impl Fn(&str) -> Vec<AutoPoint>, seconds_per_beat: f64) -> Vec<(Aim, Vec<AutoPoint>)> {
+    let Some(chain) = chain else { return Vec::new() };
+    names
+        .filter_map(|name| {
+            let (id, setting) = name.strip_prefix("fx:")?.split_once(':')?;
+            let aim = chain.aim(fx, id, setting, seconds_per_beat)?;
+            let points = points(name);
+            (!points.is_empty()).then_some((aim, points))
+        })
+        .collect()
+}
+
+/// Runs a block through `chain`, moving its automated settings at the start of each 128-sample piece (where its
+/// devices take their settings, as Web Audio's do).
+fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64) {
+    if autos.is_empty() {
+        chain.process(left, right, rate);
+        return;
+    }
+    let n = left.len().min(right.len());
+    let mut done = 0;
+    while done < n {
+        let m = (n - done).min(QUANTUM);
+        for (aim, points) in autos {
+            chain.set(*aim, auto_value_at(points, beat_of(done), 0.0));
+        }
+        chain.process(&mut left[done..done + m], &mut right[done..done + m], rate);
+        done += m;
+    }
+}
+
+/// After a chain kept ringing through a change of song, its settings that were automated go back to the new song's,
+/// as `fresh` (made from it) has them; any the song still automates are set again at the next piece.
+fn let_go(kept: Option<&mut Chain>, fresh: Option<&Chain>, autos: &[(Aim, Vec<AutoPoint>)]) {
+    if let (Some(kept), Some(fresh)) = (kept, fresh) {
+        for (aim, _) in autos {
+            kept.copy_setting(fresh, *aim);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1330,6 +1383,45 @@ mod tests {
         let mut session = Renderer::playing(&held(r#""main":{"auto":{"volume":[{"beat":0,"value":0}]}},"#, ""), 48_000, Playing { session: true, ..Playing::default() });
         assert!(session.main_auto.is_empty());
         session.render(&mut [0f32; 64], &mut [0f32; 64]);
+    }
+
+    #[test]
+    fn effect_settings_follow_their_automation_on_tracks_and_main() {
+        let delay = |mix: f64| format!(r#","fx":[{{"id":"d","kind":"delay","time":0.25,"feedback":0,"mix":{mix}}}]"#);
+        // Held at one value all along, an automated setting sounds as the setting itself at that value.
+        let fixed = render_song(&held("", &delay(1.0)), 48_000).0;
+        let auto = render_song(&held("", &format!(r#"{},"auto":{{"fx:d:mix":[{{"beat":0,"value":1}}]}}"#, delay(0.0))), 48_000).0;
+        assert_eq!(auto, fixed);
+        // Overridden, it is the setting again.
+        let off = render_song(&held("", &format!(r#"{},"auto":{{"fx:d:mix":[{{"beat":0,"value":1}}]}},"autoOff":["fx:d:mix"]"#, delay(0.0))), 48_000).0;
+        assert_eq!(off, render_song(&held("", &delay(0.0)), 48_000).0);
+        // On Main too.
+        let main = |rest: &str| render_song(&held(&format!(r#""main":{{"volume":1,"fx":[{{"id":"m","kind":"compressor","threshold":0,"ratio":1,"attack":0.01,"release":0.2,"makeup":0}}]{rest}}},"#), ""), 48_000).0;
+        let dry = main("");
+        let louder = main(r#","auto":{"fx:m:makeup":[{"beat":0,"value":6}]}"#);
+        assert!((loudest(&louder) / loudest(&dry) - linear_of(6.0)).abs() < 0.01, "{}", loudest(&louder) / loudest(&dry));
+    }
+
+    fn linear_of(db: f32) -> f32 {
+        10f32.powf(db / 20.0)
+    }
+
+    #[test]
+    fn a_kept_chain_lets_go_of_automation_the_song_no_longer_has() {
+        // With no feedback, the delay's insides are the same whatever its mix; only what comes out differs.
+        let fx = r#","fx":[{"id":"d","kind":"delay","time":0.25,"feedback":0,"mix":0}]"#;
+        let after = |was_song: &Song| {
+            let mut was = Renderer::new(was_song, 48_000, 0.0);
+            was.render(&mut vec![0f32; 4_800], &mut vec![0f32; 4_800]);
+            // The song changes to the same effects with no automation: the chain rings on, its mix back at 0.
+            let mut now = Renderer::new(&held("", fx), 48_000, 4_800.0 / 24_000.0);
+            now.adopt(&mut was);
+            let (mut l, mut r) = (vec![0f32; 9_600], vec![0f32; 9_600]);
+            now.render(&mut l, &mut r);
+            l
+        };
+        let automated = after(&held("", &format!(r#"{fx},"auto":{{"fx:d:mix":[{{"beat":0,"value":1}}]}}"#)));
+        assert_eq!(automated, after(&held("", fx)));
     }
 
     #[test]
