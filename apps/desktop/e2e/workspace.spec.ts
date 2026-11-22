@@ -259,7 +259,7 @@ test('Mobius’s own apps open from All apps and the launcher’s foot', async (
   await goToPlace(shell(), 'Home');
   await onApp('Home');
   await expect(side.getByRole('region', { name: 'Agents' })).toHaveCount(0);
-  await goToPlace(shell(), 'Abilities');
+  await goToPlace(shell(), 'Store');
   await expect(shell().locator('.app')).toHaveAttribute('data-app', 'skills');
   await goToPlace(shell(), 'Settings');
   await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
@@ -275,10 +275,23 @@ test('every app and Mobius page is found in All apps by its name and opens with 
     await shell().keyboard.press('Enter');
     await expect(hub).toBeHidden();
   };
-  for (const [name, id] of [['Projects', 'projects'], ['Browser', 'browser'], ['Views', 'views'], ['Mail', 'mail'], ['Abilities', 'skills']] as const) {
+  for (const [name, id] of [['Projects', 'projects'], ['Browser', 'browser'], ['Views', 'views'], ['Mail', 'mail']] as const) {
     await byKeys(name);
     await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
   }
+  // Settings and Store are places, not apps: All apps never lists them, and Ctrl K still finds both.
+  for (const place of ['Store', 'Settings']) {
+    await openAllApps(shell());
+    await hub.getByRole('searchbox', { name: 'Find apps' }).fill(place);
+    await expect(hub.getByRole('button', { name: new RegExp(`^${place}`) })).toHaveCount(0);
+    await hub.getByRole('searchbox', { name: 'Find apps' }).fill('');
+    await shell().keyboard.press('Escape');
+    await expect(hub).toBeHidden();
+  }
+  await shell().keyboard.press('Control+k');
+  await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Store');
+  await shell().keyboard.press('Enter');
+  await expect(shell().locator('.app'), 'Store opens from Ctrl K').toHaveAttribute('data-app', 'skills');
   // Reader is a mode of the Browser now: not an app of its own in All apps.
   await openAllApps(shell());
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('Reader');
@@ -291,8 +304,6 @@ test('every app and Mobius page is found in All apps by its name and opens with 
   await expect(shell().getByRole('complementary', { name: 'Chats' }).getByRole('region', { name: 'Agents' })).toBeVisible();
   await byKeys('Activity');
   await expect(shell().getByRole('region', { name: 'Activity', exact: true })).toBeVisible();
-  await byKeys('Settings');
-  await expect(shell().getByRole('region', { name: 'Settings' })).toBeVisible();
 });
 
 test('a narrow window still opens Mobius on the right, at no less than its narrowest width', async () => {

@@ -543,7 +543,7 @@ export function Composer({ takeFocus = true, draft, onDraft, context, onContext,
                 </button>
                 {onOpenAbilities && (
                   <button type="button" role="menuitem" className="popmenu-item popmenu-arrow popmenu-separated" onClick={() => { close(); onOpenAbilities(); }}>
-                    <span>Manage in Abilities</span>{ARROW}
+                    <span>Manage in Store</span>{ARROW}
                   </button>
                 )}
               </>

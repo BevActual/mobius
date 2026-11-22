@@ -66,7 +66,7 @@ export type Place = 'home' | 'activity' | 'abilities' | 'settings';
 export interface LauncherHomeRow { id: string; label: string; detail?: string; app?: AppId; run: () => void }
 /** An agent at work, drawn as its dot character. */
 export interface LauncherAgentRow { id: string; name: string; state: CharacterState; detail?: string; run: () => void }
-const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Abilities', settings: 'Settings' };
+const PLACE_NAMES: Record<Place, string> = { home: 'Home', activity: 'Activity', abilities: 'Store', settings: 'Settings' };
 const HOME_ICON = <><path d="M3.5 9 10 3.5 16.5 9" /><path d="M5 7.8V16h10V7.8" /></>;
 const PLACE_ICONS: Record<Place, ReactNode> = { home: HOME_ICON, activity: OWN_ICONS.activity, abilities: OWN_ICONS.extensions, settings: OWN_ICONS.settings };
 
@@ -588,19 +588,20 @@ export function Launcher({
         run: () => { setQuery(k === 'quicklink' ? 'quicklink ' : 'snippet '); setChosenId(null); input.current?.focus(); },
       })),
       // As in Spotlight and Raycast: names that start with what was typed come before names that only contain it.
-      ...rankApps(APPS.filter((app) => has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
+      // Settings and Store are places, not apps: their own group, above Apps.
+      ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(p === 'abilities' ? `${PLACE_NAMES[p]} Abilities Extensions Skills Connectors Plugins` : PLACE_NAMES[p])).map<LauncherItem>((p) => ({
+        id: `place-${p}`, kind: 'place', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
+      })),
+      ...rankApps(APPS.filter((app) => app.id !== 'skills' && has(`${app.name} ${app.also ?? ''}`)), q).map<LauncherItem>((app) => ({
         id: `app-${app.id}`,
         kind: 'app',
         app: app.id,
         label: app.name,
         waiting: waiting[app.id] ?? 0,
         // An app not added yet is found too: choosing it opens Abilities to add it.
-        detail: !app.available ? 'Not built yet' : !isInstalled(app.id) ? 'Add from Abilities' : pins.indexOf(app.id) >= 0 && pins.indexOf(app.id) < 9 ? `Ctrl+${pins.indexOf(app.id) + 1}` : undefined,
+        detail: !app.available ? 'Not built yet' : !isInstalled(app.id) ? 'Add from Store' : pins.indexOf(app.id) >= 0 && pins.indexOf(app.id) < 9 ? `Ctrl+${pins.indexOf(app.id) + 1}` : undefined,
         disabled: !app.available,
         run: () => onOpenApp(app.id),
-      })),
-      ...(Object.keys(PLACE_NAMES) as Place[]).filter((p) => places[p] && has(PLACE_NAMES[p]) && !APPS.some((a) => a.name === PLACE_NAMES[p])).map<LauncherItem>((p) => ({
-        id: `place-${p}`, kind: 'app', place: p, label: PLACE_NAMES[p], run: () => places[p]!(),
       })),
       // The computer's own apps, then its commands: below Mobius's apps, so "notes" still opens Notes.
       ...(system ? [
@@ -776,7 +777,8 @@ export function Launcher({
     }
     if (k === 'ArrowDown' || k === 'ArrowUp' || (empty && (k === 'ArrowLeft' || k === 'ArrowRight'))) {
       event.preventDefault();
-      setSelected(stepFrom(items.map((i) => i.kind), selected, k));
+      // Typed, places are rows like the rest (only the empty start lays them across).
+      setSelected(stepFrom(items.map((i) => (i.kind === 'place' && query.trim() ? 'app' : i.kind)), selected, k));
     } else if (k === 'Enter') {
       event.preventDefault();
       // What is in the field now, even if the list has not been drawn for it yet: a quick Enter right after
@@ -792,7 +794,7 @@ export function Launcher({
   const sections = (Object.keys(SECTION) as Array<LauncherItem['kind']>).filter((kind) => items.some((item) => item.kind === kind));
 
   const option = (item: LauncherItem, index: number) => {
-    const across = ACROSS.has(item.kind);
+    const across = ACROSS.has(item.kind) && !(item.kind === 'place' && query.trim());
     const name = item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid' ? withWaiting(item.label, item.waiting) : item.label;
     const canPin = !!item.app && !!onPinned && (item.kind === 'pinned' || item.kind === 'app' || item.kind === 'grid');
     return {
@@ -919,7 +921,8 @@ export function Launcher({
               </div>
             );
           }
-          if (kind === 'place') {
+          // Nothing typed: places are a row of tiles at the foot. Typed: a group of rows of its own, above Apps.
+          if (kind === 'place' && !query.trim()) {
             return (
               <div key={kind} role="group" aria-label={SECTION[kind]} className="launcher-section launcher-places" data-kind={kind}>
                 {members.map(({ item, index }) => (

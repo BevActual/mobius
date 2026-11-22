@@ -104,7 +104,7 @@ export const keepTurn = (id: string, scope: KeepScope = 'all') => {
 };
 /** The apps a list of changed files belongs to, by name, in the order they first appear: "Tasks, Calendar, Sheets". */
 export function appsOf(paths: readonly string[]): string[] {
-  const NAMES: Record<string, string> = { Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design', Board: 'Canvas', Report: 'Research', Article: 'Reader', Database: 'Database', Photo: 'Photo', Song: 'Music', Cut: 'Video', Skill: 'Abilities', File: 'Files' };
+  const NAMES: Record<string, string> = { Note: 'Notes', Doc: 'Docs', Deck: 'Slides', Sheet: 'Sheets', Tasks: 'Tasks', Calendar: 'Calendar', Code: 'Code', Design: 'Design', Board: 'Canvas', Report: 'Research', Article: 'Reader', Database: 'Database', Photo: 'Photo', Song: 'Music', Cut: 'Video', Skill: 'Store', File: 'Files' };
   const out: string[] = [];
   for (const p of paths) { const name = NAMES[describeChange(p).kind] ?? 'Files'; if (!out.includes(name)) out.push(name); }
   return out;
@@ -399,7 +399,7 @@ export function WaitingRow({ icon, name, state, title, onOpen }: { icon: ReactNo
 }
 
 /** The rail's icon for each app the summary names. */
-const APP_IDS: Record<string, string> = { Notes: 'notes', Docs: 'docs', Slides: 'slides', Sheets: 'sheets', Tasks: 'tasks', Calendar: 'calendar', Code: 'code', Design: 'design', Canvas: 'canvas', Research: 'research', Reader: 'reader', Database: 'database', Photo: 'photo', Music: 'studio', Video: 'video', Abilities: 'skills', Files: 'files', Mail: 'mail' };
+const APP_IDS: Record<string, string> = { Notes: 'notes', Docs: 'docs', Slides: 'slides', Sheets: 'sheets', Tasks: 'tasks', Calendar: 'calendar', Code: 'code', Design: 'design', Canvas: 'canvas', Research: 'research', Reader: 'reader', Database: 'database', Photo: 'photo', Music: 'studio', Video: 'video', Abilities: 'skills', Store: 'skills', Files: 'files', Mail: 'mail' };
 
 interface SummaryEntry { key: string; app: string; name: string; count: number; unit: string; title: string; target: HubTarget | null; undo: () => void }
 
