@@ -4,7 +4,7 @@ export type AppId = 'browser' | 'agent' | 'search' | 'code' | 'design' | 'photo'
 export type AppGroup = 'Assistant' | 'Browse and find' | 'Write and plan' | 'Create' | 'Review';
 export const APP_GROUPS: readonly AppGroup[] = ['Assistant', 'Browse and find', 'Write and plan', 'Create', 'Review'];
 
-export interface AppInfo { id: AppId; name: string; available: boolean; group: AppGroup; /** One of Mobius's own apps: opened from Mobius's apps in the switcher, not the app list. */ own?: boolean; /** Other words it is found by. */ also?: string }
+export interface AppInfo { id: AppId; name: string; available: boolean; group: AppGroup; /** One of Mobius's own apps: opened from Mobius's apps in the switcher, not the app list. */ own?: boolean; /** Other words it is found by. */ also?: string; /** Folded into another app as one of its modes (Reader is the Browser's reader mode): not listed as an app of its own, and there whenever that app is. */ modeOf?: AppId }
 
 /** Every application Mobius will have. Only the ones marked available can be opened. */
 export const APPS: readonly AppInfo[] = [
@@ -24,7 +24,7 @@ export const APPS: readonly AppInfo[] = [
   { id: 'calendar', name: 'Calendar', available: true, group: 'Write and plan' },
   { id: 'search', name: 'Search', available: true, group: 'Browse and find' },
   { id: 'research', name: 'Research', available: true, group: 'Browse and find' },
-  { id: 'reader', name: 'Reader', available: true, group: 'Browse and find' },
+  { id: 'reader', name: 'Reader', available: true, group: 'Browse and find', modeOf: 'browser', also: 'Read later Reading list Articles' },
   { id: 'design', name: 'Design', available: true, group: 'Create' },
   { id: 'photo', name: 'Photo', available: true, group: 'Create' },
   { id: 'studio', name: 'Music', available: true, group: 'Create', also: 'Studio songs' },
@@ -55,12 +55,18 @@ export function setInstalledApps(list: readonly string[] | null | undefined): vo
   installed = Array.isArray(list) ? new Set(list) : null;
 }
 /** Whether an app is added (or one that is always there). */
-export const isInstalled = (id: string): boolean => installed === null || installed.has(id) || (CORE_APPS as readonly string[]).includes(id);
+export const isInstalled = (id: string): boolean => {
+  const mode = findApp(id)?.modeOf;
+  if (mode) return isInstalled(mode);
+  return installed === null || installed.has(id) || (CORE_APPS as readonly string[]).includes(id);
+};
+/** Listed as an app of its own (not a mode folded into another). */
+export const isListed = (app: AppInfo): boolean => !app.modeOf;
 /** The apps that can be opened now: built, and added. */
 export const isAvailable = (id: string): boolean => findApp(id)?.available === true && isInstalled(id);
 /** The added apps after adding or removing one, for the preferences. Removing keeps the app's files. */
 export function withApp(id: AppId, add: boolean): AppId[] {
-  const now = APPS.filter((a) => a.available && !(CORE_APPS as readonly string[]).includes(a.id) && isInstalled(a.id)).map((a) => a.id);
+  const now = APPS.filter((a) => a.available && isListed(a) && !(CORE_APPS as readonly string[]).includes(a.id) && isInstalled(a.id)).map((a) => a.id);
   return add ? [...new Set([...now, id])] : now.filter((a) => a !== id);
 }
 export const appName = (id: string): string => findApp(id)?.name ?? id;

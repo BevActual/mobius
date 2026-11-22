@@ -267,3 +267,6 @@
 /* Downloads sit at the foot now, so their list opens upward. */
 .browser-side .spaces-bar { position: relative; }
 .browser-side .tabs-foot .dl-pop { top: auto; bottom: calc(100% + var(--sp-1)); }
+/* Read later: articles kept in reader mode, a book icon in grey where a tab has its site's chip. */
+.browser-side .read-later-icon { display: grid; place-items: center; color: var(--muted); }
+.browser-side .read-later-icon svg { width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; }

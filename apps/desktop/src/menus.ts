@@ -155,7 +155,7 @@ function appMenu(c: MenuContext): Menu | null {
         item('previous-space', 'Previous space', d.browser.previousSpace, { keys: 'mod+alt+left' }),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
-        item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
+        item('save-to-reader', 'Save page to Read later', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
       ] };
     case 'notes':
       return { id: 'app', label: 'Notes', items: [

@@ -27,7 +27,7 @@ const TAB_DRIVER = { reading: 'Mobius reading', mobius: 'Mobius', yours: 'Yours'
 const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobius is using this tab', yours: 'You took over this tab from Mobius' } as const;
 
 /** One tab's row: a click shows it, a middle click closes it, a right click opens its menu, and it can be dragged. */
-function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag }) {
+function TabRow({ tab, onMenu, drag, onShow, reading = false }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag; onShow?: () => void; reading?: boolean }) {
   const still = useReducedMotion() ?? false;
   return (
     <motion.li
@@ -39,7 +39,7 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       animate={{ opacity: 1, height: 'auto', transitionEnd: { overflow: 'visible' }, ...(still ? { transition: { height: { duration: 0 } } } : {}) }}
       exit={still ? { opacity: 0, transition: quick } : { opacity: 0, height: 0, overflow: 'hidden', transition: { ...quick, duration: 0.18 } }}
       className="tab"
-      aria-current={tab.active ? 'page' : undefined}
+      aria-current={tab.active && !reading ? 'page' : undefined}
       data-pinned={tab.pinned ? 'true' : undefined}
       data-drop={drag.over?.id === tab.id ? (drag.over.after ? 'after' : 'before') : undefined}
       data-dragging={drag.dragging === tab.id || undefined}
@@ -51,7 +51,7 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       onContextMenu={(e) => { e.preventDefault(); onMenu(tab, e.clientX, e.clientY); }}
       onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); window.mobius.browser.close(tab.id); } }}
     >
-      <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
+      <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => { window.mobius.browser.activate(tab.id); onShow?.(); }}>
         <SiteChip url={tab.url} icon={tab.icon} />
         <span className="tab-title">{tab.title}</span>
         {tab.driver && (
@@ -213,7 +213,18 @@ function SiteChip({ url, icon, big = false }: { url: string; icon?: string | nul
  * at its foot Ask about this page, then the spaces, one letter each, and downloads. Drag to reorder or across to pin, and
  * every tab has a right-click menu.
  */
-export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark }: { tabs: readonly BrowserTabState[]; pin?: ReactNode; onNewTab: () => void; onAsk?: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void }) {
+export interface ReadLater { path: string; title: string; site?: string; /** Finished (in the Archive): shown only when searching. */ done?: boolean }
+
+export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark, readLater = [], reading = null, onRead, onShowTab }: {
+  tabs: readonly BrowserTabState[]; pin?: ReactNode; onNewTab: () => void; onAsk?: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void;
+  /** Read later (Safari's Reading List): articles kept in reader mode, newest first. */
+  readLater?: readonly ReadLater[];
+  /** The article open in reader mode, if any: it shows as the current row, and no tab does. */
+  reading?: string | null;
+  onRead?: (item: ReadLater) => void;
+  /** A tab was chosen: back from reader mode to the page. */
+  onShowTab?: () => void;
+}) {
   useSpacesSync(tabs);
   const sp = useSpaces();
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
@@ -236,7 +247,8 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
   const pinned = pool.filter((t) => t.pinned && shown(t));
   const open = pool.filter((t) => !t.pinned && shown(t));
   const saved = bookmarks.filter((b) => matches(b.title, b.url)).slice(0, 20);
-  const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
+  const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} reading={reading !== null} onShow={onShowTab} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
+  const later = readLater.filter((a) => (searching || !a.done || a.path === reading) && matches(a.title, a.site ?? '')).slice(0, searching ? 20 : 12);
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
   const space = sp.spaces.find((s) => s.id === sp.current) ?? sp.spaces[0]!;
   const clearToday = () => mine.filter((t) => !t.pinned && !t.active && !t.driver).forEach((t) => window.mobius.browser.close(t.id));
@@ -338,6 +350,22 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
               </button>
             )}
           </section>
+          {onRead && (later.length > 0 || reading !== null) && (
+            // Read later, as Safari's Reading List: an article opens in reader mode, in place of the page.
+            <section className="ui-side-section read-later">
+              <div className="side-head"><span className="side-title">Read later</span></div>
+              <ul className="tabs" role="list" aria-label="Read later">
+                {later.map((a) => (
+                  <li key={a.path} className="tab" aria-current={reading === a.path ? 'page' : undefined}>
+                    <button type="button" className="tab-main" title={a.site ? `${a.title}\n${a.site}` : a.title} onClick={() => onRead(a)}>
+                      <span className="tab-icon read-later-icon" aria-hidden="true">{TOOL_ICONS.reader}</span>
+                      <span className="tab-title">{a.title}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           {searching && saved.length > 0 && (
             <SidebarSection title="Bookmarks">
               {saved.map((b) => (
@@ -431,8 +459,10 @@ export interface BrowserChromeProps {
   findOpen: boolean;
   finding: number;
   onCloseFind: () => void;
-  /** Read: keeps the page in Reader and opens it there, as Safari's Reader button. */
+  /** Read: keeps the page in Read later and shows it in reader mode, as Safari's Reader button. */
   onRead?: () => void;
+  /** In reader mode now: the Reader button shows pressed, and goes back to the page. */
+  reading?: boolean;
 }
 
 /**
@@ -475,7 +505,7 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
 }
 
 /** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
-export function BrowserChrome({ onRead, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+export function BrowserChrome({ onRead, reading = false, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
   useBrowserKeys(active);
   // In the toolbar's middle, as the frame has every app's own controls (ui/AppFrame).
   return (
@@ -501,8 +531,8 @@ export function BrowserChrome({ onRead, active, saved, selectionMenu, setSelecti
           )} />
         <div className="cap-group" role="group" aria-label="This page">
           {/* Read, before the star, on pages that look like an article (a page down a site, not its home page). */}
-          {onRead && active && isArticleLike(active.url) && (
-            <button type="button" className="strip-btn" aria-label="Read in Reader" title="Read in Reader" onClick={onRead}>
+          {onRead && active && (reading || isArticleLike(active.url)) && (
+            <button type="button" className="strip-btn" aria-pressed={reading} aria-label={reading ? 'Back to the page' : 'Read in reader mode'} title={reading ? 'Back to the page' : 'Reader mode: just the words, kept in Read later'} onClick={onRead}>
               {TOOL_ICONS.reader}
             </button>
           )}

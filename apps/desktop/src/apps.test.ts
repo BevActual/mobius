@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { APP_GROUPS, APPS, askAbout, isAvailable, noteOpened, recentApps, setInstalledApps, withApp, type AppId } from './apps';
+import { APP_GROUPS, APPS, askAbout, isAvailable, isListed, noteOpened, recentApps, setInstalledApps, withApp, type AppId } from './apps';
 
 describe('apps', () => {
   it('the ask box names what is open in each app, not another app’s things', () => {
@@ -50,5 +50,16 @@ describe('recent items', () => {
     noteRecentItem({ app: 'notes', ref: 'a', label: 'Garden plan' }, 3);
     noteRecentItem({ app: 'notes', ref: 'c', label: '  ' }, 4);
     expect(recentItems().map((r) => [r.ref, r.at])).toEqual([['a', 3], ['b', 2]]);
+  });
+
+  it('Reader is the Browser’s reader mode: not listed on its own, there whenever the Browser is', () => {
+    const reader = APPS.find((a) => a.id === 'reader')!;
+    expect(isListed(reader)).toBe(false);
+    setInstalledApps(['browser']);
+    expect(isAvailable('reader')).toBe(true);
+    expect(withApp('notes', true)).not.toContain('reader');
+    setInstalledApps(['notes']);
+    expect(isAvailable('reader')).toBe(false);
+    setInstalledApps(null);
   });
 });
