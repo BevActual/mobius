@@ -567,11 +567,15 @@ impl Bridge {
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought
         // up to date.
+        // Messages is told, so a window waiting on the space shows it without a reload.
         let accounts = Arc::clone(&bridge.messages);
+        let space_emit = bridge.emit.clone();
         bridge.homeserver.on_ready(Box::new(move |url, token| {
             let url_owned = url.to_owned();
             let token = token.to_owned();
-            accounts.local_space(url, &move |user, password| crate::homeserver::register(&url_owned, &token, user, password)).map(|_| ())
+            let account = accounts.local_space(url, &move |user, password| crate::homeserver::register(&url_owned, &token, user, password))?;
+            space_emit("mobius:messages-changed", json!({ "account": account, "channel": null }));
+            Ok(())
         }));
         // The first checkpoint of a session is slow (every file is looked at); done now, while the window loads, the
         // first turn's checkpoint only has to save. Counted as a mark, so what waits for marks (Remove all data among
