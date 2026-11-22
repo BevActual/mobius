@@ -62,13 +62,16 @@ export const engineOn = () => ready === true;
 
 /** The song the engine has, so a note can be previewed on a track without waiting for a load. */
 let loaded = '';
-export function loadSong(song: Song): void {
+/** The open song's page, so the engine reads its audio clips' files from the song's folder. */
+let songPath: string | null = null;
+export function loadSong(song: Song, path?: string | null): void {
   const m = music();
+  if (path !== undefined) songPath = path;
   if (!engineOn() || !m) return;
-  const text = JSON.stringify(song);
+  const text = JSON.stringify(song) + (songPath ?? '');
   if (text === loaded) return;
   loaded = text;
-  send(() => m.load(song));
+  send(() => m.load(song, songPath));
 }
 
 /** The engine's last position, carried forward between its events (about 30 a second) by the clock and the tempo. */
@@ -112,8 +115,8 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
   if (!engineOn() || !m) return clockPlay(songIn, fromBeat, loop);
   let song = songIn;
   const f = follow(() => song.tempo, loop, fromBeat);
-  loaded = JSON.stringify(song);
-  send(() => m.load(song));
+  loaded = JSON.stringify(song) + (songPath ?? '');
+  send(() => m.load(song, songPath));
   send(() => m.play(fromBeat, loop ? { start: loop.from, end: loop.to } : null, click));
   return {
     stop() { f.off(); send(() => m.stop()); },
@@ -132,8 +135,8 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
   const f = follow(() => song.tempo, null, 0);
   // A launch is shown as waiting at once, until the engine says otherwise.
   let asked: SessionQueued = { ...launches };
-  loaded = JSON.stringify(song);
-  send(() => m.load(song));
+  loaded = JSON.stringify(song) + (songPath ?? '');
+  send(() => m.load(song, songPath));
   send(() => m.playSession!(click, launches));
   return {
     stop() { f.off(); send(() => m.stop()); },

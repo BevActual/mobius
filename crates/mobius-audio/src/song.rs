@@ -21,6 +21,10 @@ pub struct Song {
     /// Return tracks, fed by the tracks' sends (at most [`MAX_RETURNS`]).
     #[serde(default)]
     pub returns: Vec<Return>,
+    /// The sounds its audio clips play, by the file named in the clip: read from the song's folder by
+    /// [`crate::sample::Samples::attach`], not from the song file.
+    #[serde(skip)]
+    pub sounds: std::collections::BTreeMap<String, std::sync::Arc<crate::wav::Sound>>,
 }
 
 /// The most return tracks a song has, as in Live; any past them are left out.
@@ -61,9 +65,10 @@ pub struct Return {
     pub fx: Vec<serde_json::Value>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Instrument {
+    #[default]
     Piano,
     Bass,
     Pad,
@@ -75,6 +80,15 @@ pub enum Instrument {
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: String,
+    /// What it plays: notes on an instrument (none in the file), or `"audio"`, its clips' recorded sound (Live 12
+    /// manual, chapter 9 "Audio Clips, Tempo, and Warping").
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// An audio track's input, by its place in the sound input's channels (chapter 19.1 "Choosing what to record").
+    #[serde(default)]
+    pub input: Option<u32>,
+    /// An audio track has none; one from an older window is a piano.
+    #[serde(default)]
     pub instrument: Instrument,
     #[serde(default = "one")]
     pub volume: f64,
@@ -176,6 +190,9 @@ pub struct SlotClip {
     pub bars: f64,
     #[serde(default)]
     pub notes: Vec<Note>,
+    /// On an audio track, the sound it plays.
+    #[serde(default)]
+    pub audio: Option<Audio>,
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it
@@ -192,6 +209,43 @@ pub struct Clip {
     pub offset: f64,
     #[serde(default)]
     pub notes: Vec<Note>,
+    /// On an audio track, the sound it plays.
+    #[serde(default)]
+    pub audio: Option<Audio>,
+}
+
+/// An audio clip's sound (Live 12 manual, chapter 9): a WAV file in the song's folder, from `offset` seconds in, at
+/// `gain_db`. Unwarped, it plays at its own speed whatever the tempo (9.2 "Tempo Control and Warping"). Warped, it
+/// follows the song's tempo: its `bpm`, or its warp markers (9.2.3), pin its own beats to places in the file.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Audio {
+    /// Relative to the song's folder, as `Samples/Recorded/Vocal 1.wav`.
+    pub file: String,
+    #[serde(default)]
+    pub gain_db: f64,
+    /// Where in the file the clip's first beat is, in seconds.
+    #[serde(default)]
+    pub offset: f64,
+    #[serde(default)]
+    pub warp: bool,
+    /// The warp mode (9.3): `"repitch"` plays faster or slower like a turntable. The others (beats, tones, texture,
+    /// complex, complexpro) keep their pitch with the time-stretcher; until it lands they play as Re-Pitch.
+    #[serde(default)]
+    pub mode: Option<String>,
+    /// The file's own tempo, warped with no markers.
+    #[serde(default)]
+    pub bpm: Option<f64>,
+    /// Warp markers: a sample frame of the file at a beat of the clip, in order.
+    #[serde(default)]
+    pub markers: Vec<WarpMarker>,
+}
+
+/// A warp marker (ui/Waveform.tsx `WarpMarker`): the file's `sample` frame lands on the clip's `beat`.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct WarpMarker {
+    pub sample: f64,
+    pub beat: f64,
 }
 
 #[derive(Debug, Clone, Copy, Deserialize)]
@@ -301,6 +355,12 @@ impl Song {
         out.truncate(MAX_NOTES);
         out.sort_by(|a, b| a.start.total_cmp(&b.start));
         out
+    }
+
+    /// Whether a track plays audio clips rather than notes.
+    #[must_use]
+    pub fn is_audio(track: &Track) -> bool {
+        track.kind.as_deref() == Some("audio")
     }
 
     /// The song's length in beats.

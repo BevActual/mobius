@@ -1243,8 +1243,9 @@ export interface MobiusBridge {
     /** Open the sound output if it isn't yet, and say which one it is. */
     /** `silent` when there is no sound output: the engine still plays (and keeps time), unheard. */
     engine(): Promise<{ ok: true; device: string; silent?: boolean; sampleRate: number; latencyMs: number } | NotesFailure>;
-    /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. */
-    load(song: unknown): Promise<{ ok: true } | NotesFailure>;
+    /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. With the song's
+     *  page `path`, its audio clips' files are read from the song's folder; any it cannot read are in `missing`. */
+    load(song: unknown, path?: string | null): Promise<{ ok: true; missing?: string[] } | NotesFailure>;
     /** Play from a beat, or from where the playhead was left; round `loop` (beats) if given, with the metronome if `click`. */
     play(fromBeat?: number, loop?: { start: number; end: number } | null, click?: boolean): Promise<{ ok: true; beat: number } | NotesFailure>;
     /** Play the Session view from the first beat; `launches` (track id to slot, or null) start at once. */

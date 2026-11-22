@@ -20,6 +20,8 @@ const RENDER_RATE: u32 = 44_100;
 
 pub struct Music {
     engine: Mutex<Option<Arc<Engine>>>,
+    /// Audio clips' sounds, read from the song's folder and kept while their files stay the same.
+    samples: mobius_audio::sample::Samples,
     song: Mutex<Option<Song>>,
     /// Where `play` starts when the window gives no beat: the last place it moved the playhead to.
     start: Mutex<f64>,
@@ -51,7 +53,7 @@ pub fn song_of(value: &Value) -> Result<Song, String> {
 
 impl Music {
     pub fn new(emit: crate::bridge::Emit) -> Music {
-        Music { engine: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
+        Music { engine: Mutex::new(None), samples: mobius_audio::sample::Samples::new(), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
     }
 
     /// The engine, opening the sound output the first time.
@@ -80,7 +82,7 @@ impl Music {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
         let result = match method {
             "engine" => self.engine().map(|e| json!({ "ok": true, "device": e.device(), "silent": e.is_silent(), "sampleRate": e.sample_rate(), "latencyMs": e.latency_ms() })),
-            "load" => self.load(arg(0)),
+            "load" => self.load(arg(0), arg(1).as_str(), songs),
             "play" => self.play(arg(0).as_f64(), cycle_of(arg(1)), arg(2).as_bool().unwrap_or(false)),
             "playSession" => self.play_session(arg(0).as_bool().unwrap_or(false), arg(1)),
             "launch" => match arg(0).as_str() {
@@ -121,9 +123,12 @@ impl Music {
         result.unwrap_or_else(failed)
     }
 
-    /// Take the song the window has open. If it is playing, it goes on from where it is with the change.
-    fn load(&self, value: &Value) -> Result<Value, String> {
-        let song = song_of(value)?;
+    /// Take the song the window has open, with its audio clips' sounds from its folder when the window says which
+    /// song it is (`path`). If it is playing, it goes on from where it is with the change. A sound that cannot be read
+    /// is named in `missing`, and its clip is silent.
+    fn load(&self, value: &Value, path: Option<&str>, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
+        let mut song = song_of(value)?;
+        let missing = self.attach(&mut song, path, songs);
         if let Some(e) = lock(&self.engine).as_ref() {
             e.update(&song)?;
             if let Some(id) = lock(&self.armed).as_deref() {
@@ -131,7 +136,17 @@ impl Music {
             }
         }
         *lock(&self.song) = Some(song);
-        Ok(json!({ "ok": true }))
+        Ok(json!({ "ok": true, "missing": missing }))
+    }
+
+    /// Reads the song's audio clips' sounds from the folder of the song at `path`.
+    fn attach(&self, song: &mut Song, path: Option<&str>, songs: &mobius_workspace::notes::Notes) -> Vec<String> {
+        let has_audio = song.tracks.iter().any(Song::is_audio);
+        match path.filter(|_| has_audio).map(|p| songs.folder_of(p)) {
+            Some(Ok(folder)) => self.samples.attach(song, &folder),
+            Some(Err(why)) => vec![why],
+            None => Vec::new(),
+        }
     }
 
     fn play(&self, from: Option<f64>, cycle: Option<(f64, f64)>, click: bool) -> Result<Value, String> {
@@ -290,7 +305,11 @@ impl Music {
     fn render(&self, value: &Value, path: &str, name: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
         let song = match value {
             Value::Null => lock(&self.song).clone().ok_or("load a song first")?,
-            v => song_of(v)?,
+            v => {
+                let mut song = song_of(v)?;
+                self.attach(&mut song, Some(path), songs);
+                song
+            }
         };
         let (left, right) = mobius_audio::render::render_song(&song, RENDER_RATE);
         let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
@@ -403,5 +422,28 @@ mod tests {
             assert_eq!(m.call("preview", &[json!("keys"), json!(60)], &songs)["ok"], false);
             assert_eq!(m.call("play", &[], &songs)["ok"], false);
         }
+    }
+
+    #[test]
+    fn a_songs_audio_clips_are_read_from_its_folder() {
+        let m = music();
+        let dir = tempfile::tempdir().unwrap();
+        let songs = mobius_workspace::notes::Notes::in_folder(dir.path().join("w"), dir.path().join("c"), "studio");
+        let folder = dir.path().join("w/studio/Songs");
+        std::fs::create_dir_all(folder.join("Samples/Recorded")).unwrap();
+        std::fs::write(folder.join("Song.md"), SONG).unwrap();
+        let mut wav = Vec::new();
+        mobius_audio::wav::write(&mut wav, &[0.5; 4], &[0.5; 4], 48_000).unwrap();
+        std::fs::write(folder.join("Samples/Recorded/Vocal 1.wav"), wav).unwrap();
+        let song = json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [{ "id": "v", "kind": "audio", "clips": [
+            { "start": 0, "length": 4, "audio": { "file": "Samples/Recorded/Vocal 1.wav" } },
+            { "start": 0, "length": 4, "audio": { "file": "Samples/Recorded/Vocal 2.wav" } }] }] });
+        let loaded = m.call("load", &[song.clone(), json!("Songs/Song.md")], &songs);
+        assert_eq!(loaded["ok"], true, "{loaded}");
+        assert_eq!(loaded["missing"].as_array().unwrap().len(), 1, "{loaded}");
+        assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 1);
+        // Without the song's page, no files are read.
+        assert_eq!(m.call("load", &[song], &songs)["missing"], json!([]));
+        assert!(lock(&m.song).as_ref().unwrap().sounds.is_empty());
     }
 }
