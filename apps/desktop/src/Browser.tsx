@@ -463,6 +463,8 @@ export interface BrowserChromeProps {
   onRead?: () => void;
   /** In reader mode now: the Reader button shows pressed, and goes back to the page. */
   reading?: boolean;
+  /** The address to show instead of the tab's: the article's own while reading. */
+  shownUrl?: string | null;
 }
 
 /**
@@ -505,7 +507,7 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
 }
 
 /** Back, forward, reload, bookmark, the selection menu and the address bar, with Find under them. */
-export function BrowserChrome({ onRead, reading = false, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
+export function BrowserChrome({ onRead, reading = false, shownUrl = null, active, saved, selectionMenu, setSelectionMenu, selectionReady, onSelection, clipTo, clipPages, onClipTo, address, draft, setDraft, notice, setNotice, onSubmit, onSuggesting, findOpen, finding, onCloseFind }: BrowserChromeProps) {
   useBrowserKeys(active);
   // In the toolbar's middle, as the frame has every app's own controls (ui/AppFrame).
   return (
@@ -522,7 +524,7 @@ export function BrowserChrome({ onRead, reading = false, active, saved, selectio
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
           </button>
         </div>
-        <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting}
+        <AddressBar active={active} shownUrl={shownUrl} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting}
           star={(
             // The star inside the address's end, as Chrome and Arc keep it.
             <button type="button" className="strip-btn address-star" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
@@ -561,12 +563,14 @@ const SUGGESTION_ICON = {
  * edit, and suggests open tabs, bookmarks and pages from history as you type. A suggestion is only taken when it is
  * picked with the arrows or the pointer; otherwise Enter goes, or asks, as before.
  */
-function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onSuggesting, star }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit' | 'onSuggesting'> & { star?: ReactNode }) {
+function AddressBar({ active, shownUrl, address, draft, setDraft, setNotice, onSubmit, onSuggesting, star }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit' | 'onSuggesting'> & { star?: ReactNode; shownUrl?: string | null }) {
+  // While reading, the address is the article's own, never the tab's behind it.
+  const url = shownUrl ?? active?.url ?? '';
   const [list, setList] = useState<Suggestion[]>([]);
   const [lit, setLit] = useState(-1);
   const known = useRef<{ tabs: BrowserTabState[]; bookmarks: BookmarkEntry[]; history: HistoryEntry[] }>({ tabs: [], bookmarks: [], history: [] });
   const editing = draft !== null;
-  const parts = !editing && active ? addressParts(active.url) : null;
+  const parts = !editing && url ? addressParts(url) : null;
 
   const learn = () => {
     void window.mobius.browser.getState().then((s) => { known.current.tabs = s?.tabs ?? []; }).catch(() => {});
@@ -575,7 +579,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onS
   };
   const suggest = (text: string) => {
     const { tabs, bookmarks, history } = known.current;
-    setList(text !== active?.url ? suggestionsFor(text, tabs, bookmarks, history) : []);
+    setList(text !== url ? suggestionsFor(text, tabs, bookmarks, history) : []);
     setLit(-1);
   };
   const done = () => { setList([]); setLit(-1); setDraft(null); address.current?.blur(); };
@@ -602,7 +606,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onS
         aria-autocomplete="list"
         aria-controls={list.length > 0 ? 'address-suggestions' : undefined}
         aria-activedescendant={lit >= 0 ? `address-suggestion-${lit}` : undefined}
-        value={draft ?? active?.url ?? ''}
+        value={draft ?? url}
         onChange={(event) => { setDraft(event.target.value); setNotice(''); suggest(event.target.value); }}
         // From the moment it is focused the text is the person's draft: a page finishing loading meanwhile cannot change it under their typing.
         onFocus={(event) => { learn(); setDraft(event.target.value); event.target.select(); }}
@@ -613,7 +617,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onS
           else if (event.key === 'Escape') {
             event.preventDefault();
             if (list.length > 0) { setList([]); setLit(-1); }
-            else if (draft !== null && draft !== (active?.url ?? '')) { setDraft(active?.url ?? ''); afterPaint(() => address.current?.select()); }
+            else if (draft !== null && draft !== url) { setDraft(url); afterPaint(() => address.current?.select()); }
             else done();
           }
         }}

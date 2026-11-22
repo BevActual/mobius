@@ -56,7 +56,7 @@ import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
 import { researchSteps } from './research-format';
 import { ReaderPage, readerSub, saveToReader } from './Reader';
-import { READING_LIST } from './reader-format';
+import { parseArticle, READING_LIST } from './reader-format';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
 import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
@@ -1094,6 +1094,8 @@ export function App() {
     event.preventDefault();
     if (!active) return;
     const typed = draft ?? active.url;
+    // Going somewhere from reader mode leaves it, for the page.
+    if (inReader) openApp('browser');
     const outcome = await window.mobius.browser.navigate(active.id, typed);
     if (outcome === 'ask' && settings?.configured && !conversation.state.busy) {
       // A question is for the agent, not the web.
@@ -1949,6 +1951,7 @@ export function App() {
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
       reading={inReader}
+      shownUrl={inReader && reading.page ? parseArticle(reading.text).url : null}
       onRead={() => { if (inReader) { openApp('browser'); return; } if (!active) return; void saveToReader(reading, active.url).then((done) => { if (!done.ok) { setToast(done.message); return; } openApp('reader'); void reading.open(done.path, active.title); }); }}
     />
   );
@@ -1978,7 +1981,7 @@ export function App() {
         appControls: !settingsOpen,
         lead: <>
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
-          <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
+          <GoButton app={settingsOpen ? 'settings' : app === 'reader' ? 'browser' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank: the Go button shows
         // only the app's icon (Andrew, 21 November 2026), so the title names Home, Messages and Research too.
