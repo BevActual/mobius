@@ -7,7 +7,8 @@
 //! [`engine::Engine`] plays it live: a device stream whose audio thread only renders, fed new songs through a
 //! wait-free queue and handing back its position and levels through atomics.
 //!
-//! It plays the synth voice every melodic instrument uses ([`voice`]), the drum kit ([`drum`]) and each track's
+//! It plays the synth voice every melodic instrument uses ([`voice`]), the drum kit ([`drum`]), recorded sounds on a
+//! Sampler track or a drum pad ([`sampler`]) and each track's
 //! effects and devices ([`fx`], with [`conv`] for the reverb's room), with each track's volume, pan, mute and solo,
 //! through the master, and the Session view. Each was matched against the window's Web Audio player before it was
 //! retired (22 November 2026: the test song 0.23 dB apart on average every 100 ms; drums about 1 dB, from their noise).
@@ -22,6 +23,7 @@ pub mod param;
 pub mod record;
 pub mod render;
 pub mod sample;
+pub mod sampler;
 pub mod song;
 pub mod voice;
 pub mod wav;

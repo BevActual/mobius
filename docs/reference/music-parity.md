@@ -80,8 +80,8 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| Sample playback (one-shot, slicing, classic) | None | Sampler | L (needs audio) |
-| A drum rack: a pad per sample, its own chain on each pad | Synth kit with pads | Pads that hold samples or instruments | L |
+| Sample playback (one-shot, slicing, classic) | Sampler track in the engine: Classic (polyphonic, the track's ADSR, optional loop) and One-Shot (monophonic, trigger or gate, fades), a region and a root note (Live 12 manual, 36.8 "Working with Samples") | Slicing; the window's Sampler track and file drop | M |
+| A drum rack: a pad per sample, its own chain on each pad | Synth kit with pads; a pad can hold a sample, played at its own pitch with the pad's tune, level and pan (25.6.1 "Pad View") | A chain on each pad; instruments on pads | M |
 | Wavetable, FM, granular, physical modelling synths | One subtractive voice | Morph synth (Next), FM, grain cloud, modelled | L each |
 | Instrument racks with macros | None | Stacks with macro knobs | L |
 
@@ -292,10 +292,19 @@ interface Track {
   id: string; name: string; instrument: Instrument; color: TrackColour;
   volume: number; pan: number; muted: boolean; solo: boolean; armed?: boolean;
   sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; instrumentOn?: false;
+  kind?: "audio" | "sampler";              // none: notes on its instrument
+  sampler?: SamplerSound;                   // kind "sampler": its notes play this; pads may hold one as `sample`
   sends?: Record<string, number>;           // return id -> level 0..1
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
   slots?: (Clip | null)[];                  // Session, one per scene
   auto?: Record<string, AutoPoint[]>;       // "volume", "pan", "fx:<id>:<setting>" -> points in song beats
+}
+interface SamplerSound {                    // a sampler track's sound, or a drum pad's `sample`
+  file: string;                             // relative to the song's folder
+  mode?: "classic" | "oneshot"; root?: number; gainDb?: number;   // root: the MIDI note at its own pitch, 60
+  start?: number; end?: number;             // the region, in seconds of the file
+  loop?: boolean; loopStart?: number;       // Classic: go round while held; ADSR is the track's sound
+  gate?: boolean; fadeIn?: number; fadeOut?: number;               // One-Shot
 }
 interface ArrangeClip {
   id: string; start: number; length: number;   // song beats
@@ -335,7 +344,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - The Mixer tab.
 3. **Audio** (about 3 weeks, once the engine plays):
    - Audio clips and tracks, recording from an input with monitoring.
-   - The Sampler, and drum pads that hold samples.
+   - The Sampler, and drum pads that hold samples (engine done; the window next).
    - Warping, with a stretcher in the engine.
    - Freeze, and exporting stems.
 4. **Devices and movement** (about 3 weeks):

@@ -21,7 +21,7 @@ pub struct Song {
     /// Return tracks, fed by the tracks' sends (at most [`MAX_RETURNS`]).
     #[serde(default)]
     pub returns: Vec<Return>,
-    /// The sounds its audio clips play, by the file named in the clip: read from the song's folder by
+    /// The sounds its audio clips, samplers and drum pads play, by the file they name: read from the song's folder by
     /// [`crate::sample::Samples::attach`], not from the song file.
     #[serde(skip)]
     pub sounds: std::collections::BTreeMap<String, std::sync::Arc<crate::wav::Sound>>,
@@ -83,10 +83,13 @@ pub struct Track {
     /// What the person calls it: a recording on it is named for it.
     #[serde(default)]
     pub name: Option<String>,
-    /// What it plays: notes on an instrument (none in the file), or `"audio"`, its clips' recorded sound (Live 12
-    /// manual, chapter 9 "Audio Clips, Tempo, and Warping").
+    /// What it plays: notes on an instrument (none in the file), `"audio"`, its clips' recorded sound (Live 12
+    /// manual, chapter 9 "Audio Clips, Tempo, and Warping"), or `"sampler"`, notes on its `sampler`'s sound.
     #[serde(default)]
     pub kind: Option<String>,
+    /// A sampler track's sound (36.8 "Working with Samples").
+    #[serde(default)]
+    pub sampler: Option<crate::sampler::SamplerSound>,
     /// An audio track's input, by its place in the sound input's channels (chapter 19.1 "Choosing what to record").
     #[serde(default)]
     pub input: Option<u32>,
@@ -146,18 +149,21 @@ impl Default for Kit {
     }
 }
 
-/// One drum's own settings on top of the kit (song-format.ts `DrumPad`).
-#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+/// One drum's own settings on top of the kit (song-format.ts `DrumPad`), and the sound it plays in place of its
+/// drum, if it holds one (Live 12 manual, 25.6.1 "Pad View": a sample dropped on a pad plays from that pad's note).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 pub struct Pad {
     pub tune: f64,
     pub decay: f64,
     pub level: f64,
     pub pan: f64,
+    #[serde(default)]
+    pub sample: Option<crate::sampler::SamplerSound>,
 }
 
 impl Default for Pad {
     fn default() -> Pad {
-        Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0 }
+        Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0, sample: None }
     }
 }
 
@@ -364,6 +370,12 @@ impl Song {
     #[must_use]
     pub fn is_audio(track: &Track) -> bool {
         track.kind.as_deref() == Some("audio")
+    }
+
+    /// The sampler a track plays its notes on, if it is a sampler track.
+    #[must_use]
+    pub fn sampler_of(track: &Track) -> Option<&crate::sampler::SamplerSound> {
+        track.sampler.as_ref().filter(|_| track.kind.as_deref() == Some("sampler"))
     }
 
     /// The song's length in beats.

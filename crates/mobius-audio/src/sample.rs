@@ -39,16 +39,21 @@ impl Samples {
         read(folder, file, &mut kept).map(|(_, sound)| sound)
     }
 
-    /// Reads every sound the song's audio clips name, from `folder`, into the song's `sounds`. A file outside the
+    /// Reads every sound the song's audio clips, samplers and drum pads name, from `folder`, into the song's `sounds`. A file outside the
     /// folder, missing or not a WAV it reads is left out, so its clip is silent; what went wrong with each is returned.
     pub fn attach(&self, song: &mut Song, folder: &Path) -> Vec<String> {
-        let files: Vec<String> = song
+        let clips = song
             .tracks
             .iter()
             .filter(|t| Song::is_audio(t))
             .flat_map(|t| t.clips.iter().filter_map(|c| c.audio.as_ref()).chain(t.slots.iter().flatten().filter_map(|c| c.audio.as_ref())))
-            .map(|a| a.file.clone())
-            .collect();
+            .map(|a| a.file.clone());
+        // And what its samplers and drum pads play.
+        let samplers = song.tracks.iter().flat_map(|t| {
+            let pads = t.pads.values().filter(move |_| t.instrument == crate::song::Instrument::Drums).filter_map(|p| p.sample.as_ref());
+            Song::sampler_of(t).into_iter().chain(pads).map(|s| s.file.clone())
+        });
+        let files: Vec<String> = clips.chain(samplers).collect();
         let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
         let mut used = Vec::new();
         let mut problems = Vec::new();

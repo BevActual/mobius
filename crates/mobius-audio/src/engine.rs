@@ -335,8 +335,8 @@ fn note_of(track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -
     // Heard at the track's volume and pan, as its notes are when it plays.
     let gains = crate::render::track_gains(track);
     if track.instrument == crate::song::Instrument::Drums {
-        let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
-        Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
+        let pad = track.pads.get(&pitch.to_string()).cloned().unwrap_or_default();
+        Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), &pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
     } else {
         Note::Voice(match &track.sound {
             Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
