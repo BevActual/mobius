@@ -745,7 +745,10 @@ fn main() {
                 bridge.set_downloads_dir(dir);
             }
             bridge.attach(browser.clone(), Arc::new(SystemDialogs { keep_hidden: hidden, engine: engine_slot, handle: handle.clone(), window: window.clone() }));
-            bridge.seed_places();
+            // Tests start on empty data: the runner's own Desktop, Documents and Downloads are left out.
+            if !test_mode {
+                bridge.seed_places();
+            }
             // The first tab: an address given for tests, or a blank page.
             let start = std::env::var("MOBIUS_START_URL").ok().filter(|_| test_mode);
             let reopened = if restore_tabs && start.is_none() {
