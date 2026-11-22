@@ -1265,9 +1265,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
       {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
-      {/* Person is always registered (as it was): an app with no inspector panel at all keeps its old tree alive across
-          visits in the full app (the speed test's DOM node growth), which is being looked into. */}
-      <PanelTab id="person" name="Person" shown={person !== null}><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>
+      {/* Person: only once someone invited is picked (from their name on the event), so an event's page stands alone. */}
+      {person && <PanelTab id="person" name="Person" shown><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>}
     </section>
   );
 }
