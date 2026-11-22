@@ -2,12 +2,11 @@ import { useState, type ReactNode } from 'react';
 import type { ConversationInfo } from '@mobius/shared';
 import { ReviewStrip } from './ReviewStrip';
 import type { HubTarget } from './search-hub';
-import { relativeTime } from './relative-time';
 
 /**
- * The resting Mobius panel (Instrument, "The Mobius panel, improved": never empty). Before anything is asked in this
- * chat it shows, in order: what waits for you (other chats with a question, and the last chat's changes still to keep
- * or discard), the ideas for what is open, then earlier chats. Each part shows only when it has something.
+ * The resting Mobius panel: a quiet chat. Before anything is asked it shows one line for what waits elsewhere (other
+ * chats with a question, the last chat's changes still to keep or discard), which opens to them, and the ideas for
+ * what is open as chips just above the message box. Earlier chats are in the panel title's list.
  */
 export interface Resting {
   /** Other chats waiting for your answer or approval. */
@@ -38,39 +37,39 @@ export function RestingPanel({ conversations, active, onSelect, onOpenItem, idea
 }) {
   const r = restingOf(conversations, active);
   const [changes, setChanges] = useState(false);
-  const waiting = r.needsYou.length + (r.latest && changes ? 1 : 0);
+  const [open, setOpen] = useState(false);
+  const waiting = r.needsYou.length;
+  // One line for what waits elsewhere (Andrew, 21 November 2026: the panel is a conversation first): it opens to the
+  // chats that wait and the last chat's changes. Earlier chats are in the title's list.
+  const said = [waiting > 0 ? `${waiting} waiting` : '', changes ? 'changes to review' : ''].filter(Boolean).join(' · ');
   return (
     <div className="resting">
       {glance}
       {(r.needsYou.length > 0 || r.latest) && (
-        <section className="resting-part resting-waiting" aria-label="Waiting for you">
-          <h3 className="resting-title">Waiting for you{waiting > 0 && <span className="resting-count">{waiting}</span>}</h3>
-          {r.needsYou.map((c) => (
-            <button key={c.id} type="button" className="resting-row resting-needs" onClick={() => onSelect(c.id)} title={`Open ${c.title}`}>
-              <span className="resting-row-title">{c.title}</span>
-              <span className="resting-row-meta">{c.waiting === 1 ? 'Needs your answer' : c.waiting > 1 ? `${c.waiting} questions` : 'Needs you'}</span>
-            </button>
-          ))}
-          {/* The last chat's changes, with Keep and Discard; it says nothing when none are left. */}
-          {r.latest && (
-            <div className="resting-changes" data-from={r.latest.title}>
-              <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onShown={setChanges} />
-            </div>
-          )}
+        <section className="resting-part resting-waiting" aria-label="Waiting for you" data-open={open || undefined} hidden={!said || undefined}>
+          <button type="button" className="resting-status" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+            <span className="resting-status-dot" aria-hidden="true" />
+            <span className="resting-status-text">{said}</span>
+            <span className="resting-status-more">{open ? 'Hide' : 'Review'}</span>
+          </button>
+          <div className="resting-status-list" hidden={!open}>
+            {r.needsYou.map((c) => (
+              <button key={c.id} type="button" className="resting-row resting-needs" onClick={() => onSelect(c.id)} title={`Open ${c.title}`}>
+                <span className="resting-row-title">{c.title}</span>
+                <span className="resting-row-meta">{c.waiting === 1 ? 'Needs your answer' : c.waiting > 1 ? `${c.waiting} questions` : 'Needs you'}</span>
+              </button>
+            ))}
+            {/* The last chat's changes, with Keep and Discard; it says nothing when none are left. Kept mounted, so the
+                line knows whether there are any. */}
+            {r.latest && (
+              <div className="resting-changes" data-from={r.latest.title}>
+                <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onShown={setChanges} />
+              </div>
+            )}
+          </div>
         </section>
       )}
-      <section className="resting-part" aria-label="Ideas">{ideas}</section>
-      {r.earlier.length > 0 && (
-        <section className="resting-part" aria-label="Earlier chats">
-          <h3 className="resting-title">Earlier chats</h3>
-          {r.earlier.map((c) => (
-            <button key={c.id} type="button" className="resting-row" onClick={() => onSelect(c.id)}>
-              <span className="resting-row-title">{c.title}</span>
-              <span className="resting-row-meta">{relativeTime(c.updated_ms, Date.now())}</span>
-            </button>
-          ))}
-        </section>
-      )}
+      <section className="resting-part resting-ideas" aria-label="Ideas">{ideas}</section>
     </div>
   );
 }

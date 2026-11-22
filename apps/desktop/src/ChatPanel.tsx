@@ -434,9 +434,32 @@ export interface ChatPanelProps {
 }
 
 /** The title of the conversation, which opens the list of the others. */
-function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [], asTitle = false }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** The panel's plain "Mobius" title opens the list, so the head has no list icon. */ asTitle?: boolean; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }> }) {
+/** The chat list's groups: what waits for you first, then by day (Today, Yesterday, Earlier), newest first. */
+export function chatGroups(list: readonly ConversationInfo[], now: number, query = ''): { label: string; chats: ConversationInfo[] }[] {
+  const q = query.trim().toLowerCase();
+  const shown = list.filter((c) => !q || c.title.toLowerCase().includes(q)).slice().sort((a, b) => b.updated_ms - a.updated_ms);
+  const day = new Date(now); day.setHours(0, 0, 0, 0);
+  const today = day.getTime();
+  const yesterday = today - 86_400_000;
+  const waits = (c: ConversationInfo) => c.activity === 'needs_you' || c.waiting > 0;
+  const groups = [
+    { label: 'Waiting for you', chats: shown.filter(waits) },
+    { label: 'Today', chats: shown.filter((c) => !waits(c) && c.updated_ms >= today) },
+    { label: 'Yesterday', chats: shown.filter((c) => !waits(c) && c.updated_ms < today && c.updated_ms >= yesterday) },
+    { label: 'Earlier', chats: shown.filter((c) => !waits(c) && c.updated_ms < yesterday) },
+  ];
+  return groups.filter((g) => g.chats.length > 0);
+}
+
+/**
+ * The chat switcher: the panel's title is the open chat's name, and it opens every chat, with a search, New chat first,
+ * then what waits for you and the rest by day. The one way to go back to a chat in the panel.
+ */
+function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 0, extra = [], asTitle = false, newKeys }: { conversations: ConversationInfo[]; active: string; onSelect: (id: string) => void; onNew: () => void; /** The panel's title is the button: the open chat's name with a chevron. */ asTitle?: boolean; /** Changes when something outside asks for the list (the needs-you capsule). */ openToken?: number; extra?: Array<{ label: string; onSelect: () => void }>; /** New chat's keys, as written for this computer. */ newKeys?: string }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   useEffect(() => { if (openToken) setOpen(true); }, [openToken]);
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const title = conversations.find((c) => c.id === active)?.title ?? 'New chat';
@@ -451,7 +474,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
 
   useEffect(() => {
     if (!open) return;
-    menu.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    (menu.current?.querySelector<HTMLElement>('.convo-search') ?? menu.current?.querySelector<HTMLElement>('[role="menuitem"]'))?.focus();
     const onKey = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') {
         event.stopPropagation();
@@ -475,28 +498,51 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
     action();
   };
   const move = (event: KeyboardEvent<HTMLDivElement>) => {
+    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
+    if (event.key === 'Enter' && document.activeElement?.classList.contains('convo-search')) {
+      // Enter in the search opens the first chat it found.
+      event.preventDefault();
+      items.find((el) => el.dataset.chat)?.click();
+      return;
+    }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
     event.preventDefault();
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
     const at = items.indexOf(document.activeElement as HTMLElement);
-    items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1)) % items.length]?.focus();
+    items[(at + (event.key === 'ArrowDown' ? 1 : items.length - 1 + (at < 0 ? 1 : 0))) % items.length]?.focus();
   };
+  const groups = chatGroups(conversations, Date.now(), query);
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={asTitle ? `All chats · now: ${title}` : 'History'} onClick={() => setOpen((value) => !value)}>
-        {asTitle ? 'Mobius' : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
+      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn chat-switch' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={asTitle ? `${title}: all chats` : 'History'} onClick={() => setOpen((value) => !value)}>
+        {asTitle
+          ? <><span className="chat-switch-name">{title}</span><svg className="chat-switch-chevron" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" /></svg></>
+          : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
       </button>
       {open && (
         <div ref={menu} className="convo-menu" role="menu" aria-label="Conversations" onKeyDown={move} style={shift ? { left: shift } : undefined}>
-          <button type="button" role="menuitem" className="convo-item" onClick={() => choose(onNew)}>New chat</button>
-          <div className="convo-sep" role="separator" />
+          {conversations.length > 6 && (
+            <input className="convo-search" type="search" placeholder="Search chats" aria-label="Search chats" value={query} onChange={(e) => setQuery(e.target.value)} />
+          )}
+          <button type="button" role="menuitem" className="convo-item convo-new" onClick={() => choose(onNew)}>
+            <span className="convo-item-title">New chat</span>
+            {newKeys && <span className="convo-item-time">{newKeys}</span>}
+          </button>
           {conversations.length === 0 && <p className="convo-empty">Nothing saved yet</p>}
-          {conversations.map((conversation) => (
-            <button key={conversation.id} type="button" role="menuitem" className="convo-item" aria-current={conversation.id === active ? 'true' : undefined} onClick={() => choose(() => onSelect(conversation.id))}>
-              <span className="convo-item-title">{conversation.title}</span>
-              <span className="convo-item-time">{relativeTime(conversation.updated_ms, Date.now())}</span>
-            </button>
+          {query && groups.length === 0 && <p className="convo-empty">No chat matches</p>}
+          {groups.map((group) => (
+            <div key={group.label} role="group" aria-label={group.label}>
+              <p className="convo-group" aria-hidden="true">{group.label}</p>
+              {group.chats.map((conversation) => {
+                const waits = conversation.activity === 'needs_you' || conversation.waiting > 0;
+                return (
+                  <button key={conversation.id} type="button" role="menuitem" className="convo-item" data-chat={conversation.id} aria-current={conversation.id === active ? 'true' : undefined} onClick={() => choose(() => onSelect(conversation.id))}>
+                    <span className="convo-item-title">{conversation.title}</span>
+                    <span className="convo-item-time" data-waits={waits || undefined}>{waits ? (conversation.waiting > 1 ? `${conversation.waiting} questions` : 'Needs you') : relativeTime(conversation.updated_ms, Date.now())}</span>
+                  </button>
+                );
+              })}
+            </div>
           ))}
           {extra.length > 0 && <div className="convo-sep" role="separator" />}
           {extra.map((item) => <button key={item.label} type="button" role="menuitem" className="convo-item" onClick={() => choose(item.onSelect)}>{item.label}</button>)}
@@ -506,11 +552,26 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
   );
 }
 
+/** Whether Alt is held now: the ideas' number keys show only then. */
+function useAltHeld(): boolean {
+  const [held, setHeld] = useState(false);
+  useEffect(() => {
+    const key = (e: globalThis.KeyboardEvent) => setHeld(e.altKey && !e.ctrlKey && !e.metaKey);
+    const off = () => setHeld(false);
+    window.addEventListener('keydown', key);
+    window.addEventListener('keyup', key);
+    window.addEventListener('blur', off);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('keyup', key); window.removeEventListener('blur', off); };
+  }, []);
+  return held;
+}
+
 function Shell({ variant, empty, children }: { variant: 'panel' | 'full'; empty: boolean; children: React.ReactNode }) {
+  const alt = useAltHeld();
   return variant === 'full' ? (
     <section className="chat full" role="region" aria-label="Agent conversation" data-empty={empty || undefined}>{children}</section>
   ) : (
-    <aside className="chat" aria-label="Agent" data-empty={empty || undefined}>{children}</aside>
+    <aside className="chat" aria-label="Agent" data-empty={empty || undefined} data-alt={alt || undefined}>{children}</aside>
   );
 }
 
@@ -730,26 +791,30 @@ export function ChatPanel({ takeFocus = true, surface, onOpenItem, state, settin
             <span className="chat-title">{conversations.find((c) => c.id === activeConversation)?.title ?? 'New chat'}</span>
             <span className="chat-sub">Mobius</span>
           </span>
+        ) : variant === 'panel' && (!needsSetup || menuItems.length > 0) ? (
+          // The title is the chat switcher: the open chat's name, and every chat under it.
+          <span className="chat-titles">
+            <ConversationMenu asTitle conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />
+          </span>
         ) : (
           <span className="chat-titles">
             <span className="chat-title">Mobius</span>
           </span>
         )}
         <div className="chat-head-actions">
-          {/* The head's four buttons (Instrument): New chat, History (every chat), Pop out, Close. */}
+          {/* New chat and Pop out; the title lists every chat, and the Mobius button shows and hides the panel. */}
           {variant === 'panel' && !needsSetup && (
             <button type="button" className="head-icon" aria-label="New chat" title="New chat" onClick={onNewConversation}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4.5v11M4.5 10h11" /></svg>
             </button>
           )}
-          {variant === 'panel' && (!needsSetup || menuItems.length > 0) && <ConversationMenu conversations={conversations} active={activeConversation} onSelect={onSelectConversation} onNew={onNewConversation} openToken={chatsToken} extra={menuItems} />}
           {variant === 'panel' && onPopOut && !lead && (
             <button type="button" className="head-icon" aria-label="Pop out" title="Pop out Mobius into its own window" onClick={onPopOut}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M11 4.5h4.5V9M15.5 4.5 9.5 10.5M8 5.5H5.5v9h9V12" /></svg>
             </button>
           )}
           {pin}
-          {variant === 'panel' && onHide && !lead && (
+          {variant === 'panel' && onHide && lead && (
             <button type="button" className="head-icon" aria-label="Hide" title="Hide Mobius" onClick={onHide}>
               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 5.5l9 9M14.5 5.5l-9 9" /></svg>
             </button>
