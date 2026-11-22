@@ -5,7 +5,8 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import type { LibraryItem } from './studio-library';
@@ -447,7 +448,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed }: {
                 <div className="studio-pads">
                   <PadGrid fill label="Drum pads" columns={3} chosen={pad} onChoose={setPad}
                     pads={DRUMS_UP.map((d, i) => ({ id: String(d.pitch), name: d.name, color: track.color, key: PAD_KEYS[i] }))}
-                    onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewNote('drums', d.pitch, v, undefined, undefined, kit, padOf(track, d.pitch)); }} />
+                    onPlay={(i, v) => { const d = DRUMS_UP[i]!; previewOn(track, d.pitch, v, undefined, padOf(track, d.pitch)); }} />
                   <ParamGrid label={`${drum.name} settings`} columns={2}>
                     {PAD_CELLS.map(({ k, name, step, log, format }) => (
                       <Knob key={k} label={name} value={own[k]} min={PAD_RANGE[k].lo} max={PAD_RANGE[k].hi} step={step} scale={log ? 'log' : 'linear'} origin={PAD_DEFAULTS[k]} reset={PAD_DEFAULTS[k]} format={format}
@@ -735,6 +736,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     return () => cancelAnimationFrame(id);
   }, [playing, song, loop, stop]);
   useEffect(() => () => player.current?.stop(), []);
+  // The engine opens its sound output once, and has the song as it is, so a note sounds on its track at once.
+  useEffect(() => { void engineReady(); }, []);
+  // The engine reports the levels of the device open in the Workbench, for its cables.
+  const watched = bench && editing && detail === 'device' ? bench : null;
+  useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
+  useEffect(() => { if (song) loadSong(song); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
@@ -1092,7 +1099,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const wasPicked = picked.has(i);
       if (!wasPicked) setPicked(e.shiftKey ? new Set([...picked, i]) : new Set([i]));
       if (target.closest('.studio-note-end') || (e.clientX > r.right - 6 && r.width > 10)) { const these = wasPicked ? picked : new Set([i]); setPicked(these); setGesture({ kind: 'stretch', x: e.clientX, dl: 0, these }); return; }
-      previewNote(track.instrument, n.pitch, n.velocity, undefined, track.sound, track.kit);
+      previewOn(track, n.pitch, n.velocity);
       setGesture({ kind: 'move', x: e.clientX, y: e.clientY, db: 0, dr: 0, moved: false, hit: i, wasPicked, shift: e.shiftKey });
       return;
     }
@@ -1112,7 +1119,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     }
     const length = Math.min(drums ? Math.min(grid, 0.25) : grid, span - cell);
     setNotes((n) => (n.some((x) => x.pitch === pitch && x.start === cell) ? n : [...n, { pitch, start: cell, length, velocity: 0.8 }]), g.tag);
-    if (g.done.size === 1) previewNote(track.instrument, pitch, undefined, undefined, track.sound, track.kit);
+    if (g.done.size === 1) previewOn(track, pitch);
   };
   const onRollMove = (e: { clientX: number; clientY: number }) => {
     const g = gestureRef.current;
@@ -1163,7 +1170,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const pitch = rows[g.row]!.pitch;
       const length = drums ? Math.min(grid, 0.25) : drawLength;
       setNotes((n) => addNote(n, { pitch, start: snap(g.beat, grid), length: Math.min(length, span - snap(g.beat, grid)), velocity: 0.8 }));
-      previewNote(track.instrument, pitch, undefined, undefined, track.sound, track.kit);
+      previewOn(track, pitch);
     }
   };
   const onRollKey = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -1228,7 +1235,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const pitch = drums ? keyboardDrum(k, DRUMS_UP.map((d) => d.pitch)) : keyboardPitch(k, keyOctave);
     if (pitch === null) return false;
     if (!e.repeat) {
-      previewNote(track.instrument, pitch, keyVelocity / 127, 0.45, track.sound, track.kit, track.pads?.[pitch]);
+      previewOn(track, pitch, keyVelocity / 127, 0.45, track.pads?.[pitch]);
       setHeld((h) => new Map(h).set(k, pitch));
       if (recording && player.current) takeKeys.current.set(k, { pitch, start: player.current.beat(), velocity: keyVelocity / 127 });
     }
@@ -1270,8 +1277,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const stop = new AbortController();
     exportStop.current = stop;
     try {
-      const data = toBase64(encodeWav(await renderSong(song, 44100, (done) => setExported((was) => (was?.kind === 'busy' ? { ...was, progress: done } : was)), stop.signal)));
-      const done = await api.saveExport(songs.page.path, name, data);
+      // The engine renders and saves in one step (32-bit float); the window renders here and hands the file over.
+      const engine = engineOn() ? window.mobius?.music : undefined;
+      const done = engine
+        ? await engine.render(songs.page.path, name, song)
+        : await api.saveExport(songs.page.path, name, toBase64(encodeWav(await renderSong(song, 44100, (part) => setExported((was) => (was?.kind === 'busy' ? { ...was, progress: part } : was)), stop.signal))));
       if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
     } catch (err) {
@@ -1384,7 +1394,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         now={playing && rollBeat >= 0 && Math.floor(rollBeat / BEATS_PER_BAR) === Math.min(stepBar, spanBars - 1) ? Math.floor((rollBeat % BEATS_PER_BAR) * 4) : undefined}
         onChange={(row, step, v) => {
           const pitch = Number(stepRows[row]!.id);
-          if (v > 0) { if (drums) previewNote('drums', pitch, v, undefined, undefined, track.kit, track.pads?.[pitch]); else previewNote(track.instrument, pitch, v, 0.3, track.sound); }
+          if (v > 0) { previewOn(track, pitch, v, drums ? undefined : 0.3, track.pads?.[pitch]); }
           setNotes((n) => setStep(n, Math.min(stepBar, spanBars - 1), pitch, step, v, drums ? 0.25 : drawLength), 'steps');
         }} />
     </div>
@@ -1403,7 +1413,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     >
       {rows.map((r, i) => (
         <div key={r.pitch} className="studio-row" role="row" data-shade={r.shade || undefined} data-black={r.black || undefined} style={{ top: i * rowH, height: rowH }}>
-          <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} data-on={heldPitches.has(r.pitch) || undefined} onPointerDown={(e) => { e.stopPropagation(); previewNote(track.instrument, r.pitch, undefined, undefined, track.sound, track.kit, track.pads?.[r.pitch]); }}>{r.label}</span>
+          <span className="studio-key" role="rowheader" data-black={r.black || undefined} data-c={r.c || undefined} data-drum={drums || undefined} data-on={heldPitches.has(r.pitch) || undefined} onPointerDown={(e) => { e.stopPropagation(); previewOn(track, r.pitch, undefined, undefined, track.pads?.[r.pitch]); }}>{r.label}</span>
           <div
             className="studio-row-cells"
             role="gridcell"
