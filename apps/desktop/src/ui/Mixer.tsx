@@ -47,6 +47,9 @@ export interface MixerStripProps {
   ceiling?: number;
   disabled?: boolean;
   className?: string;
+  /** The send knobs, above pan as in Live's Mixer (one per return track). A strip with none passes a spacer of the same
+   *  height, so every strip's fader lines up. */
+  sends?: ReactNode;
 }
 
 const RESET_MS = 400;
@@ -57,7 +60,7 @@ export const faderLabel = (db: number, floor = -60): string => (db <= floor ? 'â
 
 export function MixerStrip({
   name, color, volume: given, onVolume, onVolumeCommit, volumeReset = 0, pan, onPan, onPanCommit, mute, onMute, solo, onSolo, arm, onArm,
-  dimmed, selected, onSelect, meter, proposed, floor = -60, ceiling = 6, disabled, className,
+  dimmed, selected, onSelect, meter, proposed, floor = -60, ceiling = 6, disabled, className, sends,
 }: MixerStripProps) {
   const id = useId();
   const fixed = given === undefined || !onVolume;
@@ -116,6 +119,7 @@ export function MixerStrip({
       data-disabled={disabled || undefined}
     >
       <button type="button" id={`${id}-name`} className="ui-strip-name" title={name} aria-pressed={onSelect ? !!selected : undefined} disabled={!onSelect} onClick={onSelect}>{name}</button>
+      {sends}
       {/* The knob and its readout say "pan" (Live prints no label): the name is for screen readers. */}
       {pan !== undefined && onPan
         ? <Knob className="ui-strip-pan" label="Pan" value={pan} min={-1} max={1} step={0.01} reset={0} format={panLabel} proposed={proposed?.pan} disabled={disabled} onChange={onPan} {...(onPanCommit ? { onCommit: onPanCommit } : {})} />
