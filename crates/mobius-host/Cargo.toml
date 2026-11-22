@@ -25,6 +25,9 @@ rusqlite = { workspace = true, features = ["limits", "hooks"] }
 getrandom = "0.3"
 sha2 = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+dirs = "6"
+notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
+trash = "5"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
 webpki-roots = "1"
 mail-parser = "0.11.9"

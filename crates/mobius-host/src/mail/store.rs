@@ -57,7 +57,7 @@ pub struct Account {
 }
 
 impl Account {
-    /// An account kept only on this computer (the demo workspace's): never mirrored, and sending keeps the mail in
+    /// An account kept only on this computer: never mirrored, and sending keeps the mail in
     /// Sent here.
     #[must_use]
     pub fn is_local(&self) -> bool {
@@ -657,7 +657,7 @@ impl Mail {
         Mail { dir, secrets, state: Mutex::new(saved), connector }
     }
 
-    /// Makes a mail account kept only on this computer from a folder of messages (the demo workspace's): `account.json`
+    /// Makes a mail account kept only on this computer from a folder of messages: `account.json`
     /// (`{"name","email"}`), then `inbox/*.eml` and `sent/*.eml`, in file-name order. The messages are moved in time so
     /// the newest arrived a few minutes ago, keeping their spacing; a message with `X-Mobius-Seen: yes` is already read
     /// and one with `X-Mobius-Flagged: yes` is flagged. Mail already in `data_dir` is left as it is.

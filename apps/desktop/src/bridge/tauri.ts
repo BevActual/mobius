@@ -199,7 +199,6 @@ export function createTauriBridge(): MobiusBridge {
       rename: (id, name) => call('profiles', 'rename', [id, name], () => ({ ok: false as const, error: 'Not here.' })),
       remove: (id) => call('profiles', 'remove', [id], () => ({ ok: false as const, error: 'Not here.' })),
       switch: (id) => call('profiles', 'switch', [id], () => ({ ok: false as const, error: 'Not here.' })),
-      openDemo: () => call('profiles', 'openDemo', [], () => ({ ok: false as const, error: 'Not here.' })),
     },
     signins: {
       list: (conversation) => call('signins', 'list', [conversation], () => refused),
@@ -578,6 +577,7 @@ export function createTauriBridge(): MobiusBridge {
       list: () => call('drives', 'list', [], () => []),
       add: (drive) => call('drives', 'add', [drive], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
       remove: (id) => call('drives', 'remove', [id], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
+      addPlace: (path) => call('drives', 'addPlace', path ? [path] : [], () => ({ ok: false as const, message: 'Folders on this computer are not available.', conflict: false })),
       signIn: (id, password) => call('drives', 'signIn', [id, password], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),
       browse: (id, folder) => call('drives', 'browse', [id, folder], () => []),
       read: (id, path) => call('drives', 'read', [id, path], () => ({ ok: false as const, message: 'Drives are not available.', conflict: false })),

@@ -49,10 +49,16 @@ async function showSongs(): Promise<void> {
   await expect(songsTab.or(shell().getByRole('complementary', { name: 'Songs' })).first()).toBeVisible();
   if ((await songsTab.count()) > 0 && (await songsTab.getAttribute('aria-selected')) !== 'true') await songsTab.click();
 }
-/** Opens a song from the songs list. */
+/**
+ * Opens a song from the songs list. Music reopens the last song a moment after it starts, which turns the songs list
+ * into a tab behind the Library: a click aimed while that happens waits on a hidden row, so the list is brought to the
+ * front again and the click tried again until it lands.
+ */
 async function openSong(name: string): Promise<void> {
-  await showSongs();
-  await shell().getByRole('button', { name, exact: true }).click();
+  await expect(async () => {
+    await showSongs();
+    await shell().getByRole('button', { name, exact: true }).click({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 /** Adds a track from Sounds in the songs list. */
 async function addTrack(name: string): Promise<void> {
@@ -239,8 +245,8 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
   // The four bars go round, as in the demo (without the loop they end after 8.6 s, mid-test). Space plays them even with
   // a clip focused, as anywhere else in Music.
-  await shell().getByRole('button', { name: 'Loop' }).click();
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await shell().getByRole('button', { name: 'Loop', exact: true }).click();
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
   await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -497,7 +503,7 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
   await shell().keyboard.press('Control+j');
   await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+4', '60@0+4']);
   await shell().keyboard.press('Control+l');
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('the Transform menu arpeggiates a chord and strums it, each undone', async () => {
@@ -563,6 +569,22 @@ test('the Library finds a sound by words and tags, puts it on the chosen track o
   await lib.getByRole('combobox', { name: 'Show' }).click();
   await shell().getByRole('option', { name: /^Collection 3/ }).click();
   await expect(lib.locator('.studio-library-name')).toHaveText(['Reverb']);
+});
+
+test('the Mixer opens beside the Detail with a strip per track: the fader and Mute change the track in the song', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Mixer', exact: true }).click();
+  const mixer = shell().getByRole('region', { name: 'Mixer' });
+  await expect(mixer.getByRole('slider', { name: 'Keys volume' })).toBeVisible();
+  const fader = mixer.getByRole('slider', { name: 'Keys volume' });
+  const before = Number(await fader.getAttribute('aria-valuenow'));
+  await fader.focus();
+  // Page Down takes 6 dB off: about half the gain.
+  await shell().keyboard.press('PageDown');
+  await expect(fader).toHaveAttribute('aria-valuenow', String(Math.round((before - 6) * 10) / 10));
+  await expect.poll(() => saved().tracks.find((t) => t.name === 'Keys')!.volume).toBeLessThan(0.6);
+  await mixer.getByRole('button', { name: 'Mute Keys' }).click();
+  await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
 });
 
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
@@ -729,6 +751,47 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await tracks().getByRole('button', { name: 'Add track' }).click();
   await shell().getByRole('menu', { name: 'Add track' }).getByRole('menuitem', { name: 'Lead' }).click();
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
+});
+
+test('Loop on a clip in Arrange repeats it when it is stretched, as Live\'s Loop switch does', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  await ruler.click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Add 4 Bars' }).click();
+  const bar = (await ruler.boundingBox())!.width / 8;
+  const clip = () => shell().getByRole('button', { name: /^Keys, bar/ }).first();
+  await clip().click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Loop', exact: true }).click();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 1, looped');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown } | undefined)?.loop).toEqual({ start: 0, end: 4 });
+  // Stretched a bar, it plays its bar twice: the notes are kept once, and the second pass is drawn after a notch.
+  const b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + b.width - 2, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + b.width - 2 + bar, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 1 to 2, looped');
+  await expect.poll(() => saved().tracks[0]!.clips?.[0]?.length).toBe(8);
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
+  await expect(clip().locator('.studio-clip-turn')).toHaveCount(1);
+  // Ctrl+Down halves the loop (Live's Clip View): half a bar, four passes. Opened, the Clip toolbar shows the loop.
+  await clip().focus();
+  await shell().keyboard.press('Control+ArrowDown');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown } | undefined)?.loop).toEqual({ start: 0, end: 2 });
+  await expect(clip().locator('.studio-clip-turn')).toHaveCount(3);
+  await clip().press('Enter');
+  const loop = shell().getByRole('group', { name: /^Loop of / });
+  await expect(loop.getByRole('button', { name: 'Loop clip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(loop.getByRole('spinbutton', { name: 'Loop length', exact: true })).toHaveAttribute('aria-valuenow', '2');
+  // The start marker: Up moves it a quarter beat into the clip.
+  await loop.getByRole('spinbutton', { name: 'Start', exact: true }).press('ArrowUp');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { offset?: number } | undefined)?.offset).toBe(0.25);
+  // Stop Looping takes the loop off; the clip stays as long, and what's past its notes is quiet.
+  await clip().click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Stop Looping' }).click();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 1 to 2');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown; length?: number } | undefined)?.length === 8 && !(saved().tracks[0]!.clips?.[0] as { loop?: unknown }).loop).toBe(true);
 });
 
 test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied with Ctrl+D and deleted, each undone', async () => {

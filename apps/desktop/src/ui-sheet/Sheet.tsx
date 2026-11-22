@@ -10,6 +10,8 @@ import {
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
   MixerStrip,
+  SendKnob,
+  Sends,
   PatchCanvas, Port, layoutFlow, type PatchBox, type PatchCable, type PatchLevels, type PatchSelection,
   BeforeAfter, HoldButton, useHold,
   NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, barsLabel, clockLabel, type LevelFeed, type ReductionFeed,
@@ -189,6 +191,25 @@ function MixerDemo() {
       ))}
       {/* Main: no pan, mute or solo, so only its fader and meter, level with the tracks'. */}
       <MixerStrip name="Main" volume={main} onVolume={setMain} meter={(m) => { meters.current[tracks.length] = m; m?.set(-9, -8); }} />
+    </div>
+  );
+}
+
+function SendsDemo() {
+  const tracks = ['Drums', 'Bass', 'Keys'];
+  const [sends, setSends] = useState([[0.5, 0], [0.25, 0.7], [0, 0.4]]);
+  const put = (t: number, r: number, v: number) => setSends((all) => all.map((row, i) => (i === t ? row.map((x, j) => (j === r ? v : x)) : row)));
+  return (
+    <div className="sheet-sends">
+      {tracks.map((name, t) => (
+        <div key={name}><span className="sheet-sends-name">{name}</span>
+          <Sends count={2} label={`${name} sends`}>
+            {['A', 'B'].map((letter, r) => <SendKnob key={letter} letter={letter} value={sends[t]![r]!} onChange={(v) => put(t, r, v)} proposed={t === 2 && r === 1} />)}
+          </Sends>
+        </div>
+      ))}
+      {/* A return or Main: no sends, the same room kept empty. */}
+      <div><span className="sheet-sends-name">A Return</span><Sends count={2} /></div>
     </div>
   );
 }
@@ -676,6 +697,9 @@ export function Sheet() {
 
         <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
           <MixerDemo />
+        </Card>
+        <Card title="Send knobs (above pan in each mixer strip, one per return; Keys' send B moved by Mobius; a return keeps the room empty)" shot="sends">
+          <SendsDemo />
         </Card>
         <Card title="Launcher and Go button (the frame without a rail: Ctrl+K with nothing typed)" shot="launcher" wide>
           <LauncherDemo />

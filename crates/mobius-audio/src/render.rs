@@ -1,6 +1,6 @@
 //! The song made into sound, block by block on the sample clock: the same code for offline render and, next, for the
-//! audio thread. Notes start on their own sample; each track's notes are mixed, set to its volume and pan, then go
-//! to the master (0.8, as the window's).
+//! audio thread. Notes start on their own sample; each track's notes are mixed, set to its volume and pan, and sent
+//! on to the returns; tracks and returns go into Main, through its effects and its level (0.8 unless the song says).
 
 use crate::clock::Clock;
 use crate::drum::Hit;
@@ -8,8 +8,6 @@ use crate::fx::{pan, Chain};
 use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
-/// The master's level.
-const MASTER: f64 = 0.8;
 /// The longest block made at once: a longer one is made in pieces of this.
 pub const MAX_BLOCK: usize = 4096;
 /// The most notes one track sounds at once: a note past it takes the place of the oldest.
@@ -47,6 +45,20 @@ struct Lane {
     scratch: Vec<f32>,
     scratch_right: Vec<f32>,
     /// The loudest sample of the last block, left and right, after volume and pan.
+    peak: (f32, f32),
+    /// Its sends: a return (by its place in the renderer's) and how much goes to it, after volume and pan.
+    sends: Vec<(usize, f32)>,
+}
+
+/// A return track as it plays: what the tracks send it, through its effects, volume and pan, into Main.
+struct ReturnLane {
+    id: String,
+    volume: f64,
+    pan: f64,
+    chain: Option<Chain>,
+    fx_key: String,
+    left: Vec<f32>,
+    right: Vec<f32>,
     peak: (f32, f32),
 }
 
@@ -195,6 +207,11 @@ impl Oneshots {
 pub struct Renderer {
     clock: Clock,
     lanes: Vec<Lane>,
+    returns: Vec<ReturnLane>,
+    /// Main's effects (and what they were made from) and its level.
+    main: Option<Chain>,
+    main_key: String,
+    main_volume: f64,
     /// The next sample to make, counted from the song's start.
     sample: u64,
     peak: (f32, f32),
@@ -310,6 +327,21 @@ impl Renderer {
                 })
                 .collect::<Vec<_>>()
         });
+        let returns: Vec<ReturnLane> = song
+            .returns
+            .iter()
+            .take(crate::song::MAX_RETURNS)
+            .map(|r| ReturnLane {
+                id: r.id.clone(),
+                volume: if r.muted { 0.0 } else { r.volume },
+                pan: r.pan,
+                chain: Chain::new(&r.fx, sample_rate, 60.0 / song.tempo, true),
+                fx_key: serde_json::to_string(&r.fx).unwrap_or_default(),
+                left: vec![0.0; MAX_BLOCK],
+                right: vec![0.0; MAX_BLOCK],
+                peak: (0.0, 0.0),
+            })
+            .collect();
         let lanes = heard
             .into_iter()
             .map(|t| {
@@ -347,12 +379,22 @@ impl Renderer {
                     scratch: vec![0.0; MAX_BLOCK],
                     scratch_right: vec![0.0; MAX_BLOCK],
                     peak: (0.0, 0.0),
+                    sends: t
+                        .sends
+                        .iter()
+                        .filter(|(_, level)| **level > 0.0)
+                        .filter_map(|(id, level)| Some((returns.iter().position(|r| &r.id == id)?, level.min(1.0) as f32)))
+                        .collect(),
                 }
             })
             .collect();
         Renderer {
             clock,
             lanes,
+            returns,
+            main: Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true),
+            main_key: serde_json::to_string(&song.main.fx).unwrap_or_default(),
+            main_volume: song.main.volume.max(0.0),
             sample: start,
             peak: (0.0, 0.0),
             cycle: cycle.filter(|_| !how.session).map(|(a, b)| (clock.sample_of_beat(a), clock.sample_of_beat(b))),
@@ -366,9 +408,9 @@ impl Renderer {
         }
     }
 
-    /// The tracks heard, in the order `peaks` gives their levels.
+    /// The tracks heard, then the returns, in the order `peaks` gives their levels.
     pub fn track_ids(&self) -> impl Iterator<Item = &str> {
-        self.lanes.iter().map(|l| l.id.as_str())
+        self.lanes.iter().map(|l| l.id.as_str()).chain(self.returns.iter().map(|r| r.id.as_str()))
     }
 
     /// Listens to the parts of one effect (by its [`crate::fx::fx_key`]) on the lane at `lane`, or to none.
@@ -387,9 +429,9 @@ impl Renderer {
         }
     }
 
-    /// Each track's loudest sample in the last block (left, right), then the master's.
+    /// Each track's loudest sample in the last block (left, right), then each return's, then Main's.
     pub fn peaks(&self) -> impl Iterator<Item = (f32, f32)> + '_ {
-        self.lanes.iter().map(|l| l.peak).chain(std::iter::once(self.peak))
+        self.lanes.iter().map(|l| l.peak).chain(self.returns.iter().map(|r| r.peak)).chain(std::iter::once(self.peak))
     }
 
     /// In the Session view, each track's id and what it is doing, in song order.
@@ -443,6 +485,14 @@ impl Renderer {
                 }
             }
         }
+        for ret in &mut self.returns {
+            if let Some(was) = old.returns.iter_mut().find(|w| w.id == ret.id && w.fx_key == ret.fx_key) {
+                std::mem::swap(&mut ret.chain, &mut was.chain);
+            }
+        }
+        if self.main_key == old.main_key {
+            std::mem::swap(&mut self.main, &mut old.main);
+        }
         // The Session view's clips go on where they were.
         if let (Some(new), Some(old)) = (self.session.as_mut(), old.session.as_ref()) {
             for track in new {
@@ -478,6 +528,9 @@ impl Renderer {
         self.peak = (0.0, 0.0);
         for lane in &mut self.lanes {
             lane.peak = (0.0, 0.0);
+        }
+        for ret in &mut self.returns {
+            ret.peak = (0.0, 0.0);
         }
         let mut done = 0;
         while done < frames {
@@ -526,6 +579,23 @@ impl Renderer {
         let spb = self.clock.seconds_per_beat();
         let (from, to) = (self.sample, self.sample + frames as u64);
         let clock = self.clock;
+        let main_volume = self.main_volume as f32;
+        for ret in &mut self.returns {
+            ret.left[..frames].fill(0.0);
+            ret.right[..frames].fill(0.0);
+        }
+        let returns = &mut self.returns;
+        // A track's sound into Main (before Main's effects and level) and on to its returns; its meter reads it at
+        // Main's level, as it is heard with no effects on Main.
+        let out = |peak: &mut (f32, f32), sends: &[(usize, f32)], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
+            *peak = (peak.0.max((l * main_volume).abs()), peak.1.max((r * main_volume).abs()));
+            left[i] += l;
+            right[i] += r;
+            for &(to, level) in sends {
+                returns[to].left[i] += l * level;
+                returns[to].right[i] += r * level;
+            }
+        };
         for (index, lane) in self.lanes.iter_mut().enumerate() {
             // The clip the Session view is playing on this track, if any.
             let clip = self.session.as_ref().and_then(|s| s.iter().find(|t| t.lane == Some(index))).and_then(|t| {
@@ -595,10 +665,7 @@ impl Renderer {
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
                     let (a, b) = if lane.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, lane.pan, stereo) };
-                    let (l, r) = ((a * MASTER) as f32, (b * MASTER) as f32);
-                    lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
-                    left[i] += l;
-                    right[i] += r;
+                    out(&mut lane.peak, &lane.sends, returns, i, (a as f32, b as f32), left, right);
                 }
                 continue;
             }
@@ -609,11 +676,31 @@ impl Renderer {
                 let (volume, scale) = if lane.auto.is_empty() { (lane.volume, 1.0) } else { let v = f64::from(lane.volumes[i]); (v, if lane.volume > 0.0 { v / lane.volume } else { 0.0 }) };
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
                 let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * volume, b * volume, lane.pan, true) } else { (a * gl * scale, b * gr * scale) };
-                let (l, r) = ((l * MASTER) as f32, (r * MASTER) as f32);
-                lane.peak = (lane.peak.0.max(l.abs()), lane.peak.1.max(r.abs()));
+                out(&mut lane.peak, &lane.sends, returns, i, (l as f32, r as f32), left, right);
+            }
+        }
+        // Each return: what was sent to it, through its effects, then its volume and pan, into Main.
+        for ret in returns.iter_mut() {
+            let (rl, rr) = (&mut ret.left[..frames], &mut ret.right[..frames]);
+            if let Some(chain) = &mut ret.chain {
+                chain.process(rl, rr, rate);
+            }
+            for i in 0..frames {
+                let (a, b) = (f64::from(rl[i]) * ret.volume, f64::from(rr[i]) * ret.volume);
+                let (a, b) = if ret.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, ret.pan, true) };
+                let (l, r) = (a as f32, b as f32);
+                ret.peak = (ret.peak.0.max((l * main_volume).abs()), ret.peak.1.max((r * main_volume).abs()));
                 left[i] += l;
                 right[i] += r;
             }
+        }
+        // Main: its effects, then its level.
+        if let Some(chain) = &mut self.main {
+            chain.process(left, right, rate);
+        }
+        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
+            *l *= main_volume;
+            *r *= main_volume;
         }
         // The metronome, on each beat in this piece (inside the song), straight to the master.
         if self.click {
@@ -627,7 +714,7 @@ impl Renderer {
                     self.ticks.remove(0);
                 }
                 let wait = usize::try_from(clock.sample_of_beat(beat) - from).unwrap_or(0);
-                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: MASTER });
+                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: self.main_volume });
                 beat += 1.0;
             }
         }
@@ -794,7 +881,7 @@ mod tests {
         }
         assert!(l[96_000..].iter().all(|x| *x == 0.0));
         let peak = |a: usize| l[a..a + 200].iter().fold(0f32, |m, x| m.max(x.abs()));
-        assert!((f64::from(peak(0)) - 0.28 * MASTER).abs() < 0.02 && (f64::from(peak(24_000)) - 0.16 * MASTER).abs() < 0.02);
+        assert!((f64::from(peak(0)) - 0.28 * 0.8).abs() < 0.02 && (f64::from(peak(24_000)) - 0.16 * 0.8).abs() < 0.02);
         assert!(r.past_end() && !r.finished());
         // Without the click, silence.
         let (quiet, _) = play_for(&s, Playing::default(), 48_000);
@@ -855,5 +942,31 @@ mod tests {
         r.render(&mut vec![0f32; 96_000], &mut vec![0f32; 96_000]);
         assert_eq!(r.session().next().unwrap().1, SessionState::default());
         assert!(!r.past_end());
+    }
+    #[test]
+    fn a_send_reaches_its_return_and_main_sets_the_level() {
+        let note = r#""clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0,"length":1,"velocity":1}]}]"#;
+        let with = |rest: &str, sends: &str| {
+            Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,{rest}"tracks":[{{"id":"t","instrument":"lead",{note}{sends}}}]}}"#)).unwrap()
+        };
+        let dry = render_song(&with("", ""), 48_000).0;
+        let loud = |s: &[f32]| s.iter().fold(0f32, |m, x| m.max(x.abs()));
+        // A return with no effects at full volume, sent all of the track: the track is heard twice over.
+        let sent = render_song(&with(r#""returns":[{"id":"a"}],"#, r#","sends":{"a":1}"#), 48_000).0;
+        assert!((loud(&sent) / loud(&dry) - 2.0).abs() < 1e-3, "{}", loud(&sent) / loud(&dry));
+        // A send to a return the song lacks, or to a muted one, adds nothing.
+        assert_eq!(render_song(&with(r#""returns":[{"id":"a"}],"#, r#","sends":{"b":1}"#), 48_000).0, dry);
+        assert_eq!(render_song(&with(r#""returns":[{"id":"a","muted":true}],"#, r#","sends":{"a":1}"#), 48_000).0, dry);
+        // Main at half its usual 0.8 halves everything.
+        let half = render_song(&with(r#""main":{"volume":0.4},"#, ""), 48_000).0;
+        assert!((loud(&half) / loud(&dry) - 0.5).abs() < 1e-3);
+        // The return has its own meter, after the tracks' and before Main's.
+        let mut r = Renderer::new(&with(r#""returns":[{"id":"a","volume":0.5}],"#, r#","sends":{"a":1}"#), 48_000, 0.0);
+        let (mut l, mut rr) = (vec![0f32; 4800], vec![0f32; 4800]);
+        r.render(&mut l, &mut rr);
+        assert_eq!(r.track_ids().collect::<Vec<_>>(), ["t", "a"]);
+        let peaks: Vec<_> = r.peaks().collect();
+        assert_eq!(peaks.len(), 3);
+        assert!((peaks[1].0 / peaks[0].0 - 0.5).abs() < 1e-3);
     }
 }

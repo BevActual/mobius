@@ -275,14 +275,14 @@ test('the model menu groups every provider with a key, can be searched, and swit
 test('permission and mode are changed from the message box, and the permission matches Settings', async () => {
   await start();
   const permission = shell().getByRole('button', { name: 'Permission' });
-  await expect(permission).toContainText('Each time');
+  await expect(permission).toContainText('Ask each time');
   await permission.click();
   await menu('Permission').getByRole('menuitemradio', { name: /^Auto/ }).click();
   await expect(permission).toContainText('Auto');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('smart');
   await permission.click();
   await menu('Permission').getByRole('menuitemradio', { name: /^Review changes/ }).click();
-  await expect(permission).toContainText('Review');
+  await expect(permission).toContainText('Review changes');
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).approvalMode).toBe('propose');
   // Shift+Tab in the message box goes to the next mode: Agent, Ask, Plan.
   const mode = shell().getByRole('button', { name: /^Mode: / });

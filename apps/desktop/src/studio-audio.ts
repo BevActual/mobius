@@ -352,6 +352,8 @@ export interface Player {
   update?(song: Song): void;
   /** How loud a part of a track's effect is sounding now, in dB (−90 for silence), or null when it isn't playing. */
   level?(track: string, fx: string, part: string): number | null;
+  /** A track's output level (or `master`'s), left and right in dB, or null when there is none to show (the engine only). */
+  meter?(id: string): [number, number] | null;
 }
 
 /** A level in dB from a stretch of samples: their RMS, with silence at −90. */

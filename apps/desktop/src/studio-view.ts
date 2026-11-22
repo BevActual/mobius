@@ -514,7 +514,48 @@ export function resizeClip(clips: readonly ArrangeClip[], id: string, length: nu
   if (!c) return [...clips];
   const { hi } = roomFor(clips, id, songBeats);
   const to = cleanBeat(Math.max(Math.min(1, hi - c.start), Math.min(hi - c.start, length)));
-  return clips.map((x) => (x.id === id ? { ...x, length: to, notes: x.notes.filter((n) => n.start < to) } : x));
+  // A looped clip keeps its notes (stretching it shows more passes); a plain one loses what falls past its new end.
+  return clips.map((x) => (x.id === id ? { ...x, length: to, notes: x.loop || x.offset ? x.notes : x.notes.filter((n) => n.start < to) } : x));
+}
+
+const beat4 = (v: number) => Math.round(v * 1e4) / 1e4;
+
+/**
+ * Sets a clip's start marker (`offset`) and loop (`loopStart`, `loopLength`), as Live's Clip View fields do, in beats of
+ * the clip's own time. A loop is at least a quarter beat; nothing goes below 0.
+ */
+export function setClipLoop(clips: readonly ArrangeClip[], id: string, to: { offset?: number; loopStart?: number; loopLength?: number }): ArrangeClip[] {
+  return clips.map((c) => {
+    if (c.id !== id) return c;
+    const next = { ...c };
+    if (to.offset !== undefined) { const o = beat4(Math.max(0, to.offset)); if (o > 0) next.offset = o; else delete next.offset; }
+    if (c.loop && (to.loopStart !== undefined || to.loopLength !== undefined)) {
+      const start = beat4(Math.max(0, to.loopStart ?? c.loop.start));
+      const length = beat4(Math.max(0.25, to.loopLength ?? c.loop.end - c.loop.start));
+      next.loop = { start, end: beat4(start + length) };
+    }
+    return next;
+  });
+}
+
+/** Doubles (`factor` 2) or halves (0.5) a looped clip's loop, as Ctrl+Up and Ctrl+Down do in Live's Clip View. */
+export function scaleClipLoop(clips: readonly ArrangeClip[], id: string, factor: number): ArrangeClip[] {
+  const c = clips.find((x) => x.id === id);
+  if (!c?.loop) return [...clips];
+  return setClipLoop(clips, id, { loopLength: (c.loop.end - c.loop.start) * factor });
+}
+
+/**
+ * Turns a clip's loop on or off, as Live's Loop switch does. On, the loop is what the clip plays now: from its start
+ * marker for its length, so it sounds the same until it is stretched, when it repeats.
+ */
+export function toggleClipLoop(clips: readonly ArrangeClip[], id: string): ArrangeClip[] {
+  return clips.map((c) => {
+    if (c.id !== id) return c;
+    if (c.loop) { const { loop: _, ...rest } = c; return rest; }
+    const from = c.offset ?? 0;
+    return { ...c, loop: { start: from, end: Math.round((from + c.length) * 1e4) / 1e4 } };
+  });
 }
 
 /** A copy of a clip straight after it, when there is room there before the next clip and the song's end; else null. */

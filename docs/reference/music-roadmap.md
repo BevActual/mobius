@@ -30,6 +30,7 @@ not designs to copy.
 | The computer keyboard is an instrument | A S D F… play the white keys and W E T Y… the black ones. Z and X move an octave, and C and V change velocity. You hear the chosen track's own sound. | Building |
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Building (notes from the computer keyboard into the chosen track; count-in next) |
 | Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
+| Sound from the native engine | Music plays, previews notes, counts in and exports through Mobius's own audio engine in the desktop app (the computer's sound output, with meters). Where the engine can't open an output, Music plays in the window as before. | Have |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
 | Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; Arrange clips: drag to move, drag the edge to stretch, Ctrl+D, 0 and Delete) |
 | Library | A Library tab in the left dock, after Live's Browser: categories and collections, search with `#tag`, tag filters, preview, and Enter to put a sound on the chosen track (or a new one) or add an effect. | Have |
@@ -132,7 +133,8 @@ notes for good, so the file always shows what you hear.
 | Volume, pan, mute and solo | Per track. | Have |
 | Level meters | Per track and for the song. | Next (library `LevelMeter`) |
 | Shared effects | One reverb or delay that many tracks send to. | Next |
-| Mixer view | Every track's level, pan and sends side by side. | Later |
+| Mixer view | A Mixer tab beside the Detail at the bottom (Ctrl+Alt+M, or the toolbar button): a strip per track with pan, fader, level meter, mute and solo, and the main out's meter. Meters move while the native engine plays. Sends next, with return tracks. | Have |
+| Clip loops | Loop in a clip's menu in Arrange: stretched, the clip repeats, with a notch where each pass begins and the later passes drawn faintly in the notes editor; a clip can start partway in (its start marker), as in Live. Opened, a clip shows its Loop switch, start marker and loop in the Clip toolbar; Ctrl+Up and Ctrl+Down double and halve the loop. | Have |
 | Freeze | Turning a track to audio so it costs nothing to play. | Later |
 
 ## Recording and audio

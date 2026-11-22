@@ -2004,7 +2004,7 @@ fn the_bass_and_pad_ask_finds_a_song_named_from_musics_folder() {
     let (b, _core, _events, dir) = bridge_in(tempfile::tempdir().unwrap());
     let ws = dir.path().join("workspace");
     std::fs::create_dir_all(ws.join("studio/Songs")).unwrap();
-    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo/workspace/studio/Songs/Demo.json"), ws.join("studio/Songs/Demo.json")).unwrap();
+    std::fs::copy(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/song.json"), ws.join("studio/Songs/Demo.json")).unwrap();
     let done = b.host_request("host.tool", &json!({ "tool": "studio.bass_and_pad", "arguments": { "path": "Songs/Demo.json" } }));
     assert!(done.is_ok(), "{done:?}");
     let song: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(ws.join("studio/Songs/Demo.json")).unwrap()).unwrap();

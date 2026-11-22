@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duplicateClip, moveClip, resizeClip, followScroll, soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { duplicateClip, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, followScroll, soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -310,5 +310,28 @@ describe('clips in Arrange', () => {
     const out = duplicateClip(lane, 'b', 32)!;
     expect(out.clips.map((c) => [c.id, c.start])).toEqual([['a', 0], ['b', 8], ['c3', 12]]);
     expect(duplicateClip([clip('a', 0, 4), clip('b', 6, 2)], 'a', 32)).toBeNull();
+  });
+});
+
+describe('a clip\'s loop and start marker (Live\'s Clip View)', () => {
+  const clips = [{ id: 'c1', start: 0, length: 8, notes: [{ pitch: 60, start: 0, length: 1, velocity: 0.8 }] }];
+  it('turns the loop on as what the clip plays now, and off again', () => {
+    const on = toggleClipLoop(clips, 'c1');
+    expect(on[0]!.loop).toEqual({ start: 0, end: 8 });
+    expect(toggleClipLoop(on, 'c1')[0]!.loop).toBeUndefined();
+  });
+  it('sets the start marker and the loop, never below a quarter beat or 0', () => {
+    const on = toggleClipLoop(clips, 'c1');
+    expect(setClipLoop(on, 'c1', { offset: 1 })[0]!.offset).toBe(1);
+    expect(setClipLoop(on, 'c1', { offset: 0 })[0]!.offset).toBeUndefined();
+    expect(setClipLoop(on, 'c1', { loopStart: 2, loopLength: 0 })[0]!.loop).toEqual({ start: 2, end: 2.25 });
+    // A clip with no loop keeps none when its loop fields are set.
+    expect(setClipLoop(clips, 'c1', { loopLength: 4 })[0]!.loop).toBeUndefined();
+  });
+  it('doubles and halves the loop as Ctrl+Up and Ctrl+Down do', () => {
+    const on = setClipLoop(toggleClipLoop(clips, 'c1'), 'c1', { loopLength: 4 });
+    expect(scaleClipLoop(on, 'c1', 2)[0]!.loop).toEqual({ start: 0, end: 8 });
+    expect(scaleClipLoop(on, 'c1', 0.5)[0]!.loop).toEqual({ start: 0, end: 2 });
+    expect(scaleClipLoop(clips, 'c1', 2)[0]!.loop).toBeUndefined();
   });
 });
