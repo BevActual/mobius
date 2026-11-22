@@ -856,7 +856,8 @@ mod tests {
         let centre = render_song(&song(&track("a", "")), 48_000);
         let left = render_song(&song(&track("a", r#""pan":-1,"#)), 48_000);
         assert!(peak(&left.0) > 0.01 && peak(&left.1) < 1e-6);
-        assert!((peak(&left.0) - peak(&centre.0)).abs() < 0.01);
+        // Hard left is 3 dB up on that side (Live's pan law).
+        assert!((peak(&left.0) / peak(&centre.0) - std::f32::consts::SQRT_2).abs() < 0.02);
         let muted = render_song(&song(&track("a", r#""muted":true,"#)), 48_000);
         assert_eq!(peak(&muted.0), 0.0);
         let solo = render_song(&song(&format!("{},{}", track("a", r#""solo":true,"#), track("b", ""))), 48_000);

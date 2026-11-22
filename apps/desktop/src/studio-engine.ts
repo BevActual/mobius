@@ -92,6 +92,20 @@ function follow(tempo: () => number, cycle: Cycle | null, from: number) {
   return { at, off, beat, level, meter };
 }
 
+let stopped: { meters: MusicPosition['meters']; time: number } = { meters: {}, time: 0 };
+let stoppedOff: (() => void) | null = null;
+/**
+ * A meter while the song is stopped: what a key played or a note put in sounds on its track and Main, from the
+ * engine's position (sent while something sounds), as Live's meters move. Null when nothing has sounded lately.
+ */
+export function stoppedMeter(id: string): [number, number] | null {
+  const m = music();
+  if (!engineOn() || !m) return null;
+  stoppedOff ??= m.onPosition((p) => { if (!p.playing) stopped = { meters: p.meters, time: performance.now() }; });
+  if (performance.now() - stopped.time > 250) return null;
+  return stopped.meters[id] ?? null;
+}
+
 /** Plays the Arrange view from `fromBeat`, round `loop` if given. */
 export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
   const m = music();
