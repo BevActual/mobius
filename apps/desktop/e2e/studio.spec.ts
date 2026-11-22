@@ -49,10 +49,16 @@ async function showSongs(): Promise<void> {
   await expect(songsTab.or(shell().getByRole('complementary', { name: 'Songs' })).first()).toBeVisible();
   if ((await songsTab.count()) > 0 && (await songsTab.getAttribute('aria-selected')) !== 'true') await songsTab.click();
 }
-/** Opens a song from the songs list. */
+/**
+ * Opens a song from the songs list. Music reopens the last song a moment after it starts, which turns the songs list
+ * into a tab behind the Library: a click aimed while that happens waits on a hidden row, so the list is brought to the
+ * front again and the click tried again until it lands.
+ */
 async function openSong(name: string): Promise<void> {
-  await showSongs();
-  await shell().getByRole('button', { name, exact: true }).click();
+  await expect(async () => {
+    await showSongs();
+    await shell().getByRole('button', { name, exact: true }).click({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 /** Adds a track from Sounds in the songs list. */
 async function addTrack(name: string): Promise<void> {
