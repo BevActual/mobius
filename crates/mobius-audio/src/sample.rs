@@ -39,16 +39,21 @@ impl Samples {
         read(folder, file, &mut kept).map(|(_, sound)| sound)
     }
 
-    /// Reads every sound the song's audio clips name, from `folder`, into the song's `sounds`. A file outside the
+    /// Reads every sound the song's audio clips, samplers and drum pads name, from `folder`, into the song's `sounds`. A file outside the
     /// folder, missing or not a WAV it reads is left out, so its clip is silent; what went wrong with each is returned.
     pub fn attach(&self, song: &mut Song, folder: &Path) -> Vec<String> {
-        let files: Vec<String> = song
+        let clips = song
             .tracks
             .iter()
             .filter(|t| Song::is_audio(t))
             .flat_map(|t| t.clips.iter().filter_map(|c| c.audio.as_ref()).chain(t.slots.iter().flatten().filter_map(|c| c.audio.as_ref())))
-            .map(|a| a.file.clone())
-            .collect();
+            .map(|a| a.file.clone());
+        // And what its samplers and drum pads play.
+        let samplers = song.tracks.iter().flat_map(|t| {
+            let pads = t.pads.values().filter(move |_| t.instrument == crate::song::Instrument::Drums).filter_map(|p| p.sample.as_ref());
+            Song::sampler_of(t).into_iter().chain(pads).map(|s| s.file.clone())
+        });
+        let files: Vec<String> = clips.chain(samplers).collect();
         let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
         let mut used = Vec::new();
         let mut problems = Vec::new();
@@ -270,6 +275,57 @@ impl Placed {
     }
 }
 
+/// Puts a sound the person brought into the song's `Samples` folder, under `name` (made safe, and numbered if the name
+/// is taken: `Kick.wav`, `Kick 2.wav`), and gives its file relative to the folder (`Samples/Kick.wav`). Only a WAV that
+/// [`crate::wav::read`] reads is taken.
+///
+/// # Errors
+/// When it is not such a WAV, or cannot be saved.
+pub fn import(folder: &Path, name: &str, bytes: &[u8]) -> Result<String, String> {
+    if bytes.len() > crate::wav::MAX_READ {
+        return Err("That sound is too big.".into());
+    }
+    crate::wav::read(bytes).map_err(|why| format!("Music takes WAV files for now ({why})."))?;
+    let stem = name.strip_suffix(".wav").or_else(|| name.strip_suffix(".WAV")).unwrap_or(name);
+    let stem = crate::record::file_stem(stem, "Sample");
+    let samples = folder.join("Samples");
+    std::fs::create_dir_all(&samples).map_err(|e| format!("The Samples folder could not be made: {e}"))?;
+    for n in 1u32.. {
+        let file = if n == 1 { format!("{stem}.wav") } else { format!("{stem} {n}.wav") };
+        match std::fs::OpenOptions::new().write(true).create_new(true).open(samples.join(&file)) {
+            Ok(mut out) => {
+                std::io::Write::write_all(&mut out, bytes).map_err(|e| format!("The sound could not be saved: {e}"))?;
+                return Ok(format!("Samples/{file}"));
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("The sound could not be saved: {e}")),
+        }
+    }
+    Err("The sound could not be saved.".into())
+}
+
+/// The WAV files in the song's `Samples` folder and the folders in it (`Recorded` and so on), relative to the song's
+/// folder, in name order.
+#[must_use]
+pub fn list(folder: &Path) -> Vec<String> {
+    fn walk(dir: &Path, relative: &str, depth: usize, out: &mut Vec<String>) {
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for entry in entries.flatten() {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            let Ok(kind) = entry.file_type() else { continue };
+            if kind.is_dir() && depth < 3 {
+                walk(&entry.path(), &format!("{relative}/{name}"), depth + 1, out);
+            } else if kind.is_file() && name.to_lowercase().ends_with(".wav") {
+                out.push(format!("{relative}/{name}"));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(&folder.join("Samples"), "Samples", 0, &mut out);
+    out.sort();
+    out
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -388,6 +444,25 @@ mod tests {
         let first = song.sounds["Samples/take.wav"].clone();
         samples.attach(&mut song, &dir);
         assert!(Arc::ptr_eq(&first, &song.sounds["Samples/take.wav"]));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_brought_sound_goes_in_the_samples_folder_under_a_fresh_name_and_is_listed() {
+        let dir = std::env::temp_dir().join(format!("mobius-import-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut wav = std::io::Cursor::new(Vec::new());
+        let mut w = crate::wav::Writer::new(&mut wav, 48_000).unwrap();
+        w.write(&[0.5, 0.5]).unwrap();
+        w.finish().unwrap();
+        let wav = wav.into_inner();
+        assert_eq!(import(&dir, "Kick.wav", &wav).unwrap(), "Samples/Kick.wav");
+        assert_eq!(import(&dir, "Kick.wav", &wav).unwrap(), "Samples/Kick 2.wav");
+        assert_eq!(import(&dir, "../up/Snare", &wav).unwrap(), "Samples/up Snare.wav");
+        assert!(import(&dir, "notes.txt", b"hello").is_err());
+        std::fs::create_dir_all(dir.join("Samples/Recorded")).unwrap();
+        std::fs::write(dir.join("Samples/Recorded/Vocal 1.wav"), &wav).unwrap();
+        assert_eq!(list(&dir), ["Samples/Kick 2.wav", "Samples/Kick.wav", "Samples/Recorded/Vocal 1.wav", "Samples/up Snare.wav"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
