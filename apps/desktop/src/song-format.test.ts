@@ -340,3 +340,16 @@ describe('samplers', () => {
     expect(readSampler({ file: 'a.wav', mode: 'classic', root: 60, gainDb: 0, start: 0 })).toEqual({ file: 'a.wav' });
   });
 });
+
+describe('the metronome level', () => {
+  it('keeps the metronome’s volume apart from Main through a read and a write, and leaves it out when unset', () => {
+    const read = parseSong(JSON.stringify({ version: 2, bars: 4, metronome: { volume: 0.35 }, tracks: [] }));
+    if ('error' in read) throw new Error(read.error);
+    expect(read.song.metronome).toEqual({ volume: 0.35 });
+    expect(writeSong(read.song)).toContain('"metronome": {"volume":0.35}');
+    const plain = parseSong(JSON.stringify({ version: 2, bars: 4, tracks: [] }));
+    if ('error' in plain) throw new Error(plain.error);
+    expect(plain.song.metronome).toBeUndefined();
+    expect(writeSong(plain.song)).not.toContain('metronome');
+  });
+});

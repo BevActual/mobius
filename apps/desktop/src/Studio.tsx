@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave } from './studio-wave';
 import { SampleSlot, sampleName } from './StudioSample';
@@ -37,6 +37,8 @@ const fileName = (file: string) => file.split(/[\\/]/).pop()?.replace(/\.[^.]+$/
 /** Adds a track of a sound to the open song, an audio track (Live 12, chapter 9: it plays recordings and samples), or a
  *  Sampler track (36.8: its notes play a sample). */
 const askToAddTrack = (instrument: Instrument | 'audio' | 'sampler') => window.dispatchEvent(new CustomEvent<Instrument | 'audio' | 'sampler'>(ADD_TRACK, { detail: instrument }));
+/** The engine's stems export, once it has one (music.renderStems). */
+type RenderStems = (path: string, name: string, song?: unknown) => Promise<{ ok: true; saved: string; path: string; files: { file: string; peakDb: number; over: boolean }[] } | { ok: false; message: string }>;
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
 const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead'];
 
@@ -1394,6 +1396,29 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; go(); });
   };
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
+  /** Renders every heard track, return and Main into its own WAV, all the same length, in the song's Exports folder
+   *  (Live 12 manual 5.1.3.1, Rendered Track: All Individual Tracks); a silent track gets no file. */
+  const exportStems = async () => {
+    if (exporting || !songs.page) return;
+    const engine = (await engineReady()) ? (window.mobius?.music as (NonNullable<typeof window.mobius>['music'] & { renderStems?: RenderStems }) | undefined) : undefined;
+    if (!engine?.renderStems) { setExported({ text: engine ? 'Exporting stems needs a newer Mobius desktop app.' : 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
+    setExporting(true);
+    const name = songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song';
+    setExported({ text: `Exporting the tracks of “${name}”…`, kind: 'busy', progress: 0 });
+    try {
+      const done = await engine.renderStems(songs.page.path, name, song);
+      if (!done.ok) { setExported({ text: `Couldn’t export: ${done.message}`, kind: 'note' }); return; }
+      const over = done.files.filter((f) => f.over).length;
+      const loud = over ? ` ${over === 1 ? 'One peaks' : `${over} peak`} over 0 dB, so ${over === 1 ? 'it' : 'they'} will clip if made 16 or 24-bit.` : '';
+      setExported({ text: `Exported ${done.files.length} ${done.files.length === 1 ? 'track' : 'tracks'} to ${done.saved}.${loud}`, kind: 'done' });
+    } catch (err) {
+      setExported({ text: `Couldn’t export: ${err instanceof Error ? err.message : String(err)}`, kind: 'note' });
+    } finally { setExporting(false); }
+  };
+  const exportEntries: MenuEntry[] = [
+    { label: 'Export Main as WAV', keys: 'Ctrl+Shift+E', disabled: exporting || song.tracks.length === 0, run: () => void exportWav() },
+    { label: 'Export All Tracks as WAVs (stems)', disabled: exporting || song.tracks.length === 0, run: () => void exportStems() },
+  ];
   const exportWav = async () => {
     if (exporting || !songs.page) return;
     const engine = (await engineReady()) ? window.mobius?.music : undefined;
@@ -1673,8 +1698,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
         {keyboard && <span className="studio-keys-at" title="Note and velocity: the note held, else the one A plays. Z and X change octave, C and V velocity"><Readout label="Note and velocity" width={7} formats={[{ name: 'Note', text: `${heldName ?? `C${keyOctave}`} ${keyVelocity}` }]} /></span>}
         {/* Export is the first to drop into the ⋯ menu, where it keeps its shortcut. */}
-        <ToolbarItem priority="low">
-          <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export as WAV: every track mixed down'} icon={TOOL_ICONS.export} onClick={() => void exportWav()} />
+        <ToolbarItem priority="low" menu={exportEntries}>
+          {/* Export, as Live's Rendered Track: Main (every track mixed down) or each track on its own. */}
+          <Menu label="Export" entries={exportEntries} trigger={<IconButton label="Export" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export as WAV: Main, or every track on its own'} icon={TOOL_ICONS.export} />} />
         </ToolbarItem>
       </ToolbarControls>
       <PanelLayout app="studio" panels={[libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
@@ -1714,6 +1740,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
               { label: click ? 'Turn Metronome Off' : 'Turn Metronome On', keys: 'K', run: () => setClick((c) => !c) },
               { label: counts ? 'Turn Count-In Off' : 'Turn Count-In On', run: () => setCounts((c) => { try { window.localStorage.setItem(COUNT_IN_KEY, c ? '0' : '1'); } catch { /* not kept */ } return !c; }) },
+              // The metronome's and count-in's level, apart from Main (also on the Mixer's Main strip); the one in use is greyed.
+              ...[1, METRONOME_VOLUME, 0.5, 0.25].map((v, i) => ({ label: `Metronome Volume ${Math.round(v * 100)}%`, separated: i === 0, disabled: Math.abs((song.metronome?.volume ?? METRONOME_VOLUME) - v) < 0.005, run: () => change((s) => { s.metronome = { volume: v }; }, 'metronome') })),
               { label: 'Add 4 Bars', separated: true, disabled: song.bars >= 512, run: () => change((s) => { s.bars = Math.min(512, s.bars + 4); }) },
               { label: 'Remove Last 4 Bars', disabled: song.bars <= 4, run: () => change((s) => { s.bars = Math.max(4, s.bars - 4); }) },
               { label: 'Zoom In', separated: true, disabled: zoom >= ZOOMS[ZOOMS.length - 1]!, run: () => setZoom((z) => ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + 1)] ?? z) },
