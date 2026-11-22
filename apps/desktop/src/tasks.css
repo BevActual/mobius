@@ -238,3 +238,9 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .tasks-tools .strip-btn[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
 /* Mobius's change: the floating bar under the last task it changed. */
 .task-items > .task-change { list-style: none; padding: 0 0 var(--sp-2); }
+/* On hover the row's tools take the place of its flag and date: the flag button where the flag was, the date
+   button showing the date. Nothing is shown twice and the edge does not grow. */
+.task-items .task-line:is(:hover, :focus-within) > .task-meta :is(.task-flagged, .task-due),
+.task[data-picked] > .task-line > .task-meta :is(.task-flagged, .task-due) { display: none; }
+.task-tools .task-tool-date { width: auto; padding: 0 var(--sp-1); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.task-tools .task-tool-date .task-due { display: inline; }

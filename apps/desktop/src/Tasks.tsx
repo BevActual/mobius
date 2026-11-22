@@ -325,7 +325,7 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
         const moving = d && findTask(tasks, d);
         if (d && moving) { e.preventDefault(); e.stopPropagation(); void tasks.move(d.list, moving, list, task); }
       } : undefined}>
-      <div ref={line} className="task-line" tabIndex={-1} aria-label={task.text} data-menu={menu ? true : undefined} onKeyDown={onKey}
+      <div ref={line} className="task-line" tabIndex={-1} aria-label={task.text} data-menu={menu ? true : undefined} data-tip-above={proposed || undefined} onKeyDown={onKey}
         onMouseDown={(e) => { if (e.target === e.currentTarget) e.currentTarget.focus(); }}
         onContextMenu={(e) => { if ((e.target as HTMLElement).closest('input, textarea')) return; e.preventDefault(); e.currentTarget.focus(); setMenu({ x: e.clientX, y: e.clientY }); }}>
         <button type="button" role="checkbox" aria-checked={task.done || completing.on} aria-label={task.text} className="task-check"
@@ -355,8 +355,9 @@ function TaskRow({ tasks, list, task, subtasks = [], showList, now, proposed = f
             <input type="date" className="task-date" aria-label={`Due date for ${task.text}`} autoFocus defaultValue={task.due ?? ''}
               onChange={(e) => { setDating(false); void tasks.change(list, task, { due: e.target.value || null }); }} onBlur={() => setDating(false)} onKeyDown={(e) => { if (e.key === 'Escape') setDating(false); }} />
           ) : (
-            <button type="button" className="strip-btn" aria-label={`Set a due date for ${task.text}`} title={task.due ? "Change the due date" : "Due date"} onClick={() => setDating(true)}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 3v3M13 3v3" /></svg>
+            <button type="button" className="strip-btn task-tool-date" aria-label={`Set a due date for ${task.text}`} title={task.due ? "Change the due date" : "Due date"} onClick={() => setDating(true)}>
+              {/* Dated, the button is the date itself, where the date was, so the row's edge does not grow on hover. */}
+              {task.due && !hideDue ? <Due due={task.due} time={task.time} now={now} /> : <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="12" rx="1.5" /><path d="M3.5 8h13M7 3v3M13 3v3" /></svg>}
             </button>
           )}
           <button type="button" className="strip-btn" aria-pressed={task.flagged ?? false} aria-label={task.flagged ? `Unflag ${task.text}` : `Flag ${task.text}`} title={task.flagged ? 'Unflag' : 'Flag'} onClick={() => void tasks.change(list, task, { flagged: !task.flagged })}>
