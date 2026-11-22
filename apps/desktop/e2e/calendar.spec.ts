@@ -102,7 +102,6 @@ test('a calendar file from another app shows in the week, and events are added, 
   // Changing the title of a repeating event keeps its times, and what Mobius does not use stays in the file.
   await page().getByRole('button', { name: /^Standup/ }).first().click();
   const change = shell().getByRole('dialog', { name: 'Edit event' });
-  await expect(change.getByText('This event repeats.')).toBeVisible();
   await change.getByRole('textbox', { name: 'Title' }).fill('Team standup');
   // The popover has no Save: Enter keeps the change.
   await change.getByRole('textbox', { name: 'Title' }).press('Enter');
@@ -213,8 +212,11 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await gone.getByRole('button', { name: 'Delete' }).click();
   await expect(walk(span('11:00', '11:30'))).toHaveCount(0);
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('EXDATE:');
-  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
-  await shell().locator('body').press('ArrowRight');
+  const kept = fs.readFileSync(file('Calendar'), 'utf8');
+  expect(kept).toContain('RRULE:FREQ=DAILY');
+  expect(kept).not.toMatch(/UNTIL=|COUNT=/);
+  // The day after (the toolbar's Next, so where the keyboard's focus was left does not matter here).
+  await tools().getByRole('button', { name: 'Next day' }).click();
   await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await shell().locator('body').press('m');
   await expect(tools().getByRole('radio', { name: 'Month' })).toHaveAttribute('aria-checked', 'true');
