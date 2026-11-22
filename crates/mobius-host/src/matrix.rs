@@ -1088,7 +1088,11 @@ pub(crate) mod tests {
                     }
                     ("POST", "/_matrix/client/v3/login") => {
                         let ok = (json_body["type"] == "m.login.password" && json_body["password"] == "pw" && json_body["identifier"]["user"] == "ana") || (json_body["type"] == "m.login.token" && json_body["token"] == "the-token");
-                        if ok {
+                        // The local space's account (a 48-character password, as Mobius makes).
+                        if json_body["identifier"]["user"] == "me" && json_body["password"].as_str().is_some_and(|p| p.len() == 48) {
+                            minted += 1;
+                            (200, json!({ "user_id": "@me:mobius.localhost", "device_id": format!("DEV{minted}"), "access_token": format!("access-{minted}") }))
+                        } else if ok {
                             minted += 1;
                             (200, json!({ "user_id": "@ana:x", "device_id": format!("DEV{minted}"), "access_token": format!("access-{minted}"), "refresh_token": "refresh-1", "expires_in_ms": 300_000 }))
                         } else {
@@ -1100,6 +1104,10 @@ pub(crate) mod tests {
                         (200, json!({ "access_token": format!("access-{minted}"), "expires_in_ms": 300_000 }))
                     }
                     ("POST", "/_matrix/client/v3/refresh") => (401, json!({ "errcode": "M_UNKNOWN_TOKEN", "error": "gone" })),
+                    // Registration with a token (the local space's server), in Matrix's two steps.
+                    ("POST", "/_matrix/client/v3/register") if json_body["auth"]["token"] == "tok" => (200, json!({ "user_id": "@me:mobius.localhost" })),
+                    ("POST", "/_matrix/client/v3/register") if json_body["auth"].is_null() => (401, json!({ "session": "s1", "flows": [{ "stages": ["m.login.registration_token"] }] })),
+                    ("POST", "/_matrix/client/v3/register") => (401, json!({ "errcode": "M_FORBIDDEN", "session": "s1" })),
                     _ if !signed => (401, json!({ "errcode": "M_UNKNOWN_TOKEN", "error": "Unknown token", "soft_logout": true })),
                     ("GET", "/_matrix/client/v3/account/whoami") => (200, json!({ "user_id": "@ana:x", "device_id": "DEV2" })),
                     ("GET", "/_matrix/client/v3/sync") if !query.contains_key("since") => (200, json!({
@@ -1125,6 +1133,8 @@ pub(crate) mod tests {
                     ("PUT", p) if p.starts_with("/_matrix/client/v3/rooms/!ops:x/send/m.room.message/") => (200, json!({ "event_id": "$sent" })),
                     ("POST", "/_matrix/client/v3/rooms/!ops:x/read_markers") => (200, json!({})),
                     ("POST", "/_matrix/client/v3/logout") => (200, json!({})),
+                    ("POST", "/_matrix/client/v3/createRoom") if signed => (200, json!({ "room_id": if json_body["creation_content"]["type"] == "m.space" { "!space:mobius.localhost" } else { "!general:mobius.localhost" } })),
+                    ("PUT", p) if signed && p.starts_with("/_matrix/client/v3/rooms/!space:mobius.localhost/state/m.space.child/") => (200, json!({ "event_id": "$child" })),
                     _ => (404, json!({ "errcode": "M_UNRECOGNIZED", "error": "Unrecognized request" })),
                 };
                 let out = answer.to_string();

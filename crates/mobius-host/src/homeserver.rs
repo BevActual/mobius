@@ -73,19 +73,29 @@ pub struct Homeserver {
     /// Where builds come from (a test serves its own).
     release: String,
     builds: Vec<(String, String)>,
+    /// Run once the server answers, with its address: sets up the person's account and the space. A failure there
+    /// shows as the space failing.
+    ready: std::sync::OnceLock<Ready>,
 }
+
+pub type Ready = Box<dyn Fn(&str, &str) -> Result<(), String> + Send + Sync>;
 
 impl Homeserver {
     /// The homeserver kept in `dir` (Mobius's data folder `/homeserver`). A copy left running by a crash is stopped.
     pub fn new(dir: PathBuf, emit: crate::bridge::Emit) -> Homeserver {
         mobius_runtime::server::reap_stale(&dir.join("pid"), "tuwunel");
         let builds = build().map(|(file, sha)| vec![(file.to_owned(), sha.to_owned())]).unwrap_or_default();
-        Homeserver { dir, state: Mutex::new(State::Idle), child: Mutex::new(None), busy: AtomicBool::new(false), emit, release: RELEASE.to_owned(), builds }
+        Homeserver { dir, state: Mutex::new(State::Idle), child: Mutex::new(None), busy: AtomicBool::new(false), emit, release: RELEASE.to_owned(), builds, ready: std::sync::OnceLock::new() }
     }
 
     #[cfg(test)]
     fn serving(dir: PathBuf, emit: crate::bridge::Emit, release: String, file: &str, sha: &str) -> Homeserver {
-        Homeserver { dir, state: Mutex::new(State::Idle), child: Mutex::new(None), busy: AtomicBool::new(false), emit, release, builds: vec![(file.to_owned(), sha.to_owned())] }
+        Homeserver { dir, state: Mutex::new(State::Idle), child: Mutex::new(None), busy: AtomicBool::new(false), emit, release, builds: vec![(file.to_owned(), sha.to_owned())], ready: std::sync::OnceLock::new() }
+    }
+
+    /// What to do once the server answers: called with its address and the registration token.
+    pub fn on_ready(&self, ready: Ready) {
+        let _ = self.ready.set(ready);
     }
 
     pub fn status(&self) -> State {
@@ -185,6 +195,19 @@ impl Homeserver {
         Ok(())
     }
 
+    /// The port it listens on: the same each time while it is free, so the space's address stays the same.
+    fn port(&self) -> std::io::Result<u16> {
+        let file = self.dir.join("port");
+        if let Some(port) = std::fs::read_to_string(&file).ok().and_then(|t| t.trim().parse::<u16>().ok()) {
+            if std::net::TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                return Ok(port);
+            }
+        }
+        let port = mobius_runtime::server::free_port()?;
+        std::fs::write(&file, port.to_string())?;
+        Ok(port)
+    }
+
     /// The registration token only Mobius knows: the server lets only Mobius make accounts on it.
     pub fn token(&self) -> Result<String, String> {
         let file = self.dir.join("registration-token");
@@ -205,7 +228,7 @@ impl Homeserver {
     fn start(&self) -> Result<(), State> {
         let failed = |message: String| State::Failed { message, offline: false };
         self.set(State::Starting);
-        let port = mobius_runtime::server::free_port().map_err(|e| failed(format!("No port was free for the space's server: {e}")))?;
+        let port = self.port().map_err(|e| failed(format!("No port was free for the space's server: {e}")))?;
         let token = self.token().map_err(|e| failed(format!("Mobius could not set up the space's server: {e}")))?;
         let log = std::fs::File::create(self.dir.join("server.log")).map_err(|e| failed(format!("Mobius could not start the space's server: {e}")))?;
         let mut command = Command::new(self.program());
@@ -245,6 +268,9 @@ impl Homeserver {
             std::thread::sleep(Duration::from_millis(100));
         }
         *lock(&self.child) = Some(child);
+        if let Some(ready) = self.ready.get() {
+            ready(&url, &token).map_err(failed)?;
+        }
         self.set(State::Running { url });
         Ok(())
     }
@@ -274,6 +300,28 @@ impl Drop for Homeserver {
     fn drop(&mut self) {
         self.stop();
     }
+}
+
+/// Makes the account `user` on the space's server at `url` with the registration token, through the two steps of
+/// Matrix's registration (the server first answers which proof it wants). False when it is there already.
+pub fn register(url: &str, token: &str, user: &str, password: &str) -> Result<bool, String> {
+    let agent: ureq::Agent = ureq::Agent::config_builder().http_status_as_error(false).timeout_global(Some(Duration::from_secs(20))).build().into();
+    let post = |body: &Value| -> Result<(u16, Value), String> {
+        let mut r = agent.post(&format!("{url}/_matrix/client/v3/register")).header("Content-Type", "application/json").send(body.to_string().as_bytes()).map_err(|e| format!("The space's server didn't answer: {e}"))?;
+        let status = r.status().as_u16();
+        Ok((status, r.body_mut().read_to_string().ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null)))
+    };
+    let mut body = json!({ "username": user, "password": password, "inhibit_login": true, "initial_device_display_name": "Mobius" });
+    let (status, answer) = post(&body)?;
+    if status == 400 && answer["errcode"] == "M_USER_IN_USE" {
+        return Ok(false);
+    }
+    if status != 401 {
+        return if (200..300).contains(&status) { Ok(true) } else { Err(format!("The space's server refused the account ({status} {}).", answer["errcode"].as_str().unwrap_or(""))) };
+    }
+    body["auth"] = json!({ "type": "m.login.registration_token", "token": token, "session": answer["session"] });
+    let (status, answer) = post(&body)?;
+    if (200..300).contains(&status) { Ok(true) } else { Err(format!("The space's server refused the account ({status} {}).", answer["errcode"].as_str().unwrap_or(""))) }
 }
 
 /// Whether `dir` holds the build already.
