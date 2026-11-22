@@ -80,10 +80,22 @@ impl Lane {
 /// Sounds heard apart from the song, straight out as the window's sampler plays them: a note as a key is pressed or
 /// put on the roll, and a count-in's ticks. Room for them is made up front, so the audio thread allocates nothing.
 pub struct Oneshots {
-    voices: Vec<Voice>,
-    hits: Vec<Hit>,
+    voices: Vec<(Voice, Gains)>,
+    hits: Vec<(Hit, Gains)>,
     ticks: Vec<Tick>,
     mono: Vec<f32>,
+    left: Vec<f32>,
+    right: Vec<f32>,
+}
+
+/// The left and right gains a note is heard at: its track's volume and pan.
+pub type Gains = (f32, f32);
+
+/// A track's volume and pan as left and right gains, as its lane mixes them.
+#[must_use]
+pub fn track_gains(track: &crate::song::Track) -> Gains {
+    let (l, r) = pan_gains(track.pan);
+    ((l * track.volume) as f32, (r * track.volume) as f32)
 }
 
 /// One sound for [`Oneshots`].
@@ -91,8 +103,10 @@ pub struct Oneshots {
 // Carried by value through a fixed ring: boxing the big variant would free memory on the audio thread.
 #[allow(clippy::large_enum_variant)]
 pub enum Oneshot {
-    Voice(Voice),
-    Hit(Hit),
+    /// A note at its track's volume and pan.
+    Voice(Voice, Gains),
+    /// A drum hit at its track's volume and pan.
+    Hit(Hit, Gains),
     /// A count-in: `beats` ticks `seconds_per_beat` apart, a high one first, starting 50 ms from now.
     CountIn { beats: usize, seconds_per_beat: f64 },
     /// Silence what is sounding (a count-in cut short).
@@ -104,7 +118,7 @@ const ONESHOTS: usize = 16;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
-        Oneshots { voices: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK] }
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
     }
 }
 
@@ -112,17 +126,17 @@ impl Oneshots {
     /// Starts `shot` at the next block; past the room there is, the oldest of its kind gives way.
     pub fn start(&mut self, shot: Oneshot, rate: f64) {
         match shot {
-            Oneshot::Voice(v) => {
+            Oneshot::Voice(v, gains) => {
                 if self.voices.len() >= ONESHOTS {
                     self.voices.remove(0);
                 }
-                self.voices.push(v);
+                self.voices.push((v, gains));
             }
-            Oneshot::Hit(h) => {
+            Oneshot::Hit(h, gains) => {
                 if self.hits.len() >= ONESHOTS {
                     self.hits.remove(0);
                 }
-                self.hits.push(h);
+                self.hits.push((h, gains));
             }
             Oneshot::CountIn { beats, seconds_per_beat } => {
                 self.ticks.clear();
@@ -148,23 +162,31 @@ impl Oneshots {
     /// Adds what is sounding into `left` and `right`.
     pub fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
         for (l, r) in left.chunks_mut(MAX_BLOCK).zip(right.chunks_mut(MAX_BLOCK)) {
-            let mono = &mut self.mono[..l.len()];
-            mono.fill(0.0);
-            for v in &mut self.voices {
+            let n = l.len();
+            let mono = &mut self.mono[..n];
+            for (v, (gl, gr)) in &mut self.voices {
+                mono.fill(0.0);
                 v.add_to(mono, rate);
+                for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
+                    *a += *m * *gl;
+                    *b += *m * *gr;
+                }
             }
-            for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
-                *a += *m;
-                *b += *m;
-            }
-            for h in &mut self.hits {
-                let wait = h.take_wait().min(l.len());
-                h.add_to(&mut l[wait..], &mut r[wait..], rate);
+            let (hl, hr) = (&mut self.left[..n], &mut self.right[..n]);
+            for (h, (gl, gr)) in &mut self.hits {
+                hl.fill(0.0);
+                hr.fill(0.0);
+                let wait = h.take_wait().min(n);
+                h.add_to(&mut hl[wait..], &mut hr[wait..], rate);
+                for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
+                    *a += *x * *gl;
+                    *b += *y * *gr;
+                }
             }
             self.ticks.retain_mut(|t| !t.add_to(l, r, rate));
         }
-        self.voices.retain(|v| !v.done());
-        self.hits.retain(|h| !h.done());
+        self.voices.retain(|(v, _)| !v.done());
+        self.hits.retain(|(h, _)| !h.done());
     }
 }
 
