@@ -161,14 +161,14 @@ test('a width the window sends that is out of range is refused', async () => {
 });
 
 test('a section header folds what follows it, by click or key, and the fold is kept', async () => {
-  const header = tabs().getByRole('button', { name: 'Tabs', exact: true });
+  const header = tabs().getByRole('button', { name: 'Today', exact: true });
   await expect(header).toHaveAttribute('aria-expanded', 'true');
   const body = tabs().locator('[data-fold-body]').first();
   await expect(body).toBeVisible();
   await header.click();
   await expect(header).toHaveAttribute('aria-expanded', 'false');
   await expect(body).toBeHidden();
-  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Tabs/Tabs');
+  expect(await shell().evaluate(() => window.localStorage.getItem('mobius.sidebar.folded'))).toContain('Tabs/Today');
   await header.press('Enter');
   await expect(header).toHaveAttribute('aria-expanded', 'true');
   await expect(body).toBeVisible();

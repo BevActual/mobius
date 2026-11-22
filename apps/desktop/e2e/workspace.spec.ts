@@ -171,9 +171,10 @@ test('the app hub shows every app with what is happening in it, starts new thing
 test('the top bar runs the window’s width, and the list under it belongs to the open app', async () => {
   seed();
   await start();
-  // The Browser's list is its own Tabs panel, and its New follows the app you are in.
-  await expect(leftSide().getByRole('heading', { name: 'Tabs', exact: true })).toBeVisible();
-  await expect(leftSide().locator('.app-side-new')).toHaveAccessibleName('New tab');
+  // The Browser's list is its own Tabs panel (its head is the space's name, with the panel's close), and New tab is the
+  // last row of Today, as in Arc.
+  await expect(leftSide().getByRole('button', { name: 'Hide Tabs' })).toBeVisible();
+  await expect(leftSide().getByTitle('New tab (Ctrl+T)')).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Tabs' })).toBeVisible();
   // It sits under the top bar, which starts with the Go button at the window's left edge.
   const side = (await leftSide().boundingBox())!;
@@ -308,6 +309,8 @@ test('Mobius beside the page is a panel of its own on the frame, a gap and its o
       await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill(name!);
       await shell().keyboard.press('Enter');
       await expect(shell().locator('.app')).toHaveAttribute('data-app', id!);
+      // The Browser closes Mobius on arriving, so the page has the room; open it there to look at it.
+      if (id === 'browser') await shell().getByRole('button', { name: 'Show Mobius' }).click();
       await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
       // Every element whose left or right edge is where the panel starts: none draws a second line beside its own edge.
       const lines = await shell().evaluate(() => {

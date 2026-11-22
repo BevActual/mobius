@@ -212,19 +212,20 @@
 .browser-side .ui-side-section { gap: 0; }
 .browser-side .side-head { height: var(--row-side); padding: 0 var(--sp-1) 0 var(--sp-2); }
 .browser-side .side-title { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
-.browser-side .tab, .browser-side .tab-main { height: 28px; }
+.browser-side { --tab-row: calc(var(--row-side) - 8px); }
+.browser-side .tab, .browser-side .tab-main { height: var(--tab-row); }
 .browser-side .tab { border-radius: var(--radius-control); }
 .browser-side .tab-main { font-size: var(--fs-md); }
 .browser-side .today-clear { margin-left: auto; height: 22px; padding: 0 var(--sp-1); border-radius: var(--radius-control); font-size: var(--fs-xs); color: var(--muted); }
 .browser-side .today-clear:hover { background: var(--side-hover); color: var(--ink); }
-.browser-side .tab-new { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 28px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--muted); }
+.browser-side .tab-new { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: var(--tab-row); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--muted); }
 .browser-side .tab-new:hover { background: var(--side-hover); color: var(--ink); }
 .browser-side .tab-new svg { flex: none; width: var(--sp-4); height: var(--sp-4); padding: 2px; box-sizing: border-box; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .browser-side .tab-new > span { flex: 1 1 auto; text-align: left; }
 .browser-side .tab-loading { margin-right: var(--sp-1); border-radius: 50%; }
 
 /* From Mobius: one row under its own small head. */
-.browser-side .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 28px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); }
+.browser-side .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: var(--tab-row); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); }
 .browser-side .from-mobius-filter:hover { background: var(--side-hover); }
 .browser-side .from-mobius-filter[aria-pressed="true"] { background: var(--side-select); }
 .browser-side .from-mobius-mark { display: inline-grid; place-items: center; width: var(--sp-4); color: var(--mobius); }
@@ -250,7 +251,10 @@
 .browser-chrome .address { flex: 1 1 520px; max-width: 520px; }
 /* The space's head is the panel's head (Arc): no "Tabs" header above it (Panels › Tabs still hides the panel), and the
    panel's body runs to its foot so Ask and the spaces sit at the bottom. */
-.ui-panel:has(.browser-side) > .ui-panel-head { display: none; }
+/* Its close stays, as on every panel, in the space's head just before ⋯. */
+.ui-panel:has(.browser-side) { position: relative; }
+.ui-panel:has(.browser-side) > .ui-panel-head { position: absolute; z-index: 1; top: 0; right: calc(var(--sp-1) + var(--control-h) + 2px); height: var(--panel-head-h, 36px); padding: 0; border: 0; background: none; }
+.ui-panel:has(.browser-side) > .ui-panel-head > .ui-panel-name { display: none; }
 .ui-panel:has(.browser-side) > .ui-panel-body { display: flex; flex-direction: column; }
 .ui-panel:has(.browser-side) .app-side { flex: 1 1 auto; min-height: 0; }
 .ui-panel:has(.browser-side) .app-side-body, .ui-panel:has(.browser-side) .side { flex: 1 1 auto; min-height: 0; }
