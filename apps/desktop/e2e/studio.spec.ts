@@ -41,13 +41,13 @@ const saved = () => {
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
 /**
- * Brings the songs list to the front: with a song open it is a tab beside the Library, in front of it only once
- * chosen; with none open it is the only panel on the left.
+ * Brings the songs list to the front: with a song open it is the Browser's Songs place; with none open it is the only
+ * panel on the left.
  */
 async function showSongs(): Promise<void> {
-  const songsTab = shell().getByRole('tab', { name: 'Songs' });
-  await expect(songsTab.or(shell().getByRole('complementary', { name: 'Songs' })).first()).toBeVisible();
-  if ((await songsTab.count()) > 0 && (await songsTab.getAttribute('aria-selected')) !== 'true') await songsTab.click();
+  const place = shell().getByRole('navigation', { name: 'Places' }).getByRole('button', { name: 'Songs', exact: true });
+  await expect(place.or(shell().getByRole('complementary', { name: 'Songs' })).first()).toBeVisible();
+  if ((await place.count()) > 0 && (await place.getAttribute('aria-current')) !== 'true') await place.click();
 }
 /**
  * Opens a song from the songs list. Music reopens the last song a moment after it starts, which turns the songs list
@@ -544,8 +544,9 @@ test('the view switch leads the toolbar: Alt+1 and Alt+2 pick Session or Arrange
 
 test('the Library finds a sound by words and tags, puts it on the chosen track or adds an effect, and keeps collections', async () => {
   await start();
-  await shell().getByRole('tab', { name: 'Library' }).click();
   const lib = shell().locator('.studio-library');
+  const places = lib.getByRole('navigation', { name: 'Places' });
+  await places.getByRole('button', { name: 'All', exact: true }).click();
   const search = lib.getByRole('searchbox', { name: 'Search the library' });
   // Every word must match; #word matches tags only.
   await search.fill('keys soft');
@@ -566,8 +567,7 @@ test('the Library finds a sound by words and tags, puts it on the chosen track o
   // 3 puts the chosen item in the third collection, which then lists only it.
   await shell().keyboard.press('3');
   await search.fill('');
-  await lib.getByRole('combobox', { name: 'Show' }).click();
-  await shell().getByRole('option', { name: /^Collection 3/ }).click();
+  await places.getByRole('button', { name: /\(collection 3\)$/ }).click();
   await expect(lib.locator('.studio-library-name')).toHaveText(['Reverb']);
 });
 

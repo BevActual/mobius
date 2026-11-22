@@ -113,7 +113,8 @@
 .studio-dev-note { margin: var(--sp-2) 0; color: var(--muted); font-size: var(--fs-sm); }
 /* What Mobius proposes: the dashed indigo edge every Mobius change carries until it is kept. */
 /* What Mobius proposes: the shared change bar, as a dashed strip above the tracks until it is kept or discarded. */
-.studio-review { flex: none; margin: var(--sp-2) var(--sp-3) 0; padding: var(--sp-2) var(--sp-3); border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-panel); }
+.studio-float { position: sticky; left: 0; z-index: 3; display: flex; justify-content: center; margin-top: var(--sp-4); padding: 0 var(--sp-3); box-sizing: border-box; }
+.studio-page .studio-float .change-float { max-width: 100%; }
 
 /* ---------- Piano roll ---------- */
 .studio-editor { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
@@ -315,3 +316,59 @@
 /* In the Clip toolbar the loop fields sit on one line, each label before its box, so the toolbar keeps a single row. */
 .studio-clip-loop .ui-number { flex-direction: row; align-items: center; gap: var(--sp-1); }
 .studio-clip-loop .ui-number-box { min-width: 0; }
+
+/* ---- The panel look (docs/design/panel-look.md, review design/reviews/panel-look/music.md) -------------------------- */
+/* The Browser: search on top, the sidebar (Collections, Library, Places) beside the results, the preview at the foot. */
+.studio-library-head { border-bottom: 0; padding-bottom: var(--sp-1); }
+.studio-browser-cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(112px, 38%) minmax(0, 1fr); }
+.studio-browser-side { min-height: 0; overflow-y: auto; padding: var(--sp-1) var(--sp-1) var(--sp-2); border-right: var(--hairline-w) solid var(--line-soft); }
+.studio-browser-side ul { margin: 0 0 var(--sp-2); padding: 0; list-style: none; }
+.studio-browser-title { margin: var(--sp-2) var(--sp-2) 2px; font-size: var(--fs-xs); color: var(--muted); }
+.studio-browser-place { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 26px; padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: none; color: var(--body); font: inherit; font-size: var(--fs-sm); text-align: left; cursor: default; }
+.studio-browser-place > span:not(.studio-browser-count):not(.ui-dot) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-browser-place:hover { background: var(--soft); color: var(--ink); }
+.studio-browser-place[aria-current] { background: var(--sel); color: var(--ink); }
+.studio-browser-count { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.studio-browser-main, .studio-browser-songs { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.studio-browser-main > .ui-filters { padding: var(--sp-2) var(--sp-3) 0; }
+/* The tag chips as one block from the results' left edge: the groups' names are for assistive tech, as in the mock. */
+.studio-browser-main .ui-filter-group { display: block; }
+.studio-browser-main .ui-filter-name { display: none; }
+.studio-browser-main .ui-filters { gap: calc(var(--sp-1) / 2); }
+.studio-library-head { display: flex; align-items: center; gap: var(--sp-1); }
+.studio-library-head > .studio-library-search { flex: 1; min-width: 0; }
+.studio-browser-more svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.studio-browser-foot .ui-preview { height: auto; padding: 0; border-top: 0; background: none; }
+/* Light: clip fills a step lighter (the colour at about 70% over paper), so a dashed Mobius clip and the selection read. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="cool"]) .studio-page .studio-clip:not([data-proposed]) { background: color-mix(in srgb, var(--tc) 70%, var(--paper)); }
+}
+.studio-browser-songs { overflow-y: auto; }
+.studio-browser-songs > .app-sidebar, .studio-browser-songs > aside { border: 0; background: transparent; width: auto; }
+.studio-library-cols { display: flex; justify-content: space-between; padding: var(--sp-2) var(--sp-3) 2px; font-size: var(--fs-xs); color: var(--muted); }
+.studio-library-row { gap: var(--sp-2); }
+.studio-browser-foot { flex: none; display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-2); border-top: var(--hairline-w) solid var(--line-soft); }
+.studio-browser-foot > .ui-preview { flex: 1; min-width: 0; }
+.studio-browser-foot > .btn, .studio-browser-foot > button { flex: none; white-space: nowrap; }
+/* The arrangement's header: its name in ink, what it holds in grey. */
+.studio-arrange-head { flex: none; display: flex; align-items: center; justify-content: space-between; height: var(--panel-head-h, 40px); padding: 0 var(--sp-3); }
+.studio-arrange-title { margin: 0; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.studio-arrange-sum { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* One mono readout: position · tempo · metre · key in one rounded field. */
+.studio-readouts { display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--control-h-lg); padding: 0 var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); background: var(--paper); font: var(--fs-md) / 1 var(--font-mono); font-variant-numeric: tabular-nums; }
+.studio-readouts > .studio-readout { height: auto; padding: 0 2px; border: 0; background: none; }
+.studio-readouts > .studio-tempo:focus-within { border: 0; box-shadow: 0 0 0 var(--hairline-w) var(--ink); border-radius: var(--radius-small); }
+.studio-readout-dot { color: var(--muted); }
+.studio-readouts .ui-select, .studio-readouts select { font: inherit; }
+/* Clip fills: muted on dark (the track colour at a quarter, an edge in the colour, the name and notes in the colour). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="mid"]) .studio-page .studio-clip:not([data-proposed]) { background: color-mix(in srgb, var(--tc) 24%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--tc) 55%, transparent); color: color-mix(in srgb, var(--tc) 85%, white); }
+  :root:not([data-theme="mid"]) .studio-page .studio-clip:not([data-proposed]):hover:not(:disabled) { background: color-mix(in srgb, var(--tc) 32%, transparent); }
+  :root:not([data-theme="mid"]) .studio-page .studio-clip:not([data-proposed]) .studio-clip-notes span { background: color-mix(in srgb, var(--tc) 80%, transparent); }
+  :root:not([data-theme="mid"]) .studio-track[aria-current] .studio-clip:not([data-proposed]) { box-shadow: inset 0 0 0 var(--hairline-w) var(--tc); }
+}
+:root[data-theme="cool"] .studio-page .studio-clip:not([data-proposed]) { background: color-mix(in srgb, var(--tc) 24%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--tc) 55%, transparent); color: color-mix(in srgb, var(--tc) 85%, white); }
+:root[data-theme="cool"] .studio-page .studio-clip:not([data-proposed]) .studio-clip-notes span { background: color-mix(in srgb, var(--tc) 80%, transparent); }
+.ui-tap.ui-icon-button { min-width: 0; border-color: transparent; background: none; }
+.ui-tap.ui-icon-button[data-lit] { background: var(--ink); color: var(--on-ink); }
+.studio-page .ui-panel-name { font-size: var(--fs-md); color: var(--ink); }

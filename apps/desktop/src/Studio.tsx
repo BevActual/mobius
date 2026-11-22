@@ -14,7 +14,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -90,11 +90,9 @@ export function StudioSub({ songs }: { songs: NotesState }) {
   const parsed = useMemo(() => (songs.page ? parseSong(songs.text) : null), [songs.page, songs.text]);
   if (!parsed || !('song' in parsed)) return null;
   const song = parsed.song;
-  const setKey = (key: string) => { const next = structuredClone(song); next.key = key; songs.edit(writeSong(next)); };
   return (
     <>
-      <Select label="Key" hideLabel quiet value={song.key} choices={KEY_CHOICES} onChange={setKey} />
-      {' · '}<span className="note-status" role="status" data-status={songs.status}>{songs.message || statusText(songs.status)}</span>
+      {song.key}{' · '}<span className="note-status" role="status" data-status={songs.status}>{songs.message || statusText(songs.status)}</span>
     </>
   );
 }
@@ -1253,10 +1251,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
 
   const velocity = pickedNotes.length ? pickedNotes.reduce((a, n) => a + n.velocity, 0) / pickedNotes.length : null;
 
+  // What Mobius changed: one floating bar under the tracks (the panel look), the clips themselves dashed. Why opens
+  // what was asked under it.
   const proposal = changed.size > 0 && !working ? (
-    <div className="studio-review">
-      <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
-    </div>
+    <ChangeBar floating who={`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}`}
+      why={<>{review && <WhyThis conversation={review.conversation} file={file ?? undefined} />} <span>Notes, never audio: each is yours to edit.</span></>}
+      onKeep={keep} onDiscard={discard} />
   ) : null;
   const stopOrRewind = () => { if (playing || counting.current) stop(); else seek(0); };
   // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys.
@@ -1381,10 +1381,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
     <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} setSong={change} source={mixSource} playing={playing} />
   ) };
-  // The Library is a tab after Songs, so the songs list that shows while the last song reopens stays in front when
-  // it does (a tab group's first panel is in front until the person picks another, which is then remembered).
-  const libraryPanel: PanelSpec = { id: 'library', name: 'Library', dock: 'left', shown: true, group: 'browse', keys: 'mod+alt+b', render: () => (
-    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} />
+  // The Browser (Live 12's): the Library, Collections and Places in one panel; the songs list is its Songs place.
+  const songsList = listPanels[0];
+  const libraryPanel: PanelSpec = { id: 'library', name: 'Browser', dock: 'left', shown: true, size: 420, keys: 'mod+alt+b', render: () => (
+    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} songs={songsList?.render()} />
   ) };
   const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', group: 'bottom', shown: true, size: 340, reveal: detailReveal, onHide: () => setEditing(false), render: () => (
     <div ref={setEditorEl} className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
@@ -1553,37 +1553,52 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             keys={{ play: 'Space', stop: 'Enter', record: 'F9', loop: 'L', metronome: 'K' }} />
         </ToolbarItem>
         <span className="studio-sep" aria-hidden="true" />
-        <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
+        {/* One mono readout, as Live's control bar reads: position · tempo · metre · key. */}
         <ToolbarItem priority="keep">
-          <label className="studio-readout studio-tempo" title="Tempo, in beats per minute (every song is in 4 / 4 for now)">
-            <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
-            <span aria-hidden="true">bpm</span>
-          </label>
+          <span className="studio-readouts" role="group" aria-label="Song">
+            <span className="studio-readout studio-pos" aria-label="Position" role="status" title={pos.time}>{pos.bars.split('.').join(' . ')}</span>
+            <span className="studio-readout-dot" aria-hidden="true">·</span>
+            <label className="studio-readout studio-tempo" title="Tempo, in beats per minute">
+              <input aria-label="Tempo" type="number" min={30} max={300} value={song.tempo} onChange={(e) => { const v = Number(e.target.value); if (v >= 30 && v <= 300) change((s) => { s.tempo = Math.round(v); }, 'tempo'); }} />
+              <span aria-hidden="true">bpm</span>
+            </label>
+            <span className="studio-readout-dot" aria-hidden="true">·</span>
+            <span className="studio-readout" title="Every song is in 4 / 4 for now">4/4</span>
+            <span className="studio-readout-dot" aria-hidden="true">·</span>
+            <Select label="Key" hideLabel quiet value={song.key} choices={KEY_CHOICES} onChange={(key) => change((s) => { s.key = key; }, 'key')} />
+          </span>
         </ToolbarItem>
         <ToolbarItem priority="keep">
-          <TapTempo onTempo={(bpm) => change((s) => { s.tempo = Math.round(bpm); }, 'tempo')} min={30} max={300} />
+          <TapTempo icon={TOOL_ICONS.tap} onTempo={(bpm) => change((s) => { s.tempo = Math.round(bpm); }, 'tempo')} min={30} max={300} />
         </ToolbarItem>
-        <IconButton label="Mixer" keys="Ctrl+Alt+M" title="Show the Mixer: a strip per track, with meters" icon={<Icon d={ICONS.mixer} />} onClick={() => setMixerReveal((n) => n + 1)} />
-        {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Show automation: a volume line under each track'} icon={<Icon d={ICONS.auto} />} onClick={() => setShowAuto((a) => !a)} />}
+        <span className="studio-sep" aria-hidden="true" />
+        <IconButton label="Mixer" keys="Ctrl+Alt+M" title="Mixer: a strip per track, with meters" icon={TOOL_ICONS.mixer} onClick={() => setMixerReveal((n) => n + 1)} />
+        {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Automation: a volume line under each track'} icon={TOOL_ICONS.automation} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
         {keyboard && <span className="studio-keys-at" title="Note and velocity: the note held, else the one A plays. Z and X change octave, C and V velocity"><Readout label="Note and velocity" width={7} formats={[{ name: 'Note', text: `${heldName ?? `C${keyOctave}`} ${keyVelocity}` }]} /></span>}
         {/* Export is the first to drop into the ⋯ menu, where it keeps its shortcut. */}
         <ToolbarItem priority="low">
-          <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
+          <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export as WAV: every track mixed down'} icon={TOOL_ICONS.export} onClick={() => void exportWav()} />
         </ToolbarItem>
       </ToolbarControls>
-      <PanelLayout app="studio" panels={[...listPanels.map((p) => ({ ...p, group: 'browse' })), libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
+      <PanelLayout app="studio" panels={[libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
       <div className="studio-main">
-        {proposal}
+        {view === 'arrange' && song.tracks.length > 0 && (
+          <header className="studio-arrange-head">
+            <h2 className="studio-arrange-title">Arrangement</h2>
+            <span className="studio-arrange-sum">{song.tracks.length} track{song.tracks.length === 1 ? '' : 's'} · {song.bars} bar{song.bars === 1 ? '' : 's'}</span>
+          </header>
+        )}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
           onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) { following.current = false; return; } e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
-          {view === 'session' ? (
+          {view === 'session' ? (<>
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
               onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
               onStopAll={stopAll} onSceneName={setSceneName} onAddScene={addScene} onClipMenu={clipMenu} />
-          ) : <>
+            {proposal && <div className="studio-float">{proposal}</div>}
+          </>) : <>
           <div className="studio-ruler-row">
             <div className="studio-ruler-head" />
             <div
@@ -1644,8 +1659,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               <Button kind="quiet" className="studio-add" icon={<Icon d="M10 4.5v11M4.5 10h11" />} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); soundsMenu(r.left, r.bottom); }}>Add track</Button>
               {song.tracks.length === 0 && <span className="studio-none">No tracks yet.</span>}
             </div>
+            {/* Under the tracks, centred on what is in view however far the arrangement scrolls. */}
             <span className="studio-playhead" style={{ left: HEAD_W + beat * bw }} aria-hidden="true" />
           </div>
+          {/* Under the tracks, outside them so the playhead never crosses it, centred on what is in view. */}
+          {proposal && <div className="studio-float" style={{ width: laneW + HEAD_W }}>{proposal}</div>}
           </>}
         </div>
       </div>
