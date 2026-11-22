@@ -59,13 +59,15 @@ export function StudioLibrary({ songKey, target, onUse, songs, songPath = '', on
   // The song's own samples (its Samples folder, takes included), asked of the engine when the place opens.
   const [samples, setSamples] = useState<string[] | null>(null);
   const [sampleAt, setSampleAt] = useState<string | null>(null);
+  const [samplesProblem, setSamplesProblem] = useState<string | null>(null);
   useEffect(() => {
     if (place !== 'samples') return;
     let live = true;
     setSamples(null);
+    setSamplesProblem(null);
     const m = typeof window === 'undefined' ? undefined : window.mobius?.music;
     if (!songPath || !m?.samples) { setSamples([]); return; }
-    void m.samples(songPath).then((r) => { if (live) setSamples(r.ok ? r.files : []); }, () => { if (live) setSamples([]); });
+    void m.samples(songPath).then((r) => { if (!live) return; setSamples(r.ok ? r.files : []); if (!r.ok) setSamplesProblem(r.message); }, (err) => { if (!live) return; setSamples([]); setSamplesProblem(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [place, songPath]);
   const shownSamples = (samples ?? []).filter((f) => !query.trim() || f.toLowerCase().includes(query.trim().toLowerCase()));
@@ -150,7 +152,7 @@ export function StudioLibrary({ songKey, target, onUse, songs, songPath = '', on
             <div className="studio-library-cols" aria-hidden="true"><span>Name</span><span>Folder</span></div>
             <ul className="studio-library-results" role="listbox" aria-label="Samples">
               {samples === null && <li className="side-empty" role="presentation">Looking…</li>}
-              {samples !== null && shownSamples.length === 0 && <li className="side-empty" role="presentation">{songPath ? 'No samples in this song yet. Drop a WAV on a sampler or pad, or record a take.' : 'Open a song to see its samples.'}</li>}
+              {samples !== null && shownSamples.length === 0 && <li className="side-empty" role="presentation">{samplesProblem ? `Couldn’t list the samples: ${samplesProblem}` : songPath ? 'No samples in this song yet. Drop a WAV on a sampler or pad, or record a take.' : 'Open a song to see its samples.'}</li>}
               {shownSamples.map((f, i) => (
                 <li key={f} data-id={f} role="option" aria-selected={f === sampleAt} tabIndex={f === (sampleAt ?? shownSamples[0]) || (!sampleAt && i === 0) ? 0 : -1} draggable
                   className="studio-library-row" title={`${target ? `Put on ${target.name}` : 'Add as a new Sampler track'} (Enter), or drag onto a sampler, pad or audio track`}
