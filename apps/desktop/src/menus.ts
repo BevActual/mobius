@@ -142,6 +142,7 @@ function appMenu(c: MenuContext): Menu | null {
   const { state: s, do: d, keys } = c;
   switch (c.app) {
     case 'browser':
+    case 'reader': // Reader is the Browser's reader mode: one Browser menu, with its reading lists at the end.
       return { id: 'app', label: 'Browser', items: [
         item('back', 'Back', d.browser.back, { keys: 'alt+left', disabled: !s.browser.canBack }),
         item('forward', 'Forward', d.browser.forward, { keys: 'alt+right', disabled: !s.browser.canForward }),
@@ -155,7 +156,8 @@ function appMenu(c: MenuContext): Menu | null {
         item('previous-space', 'Previous space', d.browser.previousSpace, { keys: 'mod+alt+left' }),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
-        item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
+        item('save-to-reader', 'Save page to Read later', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
+        item('new-list', 'New reading list', d.reader.newList),
       ] };
     case 'notes':
       return { id: 'app', label: 'Notes', items: [
@@ -217,10 +219,6 @@ function appMenu(c: MenuContext): Menu | null {
       return { id: 'app', label: 'Database', items: [
         item('new-database', 'New database', d.database.newDatabase),
         item('import-csv', 'Import a CSV file…', d.database.importCsv),
-      ] };
-    case 'reader':
-      return { id: 'app', label: 'Reader', items: [
-        item('new-list', 'New list', d.reader.newList),
       ] };
     case 'research':
       return { id: 'app', label: 'Research', items: [

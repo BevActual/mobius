@@ -7,7 +7,7 @@ import { MAIN_BOT_ID, parseLaunchChoice, withSteps, conversationIdFor, MAX_CONTE
 import { MEETINGS_NOTEBOOK, meetingNote } from './note-insert';
 import { commentsOutline } from './NoteComments';
 import { rememberTitles } from './ReviewStrip';
-import { appName, askAbout, findApp, isAvailable, isInstalled, setInstalledApps, type AppId, noteOpened, noteRecentItem, recentItems, APPS, COMPACT_APPS } from './apps';
+import { appName, askAbout, findApp, isAvailable, isInstalled, isListed, setInstalledApps, type AppId, noteOpened, noteRecentItem, recentItems, APPS, COMPACT_APPS } from './apps';
 import { databaseOutline, DEBUG_TEST, noteContext, sheetItem, suggestionsFor, tasksContext, type SurfaceState } from './surface';
 import { trayShown, type TrayShown } from './tray';
 import { ChatPanel } from './ChatPanel';
@@ -55,7 +55,8 @@ import { CanvasBoard, CanvasSidebar } from './Canvas';
 import { ViewPage, ViewsSidebar, newView } from './Views';
 import { ResearchPage, ResearchSidebar } from './Research';
 import { researchSteps } from './research-format';
-import { ReaderPage, ReaderSidebar, readerSub, saveToReader } from './Reader';
+import { ReaderPage, readerSub, saveToReader } from './Reader';
+import { parseArticle, READING_LIST } from './reader-format';
 import { DatabasePage, DatabaseSidebar, databasePlace, databaseSub } from './Database';
 import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
@@ -191,7 +192,7 @@ async function albumSheet(read: (path: string) => Promise<unknown> | undefined, 
 const NO_PANELS: readonly PanelSpec[] = [];
 const OWN_LIST: Partial<Record<AppId, string>> = {
   agent: 'Chats', mail: 'Mailboxes', messages: 'Conversations', calendar: 'Calendars', tasks: 'Lists', notes: 'Notebooks', docs: 'Documents', files: 'Places',
-  reader: 'Library', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
+  reader: 'Tabs', research: 'Reports', wiki: 'Knowledge', projects: 'Projects', views: 'Dashboards', review: 'Changes',
   skills: 'Abilities', sheets: 'Sheets', database: 'Tables', code: 'Explorer', terminal: 'Sessions', canvas: 'Boards',
   photo: 'Albums', studio: 'Songs', video: 'Videos', design: 'Designs', slides: 'Decks', browser: 'Tabs', search: 'Scopes',
 };
@@ -266,7 +267,7 @@ export function App() {
   const boards = useNotes('boards', used('canvas'));
   const views = useNotes('views', used('views'));
   const research = useNotes('research', used('research'));
-  const reading = useNotes('reading', used('reader'));
+  const reading = useNotes('reading', used('reader') || used('browser')); // The Browser's Read later lists it too.
   // Changes are named by the pages' titles as they are now, not the file names they were made with.
   useEffect(() => { rememberTitles('notes', notes.notebooks); }, [notes.notebooks]);
   useEffect(() => { rememberTitles('docs', docs.notebooks); }, [docs.notebooks]);
@@ -717,7 +718,7 @@ export function App() {
   const firstApp = useRef(true);
   useEffect(() => {
     if (firstApp.current) { firstApp.current = false; return; }
-    if (app === 'browser') { if (chatBeforeBrowser.current === null) { chatBeforeBrowser.current = chatOpenNow.current; setChatOpen(false); } }
+    if (app === 'browser' || app === 'reader') { if (chatBeforeBrowser.current === null) { chatBeforeBrowser.current = chatOpenNow.current; setChatOpen(false); } }
     else if (chatBeforeBrowser.current !== null) { if (chatBeforeBrowser.current) setChatOpen(true); chatBeforeBrowser.current = null; }
   }, [app]);
   // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
@@ -1093,6 +1094,8 @@ export function App() {
     event.preventDefault();
     if (!active) return;
     const typed = draft ?? active.url;
+    // Going somewhere from reader mode leaves it, for the page.
+    if (inReader) openApp('browser');
     const outcome = await window.mobius.browser.navigate(active.id, typed);
     if (outcome === 'ask' && settings?.configured && !conversation.state.busy) {
       // A question is for the agent, not the web.
@@ -1142,7 +1145,12 @@ export function App() {
   // These apps' own sidebar lists start with their New row, so the head's New is left out.
   const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets', 'browser'];
   // An app's own list (OWN_LIST): the same list as before, under the panel's header, with New and the pinned items.
+  // Read later (Reader folded into the Browser): the Reading list's articles, newest first.
+  // Finished ones (the Archive) are found by searching the panel.
+  const readLater = reading.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ path: pg.path, title: pg.title, modified: pg.modified, done: nb.name !== READING_LIST })))
+    .sort((x, y) => Number(x.done) - Number(y.done) || y.modified - x.modified).map(({ path, title, done }) => ({ path, title, done }));
   const ownListBody = (id: AppId): ReactNode => {
+    const browserSidebar = <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} onAsk={surface.hasPage ? () => { openRight(); setFocusToken((n) => n + 1); } : undefined} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} readLater={readLater} reading={inReader ? (reading.page?.path ?? null) : null} onRead={(a) => { openApp('reader'); void reading.open(a.path, a.title); }} onShowTab={inReader ? () => openApp('browser') : undefined} />;
     const list = (() => {
       switch (id) {
         case 'agent':
@@ -1207,7 +1215,8 @@ export function App() {
         case 'wiki':
           return <WikiSidebar wiki={wiki} place={wikiPlace} onPlace={setWikiPlace} incoming={wikiIncoming} pin={null} />
         case 'reader':
-          return <ReaderSidebar reading={reading} pin={null} changed={liveMarks.reading} starts={startsFor('reader')} onStart={startWithMobius} />
+          // Reader is the Browser's reader mode (fold-in, 2026-11-22): the same tabs panel, with the article current in Read later.
+          return browserSidebar;
         case 'research':
           return <ResearchSidebar research={research} pin={null} changed={liveMarks.research} starts={startsFor('research')} onStart={startWithMobius} />
         case 'views':
@@ -1223,7 +1232,7 @@ export function App() {
         case 'slides':
           return <SlidesSidebar slides={slides} pin={null} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
         case 'browser':
-          return <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} onAsk={surface.hasPage ? () => { openRight(); setFocusToken((n) => n + 1); } : undefined} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />;
+          return browserSidebar;
         case 'search':
           return <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={null} />;
         default:
@@ -1321,7 +1330,7 @@ export function App() {
   const openSettingsAt = (section: 'keyboard' | 'about' | 'schedules' | 'profiles' | 'voice' | 'safety' | 'mail' | 'calendar' | 'messages') => { setSettingsSection(section); setSettingsOpen(true); };
   const menuContext: MenuContext = {
     app,
-    apps: APPS.filter((a) => isAvailable(a.id)),
+    apps: APPS.filter((a) => isListed(a) && isAvailable(a.id)),
     keys: bindings,
     state: {
       // The sidebar is the open app's own list, a panel of its layout.
@@ -1364,7 +1373,7 @@ export function App() {
         nextSpace: () => stepSpace(1, browser.tabs, newTab),
         previousSpace: () => stepSpace(-1, browser.tabs, newTab),
         selection: () => setSelectionMenu(true),
-        saveToReader: () => { if (active) void saveToReader(reading, active.url).then((done) => setToast(done.ok ? 'Saved to Reader' : done.message)); },
+        saveToReader: () => { if (active) void saveToReader(reading, active.url).then((done) => setToast(done.ok ? 'Saved to Read later' : done.message)); },
       },
       terminal: {
         clear: () => terminal.clear(),
@@ -1941,7 +1950,9 @@ export function App() {
       findOpen={findOpen}
       finding={finding}
       onCloseFind={() => setFindOpen(false)}
-      onRead={() => { if (!active) return; void saveToReader(reading, active.url).then((done) => { if (!done.ok) { setToast(done.message); return; } openApp('reader'); void reading.open(done.path, active.title); }); }}
+      reading={inReader}
+      shownUrl={inReader && reading.page ? parseArticle(reading.text).url : null}
+      onRead={() => { if (inReader) { openApp('browser'); return; } if (!active) return; void saveToReader(reading, active.url).then((done) => { if (!done.ok) { setToast(done.message); return; } openApp('reader'); void reading.open(done.path, active.title); }); }}
     />
   );
   // The menus, as one ⋯ button at the toolbar's trailing end, just before Mobius.
@@ -1970,7 +1981,7 @@ export function App() {
         appControls: !settingsOpen,
         lead: <>
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
-          <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
+          <GoButton app={settingsOpen ? 'settings' : app === 'reader' ? 'browser' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
         // The open document's name, or the app's when nothing is open, so the title bar is never blank: the Go button shows
         // only the app's icon (Andrew, 21 November 2026), so the title names Home, Messages and Research too.
@@ -2026,7 +2037,7 @@ export function App() {
     >
       <div className="body" style={layout}>
         {/* An app's own controls go in the toolbar's middle from wherever the app is drawn (ui/AppFrame). */}
-        {inBrowser && !settingsOpen && browserChrome}
+        {(inBrowser || inReader) && !settingsOpen && browserChrome}
         <main className="stage" tabIndex={-1} data-split={split || undefined} data-edge-right={(hasRight && rightFloating && !chatOpen) || undefined} style={split ? ({ '--split': `${(splitDrag ?? share) * 100}%` } as React.CSSProperties) : undefined}>
           {/* Settings' sections are its own left panel, as an app's list is. */}
           {settingsOpen && (
