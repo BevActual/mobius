@@ -2839,7 +2839,8 @@ body { font-variant-numeric: tabular-nums; }
 .context-strip[data-titled] > .strip-right { grid-column: 3; justify-self: end; }
 /* Tools that fill the row (Calendar's, a browser's address, Sheets' formula bar, an editor's format bar) take all the
    room before the trailing icons rather than a centred column, which a container-sized child would shrink to nothing. */
-.context-strip[data-titled] > .ui-toolbar-slot:has(.photo-tabs, .sheet-tools, > .ui-toolbar-group > .note-format, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
+.context-strip[data-titled] > .ui-toolbar-slot:has(.photo-tabs, .sheet-tools, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
+/* Notes (marked, panel look): its tool row is centred on the window like Calendar's. */
 
 /* The Mobius button, in every look: an indigo trefoil, the one indigo in the bars. At rest it has no tint, so open and
    closed read apart; hover gives a light tint (8%), and only while the panel is open is it pressed, with a 20% tint and
