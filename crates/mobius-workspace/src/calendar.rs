@@ -554,6 +554,9 @@ pub struct Draft {
     /// For a repeating event, the start of the one time the window showed and changed: a new start then moves every
     /// time by as much, rather than starting the series again there.
     pub occurrence: Option<String>,
+    /// For a repeating event, which of its times a change is for: `one` (that time only), `following` (that time and
+    /// those after it, as a series of its own) or `all` (the default).
+    pub scope: Option<String>,
     /// Who is invited, as sent: `[{ name, email, status }]`, the whole list. Checked when the event is saved.
     pub attendees: Option<Value>,
     /// Who sent it, as sent: `{ name, email }`, or null for no one. Checked when the event is saved.
@@ -571,6 +574,7 @@ impl Draft {
             notes: s("notes"),
             repeat: s("repeat"),
             occurrence: s("occurrence"),
+            scope: s("scope"),
             attendees: v.get("attendees").cloned(),
             organizer: v.get("organizer").cloned(),
         }
@@ -695,6 +699,75 @@ pub struct Mirror {
 }
 
 /// Sends a change to a calendar kept elsewhere. The mirror changes only once the server has taken it.
+/// Which times of a repeating event a change or a removal is for, as calendars ask: this event, this and following
+/// events, or all events.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Scope {
+    One,
+    Following,
+    All,
+}
+
+impl Scope {
+    pub fn named(name: Option<&str>) -> Res<Scope> {
+        match name.map(str::trim).unwrap_or("") {
+            "" | "all" => Ok(Scope::All),
+            "one" | "this" => Ok(Scope::One),
+            "following" => Ok(Scope::Following),
+            _ => Err("scope is one, following or all".into()),
+        }
+    }
+}
+
+/// The time a changed copy of one time of a repeating event stands in for (`RECURRENCE-ID`).
+fn recurrence_id(e: &Event) -> Option<NaiveDateTime> {
+    moments_in(e, "RECURRENCE-ID").into_iter().next()
+}
+
+/// A changed copy of one time of the repeating event `uid`.
+fn is_copy_of(e: &Event, uid: &str) -> bool {
+    e.uid == uid && e.repeat.is_none() && recurrence_id(e).is_some()
+}
+
+/// `at` as the same kind of time as `like`: a day for an all-day event.
+fn same_kind(like: When, at: NaiveDateTime) -> When {
+    match like {
+        When::Day(_) => When::Day(at.date()),
+        When::At(_) => When::At(at),
+    }
+}
+
+/// One time of a repeating event, as an event of its own.
+fn instance(series: &Event, at: When) -> Event {
+    let mut e = series.clone();
+    e.end = series.end.shifted(at.moment() - series.start.moment());
+    e.start = at;
+    e
+}
+
+/// Lines that belong to a series, not to one time of it or to a series made from part of it.
+fn series_line(line: &str) -> bool {
+    split_line(line).is_some_and(|(name, ..)| matches!(name.as_str(), "RECURRENCE-ID" | "EXDATE" | "RDATE" | "RRULE"))
+}
+
+/// Ends a series just before `at`: a counted one after the times before it, otherwise on the day before. The times
+/// it had left from `at`, when it was counted.
+fn end_before(series: &mut Event, at: NaiveDateTime) -> Option<u32> {
+    let before = u32::try_from(occurrences(series, at).len()).unwrap_or(u32::MAX);
+    let r = series.repeat.as_mut()?;
+    match r.count {
+        Some(count) => {
+            r.count = Some(before);
+            Some(count.saturating_sub(before))
+        }
+        None => {
+            let day = at.date() - Duration::days(1);
+            r.until = Some(r.until.map_or(day, |u| u.min(day)));
+            None
+        }
+    }
+}
+
 pub trait Remote: Send + Sync {
     /// `parts` is everything stored under that event's id: the event, and changed copies of single times of it.
     fn put(&self, mirror: &Mirror, uid: &str, parts: &[Event], new: bool) -> Res<()>;
@@ -750,7 +823,9 @@ fn tool_list() -> Vec<Value> {
                 "calendar": { "type": "string" }, "id": { "type": "string" }, "title": { "type": "string" },
                 "start": { "type": "string", "description": when }, "end": { "type": "string", "description": when },
                 "location": { "type": "string" }, "notes": { "type": "string" },
-                "repeat": { "type": "string", "description": format!("How it repeats: one of {}, or never.", REPEATS.join(", ")) } }, "required": ["calendar", "id"] } }),
+                "repeat": { "type": "string", "description": format!("How it repeats: one of {}, or never.", REPEATS.join(", ")) },
+                "occurrence": { "type": "string", "description": "For a repeating event, the start of the one time meant, as calendar.list gave it." },
+                "scope": { "type": "string", "enum": ["one", "following", "all"], "description": "For a repeating event: that time only, it and the times after it, or every time (the default)." } }, "required": ["calendar", "id"] } }),
     ]
 }
 
@@ -774,7 +849,18 @@ fn expand(calendar: &str, events: &[Event], (start, end): (NaiveDateTime, NaiveD
             let (s, f) = (when.moment(), when.moment() + length);
             // Overlaps the range; an event of no length counts at its moment.
             if s < end && (f > start || (f == s && s >= start)) {
-                found.push((s, event_json(calendar, e, when, read_only)));
+                let mut v = event_json(calendar, e, when, read_only);
+                // Which time of a series it is, so a change can be for that time only.
+                if e.repeat.is_some() {
+                    v["occurrence"] = json!(when.show());
+                } else if let Some(id) = recurrence_id(e)
+                    && let Some(series) = events.iter().find(|o| o.uid == e.uid && o.repeat.is_some())
+                {
+                    v["repeats"] = json!(true);
+                    v["repeat"] = json!(series.repeat.as_ref().map_or("", repeat_name));
+                    v["occurrence"] = json!(same_kind(series.start, id).show());
+                }
+                found.push((s, v));
             }
         }
     }
@@ -1064,6 +1150,13 @@ impl Calendar {
         let (mut events, other) = self.load(calendar)?;
         // The event itself, not a changed copy of one of its times.
         let at = events.iter().position(|e| e.uid == uid && (e.repeat.is_some() || moments_in(e, "RECURRENCE-ID").is_empty())).ok_or("that event is not in that calendar")?;
+        let scope = Scope::named(draft.scope.as_deref())?;
+        if scope != Scope::All && events[at].repeat.is_some() {
+            let shown = self.time_of(&events, at, draft.occurrence.as_deref())?;
+            if scope == Scope::One || shown.moment() > events[at].start.moment() {
+                return self.update_times(calendar, events, &other, at, shown, scope, draft);
+            }
+        }
         let (title, mut start, mut end, location, notes) = Self::checked(draft, Some(&events[at]))?;
         let (attendees, organizer) = people_sent(draft, Some(&events[at]))?;
         let base = &events[at];
@@ -1093,7 +1186,93 @@ impl Calendar {
         Ok(event_json(calendar, &changed, changed.start, false))
     }
 
+    /// The time of the series at `at` that `occurrence` names: one it has, or one a changed copy stands in for.
+    fn time_of(&self, events: &[Event], at: usize, occurrence: Option<&str>) -> Res<When> {
+        let series = &events[at];
+        let named = occurrence.and_then(When::parse).ok_or("occurrence is the start of the one time meant, as calendar.list gave it")?;
+        let shown = same_kind(series.start, named.moment());
+        let has = occurrences(series, shown.moment() + Duration::seconds(1)).contains(&shown)
+            || events.iter().any(|e| is_copy_of(e, &series.uid) && recurrence_id(e) == Some(shown.moment()));
+        if has { Ok(shown) } else { Err("that event does not happen then".into()) }
+    }
+
+    /// A change to one time of a repeating event, or to it and the times after it.
+    #[allow(clippy::too_many_arguments)]
+    fn update_times(&self, calendar: &str, mut events: Vec<Event>, other: &[String], at: usize, shown: When, scope: Scope, draft: &Draft) -> Res<Value> {
+        let series = events[at].clone();
+        let uid = series.uid.clone();
+        let copy = events.iter().position(|e| is_copy_of(e, &uid) && recurrence_id(e) == Some(shown.moment()));
+        let base = copy.map_or_else(|| instance(&series, shown), |i| events[i].clone());
+        let (title, start, end, location, notes) = Self::checked(draft, Some(&base))?;
+        let (attendees, organizer) = people_sent(draft, Some(&base))?;
+        let mut changed = base;
+        (changed.title, changed.start, changed.end, changed.location, changed.notes) = (title, start, end, location, notes);
+        (changed.attendees, changed.organizer) = (attendees, organizer);
+        let mut shown_json = None;
+        if scope == Scope::One {
+            changed.repeat = None;
+            if copy.is_none() {
+                changed.extra.retain(|l| !series_line(l));
+                changed.extra.push(shown.ics("RECURRENCE-ID"));
+            }
+            match copy {
+                Some(i) => events[i] = changed.clone(),
+                None => events.push(changed.clone()),
+            }
+            shown_json = Some(shown);
+        } else {
+            // This and following: the series ends before it, and a new one starts there.
+            let left = end_before(&mut events[at], shown.moment());
+            events.retain(|e| !(is_copy_of(e, &uid) && recurrence_id(e).is_some_and(|m| m >= shown.moment())));
+            changed.uid = new_uid();
+            changed.extra.retain(|l| !series_line(l));
+            changed.repeat = match &draft.repeat {
+                Some(name) => repeat_named(name)?,
+                None => series.repeat.clone().map(|mut r| {
+                    r.count = left.or(r.count);
+                    r
+                }),
+            };
+            events.push(changed.clone());
+            self.send(calendar, Some((std::slice::from_ref(&changed), true)), None)?;
+        }
+        let parts: Vec<Event> = events.iter().filter(|e| e.uid == uid).cloned().collect();
+        self.send(calendar, Some((&parts, false)), None)?;
+        self.store(calendar, &events, other)?;
+        let mut v = event_json(calendar, &changed, changed.start, false);
+        if let Some(shown) = shown_json {
+            v["repeats"] = json!(true);
+            v["repeat"] = json!(series.repeat.as_ref().map_or("", repeat_name));
+            v["occurrence"] = json!(shown.show());
+        }
+        Ok(v)
+    }
+
     pub fn remove(&self, calendar: &str, uid: &str) -> Res<Value> {
+        self.remove_times(calendar, uid, None, Scope::All)
+    }
+
+    /// Takes out one time of a repeating event (`occurrence`, with `Scope::One`), or it and the times after it.
+    pub fn remove_times(&self, calendar: &str, uid: &str, occurrence: Option<&str>, scope: Scope) -> Res<Value> {
+        if scope != Scope::All {
+            let (mut events, other) = self.load(calendar)?;
+            if let Some(at) = events.iter().position(|e| e.uid == uid && e.repeat.is_some()) {
+                let shown = self.time_of(&events, at, occurrence)?;
+                if scope == Scope::One || shown.moment() > events[at].start.moment() {
+                    if scope == Scope::One {
+                        events[at].extra.push(shown.ics("EXDATE"));
+                    } else {
+                        end_before(&mut events[at], shown.moment());
+                    }
+                    let gone = |m: NaiveDateTime| if scope == Scope::One { m == shown.moment() } else { m >= shown.moment() };
+                    events.retain(|e| !(is_copy_of(e, uid) && recurrence_id(e).is_some_and(gone)));
+                    let parts: Vec<Event> = events.iter().filter(|e| e.uid == uid).cloned().collect();
+                    self.send(calendar, Some((&parts, false)), None)?;
+                    self.store(calendar, &events, &other)?;
+                    return Ok(json!({ "calendar": calendar, "removed": uid, "occurrence": shown.show() }));
+                }
+            }
+        }
         let (mut events, other) = self.load(calendar)?;
         let before = events.len();
         events.retain(|e| e.uid != uid);
@@ -1518,5 +1697,60 @@ mod tests {
         let yearly = cal.add("Work", &draft("2026-11-10", "yearly")).unwrap();
         assert_eq!(yearly["repeat"], "yearly");
         assert_eq!(repeat_name(&Repeat { freq: "WEEKLY".into(), interval: 1, count: Some(3), until: None, by_day: vec![] }), "custom");
+    }
+    #[test]
+    fn one_time_or_this_and_following_of_a_repeating_event_changes_or_goes_alone() {
+        let (dir, c) = store();
+        let file = dir.path().join("workspace/calendar/Calendar.ics");
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:s\r\nDTSTART:20261102T090000\r\nDTEND:20261102T093000\r\nRRULE:FREQ=WEEKLY;COUNT=6\r\nSUMMARY:Standup\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        let titles = |from: &str, to: &str| -> Vec<(String, String)> {
+            c.events(from, to).unwrap().as_array().unwrap().iter().map(|e| (e["start"].as_str().unwrap().to_owned(), e["title"].as_str().unwrap().to_owned())).collect()
+        };
+        let week = |t: &str| (t.to_owned(), "Standup".to_owned());
+        // Each time says which time of the series it is.
+        assert_eq!(c.events("2026-11-09", "2026-11-09").unwrap()[0]["occurrence"], "2026-11-09T09:00");
+
+        // This event: the 9th moves to 15:00 and is renamed; the others stay.
+        let one = Draft { title: Some("Standup (late)".into()), start: Some("2026-11-09T15:00".into()), end: Some("2026-11-09T15:30".into()), occurrence: Some("2026-11-09T09:00".into()), scope: Some("one".into()), ..Draft::default() };
+        let moved = c.update("Calendar", "s", &one).unwrap();
+        assert_eq!((moved["repeats"].clone(), moved["occurrence"].clone()), (json!(true), json!("2026-11-09T09:00")));
+        assert_eq!(titles("2026-11-02", "2026-11-16"), vec![week("2026-11-02T09:00"), ("2026-11-09T15:00".into(), "Standup (late)".into()), week("2026-11-16T09:00")]);
+        let shown = c.events("2026-11-09", "2026-11-09").unwrap();
+        assert_eq!((shown[0]["repeats"].clone(), shown[0]["occurrence"].clone(), shown[0]["repeat"].clone()), (json!(true), json!("2026-11-09T09:00"), json!("custom")));
+        // Changed again, the same copy changes: still one copy in the file.
+        c.update("Calendar", "s", &Draft { title: Some("Standup (later)".into()), ..one.clone() }).unwrap();
+        assert_eq!(fs::read_to_string(&file).unwrap().matches("RECURRENCE-ID").count(), 1);
+
+        // Delete this event: the 16th goes, and only it.
+        c.remove_times("Calendar", "s", Some("2026-11-16T09:00"), Scope::One).unwrap();
+        assert_eq!(titles("2026-11-16", "2026-11-23"), vec![week("2026-11-23T09:00")]);
+        // A time it does not have is refused.
+        assert!(c.remove_times("Calendar", "s", Some("2026-11-17T09:00"), Scope::One).is_err());
+
+        // This and following from the 23rd: a new series of what was left (the 23rd, 30th and 7 Dec) at 10:00.
+        let following = Draft { title: Some("Team sync".into()), start: Some("2026-11-23T10:00".into()), end: Some("2026-11-23T10:30".into()), occurrence: Some("2026-11-23T09:00".into()), scope: Some("following".into()), ..Draft::default() };
+        let made = c.update("Calendar", "s", &following).unwrap();
+        assert_ne!(made["id"], "s");
+        let all = titles("2026-11-01", "2026-12-31");
+        assert_eq!(all.len(), 5, "{all:?}");
+        assert_eq!(&all[2..], &[("2026-11-23T10:00".to_owned(), "Team sync".to_owned()), ("2026-11-30T10:00".into(), "Team sync".into()), ("2026-12-07T10:00".into(), "Team sync".into())]);
+
+        // Delete this and following from the 30th of the new series: only the 23rd is left of it.
+        let new_id = made["id"].as_str().unwrap();
+        c.remove_times("Calendar", new_id, Some("2026-11-30T10:00"), Scope::Following).unwrap();
+        assert_eq!(titles("2026-11-23", "2026-12-31"), vec![("2026-11-23T10:00".to_owned(), "Team sync".to_owned())]);
+        // And from its first time, the whole of it goes.
+        c.remove_times("Calendar", new_id, Some("2026-11-23T10:00"), Scope::Following).unwrap();
+        assert!(titles("2026-11-23", "2026-12-31").is_empty());
+        // The first series keeps its changed time, and its own copy, through all of that.
+        assert_eq!(titles("2026-11-09", "2026-11-09"), vec![("2026-11-09T15:00".to_owned(), "Standup (later)".to_owned())]);
+
+        // An all-day series without a count ends the day before.
+        fs::write(&file, "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:d\r\nDTSTART;VALUE=DATE:20261101\r\nDTEND;VALUE=DATE:20261102\r\nRRULE:FREQ=DAILY\r\nSUMMARY:Walk\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n").unwrap();
+        c.remove_times("Calendar", "d", Some("2026-11-05"), Scope::Following).unwrap();
+        assert!(fs::read_to_string(&file).unwrap().contains("UNTIL=20261104"));
+        assert_eq!(c.events("2026-11-01", "2026-11-30").unwrap().as_array().unwrap().len(), 4);
+        assert!(Scope::named(Some("some")).is_err());
     }
 }

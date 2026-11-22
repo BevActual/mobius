@@ -1,13 +1,13 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion } from '@mobius/shared';
+import type { CalendarDraft, CalendarEvent, CalendarPerson, CalendarSuggestion, RepeatScope } from '@mobius/shared';
 import { isNotesFailure } from '@mobius/shared';
 import { onCommand } from './commands';
 import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, meetingLink, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, meetingLink, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, SCOPE_CHOICES, scoped, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -35,7 +35,7 @@ import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { useCalendarReview, type CalendarReview } from './useCalendarReview';
 import type { Start } from './SideNew';
 import { ContextMenu, type ContextMenuItem } from './ContextMenu';
-import { AppSidebar, DateField, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
+import { AppSidebar, Button, DateField, Dialog, PanelTab, Select, useShowPanelTab, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, ViewSwitch } from './ui';
 
 /** An hour's height: 64 in the comfortable density (a working day shows whole), 48 in the compact one. */
 const hourPx = () => (document.documentElement.dataset.density === 'compact' ? 48 : 64);
@@ -720,7 +720,51 @@ const newStart = (anchor: Date) => {
   return isoTime(n);
 };
 
-function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock, onPerson }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent) => void; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void; /** Shows someone on the event in the Person panel. */ onPerson?: (person: CalendarPerson) => void }) {
+/** Asks which times of a repeating event a change (`change`) or a deletion is for; null when the person cancels. */
+export type AskScope = (verb: 'change' | 'delete', withOne: boolean) => Promise<RepeatScope | null>;
+
+/** The question, as calendars ask it, and the dialog that asks it: this event, this and following events, or all. */
+function useScopeAsk(): [AskScope, ReactNode] {
+  const [asking, setAsking] = useState<{ verb: 'change' | 'delete'; withOne: boolean } | null>(null);
+  const answer = useRef<((scope: RepeatScope | null) => void) | null>(null);
+  const ask = useCallback<AskScope>((verb, withOne) => new Promise((done) => {
+    answer.current?.(null);
+    answer.current = done;
+    setAsking({ verb, withOne });
+  }), []);
+  const finish = (scope: RepeatScope | null) => {
+    const done = answer.current;
+    answer.current = null;
+    setAsking(null);
+    done?.(scope);
+  };
+  return [ask, <RepeatScopeDialog key="scope" asking={asking} onDone={finish} />];
+}
+
+function RepeatScopeDialog({ asking, onDone }: { asking: { verb: 'change' | 'delete'; withOne: boolean } | null; onDone: (scope: RepeatScope | null) => void }) {
+  const choices = SCOPE_CHOICES.filter((c) => asking?.withOne !== false || c.scope !== 'one');
+  const [scope, setScope] = useState<RepeatScope>('one');
+  useEffect(() => { if (asking) setScope(asking.withOne ? 'one' : 'following'); }, [asking]);
+  const deleting = asking?.verb === 'delete';
+  return (
+    <Dialog
+      open={asking !== null} onOpenChange={(open) => { if (!open) onDone(null); }} className="cal-scope"
+      title={deleting ? 'Delete repeating event' : 'Change repeating event'}
+      actions={<><Button onClick={() => onDone(null)}>Cancel</Button><Button kind="primary" danger={deleting} onClick={() => onDone(scope)}>{deleting ? 'Delete' : 'Save'}</Button></>}
+    >
+      <div role="radiogroup" aria-label="Which times" className="cal-scope-list">
+        {choices.map((c) => (
+          <label key={c.scope} className="cal-scope-row">
+            <input type="radio" name="cal-scope" value={c.scope} checked={scope === c.scope} onChange={() => setScope(c.scope)} />
+            {c.label}
+          </label>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
+function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock, onPerson, askScope }: { calendar: CalendarState; editing: Editing; onClose: () => void; onDeleted?: (event: CalendarEvent, scope: RepeatScope) => void; /** Which times of a repeating event a change or a deletion is for. */ askScope?: AskScope; onMeeting?: (event: CalendarEvent) => void; /** Moves the editor to the Event panel, keeping what was typed. */ onDock?: () => void; /** Shows someone on the event in the Person panel. */ onPerson?: (person: CalendarPerson) => void }) {
   const original = 'event' in editing ? editing.event : null;
   const startText = 'event' in editing ? editing.event.start : editing.start;
   const initialAllDay = 'event' in editing ? editing.event.allDay : editing.allDay;
@@ -761,11 +805,16 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     if (original) {
       // Only what changed is sent; moving one time of a repeating event moves every time by as much.
       const shown: CalendarDraft = { title: original.title, start: original.start, end: endText, location: original.location, notes: original.notes };
-      const change = Object.fromEntries(Object.entries(draft).filter(([k, v]) => shown[k as keyof CalendarDraft] !== v)) as CalendarDraft;
+      let change = Object.fromEntries(Object.entries(draft).filter(([k, v]) => shown[k as keyof CalendarDraft] !== v)) as CalendarDraft;
       if (change.start !== undefined || change.end !== undefined) {
         change.start = draft.start;
         change.end = draft.end;
-        if (original.repeats) change.occurrence = original.start;
+      }
+      if (Object.keys(change).length > 0 && original.repeats) {
+        // Which times it is for, as calendars ask; a new way of repeating is never for this one time only.
+        const scope = askScope ? await askScope('change', change.repeat === undefined) : 'all';
+        if (!scope) { setBusy(false); return; }
+        change = scoped(original, change, scope);
       }
       done = Object.keys(change).length === 0 ? true : await calendar.update(original, change);
     } else {
@@ -773,6 +822,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     }
     setBusy(false);
     if (done) onClose();
+  };
+  const removeIt = async () => {
+    if (!original) return;
+    setBusy(true);
+    const scope = original.repeats && askScope ? await askScope('delete', true) : 'all';
+    const ok = scope ? await calendar.remove(original, scope) : null;
+    setBusy(false);
+    if (ok && scope) { onDeleted?.(original, scope); onClose(); }
   };
   const sheet = useRef<HTMLFormElement>(null);
   useMorphIn(sheet, true);
@@ -817,7 +874,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     const away = (e: PointerEvent) => {
       const t = e.target as Element | null;
       // The shared fields' lists and months open in a layer of their own, outside the sheet.
-      if (sheet.current?.contains(t) || t?.closest?.('.ui-menu, .ui-menu-positioner, .ui-popover')) return;
+      if (sheet.current?.contains(t) || t?.closest?.('.ui-menu, .ui-menu-positioner, .ui-popover, .ui-dialog, .ui-dialog-backdrop')) return;
       const l = live.current;
       if (l.busy) return;
       if (l.changed()) void l.save(); else onClose();
@@ -894,13 +951,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         <textarea aria-label="Notes" placeholder="Notes" value={notes} maxLength={4000} rows={3} onChange={(e) => setNotes(e.target.value)} />
         </fieldset>
         {locked && <p className="cal-editor-note">From {original.calendar}, a subscribed calendar: it can be read here but not changed.</p>}
-        {original?.repeats && !locked && <p className="cal-editor-note">This event repeats. A change to its time moves every time it happens by as much.</p>}
+        {original?.repeats && !locked && <p className="cal-editor-note">This event repeats. When you save or delete it, you choose this event, this and following events, or all of them.</p>}
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
             no Cancel or Save, only Delete, as plain red words at its foot. */}
         {at ? (
         <div className="cal-pop-foot">
-          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete event</button>}
+          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void removeIt()}>Delete event</button>}
           <span className="spacer" />
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           {onDock && <button type="button" className="cal-dock" title="Edit this event in the Event panel, with more room" onClick={onDock}>More options<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>}
@@ -912,13 +969,13 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         <div className="cal-editor-actions" data-docked>
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           <span className="spacer" />
-          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
+          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void removeIt()}>Delete</button>}
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
         ) : (
         <div className="cal-editor-actions">
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
-          {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
+          {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void removeIt()}>Delete</button>}
           <span className="spacer" />
           <button type="button" className="btn" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
@@ -1077,13 +1134,21 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
   const takeBack = async () => { const u = undoable; setUndoable(null); await u?.undo(); };
-  const deleted = (e: CalendarEvent) => {
+  const [askScope, scopeDialog] = useScopeAsk();
+  const deleted = (e: CalendarEvent, scope: RepeatScope = 'all') => {
+    // One time of a series, or the times after it, can't be put back by adding an event: no undo is offered.
+    if (e.repeats && scope !== 'all') return;
     const { calendar: into, title, start, location, notes } = e;
     setUndoable({ text: `Deleted “${title}”.`, undo: () => calendar.add(into, { title, start, end: draftEnd(e), location, notes, ...(e.repeat && e.repeat !== 'custom' ? { repeat: e.repeat } : {}) }) });
   };
   const move: MoveEvent = async (event, to) => {
-    const ok = await calendar.update(event, { ...to, ...(event.repeats ? { occurrence: event.start } : {}) });
-    if (ok) {
+    const scope = event.repeats ? await askScope('change', true) : 'all';
+    if (!scope) return false;
+    const ok = await calendar.update(event, scoped(event, to, scope));
+    if (ok && scope === 'following') return ok;
+    if (ok && scope === 'one') {
+      setUndoable({ text: `Moved “${event.title}”.`, undo: () => calendar.update(event, scoped(event, { start: event.start, end: draftEnd(event) }, 'one')) });
+    } else if (ok) {
       const day = (t: string) => formatWith(localDate(t), { weekday: 'short', day: 'numeric', month: 'short' });
       const said = event.allDay ? day(to.start) : sameDay(localDate(to.start), localDate(event.start)) ? clock(to.start) : `${day(to.start)}, ${clock(to.start)}`;
       setUndoable({ text: `Moved “${event.title}” to ${said}.`, undo: () => calendar.update(event, { start: event.start, end: draftEnd(event), ...(event.repeats ? { occurrence: to.start } : {}) }) });
@@ -1117,7 +1182,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
     setSelected(null);
     if (event.suggestion) { await calendar.decline(event.suggestion.id); return; }
     if (!movable(calendar, event)) return;
-    if (await calendar.remove(event)) deleted(event);
+    const scope = event.repeats ? await askScope('delete', true) : 'all';
+    if (scope && await calendar.remove(event, scope)) deleted(event, scope);
   };
   /** A copy at the same time, in the same calendar, or the first that can take it when that one is read only. */
   const duplicate = async (event: Shown) => {
@@ -1264,7 +1330,8 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
+      {scopeDialog}
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} askScope={askScope} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
       {/* Person: only once someone invited is picked (from their name on the event), so an event's page stands alone. */}
       {person && <PanelTab id="person" name="Person" shown><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>}
     </section>

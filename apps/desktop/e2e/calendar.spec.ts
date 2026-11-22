@@ -106,6 +106,11 @@ test('a calendar file from another app shows in the week, and events are added, 
   await change.getByRole('textbox', { name: 'Title' }).fill('Team standup');
   // The popover has no Save: Enter keeps the change.
   await change.getByRole('textbox', { name: 'Title' }).press('Enter');
+  // Which times it is for, as calendars ask: all of them.
+  const which = shell().getByRole('dialog', { name: 'Change repeating event' });
+  await expect(which.getByRole('radio', { name: 'This event' })).toBeChecked();
+  await which.getByRole('radio', { name: 'All events' }).check();
+  await which.getByRole('button', { name: 'Save' }).click();
   await expect(page().getByRole('button', { name: new RegExp(`^Team standup, ${span('9:00', '9:30')}`) }).first()).toBeVisible();
   const work = fs.readFileSync(file('Work'), 'utf8');
   expect(work).toContain('RRULE:FREQ=DAILY;COUNT=3');
@@ -189,12 +194,26 @@ test('an event typed in words is set to repeat, then dragged an hour later, and 
   await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour / 2, { steps: 4 });
   await shell().mouse.move(box.x + box.width / 2, box.y + 8 + hour, { steps: 4 });
   await shell().mouse.up();
+  const which = shell().getByRole('dialog', { name: 'Change repeating event' });
+  await which.getByRole('radio', { name: 'All events' }).check();
+  await which.getByRole('button', { name: 'Save' }).click();
   await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await expect(page().getByRole('status').filter({ hasText: 'Moved “Site walk”' })).toBeVisible();
   await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain(`DTSTART:${ics(tomorrow)}T110000`);
   expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
 
   // The next day has it at the new time too; the arrow key goes there.
+  await shell().locator('body').press('ArrowRight');
+  await expect(walk(span('11:00', '11:30'))).toBeVisible();
+
+  // That day's one deleted on its own (This event, the first answer): the series skips it and goes on the day after.
+  await walk(span('11:00', '11:30')).click();
+  await shell().getByRole('dialog', { name: 'Edit event' }).getByRole('button', { name: 'Delete event' }).click();
+  const gone = shell().getByRole('dialog', { name: 'Delete repeating event' });
+  await gone.getByRole('button', { name: 'Delete' }).click();
+  await expect(walk(span('11:00', '11:30'))).toHaveCount(0);
+  await expect.poll(() => fs.readFileSync(file('Calendar'), 'utf8')).toContain('EXDATE:');
+  expect(fs.readFileSync(file('Calendar'), 'utf8')).toContain('RRULE:FREQ=DAILY');
   await shell().locator('body').press('ArrowRight');
   await expect(walk(span('11:00', '11:30'))).toBeVisible();
   await shell().locator('body').press('m');

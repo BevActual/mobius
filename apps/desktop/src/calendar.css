@@ -330,3 +330,8 @@ form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc
 .cal-editor-actions[data-docked] .cal-meeting { min-width: 0; padding: 0 var(--sp-2); border: 0; color: var(--ink); }
 .cal-editor-actions[data-docked] .cal-meeting:hover { background: var(--soft); }
 .cal-editor-actions[data-docked] .cal-pop-delete { padding: 4px var(--sp-2); }
+
+/* Which times of a repeating event: a short list of choices, as calendars ask. */
+.cal-scope-list { display: grid; gap: var(--sp-1); }
+.cal-scope-row { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--row-h); font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
+.cal-scope-row input { margin: 0; accent-color: var(--ink); }
