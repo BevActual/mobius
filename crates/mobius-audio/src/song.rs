@@ -18,6 +18,9 @@ pub struct Song {
     /// The Main track: where every track and return ends up, with its own effects and level.
     #[serde(default)]
     pub main: Main,
+    /// The metronome's own level, apart from Main's (as Live's metronome volume is).
+    #[serde(default)]
+    pub metronome: Metronome,
     /// Return tracks, fed by the tracks' sends (at most [`MAX_RETURNS`]).
     #[serde(default)]
     pub returns: Vec<Return>,
@@ -46,6 +49,20 @@ pub struct Main {
 impl Default for Main {
     fn default() -> Main {
         Main { volume: main_volume(), fx: Vec::new() }
+    }
+}
+
+/// The metronome's settings in the song file.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+pub struct Metronome {
+    /// 0 to 1; 0.8 unless the file says, as loud as the metronome has always played.
+    #[serde(default = "main_volume")]
+    pub volume: f64,
+}
+
+impl Default for Metronome {
+    fn default() -> Metronome {
+        Metronome { volume: main_volume() }
     }
 }
 

@@ -36,8 +36,8 @@ pub(crate) enum Command {
     Monitor(Option<(f32, f32)>),
     /// A take: what comes in is handed to it while the song plays, or the take ends.
     Record(Option<rtrb::Producer<f32>>),
-    /// The song's Main level, which notes played apart from it go through as its own do.
-    Main(f32),
+    /// The song's Main level, which notes played apart from it go through as its own do, and its metronome's level.
+    Levels { main: f32, metronome: f32 },
 }
 
 /// What the audio thread reports.
@@ -118,6 +118,8 @@ pub(crate) struct AudioSide {
     monitor: Option<(f32, f32)>,
     take: Option<rtrb::Producer<f32>>,
     take_started: bool,
+    /// Each meter's held peak, left and right, and the seconds it is held for yet.
+    held: Vec<(f32, f32, f64)>,
 }
 
 impl AudioSide {
@@ -144,7 +146,10 @@ impl AudioSide {
                     }
                 }
                 Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
-                Command::Main(level) => self.oneshots.main = level,
+                Command::Levels { main, metronome } => {
+                    self.oneshots.main = main;
+                    self.oneshots.metronome = metronome;
+                }
                 Command::Played(shot, at) => {
                     let wait = place(at, now, frames, self.rate);
                     let shot = match shot {
@@ -187,11 +192,15 @@ impl AudioSide {
             }
             data.fill(0.0);
             self.shared.playing.store(false, Ordering::Release);
-            if self.shared.sounding.swap(false, Ordering::AcqRel) {
-                // What was sounding has ended: the master falls silent.
-                self.shared.tracks.store(0, Ordering::Relaxed);
-                self.shared.peaks[0].0.store(0, Ordering::Relaxed);
-                self.shared.peaks[0].1.store(0, Ordering::Relaxed);
+            if self.shared.sounding.load(Ordering::Acquire) {
+                // What was sounding has ended: the master falls silent once its last peak has been held.
+                if self.shared.tracks.swap(0, Ordering::Relaxed) != 0 {
+                    self.held[0] = (0.0, 0.0, 0.0);
+                }
+                self.publish(0, (0.0, 0.0), data.len() / channels);
+                if self.held[0].2 <= 0.0 {
+                    self.shared.sounding.store(false, Ordering::Release);
+                }
             }
             return;
         }
@@ -251,20 +260,25 @@ impl AudioSide {
         // Monitoring an input sounds too, so its meters move while stopped.
         self.shared.sounding.store(self.oneshots.busy() || monitoring, Ordering::Release);
         let Some(renderer) = self.playing.as_mut() else {
-            // Stopped, with a preview or count-in sounding: no tracks, and the master is what is heard.
-            self.shared.tracks.store(0, Ordering::Relaxed);
-            self.shared.peaks[0].0.store(peak_l.to_bits(), Ordering::Relaxed);
-            self.shared.peaks[0].1.store(peak_r.to_bits(), Ordering::Relaxed);
+            // Stopped, with a preview or count-in sounding: no tracks, and the master is what is heard (not what was
+            // held for the first track while the song played).
+            if self.shared.tracks.swap(0, Ordering::Relaxed) != 0 {
+                self.held[0] = (0.0, 0.0, 0.0);
+            }
+            self.publish(0, (peak_l, peak_r), data.len() / channels);
+            // A peak still held keeps it sounding, so its meter is read before it falls silent.
+            if self.held[0].2 > 0.0 {
+                self.shared.sounding.store(true, Ordering::Release);
+            }
             self.shared.playing.store(false, Ordering::Release);
             return;
         };
-        let shared = &self.shared;
         let mut count = 0u32;
-        for (slot, (l, r)) in shared.peaks.iter().zip(renderer.peaks()) {
-            slot.0.store(l.to_bits(), Ordering::Relaxed);
-            slot.1.store(r.to_bits(), Ordering::Relaxed);
+        for (i, peak) in renderer.peaks().enumerate().take(MAX_METERS + 1) {
+            hold_peak(&mut self.held[i], &self.shared.peaks[i], peak, data.len() as f64 / channels as f64 / self.rate);
             count += 1;
         }
+        let shared = &self.shared;
         shared.tracks.store(count.saturating_sub(1), Ordering::Relaxed);
         if let Some((lane, _)) = watch {
             renderer.part_levels(lane, |i, db| {
@@ -285,6 +299,11 @@ impl AudioSide {
     }
 
     /// The effect to listen to: its lane and key. When it has changed, the levels of the last one are cleared.
+    /// Puts the peak of a block of `frames` in meter `i`, held (see [`hold_peak`]).
+    fn publish(&mut self, i: usize, peak: (f32, f32), frames: usize) {
+        hold_peak(&mut self.held[i], &self.shared.peaks[i], peak, frames as f64 / self.rate);
+    }
+
     fn watching(&mut self) -> Option<(usize, u64)> {
         let shared = &self.shared;
         let turn = shared.watch_turn.load(Ordering::Acquire);
@@ -366,6 +385,30 @@ const _: fn() = || {
     fn shared<T: Send + Sync>() {}
     shared::<Engine>();
 };
+
+/// The song's Main and metronome levels, for what sounds apart from the song.
+fn levels(song: &Song) -> Command {
+    Command::Levels { main: song.main.volume.max(0.0) as f32, metronome: song.metronome.volume.clamp(0.0, 1.0) as f32 }
+}
+
+/// Puts a block's `peak` in a meter's `slot`, held at its highest for [`METER_HOLD`] (so a short hit is read whenever
+/// the position is), then following the sound again.
+fn hold_peak(held: &mut (f32, f32, f64), slot: &(AtomicU32, AtomicU32), (l, r): (f32, f32), seconds: f64) {
+    if (l >= held.0 || r >= held.1) && (l > 0.0 || r > 0.0) {
+        *held = (l.max(held.0), r.max(held.1), METER_HOLD);
+    } else {
+        held.2 -= seconds;
+        if held.2 <= 0.0 {
+            *held = (l, r, 0.0);
+        }
+    }
+    slot.0.store(held.0.to_bits(), Ordering::Relaxed);
+    slot.1.store(held.1.to_bits(), Ordering::Relaxed);
+}
+
+/// How long a meter holds a peak: longer than the time between two reports of the position, so a hit shorter than
+/// that is still read at its peak.
+const METER_HOLD: f64 = 0.1;
 
 /// The way into the engine that a keyboard plays through, from whichever thread its notes arrive on.
 #[derive(Clone)]
@@ -503,7 +546,7 @@ impl Engine {
         let (commands, consumer) = rtrb::RingBuffer::new(64);
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
-        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), watch_turn: 0, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK], input: None, in_left: vec![0.0; MAX_BLOCK], in_right: vec![0.0; MAX_BLOCK], monitor: None, take: None, take_started: false };
+        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), watch_turn: 0, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK], input: None, in_left: vec![0.0; MAX_BLOCK], in_right: vec![0.0; MAX_BLOCK], monitor: None, take: None, take_started: false, held: vec![(0.0, 0.0, 0.0); MAX_METERS + 1] };
         let keys = Keys { commands: Arc::new(Mutex::new(commands)), armed: Arc::new(Mutex::new(None)), pressed: Arc::new(Mutex::new(None)) };
         let engine = Engine { keys, midi: Mutex::new(None), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), heard: Mutex::new(None), sample_rate, device, _stream: None, input: Mutex::new(None), take: Mutex::new(None) };
         (engine, audio)
@@ -590,7 +633,7 @@ impl Engine {
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
         self.aim(Some(song));
-        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
+        self.send(levels(song))?;
         self.send(Command::Play(renderer))
     }
 
@@ -815,7 +858,7 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn update(&self, song: &Song) -> Result<(), String> {
-        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
+        self.send(levels(song))?;
         let at = self.position();
         let how = Playing { from: at.beat, ..*lock(&self.how) };
         if at.playing { self.play(song, how) } else { Ok(()) }
@@ -1423,5 +1466,44 @@ mod tests {
         engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
         audio.fill(&mut out, 2);
         assert!((out[1_000 * 2] - 0.25).abs() < 0.01, "{}", out[1_000 * 2]);
+    }
+
+    #[test]
+    fn a_count_in_is_at_the_metronomes_level_and_notes_at_mains() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let mut song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"main":{"volume":0.1},"metronome":{"volume":0.4},"tracks":[]}"#).unwrap();
+        engine.update(&song).unwrap();
+        engine.count_in(120.0, Some(1)).unwrap();
+        let mut out = vec![0f32; 4_800 * 2];
+        audio.fill(&mut out, 2);
+        let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!((f64::from(peak) - 0.28 * 0.4).abs() < 0.01, "{peak}");
+        song.metronome.volume = 0.0;
+        engine.update(&song).unwrap();
+        engine.count_in(120.0, Some(1)).unwrap();
+        audio.fill(&mut out, 2);
+        assert!(out.iter().all(|x| *x == 0.0));
+    }
+
+    #[test]
+    fn a_meter_holds_a_short_hit_between_reports_and_falls_back() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let mut song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"s","kind":"sampler","sampler":{"file":"a.wav","mode":"oneshot"}}]}"#).unwrap();
+        song.sounds.insert("a.wav".into(), Arc::new(crate::wav::Sound { rate: 48_000.0, left: vec![0.5; 480], right: vec![0.5; 480] }));
+        engine.preview(&song.tracks[0], &song.sounds, 60, 1.0, 0.01).unwrap();
+        // A 10 ms hit, then 30 ms of nothing in 10 ms blocks before the position is read.
+        let mut block = vec![0f32; 480 * 2];
+        for _ in 0..4 {
+            audio.fill(&mut block, 2);
+        }
+        let main = |p: &Position| p.meters.iter().find(|(id, _)| id == "master").map(|(_, m)| m[0]);
+        let read = main(&engine.position()).unwrap();
+        // 0.5 is about -6 dB: still within a dB of it, though it ended 30 ms ago.
+        assert!((read + 6.02).abs() < 1.0, "{read}");
+        // A second on, it has fallen away.
+        for _ in 0..100 {
+            audio.fill(&mut block, 2);
+        }
+        assert!(main(&engine.position()).is_none_or(|m| m < -20.0));
     }
 }
