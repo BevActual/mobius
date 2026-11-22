@@ -133,7 +133,7 @@ notes for good, so the file always shows what you hear.
 | Volume, pan, mute and solo | Per track. | Have |
 | Level meters | Per track and for the song. | Next (library `LevelMeter`) |
 | Shared effects | One reverb or delay that many tracks send to. | Next |
-| Mixer view | A Mixer tab beside the Detail at the bottom (Ctrl+Alt+M, or the toolbar button): a strip per track with pan, fader, level meter, mute and solo, and the main out's meter. Meters move while the native engine plays. Sends next, with return tracks. | Have |
+| Mixer view | A Mixer tab beside the Detail at the bottom (Ctrl+Alt+M, or the toolbar button): a strip per track with pan, fader, level meter, mute and solo, and the main out's meter. Meters move while the native engine plays. Return tracks (Add return, up to 12, named A, B…) with a Send knob for each on every track, after the fader as in Live; Main has its own fader. Return and Main effects next. | Have |
 | Clip loops | Loop in a clip's menu in Arrange: stretched, the clip repeats, with a notch where each pass begins and the later passes drawn faintly in the notes editor; a clip can start partway in (its start marker), as in Live. Clip View fields for the loop next. | Have |
 | Freeze | Turning a track to audio so it costs nothing to play. | Later |
 

@@ -1370,7 +1370,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     });
   };
   const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
-    <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} source={mixSource} playing={playing} />
+    <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} setSong={change} source={mixSource} playing={playing} />
   ) };
   // The Library is a tab after Songs, so the songs list that shows while the last song reopens stays in front when
   // it does (a tab group's first panel is in front until the person picks another, which is then remembered).

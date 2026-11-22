@@ -587,6 +587,26 @@ test('the Mixer opens beside the Detail with a strip per track: the fader and Mu
   await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
 });
 
+test('a return track gets a Send knob on every track, and Main has its own fader (Live\'s Mixer)', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Mixer', exact: true }).click();
+  const mixer = shell().getByRole('region', { name: 'Mixer' });
+  await mixer.getByRole('button', { name: 'Add return' }).click();
+  await expect(mixer.getByRole('group', { name: 'A Return' })).toBeVisible();
+  await expect.poll(() => (saved() as unknown as { returns?: { id: string }[] }).returns?.length).toBe(1);
+  const id = (saved() as unknown as { returns: { id: string }[] }).returns[0]!.id;
+  expect(saved().tracks.some((t) => (t as { id: string }).id === id)).toBe(false);
+  // Keys' Send A, turned up, sends to it; Main's fader, pulled down, is kept in the song.
+  const send = mixer.getByRole('group', { name: 'Keys sends' }).getByRole('slider', { name: 'Send A' });
+  await send.focus();
+  await shell().keyboard.press('PageUp');
+  await expect.poll(() => (saved().tracks.find((t) => t.name === 'Keys') as { sends?: Record<string, number> }).sends?.[id] ?? 0).toBeGreaterThan(0);
+  const main = mixer.getByRole('slider', { name: 'Main volume' });
+  await main.focus();
+  await shell().keyboard.press('PageDown');
+  await expect.poll(() => (saved() as unknown as { main?: { volume: number } }).main?.volume ?? 0.8).toBeLessThan(0.5);
+});
+
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
   await start();
   // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.

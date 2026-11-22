@@ -267,3 +267,27 @@ describe('clip loops and start markers (as Live, and as the engine plays them)',
     expect(firstPass({ length: 8, offset: 1, loop: { start: 0, end: 2 } })).toEqual({ from: 1, to: 2 });
   });
 });
+
+describe('Main and return tracks (Live 12 calls the master Main)', () => {
+  const text = JSON.stringify({ version: 2, tempo: 120, bars: 4,
+    main: { volume: 0.5, fx: [{ id: 'fx1', kind: 'reverb' }] },
+    returns: [{ id: 't1', volume: 0.7, pan: -0.5, name: 'Verb', fx: [{ kind: 'delay' }] }, { volume: 2, muted: true }],
+    tracks: [{ id: 't1', instrument: 'bass', clips: [], sends: { 't1': 0.4, 'r-t1': 0.3, nope: 0.5, 'r-2': 0 } }] });
+  const read = song(text);
+  it('reads Main, returns with ids apart from the tracks\', and sends only to returns there are', () => {
+    expect(read.main?.volume).toBe(0.5);
+    expect(read.main?.fx?.[0]?.kind).toBe('reverb');
+    expect(read.returns?.map((r) => r.id)).toEqual(['r-t1', 'r-2']);
+    expect(read.returns?.[1]).toMatchObject({ volume: 1, muted: true });
+    expect(read.tracks[0]!.sends).toEqual({ 'r-t1': 0.3 });
+  });
+  it('writes them back as they were read, and a song without them stays without', () => {
+    const again = song(writeSong(read));
+    expect(again.main).toEqual(read.main);
+    expect(again.returns).toEqual(read.returns);
+    expect(again.tracks[0]!.sends).toEqual({ 'r-t1': 0.3 });
+    const plain = song(JSON.stringify({ version: 2, tracks: [{ id: 't1', instrument: 'bass', clips: [] }] }));
+    expect(writeSong(plain)).not.toContain('"main"');
+    expect(writeSong(plain)).not.toContain('"returns"');
+  });
+});

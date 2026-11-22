@@ -374,3 +374,15 @@ and Resizing Clips, 6.13 Consolidating Clips).
   draws later passes faintly; a note written in a later pass goes into the loop, so it plays on every pass.
 - **Not yet:** Clip View's Start, Loop Position and Loop Length fields and Set buttons, the loop brace, and Ctrl+Up/Down
   (double or halve the loop). Live's Ctrl+L is the Arrangement loop, which Music already has (L).
+
+### Sources: Main and return tracks
+
+Read for the Main and returns round (with the Builder's engine side, #763): Live 12 manual,
+[Mixing](https://www.ableton.com/en/live-manual/12/mixing/) (return tracks, sends, and the Main track; Live 12 renamed
+Master to Main).
+
+- **Copied:** return tracks named by letter (A, B…), up to 12; a Send knob per return on each track, taken after the
+  fader by default; returns sum into Main, whose effects and volume come last.
+- **Adapted:** sends sit as a compact row of small knobs above pan, a letter before each, so every strip's fader lines up.
+- **Not yet:** pre-fader sends, a return's own sends, effects on returns and Main from the Devices view, and removing or
+  renaming a return (Undo takes one back for now).

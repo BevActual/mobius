@@ -165,8 +165,16 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[] }
 
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
+export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[] }
+/** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
+export interface MainTrack { volume: number; fx?: Effect[] }
+/** A return track: what tracks send to it goes through its effects, its volume and pan, into Main. Its id never matches a track's. */
+export interface ReturnTrack { id: string; name?: string; volume: number; pan: number; muted?: boolean; fx?: Effect[] }
+export const MAX_RETURNS = 12;
+export const MAIN_VOLUME = 0.8;
+/** A return's name: its own, or a letter by its place, as Live names them (A, B, C…). */
+export const returnName = (r: ReturnTrack, i: number): string => r.name || String.fromCharCode(65 + i);
 export const BEATS_PER_BAR = 4;
 export const DRUMS: { pitch: number; name: string }[] = [
   { pitch: 46, name: 'Open hat' }, { pitch: 42, name: 'Closed hat' }, { pitch: 45, name: 'Tom' }, { pitch: 39, name: 'Clap' }, { pitch: 38, name: 'Snare' }, { pitch: 36, name: 'Kick' },
@@ -253,19 +261,7 @@ export function parseSong(text: string): { song: Song } | { error: string } {
       const base = SOUND_DEFAULTS[instrument];
       track.sound = Object.fromEntries((Object.keys(SOUND_RANGE) as (keyof Sound)[]).map((k) => [k, num(so[k], base[k], SOUND_RANGE[k].lo, SOUND_RANGE[k].hi)])) as unknown as Sound;
     }
-    const fx = (Array.isArray(to.fx) ? to.fx : []).slice(0, 8).flatMap((e, j): Effect[] => {
-      const eo = obj(e);
-      const fxId = typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`;
-      if (eo.kind === 'device') {
-        const read = parseDevice(eo.device);
-        if ('error' in read) { refused ??= `Track “${track.name}”, effect ${fxId}: ${read.error}`; return []; }
-        return [{ id: fxId, kind: 'device', on: eo.on !== false, device: read.device }];
-      }
-      const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
-      if (!kind) return [];
-      const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
-      return [{ id: fxId, kind, on: eo.on !== false, ...params } as Effect];
-    });
+    const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
     if (fx.length > 0) track.fx = fx;
     const volumeAuto = readAuto(to.volumeAuto, bars * BEATS_PER_BAR);
     if (volumeAuto.length > 0) track.volumeAuto = volumeAuto;
@@ -288,10 +284,50 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     return track;
   });
+  // Return tracks first need ids no track has (the engine reports their meters by id beside the tracks').
+  const returns = (Array.isArray(o.returns) ? o.returns : []).slice(0, MAX_RETURNS).map((r, i): ReturnTrack => {
+    const ro = obj(r);
+    let id = typeof ro.id === 'string' && ro.id ? ro.id.slice(0, 40) : `r-${i + 1}`;
+    while (taken.has(id)) id = `r-${id}`;
+    taken.add(id);
+    const ret: ReturnTrack = { id, volume: num(ro.volume, MAIN_VOLUME, 0, 1), pan: num(ro.pan, 0, -1, 1) };
+    if (typeof ro.name === 'string' && ro.name) ret.name = ro.name.slice(0, 40);
+    if (ro.muted === true) ret.muted = true;
+    const fx = readFx(ro.fx, `Return ${returnName(ret, i)}`, (why) => { refused ??= why; });
+    if (fx.length > 0) ret.fx = fx;
+    return ret;
+  });
+  const returnIds = new Set(returns.map((r) => r.id));
+  (Array.isArray(o.tracks) ? o.tracks : []).slice(0, 32).forEach((t, i) => {
+    const so = obj(obj(t).sends);
+    const sends = Object.fromEntries(Object.entries(so).filter(([id, v]) => returnIds.has(id) && typeof v === 'number' && Number.isFinite(v) && v > 0).map(([id, v]) => [id, Math.min(1, v as number)]));
+    if (Object.keys(sends).length > 0 && tracks[i]) tracks[i]!.sends = sends;
+  });
+  const mo = obj(o.main);
+  const mainFx = readFx(mo.fx, 'Main', (why) => { refused ??= why; });
   if (refused) return { error: refused };
   const song: Song = { version: 2, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
+  if (Object.keys(mo).length > 0) { song.main = { volume: num(mo.volume, MAIN_VOLUME, 0, 1) }; if (mainFx.length > 0) song.main.fx = mainFx; }
+  if (returns.length > 0) song.returns = returns;
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
   return { song };
+}
+
+/** A chain of effects from a file: built-in ones with their settings, and devices, which must be able to play. */
+function readFx(list: unknown, where: string, refuse: (why: string) => void): Effect[] {
+  return (Array.isArray(list) ? list : []).slice(0, 8).flatMap((e, j): Effect[] => {
+    const eo = obj(e);
+    const fxId = typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`;
+    if (eo.kind === 'device') {
+      const read = parseDevice(eo.device);
+      if ('error' in read) { refuse(`${where}, effect ${fxId}: ${read.error}`); return []; }
+      return [{ id: fxId, kind: 'device', on: eo.on !== false, device: read.device }];
+    }
+    const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
+    if (!kind) return [];
+    const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
+    return [{ id: fxId, kind, on: eo.on !== false, ...params } as Effect];
+  });
 }
 
 /** How many scenes the Session view shows: the named ones, the deepest clip, and never fewer than four. */
@@ -301,13 +337,17 @@ export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || 
 
 /** One note to a line, so a change reads as the notes it touched. */
 export function writeSong(song: Song): string {
-  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []), '  "tracks": ['];
+  const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
+    ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
+    ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
+    '  "tracks": ['];
   song.tracks.forEach((t, i) => {
     const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
     if (t.solo) head.solo = true;
     if (t.instrumentOn === false) head.instrumentOn = false;
     if (t.pan) head.pan = t.pan;
+    if (t.sends && Object.keys(t.sends).length > 0) head.sends = t.sends;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
     if (t.kit && t.instrument === 'drums') head.kit = t.kit;
     if (t.pads && t.instrument === 'drums') {
