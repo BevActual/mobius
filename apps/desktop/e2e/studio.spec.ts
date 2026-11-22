@@ -783,9 +783,9 @@ test('Loop on a clip in Arrange repeats it when it is stretched, as Live\'s Loop
   await clip().press('Enter');
   const loop = shell().getByRole('group', { name: /^Loop of / });
   await expect(loop.getByRole('button', { name: 'Loop clip' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(loop.getByRole('spinbutton', { name: 'Loop length' })).toHaveAttribute('aria-valuenow', '2');
+  await expect(loop.getByRole('spinbutton', { name: 'Loop length', exact: true })).toHaveAttribute('aria-valuenow', '2');
   // The start marker: Up moves it a quarter beat into the clip.
-  await loop.getByRole('spinbutton', { name: 'Start' }).press('ArrowUp');
+  await loop.getByRole('spinbutton', { name: 'Start', exact: true }).press('ArrowUp');
   await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { offset?: number } | undefined)?.offset).toBe(0.25);
   // Stop Looping takes the loop off; the clip stays as long, and what's past its notes is quiet.
   await clip().click({ button: 'right' });
