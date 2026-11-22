@@ -63,7 +63,8 @@ function follow(tempo: () => number, cycle: Cycle | null, from: number) {
     const v = at.meters[`${track}/${fx}/${part}`];
     return v ? Math.max(v[0], v[1]) : null;
   };
-  return { at, off, beat, level };
+  const meter = (id: string) => at.meters[id] ?? null;
+  return { at, off, beat, level, meter };
 }
 
 /** Plays the Arrange view from `fromBeat`, round `loop` if given. */
@@ -80,6 +81,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
     beat: f.beat,
     update(next) { song = next; loadSong(next); },
     level: f.level,
+    meter: f.meter,
   };
 }
 
@@ -98,6 +100,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
     stop() { f.off(); send(() => m.stop()); },
     beat: f.beat,
     level: f.level,
+    meter: f.meter,
     launch(trackId, slot) { asked = { ...asked, [trackId]: slot }; send(() => m.launch!(trackId, slot)); },
     update(next) { song = next; loadSong(next); },
     playing() {

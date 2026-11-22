@@ -133,7 +133,7 @@ notes for good, so the file always shows what you hear.
 | Volume, pan, mute and solo | Per track. | Have |
 | Level meters | Per track and for the song. | Next (library `LevelMeter`) |
 | Shared effects | One reverb or delay that many tracks send to. | Next |
-| Mixer view | Every track's level, pan and sends side by side. | Later |
+| Mixer view | A Mixer tab beside the Detail at the bottom (Ctrl+Alt+M, or the toolbar button): a strip per track with pan, fader, level meter, mute and solo, and the main out's meter. Meters move while the native engine plays. Sends next, with return tracks. | Have |
 | Freeze | Turning a track to audio so it costs nothing to play. | Later |
 
 ## Recording and audio

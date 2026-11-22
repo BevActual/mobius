@@ -9,6 +9,7 @@ import { renderSong, type Player, type SessionPlayer, type SessionPlaying, type 
 import { countIn, engineOn, engineReady, loadSong, play, playSession, previewOn } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
+import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
@@ -125,6 +126,7 @@ const ICONS = {
   stop: 'M5.5 5.5h9v9h-9z',
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
+  mixer: 'M5 4v12M10 4v12M15 4v12M3.5 12h3M8.5 7h3M13.5 10h3',
   transform: 'M4 16 12 8M12 3.5v2.5M15.5 5 14 6.5M16.5 9H14',
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
   auto: 'M3.5 14.5l4-6 4 3 5-7',
@@ -560,6 +562,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [editing, setEditing] = useState(false);
   /** What the bottom area shows for the chosen track: its notes or its devices. */
   const [detail, setDetail] = useState<'notes' | 'device'>('notes');
+  // Opening a track's notes or devices brings the Detail tab in front of the Mixer beside it.
+  const [detailReveal, setDetailReveal] = useState(0);
+  useEffect(() => { if (editing) setDetailReveal((n) => n + 1); }, [editing, selected, detail]);
   /** The effect open in the Workbench, in place of the track's devices: on which track, and its id. */
   const [bench, setBench] = useState<{ track: string; fx: string } | null>(null);
   /** Which view of the song is shown: its clips (Session) or the song from start to end (Arrange). */
@@ -595,6 +600,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   }, [song !== null]); // eslint-disable-line react-hooks/exhaustive-deps
   const [, setTick] = useState(0);
   const player = useRef<Player | null>(null);
+  /** What is playing, for the Mixer's meters (a stable function, so its meter loop isn't restarted). */
+  const mixSource = useCallback(() => session.current ?? player.current, []);
+  /** Bumped to bring the Mixer tab up from the toolbar. */
+  const [mixerReveal, setMixerReveal] = useState(0);
   const roll = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const copied = useRef<SongNote[]>([]);
@@ -1342,10 +1351,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       setSelected(t.id);
     });
   };
+  const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
+    <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} source={mixSource} playing={playing} />
+  ) };
   const libraryPanel: PanelSpec = { id: 'library', name: 'Library', dock: 'left', shown: true, group: 'browse', keys: 'mod+alt+b', render: () => (
     <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} />
   ) };
-  const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', shown: true, size: 340, onHide: () => setEditing(false), render: () => (
+  const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', group: 'bottom', shown: true, size: 340, reveal: detailReveal, onHide: () => setEditing(false), render: () => (
     <div ref={setEditorEl} className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
       <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Devices'}>
         <span className="studio-roll-title"><span className="studio-dev-dot" aria-hidden="true" />{track.name}</span>
@@ -1501,6 +1513,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         <ToolbarItem priority="keep">
           <TapTempo onTempo={(bpm) => change((s) => { s.tempo = Math.round(bpm); }, 'tempo')} min={30} max={300} />
         </ToolbarItem>
+        <IconButton label="Mixer" keys="Ctrl+Alt+M" title="Show the Mixer: a strip per track, with meters" icon={<Icon d={ICONS.mixer} />} onClick={() => setMixerReveal((n) => n + 1)} />
         {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Show automation: a volume line under each track'} icon={<Icon d={ICONS.auto} />} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
@@ -1511,7 +1524,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         </ToolbarItem>
       </ToolbarControls>
-      <PanelLayout app="studio" panels={[libraryPanel, ...listPanels.map((p) => ({ ...p, group: 'browse' })), ...(detailPanel ? [detailPanel] : [])]}>
+      <PanelLayout app="studio" panels={[libraryPanel, ...listPanels.map((p) => ({ ...p, group: 'browse' })), ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
