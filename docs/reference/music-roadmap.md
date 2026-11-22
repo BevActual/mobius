@@ -134,7 +134,7 @@ notes for good, so the file always shows what you hear.
 | Level meters | Per track and for the song. | Next (library `LevelMeter`) |
 | Shared effects | One reverb or delay that many tracks send to. | Next |
 | Mixer view | A Mixer tab beside the Detail at the bottom (Ctrl+Alt+M, or the toolbar button): a strip per track with pan, fader, level meter, mute and solo, and the main out's meter. Meters move while the native engine plays. Sends next, with return tracks. | Have |
-| Clip loops | Loop in a clip's menu in Arrange: stretched, the clip repeats, with a notch where each pass begins and the later passes drawn faintly in the notes editor; a clip can start partway in (its start marker), as in Live. Clip View fields for the loop next. | Have |
+| Clip loops | Loop in a clip's menu in Arrange: stretched, the clip repeats, with a notch where each pass begins and the later passes drawn faintly in the notes editor; a clip can start partway in (its start marker), as in Live. Opened, a clip shows its Loop switch, start marker and loop in the Clip toolbar; Ctrl+Up and Ctrl+Down double and halve the loop. | Have |
 | Freeze | Turning a track to audio so it costs nothing to play. | Later |
 
 ## Recording and audio

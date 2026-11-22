@@ -309,3 +309,7 @@
 /* A looped clip (Live's Loop switch): a notch where each pass begins, and the later passes drawn faintly in the notes editor. */
 .studio-clip-turn { position: absolute; top: 0; bottom: 0; width: 0; border-left: var(--hairline-w) dashed color-mix(in srgb, var(--on-content) 55%, transparent); pointer-events: none; }
 .studio-note[data-echo] { opacity: 0.35; pointer-events: none; }
+.studio-clip-loop { display: flex; flex: none; align-items: center; gap: var(--sp-2); padding-right: var(--sp-2); border-right: var(--hairline-w) solid var(--line-soft); }
+/* In the Clip toolbar the loop fields sit on one line, each label before its box, so the toolbar keeps a single row. */
+.studio-clip-loop .ui-number { flex-direction: row; align-items: center; gap: var(--sp-1); }
+.studio-clip-loop .ui-number-box { min-width: 0; }
