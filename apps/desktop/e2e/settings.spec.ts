@@ -41,7 +41,7 @@ const openSettings = async () => {
 };
 const go = async (section: string, subpage?: string) => {
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
-  if (subpage) await page().getByRole('tab', { name: subpage, exact: true }).click();
+  if (subpage) await page().locator(`.settings-group[aria-label="${subpage}"]`).scrollIntoViewIfNeeded();
 };
 const visibleViews = async () => (await views(mobius!.app)).filter((v) => v.visible);
 const allowAlways = async (tool: string) => shell().getByRole('group', { name: `Approval needed: ${tool}` }).getByRole('button', { name: 'Always allow' }).click();
@@ -52,7 +52,7 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   await openSettings();
   await expect(shell().locator('.strip-title')).toHaveText('General');
   // One left panel: Settings' search and sections, not the last app's list beside them.
-  await expect(shell().locator('.ui-dock[data-dock="left"]').getByRole('region', { name: 'Sections' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
+  await expect(shell().locator('.ui-dock[data-dock="left"]').getByRole('region', { name: 'Settings sections' }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Tabs' })).toHaveCount(0);
   await expect(page().getByRole('button', { name: 'Close settings' })).toHaveCount(0);
   expect(await visibleViews()).toHaveLength(0);
@@ -88,11 +88,12 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
-  await expect(page().getByRole('tab')).toHaveText(['Approvals', 'Activity']);
+  // A section's pages are its groups, one card each, all on the one page.
+  await expect.poll(() => page().locator('.settings-group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual(['Approvals', 'Activity']);
   await go('Memory');
   await expect(page().getByRole('heading', { name: 'What Mobius remembers' })).toBeVisible();
   await go('Models');
-  await expect(page().getByRole('tab')).toHaveText(['Defaults', 'This computer']);
+  await expect.poll(() => page().locator('.settings-group').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label')))).toEqual(['Defaults', 'This computer']);
   // The chat model is a pop-up of what the gateways offer; the server's address is in Gateways, Custom server.
   await expect(page().getByRole('combobox', { name: 'Chat model' })).toBeVisible();
   await go('Gateways');
@@ -110,7 +111,7 @@ test('search finds a setting by what it is about and jumps to it', async () => {
   const hit = page().getByRole('button', { name: /Always allowed/ });
   await expect(hit).toBeVisible();
   await hit.click();
-  await expect(page().getByRole('tab', { name: 'Approvals', selected: true })).toBeVisible();
+  await expect(page().locator('.settings-group[aria-label="Approvals"]')).toBeVisible();
   await expect(page().locator('[data-setting="safety.approvals.always-allowed"]')).toHaveAttribute('data-highlight', 'true');
   await expect(search).toHaveValue('');
   await search.fill('qqqzzz');
@@ -358,7 +359,7 @@ test('search at the top of the sidebar finds settings by their old names too, an
   await expect(page().getByRole('list', { name: 'Search results' })).toContainText('Gateways');
   await search.fill('kokoro');
   await page().getByRole('button', { name: /Voice model/ }).click();
-  await expect(page().getByRole('tab', { name: 'Speaking', selected: true })).toBeVisible();
+  await expect(page().locator('.settings-group[aria-label="Speaking"]')).toBeVisible();
   await go('Abilities');
   await page().getByRole('button', { name: 'Open Abilities' }).click();
   await expect(page()).toHaveCount(0);

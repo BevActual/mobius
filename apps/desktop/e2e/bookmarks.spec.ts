@@ -28,7 +28,7 @@ const openBookmarks = async () => {
   await openSettings(shell());
   await expect(settings()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
-  await settings().getByRole('tab', { name: 'Bookmarks', exact: true }).click();
+  await settings().locator('.settings-group[aria-label="Bookmarks"]').scrollIntoViewIfNeeded();
 };
 const saved = (): Locator => settings().getByRole('list', { name: 'Bookmarks' }).getByRole('listitem');
 

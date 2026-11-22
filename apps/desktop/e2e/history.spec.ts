@@ -27,7 +27,7 @@ const openHistory = async () => {
   await openSettings(shell());
   await expect(settings()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Browser', exact: true }).click();
-  await settings().getByRole('tab', { name: 'History', exact: true }).click();
+  await settings().locator('.settings-group[aria-label="History"]').scrollIntoViewIfNeeded();
 };
 const pages = (): Locator => settings().getByRole('list', { name: 'Pages you visited' }).getByRole('listitem');
 

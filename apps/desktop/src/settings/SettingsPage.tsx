@@ -7,7 +7,8 @@ import { SchedulesSection } from './Schedules';
 import { PageBoundary } from './PageBoundary';
 import { UsageSection } from './Usage';
 import { ExtensionsSettings, GeneralSection, MemorySection, PrivacySection, VoiceSection, VoiceModelRows } from './Voice';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection } from '../ui';
+import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from '../ui';
+import { SectionIcon } from './icons';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
 import { CalendarAccountsSettings } from '../CalendarAccounts';
@@ -55,12 +56,16 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   // The app sidebar (zone 2), from the shared pieces: search, then the sections under their headings, as in System Settings.
   const nav = (
     <AppSidebar label="Sections">
-      <SidebarSearch label="Search settings" value={query} onChange={setQuery} />
+      <label className="settings-search">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3 13.5 13.5" /></svg>
+        <input type="search" aria-label="Search settings" title="Search settings (Ctrl+F)" placeholder="Search settings" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); e.stopPropagation(); setQuery(''); } else if (e.key === 'Enter' && hits[0]) { const hit = hits[0]; setSection(hit.section); setSubpage(hit.subpage); setHighlight(hit.row); setQuery(''); } }} />
+        {!query && <span aria-hidden="true"><KeyCaps keys="Ctrl+F" /></span>}
+      </label>
       <nav className="settings-nav" aria-label="Settings sections">
         {[...new Set(SETTINGS.map((item) => item.group ?? ''))].map((group) => (
           <SidebarSection key={group} title={group}>
             {SETTINGS.filter((item) => (item.group ?? '') === group).map((item) => (
-              <SidebarRow key={item.id} label={item.label} current={item.id === section && !query.trim()} onSelect={() => openSection(item.id)} />
+              <SidebarRow key={item.id} icon={<SectionIcon id={item.id} />} label={item.label} current={item.id === section && !query.trim()} onSelect={() => openSection(item.id)} />
             ))}
           </SidebarSection>
         ))}
@@ -74,10 +79,12 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented) onClose();
+      // Ctrl+F finds a setting, as in every settings window.
+      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.code === 'KeyF') { event.preventDefault(); (sidebar ?? root.current)?.querySelector<HTMLElement>('input[type="search"]')?.focus(); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, sidebar]);
   useEffect(() => {
     if (!highlight) return;
     root.current?.querySelector(`[data-setting$=".${highlight}"]`)?.scrollIntoView({ block: 'center' });
@@ -115,17 +122,17 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
           ) : (
             current && (
               <>
-                {/* The section's name over one quiet line on what it is for. */}
+                {/* Where it is (its group › its name), the name, one quiet line on what it is for, then each of its pages
+                    as a group: a small grey heading over one rounded card of rows, as in System Settings and Linear. */}
+                <p className="settings-crumb">{current.group ? `${current.group} › ${current.label}` : current.label}</p>
                 <h2 className="settings-heading">{current.label}</h2>
                 <p className="settings-lede">{current.description}</p>
-                {current.subpages.length > 1 && (
-                  <div className="settings-tabs" role="tablist" aria-label={`${current.label} pages`}>
-                    {current.subpages.map((page) => (
-                      <button key={page.id} type="button" role="tab" aria-selected={page.id === subpage} className="settings-tab" onClick={() => { setSubpage(page.id); setHighlight(null); }}>{page.label}</button>
-                    ))}
-                  </div>
-                )}
-                <div className="settings-card"><PageBoundary key={`${section}.${subpage}`}><View subpage={subpage} highlight={highlight} {...rest} /></PageBoundary></div>
+                {current.subpages.map((page) => (
+                  <section key={page.id} className="settings-group" aria-label={page.label} data-subpage={page.id}>
+                    {(current.subpages.length > 1 || page.label !== current.label) && !(page.rows.length === 1 && page.rows[0]!.label === page.label) && <h3 className="settings-group-title">{page.label}</h3>}
+                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} {...rest} /></PageBoundary></div>
+                  </section>
+                ))}
               </>
             )
           )}

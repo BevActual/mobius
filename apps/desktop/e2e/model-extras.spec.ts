@@ -18,7 +18,7 @@ const open = async (tab: string) => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await page().getByRole('tab', { name: tab, exact: true }).click();
+  await page().locator(`.settings-group[aria-label="${tab}"]`).scrollIntoViewIfNeeded();
 };
 
 test('choosing a provider fills in its address and says where to get a key', async () => {
