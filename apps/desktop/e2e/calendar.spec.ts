@@ -83,7 +83,9 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText(/^(Still to come|Next)$/);
 
   // New event: the editor opens at the next hour today.
-  await shell().locator('.app-side-new').click();
+  // N, from the page (New event's + in the tool row opens the one-line entry instead).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('n');
   const editor = shell().getByRole('dialog', { name: 'New event' });
   await editor.getByRole('textbox', { name: 'Title' }).fill('Water the plants');
   await editor.getByRole('switch', { name: 'All day' }).click();
@@ -289,7 +291,9 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(view).toHaveCount(0);
 
   // New events go only to calendars that can take them.
-  await shell().locator('.app-side-new').click();
+  // N, from the page (New event's + in the tool row opens the one-line entry instead).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('n');
   await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
