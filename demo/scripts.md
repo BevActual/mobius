@@ -1,6 +1,6 @@
 # Demo scripts
 
-How to run the moments from [the demo plan](../docs/reference/demo-plan.md) that have not yet been run with a real
+How to run the moments from [the demo plan](../docs/archive/demo-plan.md) that have not yet been run with a real
 model, on the seeded workspace in `demo/workspace/`. Each says what to open, what to press or type, what a good result
 looks like, and whether what it needs is on main. Timings and results go in [results.md](results.md), which also
 holds how the earlier moments (Home, Mail, Calendar, Notes, Docs, Slides, Browser, Files, Sheets, Code) are run.

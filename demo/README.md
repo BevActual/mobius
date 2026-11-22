@@ -1,7 +1,7 @@
 # The demo workspace
 
 One made-up small team, used for every demo clip and the reel, so they all agree with each other and anyone can replay
-them. Which moment each app shows is in the [demo plan](../docs/reference/demo-plan.md). Nothing here is real
+them. Which moment each app shows is in the [demo plan](../docs/archive/demo-plan.md). Nothing here is real
 personal data: the people, companies and addresses are invented, and every domain ends in `.example`.
 
 Open it in Mobius from **Settings › Advanced › Profiles › Open the demo workspace**. Mobius starts again on a fresh
