@@ -36,6 +36,7 @@ pub mod messages_tools;
 pub mod slack;
 pub mod contact_accounts;
 pub mod drives;
+pub mod local_drive;
 pub mod google_drive;
 pub mod graph_calendar;
 pub mod s3;
