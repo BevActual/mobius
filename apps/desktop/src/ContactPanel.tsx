@@ -18,7 +18,7 @@ export function meetingsWith(events: readonly CalendarEvent[], email: string, no
 }
 
 /** The next 60 days' events with someone, read from the calendars; empty where there are none. */
-function useMeetingsWith(email: string): CalendarEvent[] {
+export function useMeetingsWith(email: string): CalendarEvent[] {
   const [found, setFound] = useState<CalendarEvent[]>([]);
   useEffect(() => {
     const cal = window.mobius.calendar;
