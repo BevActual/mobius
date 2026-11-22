@@ -773,6 +773,7 @@ export function createTauriBridge(): MobiusBridge {
       seek: (beat) => call('music', 'seek', [beat], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       render: (path, name, song) => call('music', 'render', [path, name, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       freeze: (path, trackId, song) => call('music', 'freeze', [path, trackId, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      renderStems: (path, name, song) => call('music', 'renderStems', [path, name, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       onPosition: (listener) => on<MusicPosition>('mobius:music-position', listener),
     },
     space: {

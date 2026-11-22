@@ -1308,6 +1308,9 @@ export interface MobiusBridge {
     /** Freezes a track (Live 12 manual, 38.1.4): renders its instrument, clips and effects into the song's
      *  Samples/Processed/Freeze folder; set the track's `frozen: { file }` to play that in their place. */
     freeze?(path: string, trackId: string, song?: unknown): Promise<{ ok: true; file: string } | NotesFailure>;
+    /** Each heard track, each return and Main as its own 32-bit float WAV, the same length, in a new folder
+     *  `Exports/<name> stems` (Live's All Individual Tracks). Silent tracks have no file. */
+    renderStems?(path: string, name: string, song?: unknown): Promise<{ ok: true; path: string; saved: string; files: { file: string; peakDb: number; over: boolean }[] } | NotesFailure>;
     /** Where playback is, about 30 times a second while playing: each track's level and `master`'s, in dB. */
     onPosition(listener: (position: MusicPosition) => void): () => void;
   };

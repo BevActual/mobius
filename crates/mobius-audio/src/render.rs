@@ -56,6 +56,8 @@ struct Lane {
     slot_stretch: Stretch,
     /// A sampler track's sound, or the drums' pads that hold sounds of their own.
     samplers: Samplers,
+    /// Its sound into Main for the last block, left and right, when the renderer keeps stems (else empty).
+    stem: (Vec<f32>, Vec<f32>),
     /// Sampler notes sounding, each with how far into the block it starts the first time (as a hit waits) and the
     /// note that started it.
     sample_voices: Vec<(SampleVoice, usize, u8)>,
@@ -97,6 +99,8 @@ impl AudioClip {
 /// A return track as it plays: what the tracks send it, through its effects, volume and pan, into Main.
 struct ReturnLane {
     id: String,
+    /// As a lane's `stem`.
+    stem: (Vec<f32>, Vec<f32>),
     volume: f64,
     pan: f64,
     chain: Option<Chain>,
@@ -161,8 +165,9 @@ pub struct Oneshots {
     samples: Vec<HeldSample>,
     ticks: Vec<Tick>,
     /// The song's Main level: notes go through it as the song's own do (Live: a played note is heard through the
-    /// Main track). A count-in's ticks do not, as Live's metronome has a level of its own.
+    /// Main track). A count-in's ticks do not: they are at the metronome's own level, `metronome`.
     pub main: f32,
+    pub metronome: f32,
     mono: Vec<f32>,
     left: Vec<f32>,
     right: Vec<f32>,
@@ -236,7 +241,7 @@ const ONESHOTS: usize = 16;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
-        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), main: 1.0, mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), main: 1.0, metronome: 0.8, mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
     }
 }
 
@@ -260,7 +265,7 @@ impl Oneshots {
                 self.ticks.clear();
                 for i in 0..beats.min(ONESHOTS) {
                     let wait = ((0.05 + i as f64 * seconds_per_beat) * rate).round() as usize;
-                    self.ticks.push(Tick { wait, time: 0, accent: i == 0, gain: 1.0 });
+                    self.ticks.push(Tick { wait, time: 0, accent: i == 0, gain: f64::from(self.metronome) });
                 }
             }
             Oneshot::Hush => {
@@ -406,8 +411,9 @@ pub struct Renderer {
     /// Where the song ends, in samples and in beats.
     end: u64,
     total: f64,
-    /// Whether the metronome ticks, and the ticks sounding.
+    /// Whether the metronome ticks, and the ticks sounding, at the metronome's own level (not Main's).
     click: bool,
+    metronome: f64,
     ticks: Vec<Tick>,
     /// In the Session view, every track's clips and launches (in song order).
     session: Option<Vec<SessionTrack>>,
@@ -525,6 +531,7 @@ impl Renderer {
             .take(crate::song::MAX_RETURNS)
             .map(|r| ReturnLane {
                 id: r.id.clone(),
+                stem: (Vec::new(), Vec::new()),
                 volume: if r.muted { 0.0 } else { r.volume },
                 pan: r.pan,
                 chain: Chain::new(&r.fx, sample_rate, 60.0 / song.tempo, true),
@@ -615,6 +622,7 @@ impl Renderer {
                     slot_stretch: Stretch::default(),
                     samplers,
                     sample_voices: Vec::with_capacity(MAX_VOICES),
+                    stem: (Vec::new(), Vec::new()),
                 }
             })
             .collect();
@@ -625,6 +633,7 @@ impl Renderer {
             main: Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true),
             main_key: serde_json::to_string(&song.main.fx).unwrap_or_default(),
             main_volume: song.main.volume.max(0.0),
+            metronome: song.metronome.volume.clamp(0.0, 1.0),
             sample: start,
             peak: (0.0, 0.0),
             cycle: cycle.filter(|_| !how.session).map(|(a, b)| (clock.sample_of_beat(a), clock.sample_of_beat(b))),
@@ -636,6 +645,26 @@ impl Renderer {
             ticks: Vec::with_capacity(8),
             session,
         }
+    }
+
+    /// The same renderer keeping each track's and return's own sound, for stems ([`Renderer::stems`]).
+    #[must_use]
+    pub fn with_stems(mut self) -> Renderer {
+        for lane in &mut self.lanes {
+            lane.stem = (vec![0.0; MAX_BLOCK], vec![0.0; MAX_BLOCK]);
+        }
+        for ret in &mut self.returns {
+            ret.stem = (vec![0.0; MAX_BLOCK], vec![0.0; MAX_BLOCK]);
+        }
+        self
+    }
+
+    /// After a `render` of `frames` (at most [`MAX_BLOCK`], with no loop or Session view, so it is made in one piece),
+    /// what each track heard and then each return put into Main, in [`Renderer::track_ids`] order: post-fader, before
+    /// Main's effects and level (Live 12 manual, 5.1.3.1 "Selection Options": All Individual Tracks).
+    pub fn stems(&self, frames: usize) -> impl Iterator<Item = (&[f32], &[f32])> {
+        let n = frames.min(MAX_BLOCK);
+        self.lanes.iter().map(|l| &l.stem).chain(self.returns.iter().map(|r| &r.stem)).map(move |(l, r)| (&l[..n.min(l.len())], &r[..n.min(r.len())]))
     }
 
     /// The tracks heard, then the returns, in the order `peaks` gives their levels.
@@ -818,8 +847,12 @@ impl Renderer {
         let returns = &mut self.returns;
         // A track's sound into Main (before Main's effects and level) and on to its returns; its meter reads it at
         // Main's level, as it is heard with no effects on Main.
-        let out = |peak: &mut (f32, f32), sends: &[(usize, f32)], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
+        let out = |peak: &mut (f32, f32), stem: &mut (Vec<f32>, Vec<f32>), sends: &[(usize, f32)], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
             *peak = (peak.0.max((l * main_volume).abs()), peak.1.max((r * main_volume).abs()));
+            if !stem.0.is_empty() {
+                stem.0[i] = l;
+                stem.1[i] = r;
+            }
             left[i] += l;
             right[i] += r;
             for &(to, level) in sends {
@@ -922,7 +955,7 @@ impl Renderer {
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
                     let (a, b) = if lane.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, lane.pan, stereo) };
-                    out(&mut lane.peak, &lane.sends, returns, i, (a as f32, b as f32), left, right);
+                    out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
                 }
                 continue;
             }
@@ -933,7 +966,7 @@ impl Renderer {
                 let (volume, scale) = if lane.auto.is_empty() { (lane.volume, 1.0) } else { let v = f64::from(lane.volumes[i]); (v, if lane.volume > 0.0 { v / lane.volume } else { 0.0 }) };
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
                 let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * volume, b * volume, lane.pan, true) } else { (a * gl * scale, b * gr * scale) };
-                out(&mut lane.peak, &lane.sends, returns, i, (l as f32, r as f32), left, right);
+                out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (l as f32, r as f32), left, right);
             }
         }
         // Each return: what was sent to it, through its effects, then its volume and pan, into Main.
@@ -947,6 +980,10 @@ impl Renderer {
                 let (a, b) = if ret.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, ret.pan, true) };
                 let (l, r) = (a as f32, b as f32);
                 ret.peak = (ret.peak.0.max((l * main_volume).abs()), ret.peak.1.max((r * main_volume).abs()));
+                if !ret.stem.0.is_empty() {
+                    ret.stem.0[i] = l;
+                    ret.stem.1[i] = r;
+                }
                 left[i] += l;
                 right[i] += r;
             }
@@ -971,7 +1008,7 @@ impl Renderer {
                     self.ticks.remove(0);
                 }
                 let wait = usize::try_from(clock.sample_of_beat(beat) - from).unwrap_or(0);
-                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: self.main_volume });
+                self.ticks.push(Tick { wait, time: 0, accent: beat.rem_euclid(BEATS_PER_BAR) < 1e-9, gain: self.metronome });
                 beat += 1.0;
             }
         }
@@ -998,11 +1035,17 @@ fn placed(song: &Song, audio_track: bool, audio: Option<&crate::song::Audio>) ->
     Some(Placed::new(audio, song.sounds.get(&audio.file)?.clone(), song.tempo))
 }
 
+/// How many frames a render of the whole song makes: to its end and its tail.
+#[must_use]
+pub fn song_frames(song: &Song, sample_rate: u32) -> usize {
+    let seconds = song.beats() * 60.0 / song.tempo + RENDER_TAIL;
+    (seconds * f64::from(sample_rate)).ceil() as usize
+}
+
 /// The whole song as stereo sound, from its start to its end and its tail.
 #[must_use]
 pub fn render_song(song: &Song, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
-    let seconds = song.beats() * 60.0 / song.tempo + RENDER_TAIL;
-    let frames = (seconds * f64::from(sample_rate)).ceil() as usize;
+    let frames = song_frames(song, sample_rate);
     let (mut left, mut right) = (vec![0f32; frames], vec![0f32; frames]);
     let mut renderer = Renderer::new(song, sample_rate, 0.0);
     for (l, r) in left.chunks_mut(512).zip(right.chunks_mut(512)) {
@@ -1147,6 +1190,13 @@ mod tests {
         let peak = |a: usize| l[a..a + 200].iter().fold(0f32, |m, x| m.max(x.abs()));
         assert!((f64::from(peak(0)) - 0.28 * 0.8).abs() < 0.02 && (f64::from(peak(24_000)) - 0.16 * 0.8).abs() < 0.02);
         assert!(r.past_end() && !r.finished());
+        // At the metronome's own level, whatever Main's (Live's metronome volume).
+        let mut own = s.clone();
+        own.metronome.volume = 0.4;
+        own.main.volume = 0.1;
+        let (l2, _) = play_for(&own, Playing { from: 0.0, cycle: None, click: true, session: false }, 48_000);
+        let peak2 = l2[..200].iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!((f64::from(peak2) - 0.28 * 0.4).abs() < 0.01, "{peak2}");
         // Without the click, silence.
         let (quiet, _) = play_for(&s, Playing::default(), 48_000);
         assert!(quiet.iter().all(|x| *x == 0.0));
@@ -1298,6 +1348,33 @@ mod tests {
         d.sounds.clear();
         let (l, _) = render_song(&d, 48_000);
         assert!(l[500..4_800].iter().any(|x| (x.abs() - 0.2).abs() > 0.05));
+    }
+
+    #[test]
+    fn stems_are_each_track_and_return_post_fader_and_add_up_to_main() {
+        let s = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"returns":[{"id":"r","volume":0.5,"fx":[{"id":"e","kind":"echo","on":true}]}],"tracks":[
+            {"id":"a","instrument":"lead","volume":0.5,"pan":-0.5,"sends":{"r":0.5},"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0,"length":1,"velocity":1}]}]},
+            {"id":"d","instrument":"drums","clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":36,"start":1,"length":0.25,"velocity":1}]}]},
+            {"id":"m","instrument":"bass","muted":true,"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":40,"start":0,"length":1,"velocity":1}]}]}]}"#).unwrap();
+        let mut r = Renderer::new(&s, 48_000, 0.0).with_stems();
+        // A muted track is not heard, so it has no stem.
+        assert_eq!(r.track_ids().collect::<Vec<_>>(), ["a", "d", "r"]);
+        let (mut l, mut rr) = (vec![0f32; 512], vec![0f32; 512]);
+        let mut sums = [0f64; 3];
+        for _ in 0..(song_frames(&s, 48_000) / 512) {
+            r.render(&mut l, &mut rr);
+            let stems: Vec<(&[f32], &[f32])> = r.stems(512).collect();
+            for i in 0..512 {
+                let (sl, sr) = stems.iter().fold((0f32, 0f32), |(a, b), (x, y)| (a + x[i], b + y[i]));
+                // Main is the stems added up, at Main's level (no effects on Main).
+                assert!((sl * 0.8 - l[i]).abs() < 1e-5 && (sr * 0.8 - rr[i]).abs() < 1e-5);
+            }
+            for (k, (x, _)) in stems.iter().enumerate() {
+                sums[k] += x.iter().map(|v| f64::from(v.abs())).sum::<f64>();
+            }
+        }
+        // Each has sound of its own: the lead, the kick, and the lead's echo on the return.
+        assert!(sums.iter().all(|v| *v > 1.0), "{sums:?}");
     }
 
     #[test]
