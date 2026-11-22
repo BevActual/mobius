@@ -88,20 +88,23 @@
 @keyframes note-sheet-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .note-scroll[data-entering] { animation: note-page-in var(--dur-med) var(--ease); }
 @media (prefers-reduced-motion: reduce) {
-  .note-scroll[data-entering], .note-history, .note-aa-panel, .note-comment-composer { animation: none; }
+  .note-scroll[data-entering], .note-history, .note-comment-composer { animation: none; }
   .note-page ul[data-type="taskList"] > li > label input { transition: none; }
 }
 
 /* ── The toolbar ──────────────────────────────────────────────────────────────────────────────────── */
 /* Like Docs: Aa, Checklist, Link and + start the row, Share ends it. */
-.ui-toolbar-slot:has(> .ui-toolbar-group > .note-format) { flex: 1 1 auto; min-width: 0; }
-.ui-toolbar-group:has(> .note-format) { flex: 1; }
-.note-format { flex: 1; min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-1); }
-.note-format .spacer { flex: 1; }
+.note-format { min-width: 0; display: flex; flex-wrap: nowrap; align-items: center; justify-content: center; gap: var(--sp-2); }
+/* The tool row (panel look A1): centred, in small groups with a little room between them. */
+.note-tool-group { display: inline-flex; align-items: center; gap: 2px; }
+.note-format .note-style-btn { display: inline-flex; align-items: center; gap: 2px; min-width: 104px; justify-content: space-between; padding: 0 var(--sp-1) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.note-format .note-style-btn svg { width: 14px; height: 14px; color: var(--muted); }
+.note-format .doc-tool:disabled { color: var(--faint, var(--muted)); opacity: 0.5; }
+/* Focus: the controls library's ring (ui/controls.css), rounded with the button, not the page's heavy default. */
+.note-format .doc-tool:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
 .note-format .doc-tool { color: var(--body); transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .note-format .doc-tool:hover { color: var(--ink); background: var(--sel); }
-.note-format .doc-tool[aria-pressed="true"], .note-format .note-aa-btn[aria-expanded="true"] { color: var(--ink); background: var(--sel); }
-.note-format .note-aa-btn { padding: 0 var(--sp-2); font-size: var(--fs-md); font-weight: var(--fw-semibold); }
+.note-format .doc-tool[aria-pressed="true"], .note-format .doc-tool[aria-expanded="true"] { color: var(--ink); background: var(--sel); }
 .note-source[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
 /* While dictating: Stop and the time, in red (record). */
 .note-insert-btn { height: var(--control-h); padding: 0 var(--sp-3); border-radius: var(--radius-control); color: var(--muted); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
@@ -123,29 +126,12 @@
 .note-link-book { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: var(--fs-xs); }
 
 /* Aa: the text styles and marks in one panel under its button. It floats, so it is raised with a shadow. */
-.note-aa { position: relative; display: inline-flex; }
-.note-aa-panel { position: fixed; z-index: var(--z-menu); width: 272px; display: grid; gap: var(--sp-2); padding: var(--sp-2); border-radius: var(--radius-sheet); background: var(--raised); box-shadow: var(--shadow-menu); animation: note-sheet-in var(--dur-fast) var(--ease); }
-.note-aa-styles { display: grid; }
-.note-aa-style { height: var(--menu-row-h); padding: 0 var(--sp-2); border-radius: var(--radius-control); color: var(--ink); text-align: left; line-height: var(--lh-tight); transition: background-color var(--dur-fast) var(--ease); }
-.note-aa-style:hover { background: var(--sel); }
-.note-aa-style[aria-pressed="true"] { background: var(--sel); font-weight: var(--fw-medium); }
-.note-aa-style[data-style="h1"] { font-size: var(--fs-xl); font-weight: 700; }
-.note-aa-style[data-style="h2"] { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
-.note-aa-style[data-style="h3"], .note-aa-style[data-style="p"] { font-size: var(--fs-md); }
-.note-aa-style[data-style="h3"] { font-weight: var(--fw-semibold); }
-.note-aa-row { display: flex; gap: var(--sp-2); }
-.note-aa-group { flex: 1; display: flex; justify-content: space-between; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); }
-.note-aa-option { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-2); padding: var(--sp-1) 2px 0; font-size: var(--fs-sm); color: var(--body); cursor: pointer; }
-.note-aa-option input { margin: 0; accent-color: var(--accent); }
-.note-aa-group .doc-tool { flex: 1; color: var(--ink); }
-.note-aa-group .doc-tool:hover { background: var(--sel); }
-.note-aa-group .doc-tool[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); }
 
 /* The selection bar floats over the page. */
 .note-editor .selection-bar { background: var(--raised); box-shadow: var(--shadow-menu); }
 
 /* ── Under the page: Comments, then Linked from ──────────────────────────────────────────────────── */
-.note-comments, .note-backlinks { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: var(--sp-2) auto 0; padding: var(--sp-3) var(--sp-8) 0; background: linear-gradient(var(--line), var(--line)) no-repeat var(--sp-8) 0 / calc(100% - 2 * var(--sp-8)) var(--hairline-w); }
+.note-comments, .note-backlinks { box-sizing: border-box; width: 100%; max-width: var(--note-col); margin: var(--sp-2) auto 0; padding: var(--sp-3) var(--sp-8) 0; }
 .note-backlinks { margin-bottom: var(--sp-8); }
 .note-comments h2, .note-backlinks h2 { display: flex; align-items: center; gap: var(--sp-2); margin: 0 0 var(--sp-2); color: var(--muted); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
 .note-backlinks ul { display: grid; margin: 0; padding: 0; list-style: none; }
@@ -153,6 +139,16 @@
 .note-backlinks button { display: grid; align-content: center; width: calc(100% + 2 * var(--sp-2)); height: var(--row-reading); margin-left: calc(-1 * var(--sp-2)); padding: 0 var(--sp-2); border-radius: var(--radius-control); text-align: left; line-height: var(--lh-tight); }
 .note-backlinks button > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .note-backlinks button:hover { background: var(--sel); }
+/* Linked from N (panel look A5): one quiet grey line at the end of the page; opened, the notes that link here. */
+.note-backlinks .note-backlinks-line { display: inline-flex; align-items: center; gap: 2px; width: auto; height: 28px; font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+.note-backlinks .note-backlinks-line:hover { color: var(--ink); background: none; }
+.note-backlinks-line svg { width: 14px; height: 14px; transition: transform var(--dur-fast) var(--ease); }
+.note-backlinks-line[aria-expanded="true"] svg { transform: rotate(90deg); }
+/* Comments (panel look A5): in the inspector's Comments panel, as Docs has them. */
+.note-comments-panel { display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-3); }
+.note-comments-panel .note-comments { width: auto; margin: 0; padding: 0; border: 0; }
+.note-comments-panel .note-comment { flex-direction: column; align-items: stretch; gap: 2px; background: var(--bg); border-radius: var(--radius-panel); box-shadow: 0 0 0 1px var(--line); }
+.note-comments-panel .note-comment-tools { justify-content: flex-end; margin: 0 -4px -4px 0; }
 
 /* A commented passage: one soft warm tint and no underline, the same in Docs (--comment, with its own dark step). */
 .note-page .note-commented { background: var(--comment, color-mix(in srgb, var(--c-yellow) 28%, transparent)); border-radius: var(--radius-small); }
@@ -248,6 +244,13 @@
 }
 /* Mobius's changed-page dot sits in the trailing slot of the first line, as in Docs, and the time moves to its left. */
 .ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail > .list-row[data-proposed]::after { position: absolute; top: calc(var(--sp-2) + (var(--fs-md) * var(--lh-tight) - 6px) / 2); right: var(--sp-2); margin: 0; }
+/* On hover the row's actions take the place of its time and its Mobius dot, never on top of them (as in Tasks). */
+.ui-dock .side.notes-side[data-app="notes"] .ui-side-row-trail:is(:hover, :has(:focus-visible), :has(> .confirm)) > .list-row[data-proposed]::after { visibility: hidden; }
 .notes-side[data-app="notes"] .ui-side-row-trail:has(> .list-row[data-proposed]) > .note-side-when { right: calc(var(--sp-2) + 6px + var(--sp-2)); }
 /* Design, Canvas and Research: the date trails a one-line row. */
 .notes-side:not([data-app="notes"]) .note-side-when { align-self: center; padding-right: var(--sp-1); color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* The Text style menu (panel look review): each style's name in its own size and weight, as Apple Notes shows them. */
+.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(1) .ui-menu-label { font-size: var(--fs-xl); font-weight: 700; }
+.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(2) .ui-menu-label { font-size: var(--fs-lg); font-weight: var(--fw-semibold); }
+.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(3) .ui-menu-label { font-weight: var(--fw-semibold); }
+.ui-menu[aria-label="Text style"] .ui-menu-item:nth-child(5) .ui-menu-label { font-family: var(--font-mono, ui-monospace), monospace; }

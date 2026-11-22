@@ -1,7 +1,7 @@
 import type { CSSProperties, MouseEvent as ReactMouseEvent } from 'react';
 import { Button, IconButton } from './ui';
 import { BEATS_PER_BAR, sceneCount, sceneName, type Song } from './song-format';
-import type { SessionPlaying, SessionQueued } from './studio-audio';
+import type { SessionPlaying, SessionQueued } from './studio-engine';
 
 /**
  * Music's Session view: a grid of clips, a column per track and a row per scene. A clip is a short loop that starts on

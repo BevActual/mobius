@@ -17,7 +17,7 @@ Work starts after Music's demo moments and live marks are done.
 - **Mobius can make sounds, not only set them.** "A tape delay that wobbles and gets darker each repeat" becomes a
   device Mobius drafts, dashed until kept, with each part saying why it is there. Today Mobius can only turn the knobs
   of the four effects Music ships.
-- **New devices are cheap.** Each effect is hand-written in `studio-audio.ts` today. As files, a new effect is mostly
+- **New devices are cheap.** Each effect is hand-written in the engine (`crates/mobius-audio/src/fx.rs`) today. As files, a new effect is mostly
   a file, and one set of tests checks them all.
 - **It proves a shared canvas.** Boxes, ports and cables that are fast, exact and usable from the keyboard. Agents and
   automations can take the canvas up later for their steps.

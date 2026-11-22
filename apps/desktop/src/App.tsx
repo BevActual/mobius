@@ -118,6 +118,7 @@ import { contactSheet } from './picture';
 import { useTurnChanges } from './useTurnChanges';
 import { NoteEditor, type SelectionAction } from './NoteEditor';
 import { findTodayNote, JOURNAL, liveTitle, statusText, todayNoteTitle } from './notes-state';
+import { checkedLast, setCheckedLast } from './checked-last';
 import { Pane, SplitDivider } from './SplitView';
 import { type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { LearnPanel } from './LearnPanel'; // Learn (shell/learn-view)
@@ -673,7 +674,7 @@ export function App() {
     if (fresh.length > 0) showBeside('browser');
   }, [conversation.state, showBeside]);
   // The toolbar has the same parts in every app: where you are, a line about it, then that app's own controls.
-  const place = settingsOpen ? 'Settings' : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes && notes.page ? liveTitle(notes.text, notes.page.title || appName(app)) : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace === 'apps' ? storeItemOpen : null) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inMessages ? (chatSpaceSetup ? 'Mobius space' : chat.channel ? channelLabel(chat.channel) : '') /* Messages: the open conversation */ : inTasks ? appName(app) /* Tasks: the list is in grey beside it */ : inCalendar ? appName(app) /* Calendar: its range is in grey beside it */ : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
+  const place = settingsOpen ? 'Settings' : inProjects && projects.open ? projects.open.name : inBrowser ? (active?.title || appName(app)) : inActivity ? 'Activity' : inAgents ? (agentView?.kind === 'new' ? 'New agent' : shownAgent?.name ?? 'Agents') : inAgent ? (conversation.list.find((c) => c.id === conversation.id)?.title || (projects.list.some((p) => p.threads.includes(conversation.id)) ? `New thread in ${projects.list.find((p) => p.threads.includes(conversation.id))!.name}` : '' /* Home's start page: the Go button already says Home. */)) : inNotes ? appName(app) /* Notes (marked, panel look): its notebook in grey beside it; the page's title is its first line */ : inDocs && docs.page ? liveTitle(docs.text, docs.page.title || appName(app)) : inSlides && slides.page ? (slides.page.title || appName(app)) : inSheets && sheets.data ? sheets.data.workbook : inSkills && skills.open ? `/${skills.open.name}` : inSkills ? abilitiesTitle(extPlace === 'apps' ? storeItemOpen : null) : inVideo && video.project ? video.project : inStudio && songs.page ? songs.page.title : inPhoto && photos.browsing ? (photos.album === RECENTLY_DELETED ? 'Recently Deleted' : photos.album ?? appName(app)) : inPhoto && photos.open ? (photos.open.path.split('/').pop() ?? appName(app)) : inDesign && designs.page ? designs.page.title : inCanvas && boards.page ? boards.page.title : inViews && views.page ? views.page.title : inResearch && research.page && !askingResearch ? liveTitle(research.text, research.page.title || appName(app)) : inReader && reading.page ? (reading.page.title || appName(app)) : inDatabase && databases.open ? databasePlace(databases) : inTerminal ? (terminal.cwd ? `~/${terminal.cwd}` : 'Terminal') : inCode ? (code.open?.path.split('/').pop() ?? code.project ?? appName(app)) : inMail ? mailPlace(mail.view) : inMessages ? (chatSpaceSetup ? 'Mobius space' : chat.channel ? channelLabel(chat.channel) : '') /* Messages: the open conversation */ : inTasks ? appName(app) /* Tasks: the list is in grey beside it */ : inCalendar ? appName(app) /* Calendar: its range is in grey beside it */ : inFiles ? filesTitle(files) /* Files: the open folder */ : inWiki ? (wikiPlace.kind === 'mine' ? 'How I work' : wikiPlace.kind === 'shared' ? 'Suggested changes' : wiki.page ? liveTitle(wiki.text, wiki.page.title || appName(app)) : appName(app)): inBrowser ? appName(app) : '';
   // A list counts its tasks as it shows them: subtasks sit under their task and are not counted on their own.
   const tasksHere = inTasks ? (tasks.view.kind === 'list' ? nest(tasks.all[tasks.view.name] ?? []).map((n) => n.task) : smartView(tasks.view.id, tasks.all, new Date()).map((x) => x.task)) : [];
   const tasksOpen = tasksHere.filter((t) => !t.done).length;
@@ -831,6 +832,8 @@ export function App() {
   // Comments: on anything in the open document, in comment mode (the button, or C).
   const [commenting, setCommenting] = useState(false);
   const [commentFocus, setCommentFocus] = useState<string | null>(null);
+  // Notes (marked): Move checked items to the bottom, in the Notes menu.
+  const [checkedLastOn, setCheckedLastOn] = useState(checkedLast);
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
@@ -1345,7 +1348,7 @@ export function App() {
       sidebarShown: ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
-      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path) },
+      notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
       docs: { hasPage: docs.page !== null, isTemplate: isTemplate(docs.page?.path), templates: templatesIn(docs.notebooks) },
       tasks: { inList: tasks.view.kind === 'list', done: tasksDone },
       calendar: { mode: calendar.mode },
@@ -1402,6 +1405,7 @@ export function App() {
         history: () => sendCommand('show-history'),
         clip: () => sendCommand('clip-page'),
         markdown: () => sendCommand('show-markdown'),
+        checkedLast: () => { setCheckedLast(!checkedLastOn); setCheckedLastOn(!checkedLastOn); },
       },
       tasks: {
         newList: () => sendCommand('new-list'),

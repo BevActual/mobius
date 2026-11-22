@@ -7,9 +7,6 @@
    one column, the title over a quiet grey line of when it was edited and how long it is. */
 .doc-editor[data-frame], .doc-editor[data-frame] .doc-body { background: var(--paper, var(--bg)); }
 .doc-editor[data-frame] .doc-scroll { padding: 56px var(--sp-6) calc(var(--sp-8) * 3); }
-/* A pinned change note sits at the very top of the view, not under the scroller's top padding. */
-.doc-editor .doc-scroll .ProseMirror .doc-change[data-tall]:not([data-past]) { top: -28px; }
-.doc-editor[data-frame] .doc-scroll .ProseMirror .doc-change[data-tall]:not([data-past]) { top: -56px; }
 .doc-editor[data-frame] .doc-paper { max-width: var(--reading-w); border-radius: 0; box-shadow: none; background: none; }
 .doc-editor[data-frame] .doc-page { min-height: 0; padding: 0; font-size: var(--fs-reading); line-height: var(--lh-body); }
 .doc-editor[data-frame] .doc-page h1:first-child { margin: 0; font-size: var(--fs-display); line-height: var(--lh-tight); }

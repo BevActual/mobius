@@ -74,10 +74,12 @@ test('a first notebook and page are real files, and typing is saved as Markdown'
   await shell().keyboard.type('Ship Notes this week.');
   await expect(status()).toHaveText('Saved');
   await expect.poll(() => onDisk('Work', 'Untitled.md')).toBe('# Launch plan\n\nShip Notes this week.\n');
-  // The list and the top strip take the title from the first heading; the row says how the page starts.
+  // The list takes the title from the first heading, and the row says how the page starts; the top strip says Notes,
+  // with the notebook beside it.
   await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toBeVisible();
   await expect(side().getByRole('button', { name: 'Launch plan', exact: true })).toContainText('Ship Notes this week.');
-  await expect(shell().locator('.strip-title')).toHaveText('Launch plan');
+  await expect(shell().locator('.strip-title')).toHaveText('Notes');
+  await expect(shell().locator('.toolbar-sub')).toContainText('Work');
 });
 
 test('pages survive a restart, search finds them, and a deleted page is gone from disk', async () => {
@@ -225,6 +227,23 @@ test('the format bar makes a checklist you tick, and More clips a web page where
   await expect.poll(() => onDisk('Trip', 'Untitled.md')).toMatch(/- \[ \] Pack\n\n> Nine rooms in Príncipe Real\.\n>\n> Breakfast included\.\n\n— \[Casa Amora\]\(/);
 });
 
+test('the centred tool row sets the text style and bold, and undo takes it back', async () => {
+  await start();
+  await newNotebook('Ideas');
+  await retitle('Garden');
+  await shell().keyboard.press('End');
+  await shell().keyboard.press('Enter');
+  await shell().keyboard.type('Beds');
+  await format().getByRole('button', { name: 'Text style: Body' }).click();
+  await shell().getByRole('menu', { name: 'Text style' }).getByRole('menuitemcheckbox', { name: 'Heading', exact: true }).click();
+  await shell().keyboard.press('Escape');
+  await expect(format().getByRole('button', { name: 'Text style: Heading' })).toBeVisible();
+  await expect.poll(() => onDisk('Ideas', 'Untitled.md')).toBe('# Garden\n\n## Beds\n');
+  await format().getByRole('button', { name: 'Undo' }).click();
+  await expect(format().getByRole('button', { name: 'Text style: Heading' })).toHaveCount(0);
+  await expect.poll(() => onDisk('Ideas', 'Untitled.md')).not.toContain('## ');
+});
+
 test('typing "[ ] " at the start of a bullet makes that bullet a checklist item, as in other notes apps', async () => {
   await start();
   await newNotebook('Home');
@@ -363,7 +382,9 @@ test('[[ links another note, the link opens it, and that note lists where it is 
   await expect.poll(() => onDisk('Work', 'Plan.md')).toBe('# Plan\n\nShopping: [Groceries](../Home/Groceries.md)\n');
   await text().getByRole('link', { name: 'Groceries' }).click();
   await expect(text().locator('h1')).toHaveText('Groceries');
+  // Linked from is one quiet line at the end of the page, opened to list the notes.
   const linked = shell().getByRole('region', { name: 'Linked from' });
+  await linked.getByRole('button', { name: 'Linked from 1' }).click();
   await linked.getByRole('button', { name: /Plan/ }).click();
   await expect(text().locator('h1')).toHaveText('Plan');
 });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, meetingLink, rangeLabel, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, meetingLink, rangeLabel, scoped, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -282,5 +282,21 @@ describe('meetingLink', () => {
     expect(meetingLink('https://us02web.zoom.us/j/123?pwd=x')).toBe('https://us02web.zoom.us/j/123?pwd=x');
     expect(meetingLink('Agenda at https://example.com/doc')).toBeNull();
     expect(meetingLink('Room 4')).toBeNull();
+  });
+});
+
+describe('scoped', () => {
+  const series = { ...ev('Standup', '2026-11-09T15:00', '2026-11-09T15:30'), id: 's', repeats: true, repeat: 'weekly', occurrence: '2026-11-09T09:00' };
+  const moved = { start: '2026-11-09T16:00', end: '2026-11-09T16:30', repeat: 'daily' };
+  it('says which time and which times, as the series has it', () => {
+    expect(scoped(series, moved, 'one')).toEqual({ start: '2026-11-09T16:00', end: '2026-11-09T16:30', scope: 'one', occurrence: '2026-11-09T09:00' });
+    expect(scoped(series, moved, 'following')).toEqual({ ...moved, scope: 'following', occurrence: '2026-11-09T09:00' });
+  });
+  it('moves every time by as much for all events, from the time shown', () => {
+    expect(scoped(series, moved, 'all')).toEqual({ ...moved, occurrence: '2026-11-09T15:00' });
+    expect(scoped(series, { title: 'Sync' }, 'all')).toEqual({ title: 'Sync' });
+  });
+  it('leaves an event that does not repeat alone', () => {
+    expect(scoped(ev('Lunch', '2026-11-09T12:00', '2026-11-09T13:00'), moved, 'one')).toEqual(moved);
   });
 });
