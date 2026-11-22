@@ -2,7 +2,7 @@
 //!
 //! A note comes in on the MIDI driver's own thread. There it is made into a voice (or a drum hit) and handed to the
 //! audio thread with the moment it arrived, so the audio thread only places it: see [`crate::engine::Engine::listen`].
-//! Windows first, through its MIDI driver (WinMM); elsewhere there are no keyboards yet.
+//! On Windows through its MIDI driver (WinMM) and on macOS through Core MIDI; elsewhere there are no keyboards yet.
 
 /// What a MIDI message asks for: a key pressed (pitch, velocity 0 to 1) or lifted. Anything else is not a note.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -26,7 +26,7 @@ pub fn message(bytes: &[u8]) -> Option<Message> {
 }
 
 /// Plays what a keyboard sent, arriving `at`, through `keys`.
-#[cfg_attr(not(windows), allow(dead_code))]
+#[cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 fn play(keys: &crate::engine::Keys, bytes: &[u8], at: std::time::Instant) {
     // A note the engine has no room for is dropped: the next one has room again.
     let _ = match message(bytes) {
@@ -38,7 +38,7 @@ fn play(keys: &crate::engine::Keys, bytes: &[u8], at: std::time::Instant) {
 
 pub use device::{inputs, Input};
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod device {
     use crate::engine::Keys;
 
@@ -73,11 +73,11 @@ mod device {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 mod device {
     use crate::engine::Keys;
 
-    /// No keyboards away from Windows yet.
+    /// No keyboards here yet.
     #[must_use]
     pub fn inputs() -> Vec<String> {
         Vec::new()
@@ -89,7 +89,7 @@ mod device {
 
     impl Input {
         pub(crate) fn open(name: &str, _keys: Keys) -> Result<Input, String> {
-            Err(format!("MIDI keyboards are heard on Windows only for now ({name})."))
+            Err(format!("MIDI keyboards are heard on Windows and macOS only for now ({name})."))
         }
 
         #[must_use]

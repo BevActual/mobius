@@ -15,11 +15,11 @@ serde_json.workspace = true
 rtrb = "0.3"
 realfft = "3.5"
 
-# Sound out through WASAPI. Windows first (Mobius's platform); elsewhere the engine reports no output and Music keeps
+# Sound out through WASAPI on Windows and Core Audio on macOS; elsewhere the engine reports no output and Music keeps
 # its Web Audio version.
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(any(windows, target_os = "macos"))'.dependencies]
 cpal = "0.16"
-# MIDI keyboards in, through the Windows MIDI driver.
+# MIDI keyboards in, through WinMM on Windows and Core MIDI on macOS.
 midir = "0.10"
 
 [lints]
