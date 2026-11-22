@@ -2,9 +2,12 @@ import { Fragment, useEffect, useMemo, useRef, useState, type FormEvent, type Re
 import { AppSidebar, Avatar, Menu, PanelLayout, Popover, SidebarRow, SidebarSearch, SidebarSection, type MenuEntry, type PanelSpec } from './ui';
 import { EmptyState } from './EmptyState';
 import type { MessagesState } from './useMessages';
-import { SERVICE_NAMES, channelGroups, channelLabel, firstUnread, lastReplyLabel, mentionParts, myName, runs, unreadLabel } from './messages-view';
+import { SERVICE_NAMES, accountsFor, channelGroups, railEntries, spaceStatusText, type RailEntry, channelLabel, firstUnread, lastReplyLabel, mentionParts, myName, runs, unreadLabel } from './messages-view';
 import { dayLabel, nearDayLabel, timeLabel } from './dates';
-import { isNotesFailure, type ChatMessage } from '@mobius/shared';
+import { isNotesFailure, type ChatMessage, type SpaceStatus } from '@mobius/shared';
+import { MobiusMark } from './MobiusMark';
+import { siteHue } from './browser-spaces';
+import { useSpace } from './useSpace';
 import { ContactPanel } from './ContactPanel';
 import './messages.css';
 
@@ -13,32 +16,84 @@ function ConversationLead({ name, kind }: { name: string; kind: 'channel' | 'dir
   return <span className="msg-lead" aria-hidden="true">{kind !== 'direct' ? <svg viewBox="0 0 16 16"><path d="M6 2.5 4.5 13.5M11.5 2.5 10 13.5M3 6h10.5M2.5 10H13" /></svg> : <Avatar name={name} size="chip" />}</span>;
 }
 
-/** The Messages list panel, Conversations: each account's channels and people, unread ones in medium weight. */
+const RAIL_KEY = 'mobius.messages.rail';
+const readRail = (): string => { try { return localStorage.getItem(RAIL_KEY) ?? 'all'; } catch { return 'all'; } };
+
+/** A rail entry's mark: the Mobius mark for your own space, a grid for All, the account's initial otherwise. */
+function RailMark({ entry }: { entry: RailEntry }) {
+  if (entry.id === 'space') return <MobiusMark size={18} />;
+  if (entry.id === 'all') return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" /></svg>;
+  return <span className="msg-rail-chip" data-hue={siteHue(entry.label)} aria-hidden="true">{entry.label.slice(0, 1).toUpperCase()}</span>;
+}
+
+/** The space while it is not running yet: what it is doing (with the download's progress), or why not and Retry. */
+function SpaceStatusRow({ status, onRetry }: { status: SpaceStatus; onRetry: () => void }) {
+  const text = spaceStatusText(status);
+  if (!text) return null;
+  const failed = status.state === 'failed';
+  return (
+    <div className="msg-space-status" role={failed ? 'alert' : 'status'}>
+      <p>{text}</p>
+      {status.state === 'downloading' && status.total > 0 && <progress aria-label="Downloading your Mobius space" max={status.total} value={status.done} />}
+      {failed && <button type="button" className="btn" onClick={onRetry}>Try again</button>}
+    </div>
+  );
+}
+
+/**
+ * The Messages list panel, Conversations: a rail down the left (All, your own Mobius space, then each account, as in
+ * Discord), and beside it the chosen one's channels and people, unread ones in medium weight. Choosing the Mobius space
+ * starts it, and the first time downloads it, with its progress shown here.
+ */
 export function MessagesSidebar({ messages, pin }: { messages: MessagesState; pin?: ReactNode }) {
   const [query, setQuery] = useState('');
+  const [rail, setRailState] = useState(readRail);
+  const space = useSpace();
+  const setRail = (id: string) => { setRailState(id); try { localStorage.setItem(RAIL_KEY, id); } catch { /* kept for this session only */ } };
+  const entries = railEntries(messages.accounts);
+  const chosen = entries.some((e) => e.id === rail) ? rail : 'all';
+  // Choosing the space (now, or on coming back to it) starts it; never before that.
+  const openSpace = space.open;
+  useEffect(() => { if (chosen === 'space') openSpace(); }, [chosen, openSpace]);
   const q = query.trim().toLowerCase();
-  const groups = channelGroups(messages.accounts, messages.channels);
+  const groups = channelGroups(accountsFor(chosen, messages.accounts), messages.channels);
+  const spaceWaiting = chosen === 'space' && (space.status.state !== 'running' || groups.length === 0);
   return (
     <AppSidebar label="Conversations" className="messages-side">
-      <SidebarSearch label="Find a conversation" value={query} onChange={setQuery} />
-      {groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
-      {groups.map(({ account, channels }, i) => {
-        const shown = channels.filter((c) => !q || c.name.toLowerCase().includes(q));
-        if (q && shown.length === 0) return null;
-        return (
-          <SidebarSection key={account.id} title={`${account.name} · ${SERVICE_NAMES[account.service]}`} {...(i === 0 && pin ? { action: pin } : {})}>
-            {account.status !== 'ready' && <li className="side-empty">{account.message ?? (account.status === 'signed-out' ? 'Signed out. Sign in again in Settings.' : 'This account cannot be reached.')}</li>}
-            {shown.map((c) => {
-              const count = c.mentions || c.unread;
-              return (
-                <SidebarRow key={c.id} icon={<ConversationLead name={c.name} kind={c.kind} />} label={c.name.replace(/^#/, '')} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
-                  current={messages.open?.account === account.id && messages.open.channel === c.id}
-                  onSelect={() => messages.choose({ account: account.id, channel: c.id })} />
-              );
-            })}
-          </SidebarSection>
-        );
-      })}
+      <div className="msg-rail-wrap">
+        <nav className="msg-rail" aria-label="Accounts">
+          {entries.map((e) => (
+            <button key={e.id} type="button" className="msg-rail-entry" aria-label={e.label} title={e.label} aria-pressed={chosen === e.id} onClick={() => setRail(e.id)}>
+              <RailMark entry={e} />
+            </button>
+          ))}
+        </nav>
+        <div className="msg-rail-list">
+          <SidebarSearch label="Find a conversation" value={query} onChange={setQuery} />
+          {chosen === 'space' && !space.available && <p className="side-empty">Your Mobius space runs in the desktop app.</p>}
+          {chosen === 'space' && space.available && spaceWaiting && (space.status.state === 'running'
+            ? <p className="side-empty" role="status">Setting up your space…</p>
+            : <SpaceStatusRow status={space.status} onRetry={space.open} />)}
+          {chosen !== 'space' && groups.length === 0 && <p className="side-empty">{messages.available ? 'No accounts yet.' : 'Accounts are not set up yet.'}</p>}
+          {groups.map(({ account, channels }, i) => {
+            const shown = channels.filter((c) => !q || c.name.toLowerCase().includes(q));
+            if (q && shown.length === 0) return null;
+            return (
+              <SidebarSection key={account.id} title={`${account.name} · ${SERVICE_NAMES[account.service]}`} {...(i === 0 && pin ? { action: pin } : {})}>
+                {account.status !== 'ready' && <li className="side-empty">{account.message ?? (account.status === 'signed-out' ? 'Signed out. Sign in again in Settings.' : 'This account cannot be reached.')}</li>}
+                {shown.map((c) => {
+                  const count = c.mentions || c.unread;
+                  return (
+                    <SidebarRow key={c.id} icon={<ConversationLead name={c.name} kind={c.kind} />} label={c.name.replace(/^#/, '')} {...(count ? { count } : {})} {...(c.bridge ? { sub: c.bridge } : {})} title={unreadLabel(c) || channelLabel(c)}
+                      current={messages.open?.account === account.id && messages.open.channel === c.id}
+                      onSelect={() => messages.choose({ account: account.id, channel: c.id })} />
+                  );
+                })}
+              </SidebarSection>
+            );
+          })}
+        </div>
+      </div>
     </AppSidebar>
   );
 }

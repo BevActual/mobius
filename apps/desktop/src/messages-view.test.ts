@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ChatAccount, ChatChannel, ChatMessage } from '@mobius/shared';
-import { catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, toggled, unreadLabel } from './messages-view';
+import { accountsFor, isSpaceAccount, railEntries, spaceStatusText, catchUpAsk, channelGroups, channelLabel, chatItem, firstUnread, lastReplyLabel, mentionParts, myName, runs, toggled, unreadLabel } from './messages-view';
 
 const work: ChatAccount = { id: 'w', service: 'slack', name: 'Northway', status: 'ready' };
 const home: ChatAccount = { id: 'h', service: 'discord', name: 'Friends', status: 'ready' };
@@ -65,5 +65,23 @@ describe('toggled', () => {
     expect(toggled([{ emoji: '🎉', count: 3, mine: true }], '🎉', false)).toEqual([{ emoji: '🎉', count: 2, mine: false }]);
     expect(toggled([{ emoji: '🎉', count: 1, mine: true }], '🎉', false)).toEqual([]);
     expect(toggled([{ emoji: '🎉', count: 2 }], '🎉', false)).toEqual([{ emoji: '🎉', count: 2 }]);
+  });
+});
+
+describe('the rail', () => {
+  const acc = (id: string, name: string, service: ChatAccount['service'] = 'slack'): ChatAccount => ({ id, service, name, status: 'ready' });
+  const space = acc('m1', 'Mobius space', 'matrix');
+  it('lists All, then the Mobius space, then each other account, and shows the chosen one’s', () => {
+    const accounts = [acc('s1', 'Northway'), space];
+    expect(railEntries(accounts).map((e) => e.label)).toEqual(['All conversations', 'Mobius space', 'Northway · Slack']);
+    expect(accountsFor('space', accounts)).toEqual([space]);
+    expect(accountsFor('s1', accounts).map((a) => a.id)).toEqual(['s1']);
+    expect(accountsFor('gone', accounts)).toHaveLength(2);
+    expect(isSpaceAccount(acc('x', 'Mobius space'))).toBe(false);
+  });
+  it('says what the space is doing until it runs, the first download with its size', () => {
+    expect(spaceStatusText({ state: 'downloading', done: 12_000_000, total: 44_000_000 })).toBe('Getting your Mobius space ready, the first time only: 12 of 44 MB');
+    expect(spaceStatusText({ state: 'failed', message: 'x', offline: true })).toMatch(/connection/);
+    expect(spaceStatusText({ state: 'running', url: 'http://127.0.0.1:1' })).toBeNull();
   });
 });
