@@ -311,6 +311,12 @@ export function MessagesPage({ messages, onAddAccount, listPanels = [] }: { mess
   useEffect(() => {
     if (spaceChosen && spaceReady && spaceAccount && spaceFirst && open?.account !== spaceAccount.id) choose({ account: spaceAccount.id, channel: spaceFirst.id });
   }, [spaceChosen, spaceReady, spaceAccount, spaceFirst, open?.account, choose]);
+  // The set-up state stays until one of the space's channels is open (never a blank page between the two), and once
+  // that has happened it never comes back this session, even while the list of channels is read again.
+  const spaceOpen = !!spaceAccount && open?.account === spaceAccount.id && !!channel && account?.id === spaceAccount.id;
+  const spaceShown = useRef(false);
+  if (spaceOpen) spaceShown.current = true;
+  const spaceSetup = spaceChosen && !spaceOpen && !spaceShown.current;
   // Person (right, while someone is picked): who wrote a message, from the address book when they are in it.
   const [person, setPerson] = useState<ChatMessage['author'] | null>(null);
   useEffect(() => setPerson(null), [open?.account, open?.channel]);
@@ -326,9 +332,8 @@ export function MessagesPage({ messages, onAddAccount, listPanels = [] }: { mess
       </section>
     </PanelLayout>
   );
-  if (!messages.loaded) return <PanelLayout app="messages" panels={lists}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
   // The space, chosen and not ready yet: a quiet centred state with its progress, in place of a conversation.
-  if (spaceChosen && !spaceReady) return (
+  if (spaceSetup) return (
     <PanelLayout app="messages" panels={lists}>
       <section className="messages-page empty" aria-label="Messages: Mobius space">
         <div className="msg-space-setup">
@@ -340,6 +345,7 @@ export function MessagesPage({ messages, onAddAccount, listPanels = [] }: { mess
       </section>
     </PanelLayout>
   );
+  if (!messages.loaded) return <PanelLayout app="messages" panels={lists}><section className="messages-page" aria-label="Messages" /></PanelLayout>;
   if (messages.accounts.length === 0) return empty('No accounts yet', messages.available ? 'Add a Slack, Matrix or Teams account to see your channels here.' : 'Slack, Matrix, Teams and Telegram accounts are on their way. Your channels will show here.', messages.available && onAddAccount ? { label: 'Add an account…', run: onAddAccount } : undefined);
   // The last conversation opens again by itself, so this shows only before one has ever been chosen.
   // The first unread conversation, or the last one open, opens by itself, so this shows only when there is neither.
