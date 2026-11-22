@@ -314,7 +314,13 @@ impl Music {
         let (left, right) = mobius_audio::render::render_song(&song, RENDER_RATE);
         let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
         mobius_audio::wav::write(&mut bytes, &left, &right, RENDER_RATE).map_err(|e| e.to_string())?;
-        songs.save_sound_bytes(path, name, &bytes)
+        let mut saved = songs.save_sound_bytes(path, name, &bytes)?;
+        // The file is 32-bit float, so nothing over 0 dB is clipped or wrapped; the window is told how loud it got,
+        // so it can say when a file will clip once it is made into 16 or 24-bit.
+        let (peak, over) = peak_of(&left, &right);
+        saved["peakDb"] = json!(peak);
+        saved["over"] = json!(over);
+        Ok(saved)
     }
 }
 
@@ -347,6 +353,13 @@ fn report(reporting: &Arc<AtomicBool>, emit: &crate::bridge::Emit, engine: Arc<E
     if spawned.is_err() {
         reporting.store(false, Ordering::Release);
     }
+}
+
+/// The loudest sample of a render in dBFS (-120 for silence), and how many samples go over 0 dBFS.
+fn peak_of(left: &[f32], right: &[f32]) -> (f64, usize) {
+    let peak = left.iter().chain(right).fold(0f32, |p, s| p.max(s.abs()));
+    let over = left.iter().chain(right).filter(|s| s.abs() > 1.0).count();
+    ((20.0 * f64::from(peak).max(1e-6).log10()).max(-120.0), over)
 }
 
 /// A slot the window sent: a number, or null to stop. `None` when it is neither.
@@ -394,6 +407,14 @@ mod tests {
 
     fn music() -> Music {
         Music::new(Arc::new(|_: &str, _: Value| {}))
+    }
+
+    #[test]
+    fn a_render_says_how_loud_it_got() {
+        let (peak, over) = peak_of(&[0.5, -1.5], &[1.0, 0.0]);
+        assert!((peak - 3.5218).abs() < 1e-3);
+        assert_eq!(over, 1);
+        assert_eq!(peak_of(&[0.0], &[0.0]), (-120.0, 0));
     }
 
     #[test]

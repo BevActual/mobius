@@ -178,6 +178,15 @@ impl Drive for LocalFolder {
                     let _ = fs::remove_file(&temp);
                     return Err(text(&e));
                 }
+                // The same size written within the file system's clock tick would keep the version read, and a stale
+                // copy could then write over this one: move the time on a millisecond so the version always changes.
+                if let Ok(meta) = fs::metadata(&at) {
+                    if version_of(&meta).as_deref() == version {
+                        if let (Ok(file), Ok(when)) = (fs::File::options().write(true).open(&at), meta.modified()) {
+                            let _ = file.set_modified(when + std::time::Duration::from_millis(1));
+                        }
+                    }
+                }
             }
             // A new file: never over one that is there.
             None => {
