@@ -18,7 +18,11 @@ export default defineConfig(({ mode }) => {
   return {
     base: './',
     plugins: [react(), productionCsp(tauri ? "'self' ipc: http://ipc.localhost media:" : "'self'")],
-    build: { outDir: tauri ? 'dist/tauri' : 'dist/renderer', emptyOutDir: true, sourcemap: true, target: tauri ? 'es2022' : 'chrome140' },
+    build: {
+      outDir: tauri ? 'dist/tauri' : 'dist/renderer', emptyOutDir: true, sourcemap: true, target: tauri ? 'es2022' : 'chrome140',
+      // Fonts ship as files: inlined as data: URLs, the CSP (font-src falls back to 'self') refuses them.
+      assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
+    },
     server: { host: '127.0.0.1', port: 5180, strictPort: true },
   };
 });
