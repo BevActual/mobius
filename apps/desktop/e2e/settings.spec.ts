@@ -50,7 +50,8 @@ test('Settings opens as an app: its sections in the sidebar, the page name in th
   await start([]);
   expect(await visibleViews()).toHaveLength(1);
   await openSettings();
-  await expect(shell().locator('.strip-title')).toHaveText('General');
+  await expect(shell().locator('.strip-title')).toHaveText('Settings');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('General');
   // One left panel: Settings' search and sections, not the last app's list beside them.
   await expect(shell().locator('.ui-dock[data-dock="left"]').getByRole('region', { name: 'Sections', exact: true }).getByRole('navigation', { name: 'Settings sections' })).toBeVisible();
   await expect(shell().getByRole('complementary', { name: 'Tabs' })).toHaveCount(0);
@@ -327,11 +328,11 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await address.press('Enter');
   // Not running: the test says so, with the address.
   await page().getByRole('button', { name: 'Try listening' }).click();
-  await expect(page().getByRole('alert')).toContainText('127.0.0.1:9');
+  await expect(page().locator('.settings-group[aria-label="Listening"]').getByRole('alert')).toContainText('127.0.0.1:9');
   await go('Voice', 'Speaking');
   await choose(page(), 'Speak with', 'ElevenLabs');
   await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
-  await page().getByRole('button', { name: 'Try speaking' }).click();
+  await expect(page().locator('.settings-group[aria-label="Speaking"]').getByRole('alert')).toContainText('Gateways');
   await expect(page().getByRole('alert')).toContainText('Gateways');
   // The field saves itself when you leave it.
   await page().getByRole('textbox', { name: 'Voice', exact: true }).fill('Rachel');
