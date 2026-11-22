@@ -150,7 +150,7 @@ mod tests {
     use super::*;
 
     fn demo() -> Value {
-        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/../../demo/workspace/studio/Songs/Demo.json")).unwrap()).unwrap()
+        serde_json::from_str(&std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/song.json")).unwrap()).unwrap()
     }
 
     #[test]
