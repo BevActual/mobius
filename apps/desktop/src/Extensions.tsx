@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { ConnectorStatus } from '@mobius/shared';
 import { InstallDialog } from './Skills';
 import type { SkillsState } from './useSkills';
-import { APP_GROUPS, APPS, CORE_APPS, isInstalled, withApp, type AppId, type AppInfo } from './apps';
+import { APP_GROUPS, APPS, CORE_APPS, isInstalled, isListed, withApp, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
 import { usePreferences } from './usePreferences';
 import { ContextMenu } from './ContextMenu';
@@ -74,7 +74,7 @@ const matches = (q: string, ...words: (string | undefined)[]) => { const t = q.t
 export const appMatches = (q: string, app: AppInfo) => matches(q, app.name, app.also, APP_PURPOSE[app.id]);
 
 /** The apps the library lists: every app that can be added, leaving out Mobius's own apps, which are always there. */
-const LIBRARY = APPS.filter((a) => a.available && !(CORE_APPS as readonly string[]).includes(a.id));
+const LIBRARY = APPS.filter((a) => a.available && isListed(a) && !(CORE_APPS as readonly string[]).includes(a.id));
 
 /** The added apps, from the preferences, so a change shows at once everywhere. */
 function useInstalled(): { installed: AppInfo[]; available: AppInfo[]; change: (id: AppId, add: boolean) => Promise<boolean> } {

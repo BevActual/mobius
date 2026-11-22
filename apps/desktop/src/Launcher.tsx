@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react';
 import { Reorder } from 'motion/react';
 import type { BrowserTabState } from '@mobius/shared';
-import { APPS, DEFAULT_APPS, appName, isAvailable, isInstalled, recentApps, recentItems, type AppId, type RecentItem } from './apps';
+import { APPS, DEFAULT_APPS, appName, isAvailable, isInstalled, isListed, recentApps, recentItems, type AppId, type RecentItem } from './apps';
 import { APP_ICONS, OWN_ICONS } from './Rail';
 import { relativeTime } from './relative-time';
 import { quickAnswer } from './quick-answers';
@@ -171,7 +171,7 @@ export function stepFrom(kinds: readonly LauncherItem['kind'][], at: number, key
 }
 
 /** Every app that can be opened now, A to Z: what All apps shows. */
-export const everyApp = (): AppId[] => APPS.filter((a) => a.available && isInstalled(a.id) && a.id !== 'agent').sort((x, y) => x.name.localeCompare(y.name)).map((a) => a.id);
+export const everyApp = (): AppId[] => APPS.filter((a) => a.available && isListed(a) && isInstalled(a.id) && a.id !== 'agent').sort((x, y) => x.name.localeCompare(y.name)).map((a) => a.id);
 
 /** A name with the typed words drawn in ink: the first place they appear, or nothing marked. */
 export function marked(label: string, query: string): ReactNode {

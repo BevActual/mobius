@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { APP_GROUPS, APPS, isInstalled, recentApps, type AppId, type AppInfo } from './apps';
+import { APP_GROUPS, APPS, isInstalled, isListed, recentApps, type AppId, type AppInfo } from './apps';
 import { APP_ICONS, OWN_ICONS, type OwnApp } from './Rail';
 import { morphOut, useMorphIn } from './motion';
 import { afterPaint } from './ui/frame';
@@ -37,7 +37,7 @@ const FEATURED = ['conversation', 'note', 'task', 'tab', 'doc', 'message', 'rese
 
 /** The hub's groups of apps. A group of one (Agent, Review) joins the group beside it rather than sitting alone. */
 export function hubGroups(): Array<{ group: string; members: AppInfo[] }> {
-  const groups = APP_GROUPS.map((group) => ({ group: group as string, members: APPS.filter((a) => a.group === group && !a.own && isInstalled(a.id)) })).filter((g) => g.members.length > 0);
+  const groups = APP_GROUPS.map((group) => ({ group: group as string, members: APPS.filter((a) => a.group === group && !a.own && isListed(a) && isInstalled(a.id)) })).filter((g) => g.members.length > 0);
   const out: Array<{ group: string; members: AppInfo[] }> = [];
   let carry: AppInfo[] = [];
   for (const g of groups) {
@@ -75,7 +75,7 @@ export function AppHub({ open, onClose, current, onOpenApp, actions, status, onC
   const has = (...texts: string[]) => !q || texts.some((t) => t.toLowerCase().includes(q));
   // Searching, an app whose name starts with the words comes first, then one whose name has them, then the rest.
   const rank = (name: string) => (name.toLowerCase().startsWith(q) ? 0 : name.toLowerCase().includes(q) ? 1 : 2);
-  const built = APPS.filter((a) => a.available && !a.own && isInstalled(a.id) && has(a.name, status[a.id] ?? '', a.also ?? ''))
+  const built = APPS.filter((a) => a.available && !a.own && isListed(a) && isInstalled(a.id) && has(a.name, status[a.id] ?? '', a.also ?? ''))
     .sort((a, b) => (q ? rank(a.name) - rank(b.name) : 0));
   const later = APPS.filter((a) => !a.available && has(a.name));
   const starts = actions.filter((a) => has(a.label));

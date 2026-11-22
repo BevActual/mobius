@@ -1,10 +1,10 @@
 import { useRef, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
-import { APPS, appName, isAvailable, type AppId } from './apps';
+import { APPS, appName, isAvailable, isListed, type AppId } from './apps';
 import { MAX_SHARE, MIN_SHARE, clampShare } from './split';
 import { APP_ICONS } from './Rail';
 
 /** The apps that can sit in a pane of split view. */
-export const PANE_APPS: readonly AppId[] = APPS.filter((info) => info.available).map((info) => info.id);
+export const PANE_APPS: readonly AppId[] = APPS.filter((info) => info.available && isListed(info)).map((info) => info.id);
 
 interface PaneProps {
   index: 0 | 1;
