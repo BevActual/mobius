@@ -1,7 +1,9 @@
 //! Audio clips' sounds (Live 12 manual, chapter 9 "Audio Clips, Tempo, and Warping"): read from the song's folder
 //! and kept while their files stay the same, then placed on the clip's beats, unwarped at the file's own speed or
-//! warped to the song's tempo by its tempo or its warp markers. Warped clips play as Re-Pitch for now (9.3.4): faster
-//! and higher, or slower and lower, like a turntable.
+//! warped to the song's tempo by its tempo or its warp markers. Re-Pitch (9.3.4) plays faster and higher, or slower
+//! and lower, like a turntable; every other mode keeps the file's pitch with a granular stretcher: short overlapping
+//! grains, each read at the file's own speed from where the warp puts that moment, faded in and out so they add up
+//! to one.
 
 use std::collections::HashMap;
 use std::path::{Component, Path, PathBuf};
@@ -93,6 +95,10 @@ pub struct Placed {
     /// Beats of the clip and the file's frames they land on, with straight lines between and the first and last
     /// stretch carried on beyond them.
     map: Vec<(f64, f64)>,
+    /// Kept at its pitch: each grain's length in the clip's beats. `None` plays as Re-Pitch (or unwarped).
+    grain: Option<f64>,
+    /// The file's frames in a second of the song's time, as a grain reads them.
+    frames_per_beat: f64,
 }
 
 impl Placed {
@@ -116,7 +122,17 @@ impl Placed {
         } else {
             vec![(0.0, start), (1.0, start + per_beat(bpm))]
         };
-        Placed { sound, gain: 10f64.powf(audio.gain_db.clamp(-70.0, 24.0) / 20.0) as f32, map }
+        // Each mode's grain (Live 12 manual, 9.3): Beats keeps its grains on the beat grid, a sixteenth note long;
+        // Tones uses short grains for a clear pitch, Texture long ones for a smooth sound, Complex in between.
+        let seconds_per_beat = 60.0 / tempo;
+        let grain = match audio.mode.as_deref().filter(|_| audio.warp) {
+            None | Some("repitch") => None,
+            Some("beats") => Some(0.25),
+            Some("tones") => Some(0.04 / seconds_per_beat),
+            Some("texture") => Some(0.1 / seconds_per_beat),
+            Some(_) => Some(0.06 / seconds_per_beat),
+        };
+        Placed { sound, gain: 10f64.powf(audio.gain_db.clamp(-70.0, 24.0) / 20.0) as f32, map, grain, frames_per_beat: seconds_per_beat * rate }
     }
 
     /// The file's frame at a beat of the clip.
@@ -131,7 +147,24 @@ impl Placed {
     /// them; before the file's start or past its end, silence.
     #[must_use]
     pub fn at(&self, beat: f64) -> (f32, f32) {
-        let frame = self.frame(beat);
+        let Some(grain) = self.grain else { return self.at_frame(self.frame(beat)) };
+        // The two grains sounding at this beat, half a grain apart: each starts where the warp puts its start and
+        // reads on at the file's own speed, under a Hann window (the two windows always add up to one).
+        let half = grain / 2.0;
+        let k = (beat / half).floor();
+        let (mut l, mut r) = (0.0, 0.0);
+        for start in [k * half, (k - 1.0) * half] {
+            let u = (beat - start) / grain;
+            let w = (std::f64::consts::PI * u).sin().powi(2) as f32;
+            let (a, b) = self.at_frame(self.frame(start) + (beat - start) * self.frames_per_beat);
+            l += a * w;
+            r += b * w;
+        }
+        (l, r)
+    }
+
+    /// The sound at a frame of the file, at its gain.
+    fn at_frame(&self, frame: f64) -> (f32, f32) {
         let (left, right) = (&self.sound.left, &self.sound.right);
         if left.len() < 2 || frame.is_nan() || frame < 0.0 || frame >= (left.len() - 1) as f64 {
             return (0.0, 0.0);
@@ -176,6 +209,27 @@ mod tests {
         // A 60 BPM file in a 120 BPM song: a beat of the clip is a second of the file, so it plays twice as fast.
         let p = Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"repitch","bpm":240,"gainDb":-6.0206}"#), ramp(), 120.0);
         assert!((p.at(1.0).0 - 0.25 * 0.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn a_stretched_clip_keeps_its_pitch_at_another_tempo() {
+        // A 100 Hz sine at 48 kHz, its own tempo 120, played in a 60 BPM song: twice as long, at the same pitch.
+        let rate = 48_000.0;
+        let left: Vec<f32> = (0..48_000).map(|n| (std::f64::consts::TAU * 100.0 * f64::from(n) / rate).sin() as f32).collect();
+        let sine = Arc::new(Sound { rate, right: left.clone(), left });
+        let crossings = |p: &Placed| {
+            // Over a second of the song (a beat at 60 BPM), counted at 48 kHz.
+            let s: Vec<f32> = (0..48_000).map(|i| p.at(f64::from(i) / 48_000.0).0).collect();
+            s.windows(2).filter(|w| w[0] < 0.0 && w[1] >= 0.0).count()
+        };
+        let stretched = Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"complex","bpm":120}"#), sine.clone(), 60.0);
+        let turntable = Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"repitch","bpm":120}"#), sine, 60.0);
+        // Re-Pitch plays at half speed: 50 Hz. The stretcher keeps 100 Hz.
+        assert!((crossings(&turntable) as i32 - 50).abs() <= 1, "{}", crossings(&turntable));
+        assert!((crossings(&stretched) as i32 - 100).abs() <= 8, "{}", crossings(&stretched));
+        // And at its own tempo it is the file as it is, near enough.
+        let same = Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"texture","bpm":60}"#), Arc::new(Sound { rate: 1000.0, left: vec![0.5; 2000], right: vec![0.5; 2000] }), 60.0);
+        assert!((same.at(0.7).0 - 0.5).abs() < 1e-4);
     }
 
     #[test]

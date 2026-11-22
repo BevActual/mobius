@@ -230,7 +230,7 @@ pub struct Audio {
     #[serde(default)]
     pub warp: bool,
     /// The warp mode (9.3): `"repitch"` plays faster or slower like a turntable. The others (beats, tones, texture,
-    /// complex, complexpro) keep their pitch with the time-stretcher; until it lands they play as Re-Pitch.
+    /// complex, complexpro) keep their pitch with the granular stretcher in [`crate::sample`]; none is Re-Pitch.
     #[serde(default)]
     pub mode: Option<String>,
     /// The file's own tempo, warped with no markers.
