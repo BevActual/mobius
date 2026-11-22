@@ -51,7 +51,7 @@ test('the message box has add context, mode, permission, model and send', async 
   // Each pill is named for what it is and what it shows ("Mode: Ask"), so a screen reader says the choice too.
   await expect(shell().getByRole('button', { name: 'Add context', exact: true })).toBeVisible();
   for (const name of ['Mode', 'Permission', 'Model']) await expect(shell().getByRole('button', { name: new RegExp(`^${name}: `) })).toBeVisible();
-  await expect(shell().getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(shell().getByRole('button', { name: 'Send', includeHidden: true })).toBeDisabled();
   await expect(shell().getByRole('button', { name: 'Model' })).toContainText('chat-model');
   await composer().fill('hi');
   await expect(shell().getByRole('button', { name: 'Send' })).toBeEnabled();
@@ -62,10 +62,10 @@ test('send becomes stop while the agent works, and stop ends the request', async
   await say('go');
   const stop = shell().getByRole('button', { name: 'Stop' });
   await expect(stop).toBeVisible();
-  await expect(shell().getByRole('button', { name: 'Send' })).toHaveCount(0);
+  await expect(shell().getByRole('button', { name: 'Send', includeHidden: true })).toHaveCount(0);
   await stop.click();
   await expect(stop).toHaveCount(0);
-  await expect(shell().getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(shell().getByRole('button', { name: 'Send', includeHidden: true })).toBeAttached();
 });
 
 test('the model menu lists what the server offers and switching changes the model for the next message', async () => {

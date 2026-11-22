@@ -2691,12 +2691,11 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools .pill.pill-model { max-width: none; }
 .composer-tools .pill-model .pill-text { overflow: visible; text-overflow: clip; }
 .composer-tools[data-fit] .pill-model .pill-suffix { display: none; }
-.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model .pill-text { display: none; }
-.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model-icon { display: block; }
+.composer-tools[data-fit="model"] .pill-model .pill-text { display: none; }
+.composer-tools[data-fit="model"] .pill-model-icon { display: block; }
 .pill-short { display: none; }
-.composer-tools[data-fit="short"] .pill-long { display: none; }
-.composer-tools[data-fit="short"] .pill-short { display: inline; }
-.composer-tools[data-fit="perm"] .pill-compact:has(.pill-icon) .pill-text { display: none; }
+.composer-tools:is([data-fit="short"], [data-fit="model"]) .pill-long { display: none; }
+.composer-tools:is([data-fit="short"], [data-fit="model"]) .pill-short { display: inline; }
 
 /* The Glance and Result slots of the Mobius panel (PanelSlots.tsx). An empty slot is hidden. */
 .glance-slot:empty, .result-slot:empty { display: none; }
@@ -2843,3 +2842,34 @@ body { font-variant-numeric: tabular-nums; }
 .strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 16%, transparent); color: var(--mobius); }
 .context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover,
 .title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); color: var(--mobius); }
+
+/* ---- The Mobius panel in the panel look (design/reviews/panel-look/mobius-panel.md) ---------------------------------- */
+/* The header is the panel's: the chat's name in ink, 13px semibold. */
+.dock.right .chat:not(.full) .chat-head .chat-switch { font-size: 13px; font-weight: var(--fw-semibold); color: var(--ink); }
+/* Waiting for you: the things that wait, one row each, with Open. Gone when nothing waits. */
+.waiting-card { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); }
+.waiting-card[hidden] { display: none; }
+.waiting-card-title { margin: 0 0 var(--sp-1); padding: 0 var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.waiting-card-count { font-variant-numeric: tabular-nums; }
+.waiting-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 44px; padding: var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: inherit; font: inherit; text-align: start; }
+button.waiting-row { cursor: pointer; }
+button.waiting-row:hover { background: var(--sel); }
+button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.waiting-row-mark { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-control); color: var(--mobius); }
+.waiting-row-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.waiting-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.waiting-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); }
+.waiting-row-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
+/* Open: a quiet word, shown on hover and focus, and always on the first row. */
+.waiting-row-open { flex: none; display: inline-grid; place-items: center; height: 24px; padding: 0 var(--sp-2); border-radius: var(--radius-control); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); font-size: var(--fs-sm); color: var(--ink); visibility: hidden; }
+.waiting-row:is(:hover, :focus-visible) .waiting-row-open, .waiting-card > .waiting-row:nth-child(2) .waiting-row-open { visibility: visible; }
+/* Three rows at most until "N more" (the title is the first child). */
+.waiting-card:not([data-all]) > .waiting-row:nth-child(n + 5) { display: none; }
+.waiting-more { align-self: flex-start; height: 24px; margin: 2px 0 0 var(--sp-1); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.waiting-more:hover { color: var(--ink); }
+/* Ideas: quiet chips, a hairline and grey words that turn ink on hover; two rows at most. */
+.resting .actions-list { max-height: calc(2 * (var(--row-h) - var(--sp-1)) + var(--sp-1)); overflow: hidden; }
+.resting .action-row { background: none; color: var(--muted); }
+.resting .action-row:hover { background: none; color: var(--ink); box-shadow: inset 0 0 0 var(--hairline-w) var(--faint); }
+/* The composer's foot in words: Agent ▾ Review ▾ at the start, Best fit ▾ at the end; Send only once there is text. */
+.dock.right .chat .composer .round.send:disabled { display: none; }

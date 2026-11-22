@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CalendarSuggestion, MailDraft, MobiusBridge, TurnChanges, TurnRecord } from '@mobius/shared';
 import { ReviewActions } from './ReviewBar';
 import { loadApply } from './chat-mode';
@@ -198,7 +198,7 @@ async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion
   return now.filter((x) => !before.has(x.id));
 }
 
-export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined }) {
+export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, onCount, variant = 'summary', title, onOpenChat }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined; /** Told how many things wait. */ onCount?: ((count: number) => void) | undefined; /** 'waiting': one row for the chat's changes, for the resting panel's Waiting for you card. */ variant?: 'summary' | 'waiting'; /** The chat's name, for the 'waiting' row. */ title?: string | undefined; /** Opens the chat, for the 'waiting' row. */ onOpenChat?: (() => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
   // Files the turn moved or renamed, new path to old: each is one change, though both paths changed.
   const [moved, setMoved] = useState<ReadonlyMap<string, string>>(new Map());
@@ -289,6 +289,7 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
   const count = listed.length + suggested.length + drafts.length;
   const shown = !busy && count > 0;
   useEffect(() => { onShown?.(shown); }, [shown, onShown]);
+  useEffect(() => { onCount?.(shown ? count : 0); }, [shown, count, onCount]);
   // Apply changes: what the turn just changed is kept at once (Undo and Rewind still put it back). Only in the
   // conversation's own strip, never for an earlier chat's changes listed in the resting panel.
   const keepNow = useRef(keep);
@@ -330,6 +331,10 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
     ...suggested.map((x): SummaryEntry => ({ key: x.id, app: 'Calendar', name: x.title, count: 1, unit: 'event', title: `${x.title} in Calendar`, target: { app: 'calendar', date: x.start.slice(0, 10) }, undo: () => void window.mobius.calendar?.decline(x.id).then(() => load()) })),
     ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
   ];
+  if (variant === 'waiting') {
+    // One row for the chat's changes, named for the chat: Open goes to its list of changes, each kept in its app.
+    return <WaitingRow icon={APP_ICONS.agent} name={title ?? 'Last chat'} state={`${count === 1 ? '1 change' : `${count} changes`} · ${apps.join(', ')}`} onOpen={onOpenChat} />;
+  }
   const groups = groupByApp(entries);
   const words = count === 1 ? '1 change' : `${count} changes`;
   return (
@@ -367,6 +372,29 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown }: 
       </div>
       {problem && <p className="review-problem" role="alert">{problem}</p>}
     </section>
+  );
+}
+
+/**
+ * One thing waiting for you in the resting panel's card: its app's icon in a dashed indigo square (Mobius made it), its
+ * name, one grey line of state, and Open, which goes to it in its app.
+ */
+export function WaitingRow({ icon, name, state, title, onOpen }: { icon: ReactNode; name: string; state: string; title?: string | undefined; onOpen?: (() => void) | undefined }) {
+  const inner = (
+    <>
+      <span className="waiting-row-mark" aria-hidden="true"><svg viewBox="0 0 20 20">{icon}</svg></span>
+      <span className="waiting-row-text">
+        <span className="waiting-row-name">{name}</span>
+        <span className="waiting-row-state">{state}</span>
+      </span>
+    </>
+  );
+  // The whole row opens it; Open itself shows on hover and focus (always on the first row).
+  if (!onOpen) return <div className="waiting-row" title={title}>{inner}</div>;
+  return (
+    <button type="button" className="waiting-row" title={title && title !== name ? title : undefined} aria-label={`Open ${name}: ${state}`} onClick={onOpen}>
+      {inner}<span className="waiting-row-open" aria-hidden="true">Open</span>
+    </button>
   );
 }
 

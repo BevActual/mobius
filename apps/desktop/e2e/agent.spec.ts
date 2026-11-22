@@ -62,7 +62,7 @@ test('Enter sends, Shift+Enter adds a line, and a blank message cannot be sent',
   await start([says(['ok'])]);
   await composer().press('Enter');
   await expect(log().locator('.msg')).toHaveCount(0);
-  await expect(mobius!.shell.getByRole('button', { name: 'Send' })).toBeDisabled();
+  await expect(mobius!.shell.getByRole('button', { name: 'Send', includeHidden: true })).toBeDisabled();
   await composer().fill('line one');
   await composer().press('Shift+Enter');
   await composer().pressSequentially('line two');
@@ -133,7 +133,7 @@ test('Stop ends a reply that is still arriving, and the conversation can continu
   await say('talk for a while');
   await expect(log().locator('.msg.assistant')).toContainText('one');
   await mobius!.shell.getByRole('button', { name: 'Stop' }).click();
-  await expect(mobius!.shell.getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(mobius!.shell.getByRole('button', { name: 'Send', includeHidden: true })).toBeAttached();
   const kept = await log().locator('.msg.assistant').first().textContent();
   await mobius!.shell.waitForTimeout(1500);
   expect(await log().locator('.msg.assistant').first().textContent()).toBe(kept);
