@@ -157,7 +157,22 @@ How Live lays it out, and what Music takes from it:
 - **Keys.** Ctrl+F goes to All and the search field; Down moves into results; Esc clears search and tags; Ctrl+[ and
   Ctrl+] go back and forward.
 
-**First cut (one round):**
+**Shipped in the first cut:**
+- The Library is a tab in the left dock, in front, with Songs as the tab beside it (Ctrl+Alt+B).
+- The panel holds categories (All, Sounds, Drums, Instruments, Audio Effects) and seven collections. They sit in a
+  select, since the dock is under 440 px.
+- All-words and `#tag` search, and the tag filters.
+- Seventeen built-in sounds and kits, plus the five instruments and four effects.
+- Collections with 1 to 7 and 0, shown as up to three dots per row. Esc clears the search and tags.
+- Preview on choosing, plus Up and Down while Preview is on. Shift+Enter or Right previews a row. The preview strip has
+  a volume control.
+- Enter or a double-click puts a sound on the chosen track when the kinds match, else on a new track, and adds an
+  effect to the chosen track.
+
+**Still to come from the plan below:** drag onto a track, Q from the Devices tab, Ctrl+[ and Ctrl+], workspace folders as
+Places, Clips, and the side-by-side layout when the dock is wide.
+
+**First cut as planned:**
 - The panel in the left slot with search, categories (Sounds, Drums, Instruments, Audio Effects, Clips), Places
   (Songs and workspace folders) and Collections.
 - Tag filters from built-in tags on Music's sounds and devices.

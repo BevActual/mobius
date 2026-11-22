@@ -33,7 +33,8 @@ not designs to copy.
 | Sound from the native engine | Music plays, previews notes, counts in and exports through Mobius's own audio engine in the desktop app (the computer's sound output, with meters). Where the engine can't open an output, Music plays in the window as before. | Have |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
 | Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; Arrange clips: drag to move, drag the edge to stretch, Ctrl+D, 0 and Delete) |
-| Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
+| Library | A Library tab in the left dock, after Live's Browser: categories and collections, search with `#tag`, tag filters, preview, and Enter to put a sound on the chosen track (or a new one) or add an effect. | Have |
+| Drag sounds in | Drag from the Library onto empty space for a new track, or onto a track to swap its instrument and keep the notes. | Next |
 | Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
 | Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |
 | Info on hover | A line at the foot names what the pointer is over and its key, so the app teaches itself. It's the key-hint bar every app shares. | Next (shell) |

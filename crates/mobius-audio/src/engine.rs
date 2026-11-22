@@ -31,6 +31,8 @@ pub(crate) enum Command {
 /// What the audio thread reports.
 pub(crate) struct Shared {
     playing: AtomicBool,
+    /// A note preview or count-in is sounding (with the transport stopped or not).
+    sounding: AtomicBool,
     /// The beat it has reached, as f64 bits.
     beat: AtomicU64,
     /// Each track's level and then the master's, left and right, as f32 bits.
@@ -50,6 +52,7 @@ impl Shared {
     fn new() -> Shared {
         Shared {
             playing: AtomicBool::new(false),
+            sounding: AtomicBool::new(false),
             beat: AtomicU64::new(0),
             peaks: (0..=MAX_METERS).map(|_| (AtomicU32::new(0), AtomicU32::new(0))).collect(),
             tracks: AtomicU32::new(0),
@@ -106,8 +109,15 @@ impl AudioSide {
         if self.playing.is_none() && !self.oneshots.busy() {
             data.fill(0.0);
             self.shared.playing.store(false, Ordering::Release);
+            if self.shared.sounding.swap(false, Ordering::AcqRel) {
+                // What was sounding has ended: the master falls silent.
+                self.shared.tracks.store(0, Ordering::Relaxed);
+                self.shared.peaks[0].0.store(0, Ordering::Relaxed);
+                self.shared.peaks[0].1.store(0, Ordering::Relaxed);
+            }
             return;
         }
+        let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
         for frames in data.chunks_mut(MAX_BLOCK * channels) {
             let n = frames.len() / channels;
             let (left, right) = (&mut self.left[..n], &mut self.right[..n]);
@@ -119,6 +129,8 @@ impl AudioSide {
                 }
             }
             self.oneshots.add_to(left, right, self.rate);
+            peak_l = left.iter().fold(peak_l, |p, x| p.max(x.abs()));
+            peak_r = right.iter().fold(peak_r, |p, x| p.max(x.abs()));
             for (i, frame) in frames.chunks_mut(channels).enumerate() {
                 for (c, out) in frame.iter_mut().enumerate() {
                     *out = match c {
@@ -129,7 +141,12 @@ impl AudioSide {
                 }
             }
         }
+        self.shared.sounding.store(self.oneshots.busy(), Ordering::Release);
         let Some(renderer) = self.playing.as_ref() else {
+            // Stopped, with a preview or count-in sounding: no tracks, and the master is what is heard.
+            self.shared.tracks.store(0, Ordering::Relaxed);
+            self.shared.peaks[0].0.store(peak_l.to_bits(), Ordering::Relaxed);
+            self.shared.peaks[0].1.store(peak_r.to_bits(), Ordering::Relaxed);
             self.shared.playing.store(false, Ordering::Release);
             return;
         };
@@ -179,6 +196,8 @@ pub struct Engine {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Position {
     pub playing: bool,
+    /// A note preview or count-in is sounding. Stopped, `meters` then holds only `"master"`.
+    pub sounding: bool,
     pub beat: f64,
     /// Each track's level, left and right in dB, then `"master"`'s.
     pub meters: Vec<(String, [f64; 2])>,
@@ -337,12 +356,13 @@ impl Engine {
     pub fn position(&self) -> Position {
         let shared = &self.shared;
         let playing = shared.playing.load(Ordering::Acquire);
+        let sounding = shared.sounding.load(Ordering::Acquire);
         let beat = f64::from_bits(shared.beat.load(Ordering::Acquire));
         let tracks = lock(&self.tracks);
         let count = (shared.tracks.load(Ordering::Relaxed) as usize).min(tracks.len()).min(MAX_METERS);
         let level = |i: usize| shared.peaks.get(i).map_or([-120.0; 2], |(l, r)| [db(f32::from_bits(l.load(Ordering::Relaxed))), db(f32::from_bits(r.load(Ordering::Relaxed)))]);
         let mut meters: Vec<(String, [f64; 2])> = tracks.iter().take(count).enumerate().map(|(i, id)| (id.clone(), level(i))).collect();
-        if playing {
+        if playing || sounding {
             meters.push(("master".to_owned(), level(count)));
         }
         let session = lock(&self.session)
@@ -358,7 +378,7 @@ impl Engine {
                 (id.clone(), state)
             })
             .collect();
-        Position { playing, beat, meters, session }
+        Position { playing, sounding, beat, meters, session }
     }
 
     fn send(&self, command: Command) -> Result<(), String> {
@@ -513,11 +533,18 @@ mod tests {
         engine.preview(&song.tracks[0], 60, 0.8, 0.35).unwrap();
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().any(|s| s.abs() > 0.01) && !engine.position().playing);
+        // While it sounds the position says so, with the master's level and no tracks.
+        let at = engine.position();
+        assert!(at.sounding);
+        assert_eq!(at.meters.len(), 1);
+        assert!(at.meters[0].0 == "master" && at.meters[0].1[0] > -40.0, "{:?}", at.meters);
         // It rings out and goes quiet.
         for _ in 0..30 {
             audio.fill(&mut buffer, 2);
         }
         assert!(buffer.iter().all(|s| *s == 0.0));
+        let at = engine.position();
+        assert!(!at.sounding && at.meters.is_empty(), "{:?}", at.meters);
         engine.preview(&song.tracks[1], 36, 1.0, 0.35).unwrap();
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().any(|s| s.abs() > 0.01));
