@@ -721,16 +721,16 @@ const newStart = (anchor: Date) => {
 };
 
 /** Asks which times of a repeating event a change (`change`) or a deletion is for; null when the person cancels. */
-export type AskScope = (verb: 'change' | 'delete', withOne: boolean) => Promise<RepeatScope | null>;
+export type AskScope = (verb: 'change' | 'delete', withOne: boolean, start: string) => Promise<RepeatScope | null>;
 
 /** The question, as calendars ask it, and the dialog that asks it: this event, this and following events, or all. */
 function useScopeAsk(): [AskScope, ReactNode] {
-  const [asking, setAsking] = useState<{ verb: 'change' | 'delete'; withOne: boolean } | null>(null);
+  const [asking, setAsking] = useState<Asking | null>(null);
   const answer = useRef<((scope: RepeatScope | null) => void) | null>(null);
-  const ask = useCallback<AskScope>((verb, withOne) => new Promise((done) => {
+  const ask = useCallback<AskScope>((verb, withOne, start) => new Promise((done) => {
     answer.current?.(null);
     answer.current = done;
-    setAsking({ verb, withOne });
+    setAsking({ verb, withOne, start });
   }), []);
   const finish = (scope: RepeatScope | null) => {
     const done = answer.current;
@@ -741,22 +741,29 @@ function useScopeAsk(): [AskScope, ReactNode] {
   return [ask, <RepeatScopeDialog key="scope" asking={asking} onDone={finish} />];
 }
 
-function RepeatScopeDialog({ asking, onDone }: { asking: { verb: 'change' | 'delete'; withOne: boolean } | null; onDone: (scope: RepeatScope | null) => void }) {
+type Asking = { verb: 'change' | 'delete'; withOne: boolean; start: string };
+
+function RepeatScopeDialog({ asking, onDone }: { asking: Asking | null; onDone: (scope: RepeatScope | null) => void }) {
+  const answer = useRef<HTMLButtonElement>(null);
+  // The kept question stays drawn while the dialog closes.
+  const shown = useRef<Asking | null>(null);
+  if (asking) shown.current = asking;
+  const when = shown.current ? formatWith(localDate(shown.current.start), { weekday: 'short', month: 'short', day: 'numeric' }) : '';
   const choices = SCOPE_CHOICES.filter((c) => asking?.withOne !== false || c.scope !== 'one');
   const [scope, setScope] = useState<RepeatScope>('one');
   useEffect(() => { if (asking) setScope(asking.withOne ? 'one' : 'following'); }, [asking]);
-  const deleting = asking?.verb === 'delete';
+  const deleting = shown.current?.verb === 'delete';
   return (
     <Dialog
-      open={asking !== null} onOpenChange={(open) => { if (!open) onDone(null); }} className="cal-scope"
+      open={asking !== null} onOpenChange={(open) => { if (!open) onDone(null); }} className="cal-scope" initialFocus={answer}
       title={deleting ? 'Delete repeating event' : 'Change repeating event'}
-      actions={<><Button onClick={() => onDone(null)}>Cancel</Button><Button kind="primary" danger={deleting} onClick={() => onDone(scope)}>{deleting ? 'Delete' : 'Save'}</Button></>}
+      actions={<><Button onClick={() => onDone(null)}>Cancel</Button><Button ref={answer} kind="primary" danger={deleting} onClick={() => onDone(scope)}>{deleting ? 'Delete' : 'Save'}</Button></>}
     >
       <div role="radiogroup" aria-label="Which times" className="cal-scope-list">
         {choices.map((c) => (
           <label key={c.scope} className="cal-scope-row">
             <input type="radio" name="cal-scope" value={c.scope} checked={scope === c.scope} onChange={() => setScope(c.scope)} />
-            {c.label}
+            <span>{c.label}{c.scope === 'one' && when && <span className="cal-scope-when"> ({when})</span>}</span>
           </label>
         ))}
       </div>
@@ -800,7 +807,6 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     if (repeat !== initialRepeat) draft.repeat = repeat;
     const invited = parseInvitees(invite, original?.attendees);
     if (!sameInvitees(invited, original?.attendees)) draft.attendees = invited;
-    setBusy(true);
     let done: unknown;
     if (original) {
       // Only what changed is sent; moving one time of a repeating event moves every time by as much.
@@ -812,12 +818,14 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       }
       if (Object.keys(change).length > 0 && original.repeats) {
         // Which times it is for, as calendars ask; a new way of repeating is never for this one time only.
-        const scope = askScope ? await askScope('change', change.repeat === undefined) : 'all';
-        if (!scope) { setBusy(false); return; }
+        const scope = askScope ? await askScope('change', change.repeat === undefined, original.start) : 'all';
+        if (!scope) return;
         change = scoped(original, change, scope);
       }
+      setBusy(true);
       done = Object.keys(change).length === 0 ? true : await calendar.update(original, change);
     } else {
+      setBusy(true);
       done = await calendar.add(into, draft);
     }
     setBusy(false);
@@ -825,11 +833,12 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
   };
   const removeIt = async () => {
     if (!original) return;
+    const scope = original.repeats && askScope ? await askScope('delete', true, original.start) : 'all';
+    if (!scope) return;
     setBusy(true);
-    const scope = original.repeats && askScope ? await askScope('delete', true) : 'all';
-    const ok = scope ? await calendar.remove(original, scope) : null;
+    const ok = await calendar.remove(original, scope);
     setBusy(false);
-    if (ok && scope) { onDeleted?.(original, scope); onClose(); }
+    if (ok) { onDeleted?.(original, scope); onClose(); }
   };
   const sheet = useRef<HTMLFormElement>(null);
   useMorphIn(sheet, true);
@@ -951,7 +960,6 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
         <textarea aria-label="Notes" placeholder="Notes" value={notes} maxLength={4000} rows={3} onChange={(e) => setNotes(e.target.value)} />
         </fieldset>
         {locked && <p className="cal-editor-note">From {original.calendar}, a subscribed calendar: it can be read here but not changed.</p>}
-        {original?.repeats && !locked && <p className="cal-editor-note">This event repeats. When you save or delete it, you choose this event, this and following events, or all of them.</p>}
         {calendar.message && <p className="tasks-message" role="alert">{calendar.message}</p>}
         {/* The popover keeps changes as they are made (a click elsewhere or Enter), and Escape takes them back: it needs
             no Cancel or Save, only Delete, as plain red words at its foot. */}
@@ -1142,7 +1150,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
     setUndoable({ text: `Deleted “${title}”.`, undo: () => calendar.add(into, { title, start, end: draftEnd(e), location, notes, ...(e.repeat && e.repeat !== 'custom' ? { repeat: e.repeat } : {}) }) });
   };
   const move: MoveEvent = async (event, to) => {
-    const scope = event.repeats ? await askScope('change', true) : 'all';
+    const scope = event.repeats ? await askScope('change', true, event.start) : 'all';
     if (!scope) return false;
     const ok = await calendar.update(event, scoped(event, to, scope));
     if (ok && scope === 'following') return ok;
@@ -1182,7 +1190,7 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
     setSelected(null);
     if (event.suggestion) { await calendar.decline(event.suggestion.id); return; }
     if (!movable(calendar, event)) return;
-    const scope = event.repeats ? await askScope('delete', true) : 'all';
+    const scope = event.repeats ? await askScope('delete', true, event.start) : 'all';
     if (scope && await calendar.remove(event, scope)) deleted(event, scope);
   };
   /** A copy at the same time, in the same calendar, or the first that can take it when that one is read only. */

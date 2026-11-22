@@ -1,6 +1,6 @@
 import { AlertDialog as BaseAlert } from '@base-ui/react/alert-dialog';
 import { Dialog as BaseDialog } from '@base-ui/react/dialog';
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import { Button } from './Button';
 
 /**
@@ -14,7 +14,7 @@ import { Button } from './Button';
  *   and Escape do.
  */
 
-export function Dialog({ open, onOpenChange, title, description, children, actions, wide, className }: {
+export function Dialog({ open, onOpenChange, title, description, children, actions, wide, className, initialFocus }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
@@ -26,12 +26,14 @@ export function Dialog({ open, onOpenChange, title, description, children, actio
   /** A wider sheet for a form with two columns. */
   wide?: boolean;
   className?: string;
+  /** What takes the keys when it opens, such as the button that answers it, so Enter confirms; else the first field. */
+  initialFocus?: RefObject<HTMLElement | null>;
 }) {
   return (
     <BaseDialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <BaseDialog.Portal>
         <BaseDialog.Backdrop className="ui-dialog-backdrop" />
-        <BaseDialog.Popup className={className ? `ui-dialog ${className}` : 'ui-dialog'} data-wide={wide || undefined}>
+        <BaseDialog.Popup className={className ? `ui-dialog ${className}` : 'ui-dialog'} data-wide={wide || undefined} initialFocus={initialFocus}>
           <BaseDialog.Title className="ui-dialog-title">{title}</BaseDialog.Title>
           {description && <BaseDialog.Description className="ui-dialog-text">{description}</BaseDialog.Description>}
           {children && <div className="ui-dialog-body">{children}</div>}
