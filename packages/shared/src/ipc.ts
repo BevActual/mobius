@@ -1305,6 +1305,9 @@ export interface MobiusBridge {
     /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. The file is 32-bit float, so
      *  nothing is clipped; `peakDb` is its loudest sample and `over` how many samples pass 0 dBFS. */
     render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string; peakDb?: number; over?: number } | NotesFailure>;
+    /** Freezes a track (Live 12 manual, 38.1.4): renders its instrument, clips and effects into the song's
+     *  Samples/Processed/Freeze folder; set the track's `frozen: { file }` to play that in their place. */
+    freeze?(path: string, trackId: string, song?: unknown): Promise<{ ok: true; file: string } | NotesFailure>;
     /** Each heard track, each return and Main as its own 32-bit float WAV, the same length, in a new folder
      *  `Exports/<name> stems` (Live's All Individual Tracks). Silent tracks have no file. */
     renderStems?(path: string, name: string, song?: unknown): Promise<{ ok: true; path: string; saved: string; files: { file: string; peakDb: number; over: boolean }[] } | NotesFailure>;

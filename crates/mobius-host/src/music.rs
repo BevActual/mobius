@@ -149,6 +149,11 @@ impl Music {
                 (Some(path), Some(name)) => self.render_stems(arg(2), path, name, songs),
                 _ => Err("a song and a name are needed".to_owned()),
             },
+            // Freezes a track (Live 12 manual, 38.1.4): renders it into the song's Samples/Processed/Freeze folder.
+            "freeze" => match (arg(0).as_str(), arg(1).as_str()) {
+                (Some(path), Some(track)) => self.freeze(arg(2), path, track, songs),
+                _ => Err("a song and a track are needed".to_owned()),
+            },
             "render" => match (arg(0).as_str(), arg(1).as_str()) {
                 (Some(path), Some(name)) => self.render(arg(2), path, name, songs),
                 _ => Err("a song, a name and the sound are needed".to_owned()),
@@ -197,7 +202,7 @@ impl Music {
 
     /// Reads the sounds of the song's audio clips, samplers and drum pads from the folder of the song at `path`.
     fn attach(&self, song: &mut Song, path: Option<&str>, songs: &mobius_workspace::notes::Notes) -> Vec<String> {
-        let has_audio = song.tracks.iter().any(|t| Song::is_audio(t) || Song::sampler_of(t).is_some() || t.pads.values().any(|p| p.sample.is_some()));
+        let has_audio = song.tracks.iter().any(|t| Song::is_audio(t) || t.frozen.is_some() || Song::sampler_of(t).is_some() || t.pads.values().any(|p| p.sample.is_some()));
         match path.filter(|_| has_audio).map(|p| songs.folder_of(p)) {
             Some(Ok(folder)) => self.samples.attach(song, &folder),
             Some(Err(why)) => vec![why],
@@ -515,6 +520,40 @@ impl Music {
         Ok(json!({ "ok": true, "path": path, "saved": format!("{}/{folder_name}", mobius_workspace::notes::EXPORTS), "files": files }))
     }
 
+    /// Renders track `id` of the song (its instrument, clips and effects, at full volume in the middle, from the song's
+    /// start to its end and tail) into `Samples/Processed/Freeze/<track> Freeze.wav` in the song's folder, numbered if
+    /// taken, as Live keeps freeze files. The window then marks the track `frozen: { file }`; unfreezing drops it.
+    fn freeze(&self, value: &Value, path: &str, id: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
+        let song = match value {
+            Value::Null => lock(&self.song).clone().ok_or("load a song first")?,
+            v => {
+                let mut song = song_of(v)?;
+                self.attach(&mut song, Some(path), songs);
+                song
+            }
+        };
+        let alone = song.for_freezing(id).ok_or_else(|| format!("No track \"{id}\" in the song."))?;
+        let track = &alone.tracks[0];
+        let name = mobius_audio::record::file_stem(track.name.as_deref().unwrap_or(id), "Track");
+        let (left, right) = mobius_audio::render::render_song(&alone, RENDER_RATE);
+        let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
+        mobius_audio::wav::write(&mut bytes, &left, &right, RENDER_RATE).map_err(|e| e.to_string())?;
+        let dir = songs.folder_of(path)?.join("Samples").join("Processed").join("Freeze");
+        std::fs::create_dir_all(&dir).map_err(|e| format!("The Freeze folder could not be made: {e}"))?;
+        for n in 1u32.. {
+            let file = if n == 1 { format!("{name} Freeze.wav") } else { format!("{name} Freeze {n}.wav") };
+            match std::fs::OpenOptions::new().write(true).create_new(true).open(dir.join(&file)) {
+                Ok(mut out) => {
+                    std::io::Write::write_all(&mut out, &bytes).map_err(|e| format!("The track could not be frozen: {e}"))?;
+                    return Ok(json!({ "ok": true, "file": format!("Samples/Processed/Freeze/{file}") }));
+                }
+                Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+                Err(e) => return Err(format!("The track could not be frozen: {e}")),
+            }
+        }
+        Err("The track could not be frozen.".into())
+    }
+
     fn render(&self, value: &Value, path: &str, name: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
         let song = match value {
             Value::Null => lock(&self.song).clone().ok_or("load a song first")?,
@@ -713,6 +752,26 @@ mod tests {
         assert!(lead.left.iter().any(|s| s.abs() > 0.01));
         // Again, into a new folder rather than over the first.
         assert_eq!(m.call("renderStems", &[json!("Songs/Song.md"), json!("Song.wav"), song], &songs)["saved"], "Exports/Song stems 2");
+    }
+
+    #[test]
+    fn a_frozen_track_is_rendered_beside_the_song_and_played_from_its_file() {
+        let m = music();
+        let dir = tempfile::tempdir().unwrap();
+        let songs = mobius_workspace::notes::Notes::in_folder(dir.path().join("w"), dir.path().join("c"), "studio");
+        let folder = dir.path().join("w/studio/Songs");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("Song.md"), SONG).unwrap();
+        let mut song = json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [
+            { "id": "a", "name": "Lead", "instrument": "lead", "clips": [{ "id": "c", "start": 0, "length": 4, "notes": [{ "pitch": 60, "start": 0, "length": 1, "velocity": 1 }] }] }] });
+        let frozen = m.call("freeze", &[json!("Songs/Song.md"), json!("a"), song.clone()], &songs);
+        assert_eq!(frozen["file"], "Samples/Processed/Freeze/Lead Freeze.wav", "{frozen}");
+        assert_eq!(m.call("freeze", &[json!("Songs/Song.md"), json!("a"), song.clone()], &songs)["file"], "Samples/Processed/Freeze/Lead Freeze 2.wav");
+        assert_eq!(m.call("freeze", &[json!("Songs/Song.md"), json!("nope"), song.clone()], &songs)["ok"], false);
+        song["tracks"][0]["frozen"] = json!({ "file": "Samples/Processed/Freeze/Lead Freeze.wav" });
+        let loaded = m.call("load", &[song, json!("Songs/Song.md")], &songs);
+        assert_eq!(loaded["missing"], json!([]), "{loaded}");
+        assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 1);
     }
 
     #[test]
