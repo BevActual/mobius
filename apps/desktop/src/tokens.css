@@ -268,6 +268,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --event-fill: 22%; /* Calendar (marked): an event's tint on dark */
     --comment: color-mix(in srgb, #d9b84a 22%, transparent);
     --chart-blue: #3987e5;
     --chart-coral: #d95926;
@@ -332,6 +333,7 @@
   --chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M3 4.5 6 7.5 9 4.5' fill='none' stroke='%234f4f49' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 :root[data-theme="cool"] {
+  --event-fill: 22%; /* Calendar (marked) */
   --comment: color-mix(in srgb, #d9b84a 22%, transparent);
   --chart-blue: #3987e5;
   --chart-coral: #d95926;

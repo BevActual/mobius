@@ -29,7 +29,7 @@
 .cal-quick > svg { width: 14px; height: 14px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.8; stroke-linecap: round; }
 .cal-quick input { flex: 1; min-width: 0; height: 100%; border: 0; background: transparent; font: inherit; font-size: var(--fs-sm); color: inherit; outline: none; }
 .cal-quick-hint { position: absolute; z-index: 6; top: calc(100% + 6px); right: 0; width: max(100%, 300px); margin: 0; padding: 8px 12px; border-radius: var(--radius-group); background: var(--bg); box-shadow: var(--shadow-3); font-size: var(--fs-sm); color: var(--muted); display: none; }
-.cal-quick:focus-within .cal-quick-hint { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; }
+.cal-quick:focus-within .cal-quick-hint { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
 .cal-quick-hint b { color: var(--ink); font-weight: var(--fw-semibold); }
 .cal-quick-hint kbd { margin-left: auto; padding: 0 5px; border-radius: var(--radius-small); background: var(--field); font: inherit; font-size: var(--fs-xs); }
 
@@ -40,7 +40,7 @@
 .calendar-page .cal-day-head:not(:disabled):hover b { background: var(--soft); }
 .calendar-page .cal-day-head b { display: inline-grid; place-items: center; min-width: var(--control-h); height: var(--control-h); padding: 0 var(--sp-1); border-radius: var(--radius-control); font-size: var(--fs-lg); font-weight: var(--fw-medium); color: var(--ink); }
 .calendar-page .cal-day-head[data-today] { color: var(--ink); }
-.calendar-page .cal-day-head[data-today] b, .calendar-page .cal-day-head[data-today]:not(:disabled):hover b { background: var(--ink); color: var(--on-ink); border-radius: var(--radius-control); font-weight: var(--fw-semibold); }
+.calendar-page .cal-day-head[data-today] b, .calendar-page .cal-day-head[data-today]:not(:disabled):hover b { min-width: 0; width: var(--control-h); padding: 0; background: var(--ink); color: var(--on-ink); border-radius: 50%; font-weight: var(--fw-semibold); }
 
 /* The grid: hour lines, a fainter half-hour line, weekends a shade back, today a breath of accent. */
 .calendar-page .cal-column { background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(color-mix(in srgb, var(--line) 45%, transparent) 1px, transparent 1px); background-position: 0 0, 0 calc(var(--hour, 64px) / 2); background-size: 100% var(--hour, 64px); touch-action: none; }
@@ -49,10 +49,10 @@
 .calendar-page .cal-hour { font-size: var(--fs-xs); }
 
 /* Events: a soft tint of the calendar's colour with one 3px edge in it, the title in ink and the time quieter. */
-.calendar-page .cal-event { --event-tint: color-mix(in srgb, var(--event) 14%, var(--paper)); border: 0; border-left: 3px solid var(--event); border-radius: var(--radius-small); padding: 3px var(--sp-2) 3px 7px; background: var(--event-tint); color: var(--ink); font-size: var(--fs-sm); line-height: var(--lh-tight); transition: box-shadow var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
+.calendar-page .cal-event { --event-tint: color-mix(in srgb, var(--event) var(--event-fill, 14%), var(--paper)); border: 0; border-left: 3px solid var(--event); border-radius: var(--radius-small); padding: 3px var(--sp-2) 3px 7px; background: var(--event-tint); color: var(--ink); font-size: var(--fs-sm); line-height: var(--lh-tight); transition: box-shadow var(--dur-fast) var(--ease), background-color var(--dur-fast) var(--ease); }
 .calendar-page .cal-event b { font-weight: var(--fw-medium); }
 .calendar-page .cal-event span { color: var(--muted); }
-.calendar-page .cal-event:hover { background: color-mix(in srgb, var(--event) 22%, var(--paper)); }
+.calendar-page .cal-event:hover { background: color-mix(in srgb, var(--event) calc(var(--event-fill, 14%) + 8%), var(--paper)); }
 .calendar-page .cal-event[data-movable] { cursor: default; touch-action: none; user-select: none; }
 .calendar-page .cal-event[data-dragging] { z-index: 4; box-shadow: var(--shadow-2); opacity: 0.9; background: var(--event-tint); cursor: grabbing; }
 .cal-repeat { position: absolute; top: 4px; right: 4px; width: 11px; height: 11px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; opacity: 0.6; }
@@ -81,7 +81,7 @@
 .calendar-page .cal-month-cell { gap: 2px; padding: 3px 4px 4px; }
 .calendar-page .cal-month-day { align-self: flex-end; min-width: 24px; height: 24px; padding: 0 6px; border: 0; border-radius: var(--radius-control); background: transparent; font: inherit; font-size: var(--fs-sm); font-variant-numeric: tabular-nums; color: var(--ink); cursor: pointer; }
 .calendar-page .cal-month-day:hover { background: var(--soft); }
-.calendar-page .cal-month-cell[data-today] .cal-month-day { background: var(--ink); color: var(--on-ink); font-weight: var(--fw-semibold); }
+.calendar-page .cal-month-cell[data-today] .cal-month-day { min-width: 0; width: 24px; padding: 0; background: var(--ink); color: var(--on-ink); border-radius: 50%; font-weight: var(--fw-semibold); }
 .calendar-page .cal-month-cell[data-outside] .cal-month-day { color: var(--muted); }
 .calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day]) { background: transparent; border-left: 0; padding-left: 4px; color: var(--ink); }
 .calendar-page .cal-month-cell .cal-event[data-compact]:not([data-all-day])::before { content: ""; flex: none; align-self: center; width: 7px; height: 7px; border-radius: 50%; background: var(--event); }
@@ -159,11 +159,11 @@
 .calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day]) { background: var(--sel); }
 
 /* The current time: faint across the week, strong across today, and written in red in the hour column. */
-.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--ink) 30%, transparent); pointer-events: none; z-index: 1; }
-.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--ink); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
-/* Now is ink, one hairline with a small dot at its start: red is kept for conflicts. */
-.calendar-page .cal-now { height: 1px; background: var(--ink); }
-.calendar-page .cal-now::before { left: -3px; top: -3px; width: 7px; height: 7px; background: var(--ink); }
+.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 35%, transparent); pointer-events: none; z-index: 1; }
+.calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--danger); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
+/* Now is red, one hairline with a small dot at its start (Google Calendar, Fantastical). */
+.calendar-page .cal-now { height: 1px; background: var(--danger); }
+.calendar-page .cal-now::before { left: -4px; top: -4px; width: 9px; height: 9px; background: var(--danger); }
 /* In the popover the row names take less room, so a whole date fits beside its time. */
 .cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
 /* The popover's title and place read as text being written, without a ring around them. */
@@ -192,9 +192,11 @@
 /* The sidebar's calendars: plain rows, the calendar's colour as a small dot. A hidden calendar's dot is an empty ring
    and its name fades; pressing the row brings it back. */
 /* The same square swatch as an event's edge, so the calendar and its events read as one thing. */
-.calendar-row .cal-dot { flex: none; width: 8px; height: 8px; margin: 0 2px; border-radius: 2px; background: var(--swatch); box-shadow: inset 0 0 0 1.5px var(--swatch); }
-.calendar-row .cal-dot[data-tasks] { --swatch: var(--faint); border-radius: 2px; }
+.calendar-row .cal-dot { flex: none; display: grid; place-items: center; width: 14px; height: 14px; border-radius: 3px; background: var(--swatch); box-shadow: inset 0 0 0 1.5px var(--swatch); }
+.calendar-row .cal-dot svg { width: 12px; height: 12px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.calendar-row .cal-dot[data-tasks] { --swatch: var(--muted); }
 .calendar-row[aria-pressed="false"] .cal-dot { background: transparent; }
+.calendar-row[aria-pressed="false"] .cal-dot svg { display: none; }
 .calendar-row[aria-pressed="false"] .ui-side-name { color: var(--faint); }
 .calendar-row .cal-lock { margin-left: auto; }
 .cal-dock svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
@@ -292,3 +294,17 @@ form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc
   .calendar-page .cal-column > .cal-event .cal-event-when { display: none; }
   .calendar-page .cal-column > .cal-event[data-tall] b { -webkit-line-clamp: 3; }
 }
+
+/* Panel look (marked): the tool row sits centred under the title, as in every app: Today, ‹ ›, the views, New event. */
+.context-strip[data-titled] > .ui-toolbar-slot:has(.cal-tools) { grid-column: 2; justify-content: center; }
+.context-strip[data-titled] .cal-tools { flex: none; width: min(460px, calc(100vw - 360px)); }
+.cal-tools-row .cal-new svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+/* Mobius's change in Day and Week: its floating bar under the event, above the hours. */
+.calendar-page .cal-change-float { position: absolute; z-index: 6; left: 50%; transform: translateX(-50%); pointer-events: auto; }
+.calendar-page .cal-change-float[data-edge="start"] { left: 2px; transform: none; }
+.calendar-page .cal-change-float[data-edge="end"] { left: auto; right: 2px; transform: none; }
+.calendar-page .cal-change-float .change-float { margin: 0; align-items: stretch; }
+/* Quick add: what was understood, as pills (Fantastical): when, where, which calendar. */
+.cal-quick-hint { align-items: center; }
+.cal-quick-hint .cal-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--soft); color: var(--ink); font-size: var(--fs-xs); white-space: nowrap; }
+.cal-quick-hint .cal-pill[data-kind="calendar"] { color: var(--muted); }

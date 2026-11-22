@@ -243,11 +243,12 @@ test('an event the agent adds next week opens Calendar on that week, dashed, wit
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Kickoff is in for next week.');
 
-  // The week moves to the new event, drawn dashed, and the bar says what changed.
+  // The week moves to the new event, drawn dashed, and a bar floating under it says what changed.
   const kickoff = page().getByRole('button', { name: /^Added by Mobius: Kickoff/ });
   await expect(kickoff).toBeVisible();
   await expect(kickoff).toHaveAttribute('data-proposed', 'true');
-  const bar = page().locator('.cal-review');
+  const bar = page().locator('.cal-change-float');
+  await expect(page().locator('.cal-review')).toHaveCount(0);
   await expect(bar).toContainText('“Kickoff”');
   await bar.getByRole('button', { name: 'Keep' }).click();
   await expect(bar).toHaveCount(0);
