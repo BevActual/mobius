@@ -1,4 +1,4 @@
-import type { ChatAccount, ChatChannel, ChatMessage, ChatService, ContextItem } from '@mobius/shared';
+import type { ChatAccount, ChatChannel, ChatMessage, ChatService, ContextItem, SpaceStatus } from '@mobius/shared';
 import { MAX_CONTEXT_ITEM_CHARS } from '@mobius/shared';
 
 export const SERVICE_NAMES: Record<ChatService, string> = { slack: 'Slack', matrix: 'Matrix', teams: 'Teams', discord: 'Discord', telegram: 'Telegram' };
@@ -110,4 +110,40 @@ export function toggled(list: NonNullable<ChatMessage['reactions']>, emoji: stri
   if (on) return had ? list.map((r) => (r.emoji === emoji ? { ...r, count: r.count + (r.mine ? 0 : 1), mine: true } : r)) : [...list, { emoji, count: 1, mine: true }];
   if (!had || !had.mine) return list;
   return had.count <= 1 ? list.filter((r) => r.emoji !== emoji) : list.map((r) => (r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r));
+}
+
+/** The local Mobius space's own account (made by Mobius the first time the space opens). */
+export const isSpaceAccount = (a: Pick<ChatAccount, 'service' | 'name'>): boolean => a.service === 'matrix' && a.name === 'Mobius space';
+
+/** The rail down the left of Conversations, as in Discord: All, your own Mobius space, then each account. */
+export type RailEntry = { id: 'all'; label: string } | { id: 'space'; label: string } | { id: string; label: string; account: ChatAccount };
+export function railEntries(accounts: readonly ChatAccount[]): RailEntry[] {
+  return [
+    { id: 'all', label: 'All conversations' },
+    { id: 'space', label: 'Mobius space' },
+    ...accounts.filter((a) => !isSpaceAccount(a)).map((a): RailEntry => ({ id: a.id, label: `${a.name} · ${SERVICE_NAMES[a.service] ?? a.service}`, account: a })),
+  ];
+}
+/** The accounts whose conversations show for the rail's choice; a choice that is gone falls back to All. */
+export function accountsFor(rail: string, accounts: readonly ChatAccount[]): ChatAccount[] {
+  if (rail === 'space') return accounts.filter(isSpaceAccount);
+  const one = accounts.filter((a) => a.id === rail);
+  return one.length > 0 ? one : [...accounts];
+}
+
+/** What the space is doing, in words, while it is not yet running; null once it is. */
+export function spaceStatusText(s: SpaceStatus): string | null {
+  switch (s.state) {
+    case 'running': return null;
+    case 'idle': return 'Opening your Mobius space…';
+    case 'downloading': return 'Setting up your Mobius space · first time only';
+    case 'starting': return 'Starting your Mobius space…';
+    case 'failed': return s.offline ? 'Mobius couldn’t download your space. Check your connection, then try again.' : s.message;
+  }
+}
+/** The first download's progress, as "12 of 44 MB"; null when there is no size to show. */
+export function spaceSizeText(s: SpaceStatus): string | null {
+  if (s.state !== 'downloading' || s.total <= 0) return null;
+  const mb = (n: number) => Math.max(1, Math.round(n / 1_000_000));
+  return `${Math.min(mb(s.done), mb(s.total))} of ${mb(s.total)} MB`;
 }

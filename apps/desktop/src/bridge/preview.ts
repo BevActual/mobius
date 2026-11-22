@@ -20,7 +20,7 @@ import { PREVIEW_PHOTOS } from './preview-photos';
 import { PREVIEW_VIDEO } from './preview-video';
 import { PREVIEW_BUDGET_BEFORE, PREVIEW_SHEETS } from './preview-sheets';
 import { PREVIEW_ACTIVITY } from './preview-activity';
-import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type UsageRow } from '@mobius/shared';
+import { DEFAULT_APPEARANCE, DEFAULT_PREFERENCES, type MobiusBridge, type SpaceStatus, type UsageRow } from '@mobius/shared';
 
 /**
  * A stand-in bridge for looking at the interface alone (`npm run dev` in a plain browser, no Rust core).
@@ -234,6 +234,15 @@ const ANSWERS: Record<string, (...args: never[]) => unknown> = {
   'mail.counts': () => ({ primary: 1, transactions: 0, updates: 0, all: 1, drafts: 0, suggested: 1 }),
   'mail.read': ((id: string) => { const m = MAIL.find((x) => x.id === id) ?? MAIL[0]!; return { id: m.id, from: m.from, to: m.to, cc: m.cc, subject: m.subject, dateMs: m.dateMs, text: MAIL_TEXT[m.id] ?? '', html: null, attachments: [], category: 'primary' }; }) as never,
 };
+
+/** The Mobius space in the preview: opening it shows the first download's progress, then stops there. */
+const spaceListeners = new Set<(s: SpaceStatus) => void>();
+let spaceNow: SpaceStatus = { state: 'idle' };
+Object.assign(ANSWERS, {
+  'space.status': () => spaceNow,
+  'space.open': () => { spaceNow = { state: 'downloading', done: 12_400_000, total: 44_100_000 }; spaceListeners.forEach((l) => l(spaceNow)); return spaceNow; },
+  'space.onStatus': ((listener: (s: SpaceStatus) => void) => { spaceListeners.add(listener); return () => spaceListeners.delete(listener); }) as never,
+});
 
 const refused = { ok: false, error: 'This is the preview: nothing is saved.' };
 
