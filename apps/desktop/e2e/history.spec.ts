@@ -64,7 +64,7 @@ test('turning history off stops recording, and the choice and the pages survive 
     await mobius.close({ keepUserData: true });
     mobius = await launch(fixture.origin + '/', { userData });
     await openHistory();
-    await expect(settings().getByRole('switch')).not.toBeChecked();
+    await expect(settings().getByRole('switch', { name: /^(Off|On)$/ })).not.toBeChecked();
     await expect(pages().filter({ hasText: 'Second page' })).toHaveCount(1);
   } finally {
     await mobius?.close();
