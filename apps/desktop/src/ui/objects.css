@@ -401,7 +401,7 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
   background: none; color: var(--ink); font-size: var(--fs-xs); font-weight: var(--fw-medium); line-height: 1.2; text-align: center;
   overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.ui-strip-name:disabled { cursor: default; }
+.ui-strip-name:disabled { cursor: default; color: var(--ink); opacity: 1; }
 .ui-strip-name:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
 .ui-strip[data-dimmed] .ui-strip-name { color: var(--faint); }
 .ui-strip-body { display: flex; align-items: stretch; gap: var(--sp-2); height: var(--strip-body-h); }
@@ -424,7 +424,13 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
 .ui-strip-value { font: var(--fw-regular) var(--fs-xs) / 1 var(--font-mono); font-variant-numeric: tabular-nums; color: var(--muted); white-space: nowrap; }
 .ui-strip-value[data-changed] { color: var(--ink); }
 .ui-strip-value[data-proposed] { color: var(--mobius); }
-.ui-strip-letters { display: flex; gap: var(--sp-1); }
+.ui-strip-letters { display: flex; gap: var(--sp-1); min-height: var(--letter-size); }
+/* Pan: the knob with its readout right under it; its name only for screen readers (Live prints none). */
+.ui-strip-pan.ui-knob { gap: 0; }
+.ui-strip-pan .ui-knob-name { position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ui-strip-pan .ui-knob-value { margin-top: calc(var(--sp-1) * -1); }
+/* The Main strip has no pan, mute or solo: their places stay, empty, so its fader and meter line up with the tracks'. */
+.ui-strip-empty.ui-strip-pan { display: block; height: calc(var(--knob-size) + var(--fs-sm) * 1.2 - var(--sp-1)); }
 .ui-strip[data-color="amber"] { --strip-ink: var(--c-amber); }
 .ui-strip[data-color="yellow"] { --strip-ink: var(--c-yellow); }
 .ui-strip[data-color="green"] { --strip-ink: var(--c-green); }

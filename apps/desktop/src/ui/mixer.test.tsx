@@ -23,6 +23,17 @@ describe('MixerStrip', () => {
     expect(html).toContain('data-proposed="true"');
   });
 
+  it('draws the Main strip without pan, mute or solo, and an empty fader until its volume can be set', () => {
+    const main = renderToStaticMarkup(<MixerStrip name="Main" volume={0} onVolume={noop} />);
+    expect(main).toContain('Main volume');
+    expect(main).not.toContain('Pan');
+    expect(main).not.toContain('Mute Main');
+    expect(main).toContain('ui-strip-empty');
+    const fixed = renderToStaticMarkup(<MixerStrip name="Main" />);
+    expect(fixed).not.toContain('role="slider"');
+    expect(fixed).toContain('Main level');
+  });
+
   it('writes decibels with true minus signs', () => {
     expect(faderLabel(-3)).toBe('−3.0 dB');
     expect(faderLabel(1.5)).toBe('+1.5 dB');
