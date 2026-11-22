@@ -193,3 +193,38 @@
 .messages-verify-emoji { display: flex; flex-wrap: wrap; gap: var(--sp-3); flex-basis: 100%; margin: 0; padding: 0; list-style: none; }
 .messages-verify-emoji li { display: flex; flex-direction: column; align-items: center; gap: var(--sp-1); min-width: 56px; font-size: var(--fs-xs); color: var(--muted); }
 .messages-verify-emoji li > span:first-child { font-size: 28px; line-height: 1; }
+
+/* ── Panel look (docs/design/panel-look.md, Settings; design/reviews/panel-look/settings.md): a centred column of about
+   660px, a breadcrumb over the name, one grey line, then each page of the section as a small grey heading over one
+   rounded card of rows with hairlines between, as macOS System Settings and Linear's settings group them. ── */
+.settings-page .settings-column { max-width: 660px; }
+.settings-page .settings-crumb { margin: var(--sp-4) 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.settings-page .settings-crumb + .settings-heading { margin-top: var(--sp-1); }
+.settings-page .settings-lede { margin-bottom: var(--sp-5); padding-bottom: var(--sp-4); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.settings-page .settings-group + .settings-group { margin-top: var(--sp-5); }
+.settings-page .settings-group-title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); }
+.settings-page .settings-group .settings-card { border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised, var(--paper)); overflow: hidden; }
+.settings-page .settings-group .settings-card .srow { padding: 12px var(--sp-4); }
+.settings-page .settings-group .settings-card .srow + .srow::before { left: var(--sp-4); right: 0; background: var(--line-soft); }
+.settings-page .settings-group .settings-card > .srow-text, .settings-page .settings-group .settings-card > p.srow-note, .settings-page .settings-group .settings-card > .srow-empty { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+
+/* The Settings panel: its search with Ctrl F caps, then the sections with their line icons, 28px rows. */
+.settings-side .settings-search { display: flex; align-items: center; gap: var(--sp-2); height: calc(var(--row-side) - 2px); margin: var(--sp-1) 0 var(--sp-2); padding: 0 var(--sp-1) 0 var(--sp-2); border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line-soft); }
+.settings-side .settings-search:focus-within { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+.settings-side .settings-search svg { flex: none; width: var(--sp-3); height: var(--sp-3); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.settings-side .settings-search input { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-md); color: var(--ink); outline: none; }
+.settings-side .settings-search input::placeholder { color: var(--muted); }
+.settings-side .settings-search input::-webkit-search-cancel-button { display: none; }
+.ui-dock[data-dock="left"] .settings-side .settings-nav .list-row { min-height: 28px; }
+.settings-nav-icon { flex: none; width: var(--sp-4); height: var(--sp-4); fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; color: var(--muted); }
+.settings-side .settings-search input:focus, .settings-side .settings-search input:focus-visible { border: 0; box-shadow: none; outline: none; }
+/* Search results: one card of rows, each its name, where it is in grey, and its line. */
+.settings-page .settings-column > .slist { margin-top: var(--sp-4); padding: 0; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised, var(--paper)); overflow: hidden; list-style: none; }
+.settings-page .settings-column > .slist > li + li { border-top: var(--hairline-w) solid var(--line-soft); }
+.settings-page .settings-column > .slist .hit { display: grid; gap: 2px; width: 100%; padding: 10px var(--sp-4); text-align: left; }
+.settings-page .settings-column > .slist .hit:hover { background: var(--sel); }
+.settings-page .settings-column > .slist .hit-where { font-size: var(--fs-sm); color: var(--muted); }
+.settings-page .settings-column > .slist .hit-desc { font-size: var(--fs-sm); color: var(--muted); }
+/* The sections panel's header, as Mail's "Mailboxes": ink, 13px semibold, a 40px row. Group labels stay small and grey. */
+.ui-panel:has(.settings-nav) > .ui-panel-head { height: 40px; }
+.ui-panel:has(.settings-nav) > .ui-panel-head > .ui-panel-name { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }

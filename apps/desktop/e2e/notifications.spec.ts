@@ -46,7 +46,7 @@ const openPage = async (section: string, tab?: string) => {
   if ((await page().count()) === 0) await openSettings(shell());
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
-  if (tab) await page().getByRole('tab', { name: tab, exact: true }).click();
+  if (tab) await page().locator(`.settings-group[aria-label="${tab}"]`).scrollIntoViewIfNeeded();
 };
 const closeSettings = async () => {
   await shell().keyboard.press('Escape');

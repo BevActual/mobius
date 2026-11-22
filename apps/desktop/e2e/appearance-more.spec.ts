@@ -41,7 +41,7 @@ const openPage = async (section: string, tab?: string) => {
   await openSettings(shell());
   await expect(page()).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click();
-  if (tab) await page().getByRole('tab', { name: tab, exact: true }).click();
+  if (tab) await page().locator(`.settings-group[aria-label="${tab}"]`).scrollIntoViewIfNeeded();
 };
 const closeSettings = async () => {
   await shell().keyboard.press('Escape');
@@ -60,13 +60,13 @@ const styleOfMessage = (prop: string) => shell().evaluate((p) => {
 test('the conversation font and text direction change how messages are drawn', async () => {
   await start([]);
   await openPage('Appearance', 'Typography');
-  await page().getByRole('radio', { name: 'Serif' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'Serif' }).check();
   await expect.poll(() => styleOfMessage('font-family')).toMatch(/serif|Georgia/i);
-  await page().getByRole('radio', { name: 'Monospace' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'Monospace' }).check();
   await expect.poll(() => styleOfMessage('font-family')).toMatch(/mono|Consolas/i);
-  await page().getByRole('radio', { name: 'System' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'System' }).check();
   await expect.poll(() => styleOfMessage('font-family')).not.toMatch(/mono|Georgia/i);
-  await page().getByRole('tab', { name: 'Conversation', exact: true }).click();
+  await page().locator('.settings-group[aria-label="Conversation"]').scrollIntoViewIfNeeded();
   await page().getByRole('radio', { name: 'Right to left' }).check();
   await expect.poll(() => styleOfMessage('direction')).toBe('rtl');
   await page().getByRole('radio', { name: 'Left to right' }).check();

@@ -35,6 +35,8 @@ export interface PanelSpec {
   /** Panels with the same group in one dock share a place there, as tabs in one header (Code's Terminal, Tests and
    *  Problems at the bottom). Each is still shown and hidden on its own; showing one brings its tab to the front. */
   group?: string;
+  /** The name screen readers hear, when it must differ from the header's (Settings' panel, beside a page also named Settings). */
+  label?: string;
   /** The panel's body. Its own controls go here, never in the header. */
   render: () => ReactNode;
 }
@@ -292,7 +294,7 @@ function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => vo
   };
   const hideLabel = tabbed ? `Hide ${place.panels.map((p) => p.name).join(', ')}` : `Hide ${spec.name}`;
   return (
-    <section className="ui-panel" aria-label={spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})}>
+    <section className="ui-panel" aria-label={spec.label ?? spec.name} data-panel={spec.id} {...(tabbed ? { 'data-tabbed': true } : {})}>
       <header className="ui-panel-head">
         {tabbed ? (
           <div ref={list} className="ui-panel-tabs" role="tablist" aria-label="Panels" onKeyDown={key}>

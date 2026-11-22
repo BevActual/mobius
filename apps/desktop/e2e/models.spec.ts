@@ -48,7 +48,7 @@ const page = (): Locator => shell().getByRole('region', { name: 'Settings' });
 const openLocal = async () => {
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await page().getByRole('tab', { name: 'This computer', exact: true }).click();
+  await page().locator('.settings-group[aria-label="This computer"]').scrollIntoViewIfNeeded();
 };
 const closeSettings = () => shell().keyboard.press('Escape');
 const results = () => page().getByRole('list', { name: 'Model results' });
@@ -150,7 +150,7 @@ test('a downloaded model is run, loaded, used by the agent, and stopped', async 
 
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Models', exact: true }).click();
-  await page().getByRole('tab', { name: 'This computer', exact: true }).click();
+  await page().locator('.settings-group[aria-label="This computer"]').scrollIntoViewIfNeeded();
   await page().getByRole('button', { name: 'Stop Tiny-1B-Q8_0' }).click();
   await expect(page().getByText('Nothing is running.')).toBeVisible();
 });

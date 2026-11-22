@@ -120,7 +120,7 @@ test('with nothing chosen to speak, Speak says so and offers Voice settings', as
   await log.getByRole('button', { name: 'Read aloud' }).click();
   await expect(log.getByRole('alert')).toContainText('Speaking is off');
   await log.getByRole('button', { name: 'Voice settings' }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Voice');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Voice');
   // Only Voice's own check of the server on this computer; nothing was read aloud.
   expect(speech!.heard.filter((h) => !h.path.endsWith('/models'))).toHaveLength(0);
 });

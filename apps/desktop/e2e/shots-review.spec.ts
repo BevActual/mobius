@@ -92,7 +92,7 @@ for (const scheme of ['light', 'dark'] as const) {
       const nav = shell.getByRole('navigation', { name: 'Settings sections' });
       const visit = async (section: string, tab: string | null, name: string) => {
         await nav.getByRole('button', { name: section, exact: true }).click();
-        if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
+        if (tab) await page.locator(`.settings-group[aria-label="${tab}"]`).scrollIntoViewIfNeeded();
         await shell.waitForTimeout(500);
         await shot(name);
       };

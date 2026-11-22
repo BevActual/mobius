@@ -215,7 +215,7 @@ test('profiles: Personal is there, a new one can be made in Settings, and the op
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
-  await page.getByRole('tab', { name: 'Profiles' }).click();
+  await page.locator('.settings-group[aria-label="Profiles"]').scrollIntoViewIfNeeded();
   const list = page.getByRole('list', { name: 'Profiles' });
   await expect(list).toContainText('PersonalOpen now');
   await page.getByRole('textbox', { name: 'Name of the new profile' }).fill('Work');
