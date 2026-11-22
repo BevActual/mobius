@@ -30,7 +30,8 @@ export function useAppearance(): { value: AppearanceSettings; loaded: boolean; s
     root.density = value.density;
     root.toolSteps = value.toolSteps;
     root.keyHints = value.keyHints ? 'on' : 'off';
-  }, [value.theme, value.chatFont, value.textDirection, value.density, value.toolSteps, value.keyHints]);
+    root.panels = value.panelGaps ? 'frame' : 'flat';
+  }, [value.theme, value.chatFont, value.textDirection, value.density, value.toolSteps, value.keyHints, value.panelGaps]);
   const set = useCallback(async (change: Partial<AppearanceSettings>) => {
     setValue((current) => ({ ...current, ...change }));
     // Only a reply that is the look replaces it: a failed save keeps what is shown.
