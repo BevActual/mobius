@@ -66,6 +66,8 @@ pub(crate) struct Shared {
     take_lost: AtomicBool,
     /// From sound reaching the input to the engine having it, in microseconds.
     input_latency_us: AtomicU64,
+    /// Frames the sound input has given since it opened: how to tell an input that never starts from a quiet one.
+    input_frames: AtomicU64,
 }
 
 /// The most parts of a device (as `Device::new` takes).
@@ -90,6 +92,7 @@ impl Shared {
             take_beat: AtomicU64::new(f64::NAN.to_bits()),
             take_lost: AtomicBool::new(false),
             input_latency_us: AtomicU64::new(0),
+            input_frames: AtomicU64::new(0),
         }
     }
 }
@@ -241,7 +244,8 @@ impl AudioSide {
                 }
             }
         }
-        self.shared.sounding.store(self.oneshots.busy(), Ordering::Release);
+        // Monitoring an input sounds too, so its meters move while stopped.
+        self.shared.sounding.store(self.oneshots.busy() || monitoring, Ordering::Release);
         let Some(renderer) = self.playing.as_mut() else {
             // Stopped, with a preview or count-in sounding: no tracks, and the master is what is heard.
             self.shared.tracks.store(0, Ordering::Relaxed);
@@ -627,6 +631,7 @@ impl Engine {
             if self.is_silent() {
                 return Err("There is no sound output to monitor through.".to_owned());
             }
+            self.shared.input_frames.store(0, Ordering::Relaxed);
             let (name, queue, end) = device::open_input(self.sample_rate, channel, Arc::clone(&self.shared))?;
             self.send(Command::Input(Some(queue)))?;
             *input = Some((name.clone(), channel, end));
@@ -655,8 +660,19 @@ impl Engine {
     ///
     /// # Errors
     /// As [`Engine::play`].
-    pub fn monitor(&self, gains: Option<crate::render::Gains>) -> Result<(), String> {
-        self.send(Command::Monitor(gains))
+    pub fn monitor(&self, track: Option<(&str, crate::render::Gains)>) -> Result<(), String> {
+        // Stopped, its meter is the one that moves with Main's.
+        *lock(&self.heard) = track.map(|(id, _)| id.to_owned());
+        self.send(Command::Monitor(track.map(|(_, gains)| gains)))
+    }
+
+    /// Frames the sound input has given since it opened (0 when none is open, or it has not started).
+    #[must_use]
+    pub fn input_frames(&self) -> u64 {
+        if lock(&self.input).is_none() {
+            return 0;
+        }
+        self.shared.input_frames.load(Ordering::Relaxed)
     }
 
     /// Starts a take in `file`: what comes in from the input is written to it while the song plays.
@@ -935,6 +951,8 @@ mod device {
             },
         };
         let mut resample = crate::record::Resample::new(f64::from(config.sample_rate.0), f64::from(rate));
+        let failed: std::sync::Arc<std::sync::Mutex<Option<String>>> = std::sync::Arc::default();
+        let watch = std::sync::Arc::clone(&shared);
         let channels = usize::from(config.channels).max(1);
         let pick = channel.map(|c| c as usize).filter(|c| *c < channels);
         if channel.is_some() && pick.is_none() {
@@ -949,6 +967,7 @@ mod device {
                     let t = info.timestamp();
                     let late = t.callback.duration_since(&t.capture).map_or(0, |d| u64::try_from(d.as_micros()).unwrap_or(u64::MAX));
                     shared.input_latency_us.store(late, Ordering::Relaxed);
+                    shared.input_frames.fetch_add((data.len() / channels) as u64, Ordering::Relaxed);
                     for frame in data.chunks_exact(channels) {
                         if producer.slots() < 2 {
                             break;
@@ -965,12 +984,30 @@ mod device {
                         });
                     }
                 },
-                |e| eprintln!("[mobius] sound input: {e}"),
+                {
+                    let failed = std::sync::Arc::clone(&failed);
+                    move |e| {
+                        eprintln!("[mobius] sound input: {e}");
+                        *failed.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = Some(e.to_string());
+                    }
+                },
                 None,
             )
             .map_err(|e| format!("{name} could not be opened: {e}"))?;
         stream.play().map_err(|e| format!("{name} could not start: {e}"))?;
-        Ok((name, consumer, stream))
+        // Wait (up to a second) for its first sound, so an input that opens but never starts says so now rather
+        // than recording silence.
+        let shared = std::sync::Arc::clone(&watch);
+        for _ in 0..100 {
+            if shared.input_frames.load(Ordering::Relaxed) > 0 {
+                return Ok((name, consumer, stream));
+            }
+            if let Some(e) = failed.lock().unwrap_or_else(std::sync::PoisonError::into_inner).take() {
+                return Err(format!("{name} stopped: {e}"));
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        Err(format!("{name} opened but sent no sound. Check that Windows lets desktop apps use the microphone."))
     }
 
     fn start(end: std::sync::mpsc::Sender<()>) -> Result<(Engine, cpal::Stream), String> {
@@ -1254,7 +1291,7 @@ mod tests {
             }
         };
         engine.send(Command::Input(Some(queue))).unwrap();
-        engine.monitor(Some((1.0, 0.5))).unwrap();
+        engine.monitor(Some(("v", (1.0, 0.5)))).unwrap();
         // Stopped, the input is heard at the track's gains.
         let mut buffer = vec![0f32; 480 * 2];
         give(480);

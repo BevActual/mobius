@@ -244,7 +244,9 @@ impl Music {
         let input = match audio {
             Some(t) => match engine.open_input(t.input) {
                 Ok(name) => {
-                    engine.monitor(Some(mobius_audio::render::track_gains(t)))?;
+                    engine.monitor(Some((t.id.as_str(), mobius_audio::render::track_gains(t))))?;
+                    // Heard while stopped: its meters go to the window as a preview's do.
+                    self.report(engine.clone());
                     json!({ "input": name })
                 }
                 Err(why) => json!({ "input": null, "inputProblem": why }),
@@ -255,7 +257,7 @@ impl Music {
                 json!({ "input": null })
             }
         };
-        Ok(json!({ "ok": true, "input": input["input"], "inputProblem": input.get("inputProblem") }))
+        Ok(json!({ "ok": true, "input": input["input"], "inputProblem": input.get("inputProblem"), "inputFrames": engine.input_frames() }))
     }
 
     /// A key pressed on the armed track, held until `press` again with no velocity (0) lifts it.
@@ -358,7 +360,11 @@ impl Music {
 
     fn position(&self) -> Value {
         match lock(&self.engine).as_ref() {
-            Some(e) => position_json(e),
+            Some(e) => {
+                let mut p = position_json(e);
+                p["inputFrames"] = json!(e.input_frames());
+                p
+            }
             None => json!({ "playing": false, "beat": *lock(&self.start), "meters": {} }),
         }
     }
