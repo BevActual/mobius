@@ -44,7 +44,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View fields (Start, Loop Position, Loop Length with Set), the loop brace in the notes editor, Ctrl+Up/Down to double or halve the loop, colour | XL (format) |
+| Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View's Set buttons, the loop brace in the notes editor, colour | XL (format) |
 | Drag clips between Session and Arrange; record Session into Arrange | Separate | Comes with real clips | L |
 | Time signature and tempo changes along the song | One tempo, 4/4 | Tempo and meter lanes | M |
 | Locators and arrangement markers, sections to move as a whole | None | Markers, then sections | M |
@@ -372,5 +372,7 @@ and Resizing Clips, 6.13 Consolidating Clips).
   plays now, so it sounds the same until stretched. Shortening a looped clip keeps its contents.
 - **Adapted:** Mobius's notes editor shows a whole track, not one clip, so it edits each clip's first pass in place and
   draws later passes faintly; a note written in a later pass goes into the loop, so it plays on every pass.
-- **Not yet:** Clip View's Start, Loop Position and Loop Length fields and Set buttons, the loop brace, and Ctrl+Up/Down
-  (double or halve the loop). Live's Ctrl+L is the Arrangement loop, which Music already has (L).
+- **Then (#757):** the Clip toolbar shows the opened Arrange clip's Loop switch, Start (its start marker), and the
+  loop's start and length, in beats of its own time; Ctrl+Up and Ctrl+Down on a looped clip double and halve its loop.
+- **Not yet:** the Set buttons (set from the playhead), the loop brace drawn in the notes editor, and bars.beats.16ths
+  readouts. Live's Ctrl+L is the Arrangement loop, which Music already has (L).

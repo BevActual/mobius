@@ -769,6 +769,18 @@ test('Loop on a clip in Arrange repeats it when it is stretched, as Live\'s Loop
   await expect.poll(() => saved().tracks[0]!.clips?.[0]?.length).toBe(8);
   expect(saved().tracks[0]!.notes).toHaveLength(2);
   await expect(clip().locator('.studio-clip-turn')).toHaveCount(1);
+  // Ctrl+Down halves the loop (Live's Clip View): half a bar, four passes. Opened, the Clip toolbar shows the loop.
+  await clip().focus();
+  await shell().keyboard.press('Control+ArrowDown');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown } | undefined)?.loop).toEqual({ start: 0, end: 2 });
+  await expect(clip().locator('.studio-clip-turn')).toHaveCount(3);
+  await clip().press('Enter');
+  const loop = shell().getByRole('group', { name: /^Loop of / });
+  await expect(loop.getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(loop.getByRole('spinbutton', { name: 'Loop length' })).toHaveAttribute('aria-valuenow', '2');
+  // The start marker: Up moves it a quarter beat into the clip.
+  await loop.getByRole('spinbutton', { name: 'Start' }).press('ArrowUp');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { offset?: number } | undefined)?.offset).toBe(0.25);
   // Stop Looping takes the loop off; the clip stays as long, and what's past its notes is quiet.
   await clip().click({ button: 'right' });
   await shell().getByRole('menu').getByRole('menuitem', { name: 'Stop Looping' }).click();
