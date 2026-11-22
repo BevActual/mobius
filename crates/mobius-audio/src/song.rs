@@ -24,8 +24,11 @@ pub struct Song {
     /// The sounds its audio clips, samplers and drum pads play, by the file they name: read from the song's folder by
     /// [`crate::sample::Samples::attach`], not from the song file.
     #[serde(skip)]
-    pub sounds: std::collections::BTreeMap<String, std::sync::Arc<crate::wav::Sound>>,
+    pub sounds: Sounds,
 }
+
+/// Sounds read from a song's folder, by the file the song names.
+pub type Sounds = std::collections::BTreeMap<String, std::sync::Arc<crate::wav::Sound>>;
 
 /// The most return tracks a song has, as in Live; any past them are left out.
 pub const MAX_RETURNS: usize = 12;

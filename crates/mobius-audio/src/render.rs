@@ -6,7 +6,7 @@ use crate::clock::Clock;
 use crate::drum::Hit;
 use crate::fx::{pan, Chain};
 use crate::sample::{Placed, Stretch};
-use crate::sampler::{Adsr, SampleVoice, Sampler};
+use crate::sampler::{SampleVoice, Samplers};
 use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
@@ -54,9 +54,8 @@ struct Lane {
     audio: Vec<AudioClip>,
     /// Where the grains of the Session clip playing on it start, when its warp keeps pitch.
     slot_stretch: Stretch,
-    /// A sampler track's sound, and the drums' pads that hold sounds of their own, by pitch.
-    sampler: Option<Sampler>,
-    pad_samplers: Vec<(u8, Sampler)>,
+    /// A sampler track's sound, or the drums' pads that hold sounds of their own.
+    samplers: Samplers,
     /// Sampler notes sounding, each with how far into the block it starts the first time (as a hit waits) and the
     /// note that started it.
     sample_voices: Vec<(SampleVoice, usize, u8)>,
@@ -111,17 +110,11 @@ impl Lane {
     /// Starts a note `offset` samples into this block. A voice sounds into the scratch from there at once; a drum
     /// hit waits for the second pass, as it can be panned.
     fn start(&mut self, note: &Note, offset: usize, frames: usize, spb: f64, rate: f64) {
-        const NO_PAD: Pad = Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0, sample: None };
-        let drums = self.instrument == Instrument::Drums && self.sampler.is_none();
-        let pad = if drums { self.pads.iter().find(|(p, _)| *p == note.pitch).map_or(&NO_PAD, |(_, pad)| pad) } else { &NO_PAD };
-        // A sampler track's note, or a pad's own sound at its own pitch (moved by the kit's and pad's tune).
-        let sampled = match &self.sampler {
-            Some(s) => Some(s.note(note.pitch, 0.0, note.velocity, note.length * spb)),
-            None => self.pad_samplers.iter().find(|(p, _)| drums && *p == note.pitch).map(|(_, s)| s.note(s.root(), self.kit.tune + pad.tune, note.velocity * pad.level, note.length * spb).panned(pad.pan)),
-        };
-        if let Some(voice) = sampled {
-            let mono = self.sampler.as_ref().is_some_and(Sampler::monophonic) || (drums && self.pad_samplers.iter().any(|(p, s)| *p == note.pitch && s.monophonic()));
-            if mono {
+        let drums = self.instrument == Instrument::Drums && self.samplers.track.is_none();
+        let pad = self.pads.iter().find(|(p, _)| drums && *p == note.pitch).map(|(_, pad)| pad);
+        // A sampler track's note, or a pad's own sound.
+        if let Some(voice) = self.samplers.note(note.pitch, note.velocity, note.length * spb, self.kit.tune, pad) {
+            if self.samplers.monophonic(note.pitch) {
                 // One-Shot is monophonic: a new note cuts the last off (on a pad, the last of that pad's).
                 for (v, _, key) in &mut self.sample_voices {
                     if !drums || *key == note.pitch {
@@ -136,6 +129,8 @@ impl Lane {
             return;
         }
         if drums {
+            const NO_PAD: Pad = Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0, sample: None };
+            let pad = pad.unwrap_or(&NO_PAD);
             self.seed = self.seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             if self.hits.len() >= MAX_VOICES {
                 self.hits.remove(0);
@@ -163,6 +158,7 @@ pub struct Oneshots {
     voices: Vec<(Voice, Gains)>,
     held: Vec<Held>,
     hits: Vec<(Hit, Gains)>,
+    samples: Vec<HeldSample>,
     ticks: Vec<Tick>,
     mono: Vec<f32>,
     left: Vec<f32>,
@@ -197,6 +193,28 @@ pub enum Oneshot {
     Press { key: u8, voice: Voice, gains: Gains, wait: usize },
     /// A key lifted, `wait` samples into the next block.
     Lift { key: u8, wait: usize },
+    /// A sampler's note (or a drum pad's sound), from `wait` samples into the next block, let go when `key` is lifted
+    /// if it has not ended first. It cuts off the notes before it as `cuts` says (One-Shot is monophonic).
+    Sample { key: u8, voice: SampleVoice, gains: Gains, wait: usize, cuts: Cuts },
+}
+
+/// Which notes sounding a new sampler note cuts off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cuts {
+    None,
+    /// Those of the same key: a One-Shot drum pad.
+    SameKey,
+    /// All: a One-Shot sampler track.
+    All,
+}
+
+/// A sampler note sounding apart from the song.
+struct HeldSample {
+    key: u8,
+    voice: SampleVoice,
+    gains: Gains,
+    wait: usize,
+    lift: Option<usize>,
 }
 
 /// A note held down on a keyboard.
@@ -215,7 +233,7 @@ const ONESHOTS: usize = 16;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
-        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
     }
 }
 
@@ -247,6 +265,7 @@ impl Oneshots {
                 self.voices.clear();
                 self.held.clear();
                 self.hits.clear();
+                self.samples.clear();
             }
             Oneshot::Press { key, voice, gains, wait } => {
                 self.lift(key, wait);
@@ -256,6 +275,17 @@ impl Oneshots {
                 self.held.push(Held { key, voice, gains, wait, lift: None });
             }
             Oneshot::Lift { key, wait } => self.lift(key, wait),
+            Oneshot::Sample { key, voice, gains, wait, cuts } => {
+                for held in &mut self.samples {
+                    if cuts == Cuts::All || (cuts == Cuts::SameKey && held.key == key) {
+                        held.voice.choke();
+                    }
+                }
+                if self.samples.len() >= ONESHOTS {
+                    self.samples.remove(0);
+                }
+                self.samples.push(HeldSample { key, voice, gains, wait, lift: None });
+            }
         }
     }
 
@@ -264,12 +294,15 @@ impl Oneshots {
         for held in self.held.iter_mut().filter(|h| h.key == key && h.lift.is_none()) {
             held.lift = Some(wait.max(held.wait));
         }
+        for held in self.samples.iter_mut().filter(|h| h.key == key && h.lift.is_none()) {
+            held.lift = Some(wait.max(held.wait));
+        }
     }
 
     /// Whether anything is sounding or waiting to.
     #[must_use]
     pub fn busy(&self) -> bool {
-        !(self.voices.is_empty() && self.held.is_empty() && self.hits.is_empty() && self.ticks.is_empty())
+        !(self.voices.is_empty() && self.held.is_empty() && self.hits.is_empty() && self.samples.is_empty() && self.ticks.is_empty())
     }
 
     /// Adds what is sounding into `left` and `right`.
@@ -317,8 +350,31 @@ impl Oneshots {
                     *b += *y * *gr;
                 }
             }
+            for h in &mut self.samples {
+                hl.fill(0.0);
+                hr.fill(0.0);
+                let start = h.wait.min(n);
+                match h.lift {
+                    Some(lift) if lift < n => {
+                        h.voice.add_to(&mut hl[start..lift], &mut hr[start..lift], rate);
+                        h.voice.lift();
+                        h.voice.add_to(&mut hl[lift..], &mut hr[lift..], rate);
+                        h.lift = Some(0);
+                    }
+                    lift => {
+                        h.voice.add_to(&mut hl[start..], &mut hr[start..], rate);
+                        h.lift = lift.map(|l| l - n);
+                    }
+                }
+                h.wait -= start;
+                for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
+                    *a += *x * h.gains.0;
+                    *b += *y * h.gains.1;
+                }
+            }
             self.ticks.retain_mut(|t| !t.add_to(l, r, rate));
         }
+        self.samples.retain(|h| !h.voice.done());
         self.voices.retain(|(v, _)| !v.done());
         self.held.retain(|h| !h.voice.done());
         self.hits.retain(|(h, _)| !h.done());
@@ -505,16 +561,9 @@ impl Renderer {
                         .collect()
                 };
                 // A sampler track's sound and its drum pads' own sounds, from the files the song has read.
-                let env = t.sound.map_or_else(Adsr::default, |s| Adsr { attack: s.attack, decay: s.decay, sustain: s.sustain, release: s.release });
-                let sampler_of = |settings: &crate::sampler::SamplerSound, env| song.sounds.get(&settings.file).map(|sound| Sampler::new(settings, sound.clone(), env));
-                let sampler = Song::sampler_of(t).and_then(|settings| sampler_of(settings, env));
-                let pad_samplers: Vec<(u8, Sampler)> = if t.instrument == Instrument::Drums && Song::sampler_of(t).is_none() {
-                    t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, sampler_of(pad.sample.as_ref()?, Adsr::default())?))).collect()
-                } else {
-                    Vec::new()
-                };
+                let samplers = Samplers::of(t, &song.sounds);
                 // An audio track's sound comes in with two channels, as a sampler's does.
-                let stereo = Song::is_audio(t) || Song::sampler_of(t).is_some() || (t.instrument == Instrument::Drums && (t.pads.values().any(|p| p.pan.abs() > 1e-9) || !pad_samplers.is_empty()));
+                let stereo = Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -545,8 +594,7 @@ impl Renderer {
                         .collect(),
                     audio,
                     slot_stretch: Stretch::default(),
-                    sampler,
-                    pad_samplers,
+                    samplers,
                     sample_voices: Vec::with_capacity(MAX_VOICES),
                 }
             })

@@ -144,7 +144,58 @@ impl Sampler {
     }
 }
 
+impl std::fmt::Debug for Sampler {
+    // Not the whole sound.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Sampler").field("frames", &self.sound.left.len()).field("oneshot", &self.oneshot).field("root", &self.root).finish_non_exhaustive()
+    }
+}
+
+/// What a track plays from samples: a sampler track's sound, or the drum pads that hold sounds of their own (by
+/// pitch), made from the sounds the song has read ([`crate::song::Song::sounds`]). A file not read leaves it out: the
+/// pad plays its drum, the sampler track nothing.
+#[derive(Debug, Clone, Default)]
+pub struct Samplers {
+    pub track: Option<Sampler>,
+    pub pads: Vec<(u8, Sampler)>,
+}
+
+impl Samplers {
+    #[must_use]
+    pub fn of(track: &crate::song::Track, sounds: &crate::song::Sounds) -> Samplers {
+        let made = |settings: &SamplerSound, env| sounds.get(&settings.file).map(|sound| Sampler::new(settings, Arc::clone(sound), env));
+        if let Some(settings) = crate::song::Song::sampler_of(track) {
+            let env = track.sound.map_or_else(Adsr::default, |s| Adsr { attack: s.attack, decay: s.decay, sustain: s.sustain, release: s.release });
+            return Samplers { track: made(settings, env), pads: Vec::new() };
+        }
+        if track.instrument != crate::song::Instrument::Drums {
+            return Samplers::default();
+        }
+        let pads = track.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, made(pad.sample.as_ref()?, Adsr::default())?))).collect();
+        Samplers { track: None, pads }
+    }
+
+    /// A note of `pitch` on the track, if a sample plays it, panned and at the level its pad gives: a sampler track's
+    /// note, or a pad's sound at its own pitch moved by `kit_tune` and the pad's tune.
+    #[must_use]
+    pub fn note(&self, pitch: u8, velocity: f64, seconds: f64, kit_tune: f64, pad: Option<&crate::song::Pad>) -> Option<SampleVoice> {
+        if let Some(s) = &self.track {
+            return Some(s.note(pitch, 0.0, velocity, seconds));
+        }
+        let (_, s) = self.pads.iter().find(|(p, _)| *p == pitch)?;
+        let (tune, level, pan) = pad.map_or((0.0, 1.0, 0.0), |p| (p.tune, p.level, p.pan));
+        Some(s.note(s.root(), kit_tune + tune, velocity * level, seconds).panned(pan))
+    }
+
+    /// Whether a note of `pitch` cuts the last off: One-Shot is monophonic (on a pad, for that pad's notes).
+    #[must_use]
+    pub fn monophonic(&self, pitch: u8) -> bool {
+        self.track.as_ref().map_or_else(|| self.pads.iter().any(|(p, s)| *p == pitch && s.monophonic()), Sampler::monophonic)
+    }
+}
+
 /// A sampler note sounding.
+#[derive(Debug, Clone)]
 pub struct SampleVoice {
     sampler: Sampler,
     /// Frames of the file a frame at the file's own rate moves on: the note's pitch against the root.

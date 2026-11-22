@@ -122,6 +122,15 @@ impl Music {
                 "using": *lock(&self.input_device),
             })),
             "useInput" => self.use_input(arg(0).as_str()),
+            // A sound brought to the song (dropped from Files or the Library), saved in its Samples folder.
+            "importSample" => match (arg(0).as_str(), arg(1).as_str(), arg(2).as_str()) {
+                (Some(path), Some(name), Some(data)) => self.import_sample(path, name, data, songs),
+                _ => Err("a song, a name and the sound are needed".to_owned()),
+            },
+            "samples" => match arg(0).as_str() {
+                Some(path) => songs.folder_of(path).map(|folder| json!({ "ok": true, "files": mobius_audio::sample::list(&folder) })),
+                None => Err("a song is needed".to_owned()),
+            },
             "peaks" => match (arg(0).as_str(), arg(1).as_str()) {
                 (Some(path), Some(file)) => self.peaks(path, file, arg(2).as_u64().unwrap_or(256), songs),
                 _ => Err("a song and a file are needed".to_owned()),
@@ -152,7 +161,7 @@ impl Music {
         if let Some(e) = lock(&self.engine).as_ref() {
             e.update(&song)?;
             if let Some(id) = lock(&self.armed).as_deref() {
-                e.arm(song.tracks.iter().find(|t| t.id == id));
+                e.arm(song.tracks.iter().find(|t| t.id == id), &song.sounds);
             }
         }
         *lock(&self.song) = Some(song);
@@ -167,9 +176,19 @@ impl Music {
         Ok(json!({ "ok": true, "rate": sound.rate, "frames": sound.left.len(), "per": per, "peaks": points }))
     }
 
-    /// Reads the song's audio clips' sounds from the folder of the song at `path`.
+    fn import_sample(&self, path: &str, name: &str, data: &str, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
+        use base64::Engine as _;
+        if data.len() > mobius_audio::wav::MAX_READ / 3 * 4 + 8 {
+            return Err("That sound is too big.".into());
+        }
+        let bytes = base64::engine::general_purpose::STANDARD.decode(data).map_err(|_| "The sound did not arrive whole.".to_owned())?;
+        let file = mobius_audio::sample::import(&songs.folder_of(path)?, name, &bytes)?;
+        Ok(json!({ "ok": true, "file": file }))
+    }
+
+    /// Reads the sounds of the song's audio clips, samplers and drum pads from the folder of the song at `path`.
     fn attach(&self, song: &mut Song, path: Option<&str>, songs: &mobius_workspace::notes::Notes) -> Vec<String> {
-        let has_audio = song.tracks.iter().any(Song::is_audio);
+        let has_audio = song.tracks.iter().any(|t| Song::is_audio(t) || Song::sampler_of(t).is_some() || t.pads.values().any(|p| p.sample.is_some()));
         match path.filter(|_| has_audio).map(|p| songs.folder_of(p)) {
             Some(Ok(folder)) => self.samples.attach(song, &folder),
             Some(Err(why)) => vec![why],
@@ -221,8 +240,9 @@ impl Music {
     fn preview(&self, track: &str, pitch: u8, velocity: f64, seconds: f64) -> Result<Value, String> {
         let engine = self.engine()?;
         let song = lock(&self.song);
-        let track = song.as_ref().ok_or("load a song first")?.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
-        engine.preview(track, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        let song = song.as_ref().ok_or("load a song first")?;
+        let track = song.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
+        engine.preview(track, &song.sounds, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
         self.report(engine);
         Ok(json!({ "ok": true }))
     }
@@ -237,7 +257,7 @@ impl Music {
         }
         let song = song_of(&json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [track] }))?;
         let engine = self.engine()?;
-        engine.preview(&song.tracks[0], pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        engine.preview(&song.tracks[0], &song.sounds, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
         self.report(engine);
         Ok(json!({ "ok": true }))
     }
@@ -257,7 +277,7 @@ impl Music {
             (Some(id), Some(song)) => Some(song.tracks.iter().find(|t| t.id == id).ok_or_else(|| format!("No track \"{id}\" in the song."))?),
             _ => None,
         };
-        engine.arm(found);
+        engine.arm(found, song.as_ref().map_or(&mobius_audio::song::Sounds::new(), |s| &s.sounds));
         *lock(&self.armed) = track.map(str::to_owned);
         // An armed audio track hears its input (Live's Auto monitoring); anything else closes it.
         let audio = found.filter(|t| Song::is_audio(t));
@@ -575,6 +595,31 @@ mod tests {
         // Without the song's page, no files are read.
         assert_eq!(m.call("load", &[song], &songs)["missing"], json!([]));
         assert!(lock(&m.song).as_ref().unwrap().sounds.is_empty());
+    }
+
+    #[test]
+    fn a_sound_brought_to_a_song_is_saved_in_its_samples_and_its_sampler_reads_it() {
+        use base64::Engine as _;
+        let m = music();
+        let dir = tempfile::tempdir().unwrap();
+        let songs = mobius_workspace::notes::Notes::in_folder(dir.path().join("w"), dir.path().join("c"), "studio");
+        let folder = dir.path().join("w/studio/Songs");
+        std::fs::create_dir_all(&folder).unwrap();
+        std::fs::write(folder.join("Song.md"), SONG).unwrap();
+        let mut wav = Vec::new();
+        mobius_audio::wav::write(&mut wav, &[0.5; 4], &[0.5; 4], 48_000).unwrap();
+        let data = base64::engine::general_purpose::STANDARD.encode(&wav);
+        let saved = m.call("importSample", &[json!("Songs/Song.md"), json!("Kick.wav"), json!(data)], &songs);
+        assert_eq!(saved["file"], "Samples/Kick.wav", "{saved}");
+        assert_eq!(m.call("importSample", &[json!("Songs/Song.md"), json!("x.wav"), json!("aGVsbG8=")], &songs)["ok"], false);
+        assert_eq!(m.call("samples", &[json!("Songs/Song.md")], &songs)["files"], json!(["Samples/Kick.wav"]));
+        // A sampler track and a pad that name it have it read.
+        let song = json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [
+            { "id": "s", "kind": "sampler", "sampler": { "file": "Samples/Kick.wav" } },
+            { "id": "d", "instrument": "drums", "pads": { "36": { "tune": 0, "decay": 1, "level": 1, "pan": 0, "sample": { "file": "Samples/Kick.wav" } } } }] });
+        let loaded = m.call("load", &[song, json!("Songs/Song.md")], &songs);
+        assert_eq!(loaded["missing"], json!([]), "{loaded}");
+        assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 1);
     }
 
     #[test]
