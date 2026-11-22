@@ -26,6 +26,9 @@ pub(crate) enum Command {
     Launch(usize, Option<usize>),
     /// A sound apart from the song: a note heard as it is played or put in, or a count-in.
     Oneshot(Oneshot),
+    /// A key pressed or lifted on a keyboard at this moment: placed a block after it, so every note is late by the
+    /// same amount and none jitters with where in a block it came.
+    Played(Oneshot, std::time::Instant),
 }
 
 /// What the audio thread reports.
@@ -92,6 +95,12 @@ pub(crate) struct AudioSide {
 impl AudioSide {
     /// Fills an interleaved buffer of `channels` channels: the left and right, and silence on any others.
     pub(crate) fn fill(&mut self, data: &mut [f32], channels: usize) {
+        self.fill_at(data, channels, std::time::Instant::now());
+    }
+
+    /// As [`AudioSide::fill`], with the block made at `now`.
+    pub(crate) fn fill_at(&mut self, data: &mut [f32], channels: usize, now: std::time::Instant) {
+        let frames = data.len() / channels.max(1);
         while let Ok(command) = self.commands.pop() {
             match command {
                 Command::Play(mut next) => {
@@ -107,6 +116,16 @@ impl AudioSide {
                     }
                 }
                 Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
+                Command::Played(shot, at) => {
+                    let wait = place(at, now, frames, self.rate);
+                    let shot = match shot {
+                        Oneshot::Press { key, voice, gains, .. } => Oneshot::Press { key, voice, gains, wait },
+                        Oneshot::Lift { key, .. } => Oneshot::Lift { key, wait },
+                        Oneshot::Hit(hit, gains) => Oneshot::Hit(hit.waiting(wait), gains),
+                        other => other,
+                    };
+                    self.oneshots.start(shot, self.rate);
+                }
                 Command::Stop => {
                     if let Some(old) = self.playing.take() {
                         self.let_go(old);
@@ -215,9 +234,79 @@ impl AudioSide {
     }
 }
 
+/// A note of a track, made on the caller's side: a drum through its kit and pad, anything else through its sound.
+// Made and taken apart at once on the caller's side, never stored.
+#[allow(clippy::large_enum_variant)]
+enum Note {
+    Hit(crate::drum::Hit, crate::render::Gains),
+    Voice(crate::voice::Voice, crate::render::Gains),
+}
+
+fn note_of(track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Note {
+    // Heard at the track's volume and pan, as its notes are when it plays.
+    let gains = crate::render::track_gains(track);
+    if track.instrument == crate::song::Instrument::Drums {
+        let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
+        Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
+    } else {
+        Note::Voice(match &track.sound {
+            Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
+            None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
+        }, gains)
+    }
+}
+
+// The host shares one engine between its threads, keyboard and all.
+const _: fn() = || {
+    fn shared<T: Send + Sync>() {}
+    shared::<Engine>();
+};
+
+/// The way into the engine that a keyboard plays through, from whichever thread its notes arrive on.
+#[derive(Clone)]
+pub(crate) struct Keys {
+    commands: Arc<Mutex<rtrb::Producer<Command>>>,
+    /// The track a keyboard plays.
+    armed: Arc<Mutex<Option<crate::song::Track>>>,
+}
+
+impl Keys {
+    fn send(&self, command: Command) -> Result<(), String> {
+        lock(&self.commands).push(command).map_err(|_| "The sound engine is not answering.".to_owned())
+    }
+
+    /// `pitch` pressed `at` on the armed track (nothing when none is armed).
+    pub(crate) fn press(&self, pitch: u8, velocity: f64, at: std::time::Instant) -> Result<(), String> {
+        let note = match lock(&self.armed).as_ref() {
+            Some(track) => note_of(track, pitch, velocity.clamp(0.0, 1.0), crate::voice::HELD_SECONDS),
+            None => return Ok(()),
+        };
+        let shot = match note {
+            Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
+            Note::Voice(voice, gains) => Oneshot::Press { key: pitch, voice, gains, wait: 0 },
+        };
+        self.send(Command::Played(shot, at))
+    }
+
+    /// `pitch` lifted `at`.
+    pub(crate) fn lift(&self, pitch: u8, at: std::time::Instant) -> Result<(), String> {
+        self.send(Command::Played(Oneshot::Lift { key: pitch, wait: 0 }, at))
+    }
+}
+
+/// Where in a block of `frames` made at `now` something that happened `at` goes: one block after it happened, as a
+/// count of samples into the block (the block's start if that has already gone by).
+fn place(at: std::time::Instant, now: std::time::Instant, frames: usize, rate: f64) -> usize {
+    let block = frames as f64 / rate;
+    let ago = now.saturating_duration_since(at).as_secs_f64();
+    (((block - ago) * rate).round().max(0.0) as usize).min(frames.saturating_sub(1))
+}
+
 /// The caller's side of a live engine. Made by [`Engine::open`]; the stream plays until this is dropped.
 pub struct Engine {
-    commands: Mutex<rtrb::Producer<Command>>,
+    keys: Keys,
+    /// The keyboard listened to, if any.
+    midi: Mutex<Option<crate::midi::Input>>,
     trash: Mutex<rtrb::Consumer<Box<Renderer>>>,
     shared: Arc<Shared>,
     /// The tracks whose levels `position` reports, in the order the audio thread has them.
@@ -266,7 +355,8 @@ impl Engine {
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
         let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), watch_turn: 0, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
-        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), sample_rate, device, _stream: None };
+        let keys = Keys { commands: Arc::new(Mutex::new(commands)), armed: Arc::new(Mutex::new(None)) };
+        let engine = Engine { keys, midi: Mutex::new(None), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), sample_rate, device, _stream: None };
         (engine, audio)
     }
 
@@ -353,18 +443,54 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn preview(&self, track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
-        // Heard at the track's volume and pan, as its notes are when it plays.
-        let gains = crate::render::track_gains(track);
-        let shot = if track.instrument == crate::song::Instrument::Drums {
-            let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
-            Oneshot::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
-        } else {
-            Oneshot::Voice(match &track.sound {
-                Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
-                None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
-            }, gains)
+        let shot = match note_of(track, pitch, velocity, seconds) {
+            Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
+            Note::Voice(voice, gains) => Oneshot::Voice(voice, gains),
         };
         self.send(Command::Oneshot(shot))
+    }
+
+    /// Plays a keyboard on `track` (its instrument and sound, at its volume and pan), or on none.
+    pub fn arm(&self, track: Option<&crate::song::Track>) {
+        *lock(&self.keys.armed) = track.cloned();
+    }
+
+    /// A key pressed on the armed track: its note sounds until [`Engine::lift`] (a drum's hit rings out alone).
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn press(&self, pitch: u8, velocity: f64) -> Result<(), String> {
+        self.keys.press(pitch, velocity, std::time::Instant::now())
+    }
+
+    /// A key lifted: its note dies away over its release.
+    ///
+    /// # Errors
+    /// As [`Engine::play`].
+    pub fn lift(&self, pitch: u8) -> Result<(), String> {
+        self.keys.lift(pitch, std::time::Instant::now())
+    }
+
+    /// Listens to the MIDI keyboard named `input` (as [`crate::midi::inputs`] names them), playing the armed track
+    /// from it; or to none. Returns the name of the one now listened to.
+    ///
+    /// # Errors
+    /// When there is no such keyboard, or it cannot be opened.
+    pub fn listen(&self, input: Option<&str>) -> Result<Option<String>, String> {
+        let mut midi = lock(&self.midi);
+        // The last one is closed first: a keyboard opens for one listener at a time.
+        *midi = None;
+        let Some(name) = input else { return Ok(None) };
+        let opened = crate::midi::Input::open(name, self.keys.clone())?;
+        let name = opened.name().to_owned();
+        *midi = Some(opened);
+        Ok(Some(name))
+    }
+
+    /// The keyboard listened to.
+    #[must_use]
+    pub fn listening(&self) -> Option<String> {
+        lock(&self.midi).as_ref().map(|i| i.name().to_owned())
     }
 
     /// A count-in of `beats` ticks at `tempo`, a high one first, starting 50 ms from now (studio-audio.ts `countIn`).
@@ -472,7 +598,7 @@ impl Engine {
     }
 
     fn send(&self, command: Command) -> Result<(), String> {
-        lock(&self.commands).push(command).map_err(|_| "The sound engine is not answering.".to_owned())
+        self.keys.send(command)
     }
 
     fn empty_trash(&self) {
@@ -658,6 +784,56 @@ mod tests {
         engine.count_in(120.0, None).unwrap();
         audio.fill(&mut out, 2);
         assert!(out.iter().all(|s| *s == 0.0));
+    }
+
+    #[test]
+    fn a_key_played_lands_a_block_after_it_came_and_sounds_until_it_is_lifted() {
+        use std::time::{Duration, Instant};
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"bass","sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.3,"sustain":1,"release":0.1,"vibrato":0,"rate":5}},{"id":"d","instrument":"drums"}]}"#).unwrap();
+        // Nothing armed: a key is not heard.
+        engine.press(60, 1.0).unwrap();
+        let mut block = vec![0f32; 480 * 2];
+        audio.fill(&mut block, 2);
+        assert!(block.iter().all(|s| *s == 0.0));
+        engine.arm(Some(&song.tracks[0]));
+        // Pressed 4 ms before a 10 ms block is made: it starts 6 ms into it, whatever block it came in.
+        let made = Instant::now() + Duration::from_secs(1);
+        engine.keys.press(69, 1.0, made - Duration::from_millis(4)).unwrap();
+        let mut out = vec![0f32; 48_000 * 2];
+        audio.fill_at(&mut out[..960], 2, made);
+        let left: Vec<f32> = out[..960].iter().step_by(2).copied().collect();
+        let onset = left.iter().position(|s| s.abs() > 1e-6).unwrap();
+        assert!((287..=290).contains(&onset), "{onset}");
+        // Held: still sounding half a second on.
+        for (i, chunk) in out[960..].chunks_mut(960).enumerate() {
+            audio.fill_at(chunk, 2, made + Duration::from_millis(10 * (i as u64 + 1)));
+        }
+        let top = out[47_000..].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!(top > 0.3, "{top}");
+        // Lifted: gone after its release, and the engine says it has stopped sounding.
+        engine.lift(69).unwrap();
+        for _ in 0..40 {
+            audio.fill(&mut block, 2);
+        }
+        assert!(block.iter().all(|s| *s == 0.0) && !engine.position().sounding);
+        // A drum pad rings out on its own.
+        engine.arm(Some(&song.tracks[1]));
+        engine.press(36, 1.0).unwrap();
+        for chunk in out.chunks_mut(960) {
+            audio.fill(chunk, 2);
+        }
+        assert!(out.iter().any(|s| s.abs() > 0.05));
+    }
+
+    #[test]
+    fn a_key_lands_a_block_late_or_at_once_if_that_has_gone_by() {
+        use std::time::{Duration, Instant};
+        let now = Instant::now() + Duration::from_secs(1);
+        assert_eq!(place(now, now, 480, 48_000.0), 479);
+        assert_eq!(place(now - Duration::from_millis(5), now, 480, 48_000.0), 240);
+        assert_eq!(place(now - Duration::from_millis(50), now, 480, 48_000.0), 0);
+        assert_eq!(place(now + Duration::from_millis(5), now, 480, 48_000.0), 479);
     }
 
     #[test]
