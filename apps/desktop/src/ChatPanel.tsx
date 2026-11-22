@@ -514,7 +514,7 @@ function ConversationMenu({ conversations, active, onSelect, onNew, openToken = 
 
   return (
     <div className="convo">
-      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn chat-switch' : 'head-icon'} aria-label="All chats" aria-haspopup="menu" aria-expanded={open} title={asTitle ? `${title}: all chats` : 'History'} onClick={() => setOpen((value) => !value)}>
+      <button ref={trigger} type="button" className={asTitle ? 'chat-title chat-title-btn chat-switch' : 'head-icon'} aria-label={asTitle ? `${title}: all chats` : 'All chats'} aria-haspopup="menu" aria-expanded={open} title={asTitle ? `${title}: all chats` : 'History'} onClick={() => setOpen((value) => !value)}>
         {asTitle
           ? <><span className="chat-switch-name">{title}</span><svg className="chat-switch-chevron" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" /></svg></>
           : <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="6.5" /><path d="M10 6.5V10l2.5 1.8" /></svg>}
