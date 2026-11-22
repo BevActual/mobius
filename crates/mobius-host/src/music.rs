@@ -65,6 +65,13 @@ impl Music {
             eprintln!("[music] playing silently: {why}");
             Engine::silent()
         }));
+        // A MIDI keyboard played while stopped: the position (and its meters) is sent while it sounds.
+        let (reporting, emit, weak) = (self.reporting.clone(), self.emit.clone(), Arc::downgrade(&opened));
+        opened.on_key(Arc::new(move || {
+            if let Some(engine) = weak.upgrade() {
+                report(&reporting, &emit, engine);
+            }
+        }));
         *engine = Some(opened.clone());
         Ok(opened)
     }
@@ -276,33 +283,7 @@ impl Music {
     /// Send the position while playing or while a preview or count-in sounds, from one thread at a time; the last one
     /// says it stopped.
     fn report(&self, engine: Arc<Engine>) {
-        if self.reporting.swap(true, Ordering::AcqRel) {
-            return;
-        }
-        let reporting = self.reporting.clone();
-        let emit = self.emit.clone();
-        let spawned = std::thread::Builder::new().name("mobius-music-position".into()).spawn(move || {
-            // The first report can come before the audio thread has taken the song: give it a moment to start.
-            let mut grace = 10;
-            loop {
-                std::thread::sleep(POSITION_EVERY);
-                let position = engine.position();
-                let playing = position.playing || position.sounding;
-                emit("mobius:music-position", position_json_of(&position));
-                if !playing {
-                    if grace == 0 {
-                        break;
-                    }
-                    grace -= 1;
-                } else {
-                    grace = 0;
-                }
-            }
-            reporting.store(false, Ordering::Release);
-        });
-        if spawned.is_err() {
-            self.reporting.store(false, Ordering::Release);
-        }
+        report(&self.reporting, &self.emit, engine);
     }
 
     /// Render the song to WAV with this engine and save it in Exports beside the song's other exports.
@@ -315,6 +296,37 @@ impl Music {
         let mut bytes = Vec::with_capacity(left.len() * 8 + 64);
         mobius_audio::wav::write(&mut bytes, &left, &right, RENDER_RATE).map_err(|e| e.to_string())?;
         songs.save_sound_bytes(path, name, &bytes)
+    }
+}
+
+/// Sends the position about 30 times a second while it plays or sounds, on a thread of its own (one at a time).
+fn report(reporting: &Arc<AtomicBool>, emit: &crate::bridge::Emit, engine: Arc<Engine>) {
+    if reporting.swap(true, Ordering::AcqRel) {
+        return;
+    }
+    let done = reporting.clone();
+    let emit = emit.clone();
+    let spawned = std::thread::Builder::new().name("mobius-music-position".into()).spawn(move || {
+        // The first report can come before the audio thread has taken the song: give it a moment to start.
+        let mut grace = 10;
+        loop {
+            std::thread::sleep(POSITION_EVERY);
+            let position = engine.position();
+            let playing = position.playing || position.sounding;
+            emit("mobius:music-position", position_json_of(&position));
+            if !playing {
+                if grace == 0 {
+                    break;
+                }
+                grace -= 1;
+            } else {
+                grace = 0;
+            }
+        }
+        done.store(false, Ordering::Release);
+    });
+    if spawned.is_err() {
+        reporting.store(false, Ordering::Release);
     }
 }
 

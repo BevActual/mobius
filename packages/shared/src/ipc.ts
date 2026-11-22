@@ -146,7 +146,7 @@ export interface NoteHit { path: string; title: string; notebook: string; line: 
 /** Where Music's engine is playing, and the levels, left and right in dB, by track id then `master`. */
 export interface MusicPosition {
   playing: boolean;
-  /** A note preview or count-in is sounding. Stopped, `meters` then holds only `master`. Missing from older shells. */
+  /** A note preview, a key played or a count-in is sounding. Stopped, `meters` then holds `master` and the track the notes are on. Missing from older shells. */
   sounding?: boolean;
   beat: number;
   meters: Record<string, [number, number]>;

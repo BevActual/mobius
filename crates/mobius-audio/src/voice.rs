@@ -4,7 +4,7 @@
 
 use crate::param::Param;
 use crate::song::{Instrument, Sound};
-use std::f64::consts::{PI, TAU};
+use std::f64::consts::{PI, SQRT_2, TAU};
 
 /// How loud a note at full velocity peaks, by instrument (as the window has it).
 #[must_use]
@@ -301,15 +301,17 @@ pub(crate) fn shape(x: f64, drive: f64) -> f64 {
     (k * x.clamp(-1.0, 1.0)).tanh() / k.tanh()
 }
 
-/// The left and right gains for a pan from -1 to 1 (equal power, as `StereoPannerNode` pans a mono input). No pan
-/// at all leaves the track at full level on both sides, as the window does without a panner.
+/// The left and right gains for a pan from -1 to 1: Live's constant-power law, 0 dB on both sides in the middle and
+/// +3 dB on one side hard over.
 #[must_use]
 pub fn pan_gains(pan: f64) -> (f64, f64) {
     if pan.abs() < 1e-9 {
         return (1.0, 1.0);
     }
+    // Live's law (Audio Fact Sheet, Panning): constant power with sinusoidal curves, 0 dB in the middle and +3 dB
+    // hard to one side, so the level changes smoothly away from the middle.
     let x = (pan.clamp(-1.0, 1.0) + 1.0) / 2.0;
-    ((x * PI / 2.0).cos(), (x * PI / 2.0).sin())
+    (SQRT_2 * (x * PI / 2.0).cos(), SQRT_2 * (x * PI / 2.0).sin())
 }
 
 #[cfg(test)]
@@ -373,11 +375,14 @@ mod tests {
     }
 
     #[test]
-    fn pan_is_equal_power_and_centre_is_untouched() {
+    fn pan_follows_lives_law_0_db_in_the_middle_and_3_db_up_hard_over() {
         assert_eq!(pan_gains(0.0), (1.0, 1.0));
         let (l, r) = pan_gains(-1.0);
-        assert!((l - 1.0).abs() < 1e-12 && r.abs() < 1e-12);
+        assert!((20.0 * l.log10() - 3.0103).abs() < 1e-3 && r.abs() < 1e-12);
+        // Constant power everywhere, and no step just off the middle.
         let (l, r) = pan_gains(0.5);
-        assert!((l * l + r * r - 1.0).abs() < 1e-12 && r > l);
+        assert!((l * l + r * r - 2.0).abs() < 1e-12 && r > l);
+        let (l, r) = pan_gains(0.001);
+        assert!((l - 1.0).abs() < 0.01 && (r - 1.0).abs() < 0.01);
     }
 }

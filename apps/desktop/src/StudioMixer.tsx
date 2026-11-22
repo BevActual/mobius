@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Button, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
 import { MAIN_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
-import type { Player } from './studio-engine';
+import { stoppedMeter, type Player } from './studio-engine';
 
 /** A track's volume (0 to 1, as kept in the song) in dB for the fader, and back. The fader stops at 0 dB, the most a track's volume can be. */
 export const gainToDb = (v: number): number => (v <= 0.001 ? -60 : Math.max(-60, Math.round(20 * Math.log10(v) * 10) / 10));
@@ -20,7 +20,7 @@ export function freshReturnId(song: Song): string {
 /**
  * Music's Mixer, a tab beside the Detail at the bottom (Design's layout, after Live's Mixer view): a strip per track
  * with its sends, pan, fader and meter, mute and solo; then the return tracks; then Main with its own fader. The
- * meters move while the engine plays.
+ * meters move while the engine plays, and for a key played while stopped.
  */
 export function StudioMixer({ song, selected, onSelect, setTrack, setSong, source, playing }: {
   song: Song;
@@ -38,12 +38,12 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
   const anySolo = song.tracks.some((t) => t.solo);
   useEffect(() => {
     const quiet = () => { for (const f of feeds.current.values()) f?.set(-90, -90); };
-    if (!playing) { quiet(); return; }
     let id = 0;
     const tick = () => {
-      const p = source();
+      // Stopped, the meters still move for a key played or a note put in.
+      const p = playing ? source() : null;
       for (const [key, f] of feeds.current) {
-        const m = p?.meter?.(key);
+        const m = playing ? p?.meter?.(key) : stoppedMeter(key);
         f?.set(...(m ?? [-90, -90]));
       }
       id = requestAnimationFrame(tick);
