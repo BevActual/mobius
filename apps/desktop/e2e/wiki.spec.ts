@@ -131,7 +131,7 @@ test('Links here, on the right, lists the pages that link to this one, and a cli
   await start();
   await openWiki();
   await shell().getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: /Team rules/ }).click();
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Links here' }).click();
   const links = shell().getByRole('list', { name: 'Pages that link here' });
   await links.getByRole('button', { name: /Onboarding/ }).click();

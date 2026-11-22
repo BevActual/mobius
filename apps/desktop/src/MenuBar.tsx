@@ -23,7 +23,7 @@ export function chooseItem(item: { disabled?: boolean; run: () => void }, close:
  * Keyboard: arrows move, Enter chooses, Escape closes. An item runs after focus is back where it was, so Edit's
  * commands act on what you were typing in.
  */
-export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compact: boolean; onOpenChange?: (open: boolean) => void }) {
+export function MenuBar({ menus, compact, onOpenChange, label = 'Menu' }: { menus: Menu[]; compact: boolean; onOpenChange?: (open: boolean) => void; /** The folded button's name. */ label?: string }) {
   const [open, setOpen] = useState<string | null>(null);
   const bar = useRef<HTMLDivElement>(null);
   const before = useRef<HTMLElement | null>(null);
@@ -94,9 +94,9 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
     );
 
   return (
-    <div ref={bar} className="menubar" role="menubar" aria-label="Menus" data-compact={compact || undefined}>
+    <div ref={bar} className="menubar" role="menubar" aria-label={label === 'Menu' ? 'Menus' : label} data-compact={compact || undefined}>
       {compact ? (
-        <button type="button" className="strip-btn menu-title" role="menuitem" aria-haspopup="menu" aria-expanded={open !== null} aria-label="Menu" title="Menu"
+        <button type="button" className="strip-btn menu-title" role="menuitem" aria-haspopup="menu" aria-expanded={open !== null} aria-label={label} title={label}
           onClick={() => (open === null ? openMenu((menus.find((m) => m.id === 'app') ?? menus[0])?.id ?? 'file') : close(true))}>
           <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="10" r="1.3" /><circle cx="10" cy="10" r="1.3" /><circle cx="15" cy="10" r="1.3" /></svg>
         </button>
@@ -113,7 +113,7 @@ export function MenuBar({ menus, compact, onOpenChange }: { menus: Menu[]; compa
       {shown && (
         <div className="menu-panel" data-compact={compact || undefined} onKeyDown={onPanelKey}
           style={compact ? undefined : { left: (bar.current?.querySelector<HTMLElement>(`.menu-title[aria-expanded="true"]`)?.offsetLeft ?? 0) }}>
-          {compact && (
+          {compact && menus.length > 1 && (
             <div className="menu-names" role="presentation">
               {menus.map((m) => (
                 <button key={m.id} type="button" className="menu-name" aria-current={m.id === shown.id || undefined} tabIndex={-1}

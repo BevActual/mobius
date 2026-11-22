@@ -5,7 +5,7 @@ import {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, panLabel, hertzLabel, type Envelope, type FilterValue,
   DeviceChain, DeviceFrame, EqGraph, type EqBand,
   Slider, StatusLetter, Dialog, Confirm, ContentTabs, ChoiceMenu, Popover, PopoverTitle, PopoverLink, StatusText, Switch, TextField, CONTENT_COLORS, ObjectCard, ObjectChip, ObjectRow, XYPad, type Thing, type PadPoint,
-  WaveformView, peaksOf, type WaveRange,
+  WaveformView, peaksOf, type WaveRange, FilterBar, PreviewStrip, type TagPicks, type WarpMarker,
   PadGrid, type Pad,
   AutomationLane, type AutomationPoint,
   DateField, TimeField, TimeRange, MonthPicker,
@@ -113,12 +113,31 @@ function Wave() {
   })();
   const [range, setRange] = useState<WaveRange>({ start: 0.12, end: 3.6, loop: { start: 1, end: 2 } });
   const [plain, setPlain] = useState<WaveRange>({ start: 0, end: 4, loop: null });
+  const [warp, setWarp] = useState<WarpMarker[]>([{ sample: 0, beat: 0 }, { sample: 1.02, beat: 2 }, { sample: 2.04, beat: 4 }, { sample: 3.1, beat: 6 }]);
   return (
     <div className="sheet-waves">
       <div className="sheet-col"><span className="sheet-note">Trimmed, with a loop (drag an edge or its tab; arrows 10 ms, Shift 100 ms, Home and End). Playing at 1.4 s.</span>
         <WaveformView label="Sample" peaks={peaks} duration={4} value={range} onChange={setRange} playhead={1.4} /></div>
       <div className="sheet-col"><span className="sheet-note">Untrimmed, no loop: press the strip along the top to add one</span>
         <WaveformView label="Sample, no loop" peaks={peaks} duration={4} value={plain} onChange={setPlain} /></div>
+      <div className="sheet-col"><span className="sheet-note">Warped: four markers (drag, arrows, Delete; double-click the warp strip to add one)</span>
+        <WaveformView label="Sample, warped" peaks={peaks} duration={4} value={plain} onChange={setPlain} warp={warp} onWarpChange={setWarp} /></div>
+    </div>
+  );
+}
+
+function BrowseDemo() {
+  const [picks, setPicks] = useState<TagPicks>({ type: ['Keys'] });
+  const [on, setOn] = useState(true);
+  const [raw, setRaw] = useState(false);
+  const [at, setAt] = useState(0.35);
+  const [vol, setVol] = useState(-6);
+  const peaks = Array.from({ length: 120 }, (_, i) => Math.abs(Math.sin(i * 0.31)) * Math.exp(-(i % 30) / 12));
+  return (
+    <div className="sheet-col" style={{ maxWidth: 420 }}>
+      <span className="sheet-note">A browser's filter bar (click picks one, Ctrl-click more) and preview strip</span>
+      <FilterBar groups={[{ id: 'type', name: 'Type', tags: ['Bass', 'Keys', 'Pad', 'Lead', 'Pluck'] }, { id: 'mood', name: 'Character', tags: ['Warm', 'Dark', 'Bright', 'Glassy'] }]} value={picks} onChange={setPicks} />
+      <PreviewStrip on={on} onToggle={setOn} raw={raw} onRaw={setRaw} name="Warm keys" peaks={peaks} position={at} onScrub={setAt} volume={vol} onVolume={setVol} />
     </div>
   );
 }
@@ -152,6 +171,7 @@ function MixerDemo() {
     { name: 'Lead', color: 'violet', level: [-30, -26] },
   ];
   const [mix, setMix] = useState(() => tracks.map((t, i) => ({ volume: [0, -3, -4.5, -60][i]!, pan: [0, 0, -0.3, 0.25][i]!, mute: i === 3, solo: false, arm: i === 0 })));
+  const [main, setMain] = useState(0);
   const meters = useRef<(LevelFeed | null)[]>([]);
   useEffect(() => { tracks.forEach((t, i) => meters.current[i]?.set(...t.level)); }); // eslint-disable-line react-hooks/exhaustive-deps
   const put = (i: number, patch: Partial<(typeof mix)[number]>) => setMix((all) => all.map((m, j) => (j === i ? { ...m, ...patch } : m)));
@@ -167,6 +187,8 @@ function MixerDemo() {
           meter={(m) => { meters.current[i] = m; }}
         />
       ))}
+      {/* Main: no pan, mute or solo, so only its fader and meter, level with the tracks'. */}
+      <MixerStrip name="Main" volume={main} onVolume={setMain} meter={(m) => { meters.current[tracks.length] = m; m?.set(-9, -8); }} />
     </div>
   );
 }
@@ -678,6 +700,7 @@ export function Sheet() {
 
         <Card title="Waveform (Music's sampler)" shot="waveform" wide>
           <Wave />
+          <BrowseDemo />
         </Card>
         <Card title="Instrument controls (Music's Device panel and drum kit)" shot="instruments" wide>
           <Instruments />

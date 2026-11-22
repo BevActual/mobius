@@ -23,7 +23,7 @@ mod linux_views;
 mod cef_engine;
 
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 
 use mobius_host::{Bridge, CoreProcess, Options, Status};
 use serde_json::Value;
@@ -361,6 +361,38 @@ fn little_mobius(app: &tauri::AppHandle, method: &str, place_file: &std::path::P
     }
 }
 
+/// The main window as the title row sees it.
+fn window_state(window: &tauri::Window) -> Value {
+    let platform = if cfg!(windows) { "win32" } else if cfg!(target_os = "macos") { "darwin" } else { "linux" };
+    serde_json::json!({
+        "maximized": window.is_maximized().unwrap_or(false),
+        "fullScreen": window.is_fullscreen().unwrap_or(false),
+        "focused": window.is_focused().unwrap_or(false),
+        "platform": platform,
+    })
+}
+
+/// The title row's window buttons, and the title the taskbar and Alt+Tab show. `None` for a call the core answers.
+fn window_call(app: &tauri::AppHandle, method: &str, args: &[Value]) -> Option<Result<Value, Value>> {
+    let window = app.get_window("main")?;
+    let done = match method {
+        "minimize" => window.minimize(),
+        "toggleMaximize" => {
+            if window.is_maximized().unwrap_or(false) {
+                window.unmaximize()
+            } else {
+                window.maximize()
+            }
+        }
+        // As the system's close button: with the tray, it hides the window (see the window's events).
+        "close" => window.close(),
+        "setTitle" => window.set_title(args.first().and_then(Value::as_str).filter(|t| !t.trim().is_empty()).unwrap_or("Mobius")),
+        "getState" => return Some(Ok(window_state(&window))),
+        _ => return None,
+    };
+    Some(done.map(|()| Value::Null).map_err(|e| serde_json::json!({ "kind": "invalid", "message": e.to_string() })))
+}
+
 /// The one door from the interface into Rust.
 #[tauri::command]
 async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: String, method: String, args: Vec<Value>) -> Result<Value, Value> {
@@ -413,6 +445,9 @@ async fn bridge(app: tauri::AppHandle, shell: State<'_, Shell>, namespace: Strin
     }
     if namespace == "system" {
         return system::call(&method, &args);
+    }
+    if namespace == "window" && let Some(result) = window_call(&app, &method, &args) {
+        return result;
     }
     if namespace == "mini" {
         if method == "setOnTop" && let Some(mini) = app.get_webview_window(MINI) {
@@ -663,6 +698,16 @@ fn main() {
             let maximised = keep_window && mobius_store::file::read_json(&window_file).is_some_and(|v| v["maximized"] == true);
             let (width, height) = kept.map_or((width, height), |(_, _, w, h)| (w, h));
             let mut builder = WindowBuilder::new(app, "main").title("Mobius").inner_size(width, height).min_inner_size(720.0, 480.0).visible(!hidden);
+            // The interface's title row is the window's title bar: no system one on Windows and Linux (the edges still
+            // resize, and Windows keeps its shadow); on macOS the traffic lights sit in the row.
+            #[cfg(target_os = "macos")]
+            {
+                builder = builder.title_bar_style(tauri::TitleBarStyle::Overlay).hidden_title(true);
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                builder = builder.decorations(false).shadow(true);
+            }
             builder = match kept {
                 Some((x, y, _, _)) => builder.position(x, y),
                 None => builder.center(),
@@ -725,7 +770,18 @@ fn main() {
             let (resized, resize_window) = (interface.clone(), window.clone());
             let focus_bridge = bridge.clone();
             let mini_handle = handle.clone();
+            let state_window = window.clone();
+            let last_state = Mutex::new(Value::Null);
             window.on_window_event(move |event| {
+                // The title row draws maximise or restore, and dims when the window is not in front.
+                if matches!(event, WindowEvent::Resized(_) | WindowEvent::Focused(_)) {
+                    let state = window_state(&state_window);
+                    let mut last = last_state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+                    if *last != state {
+                        let _ = state_window.emit("mobius:window-state", state.clone());
+                        *last = state;
+                    }
+                }
                 // Closing the window hides it: Mobius keeps running in the tray, so the launcher's shortcut works from
                 // anywhere and finished work can say so. Quit Mobius in the tray (or the app menu) ends it.
                 if has_tray && let WindowEvent::CloseRequested { api, .. } = event {

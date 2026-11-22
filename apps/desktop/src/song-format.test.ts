@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -15,9 +15,10 @@ describe('songs', () => {
   it('read tracks of notes, with defaults and limits', () => {
     const s = song(FILE);
     expect(s).toMatchObject({ tempo: 112, key: 'A minor', bars: 4 });
-    expect(s.tracks[0]!.notes).toEqual([{ pitch: 57, start: 0, length: 4, velocity: 0.8 }, { pitch: 60, start: 0, length: 4, velocity: 0.7 }]);
+    expect(trackNotes(s.tracks[0]!)).toEqual([{ pitch: 57, start: 0, length: 4, velocity: 0.8 }, { pitch: 60, start: 0, length: 4, velocity: 0.7 }]);
     expect(s.tracks[1]).toMatchObject({ name: 'Drums', muted: true });
-    expect(s.tracks[1]!.notes.map((n) => n.start)).toEqual([0, 16]);
+    // A note at the song's very end has no bar to sit in, so it is not kept.
+    expect(trackNotes(s.tracks[1]!).map((n) => n.start)).toEqual([0]);
     expect(song('{"key":"H major"}').key).toBe('C major');
     expect(parseSong('{')).toHaveProperty('error');
   });
@@ -26,7 +27,7 @@ describe('songs', () => {
     const s = song(FILE);
     const text = writeSong(s);
     expect(song(text)).toEqual(s);
-    expect(text).toContain('\n      {"pitch":57,"start":0,"length":4,"velocity":0.8},\n');
+    expect(text).toContain('\n        {"pitch":57,"start":0,"length":4,"velocity":0.8},\n');
     expect(song(writeSong({ ...s, tracks: [] })).tracks).toEqual([]);
   });
 
@@ -35,7 +36,7 @@ describe('songs', () => {
     const after = song(FILE);
     after.tracks[1]!.muted = false;
     expect([...changedTracks(before, after)]).toEqual([]);
-    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, pan: 0, muted: false, solo: false, color: 'blue', notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] });
+    after.tracks.push({ id: freshTrackId(after), name: 'Bass', instrument: 'bass', volume: 0.8, pan: 0, muted: false, solo: false, color: 'blue', clips: [{ id: 'c1', start: 0, length: 4, notes: [{ pitch: 45, start: 0, length: 1, velocity: 0.9 }] }] });
     expect([...changedTracks(before, after)]).toEqual(['t3']);
     expect(audible(before).map((t) => t.id)).toEqual(['t1']);
     expect(audible({ ...after, tracks: after.tracks.map((t) => ({ ...t, solo: t.id === 't3' })) }).map((t) => t.id)).toEqual(['t3']);
@@ -197,5 +198,34 @@ describe('the agent guide (docs/agent/music.md)', () => {
       expect(guide).toContain(`\`${kind}\``);
       for (const k of Object.keys(params)) expect(guide, `${kind}.${k}`).toContain(`\`${k}\``);
     }
+  });
+});
+
+describe('clips in Arrange', () => {
+  const n = (pitch: number, start: number, length = 1) => ({ pitch, start, length, velocity: 0.8 });
+  it('reads a version 1 track into a clip for each run of bars with notes', () => {
+    const s = song(JSON.stringify({ version: 1, bars: 8, tracks: [{ id: 't1', instrument: 'bass', notes: [n(40, 0), n(41, 5), n(43, 16, 2)] }] }));
+    expect(s.version).toBe(2);
+    expect(s.tracks[0]!.clips.map((c) => [c.start, c.length, c.notes.map((x) => x.start)])).toEqual([[0, 8, [0, 5]], [16, 4, [0]]]);
+    expect(trackNotes(s.tracks[0]!).map((x) => x.start)).toEqual([0, 5, 16]);
+  });
+  it('keeps clips as written: their names, mute, and notes in the clip\'s own time; overlaps are cut back', () => {
+    const s = song(JSON.stringify({ version: 2, bars: 8, tracks: [{ id: 't1', instrument: 'piano', clips: [
+      { id: 'a', start: 4, length: 8, name: 'Verse', notes: [n(60, 0), n(62, 7)] },
+      { id: 'b', start: 8, length: 4, muted: true, notes: [n(64, 1)] },
+    ] }] }));
+    const [a, b] = s.tracks[0]!.clips;
+    expect(a).toMatchObject({ id: 'a', start: 4, length: 4, name: 'Verse', notes: [n(60, 0)] });
+    expect(b).toMatchObject({ id: 'b', start: 8, length: 4, muted: true });
+    expect(trackNotes(s.tracks[0]!, true).map((x) => x.pitch)).toEqual([60]);
+    expect(song(writeSong(s))).toEqual(s);
+  });
+  it('puts edited notes back into the clip each starts in, and makes clips only where there are none', () => {
+    const clips = [{ id: 'c1', start: 4, length: 4, name: 'Hook', notes: [n(60, 0)] }];
+    const out = putNotes(clips, [n(60, 4), n(62, 6.5), n(64, 9), n(65, 2)], 4);
+    expect(out.map((c) => [c.id, c.start, c.length, c.notes.map((x) => x.start)])).toEqual([['c2', 0, 4, [2]], ['c1', 4, 4, [0, 2.5]], ['c3', 8, 4, [1]]]);
+    expect(out[1]!.name).toBe('Hook');
+    // A clip whose notes are all taken out goes.
+    expect(putNotes(clips, [], 4)).toEqual([]);
   });
 });

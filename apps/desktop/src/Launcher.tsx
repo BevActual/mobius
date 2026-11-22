@@ -982,7 +982,8 @@ export function Launcher({
 }
 
 /**
- * The Go button, leading the top bar: the open app's icon and name. It opens the launcher, and carries one dot while
+ * The Go button, leading the top bar: the open app's icon, its name in the tooltip and to assistive tech (Andrew, 21
+ * November 2026: icon only, so the bar keeps its room for tools). It opens the launcher, and carries one dot while
  * anything waits in any app (the launcher shows which). It replaces the app rail.
  */
 export function GoButton({ app, name, waiting = 0, keys, onOpen, open }: {
@@ -1006,13 +1007,12 @@ export function GoButton({ app, name, waiting = 0, keys, onOpen, open }: {
       aria-haspopup="dialog"
       aria-expanded={open ?? undefined}
       aria-label={`${label}. Go to another app${waiting > 0 ? `. ${waiting} waiting` : ''}`}
-      title={keys ? `Go to… (${keys})` : 'Go to…'}
+      title={keys ? `${label}: go to another app (${keys})` : `${label}: go to another app`}
       onClick={onOpen}
     >
       <span className="launcher-icon" data-kind={place ? 'place' : 'app'} aria-hidden="true">
         {place ? <svg viewBox="0 0 20 20" data-place={place}>{PLACE_ICONS[place]}</svg> : <svg viewBox="0 0 20 20" data-app={app}>{APP_ICONS[app]}</svg>}
       </span>
-      <span className="go-button-name">{label}</span>
       {waiting > 0 && <span className="launcher-dot" aria-hidden="true" />}
       <svg className="go-button-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="M6.5 8.5 10 12l3.5-3.5" /></svg>
     </button>

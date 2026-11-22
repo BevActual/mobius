@@ -13,6 +13,7 @@ serde.workspace = true
 mobius-store = { path = "../mobius-store" }
 mobius-browser = { path = "../mobius-browser" }
 mobius-workspace = { path = "../mobius-workspace" }
+mobius-audio = { path = "../mobius-audio" }
 mobius-mcp = { path = "../mobius-mcp" }
 mobius-claude = { path = "../mobius-claude" }
 mobius-agent = { path = "../mobius-agent" }

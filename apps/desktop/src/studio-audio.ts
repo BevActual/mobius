@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track, trackNotes } from './song-format';
 import { cableEnd, type Device } from './device-format';
 import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
@@ -164,8 +164,9 @@ function tone(ctx: BaseAudioContext, out: AudioNode, instrument: Instrument, pit
   });
 }
 
-function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean) {
+function tick(ctx: BaseAudioContext, out: AudioNode, at: number, accent: boolean, keep?: AudioScheduledSourceNode[]) {
   const osc = ctx.createOscillator();
+  keep?.push(osc);
   const gain = ctx.createGain();
   osc.frequency.value = accent ? 1760 : 1320;
   gain.gain.setValueAtTime(accent ? 0.28 : 0.16, at);
@@ -212,11 +213,13 @@ export function effectChain(ctx: BaseAudioContext, input: AudioNode, fx: readonl
 
 /** A gentle ceiling: unchanged up to 0.8, then rounding off towards 1, so a wild patch can't hurt ears or speakers. */
 let limitCurve: Float32Array | null = null;
-function softLimit(): Float32Array {
+export function softLimit(): Float32Array {
   if (limitCurve) return limitCurve;
   const n = 2049, curve = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const x = (i / (n - 1)) * 4 - 2, a = Math.abs(x);
+    // A wave shaper reads its curve across inputs -1 to 1 (louder ones take the end values), so the curve covers just
+    // that: unchanged up to 0.8, then bending toward a ceiling of 0.95. Spread over -2 to 2, it doubled every device.
+    const x = (i / (n - 1)) * 2 - 1, a = Math.abs(x);
     const y = a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2);
     curve[i] = Math.sign(x) * y;
   }
@@ -319,6 +322,29 @@ export function previewNote(instrument: Instrument, pitch: number, velocity = 0.
   } catch { /* No sound here (a test browser); the note is still put in. */ }
 }
 
+/**
+ * A bar of metronome ticks before recording starts, at the song's tempo: a high tick first, then lower ones. `done`
+ * resolves when the bar is over (at once where there is no sound); `stop` cuts it short and never resolves it.
+ */
+export function countIn(tempo: number, beats = 4): { done: Promise<void>; stop(): void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const nodes: AudioScheduledSourceNode[] = [];
+  const done = new Promise<void>((resolve) => {
+    const spb = 60 / tempo;
+    try {
+      sampler ??= new AudioContext();
+      void sampler.resume().catch(() => {});
+      const at = sampler.currentTime + 0.05;
+      const ctx = sampler;
+      for (let i = 0; i < beats; i++) {
+        tick(ctx, ctx.destination, at + i * spb, i === 0, nodes);
+      }
+    } catch { /* No sound here (a test browser): the wait is still a bar long. */ }
+    timer = setTimeout(resolve, (0.05 + beats * spb) * 1000);
+  });
+  return { done, stop: () => { clearTimeout(timer); for (const n of nodes) { try { n.stop(); } catch { /* already over */ } } } };
+}
+
 export interface Player {
   stop(): void;
   beat(): number;
@@ -385,7 +411,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
           for (const p of t.volumeAuto) if (p.beat > s + 1e-9 && p.beat < s + span - 1e-9) g.linearRampToValueAtTime(p.value, at(p.beat));
           g.linearRampToValueAtTime(autoValueAt(t.volumeAuto, s + span - 1e-6, t.volume), at(s + span) - 1e-4);
         }
-        for (const n of t.instrumentOn === false ? [] : t.notes) {
+        for (const n of t.instrumentOn === false ? [] : trackNotes(t, true)) {
           if (n.start < s - 1e-9 || n.start >= s + span - 1e-9) continue;
           // A note that runs past the loop's end is cut there, so it does not ring over the next time round.
           const length = cycle ? Math.min(n.length, cycle.to - n.start) : n.length;
@@ -560,7 +586,7 @@ export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (d
       for (const p of t.volumeAuto) out.gain.linearRampToValueAtTime(p.value, p.beat * spb);
     }
     if (t.instrumentOn === false) continue;
-    for (const n of t.notes) {
+    for (const n of trackNotes(t, true)) {
       if (t.instrument === 'drums') drum(ctx, out, n.pitch, n.start * spb, n.velocity, noiseBuf, t.kit, t.pads?.[n.pitch]);
       else tone(ctx, out, t.instrument, n.pitch, n.start * spb, n.length * spb, n.velocity, t.sound);
     }

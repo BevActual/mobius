@@ -209,7 +209,7 @@ test('pick a block, fill it down, undo, sort from the menu, and build a formula 
   await expect.poll(() => fs.readFileSync(file('Budget'), 'utf8')).toContain('Total,,,=SUM(D2:D4)\n');
   await expect(cell('A1')).toHaveText('Item');
   // The Format panel on the right shows the same choice for the picked column, and puts it back to Automatic.
-  await shell().getByRole('button', { name: 'Panels' }).click();
+  await shell().getByRole('menubar', { name: 'Menus' }).getByRole('menuitem', { name: 'View', exact: true }).click();
   await shell().getByRole('menuitemcheckbox', { name: 'Format' }).click();
   const format = shell().getByRole('radiogroup', { name: 'Number format' });
   await cell('D2').click();

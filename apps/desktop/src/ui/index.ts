@@ -11,6 +11,7 @@ import './instrument.css';
 import './chart.css';
 import './pads.css';
 import './patch.css';
+import './browse.css';
 
 export { Menu, PointMenu, useAnyMenuOpen, type MenuEntry } from './Menu';
 export { UndoToast } from './UndoToast';
@@ -20,8 +21,9 @@ export { type ToolbarPriority } from './toolbarFit';
 export { useKeyboardClaim, keyboardClaimed } from './keyboardClaim';
 export { ViewSwitch, type ViewChoice } from './ViewSwitch';
 export { AppSidebar, SidebarSearch, SidebarSection, SidebarRow, type SidebarRowDrop } from './AppSidebar';
-export { PanelLayout, PanelsMenu, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
+export { PanelLayout, PanelsMenu, usePanelEntries, type ShellPanel, DOCK_SIZE, type PanelSpec, type PanelDock, type PanelsOfApp } from './PanelLayout';
 export { InspectorDock, PanelTab, PanelTabsProvider, useInspector, useShowPanelTab } from './PanelTabs';
+export { WindowButtons, ownsTitleBar, useWindowTitle } from './WindowButtons';
 export { AppMenu, AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 export { TooltipLayer, KeyCaps, splitTitle } from './Tooltip';
 export { Button, IconButton, type ButtonKind, type ButtonProps, type IconButtonProps } from './Button';
@@ -33,7 +35,7 @@ export { Chip, Count, Avatar, Dot, StatusText, StatusLetter, Swatches, initials,
 export { ListRow } from './ListRow';
 export { ObjectRow, ObjectCard, ObjectChip, KindIcon, type Thing, type TaskThing, type EventThing, type MailThing, type FileThing, type PersonThing, type FileType } from './Objects';
 export { XYPad, type PadAxis, type PadPoint } from './XYPad';
-export { WaveformView, peaksOf, sampleTime, type WaveRange } from './Waveform';
+export { WaveformView, peaksOf, sampleTime, warpBeatAt, warpBeatLabel, type WaveRange, type WarpMarker } from './Waveform';
 export {
   Knob, EnvelopeGraph, FilterGraph, StepGrid, ENVELOPE_RANGES, musicQ, envelopePoints, filterLevel, secondsLabel, hertzLabel, panLabel,
   type KnobProps, type Envelope, type EnvelopeRanges, type FilterType, type FilterValue, type StepRow,
@@ -42,10 +44,11 @@ export { AutomationLane, beatLabel, laneValueAt, type AutomationPoint } from './
 export { DeviceChain, DeviceFrame, EqGraph, EQ_TYPE_NAMES, bandLevel, eqLevel, type EqBand, type EqType } from './Devices';
 export { PadGrid, type Pad } from './Pads';
 export { KeyHintBar, type KeyHint } from './KeyHintBar';
+export { FilterBar, PreviewStrip, pickTag, filterCount, type FilterGroup, type TagPicks } from './Browse';
 export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './Popover';
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
-export { NumberField, Readout, LetterToggle, Transport, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
+export { NumberField, Readout, LetterToggle, Transport, TapTempo, tapTempo, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
 export { MixerStrip, faderLabel, type MixerStripProps } from './Mixer';
 export {
   PatchCanvas, Port, layoutFlow, cablePath, defaultCanConnect,

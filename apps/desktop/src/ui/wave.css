@@ -8,6 +8,7 @@
   position: relative; display: grid; grid-template-rows: var(--wave-strip) var(--wave-h); border: var(--hairline-w) solid var(--line);
   border-radius: var(--radius-control); background: var(--paper); overflow: hidden; touch-action: none; user-select: none;
 }
+.ui-wave-surface[data-warp] { grid-template-rows: var(--wave-strip) var(--wave-strip) var(--wave-h); }
 .ui-wave-strip { position: relative; border-bottom: var(--hairline-w) solid var(--line-soft); background: var(--frame); cursor: copy; }
 /* The loop: a slim ink bar along the foot of the strip, a brace over the band below. */
 .ui-wave-loop { position: absolute; bottom: 0; height: var(--wave-loop-h); background: var(--ink); cursor: default; }
@@ -48,3 +49,27 @@
 .ui-wave-readout { display: grid; grid-template-columns: repeat(4, minmax(0, auto)); justify-content: start; gap: var(--sp-4); margin: 0; }
 .ui-wave-readout dt { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
 .ui-wave-readout dd { margin: 0; font: var(--fw-regular) var(--fs-md) / 1.4 var(--font-mono); color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/*
+ * Warp markers: a strip of their own under the loop strip, each a small ink flag pointing down at a muted hairline
+ * through the shape. Muted so start and end (full ink) stay the strongest lines; ink while held.
+ */
+.ui-wave-warp { position: relative; border-bottom: var(--hairline-w) solid var(--line-soft); background: var(--frame); cursor: default; }
+.ui-wave-warp-line {
+  position: absolute; top: 0; bottom: 0; width: var(--hairline-w); background: var(--muted); pointer-events: none;
+}
+.ui-wave-warp-line[data-held] { background: var(--ink); }
+.ui-wave-marker {
+  position: absolute; top: var(--wave-strip); height: var(--wave-strip); width: var(--hit-min); margin-left: calc(var(--hit-min) / -2);
+  cursor: ew-resize; outline: 0;
+}
+.ui-wave-marker::after {
+  content: ''; position: absolute; left: 50%; bottom: 0; width: calc(var(--wave-tab) * 1.5); height: calc(var(--wave-strip) * 0.75); translate: -50% 0;
+  background: var(--muted); clip-path: polygon(0 0, 100% 0, 100% 60%, 50% 100%, 0 60%);
+}
+.ui-wave-marker:hover::after, .ui-wave-marker[data-held]::after { background: var(--ink); width: calc(var(--wave-tab) * 2); }
+/* At the very start or end a flag stays whole inside the frame, its point on the line. */
+.ui-wave-marker[data-at="first"]::after { left: calc(var(--hit-min) / 2); translate: 0 0; clip-path: polygon(0 0, 100% 0, 100% 60%, 0 100%); }
+.ui-wave-marker[data-at="last"]::after { left: auto; right: calc(var(--hit-min) / 2); translate: 0 0; clip-path: polygon(0 0, 100% 0, 100% 100%, 0 60%); }
+.ui-wave-marker:focus-visible::before {
+  content: ''; position: absolute; inset: 0 calc(var(--hit-min) / 2 - var(--focus-w) * 3); border: var(--focus-w) solid var(--ink); border-radius: var(--radius-small);
+}

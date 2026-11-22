@@ -278,3 +278,26 @@
 .studio-bench-dot { flex: none; width: var(--port-size); }
 .studio-bench-name { color: var(--muted); }
 .studio-bench-value { margin-left: auto; padding-left: var(--sp-2); color: var(--ink); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+/* A muted clip is kept, drawn grey with its name still in ink; a clip being dragged rides above its lane. Its right edge stretches it. */
+.studio-page .studio-clip[data-muted], .studio-page .studio-clip[data-muted]:hover:not(:disabled) { background: color-mix(in srgb, var(--tc) 30%, var(--line)); color: var(--ink); }
+.studio-page .studio-clip[data-muted] .studio-clip-notes span { background: color-mix(in srgb, var(--ink) 35%, transparent); }
+.studio-page .studio-clip[data-dragging] { z-index: 2; box-shadow: var(--shadow-2); }
+.studio-clip-edge { position: absolute; top: 0; right: 0; bottom: 0; width: var(--sp-2); cursor: ew-resize; }
+
+/* The Library panel (StudioLibrary): head (category, search, filters), results, preview strip at the foot. */
+.studio-library { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.studio-library-head { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-2); padding: var(--sp-2); border-bottom: var(--hairline-w) solid var(--line-soft); }
+.studio-library-head > * { min-width: 0; }
+.ui-dock .studio-library-head input.side-search { width: 100%; margin: 0; box-sizing: border-box; }
+.studio-library-head .ui-filter-group { grid-template-columns: max-content minmax(0, 1fr); gap: var(--sp-2); }
+.studio-library-results { flex: 1; min-height: 0; overflow-y: auto; margin: 0; padding: var(--sp-1) 0; list-style: none; }
+.studio-library-row {
+  display: flex; align-items: center; gap: var(--sp-2); height: var(--row-list); padding: 0 var(--sp-3);
+  cursor: default; user-select: none; outline: none;
+}
+.studio-library-row:hover { background: var(--side-hover, color-mix(in srgb, var(--sel) 50%, transparent)); }
+.studio-library-row[aria-selected="true"] { background: var(--sel); }
+.studio-library-row:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.studio-library-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.studio-library-dots { display: inline-flex; gap: calc(var(--sp-1) / 2); }
+.studio-library-kind { flex: none; font-size: var(--fs-xs); color: var(--muted); }

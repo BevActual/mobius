@@ -3,13 +3,16 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, soundOf, writeSong, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+import { countIn, play, playSession, previewNote, renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { SessionGrid } from './StudioSession';
+import { StudioLibrary } from './StudioLibrary';
+import type { LibraryItem } from './studio-library';
+import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type PanelSpec } from './ui';
+import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -121,45 +124,107 @@ const ICONS = {
   stop: 'M5.5 5.5h9v9h-9z',
   loop: 'M4 9V8a3 3 0 0 1 3-3h8l-2.2-2.2M16 11v1a3 3 0 0 1-3 3H5l2.2 2.2',
   keys: 'M3.5 5.5h13v9h-13zM7.5 5.5v5M10 10.5v4M12.5 5.5v5',
-  quantize: 'M4 4v12M10 4v12M16 4v12M4 10h6',
+  transform: 'M4 16 12 8M12 3.5v2.5M15.5 5 14 6.5M16.5 9H14',
   draw: 'M12.5 4.5l3 3-8 8H4.5v-3zM10.5 6.5l3 3',
   auto: 'M3.5 14.5l4-6 4 3 5-7',
   export: 'M10 3.5v9M6.5 9l3.5 3.5L13.5 9M4 14.5v2h12v-2',
 };
 
+/** The notes editor's Transform menu, Quantize first: each row changes the picked notes, or all of them when none are picked. */
+function transformEntries(drums: boolean, apply: (fn: (n: SongNote[], picked: ReadonlySet<number>) => { notes: SongNote[]; picked: Set<number> }) => void, grid: number, span: number, key: string): MenuEntry[] {
+  return [
+    { label: 'Quantize', detail: 'Notes lined up to the grid', keys: 'Q', run: () => apply((n, p) => quantizeNotes(n, p, grid, span)) },
+    ...(drums ? [] : [
+      { label: 'Arpeggiate up', detail: 'Each chord a note at a time, low to high', separated: true, run: () => apply((n, p) => arpeggiate(n, p, grid, 'up')) },
+      { label: 'Arpeggiate down', detail: 'High to low', run: () => apply((n, p) => arpeggiate(n, p, grid, 'down')) },
+      { label: 'Arpeggiate up and down', detail: 'Low to high and back', run: () => apply((n, p) => arpeggiate(n, p, grid, 'updown')) },
+      { label: 'Strum', detail: 'Each chord spread from the lowest note', separated: true, run: () => apply((n, p) => strum(n, p, Math.min(0.0625, grid / 4))) },
+      { label: 'Fit to key', detail: `Notes outside ${key} moved to the nearest in it`, run: () => apply((n, p) => fitKey(n, p, key)) },
+    ]),
+    { label: 'Chop', detail: 'Long notes cut into grid steps', separated: !drums, run: () => apply((n, p) => chop(n, p, grid)) },
+    { label: 'Connect', detail: 'Each note held until the next', run: () => apply((n, p) => connect(n, p)) },
+    { label: 'Reverse', detail: 'Played backwards', run: () => apply((n, p) => reverse(n, p)) },
+    { label: 'Humanize', detail: 'Timing and velocity loosened a little', separated: true, run: () => apply((n, p) => humanize(n, p, span, Date.now())) },
+  ];
+}
+
 /** A clip in Arrange or Session: a button that Space doesn't press, since Space plays the song. */
 const isClip = (t: HTMLElement) => t.closest('.studio-clip, .studio-clip-body') !== null;
 
-/** A track's notes as clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while Mobius proposes them. */
-function Clips({ track, bars, proposed, bw, onOpen }: { track: Track; bars: number; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void }) {
-  const clips = useMemo(() => clipsOf(track.notes, bars), [track.notes, bars]);
-  const pitches = track.notes.map((n) => n.pitch);
+/** What a clip in Arrange can be asked to do: moved or stretched by dragging, and the rest from its menu or keys. */
+interface ClipActions { onMove: (id: string, start: number) => void; onResize: (id: string, length: number) => void; onMenu: (id: string, x: number, y: number) => void; onKey: (id: string, key: 'delete' | 'duplicate' | 'mute') => void }
+
+/**
+ * A track's clips: solid blocks in the track's colour with the notes drawn small inside, dashed and unfilled while
+ * Mobius proposes them, faded when muted. Drag one to move it and its right edge to stretch it, a bar at a time (a
+ * beat with Alt held); it never passes the clips beside it.
+ */
+function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; proposed: boolean; bw: number; onOpen: (fromBeat: number) => void; actions: ClipActions }) {
+  const pitches = track.clips.flatMap((c) => c.notes.map((n) => n.pitch));
   const lo = Math.min(...pitches, 127), hi = Math.max(...pitches, 0);
   const span = Math.max(1, hi - lo);
-  const bar = BEATS_PER_BAR * bw;
+  // A drag under way: the clip, how, where it began, and where it is now (in beats), shown before it is let go.
+  const [drag, setDrag] = useState<{ id: string; size: boolean; x: number; start: number; length: number; now: number } | null>(null);
+  const grab = (e: React.PointerEvent, id: string, size: boolean) => {
+    if (e.button !== 0 || proposed) return;
+    const c = track.clips.find((x) => x.id === id);
+    if (!c) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    setDrag({ id, size, x: e.clientX, start: c.start, length: c.length, now: size ? c.length : c.start });
+  };
+  const follow = (e: React.PointerEvent) => {
+    if (!drag) return;
+    const step = e.altKey ? 1 : BEATS_PER_BAR;
+    const from = drag.size ? drag.length : drag.start;
+    setDrag({ ...drag, now: Math.max(drag.size ? step : 0, from + Math.round((e.clientX - drag.x) / bw / step) * step) });
+  };
+  const drop = () => {
+    if (!drag) return;
+    const was = drag.size ? drag.length : drag.start;
+    if (drag.now !== was) { if (drag.size) actions.onResize(drag.id, drag.now); else actions.onMove(drag.id, drag.now); }
+    setDrag(null);
+  };
   return (
     <>
-      {clips.map((c) => {
-        const from = c.from * BEATS_PER_BAR, to = c.to * BEATS_PER_BAR;
-        const words = c.to - c.from === 1 ? `bar ${c.from + 1}` : `bars ${c.from + 1} to ${c.to}`;
+      {track.clips.map((c) => {
+        const start = drag?.id === c.id && !drag.size ? drag.now : c.start;
+        const length = drag?.id === c.id && drag.size ? drag.now : c.length;
+        const first = Math.floor(c.start / BEATS_PER_BAR) + 1, last = Math.ceil((c.start + c.length) / BEATS_PER_BAR - 1e-9);
+        const words = first >= last ? `bar ${first}` : `bars ${first} to ${last}`;
         return (
           <button
-            key={c.from}
+            key={c.id}
             type="button"
             className="studio-clip"
             data-proposed={proposed || undefined}
-            style={{ left: c.from * bar + 1, width: (c.to - c.from) * bar - 3 }}
-            aria-label={`${track.name}, ${words}${proposed ? ', proposed by Mobius' : ''}`}
-            {...(clipTipWanted() ? { title: 'Double-click to edit the notes', 'data-tip-at': 'pointer' } : {})}
-            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(from); }}
-            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(from); } }}
+            data-muted={c.muted || undefined}
+            data-dragging={drag?.id === c.id || undefined}
+            style={{ left: start * bw + 1, width: length * bw - 3 }}
+            aria-label={`${c.name ?? track.name}, ${words}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
+            {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
+            onPointerDown={(e) => grab(e, c.id, false)}
+            onPointerMove={follow}
+            onPointerUp={drop}
+            onPointerCancel={() => setDrag(null)}
+            onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); actions.onMenu(c.id, e.clientX, e.clientY); }}
+            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(c.start); }}
+            onKeyDown={(e) => {
+              const mod = e.ctrlKey || e.metaKey;
+              if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start); return; }
+              if (proposed) return;
+              if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'delete'); }
+              else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'duplicate'); }
+              else if (e.key === '0' && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'mute'); }
+            }}
           >
             <span className="studio-clip-notes" aria-hidden="true">
-              {track.notes.filter((n) => n.start >= from && n.start < to).map((n, i) => (
-                <span key={i} style={{ left: (n.start - from) * bw, width: Math.max(1, n.length * bw - 1), top: `${(1 - (n.pitch - lo) / span) * 85}%` }} />
+              {c.notes.map((n, i) => (
+                <span key={i} style={{ left: n.start * bw, width: Math.max(1, n.length * bw - 1), top: `${(1 - (n.pitch - lo) / span) * 85}%` }} />
               ))}
             </span>
-            <span className="studio-clip-name">{track.name}</span>
+            <span className="studio-clip-name">{c.name ?? track.name}</span>
+            {!proposed && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
           </button>
         );
       })}
@@ -283,13 +348,14 @@ function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
 
 const DETAIL_VIEWS = [{ value: 'notes', label: 'Notes' }, { value: 'device', label: 'Devices' }] as const;
 /** The song's two views: its clips to launch and try against each other, and the song laid out from start to end. */
-const VIEWS = [{ id: 'session', name: 'Session' }, { id: 'arrange', name: 'Arrange' }] as const;
+const VIEWS = [{ id: 'session', name: 'Session', keys: 'Alt+1' }, { id: 'arrange', name: 'Arrange', keys: 'Alt+2' }] as const;
 const LENGTH_CHOICES = CLIP_BARS.map((b) => ({ value: String(b), label: `${b} ${b === 1 ? 'bar' : 'bars'}` }));
 /** The octaves a melody's steps can start from, named by the two octaves they show. */
 const OCTAVE_CHOICES = [1, 2, 3, 4, 5, 6].map((o) => ({ value: String(o), label: `C${o}–C${o + 2}` }));
 const STEP_VIEWS = [{ value: 'notes', label: 'Piano roll' }, { value: 'steps', label: 'Steps' }] as const;
 /** The drums bottom to top, as pads and step rows read them: kick first. */
 const DRUMS_UP = [...DRUMS].reverse();
+const COUNT_IN_KEY = 'mobius.music.countIn';
 /** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
 const PAD_KEYS = ['Q', 'W', 'E', 'A', 'S', 'D'];
 const STEP_ROWS = DRUMS.map((d) => ({ id: String(d.pitch), name: d.name }));
@@ -439,6 +505,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [beat, setBeat] = useState(0);
   // Recording: keys played on the computer keyboard while it plays are written into the chosen track, as one take.
   const [recording, setRecording] = useState(false);
+  // A bar of ticks before recording starts from a stop, as in other studios. On unless turned off; kept for every song.
+  const [counts, setCounts] = useState(() => { try { return window.localStorage.getItem(COUNT_IN_KEY) !== '0'; } catch { return true; } });
+  const counting = useRef<{ stop(): void } | null>(null);
+  // While playing, Arrange scrolls a page at a time to keep the playhead in sight, until the person scrolls it.
+  const following = useRef(true);
+  const beatW = useRef(0);
   const takeKeys = useRef<Map<string, { pitch: number; start: number; velocity: number }>>(new Map());
   const take = useRef('');
   const finishKey = useRef<((key: string) => void) | null>(null);
@@ -602,6 +674,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** What the player goes round: the picked bars, the whole song, or nothing when Loop is off. */
   const cycleFor = useCallback((s: Song): Cycle | null => (loop ? (range ? cycleOf(range.a, range.b, s.bars) : { from: 0, to: s.bars * BEATS_PER_BAR }) : null), [loop, range]);
   const stop = useCallback(() => {
+    counting.current?.stop(); counting.current = null;
     finishAll.current?.();
     setRecording(false);
     player.current?.stop(); player.current = null;
@@ -626,6 +699,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     player.current?.stop();
     heard.current = playedAs(song, cycleFor(song));
     player.current = play(song, from >= song.bars * BEATS_PER_BAR ? 0 : from, cycleFor(song), click);
+    following.current = true;
     setPlaying(true);
   }, [song, cycleFor, click]);
   const start = useCallback(() => (view === 'session' ? startSession() : startAt(Math.floor(beat))), [view, startSession, startAt, beat]);
@@ -650,6 +724,11 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const b = p.beat();
       if (!loop && b >= song.bars * BEATS_PER_BAR) { stop(); setBeat(0); return; }
       setBeat(Math.max(0, b));
+      const el = arrangeEl.current;
+      if (el && following.current && beatW.current > 0) {
+        const to = followScroll(el.scrollLeft, el.clientWidth, HEAD_W, Math.max(0, b) * beatW.current);
+        if (to !== null) el.scrollLeft = to;
+      }
       id = requestAnimationFrame(tick);
     };
     id = requestAnimationFrame(tick);
@@ -699,8 +778,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The piano roll opens on the chosen track's highest notes.
   const shownTrack = song ? (song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null) : null;
   useEffect(() => {
-    if (!roll.current || !shownTrack || shownTrack.instrument === 'drums' || shownTrack.notes.length === 0) return;
-    const top = Math.max(...shownTrack.notes.map((n) => n.pitch));
+    if (!roll.current || !shownTrack || shownTrack.instrument === 'drums' || shownTrack.clips.every((c) => c.notes.length === 0)) return;
+    const top = Math.max(...trackNotes(shownTrack).map((n) => n.pitch));
     roll.current.scrollTop = Math.max(0, (MELODY_TOP - top) * ROW_H - 2 * ROW_H);
   }, [shownTrack?.id, songs.page?.path]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -710,7 +789,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const instrument = (e as CustomEvent<Instrument>).detail;
       change((s) => {
         const id = freshTrackId(s);
-        s.tracks.push({ id, name: INSTRUMENT_NAMES[instrument], instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), notes: [] });
+        s.tracks.push({ id, name: INSTRUMENT_NAMES[instrument], instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
         setSelected(id);
       });
     };
@@ -779,7 +858,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const rbw = clip ? Math.max(ROLL_BEAT_W * zoom, (laneW + HEAD_W - keysW) / span) : ROLL_BEAT_W * zoom;
   // The arrangement fits the whole song across the window, then zooms in from there.
   const bw = Math.max(BEAT_MIN, laneW / total) * zoom;
-  const notes = clip ? clip.notes : (track?.notes ?? []);
+  beatW.current = view === 'arrange' ? bw : 0;
+  // Worked out on each render: this is after the early returns above, where no hook may be.
+  const notes = clip ? clip.notes : track ? trackNotes(track) : [];
   const heldPitches = new Set(held.values());
   const lastHeld = [...held.values()].at(-1);
   const heldName = lastHeld === undefined ? null : spellIn(lastHeld, song.key);
@@ -795,8 +876,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const t = s.tracks.find((x) => x.id === track.id);
       if (!t) return;
       const c = clip && clipAt !== null ? t.slots?.[clipAt] : null;
-      const out = fn(c ? c.notes : t.notes);
-      const put = (v: SongNote[]) => { if (c) c.notes = v; else t.notes = v; };
+      const out = fn(c ? c.notes : trackNotes(t));
+      // Arrange's notes go back into the track's clips: each into the clip it starts in, new clips for the rest.
+      const put = (v: SongNote[]) => { if (c) c.notes = v; else t.clips = putNotes(t.clips, v, s.bars); };
       if (Array.isArray(out)) put(out); else { put(out.notes); after.picked = out.picked; }
     }, tag);
     if (after.picked) setPicked(after.picked);
@@ -879,6 +961,32 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     setSlot(id, to, structuredClone(c));
     chooseClip(id, to);
   };
+  /** A track's clips in Arrange: moved, stretched, copied, muted and deleted, each one Undo. */
+  const editClips = (trackId: string, fn: (clips: ArrangeClip[], beats: number) => ArrangeClip[], tag: string) => change((s) => {
+    const t = s.tracks.find((x) => x.id === trackId);
+    if (t) t.clips = fn(t.clips, s.bars * BEATS_PER_BAR);
+  }, tag);
+  const arrangeClip = (trackId: string, id: string, act: 'delete' | 'duplicate' | 'mute') => {
+    if (act === 'delete') editClips(trackId, (cs) => cs.filter((c) => c.id !== id), '');
+    else if (act === 'mute') editClips(trackId, (cs) => cs.map((c) => (c.id !== id ? c : c.muted ? (({ muted: _, ...rest }) => rest)(c) : { ...c, muted: true })), '');
+    else editClips(trackId, (cs, beats) => duplicateArrange(cs, id, beats)?.clips ?? cs, '');
+  };
+  const clipActions = (trackId: string): ClipActions => ({
+    onMove: (id, start) => editClips(trackId, (cs, beats) => moveClip(cs, id, start, beats), ''),
+    onResize: (id, length) => editClips(trackId, (cs, beats) => resizeClip(cs, id, length, beats), ''),
+    onKey: (id, key) => arrangeClip(trackId, id, key),
+    onMenu: (id, x, y) => {
+      const c = song.tracks.find((t) => t.id === trackId)?.clips.find((k) => k.id === id);
+      if (!c) return;
+      setSelected(trackId);
+      setMenu({ x, y, label: c.name ?? 'Clip', items: [
+        { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(trackId, c.start) },
+        { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
+        { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
+        { label: 'Delete', keys: 'Delete', run: () => arrangeClip(trackId, id, 'delete') },
+      ] });
+    },
+  });
   const clipMenu = (id: string, slot: number, x: number, y: number) => {
     const c = song.tracks.find((t) => t.id === id)?.slots?.[slot];
     if (!c) return;
@@ -937,7 +1045,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!t) return [id];
     const was = wasSong?.tracks.find((x) => x.id === id);
     const parts: string[] = [];
-    const clips = clipsOf(t.notes, song.bars);
+    const clips = clipsOf(trackNotes(t), song.bars);
     if (notesDiffer(was, t) && clips.length > 0) {
       const from = clips[0]!.from + 1, to = clips[clips.length - 1]!.to;
       parts.push(`${t.name}, ${from === to ? `bar ${from}` : `bars ${from} to ${to}`}`);
@@ -1110,7 +1218,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <ChangeBar who={<>{`Mobius ${before === null ? 'made' : 'changed'} ${names.join('; ')}. Notes, never audio: each is yours to edit.`}{review && <> <WhyThis conversation={review.conversation} file={file ?? undefined} /></>}</>} onKeep={keep} onDiscard={discard} />
     </div>
   ) : null;
-  const stopOrRewind = () => { if (playing) stop(); else seek(0); };
+  const stopOrRewind = () => { if (playing || counting.current) stop(); else seek(0); };
   // With the computer keyboard on, its keys play the chosen track, ahead of the page's letter keys.
   playKeys.current = (e) => {
     const k = e.key.toLowerCase();
@@ -1143,8 +1251,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     take.current = `record:${Date.now()}`;
     setKeyboard(true);
     setRecording(true);
-    if (!playing) start();
     page.current?.focus();
+    if (playing) return;
+    if (!counts) { start(); return; }
+    // The count-in: a bar of ticks, then the song plays from the playhead and what is played is written.
+    const bar = countIn(song.tempo, BEATS_PER_BAR);
+    counting.current = bar;
+    void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; start(); });
   };
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
   const exportWav = async () => {
@@ -1175,6 +1288,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (!mod && !e.altKey && k === 'l') { setLoop((l) => !l); return true; }
     if (!mod && !e.altKey && k === 'b' && editing && detail === 'notes' && drumView !== 'steps') { setDraw((d) => !d); return true; }
     if (!mod && !e.altKey && k === 'k') { setClick((c) => !c); return true; }
+    // Alt+1 and Alt+2 switch between Session and Arrange from anywhere; Tab does too while the focus is on the page or
+    // the timeline itself, not on a clip or a control (where Tab moves on as usual).
+    if (e.altKey && !mod && !e.shiftKey && (e.key === '1' || e.key === '2')) { setView(e.key === '1' ? 'session' : 'arrange'); return true; }
+    if (e.key === 'Tab' && !e.shiftKey && !mod && !e.altKey && (t === page.current || t.classList.contains('studio-arrange'))) { setView((v) => (v === 'session' ? 'arrange' : 'session')); return true; }
     // Shift+Tab switches the bottom area between the chosen track's notes and its devices, opening it if it's shut.
     if (e.key === 'Tab' && e.shiftKey && !mod && !e.altKey && track) { if (!editing) { setEditing(true); setDetail('device'); } else setDetail((d) => (d === 'notes' ? 'device' : 'notes')); return true; }
     if (track && clip && clipAt !== null && t.closest('.studio-session')) {
@@ -1193,6 +1310,34 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
 
   // The chosen track's clip notes or devices (Shift+Tab switches), as the bottom panel, as Ableton keeps them under
   // the arrangement. It is there while a track is open in it; hiding it closes it, so the next track opens it again.
+  /**
+   * The Library's Enter or double-click: a sound or kit replaces the chosen track's (hot-swap) when the kinds match
+   * (melodic onto melodic, a kit onto drums), else it comes in as a new track; an effect is added to the chosen track.
+   * One Undo step either way.
+   */
+  const applyLibraryItem = (it: LibraryItem) => {
+    if (it.effect) {
+      if (!track) return;
+      change((s) => { const t = s.tracks.find((x) => x.id === track.id); if (t) t.fx = [...(t.fx ?? []), newEffect(it.effect!, freshEffectId(t))]; });
+      return;
+    }
+    const instrument = it.instrument!;
+    const swap = track && (track.instrument === 'drums') === (instrument === 'drums') ? track.id : null;
+    change((s) => {
+      let t = swap ? s.tracks.find((x) => x.id === swap) : undefined;
+      if (!t) {
+        t = { id: freshTrackId(s), name: it.name, instrument, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] };
+        s.tracks.push(t);
+      }
+      t.instrument = instrument;
+      if (it.sound) t.sound = { ...it.sound }; else delete t.sound;
+      if (it.kit) t.kit = { ...it.kit }; else if (instrument === 'drums') delete t.kit;
+      setSelected(t.id);
+    });
+  };
+  const libraryPanel: PanelSpec = { id: 'library', name: 'Library', dock: 'left', shown: true, group: 'browse', keys: 'mod+alt+b', render: () => (
+    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} />
+  ) };
   const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', shown: true, size: 340, onHide: () => setEditing(false), render: () => (
     <div ref={setEditorEl} className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
       <div className="studio-roll-bar" role="toolbar" aria-label={detail === 'notes' ? 'Notes' : 'Devices'}>
@@ -1211,7 +1356,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         {drumView === 'steps' && !drums && <Select inline hideLabel label="Range" value={String(octave)} choices={OCTAVE_CHOICES} onChange={(o) => setStepOct((all) => ({ ...all, [track.id]: Number(o) }))} />}
         {!drums && <Select inline label="Note length" value={String(drawLength)} choices={GRID_CHOICES} onChange={(g) => setDrawLength(Number(g))} />}
         {!(drumView === 'steps') && <IconButton label="Draw" keys="B" pressed={draw} title={draw ? 'Draw mode: drag to write notes a grid step long, or drag over notes to take them out' : 'Draw mode'} icon={<Icon d={ICONS.draw} />} onClick={() => setDraw((d) => !d)} />}
-        {!(drumView === 'steps') && <Button kind="quiet" title="Line notes up to the grid" keys="Q" icon={<Icon d={ICONS.quantize} />} onClick={() => setNotes((n) => quantizeNotes(n, picked, grid, span))}>Quantize</Button>}
+        {!(drumView === 'steps') && <Menu label="Transform" trigger={<Button kind="quiet" title={picked.size ? 'Change the picked notes' : 'Change all the notes'} icon={<Icon d={ICONS.transform} />}>Transform</Button>} entries={transformEntries(drums, (fn) => setNotes((n) => fn(n, picked)), grid, span, song.key)} />}
         <span className="studio-gap" />
         {velocity !== null && !(drumView === 'steps') ? (
           <span className="studio-picked-group">
@@ -1328,7 +1473,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     <section className="studio-page" aria-label="Music" ref={page} tabIndex={-1} data-editing={editing || undefined}>
       {keyboard && <span className="studio-sr" role="status">{`Computer keyboard from C${keyOctave}, velocity ${keyVelocity}`}</span>}
       <ToolbarControls label="Transport">
-        {/* The transport and the tempo never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
+        {/* Left to right as in a studio: the view, the transport, then tempo. The view, the transport and the tempo
+            never drop into the ⋯ menu when the toolbar is short of room; the rest may. */}
+        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
+        <span className="studio-sep" aria-hidden="true" />
         <ToolbarItem priority="keep">
           <Transport playing={playing} onPlay={() => (playing ? stop() : start())} onStop={stopOrRewind}
             recording={recording} onRecord={view === 'arrange' && track ? record : undefined}
@@ -1343,6 +1491,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
             <span aria-hidden="true">bpm</span>
           </label>
         </ToolbarItem>
+        <ToolbarItem priority="keep">
+          <TapTempo onTempo={(bpm) => change((s) => { s.tempo = Math.round(bpm); }, 'tempo')} min={30} max={300} />
+        </ToolbarItem>
         {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Show automation: a volume line under each track'} icon={<Icon d={ICONS.auto} />} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
@@ -1352,14 +1503,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         <ToolbarItem priority="low">
           <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         </ToolbarItem>
-        <span className="studio-sep" aria-hidden="true" />
-        <ViewSwitch label="View" views={VIEWS} value={view} onChange={setView} />
       </ToolbarControls>
-      <PanelLayout app="studio" panels={detailPanel ? [...listPanels, detailPanel] : listPanels}>
+      <PanelLayout app="studio" panels={[libraryPanel, ...listPanels.map((p) => ({ ...p, group: 'browse' })), ...(detailPanel ? [detailPanel] : [])]}>
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}
-          onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
+          onWheel={(e) => { if (!(e.ctrlKey || e.metaKey)) { following.current = false; return; } e.preventDefault(); setZoom((z) => ZOOMS[Math.max(0, Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + (e.deltaY < 0 ? 1 : -1)))] ?? z); }}>
           {view === 'session' ? (
             <SessionGrid song={song} selected={track?.id ?? null} chosen={clipAt} playing={sessionNow.playing} queued={sessionNow.queued} beat={beat}
               onSelect={(id) => { setSelected(id); setClipAt(null); }} onChoose={chooseClip} onCreate={createClip} onLaunch={launch} onLaunchScene={launchScene}
@@ -1385,6 +1534,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               { label: 'Loop Whole Song', disabled: loop && !range, run: () => { setRange(null); setLoop(true); } },
               { label: loop ? 'Turn Loop Off' : 'Turn Loop On', keys: 'L', run: () => setLoop((l) => !l) },
               { label: click ? 'Turn Metronome Off' : 'Turn Metronome On', keys: 'K', run: () => setClick((c) => !c) },
+              { label: counts ? 'Turn Count-In Off' : 'Turn Count-In On', run: () => setCounts((c) => { try { window.localStorage.setItem(COUNT_IN_KEY, c ? '0' : '1'); } catch { /* not kept */ } return !c; }) },
               { label: 'Add 4 Bars', separated: true, disabled: song.bars >= 512, run: () => change((s) => { s.bars = Math.min(512, s.bars + 4); }) },
               { label: 'Remove Last 4 Bars', disabled: song.bars <= 4, run: () => change((s) => { s.bars = Math.max(4, s.bars - 4); }) },
               { label: 'Zoom In', separated: true, disabled: zoom >= ZOOMS[ZOOMS.length - 1]!, run: () => setZoom((z) => ZOOMS[Math.min(ZOOMS.length - 1, ZOOMS.indexOf(z) + 1)] ?? z) },
@@ -1411,7 +1561,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}>
-                  <Clips track={t} bars={song.bars} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} />
+                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from) => openNotes(t.id, from)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && <>
                   <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>

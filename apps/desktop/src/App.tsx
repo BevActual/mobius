@@ -94,7 +94,7 @@ import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
 import { parseLayout } from './ui/PanelLayout';
-import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
+import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
 import { SERVICE_NAMES, catchUpAsk, channelLabel, chatItem } from './messages-view';
@@ -203,6 +203,32 @@ function useWideWindow(min: number): boolean {
     return () => window.removeEventListener('resize', on);
   }, [min]);
   return wide;
+}
+
+/** A ⋯-menu or toolbar row as a menu bar item. */
+const entryItems = (entries: MenuEntry[], prefix: string): MenuItem[] => entries.flatMap((e, i): MenuItem[] => [
+  ...(e.separated && i > 0 ? [{ kind: 'separator' as const }] : []),
+  { kind: 'item', id: `${prefix}-${i}`, label: e.label, run: e.run, ...(e.keys ? { keys: e.keys } : {}), ...(e.disabled ? { disabled: true } : {}), ...(e.checked !== undefined ? { checked: e.checked } : {}) },
+]);
+
+/** The shell's menus with the open app's own commands in its menu (`AppMenu`). */
+function withAppMenu(base: Menu[], own: AppMenuState | null): Menu[] {
+  if (!own) return base;
+  const extra = entryItems(own.entries, 'own');
+  const window = Math.max(0, base.findIndex((m) => m.id === 'window'));
+  return base.some((m) => m.id === 'app')
+    ? base.map((m) => (m.id === 'app' ? { ...m, items: [...extra, { kind: 'separator' as const }, ...m.items] } : m))
+    : [...base.slice(0, window), { id: 'app', label: own.label, items: extra }, ...base.slice(window)];
+}
+
+/**
+ * The title row's menus (docs/design/panel-layouts.md): every menu as a title, the app's own commands in its menu, and
+ * View ending with the panels, each with a tick when shown and its key, then Reset layout (there is no Panels button).
+ */
+function TitleMenus({ menus, own, panels, shell, onOpenChange }: { menus: Menu[]; own: AppMenuState | null; panels: PanelsOfApp | null; shell: ShellPanel[]; onOpenChange: (open: boolean) => void }) {
+  const rows = usePanelEntries({ app: panels, shell });
+  const all = withAppMenu(menus, own).map((m) => (m.id === 'view' ? { ...m, items: [...m.items, { kind: 'separator' as const }, ...entryItems(rows, 'panel')] } : m));
+  return <MenuBar menus={all} compact={false} onOpenChange={onOpenChange} />;
 }
 
 export function App() {
@@ -1892,17 +1918,11 @@ export function App() {
   // The one ⋯: the shell's menus, with the open app's own commands (AppMenu) in its menu, which the ⋯ opens on. On
   // macOS the shell's menus are in the system menu bar, so the ⋯ holds only the app's own.
   const menuBar = (own: AppMenuState | null) => {
-    const extra: MenuItem[] = own ? own.entries.flatMap((e, i): MenuItem[] => [
-      ...(e.separated && i > 0 ? [{ kind: 'separator' as const }] : []),
-      { kind: 'item', id: `own-${i}`, label: e.label, run: e.run, ...(e.keys ? { keys: e.keys } : {}), ...(e.disabled ? { disabled: true } : {}), ...(e.checked !== undefined ? { checked: e.checked } : {}) },
-    ]) : [];
-    const base = nativeMenus ? [] : menus;
-    const has = base.some((m) => m.id === 'app');
-    const withOwn: Menu[] = !own ? base
-      : has ? base.map((m) => (m.id === 'app' ? { ...m, items: [...extra, { kind: 'separator' as const }, ...m.items] } : m))
-      : [...base.slice(0, Math.max(0, base.findIndex((m) => m.id === 'window'))), { id: 'app', label: own.label, items: extra }, ...base.slice(Math.max(0, base.findIndex((m) => m.id === 'window')))];
+    const withOwn = withAppMenu(nativeMenus ? [] : menus, own);
     return withOwn.length ? <MenuBar menus={withOwn} compact onOpenChange={setMenuOpen} /> : null;
   };
+  // Mobius, the one panel the shell owns: in the View menu (or the Panels button on macOS).
+  const shellPanels: ShellPanel[] = hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : [];
   // Try another, from any review bar: Mobius is told its change was put back and asked to do it differently.
   const tryAnother = settings?.configured && !conversation.state.busy
     ? () => { if (!shows('agent')) setChatOpen(true); void conversation.send(TRY_ANOTHER_ASK, []); }
@@ -1913,7 +1933,7 @@ export function App() {
     <AppFrame
       openRight={openRight}
       mobiusAsked={`${focusToken}:${incoming?.token ?? 0}:${lastWaiting.current}`}
-      data={{ 'data-keys-ready': keysReady || undefined, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-chat': rightOpen ? 'open' : 'closed' }}
+      data={{ 'data-keys-ready': keysReady || undefined, 'data-platform': window.mobius.platform, 'data-app': app, 'data-density': COMPACT_APPS.has(app) && !settingsOpen ? 'compact' : undefined, 'data-settings': settingsOpen || undefined, 'data-chat': rightOpen ? 'open' : 'closed' }}
       toolbar={{
         // Settings: over the Browser, Settings shows its page title, not the hidden address bar.
         wideMiddle: inBrowser && !settingsOpen,
@@ -1922,11 +1942,10 @@ export function App() {
           {/* The Go button (docs/design/panel-layouts.md): where you are, and the way to anywhere else (the launcher). */}
           <GoButton app={settingsOpen ? 'settings' : app} {...(!settingsOpen && app === 'agent' ? { name: inAgents ? 'Agents' : 'Home' } : {})} waiting={waitingTotal} {...(keysReady && bindings.launcher ? { keys: describeCombo(bindings.launcher, window.mobius.platform) } : {})} open={launcherOpen} onOpen={openLauncher} />
         </>,
-        // The open document's name, or the app's when nothing is open, so the title bar is never blank; except Home's
-        // start page, where the Go button already says Home.
-        // Messages and Research with nothing open are blank too: the Go button names the app, and the title would only repeat it.
+        // The open document's name, or the app's when nothing is open, so the title bar is never blank: the Go button shows
+        // only the app's icon (Andrew, 21 November 2026), so the title names Home, Messages and Research too.
         // Files inside a nested folder: the path as a breadcrumb, each part opening its folder.
-        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (!settingsOpen && !inAgent && !inMessages && !inResearch && appName(app)) || undefined,
+        title: inFiles && !settingsOpen ? <FilesCrumbs files={files} /> : place || (settingsOpen ? undefined : app === 'agent' ? (inAgents ? 'Agents' : 'Home') : appName(app)),
         sub: inAgents ? (shownAgent ? agentWhen(shownAgent, agentSchedulesList) : undefined)
           : inActivity ? activitySub(activityFeed, conversation.list) // Activity: what happened today, what waits
           // Home: when the open conversation was last active; the model lives in the composer.
@@ -1953,12 +1972,12 @@ export function App() {
         status: <><span className="core-status" role="status" data-state={coreStatus}>{CORE_LABEL[coreStatus]}</span><div className="strip-texts"><UpdateNotice /></div></>,
         // The Panels menu: the sidebar, the open app's own panels, Mobius, and Reset layout.
         // Settings too: its Sections panel and Mobius, as in every app.
+        // The title row's menus, everywhere but macOS, whose menus are in the system menu bar.
+        ...(nativeMenus ? {} : { menus: (own: AppMenuState | null, panels: PanelsOfApp | null) => <TitleMenus menus={menus} own={own} panels={panels} shell={shellPanels} onOpenChange={setMenuOpen} /> }),
         panels: (own) => (
           <PanelsMenu
             app={own}
-            shell={[
-              ...(hasRight ? [{ name: 'Mobius', shown: chatOpen, toggle: () => setChatOpen((open) => !open) }] : []),
-            ]}
+            shell={shellPanels}
             describeKeys={(keys) => describeCombo(keys, window.mobius.platform)}
             onReset={() => {}}
           />
@@ -1969,7 +1988,7 @@ export function App() {
           {shownAgent && agentView?.kind !== 'new' && !(agentView?.kind === 'show' && agentView.editing) && (shownAgent.id === MAIN_BOT_ID
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
             : <button type="button" className="btn primary agent-run" onClick={() => { setAgentRun({ bot: shownAgent.id, text: shownAgent.instructions.trim() || shownAgent.name }); conversation.startFresh(shownAgent.id); setAgentView(null); setSideMode('sessions'); }}>Run now</button>)}
-          {menuBar(appMenu)}
+          {nativeMenus ? menuBar(appMenu) : appMenu && <MenuBar menus={[{ id: 'more', label: 'More', items: entryItems(appMenu.entries, 'more') }]} compact label="More" onOpenChange={setMenuOpen} />}
           {hasRight && <MobiusButton open={rightOpen} toggle={toggleMobius} />}
         </>,
       }}

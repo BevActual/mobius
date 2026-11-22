@@ -5,13 +5,15 @@ A song is `studio/<folder>/<song>.json`. Change only what was asked, keep every 
 ## Making the change quickly
 Change the song with `files.edit`, not by writing the whole file: it is much faster, and the person is listening. Make every edit of one ask in the same step.
 - A sound: old is the track's whole `"sound":{...}` (or one effect's `{...}`) exactly as it is; new is the same with your values.
-- A new track: old is the last note of the last track and everything after it to the end of the file; new is the same with `,` and the new track after the last track's `]}`.
+- A new track: old is the last note of the last track and everything after it to the end of the file; new is the same with `,` and the new track after the last track's own closing `]}` (the line `    ]}` just before `  ]`).
 - Write the whole file with `files.write` only for a new song, or when most of it changes.
 
 ## A track
-`{"id","name","instrument":"piano|bass|pad|lead|drums","color","volume" 0-1,"pan" -1 (left) to 1,"notes":[...],"sound"?,"kit"?,"pads"?,"fx"?,"volumeAuto"?}`
+`{"id","name","instrument":"piano|bass|pad|lead|drums","color","volume" 0-1,"pan" -1 (left) to 1,"clips":[...],"sound"?,"kit"?,"pads"?,"fx"?,"volumeAuto"?}`
 - colours: blue, amber, green, violet, teal, pink, yellow, coral, stone.
-- a note: `{"pitch" MIDI,"start" beat from 0,"length" beats,"velocity" 0-1}`. Drums use pitches 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 45 tom.
+- a clip (the song is `"version": 2`): `{"id","start" beat from 0,"length" beats,"name"?,"muted"?,"notes":[...]}`, in time order, never overlapping. Its notes' `start` is from the clip's own start.
+- For a new part, you may give the track `"notes":[...]` in song time instead of `clips`: Music puts them into clips, a bar at a time.
+- a note: `{"pitch" MIDI,"start" beat,"length" beats,"velocity" 0-1}`. Drums use pitches 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 45 tom.
 - `volumeAuto`: `[{"beat","value" 0-1}]`, sorted by beat; the volume follows the line.
 
 ## sound (every instrument but drums)

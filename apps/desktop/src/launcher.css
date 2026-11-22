@@ -37,14 +37,14 @@
 
 /* The Go button, leading the top bar: the open app's icon and name, a dot while anything waits, and a chevron. */
 .go-button {
-  position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); height: var(--button-h); max-width: calc(var(--sp-8) * 7);
-  padding: 0 var(--sp-2) 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink);
+  position: relative; display: inline-flex; align-items: center; gap: var(--sp-1); height: var(--button-h);
+  padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: var(--ink);
   font: inherit; font-size: var(--fs-lg); font-weight: var(--fw-semibold); cursor: default;
 }
 .go-button:hover, .go-button[aria-expanded="true"] { background: var(--sel); }
 .go-button:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
 .go-button .launcher-icon svg { width: var(--sp-6); height: var(--sp-6); padding: var(--sp-1); }
-.go-button-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .go-button .launcher-dot { position: static; flex: none; }
 .go-button svg.go-button-chevron { width: var(--sp-4); height: var(--sp-4); color: var(--muted); fill: none; stroke: currentColor; }
 

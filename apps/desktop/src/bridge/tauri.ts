@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import type { ClipboardEntry, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo } from '@mobius/shared';
+import type { ClipboardEntry, LauncherAnswer, MailFollowUp, SystemApp, SystemCommand, SystemFile, UpdateInfo, WindowState } from '@mobius/shared';
 import { parseLauncherAnswer } from '@mobius/shared';
 import {
   DEFAULT_APPEARANCE,
@@ -21,6 +21,7 @@ import {
   type MobiusBridge,
   type ModelsEvent,
   type NotesChange,
+  type MusicPosition,
   type DbChange,
   type TasksChanged,
   type ChatChanged,
@@ -123,6 +124,7 @@ function toBase64(audio: ArrayBuffer): string {
   for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(text);
 }
+const NO_WINDOW: WindowState = { maximized: false, fullScreen: false, focused: true, platform: 'linux' };
 const EMPTY_BROWSER: BrowserState = { tabs: [], activeId: null };
 const MAIN = { id: MAIN_BOT_ID, name: MAIN_BOT_NAME, instructions: '', model: '', createdMs: 0 };
 
@@ -130,10 +132,15 @@ export function createTauriBridge(): MobiusBridge {
   return {
     platform: navigator.userAgent.includes('Windows') ? 'win32' : navigator.userAgent.includes('Mac') ? 'darwin' : 'linux',
     window: {
-      onState: never,
+      onState: (listener) => on<WindowState>('mobius:window-state', listener, () => call('window', 'getState', [], () => NO_WINDOW)),
       onShortcut: (listener) => on<Shortcut>('mobius:shortcut', listener),
       quickEntryActive: () => call('window', 'quickEntryActive', [], () => false),
       launcherKeyActive: () => call('window', 'launcherKeyActive', [], () => false),
+      minimize: () => call('window', 'minimize', [], () => undefined),
+      toggleMaximize: () => call('window', 'toggleMaximize', [], () => undefined),
+      close: () => call('window', 'close', [], () => undefined),
+      getState: () => call('window', 'getState', [], () => NO_WINDOW),
+      setTitle: (title) => call('window', 'setTitle', [title], () => undefined),
     },
     surface: { setBounds: (bounds) => fire('surface', 'setBounds', [bounds]) },
     changes: {
@@ -739,6 +746,20 @@ export function createTauriBridge(): MobiusBridge {
       saveExport: (path, name, data) => call('songs', 'saveExport', [path, name, data], () => ({ ok: false as const, message: 'Music is not available.' })),
       showExports: () => call('songs', 'showExports', [], () => ({ ok: false as const, message: 'Music is not available.' })),
       onChanged: (listener) => on<NotesChange>('mobius:songs-changed', listener),
+    },
+    music: {
+      engine: () => call('music', 'engine', [], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      load: (song) => call('music', 'load', [song], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      play: (fromBeat, loop, click) => call('music', 'play', [fromBeat ?? null, loop ?? null, click ?? false], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      playSession: (click, launches) => call('music', 'playSession', [click ?? false, launches ?? {}], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      launch: (trackId, slot) => call('music', 'launch', [trackId, slot], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      preview: (trackId, pitch, velocity, seconds) => call('music', 'preview', [trackId, pitch, velocity ?? 0.8, seconds ?? 0.35], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      countIn: (beats, tempo) => call('music', 'countIn', [beats, tempo ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      watch: (trackId, fxId) => call('music', 'watch', [trackId, fxId], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      stop: () => call('music', 'stop', [], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      seek: (beat) => call('music', 'seek', [beat], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      render: (path, name, song) => call('music', 'render', [path, name, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      onPosition: (listener) => on<MusicPosition>('mobius:music-position', listener),
     },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),

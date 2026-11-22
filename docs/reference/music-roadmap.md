@@ -12,6 +12,8 @@ What makes it Mobius's own:
 - **Every control comes from the shared component library** (`apps/desktop/src/ui/`). When Music needs a control the
   library lacks, the library gets it first, so every app benefits. Music is where the library is proven.
 
+The plan for reaching a full studio, measured against Ableton Live, is [Music: the road to a full studio](music-parity.md).
+
 Status: **Have** (on main), **Building** (in a pull request), **Next**, **Later**, and **Not for Mobius**, with a
 reason.
 
@@ -29,12 +31,13 @@ not designs to copy.
 | Record what you play | Record writes what you play into the chosen track at the playhead, as notes, with count-in and the metronome. | Building (notes from the computer keyboard into the chosen track; count-in next) |
 | Draw mode | B turns on drawing: drag along a row to write a note in each grid step, or start on a note to take notes out. Each stroke is one Undo. | Building |
 | Devices fold and switch off | Each device folds to its title bar with the arrow in its head, and has its own on switch. | Have |
-| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; 0 and clips next) |
-| Drag sounds in | Drag a sound from the sidebar onto empty space for a new track, or onto a track to swap its instrument and keep the notes. Clicking a sound plays a short preview. | Next |
+| Edit keys everyone knows | Ctrl+D duplicates, Ctrl+E splits at the playhead, Ctrl+J joins clips, Ctrl+L loops the selection, and 0 switches a note or clip off without deleting it. Delete removes, and every step undoes. | Building (notes: Ctrl+D, Ctrl+E, Ctrl+J, Ctrl+L, Delete and undo; Arrange clips: drag to move, drag the edge to stretch, Ctrl+D, 0 and Delete) |
+| Library | A Library tab in the left dock, after Live's Browser: categories and collections, search with `#tag`, tag filters, preview, and Enter to put a sound on the chosen track (or a new one) or add an effect. | Have |
+| Drag sounds in | Drag from the Library onto empty space for a new track, or onto a track to swap its instrument and keep the notes. | Next |
 | Track header controls | Every track header has a number, a name, on, solo, and (with recording) arm. Track rows fold and resize. | Partly (number, name, mute, solo Have) |
 | Follow | The view keeps the playhead in sight while playing, and scrolling by hand stops following until Play is pressed again. | Next |
 | Info on hover | A line at the foot names what the pointer is over and its key, so the app teaches itself. It's the key-hint bar every app shares. | Next (shell) |
-| Tap tempo and nudge | Tap the tempo field in time to set it, and drag or arrow it like any number. | Next (library NumberField Have) |
+| Tap tempo | A Tap button beside the tempo: tap in time to set it. The view switch leads the toolbar, with Alt+1 for Session, Alt+2 for Arrange, and Tab on the page to swap them. | Have |
 | Everything is a value Mobius can set | Every knob, switch and note is in the song file, so asking Mobius for "a darker pad" or "double-time hats" changes the same settings you would, dashed until you keep it. | Have, kept with each change |
 
 ## Instruments
@@ -106,8 +109,9 @@ notes for good, so the file always shows what you hear.
 
 | Feature | What it does | Status |
 | --- | --- | --- |
-| Tracks and clips | Tracks of notes, clips drawn from where notes sit, zoom. | Have |
+| Tracks and clips | Tracks of clips, each with its own notes, kept in the song file (version 2); zoom. Clips move and stretch by dragging (a bar at a time, a beat with Alt), and mute, copy and delete from the keys or their menu; looping next. | Have |
 | Notes editor | Draw, move, stretch, box-select, copy, duplicate, paste. | Have |
+| Transform | A menu in the notes editor: Quantize, arpeggiate (up, down, both), strum, fit to key, chop, connect, reverse and humanize, on the picked notes or all of them. Settings for each (rate, spread, amount) next. | Have |
 | Loop and metronome | Loop some bars or the song; a click in time. | Have |
 | Keys and scales | The song's key, with notes outside it shown. | Have |
 | Undo everything | Every edit can be taken back. | Have |

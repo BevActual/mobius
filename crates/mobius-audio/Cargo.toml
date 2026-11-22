@@ -1,0 +1,24 @@
+[package]
+name = "mobius-audio"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Music's sound engine: plays and renders a song.json, sample-accurately, away from the window."
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+# The queue between the window's side and the audio thread: wait-free, nothing allocated on either end.
+rtrb = "0.3"
+realfft = "3.5"
+
+# Sound out through WASAPI. Windows first (Mobius's platform); elsewhere the engine reports no output and Music keeps
+# its Web Audio version.
+[target.'cfg(windows)'.dependencies]
+cpal = "0.16"
+
+[lints]
+workspace = true

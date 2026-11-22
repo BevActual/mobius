@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { duplicateClip, moveClip, resizeClip, followScroll, soundChanges, notesDiffer, encodeWav, toBase64, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -257,7 +257,7 @@ describe('encodeWav', () => {
 });
 
 describe('soundChanges', () => {
-  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] };
+  const pad = { id: 't3', name: 'Pad', instrument: 'pad' as const, volume: 0.5, pan: 0, muted: false, solo: false, color: 'teal' as const, clips: [{ id: 'c1', start: 0, length: 4, notes: [{ pitch: 60, start: 0, length: 4, velocity: 0.6 }] }] };
   it('names each setting Mobius moved, with where it was and where it is', () => {
     const warmer = { ...pad, sound: { shape: 1, detune: 14, sub: 0, drive: 0.2, cutoff: 900, resonance: 0.1, envAmount: 0, attack: 0.25, decay: 0.3, sustain: 1, release: 0.5, vibrato: 0, rate: 5 } };
     const got = soundChanges(pad, warmer);
@@ -271,8 +271,44 @@ describe('soundChanges', () => {
   });
   it('has nothing to compare for a new track, and leaves notes to notesDiffer', () => {
     expect(soundChanges(undefined, pad)).toEqual([]);
-    expect(soundChanges(pad, { ...pad, notes: [] })).toEqual([]);
-    expect(notesDiffer(pad, { ...pad, notes: [] })).toBe(true);
+    expect(soundChanges(pad, { ...pad, clips: [] })).toEqual([]);
+    expect(notesDiffer(pad, { ...pad, clips: [] })).toBe(true);
     expect(notesDiffer(pad, { ...pad, volume: 1 })).toBe(false);
+  });
+});
+
+describe('followScroll', () => {
+  it('leaves the view alone while the playhead is in sight', () => {
+    expect(followScroll(0, 1000, 200, 300)).toBeNull();
+  });
+  it('turns a page when the playhead reaches the right edge, and comes back when it loops to the start', () => {
+    expect(followScroll(0, 1000, 200, 790)).toBe(774);
+    expect(followScroll(774, 1000, 200, 20)).toBe(4);
+  });
+  it('does nothing when there is no room for the lanes', () => {
+    expect(followScroll(0, 150, 200, 500)).toBeNull();
+  });
+});
+
+describe('clips in Arrange', () => {
+  const clip = (id: string, start: number, length: number, starts: number[] = [0]) => ({ id, start, length, notes: starts.map((s) => ({ pitch: 60, start: s, length: 1, velocity: 0.8 })) });
+  const lane = [clip('a', 0, 4), clip('b', 8, 4, [0, 3])];
+  it('move between their neighbours, never past them or out of the song', () => {
+    expect(moveClip(lane, 'a', 2, 32).map((c) => c.start)).toEqual([2, 8]);
+    expect(moveClip(lane, 'a', 7, 32).map((c) => c.start)).toEqual([4, 8]);
+    expect(moveClip(lane, 'b', 30, 32).map((c) => c.start)).toEqual([0, 28]);
+    expect(moveClip(lane, 'b', -5, 32).map((c) => c.start)).toEqual([0, 4]);
+  });
+  it('stretch up to the next clip, and lose the notes past a shortened end', () => {
+    expect(resizeClip(lane, 'a', 12, 32)[0]!.length).toBe(8);
+    const short = resizeClip(lane, 'b', 2, 32)[1]!;
+    expect(short.length).toBe(2);
+    expect(short.notes.map((n) => n.start)).toEqual([0]);
+    expect(resizeClip(lane, 'b', 0, 32)[1]!.length).toBe(1);
+  });
+  it('duplicate straight after themselves when there is room', () => {
+    const out = duplicateClip(lane, 'b', 32)!;
+    expect(out.clips.map((c) => [c.id, c.start])).toEqual([['a', 0], ['b', 8], ['c3', 12]]);
+    expect(duplicateClip([clip('a', 0, 4), clip('b', 6, 2)], 'a', 32)).toBeNull();
   });
 });

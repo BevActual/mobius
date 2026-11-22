@@ -42,7 +42,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await shell.getByRole('button', { name: /Show details:/ }).click();
       await shell.waitForTimeout(400);
       await shot('1-browser');
-      await shell.locator('.context-strip .go-button').click();
+      await shell.locator('.strip-left .go-button').click();
       await shell.waitForTimeout(300);
       await shot('2-launcher');
       await shell.getByRole('dialog', { name: 'Launcher' }).getByRole('group', { name: 'Places' }).getByRole('option', { name: 'Home', exact: true }).click();

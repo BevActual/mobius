@@ -29,7 +29,6 @@
 /* Adjust, Filters and Crop follow the album and count, as Notes' tools follow its title; Revert and Export stay at the end. */
 .ui-toolbar-slot:has(.photo-tabs) { flex: 1 1 auto; min-width: 0; justify-content: flex-start; }
 /* Back to the album comes right after the title, as Back does in Mail, not in the middle of the bar. */
-.context-strip:has(.photo-tabs) .toolbar-place { flex: 0 1 auto; }
 .ui-toolbar-group:has(> .photo-tb-spacer) { flex: 1; }
 .photo-tb-spacer { flex: 1; min-width: 0; }
 .context-strip .photo-tabs { margin-left: var(--sp-2); display: inline-flex; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-control); overflow: hidden; }

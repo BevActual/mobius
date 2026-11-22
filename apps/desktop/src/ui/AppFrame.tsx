@@ -4,6 +4,7 @@ import { PanelTabsProvider } from './PanelTabs';
 import { AppMenuProvider, useAppMenuHost, type AppMenuState } from './AppMenu';
 import { createPortal } from 'react-dom';
 import type { MenuEntry } from './Menu';
+import { WindowButtons, useWindowTitle } from './WindowButtons';
 import { fitToolbar, menuRowsOf, type ToolbarPriority } from './toolbarFit';
 
 /**
@@ -31,8 +32,14 @@ export interface ToolbarParts {
   trail?: ReactNode | ((appMenu: AppMenuState | null) => ReactNode);
   /** Changes how the title row lays out (the browser's address takes the room). */
   wideMiddle?: boolean;
-  /** The Panels menu, at the end of the middle: given the open app's own panels (none when it has none). */
+  /** The Panels menu, at the end of the middle: given the open app's own panels (none when it has none). Only where
+   *  there is no title row (`menus`): there the View menu lists the panels. */
   panels?: (app: PanelsOfApp | null) => ReactNode;
+  /** The menus (File, Edit, the app's own, View …). Given, the frame has a title row above the tools, as a desktop
+   *  app's window has: the Go icon, these menus, then what is open in the middle. They are given the open app's own
+   *  commands (`AppMenu`) and its panels, which the View menu lists; the ⋯ at the end of the tools then holds only
+   *  the tools that did not fit. An app with no tools has the one row: its trailing end moves up into the title row. */
+  menus?: (appMenu: AppMenuState | null, panels: PanelsOfApp | null) => ReactNode;
 }
 
 interface FrameProps {
@@ -56,30 +63,61 @@ export function AppFrame({ toolbar, children, style, data, openRight, mobiusAske
   const [panels, setPanels] = useState<PanelsOfApp | null>(null);
   const [appMenu, setAppMenu] = useAppMenuHost();
   const dropped = useToolbarFit(slot);
-  // Controls that did not fit come first in the one ⋯, above the app's own commands, with a line after them.
+  const titled = toolbar.menus !== undefined;
+  const noTools = useEmpty(slot) || toolbar.appControls === false;
+  // Controls that did not fit come first in the one ⋯, above the app's own commands, with a line after them. With a
+  // title row the app's commands are in its menu there, so the ⋯ holds only what did not fit.
   const menu = useMemo<AppMenuState | null>(() => {
+    if (titled) return dropped.length ? { label: 'More', entries: dropped } : null;
     if (dropped.length === 0) return appMenu;
     const own = appMenu?.entries ?? [];
     return { label: appMenu?.label ?? 'View', entries: [...dropped, ...own.map((e, i) => (i === 0 ? { ...e, separated: true } : e))] };
-  }, [appMenu, dropped]);
+  }, [appMenu, dropped, titled]);
+  useWindowTitle(typeof toolbar.title === 'string' ? toolbar.title : undefined);
+  const trail = typeof toolbar.trail === 'function' ? toolbar.trail(menu) : toolbar.trail;
   return (
     <AppMenuProvider value={setAppMenu}>
     <PanelRegistryContext.Provider value={setPanels}>
     <ToolbarSlot.Provider value={slot}>
     <PanelTabsProvider open={openRight} mobiusAsked={mobiusAsked}>
       <div className="app" style={style} {...data}>
-        <header className="context-strip">
+        {titled ? <>
+          {/* The title row: the Go icon and the menus at the start, what is open in the middle; the window's own buttons
+              are the system's, above. An app with no tools has its trailing end here too, and no second row. */}
+          <div className="title-row" data-tauri-drag-region>
+            <div className="title-start" data-tauri-drag-region>
+              <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
+              {toolbar.menus!(appMenu, panels)}
+            </div>
+            <div className="toolbar-place" data-tauri-drag-region>
+              {toolbar.title && <h1 className="strip-title" data-tauri-drag-region title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}
+              {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
+            </div>
+            <div className="title-end" data-tauri-drag-region>
+              {toolbar.status}
+              {noTools && <div className="strip-right" role="group" aria-label="Applications">{trail}</div>}
+              <WindowButtons />
+            </div>
+          </div>
+          <header className="context-strip" data-titled hidden={noTools}>
+            {toolbar.middle}
+            <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
+            {!noTools && <div className="strip-right" role="group" aria-label="Applications">{trail}</div>}
+          </header>
+        </> : (
+        <header className="context-strip" data-tauri-drag-region>
           <div className="strip-left" role="group" aria-label="Window">{toolbar.lead}</div>
           <div className="toolbar-place" data-browser={toolbar.wideMiddle || undefined}>
-            {toolbar.title && <h1 className="strip-title">{toolbar.title}</h1>}
+            {toolbar.title && <h1 className="strip-title" title={typeof toolbar.title === 'string' ? toolbar.title : undefined}>{toolbar.title}</h1>}
             {toolbar.sub && <span className="toolbar-sub">{toolbar.sub}</span>}
           </div>
           {toolbar.middle}
           <div ref={setSlot} className="ui-toolbar-slot" hidden={toolbar.appControls === false} />
           {toolbar.panels?.(panels)}
           {toolbar.status}
-          <div className="strip-right" role="group" aria-label="Applications">{typeof toolbar.trail === 'function' ? toolbar.trail(menu) : toolbar.trail}</div>
+          <div className="strip-right" role="group" aria-label="Applications">{trail}</div>
         </header>
+        )}
         {children}
       </div>
     </PanelTabsProvider>
@@ -97,6 +135,20 @@ export function ToolbarControls({ label, children }: { label: string; children: 
   const slot = useContext(ToolbarSlot);
   if (!slot) return null;
   return createPortal(<div className="ui-toolbar-group" role="group" aria-label={label}>{children}</div>, slot);
+}
+
+/** Whether an element has no children, kept up to date as they come and go (an app's tools, portalled in). */
+function useEmpty(el: HTMLElement | null): boolean {
+  const [empty, setEmpty] = useState(true);
+  useEffect(() => {
+    if (!el) return undefined;
+    const check = () => setEmpty(el.childElementCount === 0);
+    check();
+    const watch = new MutationObserver(check);
+    watch.observe(el, { childList: true });
+    return () => watch.disconnect();
+  }, [el]);
+  return empty;
 }
 
 /** Menu rows a ToolbarItem gives for itself when it drops into the ⋯ menu, by its element. */
