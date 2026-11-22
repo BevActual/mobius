@@ -22,6 +22,10 @@ pub struct Music {
     engine: Mutex<Option<Arc<Engine>>>,
     /// Audio clips' sounds, read from the song's folder and kept while their files stay the same.
     samples: mobius_audio::sample::Samples,
+    /// The loaded song's folder, where recordings are saved (none until the window says which song it is).
+    folder: Mutex<Option<std::path::PathBuf>>,
+    /// The track a take is being recorded on.
+    recording: Mutex<Option<String>>,
     song: Mutex<Option<Song>>,
     /// Where `play` starts when the window gives no beat: the last place it moved the playhead to.
     start: Mutex<f64>,
@@ -53,7 +57,7 @@ pub fn song_of(value: &Value) -> Result<Song, String> {
 
 impl Music {
     pub fn new(emit: crate::bridge::Emit) -> Music {
-        Music { engine: Mutex::new(None), samples: mobius_audio::sample::Samples::new(), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
+        Music { engine: Mutex::new(None), samples: mobius_audio::sample::Samples::new(), folder: Mutex::new(None), recording: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
     }
 
     /// The engine, opening the sound output the first time.
@@ -102,6 +106,7 @@ impl Music {
             },
             "countIn" => self.count_in(arg(0).as_u64().and_then(|b| usize::try_from(b).ok()), arg(1).as_f64()),
             "stop" => self.stop(),
+            "record" => self.record(arg(0).as_bool().unwrap_or(false)),
             "seek" => match arg(0).as_f64() {
                 Some(beat) if beat.is_finite() => self.seek(beat.max(0.0)),
                 _ => Err("a beat is needed".to_owned()),
@@ -121,6 +126,9 @@ impl Music {
     /// is named in `missing`, and its clip is silent.
     fn load(&self, value: &Value, path: Option<&str>, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
         let mut song = song_of(value)?;
+        if let Some(path) = path {
+            *lock(&self.folder) = songs.folder_of(path).ok();
+        }
         let missing = self.attach(&mut song, path, songs);
         if let Some(e) = lock(&self.engine).as_ref() {
             e.update(&song)?;
@@ -224,7 +232,23 @@ impl Music {
         };
         engine.arm(found);
         *lock(&self.armed) = track.map(str::to_owned);
-        Ok(json!({ "ok": true }))
+        // An armed audio track hears its input (Live's Auto monitoring); anything else closes it.
+        let audio = found.filter(|t| Song::is_audio(t));
+        let input = match audio {
+            Some(t) => match engine.open_input(t.input) {
+                Ok(name) => {
+                    engine.monitor(Some(mobius_audio::render::track_gains(t)))?;
+                    json!({ "input": name })
+                }
+                Err(why) => json!({ "input": null, "inputProblem": why }),
+            },
+            None => {
+                engine.monitor(None)?;
+                engine.close_input()?;
+                json!({ "input": null })
+            }
+        };
+        Ok(json!({ "ok": true, "input": input["input"], "inputProblem": input.get("inputProblem") }))
     }
 
     /// A key pressed on the armed track, held until `press` again with no velocity (0) lifts it.
@@ -260,10 +284,54 @@ impl Music {
     }
 
     fn stop(&self) -> Result<Value, String> {
-        if let Some(e) = lock(&self.engine).as_ref() {
+        let engine = lock(&self.engine).clone();
+        if let Some(e) = engine {
+            // Stopping ends a take, as Live's Stop does.
+            let take = self.end_take(&e);
             e.stop()?;
+            take?;
         }
         Ok(json!({ "ok": true }))
+    }
+
+    /// Record the armed audio track's input while the song plays (`true`), or end the take (`false`). The take is
+    /// saved as `Samples/Recorded/<track> <n>.wav` beside the song, and `mobius:music-take` says where it goes:
+    /// `{ track, file, start (beat), offset (seconds into the file at that beat), seconds, lost }`.
+    fn record(&self, on: bool) -> Result<Value, String> {
+        let engine = self.engine()?;
+        if !on {
+            let take = self.end_take(&engine)?;
+            return Ok(json!({ "ok": true, "take": take }));
+        }
+        let armed = lock(&self.armed).clone().ok_or("Arm an audio track to record on.")?;
+        let name = {
+            let song = lock(&self.song);
+            let track = song.as_ref().and_then(|s| s.tracks.iter().find(|t| t.id == armed)).filter(|t| Song::is_audio(t)).ok_or("Arm an audio track to record on.")?;
+            track.name.clone().unwrap_or_else(|| "Audio".to_owned())
+        };
+        let folder = lock(&self.folder).clone().ok_or("Open the song before recording, so the take is saved beside it.")?;
+        let (file, relative) = mobius_audio::record::next_take(&folder, &name)?;
+        engine.start_take(&file)?;
+        *lock(&self.recording) = Some(armed);
+        Ok(json!({ "ok": true, "file": relative }))
+    }
+
+    /// Ends the take being recorded, if any, and tells the window where it goes.
+    fn end_take(&self, engine: &Engine) -> Result<Value, String> {
+        let Some(track) = lock(&self.recording).take() else { return Ok(Value::Null) };
+        let Some(take) = engine.end_take()? else { return Ok(Value::Null) };
+        let folder = lock(&self.folder).clone().unwrap_or_default();
+        let file = take.written.file.strip_prefix(&folder).map_or_else(|_| take.written.file.to_string_lossy().into_owned(), |p| p.to_string_lossy().replace('\\', "/"));
+        let value = json!({
+            "track": track,
+            "file": file,
+            "start": take.beat,
+            "offset": take.offset,
+            "seconds": take.written.frames as f64 / f64::from(take.written.rate),
+            "lost": take.lost,
+        });
+        (self.emit)("mobius:music-take", value.clone());
+        Ok(value)
     }
 
     /// Move the playhead. Playing goes on from there; stopped, the next `play` starts there.
@@ -433,5 +501,24 @@ mod tests {
         // Without the song's page, no files are read.
         assert_eq!(m.call("load", &[song], &songs)["missing"], json!([]));
         assert!(lock(&m.song).as_ref().unwrap().sounds.is_empty());
+    }
+
+    #[test]
+    fn recording_needs_an_armed_audio_track_and_ending_none_is_fine() {
+        let m = music();
+        let dir = tempfile::tempdir().unwrap();
+        let songs = mobius_workspace::notes::Notes::in_folder(dir.path().join("w"), dir.path().join("c"), "studio");
+        assert_eq!(m.call("record", &[json!(false)], &songs)["take"], Value::Null);
+        assert_eq!(m.call("record", &[json!(true)], &songs)["ok"], false);
+        m.call("load", &[json!({ "tempo": 120, "bars": 1, "tracks": [{ "id": "v", "kind": "audio" }, { "id": "k", "instrument": "piano" }] })], &songs);
+        m.call("arm", &[json!("k")], &songs);
+        assert_eq!(m.call("record", &[json!(true)], &songs)["ok"], false);
+        let armed = m.call("arm", &[json!("v")], &songs);
+        assert_eq!(armed["ok"], true, "{armed}");
+        // No song folder yet: nowhere to save the take.
+        assert_eq!(m.call("record", &[json!(true)], &songs)["ok"], false);
+        if cfg!(not(any(windows, target_os = "macos"))) {
+            assert!(armed["inputProblem"].is_string(), "{armed}");
+        }
     }
 }
