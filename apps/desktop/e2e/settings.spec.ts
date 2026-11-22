@@ -332,8 +332,8 @@ test('Voice: who listens and who speaks are saved, checked, and still there afte
   await go('Voice', 'Speaking');
   await choose(page(), 'Speak with', 'ElevenLabs');
   await expect(page().getByText('ElevenLabs needs its key, added in Gateways.')).toBeVisible();
+  await page().getByRole('button', { name: 'Try speaking' }).click();
   await expect(page().locator('.settings-group[aria-label="Speaking"]').getByRole('alert')).toContainText('Gateways');
-  await expect(page().getByRole('alert')).toContainText('Gateways');
   // The field saves itself when you leave it.
   await page().getByRole('textbox', { name: 'Voice', exact: true }).fill('Rachel');
   await page().getByRole('textbox', { name: 'Voice', exact: true }).blur();
