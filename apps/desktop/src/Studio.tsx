@@ -5,15 +5,14 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
-import { armKeys, countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice } from './studio-engine';
+import { armKeys, countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -1302,19 +1301,17 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
   const exportWav = async () => {
     if (exporting || !songs.page) return;
-    const api = window.mobius?.songs;
-    if (!api?.saveExport) { setExported({ text: 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
+    const engine = (await engineReady()) ? window.mobius?.music : undefined;
+    if (!engine) { setExported({ text: 'Export needs the Mobius desktop app.', kind: 'note' }); return; }
     setExporting(true);
     const name = `${songs.page.title.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Song'}.wav`;
     setExported({ text: `Exporting “${name}”…`, kind: 'busy', progress: 0 });
     const stop = new AbortController();
     exportStop.current = stop;
     try {
-      // The engine renders and saves in one step (32-bit float); the window renders here and hands the file over.
-      const engine = engineOn() ? window.mobius?.music : undefined;
-      const done = engine
-        ? await engine.render(songs.page.path, name, song)
-        : await api.saveExport(songs.page.path, name, toBase64(encodeWav(await renderSong(song, 44100, (part) => setExported((was) => (was?.kind === 'busy' ? { ...was, progress: part } : was)), stop.signal))));
+      // The engine renders and saves in one step, at 32-bit float (as Live renders).
+      const done = await engine.render(songs.page.path, name, song);
+      if (stop.signal.aborted) throw new Error('stopped');
       if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
     } catch (err) {

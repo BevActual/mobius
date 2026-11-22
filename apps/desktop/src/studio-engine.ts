@@ -1,12 +1,35 @@
 import type { MusicPosition } from '@mobius/shared';
 import { BEATS_PER_BAR, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import type { Cycle } from './studio-view';
-import { countIn as windowCountIn, play as windowPlay, playSession as windowSession, previewNote, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
+
+export interface Player {
+  stop(): void;
+  beat(): number;
+  /** The song as it is now (same tempo and length): a new part, a changed sound or effect is heard from the next beat or two, with no restart. */
+  update?(song: Song): void;
+  /** How loud a part of a track's effect is sounding now, in dB (−90 for silence), or null when it isn't playing. */
+  level?(track: string, fx: string, part: string): number | null;
+  /** A track's output level (or `master`'s), left and right in dB, or null when there is none to show. */
+  meter?(id: string): [number, number] | null;
+}
+
+/** What each track of the Session view is playing: the clip in that slot, since `start` (in beats played). */
+export type SessionPlaying = Record<string, { slot: number; start: number }>;
+/** A launch waiting for the next bar: a slot to start, or null to stop the track. */
+export type SessionQueued = Record<string, number | null>;
+export interface SessionPlayer extends Player {
+  /** Start a track's clip (or stop the track, with null) at the next bar. */
+  launch(trackId: string, slot: number | null): void;
+  /** The song as it is now, so a change to a clip is heard the next time round. */
+  update(song: Song): void;
+  playing(): SessionPlaying;
+  queued(): SessionQueued;
+}
 
 /**
- * Where Music makes its sound: the native engine in the host when it has opened a sound output (Andrew's decision,
- * 21 November: docs/reference/music-parity.md), else the Web Audio player in the window. Each function here has the
- * same shape as the window's, so the editor doesn't care which is playing.
+ * Where Music makes its sound: the native engine in the host (Andrew's decision, 21 November:
+ * docs/reference/music-parity.md). It plays silently on a computer with no sound output. Without the desktop app (a
+ * page in a browser, for the design checks) nothing sounds, and a clock keeps the playhead moving as it would.
  */
 const music = () => (typeof window === 'undefined' ? undefined : window.mobius?.music);
 
@@ -72,7 +95,7 @@ function follow(tempo: () => number, cycle: Cycle | null, from: number) {
 /** Plays the Arrange view from `fromBeat`, round `loop` if given. */
 export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, click = false): Player {
   const m = music();
-  if (!engineOn() || !m) return windowPlay(songIn, fromBeat, loop, click);
+  if (!engineOn() || !m) return clockPlay(songIn, fromBeat, loop);
   let song = songIn;
   const f = follow(() => song.tempo, loop, fromBeat);
   loaded = JSON.stringify(song);
@@ -90,7 +113,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
 /** Plays the Session view: launches land on the next bar line. */
 export function playSession(songIn: Song, click = false, launches: SessionQueued = {}): SessionPlayer {
   const m = music();
-  if (!engineOn() || !m?.playSession || !m.launch) return windowSession(songIn, click, launches);
+  if (!engineOn() || !m?.playSession || !m.launch) return clockSession(songIn, launches);
   let song = songIn;
   const f = follow(() => song.tempo, null, 0);
   // A launch is shown as waiting at once, until the engine says otherwise.
@@ -161,7 +184,11 @@ export function armKeys(trackId: string | null): void {
 /** A bar of ticks before recording. */
 export function countIn(tempo: number, beats = BEATS_PER_BAR): { done: Promise<void>; stop(): void } {
   const m = music();
-  if (!engineOn() || !m?.countIn) return windowCountIn(tempo, beats);
+  if (!engineOn() || !m?.countIn) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const done = new Promise<void>((resolve) => { timer = setTimeout(resolve, (0.05 + (beats * 60) / tempo) * 1000); });
+    return { done, stop() { clearTimeout(timer); } };
+  }
   let timer: ReturnType<typeof setTimeout> | undefined;
   // The engine answers no "done": the wait is a bar long, from 50 ms on, as it ticks.
   const done = new Promise<void>((resolve) => { timer = setTimeout(resolve, (0.05 + (beats * 60) / tempo) * 1000); });
@@ -172,8 +199,8 @@ export function countIn(tempo: number, beats = BEATS_PER_BAR): { done: Promise<v
 /** A note on a track, at once: through the engine (the track's own sound, kit and pad) or the window. */
 export function previewOn(track: Pick<Track, 'id' | 'instrument' | 'sound' | 'kit'>, pitch: number, velocity = 0.8, seconds?: number, pad?: DrumPad): void {
   const m = music();
-  if (engineOn() && m?.preview) { send(() => m.preview!(track.id, pitch, velocity, seconds)); return; }
-  previewNote(track.instrument as Instrument, pitch, velocity, seconds, track.sound as Sound | undefined, track.kit as KitSound | undefined, pad);
+  void pad;
+  if (engineOn() && m?.preview) send(() => m.preview!(track.id, pitch, velocity, seconds));
 }
 
 /** A sound from the Library on its own (no track): through the engine, or the window. */
@@ -182,7 +209,45 @@ export function previewSound(item: { instrument: Instrument; sound?: Sound; kit?
   if (engineOn() && m?.preview) {
     const sound = { instrument: item.instrument, ...(item.sound ? { sound: item.sound } : {}), ...(item.kit ? { kit: item.kit } : {}) };
     send(() => m.preview!(sound, pitch, velocity, seconds));
-    return;
   }
-  previewNote(item.instrument, pitch, velocity, seconds, item.sound, item.kit);
+}
+
+/** The playhead without the engine: the tempo and the clock, round the loop, ending at the song's end (`endless`: never). */
+function clockPlay(song: Song, fromBeat: number, loop: Cycle | null, endless = false): Player {
+  const started = performance.now();
+  let stopped: number | null = null;
+  const beat = () => {
+    let b = fromBeat + (((stopped ?? performance.now()) - started) / 60000) * song.tempo;
+    if (loop && fromBeat < loop.to && b >= loop.to) b = loop.from + ((b - loop.from) % (loop.to - loop.from));
+    return loop || endless ? b : Math.min(b, song.bars * BEATS_PER_BAR);
+  };
+  return { stop() { stopped ??= performance.now(); }, beat, update(next) { song = next; } };
+}
+
+/** The Session view's clock without the engine: what is launched starts at the next bar line (at once, before the first beat). */
+function clockSession(song: Song, launches: SessionQueued): SessionPlayer {
+  const clock = clockPlay(song, 0, null, true);
+  let playing: SessionPlaying = {};
+  let queued: SessionQueued = { ...launches };
+  let asked = 0;
+  const land = () => {
+    const now = clock.beat();
+    const bar = Math.ceil((asked + 1e-9) / BEATS_PER_BAR) * BEATS_PER_BAR;
+    if (Object.keys(queued).length === 0 || (asked > 0 && now < bar)) return;
+    const next = { ...playing };
+    for (const [id, slot] of Object.entries(queued)) {
+      if (slot === null) delete next[id];
+      else next[id] = { slot, start: asked > 0 ? bar : 0 };
+    }
+    playing = next;
+    queued = {};
+  };
+  return {
+    stop: clock.stop,
+    beat: clock.beat,
+    launch(trackId, slot) { land(); asked = clock.beat(); queued = { ...queued, [trackId]: slot }; },
+    update(next) { song = next; clock.update?.(next); },
+    playing() { land(); return playing; },
+    queued() { land(); return queued; },
+  };
 }

@@ -228,10 +228,11 @@ host, written in Rust. The window becomes the UI only.
   for export and freeze, and meters sent back to the UI about 30 times a second.
 - **The song file stays the contract.** The engine reads the same `song.json` the window shows, so Mobius, the UI and
   the engine never disagree about a song.
-- **First milestone: it plays what Music plays today.** The engine plays every built-in instrument and effect, and
-  sounds like today's Web Audio version, checked by rendering the demo songs both ways and comparing them
-  (`node crates/mobius-audio/parity/compare.cjs <song.json>`, which prints how far apart each track is). Then
-  `studio-audio.ts` retires.
+- **First milestone: it plays what Music plays today (done, 22 November).** The engine plays every built-in
+  instrument and effect and sounds like the Web Audio version did. Rendered both ways, the test song was 0.23 dB apart
+  on average every 100 ms (piano 0.00, the pad's reverb 0.35, drums about 1 dB from their noise), and Library previews
+  and export matched on Andrew's PC. With no sound output the engine plays silently, so `studio-audio.ts` is retired:
+  all of Music's sound comes from the engine.
 - **Plug-ins** (VST3 or CLAP) become possible later. They stay out of scope until the engine is stable.
 
 **What Live's manual says the engine should do**, and where Mobius's engine stands
@@ -245,7 +246,7 @@ host, written in Rust. The window becomes the UI only.
 | 32-bit float inside; a track can go over 0 dB without clipping, only the main output and export clip | The same: float all the way, clipped only by the output |
 | Volume automation is applied every sample | The same (part 5) |
 | Export matches playback when nothing non-neutral is applied; render at 32 bits, dither once at the end | Playback and export are the same code; WAV export is 32-bit float |
-| Constant-power pan: 0 dB in the middle, +3 dB hard to one side | Pan follows the window's Web Audio panner (also constant power) until `studio-audio.ts` retires; then match Live's law |
+| Constant-power pan: 0 dB in the middle, +3 dB hard to one side | Pan still follows the Web Audio panner's law (also constant power); match Live's law next |
 | Devices' delays are compensated automatically | Every device today has no delay (the reverb is zero-latency), so nothing to compensate yet; needed with plug-ins or lookahead |
 | MIDI in: latency is preferred to jitter, using the driver's timestamps | The plan for MIDI in: place each event by its timestamp a buffer late, never as soon as it comes |
 | Clip start and end get a declick fade of up to 4 ms | Needed with audio clips (phase 3) |
@@ -320,7 +321,7 @@ Each phase is a run of rounds: one pull request per round, as for every app. Gap
 first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the same time, owned by different leads.
 
 1. **The engine** (Builder, about 3 to 4 weeks). It plays and renders what Music plays today, then adds meters, MIDI
-   in, a master track and returns. Then `studio-audio.ts` retires.
+   in, a master track and returns. Then `studio-audio.ts` retires (done, 22 November).
 2. **Foundation in the UI and format** (Apps lead, in parallel with phase 1):
    - Real clips in Arrange, shared with Session, with a migration for existing songs.
    - The master track, return tracks and sends in the file.
