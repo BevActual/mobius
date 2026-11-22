@@ -67,6 +67,20 @@ describe('Music on the native engine', () => {
     expect(p.beat()).toBeCloseTo(10);
   });
 
+  it('while stopped, a key played moves its track\'s meter and Main\'s, and they fall quiet once it stops sounding', async () => {
+    const e = fakeEngine();
+    const m = await import('./studio-engine');
+    await m.engineReady();
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    expect(m.stoppedMeter('k')).toBeNull();
+    e.send({ playing: false, sounding: true, beat: 0, meters: { k: [-10, -11], master: [-10, -11] } } as MusicPosition);
+    expect(m.stoppedMeter('k')).toEqual([-10, -11]);
+    expect(m.stoppedMeter('master')).toEqual([-10, -11]);
+    expect(m.stoppedMeter('other')).toBeNull();
+    now.mockReturnValue(1400);
+    expect(m.stoppedMeter('k')).toBeNull();
+  });
+
   it('shows a launch as waiting until the engine answers, then what is playing', async () => {
     const e = fakeEngine();
     const m = await import('./studio-engine');
@@ -111,12 +125,30 @@ describe('Music on the native engine', () => {
     expect(e.calls.map((c) => c[0])).toEqual(['load', 'play', 'stop', 'load', 'play']);
   });
 
-  it('leaves the window to play when the engine has no sound output', async () => {
+  it('without the engine (a page in a browser) nothing sounds, and the playhead and launches still move by the clock', async () => {
     const e = fakeEngine(false);
     const m = await import('./studio-engine');
     expect(await m.engineReady()).toBe(false);
     expect(m.engineOn()).toBe(false);
     m.loadSong(SONG);
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    const p = m.play(SONG, 2, null);
+    now.mockReturnValue(1500);
+    expect(p.beat()).toBeCloseTo(2 + SONG.tempo / 120);
+    p.stop();
+    now.mockReturnValue(9000);
+    expect(p.beat()).toBeCloseTo(2 + SONG.tempo / 120);
+    const s = m.playSession(SONG, false, { a: 0 });
+    expect(s.playing()).toEqual({ a: { slot: 0, start: 0 } });
+    // A beat in, a stop waits for the next bar line (beat 4), then lands.
+    now.mockReturnValue(9500);
+    s.launch('a', null);
+    expect(s.queued()).toEqual({ a: null });
+    now.mockReturnValue(11_000);
+    expect(s.queued()).toEqual({});
+    expect(s.playing()).toEqual({});
+    s.stop();
+    now.mockRestore();
     expect(e.calls).toEqual([]);
   });
 });

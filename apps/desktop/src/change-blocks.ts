@@ -47,8 +47,7 @@ function mark(): SVGSVGElement {
   return svg;
 }
 /** The floating bar under a change's block (the panel look, as ReviewBar's floating ChangeBar draws it): the Mobius
- *  mark and who did it, then Discard, Try another and Keep. Under a change taller than the view it is pinned to the
- *  bottom of the view while the change is in sight. */
+ *  mark and who did it, then Discard, Try another and Keep (and Keep all when there are several). */
 function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, several = false): HTMLElement {
   const note = document.createElement('div');
   note.className = 'doc-change change-float';

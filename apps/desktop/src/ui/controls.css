@@ -26,6 +26,9 @@
 .ui-button[data-kind="primary"] { background: var(--ink); color: var(--on-ink); }
 .ui-button[data-kind="primary"]:hover { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
 .ui-button[data-kind="primary"]:active { background: color-mix(in srgb, var(--ink) 76%, var(--paper)); }
+.ui-button[data-kind="primary"][data-danger] { background: var(--danger-fill); color: var(--on-danger); }
+.ui-button[data-kind="primary"][data-danger]:hover { background: color-mix(in srgb, var(--danger-fill) 88%, black); }
+.ui-button[data-kind="primary"][data-danger]:active { background: color-mix(in srgb, var(--danger-fill) 78%, black); }
 .ui-button[data-kind="secondary"] { background: var(--paper); border-color: var(--line); }
 .ui-button[data-kind="secondary"]:hover { background: color-mix(in srgb, var(--sel) 50%, var(--paper)); }
 .ui-button[data-kind="quiet"] { padding: 0 var(--sp-2); }

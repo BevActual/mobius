@@ -5,6 +5,7 @@
 use crate::clock::Clock;
 use crate::drum::Hit;
 use crate::fx::{pan, Chain};
+use crate::sample::Placed;
 use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
@@ -48,6 +49,40 @@ struct Lane {
     peak: (f32, f32),
     /// Its sends: a return (by its place in the renderer's) and how much goes to it, after volume and pan.
     sends: Vec<(usize, f32)>,
+    /// An audio track's clips in Arrange.
+    audio: Vec<AudioClip>,
+}
+
+/// An audio clip in Arrange: `length` song beats from `start`, playing its own beats from `offset`, going round
+/// `cycle` (its loop) if it has one, as a clip's notes do.
+struct AudioClip {
+    start: f64,
+    length: f64,
+    offset: f64,
+    cycle: Option<(f64, f64)>,
+    placed: Placed,
+}
+
+impl AudioClip {
+    /// The clip's own beat at a song beat while it plays, and its declick fade: up to 4 ms in from its start and
+    /// out to its end, as Live's Clip Fade (Live 12 manual, 9.1 "Clip Fade"), at `spb` seconds a beat.
+    fn own_beat(&self, beat: f64, spb: f64) -> Option<(f64, f32)> {
+        let elapsed = beat - self.start;
+        if elapsed < 0.0 || elapsed >= self.length {
+            return None;
+        }
+        let own = self.offset + elapsed;
+        let fade = ((elapsed.min(self.length - elapsed) * spb) / AudioClip::FADE).min(1.0) as f32;
+        Some((
+            match self.cycle {
+                Some((from, to)) if own >= to => from + (own - to).rem_euclid(to - from),
+                _ => own,
+            },
+            fade,
+        ))
+    }
+
+    const FADE: f64 = 0.004;
 }
 
 /// A return track as it plays: what the tracks send it, through its effects, volume and pan, into Main.
@@ -295,13 +330,17 @@ pub struct Playing {
     pub session: bool,
 }
 
+/// A Session slot's clip as it plays: its length in beats, its notes and, on an audio track, its sound.
+type SlotPlay = (f64, Vec<Note>, Option<Placed>);
+
 /// A track in the Session view: its slots' clips (length in beats, notes), what it is playing (the slot, from which
 /// beat) and the launch waiting for the next bar (a slot, or `None` to stop).
 struct SessionTrack {
     id: String,
     /// Its lane, when it is heard.
     lane: Option<usize>,
-    slots: Vec<Option<(f64, Vec<Note>)>>,
+    /// Each slot's clip: its length in beats, its notes and, on an audio track, its sound.
+    slots: Vec<Option<SlotPlay>>,
     playing: Option<(usize, f64)>,
     queued: Option<Option<usize>>,
 }
@@ -376,7 +415,11 @@ impl Renderer {
                 .map(|t| SessionTrack {
                     id: t.id.clone(),
                     lane: heard.iter().position(|h| h.id == t.id),
-                    slots: t.slots.iter().map(|c| c.as_ref().filter(|c| c.bars > 0.0).map(|c| (c.bars * BEATS_PER_BAR, c.notes.clone()))).collect(),
+                    slots: t
+                        .slots
+                        .iter()
+                        .map(|c| c.as_ref().filter(|c| c.bars > 0.0).map(|c| (c.bars * BEATS_PER_BAR, c.notes.clone(), placed(song, Song::is_audio(t), c.audio.as_ref()))))
+                        .collect(),
                     playing: None,
                     queued: None,
                 })
@@ -412,6 +455,23 @@ impl Renderer {
                 auto.sort_by(|a, b| a.beat.total_cmp(&b.beat));
                 // Notes that started before the play position are not caught up: they begin where they begin.
                 let next = notes.iter().position(|n| clock.sample_of_beat(n.start) >= start).unwrap_or(notes.len());
+                let audio: Vec<AudioClip> = if how.session { Vec::new() } else {
+                    t.clips
+                        .iter()
+                        .filter(|c| !c.muted && c.length > 0.0)
+                        .filter_map(|c| {
+                            Some(AudioClip {
+                                start: c.start,
+                                length: c.length,
+                                offset: c.offset,
+                                cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)),
+                                placed: placed(song, Song::is_audio(t), c.audio.as_ref())?,
+                            })
+                        })
+                        .collect()
+                };
+                // An audio track's sound comes in with two channels.
+                let stereo = Song::is_audio(t) || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -425,8 +485,8 @@ impl Renderer {
                     volumes: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
                     auto,
                     pan: t.pan,
-                    stereo: t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9),
-                    chain: Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9)),
+                    stereo,
+                    chain: Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo),
                     fx_key: serde_json::to_string(&t.fx).unwrap_or_default(),
                     voices: Vec::with_capacity(MAX_VOICES),
                     hits: Vec::with_capacity(MAX_VOICES),
@@ -440,6 +500,7 @@ impl Renderer {
                         .filter(|(_, level)| **level > 0.0)
                         .filter_map(|(id, level)| Some((returns.iter().position(|r| &r.id == id)?, level.min(1.0) as f32)))
                         .collect(),
+                    audio,
                 }
             })
             .collect();
@@ -655,8 +716,8 @@ impl Renderer {
             // The clip the Session view is playing on this track, if any.
             let clip = self.session.as_ref().and_then(|s| s.iter().find(|t| t.lane == Some(index))).and_then(|t| {
                 let (slot, start) = t.playing?;
-                let (length, notes) = t.slots.get(slot)?.as_ref()?;
-                Some((*length, notes, start))
+                let (length, notes, audio) = t.slots.get(slot)?.as_ref()?;
+                Some((*length, notes, start, audio.as_ref()))
             });
             lane.scratch[..frames].fill(0.0);
             // Voices already sounding, for the whole block.
@@ -675,7 +736,7 @@ impl Renderer {
                 let note = *note;
                 lane.start(&note, offset, frames, spb, rate);
             }
-            if let Some((length, notes, start)) = clip {
+            if let Some((length, notes, start, _)) = clip {
                 // Each time round the clip that a note starts in this piece; it is cut at the clip's end.
                 let from_beat = clock.beat(from);
                 for note in notes {
@@ -708,6 +769,27 @@ impl Renderer {
                 hit.add_to(&mut scratch[offset..], &mut right_scratch[offset..], rate);
             }
             lane.hits.retain(|h| !h.done());
+            // Audio clips, sample by sample at the file's frame for each beat.
+            let slot_audio = clip.and_then(|(length, _, start, audio)| Some((length, start, audio?)));
+            if !lane.audio.is_empty() || slot_audio.is_some() {
+                for i in 0..frames {
+                    let beat = clock.beat(from + i as u64);
+                    for c in &lane.audio {
+                        if let Some((own, fade)) = c.own_beat(beat, spb) {
+                            let (l, r) = c.placed.at(own);
+                            scratch[i] += l * fade;
+                            right_scratch[i] += r * fade;
+                        }
+                    }
+                    if let Some((length, start, placed)) = slot_audio {
+                        if beat >= start {
+                            let (l, r) = placed.at((beat - start).rem_euclid(length));
+                            scratch[i] += l;
+                            right_scratch[i] += r;
+                        }
+                    }
+                }
+            }
             if let Some(chain) = &mut lane.chain {
                 // The track's way into the mix, as the window's: its volume, then its effects, then its pan.
                 for (i, (a, b)) in scratch.iter_mut().zip(right_scratch.iter_mut()).enumerate() {
@@ -790,6 +872,12 @@ impl Renderer {
     }
 }
 
+/// An audio clip's sound placed on its beats, when it is on an audio track and its file was read.
+fn placed(song: &Song, audio_track: bool, audio: Option<&crate::song::Audio>) -> Option<Placed> {
+    let audio = audio.filter(|_| audio_track)?;
+    Some(Placed::new(audio, song.sounds.get(&audio.file)?.clone(), song.tempo))
+}
+
 /// The whole song as stereo sound, from its start to its end and its tail.
 #[must_use]
 pub fn render_song(song: &Song, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
@@ -856,7 +944,8 @@ mod tests {
         let centre = render_song(&song(&track("a", "")), 48_000);
         let left = render_song(&song(&track("a", r#""pan":-1,"#)), 48_000);
         assert!(peak(&left.0) > 0.01 && peak(&left.1) < 1e-6);
-        assert!((peak(&left.0) - peak(&centre.0)).abs() < 0.01);
+        // Hard left is 3 dB up on that side (Live's pan law).
+        assert!((peak(&left.0) / peak(&centre.0) - std::f32::consts::SQRT_2).abs() < 0.02);
         let muted = render_song(&song(&track("a", r#""muted":true,"#)), 48_000);
         assert_eq!(peak(&muted.0), 0.0);
         let solo = render_song(&song(&format!("{},{}", track("a", r#""solo":true,"#), track("b", ""))), 48_000);
@@ -1023,5 +1112,46 @@ mod tests {
         let peaks: Vec<_> = r.peaks().collect();
         assert_eq!(peaks.len(), 3);
         assert!((peaks[1].0 / peaks[0].0 - 0.5).abs() < 1e-3);
+    }
+
+    /// A song with one audio track playing `clips` (JSON), and a second of 0.5 at 48 kHz as `take.wav`.
+    fn audio_song(clips: &str, slots: &str) -> Song {
+        let mut song = Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":2,"main":{{"volume":1}},"tracks":[{{"id":"v","kind":"audio","clips":[{clips}],"slots":[{slots}]}}]}}"#)).unwrap();
+        song.sounds.insert("take.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: vec![0.5; 48_000], right: vec![0.25; 48_000] }));
+        song
+    }
+
+    #[test]
+    fn an_audio_clip_plays_its_file_from_its_start_beat_until_its_end() {
+        // From beat 1 (half a second in) for two beats, with the file's second running out after it.
+        let song = audio_song(r#"{"start":1,"length":2,"audio":{"file":"take.wav","gainDb":0}}"#, "");
+        let (left, right) = render_song(&song, 48_000);
+        assert_eq!(onset(&left, 0.0), Some(24_001));
+        assert!((left[30_000] - 0.5).abs() < 1e-6 && (right[30_000] - 0.25).abs() < 1e-6);
+        // It fades in over 4 ms (192 samples), and out to the clip's end at beat 3.
+        assert!((left[24_096] - 0.25).abs() < 1e-3);
+        assert!((left[72_000 - 96] - 0.25).abs() < 1e-2);
+        assert_eq!(left[72_000], 0.0);
+    }
+
+    #[test]
+    fn an_audio_clip_on_a_note_track_and_one_with_no_sound_are_silent() {
+        let mut song = audio_song(r#"{"start":0,"length":2,"audio":{"file":"missing.wav"}}"#, "");
+        let (left, _) = render_song(&song, 48_000);
+        assert_eq!(onset(&left, 0.0), None);
+        song.tracks[0].kind = None;
+        song.tracks[0].clips[0].audio.as_mut().unwrap().file = "take.wav".into();
+        let (left, _) = render_song(&song, 48_000);
+        assert_eq!(onset(&left, 0.0), None);
+    }
+
+    #[test]
+    fn a_session_slot_plays_its_audio_round_its_length() {
+        let song = audio_song("", r#"{"bars":1,"audio":{"file":"take.wav"}}"#);
+        let mut r = Renderer::playing(&song, 48_000, Playing { session: true, ..Playing::default() });
+        r.launch(0, Some(0));
+        let (mut left, mut right) = (vec![0f32; 512], vec![0f32; 512]);
+        r.render(&mut left, &mut right);
+        assert!((left[0] - 0.5).abs() < 1e-6);
     }
 }

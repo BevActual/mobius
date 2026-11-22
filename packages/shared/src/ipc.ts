@@ -146,7 +146,7 @@ export interface NoteHit { path: string; title: string; notebook: string; line: 
 /** Where Music's engine is playing, and the levels, left and right in dB, by track id then `master`. */
 export interface MusicPosition {
   playing: boolean;
-  /** A note preview or count-in is sounding. Stopped, `meters` then holds only `master`. Missing from older shells. */
+  /** A note preview, a key played or a count-in is sounding. Stopped, `meters` then holds `master` and the track the notes are on. Missing from older shells. */
   sounding?: boolean;
   beat: number;
   meters: Record<string, [number, number]>;
@@ -186,7 +186,7 @@ export interface TasksChanged { list: string | null; by: 'person' | 'assistant' 
 export type CalendarAnswer = 'needs-action' | 'accepted' | 'declined' | 'tentative' | '';
 /** Someone on an event: an attendee or its organizer, by address. */
 export interface CalendarPerson { name: string; email: string; status: CalendarAnswer }
-export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; readOnly?: boolean; /** Who is invited, in the file's order. */ attendees?: CalendarPerson[]; /** Who sent the invitation. */ organizer?: CalendarPerson | null }
+export interface CalendarEvent { id: string; calendar: string; title: string; start: string; end: string; allDay: boolean; location: string; notes: string; repeats: boolean; repeat?: string; /** For a time of a repeating event, which time of the series it is (its start as the series has it). */ occurrence?: string; readOnly?: boolean; /** Who is invited, in the file's order. */ attendees?: CalendarPerson[]; /** Who sent the invitation. */ organizer?: CalendarPerson | null }
 /** What Mobius remembers, sorted as How I work in the Wiki shows it: about you, preferences, projects, people, learned skills. */
 export type MemoryCategory = 'you' | 'prefs' | 'work' | 'people' | 'skills';
 export interface MemoryItem { text: string; category: MemoryCategory; source: string; /** Mobius noticed it and you have not kept it yet: shown dashed in How I work. */ learned?: boolean }
@@ -268,7 +268,9 @@ export type CalendarSignIn = { ok: true; account: { id: string; name: string } }
 export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google' | 'microsoft'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
 /** What may be set on an event. An all-day `end` is the last day, included. */
 /** `repeat` by name (empty stops it). `occurrence`: the start of the one time of a repeating event that was moved, so the series moves by as much. */
-export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string; /** The whole list of who is invited; left out, it stays as it was. A status left out is kept (or needs-action for someone new). */ attendees?: { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[]; /** Who sends it; null for no one; left out, it stays as it was. */ organizer?: { name?: string; email: string } | null }
+/** Which times of a repeating event a change or a deletion is for: this event, this and following events, or all events. */
+export type RepeatScope = 'one' | 'following' | 'all';
+export interface CalendarDraft { title?: string; start?: string; end?: string; location?: string; notes?: string; repeat?: string; occurrence?: string; /** For a repeating event: that time only, it and the times after it, or every time (the default). */ scope?: RepeatScope; /** The whole list of who is invited; left out, it stays as it was. A status left out is kept (or needs-action for someone new). */ attendees?: { name?: string; email: string; status?: Exclude<CalendarAnswer, ''> }[]; /** Who sends it; null for no one; left out, it stays as it was. */ organizer?: { name?: string; email: string } | null }
 /** A folder on the person's own server (WebDAV: Nextcloud, ownCloud, Synology, Fastmail and others). */
 /** What Files' Space preview shows. */
 export type FilePeek = { kind: 'text'; text: string; cut: boolean; markdown: boolean } | { kind: 'image'; src: string } | { kind: 'none'; reason: string };
@@ -970,7 +972,8 @@ export interface MobiusBridge {
     create(name: string): Promise<{ name: string } | NotesFailure>;
     add(calendar: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
     update(calendar: string, id: string, draft: CalendarDraft): Promise<CalendarEvent | NotesFailure>;
-    remove(calendar: string, id: string): Promise<{ calendar: string; removed: string } | NotesFailure>;
+    /** A repeating event's one time (`occurrence`) or it and the times after it, with `scope`; otherwise all of it. */
+    remove(calendar: string, id: string, occurrence?: string, scope?: RepeatScope): Promise<{ calendar: string; removed: string } | NotesFailure>;
     sources(): Promise<CalendarSource[] | NotesFailure>;
     suggestions(): Promise<CalendarSuggestion[] | NotesFailure>;
     accept(id: string): Promise<CalendarEvent | NotesFailure>;
@@ -1240,8 +1243,9 @@ export interface MobiusBridge {
     /** Open the sound output if it isn't yet, and say which one it is. */
     /** `silent` when there is no sound output: the engine still plays (and keeps time), unheard. */
     engine(): Promise<{ ok: true; device: string; silent?: boolean; sampleRate: number; latencyMs: number } | NotesFailure>;
-    /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. */
-    load(song: unknown): Promise<{ ok: true } | NotesFailure>;
+    /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. With the song's
+     *  page `path`, its audio clips' files are read from the song's folder; any it cannot read are in `missing`. */
+    load(song: unknown, path?: string | null): Promise<{ ok: true; missing?: string[] } | NotesFailure>;
     /** Play from a beat, or from where the playhead was left; round `loop` (beats) if given, with the metronome if `click`. */
     play(fromBeat?: number, loop?: { start: number; end: number } | null, click?: boolean): Promise<{ ok: true; beat: number } | NotesFailure>;
     /** Play the Session view from the first beat; `launches` (track id to slot, or null) start at once. */

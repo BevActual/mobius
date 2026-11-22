@@ -3994,8 +3994,9 @@ impl Bridge {
                 (Some(c), Some(id)) => cal.update(c, id, &draft()),
                 _ => Err("that cannot be changed".to_owned()),
             },
-            "remove" => match (text(0), text(1)) {
-                (Some(c), Some(id)) => cal.remove(c, id),
+            "remove" => match (text(0), text(1), mobius_workspace::calendar::Scope::named(text(3))) {
+                (Some(c), Some(id), Ok(scope)) => cal.remove_times(c, id, text(2), scope),
+                (.., Err(e)) => Err(e),
                 _ => Err("that cannot be removed".to_owned()),
             },
             _ => return json!({ "ok": false, "message": "unknown" }),

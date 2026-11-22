@@ -74,6 +74,9 @@
   --mobius-wash: #f0effb;
   --on-mobius: #ffffff;
   --red: #b3261e;
+  /* A destructive primary button: one error red with white words, the same in every theme. */
+  --danger-fill: #b3261e;
+  --on-danger: #ffffff;
   --red-wash: #fbeceb;
   --success: #1e7b34;
   --success-wash: #e6f4ea;
