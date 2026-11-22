@@ -378,3 +378,14 @@
 .ui-tap.ui-icon-button { min-width: 0; border-color: transparent; background: none; }
 .ui-tap.ui-icon-button[data-lit] { background: var(--ink); color: var(--on-ink); }
 .studio-page .ui-panel-name { font-size: var(--fs-md); color: var(--ink); }
+
+/* A sampler's or a pad's sample: its name, or a place to drop one. */
+.studio-sample { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 32px; padding: 4px 8px; border: 1px solid var(--line); border-radius: var(--radius-control); }
+.studio-sample[data-empty] { border-style: dashed; color: var(--muted); }
+.studio-sample[data-over] { border-color: var(--ink); border-style: solid; }
+.studio-sample-name { flex: 1 1 auto; min-width: 0; font-size: var(--fs-sm); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.studio-sample-actions { display: flex; gap: 4px; }
+.studio-sample-btn { background: none; border: 0; padding: 2px 4px; font: inherit; font-size: var(--fs-sm); color: var(--muted); cursor: pointer; border-radius: 4px; }
+.studio-sample-btn:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
+.studio-sample-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.studio-sample-problem { flex-basis: 100%; margin: 0; font-size: var(--fs-sm); color: var(--danger); }

@@ -132,6 +132,30 @@ export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an
  */
 export interface ClipAudio { file: string; gainDb?: number; offset?: number; warp?: boolean; mode?: string; bpm?: number; markers?: { sample: number; beat: number }[] }
 
+/**
+ * A sampler's sound (Live 12 manual, 36.8 "Working with Samples"), as the engine reads it (mobius-audio sampler.rs
+ * `SamplerSound`): a WAV in the song's folder (`file`) played from `start` to `end` seconds, at its own pitch on the
+ * `root` note (60 when left out). Classic (the default) plays as long as a key is held, through the track's
+ * attack/decay/sustain/release, and goes round from `loopStart` when `loop`; One-Shot plays it through (or until the key
+ * lifts, with `gate`), faded in and out by `fadeIn` and `fadeOut` seconds. A sampler track's sound, or a drum pad's.
+ */
+export interface SamplerSound { file: string; mode?: 'classic' | 'oneshot'; root?: number; gainDb?: number; start?: number; end?: number; loop?: boolean; loopStart?: number; gate?: boolean; fadeIn?: number; fadeOut?: number }
+
+/** A sampler's sound from a file, or undefined when it names none. */
+export function readSampler(v: unknown): SamplerSound | undefined {
+  const a = obj(v);
+  if (typeof a.file !== 'string' || !a.file.trim()) return undefined;
+  const out: SamplerSound = { file: a.file.slice(0, 400) };
+  const secs = (x: unknown) => (typeof x === 'number' && Number.isFinite(x) && x >= 0 ? Math.min(x, 24 * 3600) : undefined);
+  if (a.mode === 'oneshot') out.mode = 'oneshot';
+  if (typeof a.root === 'number' && Number.isFinite(a.root) && Math.round(a.root) !== 60) out.root = Math.round(num(a.root, 60, 0, 127));
+  if (typeof a.gainDb === 'number' && Number.isFinite(a.gainDb) && a.gainDb !== 0) out.gainDb = num(a.gainDb, 0, -70, 24);
+  for (const k of ['start', 'end', 'loopStart', 'fadeIn', 'fadeOut'] as const) { const t = secs(a[k]); if (t !== undefined && (t > 0 || k === 'end')) out[k] = t; }
+  if (a.loop === true) out.loop = true;
+  if (a.gate === true) out.gate = true;
+  return out;
+}
+
 /** An audio clip's sound from a file, or undefined when it has none it can play (no file). */
 export function readAudio(v: unknown): ClipAudio | undefined {
   const a = obj(v);
@@ -190,7 +214,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio'; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[] }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[] }
@@ -230,8 +254,10 @@ export const kitOf = (t: Track): KitSound | null => (t.instrument === 'drums' ? 
  * One drum's own settings on top of the kit: `tune` in semitones (-12 to 12), `decay` as a multiple (0.25 to 4),
  * `level` (0 to 1) and `pan` (-1 left to 1 right). Kept per drum pitch in `pads`; a drum at its defaults is left out.
  */
-export interface DrumPad { tune: number; decay: number; level: number; pan: number }
-export const PAD_RANGE: Record<keyof DrumPad, { lo: number; hi: number }> = { tune: { lo: -12, hi: 12 }, decay: { lo: 0.25, hi: 4 }, level: { lo: 0, hi: 1 }, pan: { lo: -1, hi: 1 } };
+export interface DrumPad { tune: number; decay: number; level: number; pan: number; /** A sample the pad plays in place of its drum (Live 12, 25.6.1), at its own pitch moved by the kit's and pad's tune. */ sample?: SamplerSound }
+/** A pad's settings that are numbers. */
+export type PadSetting = Exclude<keyof DrumPad, 'sample'>;
+export const PAD_RANGE: Record<PadSetting, { lo: number; hi: number }> = { tune: { lo: -12, hi: 12 }, decay: { lo: 0.25, hi: 4 }, level: { lo: 0, hi: 1 }, pan: { lo: -1, hi: 1 } };
 export const PAD_DEFAULTS: DrumPad = { tune: 0, decay: 1, level: 1, pan: 0 };
 /** A drum's own settings, or its defaults. */
 export const padOf = (t: Track, pitch: number): DrumPad => t.pads?.[pitch] ?? PAD_DEFAULTS;
@@ -285,6 +311,11 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, clips };
     if (to.instrumentOn === false) track.instrumentOn = false;
     if (to.kind === 'audio') track.kind = 'audio';
+    if (to.kind === 'sampler') {
+      track.kind = 'sampler';
+      const sampler = readSampler(to.sampler);
+      if (sampler) track.sampler = sampler;
+    }
     if (typeof to.input === 'number' && Number.isInteger(to.input) && to.input >= 0 && to.input < 64) track.input = to.input;
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
@@ -308,7 +339,10 @@ export function parseSong(text: string): { song: Song } | { error: string } {
         const po = (to.pads as Record<string, unknown>)[String(d.pitch)];
         if (!po || typeof po !== 'object') continue;
         const o = po as Record<string, unknown>;
-        pads[d.pitch] = Object.fromEntries((Object.keys(PAD_RANGE) as (keyof DrumPad)[]).map((k) => [k, num(o[k], PAD_DEFAULTS[k], PAD_RANGE[k].lo, PAD_RANGE[k].hi)])) as unknown as DrumPad;
+        const pad = Object.fromEntries((Object.keys(PAD_RANGE) as PadSetting[]).map((k) => [k, num(o[k], PAD_DEFAULTS[k], PAD_RANGE[k].lo, PAD_RANGE[k].hi)])) as unknown as DrumPad;
+        const sample = readSampler(o.sample);
+        if (sample) pad.sample = sample;
+        pads[d.pitch] = pad;
       }
       if (Object.keys(pads).length > 0) track.pads = pads;
     }
@@ -379,9 +413,10 @@ export function writeSong(song: Song): string {
     if (t.pan) head.pan = t.pan;
     if (t.sends && Object.keys(t.sends).length > 0) head.sends = t.sends;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
+    if (t.kind === 'sampler' && t.sampler) head.sampler = t.sampler;
     if (t.kit && t.instrument === 'drums') head.kit = t.kit;
     if (t.pads && t.instrument === 'drums') {
-      const pads = Object.fromEntries(Object.entries(t.pads).filter(([, p]) => (Object.keys(PAD_DEFAULTS) as (keyof DrumPad)[]).some((k) => p[k] !== PAD_DEFAULTS[k])));
+      const pads = Object.fromEntries(Object.entries(t.pads).filter(([, p]) => p.sample || (Object.keys(PAD_RANGE) as PadSetting[]).some((k) => p[k] !== PAD_DEFAULTS[k])));
       if (Object.keys(pads).length > 0) head.pads = pads;
     }
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
