@@ -2830,6 +2830,9 @@ body { font-variant-numeric: tabular-nums; }
 }
 :root:not([data-panels="flat"]) .chat:not(.full) .chat-head { height: var(--panel-head-h); margin-bottom: 0; }
 :root:not([data-panels="flat"]) .dock.right:not([data-floating]) .chat .composer { background: var(--raised); }
+/* An app's own panel beside the work (the inspector: Calendar's Event, Mail's Contact): the same rounded panel, a gap from the app. */
+:root:not([data-panels="flat"]) .dock.inspector { margin-left: var(--panel-gap); border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--panel-card-shadow); overflow: hidden; }
+:root:not([data-panels="flat"]) .dock.inspector .panel-tabs-head { border-bottom: 0; }
 /* The tool row, in both looks: the app's tools centred on the window, the trailing icons at the end. */
 .context-strip[data-titled]:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 var(--panel-gap); }
 .context-strip[data-titled] > .ui-toolbar-slot { grid-column: 2; justify-content: safe center; }

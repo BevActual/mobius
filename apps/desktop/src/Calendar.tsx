@@ -7,7 +7,7 @@ import { useMorphIn } from './motion';
 import { formatWith } from './dates';
 import { settleBy, settleGone } from './settle';
 import { ContactPanel, useAddressSuggestions } from './ContactPanel';
-import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
+import { addDays, weekStart, allDayOn, atMinutes, calendarColor, calendarGlance, clock, hourLabel, daysFor, draftEnd, dragged, eventsOn, isoDay, isoTime, localDate, meetingLink, movedByDays, parseEventWithPlace, placeDay, REPEAT_OPTIONS, sameDay, searchEvents, answerWord, inviteText, parseInvitees, sameInvitees, snapMinutes, step, type CalendarMode } from './calendar-view';
 import { parseWhen } from './tasks-view';
 import type { CalendarState, DueTask } from './useCalendar';
 import './calendar.css';
@@ -828,6 +828,8 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
     window.addEventListener('keydown', escape);
     return () => { window.removeEventListener('pointerdown', away, true); window.removeEventListener('keydown', escape); };
   }, [at, onClose]);
+  // A meeting link in the place or the notes: Join opens it.
+  const joinAt = meetingLink(`${where}\n${notes}`);
   // Record meeting is for a meeting: a timed event with people invited or a place to be.
   const meeting = original != null && onMeeting !== undefined && !original.allDay && ((original.attendees?.length ?? 0) > 0 || (original.location ?? '').trim() !== '');
   const form = (
@@ -847,7 +849,10 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
       >
         <fieldset className="cal-editor-fields" disabled={locked}>
         <input ref={field} className="cal-editor-title" aria-label="Title" placeholder="New event" value={title} maxLength={200} required onChange={(e) => setTitle(e.target.value)} />
-        <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
+        <span className="cal-editor-where">
+          <input className="cal-editor-place" aria-label="Place" placeholder="Add a place" value={where} maxLength={200} onChange={(e) => setWhere(e.target.value)} />
+          {joinAt && <button type="button" className="btn primary cal-join" title={joinAt} onClick={() => void window.mobius.browser.open(joinAt)}>Join</button>}
+        </span>
         <input className="cal-editor-place" aria-label="Invite" placeholder="Invite people" list="cal-invite-people" autoComplete="off" value={invite} maxLength={2000} onChange={(e) => setInvite(e.target.value)} />
         <datalist id="cal-invite-people">{invitePeople.map((v) => <option key={v} value={v} />)}</datalist>
         {(original?.attendees?.length ?? 0) > 0 && (
@@ -880,6 +885,11 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
               <Select label="Calendar" hideLabel value={into} onChange={setInto} choices={writable.map((c) => ({ value: c, label: c }))} />
             </div>
           )}
+          {original && docked && (
+            <div className="cal-editor-row cal-editor-calendar"><span>Calendar</span>
+              <span className="cal-editor-calendar-name"><span className="cal-swatch" aria-hidden="true" style={{ ['--swatch' as string]: calendarColor(calendar.calendars, original.calendar) }} />{original.calendar}</span>
+            </div>
+          )}
         </div>
         <textarea aria-label="Notes" placeholder="Notes" value={notes} maxLength={4000} rows={3} onChange={(e) => setNotes(e.target.value)} />
         </fieldset>
@@ -896,6 +906,16 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           {onDock && <button type="button" className="cal-dock" title="Edit this event in the Event panel, with more room" onClick={onDock}>More options<svg viewBox="0 0 20 20" aria-hidden="true"><path d="m8 5 5 5-5 5" /></svg></button>}
         </div>
         ) : (
+        docked ? (
+        // The Event panel: one row, Record meeting on the left, Delete in red words and Save on the right. Escape or
+        // the panel's × closes it.
+        <div className="cal-editor-actions" data-docked>
+          {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
+          <span className="spacer" />
+          {original && !locked && <button type="button" className="cal-pop-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
+          {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
+        </div>
+        ) : (
         <div className="cal-editor-actions">
           {meeting && <button type="button" className="btn cal-meeting" title="Open a note for this meeting and write down what is said" onClick={() => { onClose(); onMeeting?.(original!); }}>Record meeting</button>}
           {original && !locked && <button type="button" className="btn cal-delete" disabled={busy} onClick={() => void calendar.remove(original).then((ok) => { if (ok) { onDeleted?.(original); onClose(); } })}>Delete</button>}
@@ -903,6 +923,7 @@ function EventEditor({ calendar, editing, onClose, onDeleted, onMeeting, onDock,
           <button type="button" className="btn" onClick={onClose}>{locked ? 'Close' : 'Cancel'}</button>
           {!locked && <button type="submit" className="btn primary" disabled={busy || title.trim() === ''}>{original ? 'Save' : 'Add'}</button>}
         </div>
+        )
         )}
       </form>
   );
@@ -1050,6 +1071,9 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
   // Person (right, hidden until someone on an event is picked): who they are, and their coming meetings.
   const [person, setPerson] = useState<CalendarPerson | null>(null);
   const showPerson = useShowPanelTab();
+  // The Person panel comes forward once it is there; it goes with the event it came from.
+  useEffect(() => { if (person) showPerson('person'); }, [person, showPerson]);
+  useEffect(() => { if (!editing) setPerson(null); }, [editing]);
   const [undoable, setUndoable] = useState<Undoable | null>(null);
   useEffect(() => { if (!undoable) return undefined; const t = window.setTimeout(() => setUndoable(null), 10_000); return () => window.clearTimeout(t); }, [undoable]);
   const takeBack = async () => { const u = undoable; setUndoable(null); await u?.undo(); };
@@ -1240,8 +1264,9 @@ export function CalendarPage({ calendar, newToken = 0, review = null, working = 
       {undoable && <UndoToast text={undoable.text} onUndo={() => void takeBack()} onDismiss={() => setUndoable(null)} />}
       {/* Closing one suggestion never closes the next: its answer can finish after another was opened. */}
       {asking && <SuggestionPopover key={asking.id} calendar={calendar} id={asking.id} at={asking.at} onClose={() => { const id = asking.id; setAsking((a) => (a?.id === id ? null : a)); }} />}
-      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={(p) => { setPerson(p); showPerson('person'); }} />}
-      <PanelTab id="person" name="Person"><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>
+      {editing && <EventEditor key={'event' in editing ? editing.event.id + editing.event.start : editing.start} calendar={calendar} editing={editing} onClose={() => setEditing(null)} onDeleted={deleted} onMeeting={onMeeting} onDock={() => setEditing((e) => (e ? { ...e, docked: true } : e))} onPerson={setPerson} />}
+      {/* Person: only once someone invited is picked (from their name on the event), so an event's page stands alone. */}
+      {person && <PanelTab id="person" name="Person" shown><ContactPanel person={person} empty="Pick someone invited to an event to see who they are." onOpenEvent={(event) => setEditing({ event })} /></PanelTab>}
     </section>
   );
 }

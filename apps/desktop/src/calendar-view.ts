@@ -472,3 +472,9 @@ export function sameInvitees(a: readonly { email: string }[], b: readonly { emai
 
 /** An attendee's answer in words, or nothing while it waits. */
 export const answerWord = (status: CalendarAnswer): string => ({ accepted: 'going', declined: 'not going', tentative: 'maybe', 'needs-action': '', '': '' })[status];
+
+/** The first video-meeting link in an event's place or notes (Meet, Zoom, Teams, Webex, Whereby, Jitsi), for Join. */
+export function meetingLink(text: string): string | null {
+  const found = text.match(/https:\/\/(?:[\w-]+\.)*(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com|webex\.com|whereby\.com|meet\.jit\.si)\/[^\s<>"')]*/i);
+  return found ? found[0] : null;
+}
