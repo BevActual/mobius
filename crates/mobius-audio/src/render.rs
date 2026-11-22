@@ -7,7 +7,7 @@ use crate::drum::Hit;
 use crate::fx::{pan, Chain};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
-use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
+use crate::song::{fill_auto, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
 /// The longest block made at once: a longer one is made in pieces of this.
@@ -27,6 +27,7 @@ struct Lane {
     /// A drums track's kit and its drums' own settings by pitch.
     kit: Kit,
     pads: Vec<(u8, Pad)>,
+    /// Its pan's left and right gains (at `pan`).
     gains: (f64, f64),
     volume: f64,
     /// How its volume moves along the song; empty keeps `volume`.
@@ -49,7 +50,10 @@ struct Lane {
     /// The loudest sample of the last block, left and right, after volume and pan.
     peak: (f32, f32),
     /// Its sends: a return (by its place in the renderer's) and how much goes to it, after volume and pan.
-    sends: Vec<(usize, f32)>,
+    sends: Vec<Send>,
+    /// How its pan moves along the song (empty keeps `pan`), and its pan at each sample of a block when it moves.
+    pan_auto: Vec<AutoPoint>,
+    pans: Vec<f32>,
     /// An audio track's clips in Arrange.
     audio: Vec<AudioClip>,
     /// Where the grains of the Session clip playing on it start, when its warp keeps pitch.
@@ -61,6 +65,20 @@ struct Lane {
     /// Sampler notes sounding, each with how far into the block it starts the first time (as a hit waits) and the
     /// note that started it.
     sample_voices: Vec<(SampleVoice, usize, u8)>,
+}
+
+/// A track's send to a return: how much, or how that moves along the song and its level at each sample of a block.
+struct Send {
+    to: usize,
+    level: f32,
+    auto: Vec<AutoPoint>,
+    levels: Vec<f32>,
+}
+
+impl Send {
+    fn at(&self, i: usize) -> f32 {
+        if self.auto.is_empty() { self.level } else { self.levels[i] }
+    }
 }
 
 /// An audio clip in Arrange: `length` song beats from `start`, playing its own beats from `offset`, going round
@@ -403,6 +421,9 @@ pub struct Renderer {
     main: Option<Chain>,
     main_key: String,
     main_volume: f64,
+    /// Main's volume automation (none in the Session view) and its level at each sample of a piece.
+    main_auto: Vec<AutoPoint>,
+    main_volumes: Vec<f32>,
     /// The next sample to make, counted from the song's start.
     sample: u64,
     peak: (f32, f32),
@@ -569,8 +590,10 @@ impl Renderer {
                 if is_frozen {
                     notes.clear();
                 }
-                let mut auto = if how.session { Vec::new() } else { t.volume_auto.clone() };
-                auto.sort_by(|a, b| a.beat.total_cmp(&b.beat));
+                // Arrangement automation (25), not the Session view's.
+                let arranged = |name: &str| if how.session { Vec::new() } else { Song::auto_of(t, name) };
+                let auto = arranged("volume");
+                let pan_auto = arranged("pan");
                 // Notes that started before the play position are not caught up: they begin where they begin.
                 let next = notes.iter().position(|n| clock.sample_of_beat(n.start) >= start).unwrap_or(notes.len());
                 let audio: Vec<AudioClip> = if let Some(frozen) = frozen { vec![frozen] } else if how.session { Vec::new() } else {
@@ -602,7 +625,7 @@ impl Renderer {
                     instrument: t.instrument,
                     kit: t.kit.unwrap_or_default(),
                     pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, pad.clone()))).collect(),
-                    gains: { let (l, r) = pan_gains(t.pan); (l * t.volume, r * t.volume) },
+                    gains: pan_gains(t.pan),
                     volume: t.volume,
                     volumes: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
                     auto,
@@ -616,12 +639,18 @@ impl Renderer {
                     scratch: vec![0.0; MAX_BLOCK],
                     scratch_right: vec![0.0; MAX_BLOCK],
                     peak: (0.0, 0.0),
-                    sends: t
-                        .sends
+                    // A send that is automated counts even at 0.
+                    sends: returns
                         .iter()
-                        .filter(|(_, level)| **level > 0.0)
-                        .filter_map(|(id, level)| Some((returns.iter().position(|r| &r.id == id)?, level.min(1.0) as f32)))
+                        .enumerate()
+                        .filter_map(|(to, r)| {
+                            let level = t.sends.get(&r.id).copied().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
+                            let auto = arranged(&format!("send:{}", r.id));
+                            (level > 0.0 || !auto.is_empty()).then(|| Send { to, level, levels: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] }, auto })
+                        })
                         .collect(),
+                    pans: if pan_auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
+                    pan_auto,
                     audio,
                     slot_stretch: Stretch::default(),
                     samplers,
@@ -637,6 +666,8 @@ impl Renderer {
             main: Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true),
             main_key: serde_json::to_string(&song.main.fx).unwrap_or_default(),
             main_volume: song.main.volume.max(0.0),
+            main_auto: if how.session { Vec::new() } else { song.main_auto_of("volume") },
+            main_volumes: vec![0.0; MAX_BLOCK],
             metronome: song.metronome.volume.clamp(0.0, 1.0),
             sample: start,
             peak: (0.0, 0.0),
@@ -843,7 +874,15 @@ impl Renderer {
         let spb = self.clock.seconds_per_beat();
         let (from, to) = (self.sample, self.sample + frames as u64);
         let clock = self.clock;
-        let main_volume = self.main_volume as f32;
+        if self.main_auto.is_empty() {
+            self.main_volumes[..frames].fill(self.main_volume as f32);
+        } else {
+            fill_auto(&self.main_auto, |i| clock.beat(from + i as u64), &mut self.main_volumes[..frames], self.main_volume);
+            for v in &mut self.main_volumes[..frames] {
+                *v = v.max(0.0);
+            }
+        }
+        let mains = &self.main_volumes[..frames];
         for ret in &mut self.returns {
             ret.left[..frames].fill(0.0);
             ret.right[..frames].fill(0.0);
@@ -851,17 +890,18 @@ impl Renderer {
         let returns = &mut self.returns;
         // A track's sound into Main (before Main's effects and level) and on to its returns; its meter reads it at
         // Main's level, as it is heard with no effects on Main.
-        let out = |peak: &mut (f32, f32), stem: &mut (Vec<f32>, Vec<f32>), sends: &[(usize, f32)], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
-            *peak = (peak.0.max((l * main_volume).abs()), peak.1.max((r * main_volume).abs()));
+        let out = |peak: &mut (f32, f32), stem: &mut (Vec<f32>, Vec<f32>), sends: &[Send], returns: &mut [ReturnLane], i: usize, (l, r): (f32, f32), left: &mut [f32], right: &mut [f32]| {
+            *peak = (peak.0.max((l * mains[i]).abs()), peak.1.max((r * mains[i]).abs()));
             if !stem.0.is_empty() {
                 stem.0[i] = l;
                 stem.1[i] = r;
             }
             left[i] += l;
             right[i] += r;
-            for &(to, level) in sends {
-                returns[to].left[i] += l * level;
-                returns[to].right[i] += r * level;
+            for send in sends {
+                let level = send.at(i);
+                returns[send.to].left[i] += l * level;
+                returns[send.to].right[i] += r * level;
             }
         };
         for (index, lane) in self.lanes.iter_mut().enumerate() {
@@ -906,12 +946,16 @@ impl Renderer {
                 }
             }
             lane.voices.retain(|v| !v.done());
-            // The volume at each sample, where it moves.
+            // The volume, pan and sends at each sample, where they move: to the sample (25).
+            let beat_of = |i: usize| clock.beat(from + i as u64);
             if !lane.auto.is_empty() {
-                let clock = self.clock;
-                for (i, v) in lane.volumes[..frames].iter_mut().enumerate() {
-                    *v = auto_value_at(&lane.auto, clock.beat(from + i as u64), lane.volume) as f32;
-                }
+                fill_auto(&lane.auto, beat_of, &mut lane.volumes[..frames], lane.volume);
+            }
+            if !lane.pan_auto.is_empty() {
+                fill_auto(&lane.pan_auto, beat_of, &mut lane.pans[..frames], lane.pan);
+            }
+            for send in lane.sends.iter_mut().filter(|s| !s.auto.is_empty()) {
+                fill_auto(&send.auto, beat_of, &mut send.levels[..frames], f64::from(send.level));
             }
             let scratch = &mut lane.scratch[..frames];
             let right_scratch = &mut lane.scratch_right[..frames];
@@ -958,18 +1002,23 @@ impl Renderer {
                 let stereo = chain.stereo_out();
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
-                    let (a, b) = if lane.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, lane.pan, stereo) };
+                    let p = if lane.pan_auto.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
+                    let (a, b) = if p.abs() < 1e-9 { (a, b) } else { pan(a, b, p, stereo) };
                     out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
                 }
                 continue;
             }
-            let (gl, gr) = lane.gains;
             for i in 0..frames {
                 let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
-                // Moving, the volume scales the pan's gains (made with the track's own volume).
-                let (volume, scale) = if lane.auto.is_empty() { (lane.volume, 1.0) } else { let v = f64::from(lane.volumes[i]); (v, if lane.volume > 0.0 { v / lane.volume } else { 0.0 }) };
+                let volume = if lane.auto.is_empty() { lane.volume } else { f64::from(lane.volumes[i]) };
+                let p = if lane.pan_auto.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
-                let (l, r) = if lane.stereo && lane.pan.abs() > 1e-9 { pan(a * volume, b * volume, lane.pan, true) } else { (a * gl * scale, b * gr * scale) };
+                let (l, r) = if lane.stereo && p.abs() > 1e-9 {
+                    pan(a * volume, b * volume, p, true)
+                } else {
+                    let (gl, gr) = if lane.pan_auto.is_empty() { lane.gains } else { pan_gains(p) };
+                    (a * gl * volume, b * gr * volume)
+                };
                 out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (l as f32, r as f32), left, right);
             }
         }
@@ -983,7 +1032,7 @@ impl Renderer {
                 let (a, b) = (f64::from(rl[i]) * ret.volume, f64::from(rr[i]) * ret.volume);
                 let (a, b) = if ret.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, ret.pan, true) };
                 let (l, r) = (a as f32, b as f32);
-                ret.peak = (ret.peak.0.max((l * main_volume).abs()), ret.peak.1.max((r * main_volume).abs()));
+                ret.peak = (ret.peak.0.max((l * mains[i]).abs()), ret.peak.1.max((r * mains[i]).abs()));
                 if !ret.stem.0.is_empty() {
                     ret.stem.0[i] = l;
                     ret.stem.1[i] = r;
@@ -996,9 +1045,9 @@ impl Renderer {
         if let Some(chain) = &mut self.main {
             chain.process(left, right, rate);
         }
-        for (l, r) in left.iter_mut().zip(right.iter_mut()) {
-            *l *= main_volume;
-            *r *= main_volume;
+        for ((l, r), v) in left.iter_mut().zip(right.iter_mut()).zip(&self.main_volumes) {
+            *l *= v;
+            *r *= v;
         }
         // The metronome, on each beat in this piece (inside the song), straight to the master.
         if self.click {
@@ -1219,6 +1268,68 @@ mod tests {
         assert!((at(&b, 2_400) / at(&a, 2_400) - 0.95).abs() < 0.03);
         assert!((at(&b, 23_760) / at(&a, 23_760) - 0.5).abs() < 0.03);
         assert!(level(&b[48_000..96_000]) < 1e-4);
+    }
+
+    /// A held sine-ish lead note across the bar, with `extra` on the track and `rest` on the song.
+    fn held(rest: &str, extra: &str) -> Song {
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5},"notes":[{"pitch":69,"start":0,"length":4,"velocity":1}]"#;
+        Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,{rest}"tracks":[{{"id":"t","instrument":"lead",{sound}{extra}}}]}}"#)).unwrap()
+    }
+
+    fn loudest(x: &[f32]) -> f32 {
+        x.iter().fold(0f32, |m, v| m.max(v.abs()))
+    }
+
+    #[test]
+    fn automation_is_to_the_sample_and_needs_no_volume_under_it() {
+        // A step from 0 to 1 at beat 1 (sample 24 000): silent before, sounding from that very sample, even with the
+        // fader itself at 0 (the automation, not the fader, sets the level while it runs).
+        let s = held("", r#","volume":0,"auto":{"volume":[{"beat":0,"value":0},{"beat":0.999999,"value":0},{"beat":1,"value":1}]}"#);
+        let (l, _) = render_song(&s, 48_000);
+        assert!(loudest(&l[..23_990]) < 1e-6);
+        assert!(loudest(&l[24_000..26_400]) > 0.05);
+        // The same in blocks of any size.
+        let mut odd = Renderer::new(&s, 48_000, 0.0);
+        let (mut a, mut b) = (vec![0f32; l.len()], vec![0f32; l.len()]);
+        for (x, y) in a.chunks_mut(331).zip(b.chunks_mut(331)) {
+            odd.render(x, y);
+        }
+        assert_eq!(a, l);
+    }
+
+    #[test]
+    fn a_curved_segment_bends_and_an_overridden_setting_plays_its_fader() {
+        let line = |curve: f64| held("", &format!(r#","volume":0.5,"auto":{{"volume":[{{"beat":0,"value":0,"curve":{curve}}},{{"beat":2,"value":1}}]}}"#));
+        let at = |s: &Song| loudest(&render_song(s, 48_000).0[23_760..24_240]);
+        let (straight, up, down) = (at(&line(0.0)), at(&line(0.8)), at(&line(-0.8)));
+        // The curve is on the segment's first point. Half way along, a straight line is at half; bent one way it is further along, the other way less far.
+        assert!(up > straight * 1.3 && down < straight * 0.7, "{down} {straight} {up}");
+        // Live's rule (25.4): moving an automated control overrides it, and it plays at the control until re-enabled.
+        let off = held("", r#","volume":0.5,"auto":{"volume":[{"beat":0,"value":0}]},"autoOff":["volume"]"#);
+        assert_eq!(render_song(&off, 48_000).0, render_song(&held("", r#","volume":0.5"#), 48_000).0);
+    }
+
+    #[test]
+    fn pan_sends_and_main_follow_their_automation() {
+        // Pan from hard left to hard right over the bar: left louder than right early, the other way round late.
+        let s = held("", r#","auto":{"pan":[{"beat":0,"value":-1},{"beat":4,"value":1}]}"#);
+        let (l, r) = render_song(&s, 48_000);
+        assert!(loudest(&l[4_800..9_600]) > 4.0 * loudest(&r[4_800..9_600]));
+        assert!(loudest(&r[86_400..91_200]) > 4.0 * loudest(&l[86_400..91_200]));
+        // A send that rises from nothing to all: the return adds nothing at first and doubles it by the end, even
+        // with the send's own level at 0.
+        let dry = render_song(&held("", ""), 48_000).0;
+        let sent = render_song(&held(r#""returns":[{"id":"a"}],"#, r#","sends":{"a":0},"auto":{"send:a":[{"beat":0,"value":0},{"beat":4,"value":1}]}"#), 48_000).0;
+        assert!((loudest(&sent[2_400..4_800]) / loudest(&dry[2_400..4_800]) - 1.0).abs() < 0.05);
+        assert!((loudest(&sent[91_200..93_600]) / loudest(&dry[91_200..93_600]) - 2.0).abs() < 0.05);
+        // Main's volume falling to nothing over the first two beats, then staying there.
+        let main = render_song(&held(r#""main":{"volume":0.8,"auto":{"volume":[{"beat":0,"value":1},{"beat":2,"value":0}]}},"#, ""), 48_000).0;
+        assert!(loudest(&main[48_000..]) < 1e-6);
+        assert!((loudest(&main[23_760..24_240]) / loudest(&dry[23_760..24_240]) - 0.5 / 0.8).abs() < 0.05);
+        // The Session view plays no Arrangement automation.
+        let mut session = Renderer::playing(&held(r#""main":{"auto":{"volume":[{"beat":0,"value":0}]}},"#, ""), 48_000, Playing { session: true, ..Playing::default() });
+        assert!(session.main_auto.is_empty());
+        session.render(&mut [0f32; 64], &mut [0f32; 64]);
     }
 
     #[test]
