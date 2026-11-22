@@ -57,6 +57,10 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
   useEffect(() => { if (drive) { setLoading(true); setEntries([]); setProblem(null); void list(); } }, [drive, list]);
   // A change on the open drive (from this window or another) lists the folder again.
   useEffect(() => api?.onChanged((c) => { if (c.drive === drive) void list(); }), [api, drive, list]);
+  // A drive or place added elsewhere (the agent, Settings, another window) joins the list when it first changes.
+  const known = useRef(accounts);
+  known.current = accounts;
+  useEffect(() => api?.onChanged((c) => { if (!known.current.some((a) => a.id === c.drive)) void loadAccounts(); }), [api, loadAccounts]);
 
   // One line about what just went wrong, and one about what was just copied where.
   const [notice, setNotice] = useState<string | null>(null);
