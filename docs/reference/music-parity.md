@@ -103,7 +103,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Master track with its own effects | The engine plays `main` (effects, then level; 0.8 when unset) | Main in the format and the Mixer | M (format) |
 | Return tracks and sends | The engine plays `returns` (up to 12) and each track's post-fader `sends` | Returns and sends in the format and the Mixer | M (format) |
 | A mixer view | None | Mixer, in Session and as a panel in Arrange | M (library `Mixer` exists) |
-| Freeze and flatten | None | Freeze to audio | M (needs audio) |
+| Freeze and flatten | Freeze in the engine: a track's instrument, clips and effects rendered to Samples/Processed/Freeze and played in their place in Arrange, its volume, pan and sends still live (Live 12 manual, 38.1.4 "Track Freeze") | The window's Freeze/Unfreeze; Session clips; flatten | S |
 | Latency compensation, track delay | Not needed yet | Comes with the engine | — |
 
 ### Audio
@@ -114,7 +114,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Recording audio from an input | The engine records the armed audio track's input while the song plays, to `Samples/Recorded/<track> <n>.wav` (32-bit float), taking off the round-trip latency; an armed audio track hears its input (Auto monitoring, straight out at the track's volume and pan) | Monitoring through the track's effects; the window's record button and take clips | XL (engine) |
 | Warping: stretch to tempo, warp markers, modes | The engine warps clips by the file's tempo or its warp markers: Re-Pitch like a turntable, the other modes keeping pitch with a granular stretcher (Beats on a sixteenth-note grid, Tones short grains, Texture long ones) | Beats' transient detection, Texture's Flux, and a phase-vocoder Complex and Complex Pro for full mixes | L |
 | Stem separation, audio to MIDI | None | Later, local models | L |
-| Export stems, MP3 and FLAC | WAV of the whole song | Stems first | S to M |
+| Export stems, MP3 and FLAC | WAV of the whole song; stems in the engine: each heard track, return and Main post-fader, the same length, silent tracks left out (Live 12 manual, 5.1.3.1 "Selection Options") | The window's stems option; MP3 and FLAC; "Include Return and Main Effects" | S |
 
 ### Browser and workflow
 
@@ -285,7 +285,8 @@ interface Song {
   changes?: { beat: number; tempo?: number; meter?: [number, number] }[];   // along the song
   tracks: Track[];
   returns?: Return[];                       // shared effects that tracks send to
-  master?: { volume: number; fx?: Effect[] };
+  main?: { volume: number; fx?: Effect[] };   // the Main track (Live's name for the master)
+  metronome?: { volume: number };          // 0..1, the metronome's own level apart from Main (0.8 if left out)
   scenes?: string[];
 }
 interface Track {
@@ -293,6 +294,7 @@ interface Track {
   volume: number; pan: number; muted: boolean; solo: boolean; armed?: boolean;
   sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; instrumentOn?: false;
   kind?: "audio" | "sampler";              // none: notes on its instrument
+  frozen?: { file: string };                // frozen: this file plays in Arrange in place of its notes, clips and effects
   sampler?: SamplerSound;                   // kind "sampler": its notes play this; pads may hold one as `sample`
   sends?: Record<string, number>;           // return id -> level 0..1
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
@@ -346,7 +348,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Audio clips and tracks, recording from an input with monitoring.
    - The Sampler, and drum pads that hold samples (engine done; the window next).
    - Warping, with a stretcher in the engine.
-   - Freeze, and exporting stems.
+   - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
    - Automation for every setting, and clip envelopes.
    - Modulators and sidechain.

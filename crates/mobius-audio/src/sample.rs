@@ -53,7 +53,9 @@ impl Samples {
             let pads = t.pads.values().filter(move |_| t.instrument == crate::song::Instrument::Drums).filter_map(|p| p.sample.as_ref());
             Song::sampler_of(t).into_iter().chain(pads).map(|s| s.file.clone())
         });
-        let files: Vec<String> = clips.chain(samplers).collect();
+        // And frozen tracks' files.
+        let frozen = song.tracks.iter().filter_map(|t| t.frozen.as_ref()).map(|f| f.file.clone());
+        let files: Vec<String> = clips.chain(samplers).chain(frozen).collect();
         let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
         let mut used = Vec::new();
         let mut problems = Vec::new();

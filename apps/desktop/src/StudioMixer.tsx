@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { Button, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
-import { MAIN_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
+import { Button, Knob, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
+import { MAIN_VOLUME, METRONOME_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
 import { stoppedMeter, type Player } from './studio-engine';
 
 /** A track's volume (0 to 1, as kept in the song) in dB for the fader, and back. The fader stops at 0 dB, the most a track's volume can be. */
@@ -88,7 +88,16 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
         <Button kind="quiet" className="studio-mixer-add" title="A return track: tracks send to it with their Send knobs, as in Live" onClick={addReturn}>Add return</Button>
       )}
       {/* Live's Main: no pan, mute or solo; its fader sets the whole song's level. */}
-      <MixerStrip name="Main" className="studio-mixer-main" meter={feed('master')} sends={spacer}
+      {/* Where its sends would be, the metronome's level (Live's Main has its Cue volume there): apart from Main, so the
+          click can sit under the mix. */}
+      <MixerStrip name="Main" className="studio-mixer-main" meter={feed('master')}
+        sends={<Sends count={Math.max(1, returns.length)} label="Metronome">
+          <span className="ui-send">
+            <span className="ui-send-letter" aria-hidden="true">♩</span>
+            <Knob className="ui-send-knob" label="Metronome volume" value={song.metronome?.volume ?? METRONOME_VOLUME} min={0} max={1} step={0.01} reset={METRONOME_VOLUME}
+              format={(v) => `${Math.round(v * 100)}%`} onChange={(v) => setSong((s) => { s.metronome = { volume: Math.round(v * 100) / 100 }; }, 'mix-metronome')} />
+          </span>
+        </Sends>}
         volume={gainToDb(song.main?.volume ?? MAIN_VOLUME)} ceiling={0} volumeReset={gainToDb(MAIN_VOLUME)}
         onVolume={(db) => setSong((s) => { s.main = { ...(s.main ?? {}), volume: dbToGain(db) }; }, 'mix-vol:main')} />
     </div>

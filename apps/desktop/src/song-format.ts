@@ -215,13 +215,15 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
-export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[] }
+export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[] }
 /** A return track: what tracks send to it goes through its effects, its volume and pan, into Main. Its id never matches a track's. */
 export interface ReturnTrack { id: string; name?: string; volume: number; pan: number; muted?: boolean; fx?: Effect[] }
 export const MAX_RETURNS = 12;
 export const MAIN_VOLUME = 0.8;
+/** The metronome's level when the song doesn't set one (the engine's default). */
+export const METRONOME_VOLUME = 0.8;
 /** A return's name: its own, or a letter by its place, as Live names them (A, B, C…). */
 export const returnName = (r: ReturnTrack, i: number): string => r.name || String.fromCharCode(65 + i);
 export const BEATS_PER_BAR = 4;
@@ -375,6 +377,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const song: Song = { version: 2, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
   if (Object.keys(mo).length > 0) { song.main = { volume: num(mo.volume, MAIN_VOLUME, 0, 1) }; if (mainFx.length > 0) song.main.fx = mainFx; }
   if (returns.length > 0) song.returns = returns;
+  const met = obj(o.metronome);
+  if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
   if (Array.isArray(o.scenes) && o.scenes.length > 0) song.scenes = o.scenes.slice(0, MAX_SCENES).map((n) => (typeof n === 'string' ? n.slice(0, 40) : ''));
   return { song };
 }
@@ -405,6 +409,7 @@ export const sceneName = (song: Song, i: number): string => song.scenes?.[i] || 
 export function writeSong(song: Song): string {
   const lines = ['{', '  "version": 2,', `  "tempo": ${song.tempo},`, `  "key": ${JSON.stringify(song.key)},`, `  "bars": ${song.bars},`, ...(song.scenes && song.scenes.length > 0 ? [`  "scenes": ${JSON.stringify(song.scenes)},`] : []),
     ...(song.main ? [`  "main": ${JSON.stringify(song.main)},`] : []),
+    ...(song.metronome ? [`  "metronome": ${JSON.stringify(song.metronome)},`] : []),
     ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
     '  "tracks": ['];
   song.tracks.forEach((t, i) => {

@@ -663,7 +663,9 @@ test('Export as WAV renders the song and saves it in the Exports folder', async 
   await start();
   // Wide enough that Export stays in the toolbar rather than the ⋯ menu (it is the first control to drop).
   await resizeWindow(mobius!.app, 1600, 900);
-  await shell().getByRole('button', { name: 'Export as WAV' }).click();
+  // Export is Live's Rendered Track: Main, or every track on its own.
+  await shell().getByRole('button', { name: 'Export' }).click();
+  await shell().getByRole('menu', { name: 'Export' }).getByRole('menuitem', { name: /^Export Main as WAV/ }).click();
   await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
   const wav = fs.readFileSync(path.join(userData, 'workspace', 'Exports', 'Night Drive.wav'));
   expect(wav.subarray(0, 4).toString('latin1')).toBe('RIFF');
@@ -677,6 +679,20 @@ test('Export as WAV renders the song and saves it in the Exports folder', async 
   await shell().locator('.studio-page').focus();
   await shell().keyboard.press('Control+Shift+E');
   await expect(shell().getByRole('status').filter({ hasText: 'Exported “Night Drive 2.wav” to Exports' })).toBeVisible({ timeout: 30_000 });
+});
+
+test('Export can render every track on its own, the same length, into a stems folder', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1600, 900);
+  await shell().getByRole('button', { name: 'Export' }).click();
+  await shell().getByRole('menu', { name: 'Export' }).getByRole('menuitem', { name: /^Export All Tracks as WAVs/ }).click();
+  await expect(shell().getByRole('status').filter({ hasText: /Exported \d+ tracks? to Exports\/Night Drive stems/ })).toBeVisible({ timeout: 30_000 });
+  const folder = path.join(userData, 'workspace', 'Exports', 'Night Drive stems');
+  const files = fs.readdirSync(folder).filter((f) => f.endsWith('.wav'));
+  expect(files.length).toBeGreaterThanOrEqual(2);
+  // All the same length, as Live renders them, so they line up when brought back in.
+  const sizes = new Set(files.map((f) => fs.statSync(path.join(folder, f)).size));
+  expect(sizes.size).toBe(1);
 });
 
 test('the computer keyboard plays notes, an octave and velocity at a time, shown on the roll keys while held', async () => {
