@@ -7,7 +7,7 @@ import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneN
 import type { CSSProperties } from 'react';
 import { ClipWave } from './studio-wave';
 import { SampleSlot, sampleName } from './StudioSample';
-import { armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
+import { pressKey, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -901,9 +901,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [keyOctave, setKeyOctave] = useState(4);
   const [keyVelocity, setKeyVelocity] = useState(100);
   const [held, setHeld] = useState<ReadonlyMap<string, number>>(new Map());
+  // The computer keys held down through the engine, by key, so each lifts the note it pressed.
+  const pressed = useRef(new Map<string, number>());
   useEffect(() => {
-    const up = (e: KeyboardEvent) => { finishKey.current?.(e.key.toLowerCase()); setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; }); };
-    const clear = () => { finishAll.current?.(); setHeld(new Map()); };
+    const lift = (k: string) => { const pitch = pressed.current.get(k); if (pitch === undefined) return; pressed.current.delete(k); pressKey(pitch, 0); };
+    const up = (e: KeyboardEvent) => { lift(e.key.toLowerCase()); finishKey.current?.(e.key.toLowerCase()); setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; }); };
+    const clear = () => { for (const k of [...pressed.current.keys()]) lift(k); finishAll.current?.(); setHeld(new Map()); };
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
     return () => { window.removeEventListener('keyup', up); window.removeEventListener('blur', clear); };
@@ -1340,7 +1343,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const pitch = drums ? keyboardDrum(k, DRUMS_UP.map((d) => d.pitch)) : keyboardPitch(k, keyOctave);
     if (pitch === null) return false;
     if (!e.repeat) {
-      previewOn(track, pitch, keyVelocity / 127, 0.45, track.pads?.[pitch]);
+      // Held on the armed (chosen) track until the key lifts, as a MIDI key; a short preview without the engine.
+      if (track.id === selected && pressKey(pitch, keyVelocity / 127)) pressed.current.set(k, pitch);
+      else previewOn(track, pitch, keyVelocity / 127, 0.45, track.pads?.[pitch]);
       setHeld((h) => new Map(h).set(k, pitch));
       if (recording && player.current) takeKeys.current.set(k, { pitch, start: player.current.beat(), velocity: keyVelocity / 127 });
     }

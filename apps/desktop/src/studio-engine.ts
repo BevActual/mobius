@@ -229,6 +229,18 @@ export function takeClip(take: MusicTake, tempo: number, id: string): ArrangeCli
   };
 }
 
+/**
+ * A key held on the armed track (velocity 0 to 1), sounding until it is lifted with velocity 0, as a MIDI key plays it:
+ * a sampler's loop and every envelope's sustain then last as long as the key. False without the engine's `press`, so
+ * the caller can play a short preview instead.
+ */
+export function pressKey(pitch: number, velocity: number): boolean {
+  const m = music();
+  if (!engineOn() || !m?.press) return false;
+  send(() => m.press!(pitch, Math.max(0, Math.min(1, velocity))));
+  return true;
+}
+
 /** A bar of ticks before recording. */
 export function countIn(tempo: number, beats = BEATS_PER_BAR): { done: Promise<void>; stop(): void } {
   const m = music();

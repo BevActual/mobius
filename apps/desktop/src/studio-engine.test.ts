@@ -13,7 +13,7 @@ function fakeEngine(opened = true) {
   const music = {
     engine: () => Promise.resolve(opened ? { ok: true as const, device: 'Test', sampleRate: 48000, latencyMs: 10 } : { ok: false as const, message: 'no output' }),
     load: rec('load'), play: rec('play'), playSession: rec('playSession'), launch: rec('launch'), preview: rec('preview'), countIn: rec('countIn'), stop: rec('stop'), seek: rec('seek'), render: rec('render'),
-    arm: rec('arm'), listen: (input: string | null) => { calls.push(['listen', input]); return Promise.resolve({ ok: true as const, listening: input }); },
+    arm: rec('arm'), press: rec('press'), listen: (input: string | null) => { calls.push(['listen', input]); return Promise.resolve({ ok: true as const, listening: input }); },
     midiInputs: () => { calls.push(['midiInputs']); return Promise.resolve({ ok: true as const, inputs: ['Keystation 49', 'Other'], listening: null }); },
     onPosition: (l: (p: MusicPosition) => void) => { listener = l; return () => { listener = null; }; },
   };
@@ -24,6 +24,16 @@ function fakeEngine(opened = true) {
 afterEach(() => { vi.unstubAllGlobals(); vi.resetModules(); vi.useRealTimers(); });
 
 describe('Music on the native engine', () => {
+  it('holds a computer key on the armed track until it lifts, with velocity 0 to 1', async () => {
+    const e = fakeEngine();
+    const m = await import('./studio-engine');
+    await m.engineReady();
+    expect(m.pressKey(60, 0.75)).toBe(true);
+    expect(m.pressKey(60, 0)).toBe(true);
+    await m.engineIdle();
+    expect(e.calls).toEqual([['press', 60, 0.75], ['press', 60, 0]]);
+  });
+
   it('arms the chosen track for a keyboard and listens to the first one the computer has, once', async () => {
     const e = fakeEngine();
     const m = await import('./studio-engine');
