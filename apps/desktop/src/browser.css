@@ -171,3 +171,96 @@
 .start-page .start-reading button { display: flex; align-items: center; gap: var(--sp-3); height: var(--row-list); padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); }
 .start-page .start-reading button:hover { background: var(--sel); }
 .start-page .start-reading svg { flex: none; width: var(--sp-4); height: var(--sp-4); fill: none; stroke: var(--muted); stroke-width: 1.5; stroke-linejoin: round; }
+
+/* ── Panel look (docs/design/panel-look.md, Browser; Arc's sidebar): the space's head, Search tabs, favourite tiles,
+   Pinned, Today with Clear, New tab, From Mobius, and at the foot Ask about this page and the spaces. Rows float, 28px. ── */
+.browser-side .space-head { display: flex; align-items: center; gap: var(--sp-1); height: var(--panel-head-h, 36px); padding: 0 var(--sp-1) 0 var(--sp-2); }
+.browser-side .space-name { display: inline-flex; align-items: center; gap: var(--sp-1); min-width: 0; height: var(--control-h); padding: 0 var(--sp-1); margin-left: calc(-1 * var(--sp-1)); border-radius: var(--radius-control); font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.browser-side .space-name:hover, .browser-side .space-name[aria-expanded="true"] { background: var(--side-hover); }
+.browser-side .space-name svg { flex: none; width: var(--sp-3); height: var(--sp-3); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.browser-side .space-options { margin-left: auto; display: inline-flex; }
+.browser-side .space-rename { flex: 1 1 auto; min-width: 0; height: var(--control-h); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); font: inherit; font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
+.browser-side .space-search { display: flex; align-items: center; gap: var(--sp-2); height: calc(var(--row-side) - 2px); margin: 0 var(--sp-1); padding: 0 var(--sp-1) 0 var(--sp-2); border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line-soft); }
+.browser-side .space-search:focus-within { box-shadow: inset 0 0 0 var(--hairline-w) var(--ink); }
+.browser-side .space-search svg { flex: none; width: var(--sp-3); height: var(--sp-3); fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; }
+.browser-side .space-search input { flex: 1 1 auto; min-width: 0; height: 100%; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-md); color: var(--ink); outline: none; }
+.browser-side .space-search input::placeholder { color: var(--muted); }
+.browser-side .space-search input::-webkit-search-cancel-button { display: none; }
+
+/* Favourites: tiles four across, the site's letter on a chip in its colour. */
+.browser-side .favourites { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--sp-1); margin: var(--sp-1) var(--sp-1) 0; padding: 0; list-style: none; }
+.browser-side .favourite { display: grid; place-items: center; width: 100%; height: 40px; border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line-soft); }
+.browser-side .favourite:hover { background: var(--side-hover); }
+.browser-side .favourite[aria-current="page"] { background: var(--side-select); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+
+/* A site's chip: its letter in white on one of six muted hues (never indigo, which is Mobius's), the same everywhere. */
+.browser-side .tab-icon.site-chip, .start-page .site-chip {
+  display: grid; place-items: center; width: var(--sp-4); height: var(--sp-4); border-radius: var(--radius-small);
+  font-size: var(--fs-floor); font-weight: var(--fw-semibold); line-height: 1; color: #fff; background: var(--chip, var(--muted)); box-shadow: none;
+}
+.browser-side .tab-icon.site-chip.big { width: 20px; height: 20px; font-size: var(--fs-xs); }
+.browser-side .tab-icon.site-chip:empty { background: var(--sel); }
+.site-chip[data-hue="0"] { --chip: #4a86c8; }
+.site-chip[data-hue="1"] { --chip: #c99a2e; }
+.site-chip[data-hue="2"] { --chip: #3f9f74; }
+.site-chip[data-hue="3"] { --chip: #d0703a; }
+.site-chip[data-hue="4"] { --chip: #2f9aa0; }
+.site-chip[data-hue="5"] { --chip: #7c8591; }
+
+/* Rows float: 28px, inset from the panel's edge, rounded; the shown tab on the selection grey. */
+.browser-side .tab-lists { flex: 1 1 auto; padding: 0 var(--sp-1); }
+.browser-side .ui-side-section { gap: 0; }
+.browser-side .side-head { height: var(--row-side); padding: 0 var(--sp-1) 0 var(--sp-2); }
+.browser-side .side-title { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.browser-side .tab, .browser-side .tab-main { height: 28px; }
+.browser-side .tab { border-radius: var(--radius-control); }
+.browser-side .tab-main { font-size: var(--fs-md); }
+.browser-side .today-clear { margin-left: auto; height: 22px; padding: 0 var(--sp-1); border-radius: var(--radius-control); font-size: var(--fs-xs); color: var(--muted); }
+.browser-side .today-clear:hover { background: var(--side-hover); color: var(--ink); }
+.browser-side .tab-new { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 28px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--muted); }
+.browser-side .tab-new:hover { background: var(--side-hover); color: var(--ink); }
+.browser-side .tab-new svg { flex: none; width: var(--sp-4); height: var(--sp-4); padding: 2px; box-sizing: border-box; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+.browser-side .tab-new > span { flex: 1 1 auto; text-align: left; }
+.browser-side .tab-new .ui-keycaps, .browser-side .space-search .ui-keycaps { opacity: 0.8; }
+.browser-side .tab-loading { margin-right: var(--sp-1); border-radius: 50%; }
+
+/* From Mobius: one row under its own small head. */
+.browser-side .from-mobius-filter { display: flex; align-items: center; gap: var(--sp-2); width: 100%; height: 28px; padding: 0 var(--sp-2); border-radius: var(--radius-control); font-size: var(--fs-md); color: var(--ink); }
+.browser-side .from-mobius-filter:hover { background: var(--side-hover); }
+.browser-side .from-mobius-filter[aria-pressed="true"] { background: var(--side-select); }
+.browser-side .from-mobius-mark { display: inline-grid; place-items: center; width: var(--sp-4); color: var(--mobius); }
+.browser-side .from-mobius-label { flex: 1 1 auto; text-align: left; }
+.browser-side .from-mobius-count { font-size: var(--fs-sm); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* The foot: Ask about this page as a quiet field-like button, then the spaces (a letter each, + to add) and downloads. */
+.browser-side .tabs-foot { flex: none; display: flex; flex-direction: column; gap: var(--sp-2); padding: var(--sp-2) var(--sp-1) var(--sp-1); border-top: var(--hairline-w) solid var(--line-soft); }
+.browser-side .ask-page { display: flex; align-items: center; gap: var(--sp-2); height: calc(var(--row-side) - 2px); padding: 0 var(--sp-2); border-radius: var(--radius-control); background: var(--field); box-shadow: inset 0 0 0 var(--hairline-w) var(--line-soft); font-size: var(--fs-md); color: var(--muted); }
+.browser-side .ask-page:hover { color: var(--ink); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); }
+.browser-side .ask-page svg { flex: none; color: var(--mobius); }
+.browser-side .spaces-bar { display: flex; align-items: center; justify-content: space-between; }
+.browser-side .spaces { display: flex; align-items: center; gap: var(--sp-1); }
+.browser-side .space-letter { display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--radius-small); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.browser-side .space-letter:hover { background: var(--side-hover); color: var(--ink); }
+.browser-side .space-letter[aria-pressed="true"] { background: var(--ink); color: var(--on-ink, var(--paper)); }
+.browser-side .space-letter svg { width: var(--sp-3); height: var(--sp-3); fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
+
+/* The tool row: back, forward and reload, then the address centred at about 520px, the star inside its end, then Reader. */
+.context-strip[data-titled] > .ui-toolbar-slot:has(.browser-chrome) { min-width: 0; width: min(720px, calc(100vw - 320px)); }
+.ui-toolbar-group:has(> .browser-chrome) { flex: 1 1 auto; }
+.browser-chrome { justify-content: center; }
+.browser-chrome .address { flex: 1 1 520px; max-width: 520px; }
+/* The space's head is the panel's head (Arc): no "Tabs" header above it (Panels › Tabs still hides the panel), and the
+   panel's body runs to its foot so Ask and the spaces sit at the bottom. */
+.ui-panel:has(.browser-side) > .ui-panel-head { display: none; }
+.ui-panel:has(.browser-side) > .ui-panel-body { display: flex; flex-direction: column; }
+.ui-panel:has(.browser-side) .app-side { flex: 1 1 auto; min-height: 0; }
+.ui-panel:has(.browser-side) .app-side-body, .ui-panel:has(.browser-side) .side { flex: 1 1 auto; min-height: 0; }
+.browser-chrome .address { position: relative; }
+.browser-chrome .address:not([data-editing]) input { padding-right: calc(var(--control-h) + var(--sp-2)); }
+.browser-chrome .address-star { position: absolute; right: 2px; top: 50%; transform: translateY(-50%); width: var(--control-h); height: var(--control-h); color: var(--muted); }
+.browser-chrome .address-star:hover { color: var(--ink); }
+.browser-chrome .address-star[aria-pressed="true"] { background: none; color: var(--ink); }
+.browser-chrome .address-star[aria-pressed="true"] svg { fill: currentColor; }
+/* Downloads sit at the foot now, so their list opens upward. */
+.browser-side .spaces-bar { position: relative; }
+.browser-side .tabs-foot .dl-pop { top: auto; bottom: calc(100% + var(--sp-1)); }

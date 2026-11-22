@@ -48,8 +48,8 @@ test('a tab has a menu: pin it, then close the others', async () => {
   const menu = shell().getByRole('menu', { name: 'Second page' });
   await menu.getByRole('menuitem', { name: 'Pin tab' }).click();
   await expect(menu).toHaveCount(0);
-  // Pinned tabs sit in their own list under the open tabs.
-  await expect(titles()).toHaveText(['Fixture home', 'Fixture home', 'Second page']);
+  // Pinned tabs sit in their own list above Today, as in Arc.
+  await expect(titles()).toHaveText(['Second page', 'Fixture home', 'Fixture home']);
   await expect(shell().getByRole('list', { name: 'Pinned tabs' }).locator('.tab-title')).toHaveText(['Second page']);
   await shell().locator('.tab', { hasText: 'Second page' }).click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Close other tabs' }).click();

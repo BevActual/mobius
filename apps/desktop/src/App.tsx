@@ -62,6 +62,7 @@ import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
 import { BrowserChrome, BrowserPage, BrowserSidebar } from './Browser';
+import { hostOf } from './browser-view';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
 import { VideoEditor, VideoSidebar } from './Video';
@@ -303,7 +304,8 @@ export function App() {
     if (!appearance.loaded || startedUp.current) return;
     startedUp.current = true;
     // Mobius sits in the right panel, beside the work, from the start (the layout adopted 2026-11-13).
-    if (appearance.value.rightSidebar !== 'floating') setChatOpen(true);
+    // Browser (marked): already moved to the Browser, which keeps Mobius closed, it opens on leaving instead.
+    if (appearance.value.rightSidebar !== 'floating') { if (chatBeforeBrowser.current !== null) chatBeforeBrowser.current = true; else setChatOpen(true); }
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -707,6 +709,17 @@ export function App() {
   // Mobius sits in the right panel, beside the work, in every app (docs/design: five zones). The sidebar is always the
   // app's own; it no longer turns into Mobius.
   const [chatOpen, setChatOpen] = useState(false);
+  // Browser (marked, panel look): Mobius closes on going to the Browser, so the page has the room, and comes back as it
+  // was on leaving. A window that opens on a page (a link from outside) keeps Mobius as the start-up choice says.
+  const chatBeforeBrowser = useRef<boolean | null>(null);
+  const chatOpenNow = useRef(chatOpen);
+  chatOpenNow.current = chatOpen;
+  const firstApp = useRef(true);
+  useEffect(() => {
+    if (firstApp.current) { firstApp.current = false; return; }
+    if (app === 'browser') { if (chatBeforeBrowser.current === null) { chatBeforeBrowser.current = chatOpenNow.current; setChatOpen(false); } }
+    else if (chatBeforeBrowser.current !== null) { if (chatBeforeBrowser.current) setChatOpen(true); chatBeforeBrowser.current = null; }
+  }, [app]);
   // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
   const [learnOpen, setLearnOpen] = useState(false);
   const learnFrom = useRef<HTMLElement | null>(null);
@@ -1127,7 +1140,7 @@ export function App() {
   // rather than one that starts a conversation.
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   // These apps' own sidebar lists start with their New row, so the head's New is left out.
-  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets'];
+  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets', 'browser'];
   // An app's own list (OWN_LIST): the same list as before, under the panel's header, with New and the pinned items.
   const ownListBody = (id: AppId): ReactNode => {
     const list = (() => {
@@ -1210,7 +1223,7 @@ export function App() {
         case 'slides':
           return <SlidesSidebar slides={slides} pin={null} changed={liveMarks.slides} starts={startsFor('slides')} onStart={startWithMobius} />
         case 'browser':
-          return <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />;
+          return <BrowserSidebar tabs={browser.tabs} pin={null} onNewTab={newTab} onAsk={surface.hasPage ? () => { openRight(); setFocusToken((n) => n + 1); } : undefined} downloads={downloads} pinnedPages={pinnedPages} onPinPage={(t) => togglePin({ kind: 'page', id: t.url, title: t.title || t.url })} onOpenBookmark={(url) => { if (active) void window.mobius.browser.navigate(active.id, url); else void window.mobius.browser.open(url); }} />;
         case 'search':
           return <SearchSidebar filter={searchFilter} onFilter={setSearchFilter} pin={null} />;
         default:
@@ -1980,6 +1993,7 @@ export function App() {
           : inSkills ? <AbilitiesSub place={extPlace} skills={skills} /> // Abilities (marked)
           : inStudio && songs.page ? <StudioSub songs={songs} /> // Music (marked, Music's own): the song's key and whether it is saved
           : inDatabase ? databaseSub(databases) // Database: the table's database and columns
+          : inBrowser && active && /^https?:/.test(active.url) ? hostOf(active.url) // Browser (marked): the page's site, grey after its title
           : undefined,
         middle: <>
         </>,

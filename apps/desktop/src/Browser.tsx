@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type DragEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type DragEvent, type FormEvent, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import type { BookmarkEntry, BrowserTabState, DownloadEntry, HistoryEntry } from '@mobius/shared';
 import { createPortal } from 'react-dom';
@@ -10,8 +10,10 @@ import { quick } from './motion';
 import { SelectionMenu, type ClipPage, type WebSelectionAction } from './SelectionMenu';
 import { StartPage } from './StartPage';
 import { addressParts, dropPlan, hostOf, nextTabId, sidebarMatch, suggestionsFor, tileLetter, type Suggestion } from './browser-view';
-import { AppSidebar, SidebarRow, SidebarSearch, SidebarSection, ToolbarControls } from './ui';
+import { addSpace, CLEAR_AFTER, favouriteTab, inSpace, isFavourite, MAX_FAVOURITES, moveTab, readSpaces, removeSpace, renameSpace, siteHue, staleTabs, syncSpaces, tabToShow, toggleFavourite, type SpacesState } from './browser-spaces';
+import { AppSidebar, IconButton, KeyCaps, Menu, SidebarRow, SidebarSection, ToolbarControls, type MenuEntry } from './ui';
 import { SurfaceSlot } from './SurfaceSlot';
+import { TOOL_ICONS } from './ui/ToolIcons';
 import './browser.css';
 import { afterPaint } from './ui/frame';
 
@@ -27,7 +29,6 @@ const TAB_DRIVER_TITLE = { reading: 'Mobius is reading this tab', mobius: 'Mobiu
 /** One tab's row: a click shows it, a middle click closes it, a right click opens its menu, and it can be dragged. */
 function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: BrowserTabState, x: number, y: number) => void; drag: TabDrag }) {
   const still = useReducedMotion() ?? false;
-  const site = hostOf(tab.url);
   return (
     <motion.li
       layout="position"
@@ -51,7 +52,7 @@ function TabRow({ tab, onMenu, drag }: { tab: BrowserTabState; onMenu: (tab: Bro
       onAuxClick={(e) => { if (e.button === 1) { e.preventDefault(); window.mobius.browser.close(tab.id); } }}
     >
       <button type="button" className="tab-main" title={tab.url ? `${tab.title}\n${tab.url}` : tab.title} onClick={() => window.mobius.browser.activate(tab.id)}>
-        {tab.icon ? <img className="tab-icon" src={tab.icon} alt="" width={16} height={16} draggable={false} /> : <span className="tab-icon placeholder" aria-hidden="true">{tab.url ? tileLetter(site) : ''}</span>}
+        <SiteChip url={tab.url} icon={tab.icon} />
         <span className="tab-title">{tab.title}</span>
         {tab.driver && (
           // A small mark, not a word, so the title keeps its room: Mobius's mark only while Mobius reads or uses the tab; once you
@@ -129,7 +130,7 @@ function useTabDrag(tabs: readonly BrowserTabState[]): TabDrag {
  * A tab's right-click menu, the shared one. It is kept inside the sidebar, since the page is drawn over everything beside
  * it, so it opens from a point that leaves room for it there.
  */
-function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onClose: () => void }) {
+function TabMenu({ tab, x, y, tabs, spaces: sp, pinnedPages, onPinPage, onClose }: { tab: BrowserTabState; x: number; y: number; tabs: readonly BrowserTabState[]; spaces: SpacesState; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onClose: () => void }) {
   const side = document.querySelector('.side')?.getBoundingClientRect();
   const left = side ? Math.max(side.left + 4, Math.min(x, side.right - TAB_MENU_W - 4)) : x;
   const others = tabs.filter((t) => t.id !== tab.id && !t.pinned);
@@ -146,6 +147,9 @@ function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: Br
     { label: 'Bookmark…', keys: tab.active ? 'Ctrl+D' : undefined, run: () => { api.activate(tab.id); void window.mobius.bookmarks.toggle(); }, disabled: !web || !tab.active },
     // Kept with the page's other ways to keep it, rather than as a second pin beside the address.
     { label: pinnedPages.has(tab.url) ? 'Unpin page' : 'Pin page', run: () => onPinPage(tab), disabled: !web },
+    // Favourites, kept across spaces, as Arc's: a tile above Pinned.
+    { label: isFavourite(sp, tab.url) ? 'Remove from favourites' : 'Add to favourites', run: () => setSpaces((s) => toggleFavourite(s, { url: tab.url, title: tab.title })), disabled: !web || (!isFavourite(sp, tab.url) && sp.favourites.length >= MAX_FAVOURITES) },
+    ...sp.spaces.filter((s) => s.id !== (sp.tabSpace[tab.id] ?? sp.current)).map((s, i) => ({ label: `Move to ${s.name}`, separated: i === 0, run: () => { setSpaces((st) => moveTab(st, tab.id, s.id)); } })),
     { label: 'Close tab', keys: tab.active ? 'Ctrl+W' : undefined, run: () => api.close(tab.id), separated: true },
     { label: 'Close tabs below', run: () => below.forEach((t) => api.close(t.id)), disabled: below.length === 0 },
     { label: 'Close other tabs', run: () => others.forEach((t) => api.close(t.id)), disabled: others.length === 0 },
@@ -155,48 +159,152 @@ function TabMenu({ tab, x, y, tabs, pinnedPages, onPinPage, onClose }: { tab: Br
 /** About as wide as the tab menu draws, to keep it clear of the page. */
 const TAB_MENU_W = 210;
 
+/** The spaces, favourites and Today's clock, kept for the window (and across restarts) and shared by the tabs panel and the keys. */
+const SPACES_KEY = 'mobius.browser.spaces';
+let spaces: SpacesState = readSpaces((() => { try { return localStorage.getItem(SPACES_KEY); } catch { return null; } })());
+const spaceListeners = new Set<() => void>();
+function setSpaces(next: SpacesState | ((s: SpacesState) => SpacesState)) {
+  const value = typeof next === 'function' ? next(spaces) : next;
+  if (value === spaces) return;
+  spaces = value;
+  try { localStorage.setItem(SPACES_KEY, JSON.stringify(value)); } catch { /* kept for this window only */ }
+  spaceListeners.forEach((l) => l());
+}
+const subscribeSpaces = (l: () => void) => { spaceListeners.add(l); return () => { spaceListeners.delete(l); }; };
+export const useSpaces = () => useSyncExternalStore(subscribeSpaces, () => spaces, () => spaces);
+
+/** Keeps spaces in step with the tabs, and closes Today tabs left unseen too long (checked now and every ten minutes). */
+function useSpacesSync(tabs: readonly BrowserTabState[]) {
+  useEffect(() => { setSpaces((s) => syncSpaces(s, tabs, Date.now())); }, [tabs]);
+  const latest = useRef(tabs);
+  latest.current = tabs;
+  useEffect(() => {
+    const sweep = () => staleTabs(spaces, latest.current, Date.now()).forEach((id) => window.mobius.browser.close(id));
+    sweep();
+    const timer = window.setInterval(sweep, 10 * 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
+}
+
+/** Goes to a space: shows the tab seen last there, or opens a new tab in it. */
+function goToSpace(id: string, tabs: readonly BrowserTabState[], onNewTab: () => void) {
+  setSpaces((s) => ({ ...s, current: id }));
+  const show = tabToShow(spaces, tabs, id);
+  if (show) window.mobius.browser.activate(show); else onNewTab();
+}
+
+/** A site's letter on a chip in its colour (one of a few muted hues), or its own icon when it has one. */
+function SiteChip({ url, icon, big = false }: { url: string; icon?: string | null; big?: boolean }) {
+  const site = hostOf(url);
+  if (icon) return <img className="tab-icon" src={icon} alt="" width={16} height={16} draggable={false} />;
+  return <span className={big ? 'tab-icon placeholder site-chip big' : 'tab-icon placeholder site-chip'} data-hue={url ? siteHue(site) : undefined} aria-hidden="true">{url ? tileLetter(site) : ''}</span>;
+}
+
 /**
- * The tabs, as Safari's and Arc's sidebars keep them: pinned tabs in their own group above the rest, actions only on the
- * row under the pointer, drag to reorder (or across the line to pin), and a right-click menu. Downloads open from a button in its head.
+ * The tabs panel, after Arc's sidebar (resources.arc.net: Spaces, Favorites, Pinned Tabs, Today): the space's name as
+ * its head, Search tabs, favourites as tiles, Pinned, Today (cleared by itself, or with Clear), New tab, From Mobius;
+ * at its foot Ask about this page, then the spaces, one letter each, and downloads. Drag to reorder or across to pin, and
+ * every tab has a right-click menu.
  */
-export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, onPinPage, onOpenBookmark }: { tabs: readonly BrowserTabState[]; pin: ReactNode; onNewTab: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void }) {
+export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, onPinPage, onOpenBookmark }: { tabs: readonly BrowserTabState[]; pin?: ReactNode; onNewTab: () => void; onAsk?: () => void; downloads: DownloadEntry[]; pinnedPages: ReadonlySet<string>; onPinPage: (tab: BrowserTabState) => void; onOpenBookmark: (url: string) => void }) {
+  useSpacesSync(tabs);
+  const sp = useSpaces();
   const [menu, setMenu] = useState<{ tab: BrowserTabState; x: number; y: number } | null>(null);
   const closeMenu = useCallback(() => setMenu(null), []);
   const [query, setQuery] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const search = useRef<HTMLInputElement>(null);
   const bookmarks = useBookmarks();
-  const drag = useTabDrag(tabs);
+  const mine = inSpace(sp, tabs);
+  const drag = useTabDrag(mine);
   const matches = (title: string, url: string) => sidebarMatch(query, title, url);
   // Tabs Mobius is reading or using for its work; "From Mobius" can narrow the list to them.
-  const fromMobius = tabs.filter((t) => t.driver === 'reading' || t.driver === 'mobius');
+  const fromMobius = mine.filter((t) => t.driver === 'reading' || t.driver === 'mobius');
   const [mobiusOnly, setMobiusOnly] = useState(false);
   const only = mobiusOnly && fromMobius.length > 0;
-  const shown = (t: BrowserTabState) => matches(t.title, t.url) && (!only || t.driver === 'reading' || t.driver === 'mobius');
-  const pinned = tabs.filter((t) => t.pinned && shown(t));
-  const open = tabs.filter((t) => !t.pinned && shown(t));
-  const saved = bookmarks.filter((b) => matches(b.title, b.url)).slice(0, 20);
   const searching = query.trim() !== '';
+  // A search looks through every space's tabs, as Arc's does.
+  const shown = (t: BrowserTabState) => matches(t.title, t.url) && (!only || t.driver === 'reading' || t.driver === 'mobius');
+  const pool = searching ? tabs : mine;
+  const pinned = pool.filter((t) => t.pinned && shown(t));
+  const open = pool.filter((t) => !t.pinned && shown(t));
+  const saved = bookmarks.filter((b) => matches(b.title, b.url)).slice(0, 20);
   const row = (tab: BrowserTabState) => <TabRow key={tab.id} tab={tab} drag={drag} onMenu={(t, x, y) => setMenu({ tab: t, x, y })} />;
   const menuTab = menu ? tabs.find((t) => t.id === menu.tab.id) : undefined;
+  const space = sp.spaces.find((s) => s.id === sp.current) ?? sp.spaces[0]!;
+  const clearToday = () => mine.filter((t) => !t.pinned && !t.active && !t.driver).forEach((t) => window.mobius.browser.close(t.id));
+  // A new space is named first (its name field takes the keys), then opens on a new tab.
+  const newSpace = () => { setSpaces((s) => addSpace(s, '')); setRenaming(true); };
+  const renamed = (name: string) => {
+    setSpaces((s) => renameSpace(s, space.id, name));
+    setRenaming(false);
+    if (inSpace(spaces, tabs).length === 0) onNewTab();
+  };
+  // Ctrl+Shift+A finds a tab, as in Chrome; Ctrl+Alt+Left and Right go to the space before or after, as Arc's keys.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || !(e.ctrlKey || e.metaKey)) return;
+      if (e.shiftKey && !e.altKey && e.code === 'KeyA') { e.preventDefault(); search.current?.focus(); return; }
+      if (e.altKey && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        if ((e.target as Element | null)?.closest?.('input, textarea, [contenteditable="true"]')) return;
+        e.preventDefault();
+        const at = spaces.spaces.findIndex((s) => s.id === spaces.current);
+        const to = spaces.spaces[(at + (e.key === 'ArrowLeft' ? -1 : 1) + spaces.spaces.length) % spaces.spaces.length];
+        if (to && to.id !== spaces.current) goToSpace(to.id, tabs, onNewTab);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [tabs, onNewTab]);
+  const spaceEntries: MenuEntry[] = [
+    ...sp.spaces.map((s, i) => ({ label: s.name, checked: s.id === sp.current, run: () => goToSpace(s.id, tabs, onNewTab), })),
+    { label: 'New space', separated: true, run: newSpace },
+    { label: 'Rename space…', run: () => setRenaming(true) },
+    { label: 'Delete space', disabled: sp.spaces.length < 2, run: () => { const to = sp.spaces.find((s) => s.id !== space.id)!; setSpaces((s) => removeSpace(s, space.id)); goToSpace(to.id, tabs, onNewTab); } },
+  ];
+  const optionEntries: MenuEntry[] = CLEAR_AFTER.map((c) => ({ label: c.ms === null ? 'Never clear Today' : `Clear Today after ${c.label.toLowerCase()}`, checked: sp.clearAfter === c.ms, run: () => setSpaces((s) => ({ ...s, clearAfter: c.ms })) }));
   return (
     <AppSidebar label="Tabs">
       <div className="browser-side">
-        <SidebarSearch label="Search tabs and bookmarks" placeholder="Search" value={query} onChange={setQuery} />
+        <div className="space-head">
+          {renaming ? (
+            <input className="space-rename" aria-label="Space name" defaultValue={space.name} autoFocus onFocus={(e) => e.target.select()}
+              onBlur={(e) => renamed(e.target.value)}
+              onKeyDown={(e) => {
+                // Kept from going on: the new tab's address takes focus next, and would take this Enter as its own.
+                if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } else if (e.key === 'Escape') { e.preventDefault(); e.currentTarget.value = space.name; e.currentTarget.blur(); }
+              }} />
+          ) : (
+            <Menu label="Spaces" entries={spaceEntries} trigger={<button type="button" className="space-name" title="Spaces (Ctrl+Alt+Left, Ctrl+Alt+Right)">{space.name}<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 7 3 3 3-3" /></svg></button>} />
+          )}
+          <span className="space-options">
+            <Menu label="Tabs options" align="end" entries={optionEntries} trigger={<IconButton label="Tabs options" icon={<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 8h.01M8 8h.01M12 8h.01" /></svg>} />} />
+          </span>
+        </div>
+        <label className="space-search">
+          <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3 13.5 13.5" /></svg>
+          <input ref={search} type="search" aria-label="Search tabs and bookmarks" placeholder="Search tabs" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); } }} />
+          {!query && <KeyCaps keys="Ctrl+Shift+A" />}
+        </label>
+        {!searching && sp.favourites.length > 0 && (
+          <ul className="favourites" role="list" aria-label="Favourites">
+            {sp.favourites.map((f) => {
+              const openTab = favouriteTab(sp, tabs, f.url);
+              const showing = openTab !== null && tabs.find((t) => t.id === openTab)?.active === true;
+              return (
+                <li key={f.url}>
+                  <button type="button" className="favourite" aria-current={showing ? 'page' : undefined} title={`${f.title || hostOf(f.url)}\n${f.url}`}
+                    onClick={() => { if (openTab) window.mobius.browser.activate(openTab); else void window.mobius.browser.open(f.url); }}
+                    onContextMenu={(e) => { e.preventDefault(); setSpaces((s) => toggleFavourite(s, f)); }}>
+                    <SiteChip url={f.url} big />
+                    <span className="sr-only">{f.title || hostOf(f.url)}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <div className="tab-lists" onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) drag.end(); }}>
-          <section className="ui-side-section">
-            <div className="side-head">
-              <span className="side-title">Tabs</span>
-              <div className="side-actions">
-                {/* Downloads, a header button like the others, in sight while it has something to show. */}
-                <DownloadsButton entries={downloads} />
-                {pin}
-              </div>
-            </div>
-            <ul className="tabs" role="list" aria-label="Open tabs">
-              <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
-            </ul>
-            {!searching && !only && open.length === 0 && pinned.length > 0 && <p className="tabs-empty">No other tabs.</p>}
-            {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
-          </section>
           {pinned.length > 0 && (
             <section className="ui-side-section">
               <div className="side-head"><span className="side-title">Pinned</span></div>
@@ -205,27 +313,66 @@ export function BrowserSidebar({ tabs, pin, onNewTab, downloads, pinnedPages, on
               </ul>
             </section>
           )}
+          <section className="ui-side-section">
+            <div className="side-head">
+              <span className="side-title">{searching ? 'Tabs' : 'Today'}</span>
+              {!searching && open.some((t) => !t.active && !t.driver) && (
+                <button type="button" className="today-clear" title={sp.clearAfter === null ? 'Close the tabs in Today' : `Close the tabs in Today (they clear by themselves after ${CLEAR_AFTER.find((c) => c.ms === sp.clearAfter)?.label.toLowerCase() ?? 'a while'} unseen)`} onClick={clearToday}>Clear</button>
+              )}
+            </div>
+            <ul className="tabs" role="list" aria-label="Open tabs">
+              <AnimatePresence initial={false}>{open.map(row)}</AnimatePresence>
+            </ul>
+            {searching && open.length === 0 && pinned.length === 0 && saved.length === 0 && <p className="tabs-empty">Nothing matches.</p>}
+            {!searching && (
+              <button type="button" className="tab-new" title="New tab (Ctrl+T)" onClick={onNewTab}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3v10M3 8h10" /></svg>
+                <span>New tab</span>
+                <KeyCaps keys="Ctrl+T" />
+              </button>
+            )}
+          </section>
+          {searching && saved.length > 0 && (
+            <SidebarSection title="Bookmarks">
+              {saved.map((b) => (
+                <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)} icon={<SiteChip url={b.url} />} />
+              ))}
+            </SidebarSection>
+          )}
+          {fromMobius.length > 0 && (
+            // The tabs Mobius opened for its work, as one row: pressed, Today shows only those.
+            <section className="ui-side-section from-mobius">
+              <div className="side-head"><span className="side-title">From Mobius</span></div>
+              <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
+                <span className="from-mobius-mark" aria-hidden="true"><MobiusMark size={14} /></span>
+                <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
+                <span className="from-mobius-count">{fromMobius.length}</span>
+              </button>
+            </section>
+          )}
         </div>
-        {searching && saved.length > 0 && (
-          <SidebarSection title="Bookmarks">
-            {saved.map((b) => (
-              <SidebarRow key={b.url} label={b.title || hostOf(b.url)} title={b.url} onSelect={() => onOpenBookmark(b.url)}
-                icon={<span className="tab-icon placeholder" aria-hidden="true">{tileLetter(hostOf(b.url))}</span>} />
-            ))}
-          </SidebarSection>
-        )}
-        {fromMobius.length > 0 && (
-          // The tabs Mobius opened for its work, as one row: pressed, Tabs shows only those.
-          <div className="from-mobius">
-            <span className="side-title from-mobius-title">From Mobius</span>
-            <button type="button" className="from-mobius-filter" aria-pressed={mobiusOnly} aria-label={`Opened for research: ${fromMobius.length} tabs`} title={mobiusOnly ? 'Show every tab again' : 'Show only the tabs Mobius opened'} onClick={() => setMobiusOnly((on) => !on)}>
-              <span className="from-mobius-mark" aria-hidden="true"><MobiusMark size={16} /></span>
-              <span className="from-mobius-label">{mobiusOnly ? 'Showing only these' : 'Opened for research'}</span>
-              <span className="from-mobius-count">{fromMobius.length}</span>
+        <div className="tabs-foot">
+          {onAsk && (
+            <button type="button" className="ask-page" title="Ask Mobius about this page" onClick={onAsk}>
+              <MobiusMark size={14} />
+              <span>Ask about this page</span>
             </button>
+          )}
+          <div className="spaces-bar">
+            <div className="spaces" role="group" aria-label="Spaces">
+              {sp.spaces.map((s) => (
+                <button key={s.id} type="button" className="space-letter" aria-pressed={s.id === sp.current} aria-label={s.name} title={s.name} onClick={() => { if (s.id !== sp.current) goToSpace(s.id, tabs, onNewTab); }}>
+                  {tileLetter(s.name)}
+                </button>
+              ))}
+              <button type="button" className="space-letter space-add" aria-label="New space" title="New space" onClick={newSpace}>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 4v8M4 8h8" /></svg>
+              </button>
+            </div>
+            <DownloadsButton entries={downloads} />
           </div>
-        )}
-        {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={tabs} pinnedPages={pinnedPages} onPinPage={onPinPage} onClose={closeMenu} />}
+        </div>
+        {menu && menuTab && <TabMenu tab={menuTab} x={menu.x} y={menu.y} tabs={mine} spaces={sp} pinnedPages={pinnedPages} onPinPage={onPinPage} onClose={closeMenu} />}
       </div>
     </AppSidebar>
   );
@@ -311,7 +458,7 @@ function useBrowserKeys(active: BrowserTabState | undefined) {
         e.preventDefault();
         const step = e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1;
         void api.getState().then((s) => {
-          const id = nextTabId(s?.tabs ?? [], step);
+          const id = nextTabId(inSpace(spaces, s?.tabs ?? []), step);
           if (id) api.activate(id);
         }).catch(() => {});
       }
@@ -339,17 +486,20 @@ export function BrowserChrome({ onRead, active, saved, selectionMenu, setSelecti
             <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4" /></svg>
           </button>
         </div>
-        <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting} />
+        <AddressBar active={active} address={address} draft={draft} setDraft={setDraft} setNotice={setNotice} onSubmit={onSubmit} onSuggesting={onSuggesting}
+          star={(
+            // The star inside the address's end, as Chrome and Arc keep it.
+            <button type="button" className="strip-btn address-star" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark (Ctrl+D)' : 'Bookmark this page (Ctrl+D)'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
+            </button>
+          )} />
         <div className="cap-group" role="group" aria-label="This page">
           {/* Read, before the star, on pages that look like an article (a page down a site, not its home page). */}
           {onRead && active && isArticleLike(active.url) && (
             <button type="button" className="strip-btn" aria-label="Read in Reader" title="Read in Reader" onClick={onRead}>
-              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 5.5c2.5-1 4.7-1 7 .5 2.3-1.5 4.5-1.5 7-.5V15c-2.5-1-4.7-1-7 .5-2.3-1.5-4.5-1.5-7-.5ZM10 6v9.5" /></svg>
+              {TOOL_ICONS.reader}
             </button>
           )}
-          <button type="button" className="strip-btn" aria-pressed={saved} aria-label={saved ? 'Remove bookmark' : 'Bookmark this page'} title={saved ? 'Remove bookmark' : 'Bookmark this page'} disabled={!active || !/^https?:/.test(active.url)} onClick={() => void window.mobius.bookmarks.toggle()}>
-          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3l2.1 4.4 4.9.6-3.6 3.4.9 4.8L10 13.8 5.7 16.2l.9-4.8L3 8l4.9-.6z" /></svg>
-        </button>
         </div>
         {/* Selected text… is in ⋯ (the Browser menu); its menu drops from the end of the address. */}
         <div className="selection-menu-wrap">
@@ -375,7 +525,7 @@ const SUGGESTION_ICON = {
  * edit, and suggests open tabs, bookmarks and pages from history as you type. A suggestion is only taken when it is
  * picked with the arrows or the pointer; otherwise Enter goes, or asks, as before.
  */
-function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onSuggesting }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit' | 'onSuggesting'>) {
+function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onSuggesting, star }: Pick<BrowserChromeProps, 'active' | 'address' | 'draft' | 'setDraft' | 'setNotice' | 'onSubmit' | 'onSuggesting'> & { star?: ReactNode }) {
   const [list, setList] = useState<Suggestion[]>([]);
   const [lit, setLit] = useState(-1);
   const known = useRef<{ tabs: BrowserTabState[]; bookmarks: BookmarkEntry[]; history: HistoryEntry[] }>({ tabs: [], bookmarks: [], history: [] });
@@ -439,6 +589,7 @@ function AddressBar({ active, address, draft, setDraft, setNotice, onSubmit, onS
           {parts.path && <span className="address-path">/ {parts.path}</span>}
         </span>
       )}
+      {!editing && star}
       {active?.loading && <span className="address-progress" role="status" aria-label="Loading" />}
       {list.length > 0 && (
         <ul className="address-suggestions" id="address-suggestions" role="listbox" aria-label="Suggestions">
