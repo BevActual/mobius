@@ -15,6 +15,50 @@ pub struct Song {
     pub bars: u32,
     #[serde(default)]
     pub tracks: Vec<Track>,
+    /// The Main track: where every track and return ends up, with its own effects and level.
+    #[serde(default)]
+    pub main: Main,
+    /// Return tracks, fed by the tracks' sends (at most [`MAX_RETURNS`]).
+    #[serde(default)]
+    pub returns: Vec<Return>,
+}
+
+/// The most return tracks a song has, as in Live; any past them are left out.
+pub const MAX_RETURNS: usize = 12;
+
+/// The Main track (Live's Master): its effects, then its level.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Main {
+    #[serde(default = "main_volume")]
+    pub volume: f64,
+    /// Its effects in order, as a track's are.
+    #[serde(default)]
+    pub fx: Vec<serde_json::Value>,
+}
+
+impl Default for Main {
+    fn default() -> Main {
+        Main { volume: main_volume(), fx: Vec::new() }
+    }
+}
+
+/// The Main track's level when the file says none: 0.8, as Music has always mixed.
+const fn main_volume() -> f64 {
+    0.8
+}
+
+/// A return track: what the tracks send to it goes through its effects, then its volume and pan, into Main.
+#[derive(Debug, Clone, Deserialize)]
+pub struct Return {
+    pub id: String,
+    #[serde(default = "one")]
+    pub volume: f64,
+    #[serde(default)]
+    pub pan: f64,
+    #[serde(default)]
+    pub muted: bool,
+    #[serde(default)]
+    pub fx: Vec<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -65,6 +109,10 @@ pub struct Track {
     /// Its effects in order, as the file has them (read by [`crate::fx::Chain`]).
     #[serde(default)]
     pub fx: Vec<serde_json::Value>,
+    /// How much it sends to each return (by the return's id, 0 to 1), after its volume and pan. A send to a return the
+    /// song does not have is left out.
+    #[serde(default)]
+    pub sends: std::collections::BTreeMap<String, f64>,
 }
 
 /// A drums track's kit (song-format.ts `KitSound`): tune in semitones, decay as a multiple, tone from dark to bright.

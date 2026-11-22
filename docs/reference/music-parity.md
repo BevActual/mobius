@@ -100,8 +100,8 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
 | Meters on every track and the master | None | `LevelMeter` in the library (have) | S to M |
-| Master track with its own effects | None | Master | M (format) |
-| Return tracks and sends | None | Returns and sends | M (format) |
+| Master track with its own effects | The engine plays `main` (effects, then level; 0.8 when unset) | Main in the format and the Mixer | M (format) |
+| Return tracks and sends | The engine plays `returns` (up to 12) and each track's post-fader `sends` | Returns and sends in the format and the Mixer | M (format) |
 | A mixer view | None | Mixer, in Session and as a panel in Arrange | M (library `Mixer` exists) |
 | Freeze and flatten | None | Freeze to audio | M (needs audio) |
 | Latency compensation, track delay | Not needed yet | Comes with the engine | — |
