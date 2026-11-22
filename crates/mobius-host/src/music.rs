@@ -150,6 +150,7 @@ impl Music {
         let song = lock(&self.song);
         let track = song.as_ref().ok_or("load a song first")?.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
         engine.preview(track, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        self.report(engine);
         Ok(json!({ "ok": true }))
     }
 
@@ -158,6 +159,7 @@ impl Music {
         let engine = self.engine()?;
         let tempo = tempo.filter(|t| t.is_finite() && *t > 0.0).or_else(|| lock(&self.song).as_ref().map(|s| s.tempo)).ok_or("a tempo is needed")?;
         engine.count_in(tempo, beats)?;
+        self.report(engine);
         Ok(json!({ "ok": true }))
     }
 
@@ -190,7 +192,8 @@ impl Music {
         }
     }
 
-    /// Send the position while playing, from one thread at a time; the last one says it stopped.
+    /// Send the position while playing or while a preview or count-in sounds, from one thread at a time; the last one
+    /// says it stopped.
     fn report(&self, engine: Arc<Engine>) {
         if self.reporting.swap(true, Ordering::AcqRel) {
             return;
@@ -203,7 +206,7 @@ impl Music {
             loop {
                 std::thread::sleep(POSITION_EVERY);
                 let position = engine.position();
-                let playing = position.playing;
+                let playing = position.playing || position.sounding;
                 emit("mobius:music-position", position_json_of(&position));
                 if !playing {
                     if grace == 0 {
@@ -262,9 +265,9 @@ fn position_json_of(p: &mobius_audio::engine::Position) -> Value {
         .map(|(id, s)| (id.clone(), json!({ "slot": s.playing.map(|(slot, _)| slot), "start": s.playing.map(|(_, b)| b), "queued": s.queued.map(|q| q.map_or_else(|| json!("stop"), |n| json!(n))) })))
         .collect();
     if session.is_empty() {
-        json!({ "playing": p.playing, "beat": p.beat, "meters": meters })
+        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters })
     } else {
-        json!({ "playing": p.playing, "beat": p.beat, "meters": meters, "session": session })
+        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters, "session": session })
     }
 }
 
