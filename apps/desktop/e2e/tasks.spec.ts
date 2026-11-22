@@ -93,7 +93,7 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   await expect(shell().locator('.toolbar-sub')).toHaveText('Today');
   await expect(todo().getByRole('checkbox')).toHaveCount(2);
   await expect(todo().locator('.task').first()).toContainText('Fix the tap');
-  await expect(todo().locator('.task').first().locator('.task-due')).toHaveAttribute('data-tone', 'late');
+  await expect(todo().locator('.task').first().locator('.task-meta .task-due')).toHaveAttribute('data-tone', 'late');
   await expect(todo().locator('.task').nth(1)).toContainText('Today');
   await expect(todo().locator('.task').nth(1)).toContainText('Home');
   // The Mobius panel's Glance counts the day across every list: one late, one due today, none flagged.
@@ -132,7 +132,7 @@ test('the agent adds a task from the panel beside the list, and it appears witho
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Added it to your Inbox.');
   const row = todo().locator('.task', { hasText: 'Book the dentist' });
   await expect(row).toBeVisible();
-  await expect(row.locator('.task-due')).toHaveAttribute('data-tone', 'late');
+  await expect(row.locator('.task-meta .task-due')).toHaveAttribute('data-tone', 'late');
   expect(fs.readFileSync(file('Inbox'), 'utf8')).toContain('- [ ] Book the dentist (due 2001-02-03)');
   // The list changed under the person, but focus stayed where they were (in the agent panel).
   expect(await page().evaluate((el) => el.contains(document.activeElement))).toBe(false);
@@ -191,7 +191,8 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   // The row shows the note, the flag and how many subtasks are done; Flagged gathers it.
   const row = todo().locator('.task', { hasText: 'Paint the door' }).first();
   await expect(row.locator('.task-note')).toHaveText('White, not grey.');
-  await expect(row.getByRole('img', { name: 'Flagged' })).toBeVisible();
+  // Open in the details, the row shows its tools where the flag and date were: Unflag says it is flagged.
+  await expect(row.getByRole('button', { name: 'Unflag Paint the door' })).toHaveAttribute('aria-pressed', 'true');
   await expect(row.locator('.task-subcount')).toHaveText('0/1');
   await choose(details, 'List', 'Garden');
   await expect.poll(() => fs.readFileSync(file('Garden'), 'utf8')).toBe('# Garden\n\n- [ ] Paint the door (flagged)\n  White, not grey.\n  - [ ] Buy brushes\n');

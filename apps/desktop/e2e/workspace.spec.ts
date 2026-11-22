@@ -156,7 +156,7 @@ test('the app hub shows every app with what is happening in it, starts new thing
   // Start something new from anywhere: a task lands in the Inbox, with the cursor in the new-task box.
   await opener.click();
   await hub.getByRole('region', { name: 'Start something' }).getByRole('button', { name: 'New task' }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
   const field = shell().getByRole('textbox', { name: 'New task', exact: true });
   await expect.poll(() => field.evaluate((el) => el === document.activeElement)).toBe(true);
   await opener.click();
@@ -190,7 +190,7 @@ test('the top bar runs the window’s width, and the list under it belongs to th
   await expect(leftSide().locator('.app-side-new')).toHaveCount(0);
   await expect(shell().getByRole('complementary', { name: 'Lists' }).getByRole('button', { name: 'New list' })).toBeVisible();
   await lists.getByRole('button', { name: /^Inbox/ }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
   await expect(shell().getByRole('textbox', { name: 'New task', exact: true })).toHaveAttribute('placeholder', 'Add to Inbox');
   // The lists are Tasks' own panel: its close button hides them, and Ctrl+\ hides and shows them.
   await leftSide().getByRole('button', { name: 'Hide Lists' }).click();
