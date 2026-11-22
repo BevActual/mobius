@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
-import { CONTENT_COLORS, Dot, FilterBar, PreviewStrip, Select, SidebarSearch, type TagPicks } from './ui';
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Button, CONTENT_COLORS, Dot, FilterBar, PreviewStrip, SidebarSearch, type TagPicks } from './ui';
 import { CATEGORIES, collect, LIBRARY, search, TAG_GROUPS, type Collections, type LibraryCategory, type LibraryItem } from './studio-library';
 import { previewNote } from './studio-audio';
 
@@ -9,7 +9,10 @@ const COLLECTION_COLORS = CONTENT_COLORS.slice(0, 7);
 const ROOTS = ['C', 'C#', 'D', 'Eb', 'E', 'F', 'F#', 'G', 'Ab', 'A', 'Bb', 'B'];
 /** What a row is, shown in grey when several kinds are listed together (as Live's icons do under All). */
 const KIND: Record<LibraryItem['category'], string> = { sounds: 'Sound', drums: 'Kit', instruments: 'Instrument', effects: 'Effect' };
+/** Collections by name: the first is Favourites, as in Live; the rest go by their colour. */
+const collectionName = (i: number) => (i === 0 ? 'Favourites' : `${COLLECTION_COLORS[i]![0]!.toUpperCase()}${COLLECTION_COLORS[i]!.slice(1)}`);
 const STORE = 'mobius.music.collections';
+const PLACE = 'mobius.music.browser-place';
 const PREVIEW = 'mobius.music.preview';
 
 function load<T>(key: string, empty: T): T {
@@ -28,18 +31,26 @@ function audition(item: LibraryItem, key: string, db: number) {
   notes.forEach((p, i) => window.setTimeout(() => previewNote(item.instrument!, p, gain, item.instrument === 'pad' ? 0.6 : 0.3, item.sound, item.kit), i * 180));
 }
 
+/** Where the Browser is: a Library category, a collection (by its key, 1 to 7), or the Songs place. */
+type Place = LibraryCategory | `c${number}` | 'songs';
+
 /**
- * Music's Library panel, after Live 12's Browser: a category (the sidebar, folded into a select at this width),
- * search, tag filters, the results, and the preview strip at the foot. Enter or a double-click puts the chosen item on
- * the chosen track (a sound replaces its sound, an effect is added), or on a new track when the kinds don't match.
+ * Music's Browser, after Live 12's (docs/reference/music-parity.md, "The Library panel"; Live 12 manual, Working with
+ * the Browser): search on top, then the sidebar (Collections, Library, Places) beside the results (tag filters, then
+ * Name and Type), and the preview strip with Similar sounds at the foot. Songs is a Place, holding the songs list.
+ * Enter or a double-click puts the chosen item on the chosen track (a sound replaces its sound, an effect is added), or
+ * on a new track when the kinds don't match.
  */
-export function StudioLibrary({ songKey, target, onUse }: {
+export function StudioLibrary({ songKey, target, onUse, songs }: {
   songKey: string;
   /** The chosen track, named for the tooltips; null when the song has none. */
   target: { name: string; drums: boolean } | null;
   onUse: (item: LibraryItem) => void;
+  /** The songs list, shown when the Songs place is chosen. */
+  songs?: ReactNode;
 }) {
-  const [category, setCategory] = useState<LibraryCategory | `c${number}`>('all');
+  const [place, setPlace] = useState<Place>(() => load<Place>(PLACE, 'all'));
+  const category: LibraryCategory | `c${number}` = place === 'songs' ? 'all' : place;
   const [query, setQuery] = useState('');
   const [picks, setPicks] = useState<TagPicks>({});
   const [collections, setCollections] = useState<Collections>(() => load(STORE, {}));
@@ -48,6 +59,7 @@ export function StudioLibrary({ songKey, target, onUse }: {
   const list = useRef<HTMLUListElement>(null);
   useEffect(() => keep(STORE, collections), [collections]);
   useEffect(() => keep(PREVIEW, preview), [preview]);
+  useEffect(() => keep(PLACE, place), [place]);
 
   const inCollection = category.startsWith('c') ? Number(category.slice(1)) : 0;
   const results = useMemo(() => {
@@ -55,6 +67,7 @@ export function StudioLibrary({ songKey, target, onUse }: {
     return inCollection ? found.filter((it) => collections[it.id]?.includes(inCollection)) : found;
   }, [category, inCollection, query, picks, collections]);
   const item = results.find((it) => it.id === chosen) ?? null;
+  const counts = useMemo(() => COLLECTION_COLORS.map((_, i) => Object.values(collections).filter((ks) => ks.includes(i + 1)).length), [collections]);
 
   const choose = (it: LibraryItem, play: boolean) => {
     setChosen(it.id);
@@ -62,6 +75,13 @@ export function StudioLibrary({ songKey, target, onUse }: {
     afterFocus(it.id);
   };
   const afterFocus = (id: string) => window.requestAnimationFrame(() => list.current?.querySelector<HTMLElement>(`[data-id="${CSS.escape(id)}"]`)?.focus());
+  /** Similar sounds, as in Live 12: the same kind with the same tags, the chosen one first. */
+  const similar = (it: LibraryItem) => {
+    setPlace(it.category);
+    setQuery('');
+    setPicks(Object.fromEntries(Object.entries(it.tags).filter(([, t]) => t.length > 0)));
+    afterFocus(it.id);
+  };
 
   const onKey = (e: KeyboardEvent<HTMLLIElement>, it: LibraryItem) => {
     const at = results.findIndex((r) => r.id === it.id);
@@ -76,33 +96,50 @@ export function StudioLibrary({ songKey, target, onUse }: {
     else if (e.key === 'Escape') { e.preventDefault(); setQuery(''); setPicks({}); }
   };
 
-  const choices = [
-    ...CATEGORIES.map((c) => ({ value: c.id as string, label: c.name })),
-    ...COLLECTION_COLORS.map((c, i) => ({ value: `c${i + 1}`, label: `Collection ${i + 1} (${c[0]!.toUpperCase()}${c.slice(1)})` })),
-  ];
+  const row = (id: Place, label: ReactNode, name: string, count?: number) => (
+    <li key={id}><button type="button" className="studio-browser-place" aria-current={place === id || undefined} aria-label={name} onClick={() => setPlace(id)}>
+      {label}{count ? <span className="studio-browser-count">{count}</span> : null}
+    </button></li>
+  );
   const useTitle = (it: LibraryItem) => (it.effect ? (target ? `Add to ${target.name}` : 'Add a track first') : target && (it.instrument === 'drums') === target.drums ? `Put on ${target.name}` : 'Add as a new track');
   return (
     <div className="studio-library" role="region" aria-label="Library"
-      onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); setCategory('all'); e.currentTarget.querySelector<HTMLInputElement>('input[type="search"], input')?.focus(); } }}>
+      onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); if (place === 'songs') setPlace('all'); e.currentTarget.querySelector<HTMLInputElement>('.studio-library-search input, .studio-library-search')?.focus(); } }}>
       <div className="studio-library-head">
-        <Select label="Show" hideLabel value={category} choices={choices} onChange={(v) => setCategory(v as LibraryCategory)} />
-        <SidebarSearch label="Search the library" value={query} onChange={setQuery} />
-        <FilterBar groups={TAG_GROUPS.map((g) => ({ id: g.id, name: g.name, tags: g.tags }))} value={picks} onChange={setPicks} onClear={() => setQuery('')} />
+        <span className="studio-library-search"><SidebarSearch label="Search the library" value={query} onChange={(q) => { setQuery(q); if (place === 'songs' && q) setPlace('all'); }} /></span>
       </div>
-      <ul ref={list} className="studio-library-results" role="listbox" aria-label="Results">
-        {results.length === 0 && <li className="side-empty" role="presentation">Nothing matches.</li>}
-        {results.map((it) => (
-          <li key={it.id} data-id={it.id} role="option" aria-selected={it.id === chosen} tabIndex={it.id === (item?.id ?? results[0]?.id) ? 0 : -1}
-            className="studio-library-row" title={`${useTitle(it)} (Enter). 1 to 7 put it in a collection, 0 clears.`}
-            onClick={() => choose(it, preview.on)} onDoubleClick={() => onUse(it)} onKeyDown={(e) => onKey(e, it)}>
-            <span className="studio-library-name">{it.name}</span>
-            {category === 'all' || inCollection ? <span className="studio-library-kind">{KIND[it.category]}</span> : null}
-            <span className="studio-library-dots">{(collections[it.id] ?? []).slice(0, 3).map((k) => <Dot key={k} color={COLLECTION_COLORS[k - 1]!} />)}</span>
-          </li>
-        ))}
-      </ul>
-      <PreviewStrip on={preview.on} onToggle={(on) => setPreview((p) => ({ ...p, on }))} raw={preview.raw} onRaw={(raw) => setPreview((p) => ({ ...p, raw }))}
-        name={item?.name} volume={preview.db} onVolume={(db) => setPreview((p) => ({ ...p, db }))} />
+      <div className="studio-browser-cols">
+        <nav className="studio-browser-side" aria-label="Places">
+          <p className="studio-browser-title">Collections</p>
+          <ul>{COLLECTION_COLORS.map((c, i) => row(`c${i + 1}`, <><Dot color={c} /><span>{collectionName(i)}</span></>, `${collectionName(i)} (collection ${i + 1})`, counts[i]))}</ul>
+          <p className="studio-browser-title">Library</p>
+          <ul>{CATEGORIES.map((c) => row(c.id, <span>{c.name}</span>, c.name))}</ul>
+          {songs && <><p className="studio-browser-title">Places</p><ul>{row('songs', <span>Songs</span>, 'Songs')}</ul></>}
+        </nav>
+        {place === 'songs' && songs ? <div className="studio-browser-songs">{songs}</div> : (
+          <div className="studio-browser-main">
+            <FilterBar groups={TAG_GROUPS.map((g) => ({ id: g.id, name: g.name, tags: g.tags }))} value={picks} onChange={setPicks} onClear={() => setQuery('')} />
+            <div className="studio-library-cols" aria-hidden="true"><span>Name</span><span>Type</span></div>
+            <ul ref={list} className="studio-library-results" role="listbox" aria-label="Results">
+              {results.length === 0 && <li className="side-empty" role="presentation">Nothing matches.</li>}
+              {results.map((it) => (
+                <li key={it.id} data-id={it.id} role="option" aria-selected={it.id === chosen} tabIndex={it.id === (item?.id ?? results[0]?.id) ? 0 : -1}
+                  className="studio-library-row" title={`${useTitle(it)} (Enter). 1 to 7 put it in a collection, 0 clears.`}
+                  onClick={() => choose(it, preview.on)} onDoubleClick={() => onUse(it)} onKeyDown={(e) => onKey(e, it)}>
+                  <span className="studio-library-name">{it.name}</span>
+                  <span className="studio-library-dots">{(collections[it.id] ?? []).slice(0, 3).map((k) => <Dot key={k} color={COLLECTION_COLORS[k - 1]!} />)}</span>
+                  <span className="studio-library-kind">{KIND[it.category]}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+      <div className="studio-browser-foot">
+        <PreviewStrip on={preview.on} onToggle={(on) => setPreview((p) => ({ ...p, on }))} raw={preview.raw} onRaw={(raw) => setPreview((p) => ({ ...p, raw }))}
+          name={item?.name} volume={preview.db} onVolume={(db) => setPreview((p) => ({ ...p, db }))} />
+        <Button disabled={!item || item.category === 'effects'} title={item ? `Sounds like ${item.name}: the same kind, with the same tags` : 'Choose a sound first'} onClick={() => { if (item) similar(item); }}>Similar sounds</Button>
+      </div>
     </div>
   );
 }

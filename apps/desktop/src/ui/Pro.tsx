@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { IconButton } from './Button';
 
 /**
@@ -316,12 +316,14 @@ export function tapTempo(times: readonly number[], min = 20, max = 999): number 
  * passes) counts; from the second tap on, `onTempo` gets the tempo the taps give. It flashes ink on each tap, as
  * Live's does, and the tooltip says how it works.
  */
-export function TapTempo({ onTempo, keys, min, max, label = 'Tap tempo' }: {
+export function TapTempo({ onTempo, keys, min, max, label = 'Tap tempo', icon }: {
   onTempo: (bpm: number) => void;
   keys?: string;
   min?: number;
   max?: number;
   label?: string;
+  /** Drawn as an icon (the tool row's `TOOL_ICONS.tap`) instead of the word Tap; its name is in the tooltip. */
+  icon?: ReactNode;
 }) {
   const taps = useRef<number[]>([]);
   const [lit, setLit] = useState(false);
@@ -341,10 +343,10 @@ export function TapTempo({ onTempo, keys, min, max, label = 'Tap tempo' }: {
   };
   const tip = `${label}: tap in time${keys ? ` (${keys})` : ''}`;
   return (
-    <button type="button" className="ui-tap" aria-label={label} title={tip} data-lit={lit || undefined}
+    <button type="button" className={icon ? 'ui-tap ui-icon-button' : 'ui-tap'} aria-label={label} title={tip} data-lit={lit || undefined}
       onPointerDown={(event) => { if (event.button === 0) { event.preventDefault(); tap(); } }}
       onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!event.repeat) tap(); } }}>
-      Tap
+      {icon ?? 'Tap'}
     </button>
   );
 }

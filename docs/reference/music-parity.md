@@ -158,7 +158,7 @@ How Live lays it out, and what Music takes from it:
   Ctrl+] go back and forward.
 
 **Shipped in the first cut:**
-- The Library is a tab in the left dock beside Songs (Ctrl+Alt+B). Songs is the first tab, so the list that shows while the last song reopens stays put; whichever tab the person picks is remembered.
+- The Browser is one panel in the left dock (Ctrl+Alt+B), as in Live 12 ([Working with the Browser](https://www.ableton.com/en/live-manual/12/working-with-the-browser/)): search on top, then the sidebar (Collections, Library, Places) beside the results, and the preview strip with Similar sounds at the foot. Songs is a Place there, holding the songs list (the panel look, docs/design/panel-look.md); the place the person picks is remembered. Similar sounds lists the same kind with the same tags.
 - The panel holds categories (All, Sounds, Drums, Instruments, Audio Effects) and seven collections. They sit in a
   select, since the dock is under 440 px.
 - All-words and `#tag` search, and the tag filters.
