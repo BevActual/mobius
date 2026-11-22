@@ -719,7 +719,8 @@ export function App() {
   const firstApp = useRef(true);
   useEffect(() => {
     if (firstApp.current) { firstApp.current = false; return; }
-    if (app === 'browser' || app === 'reader') { if (chatBeforeBrowser.current === null) { chatBeforeBrowser.current = chatOpenNow.current; setChatOpen(false); } }
+    // Browser and Store (a place, marked) open with Mobius closed; it comes back as it was on leaving.
+    if (app === 'browser' || app === 'reader' || app === 'skills') { if (chatBeforeBrowser.current === null) { chatBeforeBrowser.current = chatOpenNow.current; setChatOpen(false); } }
     else if (chatBeforeBrowser.current !== null) { if (chatBeforeBrowser.current) setChatOpen(true); chatBeforeBrowser.current = null; }
   }, [app]);
   // Learn (shell/learn-view): lessons beside the page, in the slot Mobius uses when pinned beside. One at a time.
@@ -749,7 +750,7 @@ export function App() {
   ] satisfies PanelSpec[]])) as Partial<Record<AppId, PanelSpec[]>>, [homeListName, roomy, mobiusDocked]);
   // The agent panel sits beside the Browser and Notes; the Agent app is the conversation itself.
   // With the Agent app open in a pane, the conversation is already on screen.
-  const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || (inSkills && extPlace === 'skills') /* Store is a place: Mobius stays closed there, except beside a skill */ || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
+  const hasRight = (inBrowser || inMail || inMessages || inCode || inDesign || inCanvas || inViews || inResearch || inReader || inDatabase || inTerminal || inReview || inFiles || inWiki || inProjects || inPhoto || inStudio || inVideo || inSkills || inNotes || inDocs || inSheets || inSlides || inTasks || inCalendar) && !shows('agent')
     || (inActivity && !split); // Activity (marked): its page fills the stage, so Mobius sits beside it as in every app
   const rightFloating = appearance.value.rightSidebar === 'floating';
   const rightOpen = hasRight && chatOpen && !learnOpen;
@@ -1144,7 +1145,7 @@ export function App() {
   // rather than one that starts a conversation.
   const createFor = (id: AppId): HubAction | undefined => createActions.find((a) => a.app === id);
   // These apps' own sidebar lists start with their New row, so the head's New is left out.
-  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets', 'browser'];
+  const createInList: readonly AppId[] = ['notes', 'docs', 'slides', 'design', 'canvas', 'views', 'research', 'reader', 'studio', 'tasks', 'mail', 'sheets', 'browser', 'skills' /* Store: New skill is in the Skills page's header */];
   // An app's own list (OWN_LIST): the same list as before, under the panel's header, with New and the pinned items.
   // Read later (Reader folded into the Browser): the Reading list's articles, newest first.
   // Finished ones (the Archive) are found by searching the panel.

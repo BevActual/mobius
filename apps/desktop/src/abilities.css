@@ -95,12 +95,13 @@ button.abl-main:focus-visible, .abl-item:focus-visible { outline: 2px solid var(
 .store-card-foot { display: flex; align-items: center; gap: var(--sp-2); min-height: 40px; padding: 0 10px 10px 14px; }
 .store-card-state { flex: 1; color: var(--muted); font-size: var(--fs-sm); }
 .store-card-foot .btn.abl-add { margin-left: auto; }
+.store-card-spacer { flex: none; width: var(--control-h, 28px); }
 .store-card .abl-more { opacity: 0; }
 .store-card:hover .abl-more, .store-card:focus-within .abl-more, .store-card .abl-more[aria-expanded="true"] { opacity: 1; }
 @media (hover: none) { .store-card .abl-more { opacity: 1; } }
 
 /* An app's page: back to Apps, its icon, name and action, what it is for, its state, and what it can reach. */
-.store-item { display: grid; gap: var(--sp-4); max-width: 640px; padding: var(--sp-4) var(--sp-6) var(--sp-8); }
+.store-item { display: grid; gap: var(--sp-4); box-sizing: border-box; width: 100%; max-width: 660px; margin: 0 auto; padding: var(--sp-4) var(--sp-4) var(--sp-8); }
 .store-back { justify-self: start; display: inline-flex; align-items: center; gap: 4px; height: var(--control-h, 28px); padding: 0 8px 0 4px; border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-size: var(--fs-sm); cursor: pointer; }
 .store-back:hover { background: var(--soft); color: var(--ink); }
 .store-back svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }

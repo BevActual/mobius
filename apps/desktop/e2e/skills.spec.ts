@@ -116,10 +116,10 @@ test('Store is a place of Mobius’s own: apps as cards with their own pages, sk
   await expect(side.getByRole('region', { name: 'Categories' }).locator('button.list-row')).toHaveText([/^Apps\d*$/, /^Skills\d*$/, /^Connectors\d*$/]);
   await expect(side.getByRole('button', { name: /^Apps/ })).toHaveAttribute('aria-current', 'page');
   // Store is a place: Mobius stays closed there.
-  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toHaveCount(0);
+  await expect(shell().getByRole('textbox', { name: 'Message Mobius' })).toBeHidden();
   // Each app is a card that says what it is for. Remove is in its ⋯ menu, keeps its files, and Undo puts it back.
   const apps = shell().getByRole('region', { name: 'Apps', exact: true });
-  await expect(apps.getByRole('region', { name: 'Write and plan' })).toContainText('Spreadsheets with formulas');
+  await expect(apps.getByRole('region', { name: 'Add-ons' })).toContainText('Spreadsheets with formulas');
   await apps.getByRole('button', { name: 'More for Sheets' }).click();
   await shell().getByRole('menuitem', { name: 'Remove' }).click();
   await expect.poll(async () => (await shell().evaluate(() => window.mobius.preferences.get())).installedApps).not.toContain('sheets');

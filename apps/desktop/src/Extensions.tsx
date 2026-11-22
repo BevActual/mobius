@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { ConnectorStatus } from '@mobius/shared';
 import { InstallDialog } from './Skills';
 import type { SkillsState } from './useSkills';
-import { APP_GROUPS, APPS, CORE_APPS, isInstalled, isListed, withApp, type AppId, type AppInfo } from './apps';
+import { APPS, CORE_APPS, isInstalled, isListed, withApp, type AppId, type AppInfo } from './apps';
 import { APP_ICONS } from './Rail';
 import { usePreferences } from './usePreferences';
 import { ContextMenu } from './ContextMenu';
@@ -38,6 +38,7 @@ const APP_REACH: Partial<Record<AppId, string[]>> = {
   research: ['The web, to search and read pages for a report'],
   code: ['Projects in your workspace, and git'],
   terminal: ['Commands in a folder of your workspace'],
+  files: ['Your workspace, and the folders on this computer you choose to show'],
 };
 const reachOf = (id: AppId): string[] => [...(APP_REACH[id] ?? ['Its own files in your workspace, on this computer']), 'Mobius, only when you ask it'];
 
@@ -64,6 +65,8 @@ const APP_PURPOSE: Partial<Record<AppId, string>> = {
   code: 'A code editor for projects in your workspace, with git.',
   terminal: 'Run commands in a folder of your workspace.',
   canvas: 'A whiteboard of stickies, shapes, arrows and pen lines.',
+  projects: 'Goals and projects, with their tasks and threads across apps.',
+  files: 'Your workspace and this computer’s folders, with what Mobius made.',
 };
 
 /** Small signals between the shell and Abilities' own parts, which App.tsx does not hold. */
@@ -95,6 +98,16 @@ export const appMatches = (q: string, app: AppInfo) => matches(q, app.name, app.
 
 /** The apps the library lists: every app that can be added, leaving out Mobius's own apps, which are always there. */
 const LIBRARY = APPS.filter((a) => a.available && isListed(a) && !(CORE_APPS as readonly string[]).includes(a.id));
+/** Store's groups (apps-equivalents.md): Core, Add-ons, Pro. Projects and Files are core and always there. */
+const STORE_GROUPS = ['Core', 'Add-ons', 'Pro'] as const;
+const STORE_GROUP: Partial<Record<AppId, (typeof STORE_GROUPS)[number]>> = {
+  mail: 'Core', calendar: 'Core', tasks: 'Core', projects: 'Core', notes: 'Core', docs: 'Core', files: 'Core', browser: 'Core',
+  messages: 'Add-ons', sheets: 'Add-ons', slides: 'Add-ons', database: 'Add-ons', wiki: 'Add-ons', canvas: 'Add-ons', search: 'Add-ons', research: 'Add-ons',
+  studio: 'Pro', photo: 'Pro', design: 'Pro', video: 'Pro', code: 'Pro', terminal: 'Pro',
+};
+/** Mobius's own apps that Store shows among the rest: always there, so never added or removed. */
+const ALWAYS = APPS.filter((a) => a.id === 'projects' || a.id === 'files');
+const STORE_APPS = [...LIBRARY, ...ALWAYS].filter((a) => STORE_GROUP[a.id]);
 
 /** The added apps, from the preferences, so a change shows at once everywhere. */
 function useInstalled(): { installed: AppInfo[]; available: AppInfo[]; change: (id: AppId, add: boolean) => Promise<boolean> } {
@@ -137,7 +150,6 @@ export function AbilitiesSub({ place, skills }: { place: ExtensionPlace; skills:
 /** Abilities' sidebar: Search, then Apps (Installed, Available), Mobius (Skills, Connectors), the skills, From Mobius. */
 export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { place: ExtensionPlace; onPlace: (p: ExtensionPlace) => void; skills: SkillsState; pin?: ReactNode; changed?: ReadonlySet<string> }) {
   const [q, setQ] = useAbilitiesQuery();
-  const { installed, available } = useInstalled();
   const { status } = useConnectors();
   const nameToken = newSkill.use();
   const [naming, setNaming] = useState(false);
@@ -152,7 +164,7 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
     <AppSidebar label="Store">
       <SidebarSearch label="Search Store" value={q} onChange={setQ} />
       <SidebarSection title="Categories" action={pin}>
-        {row('apps', installed.length + available.length, <><rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.2" /></>)}
+        {row('apps', STORE_APPS.length, <><rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.2" /></>)}
         {row('skills', skills.available ? skills.list.length : 0, <path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z" />)}
         {row('connectors', connectorCount(status), <><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></>)}
       </SidebarSection>
@@ -184,7 +196,7 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
 /** Store's page for Apps (the grid, or one app's page) and Connectors (Skills has its own editor). */
 export function ExtensionsPage({ place, onOpenApp, onAdjust }: { place: Exclude<ExtensionPlace, 'skills'>; onOpenApp?: (id: AppId) => void; /** Opens an app's own page in Settings. */ onAdjust?: (section: AdjustSection) => void }) {
   const item = storeItem.use();
-  const open = place === 'apps' && item ? LIBRARY.find((a) => a.id === item) : undefined;
+  const open = place === 'apps' && item ? STORE_APPS.find((a) => a.id === item) : undefined;
   return (
     <section className="skills-page abl-page" aria-label={open ? open.name : PLACE_NAMES[place]}>
       <div className="abl-scroll">{place === 'connectors' ? <Connectors /> : <AppLibrary item={open} onOpenApp={onOpenApp} onAdjust={onAdjust} />}</div>
@@ -226,6 +238,7 @@ export function SkillsToolbar({ skills, onRun }: { skills: SkillsState; onRun: (
   const open = skills.open;
   return (
     <ToolbarControls label="Skills">
+      <button type="button" className="strip-btn abl-tool" onClick={requestNewSkill} disabled={!skills.available} title="New skill (Ctrl+N)"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg><span>New skill</span></button>
       {open && <button type="button" className="strip-btn abl-tool" onClick={() => onRun(open.name)} title={`Run /${open.name}`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 5.5v9l7-4.5z" /></svg><span>Run</span></button>}
       {open && <button type="button" className="strip-btn abl-tool" onClick={() => void skills.remove()} aria-label="Delete skill" title={`Delete /${open.name}`}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4.5 6h11M8 6V4.5h4V6M6 6l.7 9.5h6.6L14 6" /></svg></button>}
       <button type="button" className="strip-btn abl-tool" onClick={pick} disabled={!skills.available} title="Install a skill from a file"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v8M6.5 8.5 10 12l3.5-3.5M4.5 13.5v2h11v-2" /></svg><span>Install a skill…</span></button>
@@ -257,9 +270,10 @@ function AppLibrary({ item, onOpenApp, onAdjust }: { item: AppInfo | undefined; 
   const [problem, setProblem] = useState<string | null>(null);
   const [undoable, setUndoable] = useUndo();
   const [menu, setMenu] = useState<{ app: AppInfo; x: number; y: number } | null>(null);
-  const added = (app: AppInfo) => installed.some((a) => a.id === app.id);
-  const list = LIBRARY.filter((a) => appMatches(q, a));
-  const groups = APP_GROUPS.map((group) => ({ group, members: list.filter((a) => a.group === group) })).filter((g) => g.members.length > 0);
+  const always = (app: AppInfo) => ALWAYS.includes(app);
+  const added = (app: AppInfo) => always(app) || installed.some((a) => a.id === app.id);
+  const list = STORE_APPS.filter((a) => appMatches(q, a));
+  const groups = STORE_GROUPS.map((group) => ({ group, members: list.filter((a) => STORE_GROUP[a.id] === group) })).filter((g) => g.members.length > 0);
   const set = async (app: AppInfo, add: boolean) => {
     setProblem(null);
     if (!(await change(app.id, add))) { setProblem('That could not be changed.'); return; }
@@ -289,17 +303,17 @@ function AppLibrary({ item, onOpenApp, onAdjust }: { item: AppInfo | undefined; 
           <span className="store-item-icon">{icon(item, 32)}</span>
           <span className="store-item-title">
             <h1>{item.name}</h1>
-            <span className="store-item-group">{item.group}</span>
+            <span className="store-item-group">{STORE_GROUP[item.id]}</span>
           </span>
           <span className="store-item-actions">
             {on
-              ? <>{onOpenApp && <button type="button" className="btn primary" aria-label={`Open ${item.name}`} onClick={() => onOpenApp(item.id)}>Open</button>}{more(item)}</>
+              ? <>{onOpenApp && <button type="button" className="btn primary" aria-label={`Open ${item.name}`} onClick={() => onOpenApp(item.id)}>Open</button>}{!always(item) && more(item)}</>
               : <button type="button" className="btn primary" aria-label={`Add ${item.name}`} onClick={() => void set(item, true)}>Add</button>}
           </span>
         </header>
         {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
         <p className="store-item-about">{APP_PURPOSE[item.id]}</p>
-        {on && <p className="store-item-state">Added{fix && <> · <button type="button" className="store-link" onClick={fix}>Adjust in Settings</button></>}</p>}
+        {on && <p className="store-item-state">{always(item) ? 'Always there' : 'Added'}{fix && <> · <button type="button" className="store-link" onClick={fix}>Adjust in Settings</button></>}</p>}
         <section className="store-item-section" aria-label="What it can reach">
           <h2>What it can reach</h2>
           <ul>{reachOf(item.id).map((r) => <li key={r}>{r}</li>)}</ul>
@@ -320,8 +334,8 @@ function AppLibrary({ item, onOpenApp, onAdjust }: { item: AppInfo | undefined; 
               const on = added(app);
               return (
                 <li key={app.id} className="store-card" data-added={on || undefined}
-                  onKeyDown={(e) => { if (on && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.store-card-main')) { e.preventDefault(); void set(app, false); } }}
-                  onContextMenu={(e) => { if (!on) return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
+                  onKeyDown={(e) => { if (on && !always(app) && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.store-card-main')) { e.preventDefault(); void set(app, false); } }}
+                  onContextMenu={(e) => { if (!on || always(app)) return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
                   <button type="button" className="store-card-main" aria-label={`About ${app.name}`} onClick={() => storeItem.set(app.id)}>
                     {icon(app, 22)}
                     <span className="store-card-name">{app.name}</span>
@@ -329,7 +343,7 @@ function AppLibrary({ item, onOpenApp, onAdjust }: { item: AppInfo | undefined; 
                   </button>
                   <span className="store-card-foot">
                     {on
-                      ? <><span className="store-card-state">Added</span>{onOpenApp && <button type="button" className="btn" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>Open</button>}{more(app)}</>
+                      ? <><span className="store-card-state">{always(app) ? 'Always there' : 'Added'}</span>{onOpenApp && <button type="button" className="btn" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>Open</button>}{always(app) ? <span className="store-card-spacer" aria-hidden="true" /> : more(app)}</>
                       : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
                   </span>
                 </li>

@@ -106,7 +106,7 @@
 .ui-dock[data-dock="bottom"] > .ui-panel + .ui-panel { border-left: var(--hairline-w) solid var(--line); }
 .ui-panel { display: flex; flex-direction: column; }
 .ui-panel-head { flex: none; display: flex; align-items: center; gap: var(--sp-2); height: var(--panel-head-h, var(--control-h)); padding: 0 var(--sp-1) 0 var(--sp-3); border-bottom: var(--hairline-w) solid var(--line); }
-.ui-panel-name { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--muted); }
+.ui-panel-name { flex: 1; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--ink); }
 /* A tab group's header: the panels' names as tabs, the one in front ink with an ink underline on the header's edge. */
 .ui-panel[data-tabbed] > .ui-panel-head { padding-left: var(--sp-1); }
 .ui-panel-tabs { flex: 1; display: flex; align-items: stretch; align-self: stretch; gap: var(--sp-1); min-width: 0; overflow-x: auto; scrollbar-width: none; }
