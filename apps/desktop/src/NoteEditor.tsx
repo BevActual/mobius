@@ -5,7 +5,7 @@ import { KEPT_EVENT, keepTurn, keptTurns, turnId } from './ReviewStrip';
 import { readBefore } from './readBefore';
 import { useContext, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Menu, PanelTab, ToolbarControls, UndoToast } from './ui';
+import { Menu, PanelTab, ToolbarControls, UndoToast, useInspector } from './ui';
 import { publishOutline } from './docs-outline';
 import { DocOutlinePanel } from './DocOutlinePanel';
 import { settleGone, settleIn, settleKept } from './settle';
@@ -190,108 +190,92 @@ const STYLES_SHOWN = [STYLES[1], STYLES[2], STYLES[3], STYLES[0]];
 const markdownOf = (e: Editor) => tidyMarkdown(e.getMarkdown());
 
 /**
- * The format bar, as in Apple Notes: Aa opens a panel with the text styles and marks, and the bar itself keeps only
- * what is reached for while writing (checklist, table, link). The buttons show as pressed what the cursor is in.
- * Off in Markdown, where the marks are typed.
+ * The tool row (the panel look, docs/design/reviews/panel-look/notes.md A1): centred in the window's toolbar, the
+ * familiar writing tools as icons with their names and keys in the tooltip. Undo and redo, the text style (Title,
+ * Heading, Subheading, Body, Mono, with the rarer marks and lists under it), bold, italic, checklist, list, link,
+ * table, attach. The buttons show as pressed what the cursor is in. Off in Markdown, where the marks are typed.
  */
 const TABLE_ICON = <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="3.5" y="4.5" width="13" height="11" rx="1.5" /><path d="M3.5 8.5h13M3.5 12h13M8 4.5v11M12 4.5v11" /></svg>;
+const ATTACH_ICON = <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m15.5 9.5-5.6 5.6a3.5 3.5 0 0 1-5-5l6-6a2.3 2.3 0 0 1 3.3 3.3l-6 6a1.2 1.2 0 0 1-1.7-1.7l5.4-5.4" /></svg>;
+const MOD = () => (window.mobius.platform === 'darwin' ? 'Cmd' : 'Ctrl');
+/** What the style menu's button says: the style the cursor is in. */
+const STYLE_NAMES: Record<string, string> = { h1: 'Title', h2: 'Heading', h3: 'Subheading', p: 'Body', mono: 'Mono' };
 
-function FormatButtons({ editor, onLink, insert }: { editor: Editor; onLink: () => void; insert: ReactNode }) {
+function FormatButtons({ editor, onLink, onAttach, table }: { editor: Editor; onLink: () => void; onAttach: (() => void) | null; table: () => void }) {
   const state = useEditorState({
     editor,
     selector: ({ editor: e }) => ({
-      style: e.isActive('heading', { level: 1 }) ? 'h1' : e.isActive('heading', { level: 2 }) ? 'h2' : e.isActive('heading', { level: 3 }) ? 'h3' : 'p',
+      style: e.isActive('heading', { level: 1 }) ? 'h1' : e.isActive('heading', { level: 2 }) ? 'h2' : e.isActive('heading', { level: 3 }) ? 'h3' : e.isActive('codeBlock') ? 'mono' : 'p',
       bold: e.isActive('bold'), italic: e.isActive('italic'), strike: e.isActive('strike'), code: e.isActive('code'), link: e.isActive('link'),
       bullet: e.isActive('bulletList'), ordered: e.isActive('orderedList'), task: e.isActive('taskList'), quote: e.isActive('blockquote'), table: e.isActive('table'),
+      undo: e.can().undo(), redo: e.can().redo(),
     }),
   });
-  // Where the panel opens: under the Aa button. It is drawn over the page (in body), not inside the toolbar, so its
-  // glass blurs the page behind it.
-  const [panel, setPanel] = useState<{ top: number; left: number } | null>(null);
   const [sortChecked, setSortChecked] = useState(checkedLast);
-  const wrap = useRef<HTMLDivElement>(null);
-  const sheet = useRef<HTMLDivElement>(null);
-  const toggle = () => setPanel((o) => {
-    if (o) return null;
-    const at = wrap.current?.getBoundingClientRect();
-    return at ? { top: at.bottom + 8, left: at.left } : null;
-  });
-  useEffect(() => {
-    if (!panel) return;
-    const away = (e: PointerEvent) => { const t = e.target as Node | null; if (!wrap.current?.contains(t) && !sheet.current?.contains(t)) setPanel(null); };
-    window.addEventListener('pointerdown', away);
-    return () => window.removeEventListener('pointerdown', away);
-  }, [panel]);
   const run = (f: (c: ReturnType<Editor['chain']>) => ReturnType<Editor['chain']>) => () => { f(editor.chain().focus()).run(); };
-  const setStyle = (id: string) => {
+  const setStyle = (id: string) => () => {
     const chain = editor.chain().focus();
     if (id === 'p') chain.setParagraph().run();
+    else if (id === 'mono') chain.setCodeBlock().run();
     else chain.setHeading({ level: Number(id.slice(1)) as 1 | 2 | 3 }).run();
   };
   const keep = (e: { preventDefault: () => void }) => e.preventDefault();
-  const marked = state.bold || state.italic || state.strike || state.code || state.style !== 'p' || state.bullet || state.ordered || state.quote;
+  const mod = MOD();
   return (
     <>
-      <div className="note-aa" ref={wrap}>
-        <button type="button" className="doc-tool note-aa-btn" aria-label="Format text" title="Format text" aria-haspopup="dialog" aria-expanded={panel !== null} data-marked={marked || undefined} onPointerDown={keep} onClick={toggle}>
-          <span aria-hidden="true">Aa</span>
+      <span className="note-tool-group" role="group" aria-label="History">
+        <button type="button" className="doc-tool" aria-label="Undo" title={`Undo (${mod}+Z)`} disabled={!state.undo} onPointerDown={keep} onClick={run((c) => c.undo())}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" /></svg>
         </button>
-        {panel && createPortal(
-          <div ref={sheet} className="note-aa-panel glass" style={{ top: panel.top, left: panel.left }} role="dialog" aria-label="Text format" onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setPanel(null); editor.commands.focus(); } }}>
-            <div className="note-aa-styles" role="group" aria-label="Paragraph style">
-              {STYLES_SHOWN.map((s) => (
-                <button key={s.id} type="button" className="note-aa-style" data-style={s.id} aria-pressed={state.style === s.id} onPointerDown={keep} onClick={() => setStyle(s.id)}>{s.label}</button>
-              ))}
-            </div>
-            <div className="note-aa-row">
-              <div className="note-aa-group" role="group" aria-label="Marks">
-                <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title="Bold (Ctrl+B)" onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
-                <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title="Italic (Ctrl+I)" onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
-                <button type="button" className="doc-tool" aria-label="Strikethrough" aria-pressed={state.strike} title="Strikethrough (Ctrl+Shift+S)" onPointerDown={keep} onClick={run((c) => c.toggleStrike())}><s>S</s></button>
-                <button type="button" className="doc-tool" aria-label="Code" aria-pressed={state.code} title="Code (Ctrl+E)" onPointerDown={keep} onClick={run((c) => c.toggleCode())}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 6 3.5 10l4 4M12.5 6l4 4-4 4" /></svg>
-                </button>
-              </div>
-              <div className="note-aa-group" role="group" aria-label="Lists">
-                <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title="Bulleted list (Ctrl+Shift+8)" onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></svg>
-                </button>
-                <button type="button" className="doc-tool" aria-label="Numbered list" aria-pressed={state.ordered} title="Numbered list (Ctrl+Shift+7)" onPointerDown={keep} onClick={run((c) => c.toggleOrderedList())}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" /></svg>
-                </button>
-                <button type="button" className="doc-tool" aria-label="Quote" aria-pressed={state.quote} title="Quote (Ctrl+Shift+B)" onPointerDown={keep} onClick={run((c) => c.toggleBlockquote())}>
-                  <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5 6v8M9 7h7M9 10h7M9 13h5" /></svg>
-                </button>
-              </div>
-            </div>
-            {/* Apple Notes' Sort checked items: off until turned on, and kept for every note. */}
-            <label className="note-aa-option">
-              <input type="checkbox" checked={sortChecked} onChange={(e) => { setCheckedLast(e.target.checked); setSortChecked(e.target.checked); }} />
-              Move checked items to the bottom
-            </label>
-          </div>,
-          document.body,
+        <button type="button" className="doc-tool" aria-label="Redo" title={`Redo (${mod}+Shift+Z)`} disabled={!state.redo} onPointerDown={keep} onClick={run((c) => c.redo())}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" /></svg>
+        </button>
+      </span>
+      <Menu label="Text style" entries={[
+        ...STYLES_SHOWN.map((st) => ({ label: STYLE_NAMES[st.id]!, checked: state.style === st.id, run: setStyle(st.id) })),
+        { label: 'Mono', checked: state.style === 'mono', run: setStyle('mono') },
+        { label: 'Strikethrough', checked: state.strike, run: run((c) => c.toggleStrike()), separated: true },
+        { label: 'Code', checked: state.code, run: run((c) => c.toggleCode()) },
+        { label: 'Numbered list', checked: state.ordered, run: run((c) => c.toggleOrderedList()) },
+        { label: 'Quote', checked: state.quote, run: run((c) => c.toggleBlockquote()) },
+        // Apple Notes' Sort checked items: off until turned on, and kept for every note.
+        { label: 'Move checked items to the bottom', checked: sortChecked, separated: true, run: () => { setCheckedLast(!sortChecked); setSortChecked(!sortChecked); } },
+      ]} trigger={
+        <button type="button" className="doc-tool text note-style-btn" aria-label={`Text style: ${STYLE_NAMES[state.style]}`} title="Text style">
+          <span>{STYLE_NAMES[state.style]}</span>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6.5 8.5 3.5 3.5 3.5-3.5" /></svg>
+        </button>
+      } />
+      <span className="note-tool-group" role="group" aria-label="Marks">
+        <button type="button" className="doc-tool" aria-label="Bold" aria-pressed={state.bold} title={`Bold (${mod}+B)`} onPointerDown={keep} onClick={run((c) => c.toggleBold())}><b>B</b></button>
+        <button type="button" className="doc-tool" aria-label="Italic" aria-pressed={state.italic} title={`Italic (${mod}+I)`} onPointerDown={keep} onClick={run((c) => c.toggleItalic())}><i>I</i></button>
+      </span>
+      <span className="note-tool-group" role="group" aria-label="Blocks">
+        <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title={`Checklist (${mod}+Shift+9)`} onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></svg>
+        </button>
+        <button type="button" className="doc-tool" aria-label="Bulleted list" aria-pressed={state.bullet} title={`Bulleted list (${mod}+Shift+8)`} onPointerDown={keep} onClick={run((c) => c.toggleBulletList())}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></svg>
+        </button>
+        <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove link' : `Link (${mod}+K)`} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
+          <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
+        </button>
+        {/* While the caret is in a table, its rows and columns are under the same button (as in Docs). */}
+        {state.table ? (
+          <Menu label="Table" entries={[
+            { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
+            { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
+            { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
+            { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
+            { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
+            { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
+            { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
+          ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Table">{TABLE_ICON}</button>} />
+        ) : (
+          <button type="button" className="doc-tool" aria-label="Table" title="Table" onPointerDown={keep} onClick={table}>{TABLE_ICON}</button>
         )}
-      </div>
-      <button type="button" className="doc-tool" aria-label="Checklist" aria-pressed={state.task} title="Checklist (Ctrl+Shift+9)" onPointerDown={keep} onClick={run((c) => c.toggleTaskList())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><circle cx="5.5" cy="6" r="2.2" /><path d="m4.4 6 .8.8 1.4-1.6" /><circle cx="5.5" cy="13.5" r="2.2" /><path d="M10 6h6.5M10 13.5h6.5" /></svg>
-      </button>
-      <button type="button" className="doc-tool" aria-label="Link" aria-pressed={state.link} title={state.link ? 'Remove link' : 'Link'} onPointerDown={keep} onClick={() => (state.link ? editor.chain().focus().unsetLink().run() : onLink())}>
-        <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" /></svg>
-      </button>
-      {insert}
-      {/* While the caret is in a table, its rows and columns are one button away (as in Docs). */}
-      {state.table && (
-        <Menu label="Table" entries={[
-          { label: 'Add a row above', run: run((c) => c.addRowBefore()) },
-          { label: 'Add a row below', run: run((c) => c.addRowAfter()) },
-          { label: 'Add a column before', run: run((c) => c.addColumnBefore()) },
-          { label: 'Add a column after', run: run((c) => c.addColumnAfter()) },
-          { label: 'Delete the row', run: run((c) => c.deleteRow()), separated: true },
-          { label: 'Delete the column', run: run((c) => c.deleteColumn()) },
-          { label: 'Delete the table', run: run((c) => c.deleteTable()), danger: true },
-        ]} trigger={<button type="button" className="doc-tool" aria-label="Table" aria-pressed title="Table">{TABLE_ICON}</button>} />
-      )}
+        {onAttach && <button type="button" className="doc-tool" aria-label="Attach" title="Attach a picture or file" onPointerDown={keep} onClick={onAttach}>{ATTACH_ICON}</button>}
+      </span>
     </>
   );
 }
@@ -340,6 +324,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   const image = useMemo(() => noteImage(() => pathNow.current), []);
   // Comments on the page, kept beside it; the words they are about are marked in the page.
   const commentState = useNoteComments(path);
+  const inspector = useInspector();
+  // A new comment opens the Comments panel, where it is kept.
+  const addComment: typeof commentState.add = async (...args) => { const ok = await commentState.add(...args); if (ok) inspector.show('comments'); return ok; };
   const quotesNow = useRef<string[]>([]);
   quotesNow.current = commentState.comments.filter((c) => !c.resolved).map((c) => c.quote);
   const commentMarks = useMemo(() => noteComments(() => quotesNow.current), []);
@@ -653,6 +640,8 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
             </form>
   );
   const backlinks = useMemo(() => (path ? linkedFrom(notes.notebooks, path) : []), [notes.notebooks, path]);
+  const [linkedOpen, setLinkedOpen] = useState(false);
+  useEffect(() => setLinkedOpen(false), [path]);
   // What the last turn changed on this page, line by line, read only while it is shown.
   const [diff, setDiff] = useState<DiffLine[] | null>(null);
   // The page as it was before the turn; null when the turn made the page.
@@ -824,15 +813,20 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
   }
   const title = liveTitle(notes.text, notes.page.title || path?.split('/')[1]?.replace(/\.md$/, '') || '');
   const keep = (e: { preventDefault: () => void }) => e.preventDefault();
-  // Insert (+): what goes into the page, as in Docs. Table, a picture or a file, words said aloud, a clipped web page.
+  const insertTable = () => { if (source || !editor) put(TABLE); else editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); };
+  const attach = window.mobius.notes?.attach && adding === 0 ? () => picker.current?.click() : null;
+  // More (+): what else goes into the page. Words said aloud, a meeting, a clipped web page; in Markdown also a table
+  // and a file, which the tool row has as buttons.
   const insertMenu = (
     <Menu label="Insert" entries={[
-      { label: 'Table', icon: TABLE_ICON, run: () => { if (source || !editor) put(TABLE); else editor.chain().focus().insertTable({ rows: 3, cols: 2, withHeaderRow: true }).run(); } },
-      ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
+      ...(source ? [
+        { label: 'Table', icon: TABLE_ICON, run: insertTable },
+        ...(window.mobius.notes?.attach ? [{ label: adding > 0 ? 'Adding…' : 'Picture or file…', disabled: adding > 0, run: () => picker.current?.click() }] : []),
+      ] : []),
       { label: 'Dictate', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: recording.toggle },
       { label: 'Record a meeting', disabled: recording.state !== 'idle' || meeting.state !== 'idle', run: startMeeting },
       { label: 'Clip a web page…', run: () => setClipping(''), separated: true },
-    ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Insert"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
+    ]} trigger={<button type="button" className="doc-tool" aria-label="Insert" title="Dictate, record a meeting or clip a page"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" /></svg></button>} />
   );
   // Editing the Markdown itself, the same line sits over the text.
   const metaLine = (
@@ -850,6 +844,15 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       onKeyDown={(e) => { const k = findKeyOf(e); if (!k || !editor || source) return; e.preventDefault(); e.stopPropagation(); setFinding((f) => ({ replacing: k === 'replace' || (f?.replacing ?? false), token: (f?.token ?? 0) + 1 })); }}>
       {finding && editor && !source && <DocFind editor={editor} replacing={finding.replacing} focusToken={finding.token} onClose={() => setFinding(null)} />}
       <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>
+      {/* Comments (the panel look, A5): off the page, in the inspector's Comments panel; each opens its words. */}
+      {commentState.available && !source && (
+        <PanelTab id="comments" name="Comments">
+          <div className="note-comments-panel">
+            {commentState.comments.length === 0 && !commentState.problem && <p className="doc-outline-empty">Select words and choose Comment to add one.</p>}
+            <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} />
+          </div>
+        </PanelTab>
+      )}
       {notes.status === 'conflict' && (
         <div className="note-conflict" role="alert">
           <span>The assistant changed this page while you were editing it.</span>
@@ -862,13 +865,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         // The page's controls sit in the window's toolbar (ui/AppFrame), not in a row of their own above the page.
         <ToolbarControls label="Notes">
         <div className="note-format" role="toolbar" aria-label="Format">
-          {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} insert={insertMenu} />}
-          {source && (
-            <>
-              <button type="button" className="doc-tool text" onPointerDown={keep} onClick={() => put(CHECKLIST)}>Checklist</button>
-              {insertMenu}
-            </>
-          )}
+          {editor && !source && <FormatButtons editor={editor} onLink={() => setLinking('')} onAttach={attach} table={insertTable} />}
+          {source && <button type="button" className="doc-tool text" onPointerDown={keep} onClick={() => put(CHECKLIST)}>Checklist</button>}
+          {insertMenu}
           {/* While Mobius listens, the way to stop it stays in sight. */}
           {recording.state !== 'idle' && (
             <button type="button" className="note-insert-btn" data-recording={recording.state === 'recording' || undefined} disabled={recording.state === 'transcribing'} title="Stop and keep the words in this page" onPointerDown={keep} onClick={recording.toggle}>
@@ -881,7 +880,6 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
             </button>
           )}
           {window.mobius.notes?.attach && <input ref={picker} type="file" multiple hidden aria-label="Choose files to add" onChange={(e) => { const files = [...(e.target.files ?? [])]; e.target.value = ''; void addFiles(files); }} />}
-          <span className="spacer" />
           <Menu label="Share" align="end" entries={[
             { label: 'Copy', run: () => void share('formatted') },
             { label: 'Copy as Markdown', run: () => void share('markdown') },
@@ -974,11 +972,14 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         ) : (
           <EditorContent editor={editor} className="note-paper" />
         )}
-        {!source && <CommentList state={commentState} text={editor?.state.doc.textContent ?? ''} onShow={showQuote} />}
+        {/* Linked from (A5): one quiet line at the end of the page, opened to list the notes that link here. */}
         {backlinks.length > 0 && (
-          <section className="note-backlinks" aria-label="Linked from">
-            <h2>Linked from</h2>
-            <ul>
+          <section className="note-backlinks" aria-label="Linked from" data-open={linkedOpen || undefined}>
+            <button type="button" className="note-backlinks-line" aria-expanded={linkedOpen} onClick={() => setLinkedOpen((o) => !o)}>
+              Linked from {backlinks.length}
+              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7.5 6.5 3.5 3.5-3.5 3.5" /></svg>
+            </button>
+            {linkedOpen && <ul>
               {backlinks.map((pg) => (
                 <li key={pg.path}>
                   <button type="button" onClick={() => void notes.open(pg.path, pg.title)}>
@@ -987,7 +988,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
                   </button>
                 </li>
               ))}
-            </ul>
+            </ul>}
           </section>
         )}
       </div>
@@ -1010,7 +1011,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
         </div>
       )}
       {composing && (
-        <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={commentState.add} onDone={() => setComposing(null)}
+        <CommentComposer quote={composing.quote} top={composing.top} left={composing.left} add={addComment} onDone={() => setComposing(null)}
           onAsk={onSelection ? (quote, said) => onSelection('ask', `${quote}\n\nMy comment on it: ${said}`) : undefined} />
       )}
     </section>
