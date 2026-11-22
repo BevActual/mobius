@@ -1394,7 +1394,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         {arrClip && detail === 'notes' && (
           // Live's Clip View loop settings for the Arrange clip opened: its start marker and loop, in beats of its own time.
           <span className="studio-clip-loop" role="group" aria-label={`Loop of ${arrClip.name ?? track.name}`}>
-            <IconButton label="Loop" pressed={!!arrClip.loop} title={arrClip.loop ? 'Loop on: stretch the clip to repeat it (Ctrl+Up doubles the loop, Ctrl+Down halves it)' : 'Loop'} icon={<Icon d={ICONS.loop} />}
+            <IconButton label="Loop clip" pressed={!!arrClip.loop} title={arrClip.loop ? 'Loop on: stretch the clip to repeat it (Ctrl+Up doubles the loop, Ctrl+Down halves it)' : 'Loop'} icon={<Icon d={ICONS.loop} />}
               onClick={() => editClips(track.id, (cs) => toggleClipLoop(cs, arrClip.id), '')} />
             <NumberField label="Start" value={arrClip.offset ?? 0} min={0} max={4096} step={0.25} bigStep={BEATS_PER_BAR} decimals={2} width={4}
               onChange={(v) => editClips(track.id, (cs) => setClipLoop(cs, arrClip.id, { offset: v }), `clip-offset:${arrClip.id}`)} />
