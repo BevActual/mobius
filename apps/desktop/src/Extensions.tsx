@@ -16,14 +16,30 @@ import { EmptyState } from './EmptyState';
 import './abilities.css';
 
 /**
- * The places in Abilities, as plain rows in its sidebar: the apps that are installed and the ones that can be added,
- * then the skills and connectors that give Mobius more to work with. Adding anything starts from its place: Add on an
- * available app, New skill in the sidebar's head, Add a connector in the toolbar.
+ * Store's categories, down its left panel: Apps (a grid of cards, each opening its own page), Skills and Connectors,
+ * the tools that give Mobius more to work with. Adding anything starts from its place: Add on an app's card or page,
+ * New skill in the panel's head, Add a connector in the toolbar.
  */
-export type ExtensionPlace = 'installed' | 'available' | 'skills' | 'connectors';
-const PLACE_NAMES: Record<ExtensionPlace, string> = { installed: 'Installed', available: 'Available', skills: 'Skills', connectors: 'Connectors' };
-/** The toolbar's title for a place (a skill that is open names itself). */
-export const abilitiesTitle = (place: ExtensionPlace): string => PLACE_NAMES[place];
+export type ExtensionPlace = 'apps' | 'skills' | 'connectors';
+const PLACE_NAMES: Record<ExtensionPlace, string> = { apps: 'Apps', skills: 'Skills', connectors: 'Connectors' };
+/** The title row's title: the open app's name on its page, otherwise Store (a skill that is open names itself). */
+export const abilitiesTitle = (item: AppId | null): string => (item ? APPS.find((a) => a.id === item)?.name ?? 'Store' : 'Store');
+
+/** The Settings page that holds an app's own options, for "Adjust in Settings". */
+export type AdjustSection = 'browser' | 'mail' | 'calendar' | 'messages';
+const ADJUST_IN: Partial<Record<AppId, AdjustSection>> = { browser: 'browser', mail: 'mail', calendar: 'calendar', messages: 'messages' };
+
+/** What an app can reach, in plain words, for its page in Store. Every app reaches Mobius only when you ask. */
+const APP_REACH: Partial<Record<AppId, string[]>> = {
+  browser: ['The web, with its own history, favourites and downloads on this computer'],
+  mail: ['The mail accounts you add in Settings › Accounts'],
+  messages: ['The chat accounts you add in Settings › Accounts', 'Your own Mobius space, run on this computer'],
+  calendar: ['The calendars you add in Settings › Accounts', 'Tasks with a due date'],
+  research: ['The web, to search and read pages for a report'],
+  code: ['Projects in your workspace, and git'],
+  terminal: ['Commands in a folder of your workspace'],
+};
+const reachOf = (id: AppId): string[] => [...(APP_REACH[id] ?? ['Its own files in your workspace, on this computer']), 'Mobius, only when you ask it'];
 
 /** One sentence on what each app is for, shown in the library under its name. */
 const APP_PURPOSE: Partial<Record<AppId, string>> = {
@@ -68,6 +84,10 @@ const newSkill = signal(0);
 export const requestNewSkill = (): void => newSkill.set(newSkill.get() + 1);
 /** Whether Add a connector's sheet is open. */
 const addingConnector = signal(false);
+/** The app whose page is open in Store's Apps; null shows the grid. */
+const storeItem = signal<AppId | null>(null);
+export const useStoreItem = (): AppId | null => storeItem.use();
+export const openStoreItem = (id: AppId | null): void => storeItem.set(id);
 
 const matches = (q: string, ...words: (string | undefined)[]) => { const t = q.trim().toLowerCase(); return t === '' || words.some((w) => w?.toLowerCase().includes(t)); };
 /** Whether an app is found by the search: by its name, its other names or what it is for. */
@@ -107,8 +127,9 @@ export function AbilitiesSub({ place, skills }: { place: ExtensionPlace; skills:
   const [q] = useAbilitiesQuery();
   // While searching, how many of them match: "4 of 21 apps".
   const of = (list: readonly AppInfo[]) => { const n = list.filter((a) => appMatches(q, a)).length; return `${n} of ${plural(list.length, 'app')}`; };
-  if (place === 'installed') return <>{q.trim() ? of(installed) : plural(installed.length, 'app')}</>;
-  if (place === 'available') return <>{available.length === 0 ? 'Every app is installed' : q.trim() ? of(available) : plural(available.length, 'app')}</>;
+  const item = storeItem.use();
+  if (place === 'apps' && item) return <>Store</>;
+  if (place === 'apps') return <>{q.trim() ? of([...installed, ...available]) : `${installed.length} added${available.length ? ` · ${available.length} to add` : ''}`}</>;
   if (place === 'connectors') return <>{plural(connectorCount(status), 'connector')}</>;
   return skills.open ? <>{`Version ${skills.open.version}${skills.saved ? '' : ' · Saving…'}`}</> : <>{plural(skills.list.length, 'skill')}</>;
 }
@@ -125,17 +146,15 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
   useEffect(() => { if (nameToken > 0) { setNaming(true); onPlace('skills'); } }, [nameToken]); // eslint-disable-line react-hooks/exhaustive-deps
   const create = async (e: FormEvent) => { e.preventDefault(); if (await skills.create(name.trim() || 'New skill', about)) { setNaming(false); setName(''); setAbout(''); onPlace('skills'); } };
   const shownSkills = skills.list.filter((s) => matches(q, s.name, s.description));
-  const row = (p: ExtensionPlace, count: number) => <SidebarRow label={PLACE_NAMES[p]} {...(count ? { count } : {})} current={place === p && !(p === 'skills' && skills.open)} onSelect={() => { onPlace(p); if (p === 'skills') skills.close(); }} />;
+  const item = storeItem.use();
+  const row = (p: ExtensionPlace, count: number, icon: ReactNode) => <SidebarRow label={PLACE_NAMES[p]} icon={<svg viewBox="0 0 20 20" aria-hidden="true" className="store-cat-icon">{icon}</svg>} {...(count ? { count } : {})} current={place === p && !(p === 'skills' && skills.open) && !(p === 'apps' && item)} onSelect={() => { onPlace(p); storeItem.set(null); if (p === 'skills') skills.close(); }} />;
   return (
     <AppSidebar label="Store">
-      <SidebarSearch label="Search abilities" value={q} onChange={setQ} />
-      <SidebarSection title="Apps" action={pin}>
-        {row('installed', installed.length)}
-        {row('available', available.length)}
-      </SidebarSection>
-      <SidebarSection title="Tools">
-        {row('skills', skills.available ? skills.list.length : 0)}
-        {row('connectors', connectorCount(status))}
+      <SidebarSearch label="Search Store" value={q} onChange={setQ} />
+      <SidebarSection title="Categories" action={pin}>
+        {row('apps', installed.length + available.length, <><rect x="3.5" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="3.5" width="5.5" height="5.5" rx="1.2" /><rect x="3.5" y="11" width="5.5" height="5.5" rx="1.2" /><rect x="11" y="11" width="5.5" height="5.5" rx="1.2" /></>)}
+        {row('skills', skills.available ? skills.list.length : 0, <path d="M10 3.5 11.8 8.2 16.5 10l-4.7 1.8L10 16.5l-1.8-4.7L3.5 10l4.7-1.8z" />)}
+        {row('connectors', connectorCount(status), <><path d="M8 3.5v3M12 3.5v3M6.5 6.5h7v3a3.5 3.5 0 0 1-7 0z" /><path d="M10 13v3.5" /></>)}
       </SidebarSection>
       {(skills.list.length > 0 || naming) && (
         <SidebarSection title="Skills" action={<button type="button" className="strip-btn" aria-label="New skill" title="New skill (Ctrl+N)" onClick={() => setNaming(true)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg></button>}>
@@ -162,11 +181,13 @@ export function ExtensionsSidebar({ place, onPlace, skills, pin, changed }: { pl
   );
 }
 
-/** Abilities' page for Installed, Available and Connectors (Skills has its own editor). */
-export function ExtensionsPage({ place, onOpenApp }: { place: Exclude<ExtensionPlace, 'skills'>; onOpenApp?: (id: AppId) => void }) {
+/** Store's page for Apps (the grid, or one app's page) and Connectors (Skills has its own editor). */
+export function ExtensionsPage({ place, onOpenApp, onAdjust }: { place: Exclude<ExtensionPlace, 'skills'>; onOpenApp?: (id: AppId) => void; /** Opens an app's own page in Settings. */ onAdjust?: (section: AdjustSection) => void }) {
+  const item = storeItem.use();
+  const open = place === 'apps' && item ? LIBRARY.find((a) => a.id === item) : undefined;
   return (
-    <section className="skills-page abl-page" aria-label={PLACE_NAMES[place]}>
-      <div className="abl-scroll">{place === 'connectors' ? <Connectors /> : <AppLibrary which={place} onOpenApp={onOpenApp} />}</div>
+    <section className="skills-page abl-page" aria-label={open ? open.name : PLACE_NAMES[place]}>
+      <div className="abl-scroll">{place === 'connectors' ? <Connectors /> : <AppLibrary item={open} onOpenApp={onOpenApp} onAdjust={onAdjust} />}</div>
     </section>
   );
 }
@@ -227,60 +248,97 @@ function useUndo(): [Undoable | null, (u: Undoable | null) => void] {
 }
 
 /**
- * The app library, as plain rows: an installed app opens from its row and is removed from its ⋯ menu (its files are
- * kept, and Undo puts it back); an available app has Add.
+ * The app library, as a grid of cards by group: each card opens the app's page; an added app opens from its Open and
+ * is removed from its ⋯ menu (its files are kept, and Undo puts it back); one not added yet has Add.
  */
-function AppLibrary({ which, onOpenApp }: { which: 'installed' | 'available'; onOpenApp?: ((id: AppId) => void) | undefined }) {
-  const { installed, available, change } = useInstalled();
+function AppLibrary({ item, onOpenApp, onAdjust }: { item: AppInfo | undefined; onOpenApp?: ((id: AppId) => void) | undefined; onAdjust?: ((section: AdjustSection) => void) | undefined }) {
+  const { installed, change } = useInstalled();
   const [q] = useAbilitiesQuery();
   const [problem, setProblem] = useState<string | null>(null);
   const [undoable, setUndoable] = useUndo();
   const [menu, setMenu] = useState<{ app: AppInfo; x: number; y: number } | null>(null);
-  const list = (which === 'installed' ? installed : available).filter((a) => appMatches(q, a));
+  const added = (app: AppInfo) => installed.some((a) => a.id === app.id);
+  const list = LIBRARY.filter((a) => appMatches(q, a));
   const groups = APP_GROUPS.map((group) => ({ group, members: list.filter((a) => a.group === group) })).filter((g) => g.members.length > 0);
   const set = async (app: AppInfo, add: boolean) => {
     setProblem(null);
     if (!(await change(app.id, add))) { setProblem('That could not be changed.'); return; }
     setUndoable({ text: add ? `Added ${app.name}` : `Removed ${app.name}. Its files are kept.`, undo: () => { void change(app.id, !add); setUndoable(null); } });
   };
+  const adjust = (app: AppInfo) => { const at = ADJUST_IN[app.id]; return at && onAdjust ? () => onAdjust(at) : undefined; };
   const entries = (app: AppInfo) => [
     { label: 'Open', keys: 'Enter', run: () => onOpenApp?.(app.id), disabled: !onOpenApp },
+    ...(adjust(app) ? [{ label: 'Adjust in Settings', run: adjust(app)! }] : []),
     { label: 'Remove', keys: 'Delete', danger: true, separated: true, run: () => void set(app, false) },
   ];
-  const icon = (app: AppInfo) => <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon">{APP_ICONS[app.id]}</svg>;
-  const row = (app: AppInfo, kind: 'installed' | 'available') => (
-    <li key={app.id} className="abl-item" onKeyDown={(e) => { if (kind === 'installed' && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.abl-main')) { e.preventDefault(); void set(app, false); } }} onContextMenu={(e) => { if (kind !== 'installed') return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
-      {kind === 'installed' && onOpenApp
-        ? <button type="button" className="abl-main" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></button>
-        : <span className="abl-main">{icon(app)}<span className="abl-text"><span className="abl-name">{app.name}</span><span className="abl-sub">{APP_PURPOSE[app.id]}</span></span></span>}
-      {kind === 'installed' && onOpenApp && <button type="button" className="btn abl-open" tabIndex={-1} aria-hidden="true" onClick={() => onOpenApp(app.id)}>Open</button>}
-      {kind === 'installed'
-        ? <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />
-        : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
-    </li>
+  const icon = (app: AppInfo, size = 20) => <svg viewBox="0 0 20 20" aria-hidden="true" className="abl-icon" style={{ width: size, height: size }}>{APP_ICONS[app.id]}</svg>;
+  const more = (app: AppInfo) => <Menu label={`${app.name} actions`} align="end" entries={entries(app)} trigger={<button type="button" className="strip-btn abl-more" aria-label={`More for ${app.name}`} title="More actions"><MoreGlyph /></button>} />;
+  const toast = (
+    <>
+      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.app.name} onClose={() => setMenu(null)} items={entries(menu.app)} />}
+      {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
+    </>
   );
-  // Searching Installed also shows what matches in Available, under its own heading, so a search has one answer.
-  const also = which === 'installed' && q.trim() ? available.filter((a) => appMatches(q, a)) : [];
+  if (item) {
+    const on = added(item);
+    const fix = adjust(item);
+    return (
+      <article className="store-item" aria-label={item.name}>
+        <button type="button" className="store-back" onClick={() => storeItem.set(null)}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M12 5 7 10l5 5" /></svg>Apps</button>
+        <header className="store-item-head">
+          <span className="store-item-icon">{icon(item, 32)}</span>
+          <span className="store-item-title">
+            <h1>{item.name}</h1>
+            <span className="store-item-group">{item.group}</span>
+          </span>
+          <span className="store-item-actions">
+            {on
+              ? <>{onOpenApp && <button type="button" className="btn primary" aria-label={`Open ${item.name}`} onClick={() => onOpenApp(item.id)}>Open</button>}{more(item)}</>
+              : <button type="button" className="btn primary" aria-label={`Add ${item.name}`} onClick={() => void set(item, true)}>Add</button>}
+          </span>
+        </header>
+        {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
+        <p className="store-item-about">{APP_PURPOSE[item.id]}</p>
+        {on && <p className="store-item-state">Added{fix && <> · <button type="button" className="store-link" onClick={fix}>Adjust in Settings</button></>}</p>}
+        <section className="store-item-section" aria-label="What it can reach">
+          <h2>What it can reach</h2>
+          <ul>{reachOf(item.id).map((r) => <li key={r}>{r}</li>)}</ul>
+        </section>
+        {toast}
+      </article>
+    );
+  }
   return (
     <>
       {problem && <p className="field-error abl-problem" role="alert">{problem}</p>}
-      {list.length === 0 && also.length === 0 && <p className="abl-empty">{q.trim() ? `No apps match “${q.trim()}”.` : which === 'available' ? 'Every app is installed.' : 'No apps are installed.'}</p>}
+      {list.length === 0 && <p className="abl-empty">{q.trim() ? `No apps match “${q.trim()}”.` : 'No apps to show.'}</p>}
       {groups.map(({ group, members }) => (
-        <section key={group} className="abl-group" aria-label={group}>
-          <h2 className="abl-group-title">{group}</h2>
-          <ul role="list" className="abl-rows">
-            {members.map((app) => row(app, which))}
+        <section key={group} className="store-group" aria-label={group}>
+          <h2 className="store-group-title">{group}</h2>
+          <ul role="list" className="store-grid">
+            {members.map((app) => {
+              const on = added(app);
+              return (
+                <li key={app.id} className="store-card" data-added={on || undefined}
+                  onKeyDown={(e) => { if (on && e.key === 'Delete' && e.target === e.currentTarget.querySelector('.store-card-main')) { e.preventDefault(); void set(app, false); } }}
+                  onContextMenu={(e) => { if (!on) return; e.preventDefault(); setMenu({ app, x: e.clientX, y: e.clientY }); }}>
+                  <button type="button" className="store-card-main" aria-label={`About ${app.name}`} onClick={() => storeItem.set(app.id)}>
+                    {icon(app, 22)}
+                    <span className="store-card-name">{app.name}</span>
+                    <span className="store-card-line">{APP_PURPOSE[app.id]}</span>
+                  </button>
+                  <span className="store-card-foot">
+                    {on
+                      ? <><span className="store-card-state">Added</span>{onOpenApp && <button type="button" className="btn" aria-label={`Open ${app.name}`} onClick={() => onOpenApp(app.id)}>Open</button>}{more(app)}</>
+                      : <button type="button" className="btn abl-add" aria-label={`Add ${app.name}`} onClick={() => void set(app, true)}>Add</button>}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ))}
-      {also.length > 0 && (
-        <section className="abl-group" aria-label="Available">
-          <h2 className="abl-group-title">Available</h2>
-          <ul role="list" className="abl-rows">{also.map((app) => row(app, 'available'))}</ul>
-        </section>
-      )}
-      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.app.name} onClose={() => setMenu(null)} items={entries(menu.app)} />}
-      {undoable && <UndoToast text={undoable.text} onUndo={undoable.undo} onDismiss={() => setUndoable(null)} />}
+      {toast}
     </>
   );
 }
