@@ -100,8 +100,12 @@ mod device {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::engine::Engine;
+    use crate::song::Song;
+    use std::time::{Duration, Instant};
 
     #[test]
     fn notes_on_and_off_are_read_on_any_channel_and_velocity_0_lifts() {
@@ -110,5 +114,54 @@ mod tests {
         assert_eq!(message(&[0x83, 62, 40]), Some(Message::Lift(62)));
         assert_eq!(message(&[0xB0, 64, 127]), None);
         assert_eq!(message(&[0x90, 60]), None);
+    }
+
+    /// Where a run of samples first gets louder than `level`.
+    fn onset(samples: &[f32], level: f32) -> Option<usize> {
+        samples.iter().position(|s| s.abs() > level)
+    }
+
+    #[test]
+    fn played_notes_from_a_keyboard_land_a_block_late_to_the_sample_and_release_when_lifted() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"bass","sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.3,"sustain":1,"release":0.2,"vibrato":0,"rate":5}}]}"#).unwrap();
+        engine.arm(Some(&song.tracks[0]));
+        let keys = engine.keys();
+        // Blocks of 10 ms, as a sound output asks for them; a note on comes 3 ms before the first, on channel 2.
+        let start = Instant::now() + Duration::from_secs(1);
+        let block = |i: u64| start + Duration::from_millis(10 * i);
+        play(&keys, &[0x91, 69, 127], block(0) - Duration::from_millis(3));
+        let mut left = Vec::new();
+        let mut buffer = vec![0f32; 480 * 2];
+        let mut run = |audio: &mut crate::engine::AudioSide, from: u64, to: u64, left: &mut Vec<f32>| {
+            for i in from..to {
+                audio.fill_at(&mut buffer, 2, block(i));
+                left.extend(buffer.iter().step_by(2));
+            }
+        };
+        run(&mut audio, 0, 50, &mut left);
+        // One block late: 7 ms into the first.
+        let on = onset(&left, 1e-6).unwrap();
+        assert!((334..=338).contains(&on), "{on}");
+        // Held at full level until the key is lifted, half a second on, by a note on at velocity 0 halfway into a block.
+        let held = left[19_200..24_000].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!(held > 0.3, "{held}");
+        play(&keys, &[0x91, 69, 0], block(50) - Duration::from_millis(5));
+        run(&mut audio, 50, 100, &mut left);
+        // It falls from the lift (5 ms into the block after), by e each quarter release, and is silent after it.
+        let lift = 24_000 + 240;
+        let level = |at: usize| left[at..at + 200].iter().fold(0f32, |m, s| m.max(s.abs()));
+        assert!(level(lift - 400) > 0.3);
+        let quarter = level(lift + 2_400);
+        assert!((f64::from(quarter) - 0.35 / std::f64::consts::E).abs() < 0.04, "{quarter}");
+        assert!(left[lift + 12_200..].iter().all(|s| *s == 0.0));
+        // A second key, pressed and lifted inside one block, still sounds for that sliver and then rings out.
+        play(&keys, &[0x90, 60, 100], block(100) - Duration::from_millis(9));
+        play(&keys, &[0x80, 60, 0], block(100) - Duration::from_millis(8));
+        let before = left.len();
+        run(&mut audio, 100, 150, &mut left);
+        let on = onset(&left[before..], 1e-6).unwrap();
+        assert!((47..=49).contains(&on), "{on}");
+        assert!(left[before + 14_400..].iter().all(|s| *s == 0.0));
     }
 }

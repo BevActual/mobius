@@ -487,6 +487,12 @@ impl Engine {
         Ok(Some(name))
     }
 
+    /// The way a keyboard plays in, for tests below the MIDI driver.
+    #[cfg(test)]
+    pub(crate) fn keys(&self) -> Keys {
+        self.keys.clone()
+    }
+
     /// The keyboard listened to.
     #[must_use]
     pub fn listening(&self) -> Option<String> {
