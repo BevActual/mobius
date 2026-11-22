@@ -130,6 +130,13 @@ export type NavigateOutcome = 'navigated' | 'ask' | 'blocked' | 'empty';
 
 /** The API the preload script exposes. Nothing else is reachable from the renderer. */
 /** One page of the Notes app: a Markdown file in a notebook folder. `path` is `notebook/page.md`. */
+/** Where the local Mobius space's server is. `offline`: GitHub couldn't be reached, so try again later. */
+export type SpaceStatus =
+  | { state: 'idle' | 'starting' }
+  | { state: 'downloading'; done: number; total: number }
+  | { state: 'running'; url: string }
+  | { state: 'failed'; message: string; offline: boolean };
+
 /** `preview` is the first line under the title and `tags` its `#tags`, for Markdown pages (notes, docs, wiki). */
 export interface NotePage { path: string; title: string; modified: number; preview?: string; tags?: string[]; links?: string[] }
 export interface Notebook { name: string; pages: NotePage[] }
@@ -1261,6 +1268,14 @@ export interface MobiusBridge {
     render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
     /** Where playback is, about 30 times a second while playing: each track's level and `master`'s, in dB. */
     onPosition(listener: (position: MusicPosition) => void): () => void;
+  };
+  /** The local Mobius space's homeserver (Messages): fetched from Mobius's releases the first time it opens, checked
+   *  against a pinned SHA-256, and run on 127.0.0.1 only. Only the Tauri shell has it. */
+  space?: {
+    status(): Promise<SpaceStatus>;
+    /** Fetch (the first time) and start it; follow it with onStatus. After a failure, call again to retry. */
+    open(): Promise<SpaceStatus>;
+    onStatus(listener: (status: SpaceStatus) => void): () => void;
   };
   /** The Design app: designs kept like notes, as JSON in `designs/<folder>/<design>.json`. Only the Tauri shell has it. */
   designs?: NonNullable<MobiusBridge['notes']>;

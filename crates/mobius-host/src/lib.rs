@@ -4,6 +4,7 @@
 pub mod updates;
 pub mod voice;
 pub mod access;
+pub mod homeserver;
 pub mod ask_each;
 pub mod comments;
 pub mod copilot_account;

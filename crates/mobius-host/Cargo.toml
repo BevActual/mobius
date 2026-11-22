@@ -17,6 +17,10 @@ mobius-audio = { path = "../mobius-audio" }
 mobius-mcp = { path = "../mobius-mcp" }
 mobius-claude = { path = "../mobius-claude" }
 mobius-agent = { path = "../mobius-agent" }
+# Reaping a leftover process and finding a free port, for the local space's homeserver.
+mobius-runtime = { path = "../mobius-runtime" }
+# Unpacking the homeserver's download.
+flate2 = "1"
 base64 = "0.22"
 percent-encoding = "2"
 url = "2"
