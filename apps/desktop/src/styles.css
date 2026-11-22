@@ -2750,3 +2750,33 @@ body { font-variant-numeric: tabular-nums; }
 .cite:hover .cite-card, .cite:focus-visible .cite-card { display: flex; }
 .cite-card-title { color: var(--ink); font-weight: var(--fw-medium, 500); }
 .cite-card-site { color: var(--muted); font-size: var(--fs-xs); }
+
+/* The Mobius panel as a conversation first (Andrew, 21 November 2026). The title is the chat switcher: the open
+   chat's name and a chevron, opening every chat grouped by what waits and by day. */
+.chat-switch { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
+.chat-switch-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-switch-chevron { flex: none; width: 10px; height: 10px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.chat-titles:has(.chat-switch) { flex: 1; min-width: 0; }
+.chat-titles .convo { min-width: 0; max-width: 100%; }
+.convo-search { width: 100%; box-sizing: border-box; height: var(--row-h); margin: 0 0 var(--sp-1); padding: 0 var(--sp-2); border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font: inherit; font-size: var(--fs-sm); outline: none; }
+.convo-group { margin: var(--sp-2) var(--sp-2) 2px; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.convo-item-time[data-waits] { color: var(--mobius); }
+.convo-new .convo-item-time { font-family: var(--font-mono); }
+/* At rest: one status line for what waits elsewhere, the quiet middle, the ideas as chips just above the message box. */
+.resting { min-height: 100%; box-sizing: border-box; }
+.resting-part[hidden], .resting-status-list[hidden] { display: none; }
+.resting-status { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: var(--row-h); padding: 0 var(--sp-2) 0 var(--sp-3); border: 0; border-radius: var(--radius-control); background: var(--sel); color: var(--ink); font: inherit; font-size: var(--fs-sm); text-align: start; cursor: pointer; }
+.resting-status-dot { flex: none; width: 7px; height: 7px; border-radius: var(--radius-pill); background: var(--mobius); }
+.resting-status-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resting-status-more { flex: none; color: var(--muted); }
+.resting-status-list { display: flex; flex-direction: column; gap: var(--sp-1); padding-top: var(--sp-2); }
+.resting-ideas { margin-top: auto; }
+.resting .actions .resting-title { display: none; }
+.resting .actions-list { flex-direction: row; flex-wrap: wrap; gap: var(--sp-1); margin: 0; }
+.resting .action-row { min-height: 0; height: calc(var(--row-h) - var(--sp-1)); padding: 0 var(--sp-3); border-radius: var(--radius-pill); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); font-size: var(--fs-sm); }
+.resting .action-row .action-icon { display: none; }
+.resting .action-row .action-label { flex: none; }
+/* The number keys still work; their caps show only while Alt is held. */
+.resting .action-row .action-key { display: none; }
+.chat[data-alt] .resting .action-row .action-key { display: inline-grid; }
+.chat:not(.full) .chat-scroll.messages:has(> .resting) { mask-image: none; padding-bottom: var(--sp-2); }
