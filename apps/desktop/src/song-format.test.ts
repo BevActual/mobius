@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -176,13 +176,33 @@ describe('volume automation', () => {
     expect(autoValueAt(line, 12, 0.8)).toBe(1);
     expect(autoValueAt([], 3, 0.8)).toBe(0.8);
   });
-  it('is kept in the song file, and left out when there is none', () => {
+  it('reads an old volumeAuto as auto.volume and writes auto, and leaves it out when there is none', () => {
     const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [], volumeAuto: [{ beat: 0, value: 0 }, { beat: 16, value: 1 }] }] }));
     if (!('song' in r)) throw new Error('no song');
-    expect(r.song.tracks[0]!.volumeAuto).toHaveLength(2);
-    expect(writeSongForAuto(r.song)).toContain('"volumeAuto":[{"beat":0,"value":0},{"beat":16,"value":1}]');
-    r.song.tracks[0]!.volumeAuto = [];
-    expect(writeSongForAuto(r.song)).not.toContain('volumeAuto');
+    expect(r.song.tracks[0]!.auto?.volume).toHaveLength(2);
+    const text = writeSongForAuto(r.song);
+    expect(text).toContain('"auto":{"volume":[{"beat":0,"value":0},{"beat":16,"value":1}]}');
+    expect(text).not.toContain('volumeAuto');
+    delete r.song.tracks[0]!.auto;
+    expect(writeSongForAuto(r.song)).not.toContain('"auto"');
+  });
+  it('keeps pan, sends, curves and overrides, in range, and drops unknown names', () => {
+    const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [],
+      auto: { pan: [{ beat: 0, value: -3, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }], bogus: [{ beat: 0, value: 1 }] }, autoOff: ['pan', 'pan', 'bogus'] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    const t = r.song.tracks[0]!;
+    expect(t.auto).toEqual({ pan: [{ beat: 0, value: -1, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }] });
+    expect(t.autoOff).toEqual(['pan']);
+    const again = parseSong(writeSongForAuto(r.song));
+    if (!('song' in again)) throw new Error('no song');
+    expect(again.song.tracks[0]!.auto).toEqual(t.auto);
+    expect(again.song.tracks[0]!.autoOff).toEqual(['pan']);
+  });
+  it('bends a curved segment as the engine does', () => {
+    const line = [{ beat: 0, value: 0, curve: 1 }, { beat: 4, value: 1 }];
+    expect(autoValueAt(line, 2, 0)).toBeCloseTo(0.5 ** 0.25);
+    expect(bend(0.5, -1)).toBeCloseTo(0.5 ** 4);
+    expect(bend(0.5)).toBe(0.5);
   });
 });
 

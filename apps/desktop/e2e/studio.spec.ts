@@ -36,7 +36,7 @@ const saved = () => {
   const song = JSON.parse(fs.readFileSync(file(), 'utf8')) as { version: number; tracks: { clips?: SavedClip[]; notes: Note[] }[] };
   // A file the app has not saved since it was written (by a test or by Mobius) may still be version 1, notes and all.
   for (const t of song.tracks) if (t.clips) t.notes = t.clips.flatMap((c) => c.notes.map((n) => ({ ...n, start: c.start + n.start }))).sort((a, b) => a.start - b.start || a.pitch - b.pitch);
-  return song as unknown as typeof SONG & { version: number; tracks: (typeof SONG.tracks[number] & { clips: SavedClip[] })[] };
+  return song as unknown as typeof SONG & { version: number; tracks: (typeof SONG.tracks[number] & { clips: SavedClip[]; auto?: Record<string, { beat: number; value: number }[]> })[] };
 };
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
@@ -636,7 +636,7 @@ test('Record plays from the playhead and writes what is played on the computer k
   await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
 });
 
-test('automation draws a volume line under a track with points, kept in the song', async () => {
+test('automation draws a volume or pan line under a track with points, kept in the song', async () => {
   await start();
   // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
   await resizeWindow(mobius!.app, 1600, 900);
@@ -647,12 +647,18 @@ test('automation draws a volume line under a track with points, kept in the song
   const plot = lane.locator('.ui-lane-plot');
   const box = (await plot.boundingBox())!;
   await plot.click({ position: { x: box.width * 0.25, y: box.height * 0.8 } });
-  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: unknown[] }).volumeAuto?.length).toBe(1);
+  await expect.poll(() => saved().tracks[0]!.auto?.volume?.length).toBe(1);
   await plot.click({ position: { x: box.width * 0.75, y: box.height * 0.2 } });
-  await expect.poll(() => (saved().tracks[0] as { volumeAuto?: { beat: number; value: number }[] }).volumeAuto?.length).toBe(2);
-  const [a, b] = (saved().tracks[0] as unknown as { volumeAuto: { beat: number; value: number }[] }).volumeAuto;
+  await expect.poll(() => saved().tracks[0]!.auto?.volume?.length).toBe(2);
+  const [a, b] = saved().tracks[0]!.auto!.volume!;
   expect(a!.beat).toBeLessThan(b!.beat);
   expect(a!.value).toBeLessThan(b!.value);
+  // The lane's name chooses the setting it moves: Pan runs -1 (left) to 1, so a low click pans left.
+  await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: /automation: Volume/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: /^Pan/ }).click();
+  const pan = tracks().getByRole('listitem', { name: 'Keys' }).getByRole('group', { name: 'Pan automation' }).locator('.ui-lane-plot');
+  await pan.click({ position: { x: box.width * 0.5, y: box.height * 0.9 } });
+  await expect.poll(() => saved().tracks[0]!.auto?.pan?.[0]?.value ?? 0).toBeLessThan(-0.5);
   // A hides the lines again; the points stay.
   await shell().locator('.studio-page').focus();
   await shell().keyboard.press('a');

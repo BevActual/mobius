@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Button, Knob, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
 import { MAIN_VOLUME, METRONOME_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
+import { override } from './studio-auto';
 import { stoppedMeter, type Player } from './studio-engine';
 
 /** A track's volume (0 to 1, as kept in the song) in dB for the fader, and back. The fader stops at 0 dB, the most a track's volume can be. */
@@ -60,7 +61,7 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
     <Sends count={returns.length} label={`${t.name} sends`}>
       {returns.map((r, i) => (
         <SendKnob key={r.id} letter={returnName(r, i)} label={`Send to ${returnName(r, i)}`} value={t.sends?.[r.id] ?? 0}
-          onChange={(v) => setTrack(t.id, (x) => { const next = { ...(x.sends ?? {}) }; if (v > 0) next[r.id] = Math.round(v * 100) / 100; else delete next[r.id]; if (Object.keys(next).length > 0) x.sends = next; else delete x.sends; }, `mix-send:${t.id}:${r.id}`)} />
+          onChange={(v) => setTrack(t.id, (x) => { const next = { ...(x.sends ?? {}) }; if (v > 0) next[r.id] = Math.round(v * 100) / 100; else delete next[r.id]; if (Object.keys(next).length > 0) x.sends = next; else delete x.sends; override(x, `send:${r.id}`); }, `mix-send:${t.id}:${r.id}`)} />
       ))}
     </Sends>
   );
@@ -71,8 +72,8 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
       {song.tracks.map((t) => (
         <MixerStrip key={t.id} name={t.name} color={t.color} selected={t.id === selected} onSelect={() => onSelect(t.id)}
           volume={gainToDb(t.volume)} ceiling={0} volumeReset={gainToDb(0.8)}
-          onVolume={(db) => setTrack(t.id, (x) => { x.volume = dbToGain(db); }, `mix-vol:${t.id}`)}
-          pan={t.pan} onPan={(p) => setTrack(t.id, (x) => { x.pan = Math.round(p * 100) / 100; }, `mix-pan:${t.id}`)}
+          onVolume={(db) => setTrack(t.id, (x) => { x.volume = dbToGain(db); override(x, 'volume'); }, `mix-vol:${t.id}`)}
+          pan={t.pan} onPan={(p) => setTrack(t.id, (x) => { x.pan = Math.round(p * 100) / 100; override(x, 'pan'); }, `mix-pan:${t.id}`)}
           mute={t.muted} onMute={(on) => setTrack(t.id, (x) => { x.muted = on; })}
           solo={t.solo} onSolo={(on) => setTrack(t.id, (x) => { x.solo = on; })}
           dimmed={anySolo && !t.solo} meter={feed(t.id)} sends={sendsOf(t)} />
