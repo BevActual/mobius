@@ -11,21 +11,32 @@ const looks = (shell: Page) => shell.evaluate(() => {
   const panel = document.querySelector('.dock.right:not([data-floating]) > .chat');
   const toolbar = document.querySelector('.strip-right')!;
   return {
-    panel: panel ? `${getComputedStyle(panel).backdropFilter} ${getComputedStyle(panel).boxShadow}` : 'missing',
-    toolbar: `${getComputedStyle(toolbar).backdropFilter} ${getComputedStyle(toolbar).boxShadow}`,
+    panel: panel ? { blur: getComputedStyle(panel).backdropFilter, shadow: getComputedStyle(panel).boxShadow } : null,
+    toolbar: { blur: getComputedStyle(toolbar).backdropFilter, shadow: getComputedStyle(toolbar).boxShadow },
   };
 });
 
-test('the frame is flat: Mobius beside the page and the toolbar have no glass and no shadow, whatever the system asks', async () => {
+test('no glass anywhere: Mobius beside the page is a panel on the frame, the toolbar is flat, whatever the system asks', async () => {
   mobius = await launch(fixture.origin + '/');
   const shell = mobius.shell;
   await expect(shell.locator('.dock.right:not([data-floating]) > .chat')).toBeAttached({ timeout: 15_000 });
-  for (const [where, look] of Object.entries(await looks(shell))) expect(look, where).toBe('none none');
+  const check = async (why: string) => {
+    const got = await looks(shell);
+    expect(got.panel?.blur, `panel, ${why}`).toBe('none');
+    // Panels on the frame (docs/design/panel-look.md): a light along the top edge, the panel's own.
+    expect(got.panel?.shadow, `panel, ${why}`).toContain('inset');
+    expect(`${got.toolbar.blur} ${got.toolbar.shadow}`, `toolbar, ${why}`).toBe('none none');
+  };
+  await check('as it starts');
   const cdp = await shell.context().newCDPSession(shell);
   for (const feature of [{ name: 'prefers-reduced-transparency', value: 'reduce' }, { name: 'prefers-contrast', value: 'more' }]) {
     await cdp.send('Emulation.setEmulatedMedia', { features: [feature] });
-    for (const [where, look] of Object.entries(await looks(shell))) expect(look, `${where}, ${feature.name}`).toBe('none none');
+    await check(feature.name);
   }
+  // Panels on the frame off: everything flush again, with no shadow.
+  await shell.evaluate(() => { document.documentElement.dataset.panels = 'flat'; });
+  const flat = await looks(shell);
+  expect(`${flat.panel?.blur} ${flat.panel?.shadow}`).toBe('none none');
 });
 
 test('corners are small and plain: a selected sidebar row has the control radius', async () => {

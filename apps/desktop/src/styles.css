@@ -2034,9 +2034,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* One focus ring on the composer: the capsule's, soft; the field inside draws none of its own. */
 .composer textarea:focus, .composer textarea:focus-visible { outline: none; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), 0 1px 2px rgba(0, 0, 0, 0.04); }
-/* Row marks: one per row. Indigo, changed by Mobius; blue, unread; a small pin, a comment. */
+/* Row marks: one per row. Indigo, changed by Mobius; ink, unread; a small pin, a comment. */
 .row-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--mobius); }
-.row-mark[data-kind="unread"] { background: #0A84FF; }
+.row-mark[data-kind="unread"] { background: var(--ink); }
 .row-mark[data-kind="comment"] { width: 9px; height: 9px; border-radius: 4.5px 4.5px 4.5px 1.5px; background: #5856D6; }
 
 /* One floating panel for both sides: the left sidebar and Mobius pinned beside the page share these tokens, so
@@ -2792,3 +2792,54 @@ body { font-variant-numeric: tabular-nums; }
 .resting .action-row .action-key { display: none; }
 .chat[data-alt] .resting .action-row .action-key { display: inline-grid; }
 .chat:not(.full) .chat-scroll.messages:has(> .resting) { mask-image: none; padding-bottom: var(--sp-2); }
+
+/* ---- Panels on the frame (docs/design/panel-look.md) ----------------------------------------------------------------
+   The window's background is the frame. Each dock's panel and the app's content are rounded panels one step up from it,
+   a hairline at the edge, a faint light along the top, 8px apart. Headers are 40px with no line under them. The title
+   row and the tool row sit on the frame; the tools are centred. Settings › Appearance › Panels on the frame turns the
+   gaps off (data-panels="flat"), which puts everything flush again with one line between. */
+:root { --panel-gap: 8px; --panel-card-shadow: inset 0 1px 0 var(--panel-highlight), 0 1px 2px rgba(0, 0, 0, 0.04); }
+@media (prefers-color-scheme: dark) { :root { --panel-card-shadow: inset 0 1px 0 var(--panel-highlight), 0 8px 24px rgba(0, 0, 0, 0.35); } }
+:root:not([data-panels="flat"]) { --panel-head-h: 40px; }
+:root:not([data-panels="flat"])[data-density="compact"] { --panel-head-h: 34px; }
+:root:not([data-panels="flat"]) .app { background: var(--frame); }
+:root:not([data-panels="flat"]) :is(.title-row, .context-strip) { background: transparent; border-bottom: 0; }
+:root:not([data-panels="flat"]) .body { padding: 0 var(--panel-gap) var(--panel-gap); }
+/* The stage holds an app's panels: it is only the room they sit in. An app drawn straight on the stage keeps the stage
+   as its one panel. */
+:root:not([data-panels="flat"]) .stage { border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--panel-card-shadow); }
+:root:not([data-panels="flat"]) .stage:has(.ui-panels) { border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+:root:not([data-panels="flat"]) .ui-panels, :root:not([data-panels="flat"]) .ui-panels-main { gap: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock { gap: var(--panel-gap); background: transparent; border: 0; }
+:root:not([data-panels="flat"]) :is(.ui-dock > .ui-panel, .ui-panels-content) {
+  border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper);
+  box-shadow: var(--panel-card-shadow); overflow: hidden;
+}
+:root:not([data-panels="flat"]) .ui-dock > .ui-panel + .ui-panel { border-top: var(--hairline-w) solid var(--panel-edge); border-left: var(--hairline-w) solid var(--panel-edge); }
+:root:not([data-panels="flat"]) .ui-dock .ui-panel-body { background: transparent; }
+:root:not([data-panels="flat"]) .ui-panel-head { border-bottom: 0; }
+:root:not([data-panels="flat"]) .ui-panel-tab::after { bottom: var(--sp-1); }
+/* A dock's resize edge sits in the gap beside it. */
+:root:not([data-panels="flat"]) .ui-dock[data-dock="left"] > .ui-dock-edge { right: calc(-1 * var(--panel-gap)); width: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock[data-dock="right"] > .ui-dock-edge { left: calc(-1 * var(--panel-gap)); width: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock[data-dock="bottom"] > .ui-dock-edge { top: calc(-1 * var(--panel-gap)); height: var(--panel-gap); }
+/* Mobius beside the work: the same panel, a gap from the app. */
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) { border-left: 0; padding: 0 0 0 var(--panel-gap); }
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) > .chat {
+  border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--panel-card-shadow);
+}
+:root:not([data-panels="flat"]) .chat:not(.full) .chat-head { height: var(--panel-head-h); margin-bottom: 0; }
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) .chat .composer { background: var(--raised); }
+/* The tool row, in both looks: the app's tools centred on the window, the trailing icons at the end. */
+.context-strip[data-titled]:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 var(--panel-gap); }
+.context-strip[data-titled] > .ui-toolbar-slot { grid-column: 2; justify-content: safe center; }
+.context-strip[data-titled] > .strip-right { grid-column: 3; justify-self: end; }
+/* Tools that fill the row (Calendar's, a browser's address, Sheets' formula bar, an editor's format bar) take all the
+   room before the trailing icons rather than a centred column, which a container-sized child would shrink to nothing. */
+.context-strip[data-titled] > .ui-toolbar-slot:has(.cal-tools, .photo-tabs, .browser-chrome, .sheet-tools, > .ui-toolbar-group > .note-format, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
+
+/* The Mobius button, in every look: its trefoil on a light indigo tint with an indigo edge, the one indigo in the bars. */
+.strip-mobius, .context-strip .strip-mobius { background: color-mix(in srgb, var(--mobius) 10%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
+.strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 16%, transparent); color: var(--mobius); }
+.context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover,
+.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); color: var(--mobius); }

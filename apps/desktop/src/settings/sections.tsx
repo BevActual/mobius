@@ -221,6 +221,9 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
         <Row path={path('density')} title="List density" description="How tightly tabs and conversations are packed." highlight={highlight === 'density'}>
           <Choice label="List density" name="density" value={appearance.density} options={DENSITIES} onChange={(density) => set({ density })} />
         </Row>
+        <Row path={path('panel-gaps')} title="Panels on the frame" description="Each panel is rounded and sits apart from the others on the window's frame. Off puts them flush, with one line between." highlight={highlight === 'panel-gaps'}>
+          <Toggle label="Panels on the frame" checked={appearance.panelGaps} onChange={(panelGaps) => set({ panelGaps })} />
+        </Row>
         <Row path={path('key-hints')} title="Key hints" description="A small bar under lists with their most useful keys. It hides itself once you use them." highlight={highlight === 'key-hints'}>
           <Toggle label="Key hints" checked={appearance.keyHints} onChange={(keyHints) => set({ keyHints })} />
         </Row>
