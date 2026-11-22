@@ -78,7 +78,7 @@ export function MixerStrip({
     const track = e.currentTarget;
     (track.querySelector('[role="slider"]') as HTMLElement | null)?.focus();
     const now = performance.now();
-    if (now - last.current < RESET_MS) { last.current = 0; onVolumeCommit?.(put(volumeReset)); return; }
+    if (now - last.current < RESET_MS) { last.current = 0; const v = put(volumeReset); onVolumeCommit?.(v); return; }
     last.current = now;
     track.setPointerCapture(e.pointerId);
     put(fromY(track, e.clientY));
@@ -96,7 +96,9 @@ export function MixerStrip({
       : e.key === 'Home' ? volumeReset : e.key === 'End' ? floor : null;
     if (to === null) return;
     e.preventDefault();
-    onVolumeCommit?.(put(to));
+    // Not `onVolumeCommit?.(put(to))`: without a commit handler, `?.` would skip `put` and the key would do nothing.
+    const v = put(to);
+    onVolumeCommit?.(v);
   };
   return (
     <div
