@@ -59,6 +59,8 @@ test('a link is kept as just its words, read with Mobius, and archived when done
   await expect(look).toBeHidden();
 
   // Mobius reads along: the article goes with the request. Mobius has its own panel; Highlights waits in the inspector.
+  // Reader is a mode of the Browser, where Mobius starts closed: open it first.
+  await shell.getByRole('button', { name: 'Show Mobius' }).click();
   await shell.getByRole('button', { name: 'Summarise this' }).click();
   await expect(shell.getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toContainText('breakfast included');
   expect(JSON.stringify(model.requests[0]!.messages)).toContain('Nine rooms in Príncipe Real.');

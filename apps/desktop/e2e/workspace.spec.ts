@@ -275,10 +275,16 @@ test('every app and Mobius page is found in All apps by its name and opens with 
     await shell().keyboard.press('Enter');
     await expect(hub).toBeHidden();
   };
-  for (const [name, id] of [['Projects', 'projects'], ['Reader', 'reader'], ['Views', 'views'], ['Mail', 'mail'], ['Abilities', 'skills']] as const) {
+  for (const [name, id] of [['Projects', 'projects'], ['Browser', 'browser'], ['Views', 'views'], ['Mail', 'mail'], ['Abilities', 'skills']] as const) {
     await byKeys(name);
     await expect(shell().locator('.app'), `${name} opens`).toHaveAttribute('data-app', id);
   }
+  // Reader is a mode of the Browser now: not an app of its own in All apps.
+  await openAllApps(shell());
+  await hub.getByRole('searchbox', { name: 'Find apps' }).fill('Reader');
+  await expect(hub.getByRole('button', { name: /^Reader/ })).toHaveCount(0);
+  await shell().keyboard.press('Escape');
+  await expect(hub).toBeHidden();
   await byKeys('Agents');
   await expect(shell().getByRole('complementary', { name: 'Chats' }).getByRole('region', { name: 'Agents' })).toBeVisible();
   await byKeys('Activity');
