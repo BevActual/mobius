@@ -142,7 +142,8 @@ export function AbilitiesSub({ place, skills }: { place: ExtensionPlace; skills:
   const of = (list: readonly AppInfo[]) => { const n = list.filter((a) => appMatches(q, a)).length; return `${n} of ${plural(list.length, 'app')}`; };
   const item = storeItem.use();
   if (place === 'apps' && item) return <>Store</>;
-  if (place === 'apps') return <>{q.trim() ? of([...installed, ...available]) : `${installed.length} added${available.length ? ` · ${available.length} to add` : ''}`}</>;
+  // The same apps the Apps category counts: every card, the always-there ones too.
+  if (place === 'apps') return <>{q.trim() ? of(STORE_APPS) : `${plural(STORE_APPS.length, 'app')}${available.length ? ` · ${available.length} to add` : ''}`}</>;
   if (place === 'connectors') return <>{plural(connectorCount(status), 'connector')}</>;
   return skills.open ? <>{`Version ${skills.open.version}${skills.saved ? '' : ' · Saving…'}`}</> : <>{plural(skills.list.length, 'skill')}</>;
 }
