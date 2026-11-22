@@ -1,5 +1,5 @@
-import type { MusicPosition } from '@mobius/shared';
-import { BEATS_PER_BAR, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
+import type { MusicPosition, MusicTake } from '@mobius/shared';
+import { BEATS_PER_BAR, type ArrangeClip, type DrumPad, type Instrument, type KitSound, type Song, type Sound, type Track } from './song-format';
 import type { Cycle } from './studio-view';
 
 export interface Player {
@@ -181,10 +181,13 @@ let listening: string | null = null;
  * The chosen track plays from a MIDI keyboard, as selecting a track arms it in Live: through the engine only (the
  * window has no MIDI of its own). Until a keyboard is listened to, the first one the computer has is.
  */
-export function armKeys(trackId: string | null): void {
+export function armKeys(trackId: string | null, onArm?: (heard: ArmHeard) => void): void {
   const m = music();
   if (!engineOn() || !m?.arm) return;
-  send(() => m.arm!(trackId));
+  send(async () => {
+    const r = await m.arm!(trackId);
+    if (r.ok) onArm?.({ input: r.input ?? null, ...(r.inputProblem ? { problem: r.inputProblem } : {}) });
+  });
   if (trackId === null || listening !== null || !m.midiInputs || !m.listen) return;
   send(async () => {
     const found = await m.midiInputs!();
@@ -196,6 +199,34 @@ export function armKeys(trackId: string | null): void {
       if (opened.ok) listening = opened.listening;
     }
   });
+}
+
+/** What arming an audio track found: the sound input it listens to, or null with `problem` saying why it can't. */
+export interface ArmHeard { input: string | null; problem?: string }
+
+/** Records the armed audio track's input while the song plays (true), or ends the take (false). Engine only. */
+export function recordInput(on: boolean): void {
+  const m = music();
+  if (!engineOn() || !m?.record) return;
+  send(() => m.record!(on));
+}
+
+/** Each take the engine saves, as it ends (Stop ends one too). */
+export function onTake(listener: (take: MusicTake) => void): () => void {
+  return music()?.onTake?.(listener) ?? (() => {});
+}
+
+/** A recorded take as an audio clip: where it starts and how long it runs in beats, playing its file from the take's offset. */
+export function takeClip(take: MusicTake, tempo: number, id: string): ArrangeClip {
+  const name = take.file.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || 'Take';
+  return {
+    id,
+    start: Math.max(0, take.start),
+    length: Math.max(1 / 16, (take.seconds * tempo) / 60),
+    name,
+    notes: [],
+    audio: { file: take.file, ...(take.offset > 0 ? { offset: take.offset } : {}) },
+  };
 }
 
 /** A bar of ticks before recording. */

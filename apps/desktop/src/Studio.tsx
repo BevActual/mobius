@@ -5,7 +5,7 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { armKeys, countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
+import { armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -519,6 +519,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [beat, setBeat] = useState(0);
   // Recording: keys played on the computer keyboard while it plays are written into the chosen track, as one take.
   const [recording, setRecording] = useState(false);
+  // What arming the chosen audio track found: the input it hears, or why it hears none (Live 12, 19.1).
+  const [armed, setArmed] = useState<(ArmHeard & { track: string }) | null>(null);
   // A bar of ticks before recording starts from a stop, as in other studios. On unless turned off; kept for every song.
   const [counts, setCounts] = useState(() => { try { return window.localStorage.getItem(COUNT_IN_KEY) !== '0'; } catch { return true; } });
   const counting = useRef<{ stop(): void } | null>(null);
@@ -763,7 +765,27 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The engine reports the levels of the device open in the Workbench, for its cables.
   const watched = bench && editing && detail === 'device' ? bench : null;
   useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
-  useEffect(() => { void engineReady().then(() => armKeys(selected)); }, [selected]);
+  useEffect(() => {
+    setArmed(null);
+    void engineReady().then(() => armKeys(selected, (heard) => { if (selected) setArmed({ track: selected, ...heard }); }));
+  }, [selected]);
+  // A take the engine saved becomes an audio clip on its track where it was recorded, as one step for undo.
+  const changeNow = useRef(change);
+  changeNow.current = change;
+  useEffect(() => onTake((take) => {
+    changeNow.current((s) => {
+      const t = s.tracks.find((x) => x.id === take.track);
+      if (!t) return;
+      const taken = new Set(t.clips.map((c) => c.id));
+      let n = t.clips.length + 1;
+      while (taken.has(`c${n}`)) n++;
+      const clip = takeClip(take, s.tempo, `c${n}`);
+      t.clips = [...t.clips, clip].sort((a, b) => a.start - b.start);
+      const end = Math.ceil((clip.start + clip.length) / BEATS_PER_BAR);
+      if (end > s.bars) s.bars = end;
+    }, `take:${take.file}`);
+    if (take.lost) setExported({ text: 'The disk fell behind while recording, so the take has gaps.', kind: 'note' });
+  }), []);
   useEffect(() => { if (song) loadSong(song, songs.page?.path ?? null); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
@@ -1292,18 +1314,22 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   finishAll.current = () => { for (const k of [...takeKeys.current.keys()]) finishKey.current?.(k); };
   /** Record (F9): plays from the playhead with the computer keyboard on, writing what is played into the chosen track. */
   const record = () => {
-    if (recording) { finishAll.current?.(); setRecording(false); return; }
+    const audio = track?.kind === 'audio';
+    if (recording) { if (audio) recordInput(false); finishAll.current?.(); setRecording(false); return; }
     if (view !== 'arrange' || !track) return;
+    // An audio track records its input through the engine; it says first when it has none to hear.
+    if (audio && armed?.track === track.id && armed.input === null) { setExported({ text: armed.problem ?? 'There is no sound input to record from.', kind: 'note' }); return; }
     take.current = `record:${Date.now()}`;
-    setKeyboard(true);
+    if (!audio) setKeyboard(true);
     setRecording(true);
     page.current?.focus();
-    if (playing) return;
-    if (!counts) { start(); return; }
+    if (playing) { if (audio) recordInput(true); return; }
+    const go = () => { start(); if (audio) recordInput(true); };
+    if (!counts) { go(); return; }
     // The count-in: a bar of ticks, then the song plays from the playhead and what is played is written.
     const bar = countIn(song.tempo, BEATS_PER_BAR);
     counting.current = bar;
-    void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; start(); });
+    void bar.done.then(() => { if (counting.current !== bar) return; counting.current = null; go(); });
   };
   /** Renders the whole song, every track through its devices and volume line plus a short tail, and saves it as a WAV in the song's Exports folder. */
   const exportWav = async () => {
@@ -1646,6 +1672,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
                   {t.kind !== 'audio' && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
+                  {t.kind === 'audio' && armed?.track === t.id && (armed.input !== null
+                    ? <span className="studio-track-sub" title="The sound input this track hears and records">{armed.input}</span>
+                    : <span className="studio-track-sub" data-problem title={armed.problem ?? 'No sound input'}>No input</span>)}
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
                     <button type="button" className="studio-ms" aria-label={`Mute ${t.name}`} title="Mute (M)" aria-pressed={t.muted} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.muted = !x.muted; }); }}>M</button>
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
