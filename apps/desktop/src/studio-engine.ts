@@ -211,6 +211,24 @@ export function recordInput(on: boolean): void {
   send(() => m.record!(on));
 }
 
+/** The computer's sound inputs, and the one chosen (null for the default); null without the engine. */
+export async function soundInputs(): Promise<{ inputs: { name: string; channels: number }[]; using: string | null } | null> {
+  const m = music();
+  if (!engineOn() || !m?.inputs) return null;
+  const r = await m.inputs();
+  return r.ok ? { inputs: r.inputs, using: r.using } : null;
+}
+
+/** Records from the input called `name` (null for the computer's default); an armed audio track answers as arming does. */
+export function chooseInput(name: string | null, onArm?: (heard: ArmHeard) => void): void {
+  const m = music();
+  if (!engineOn() || !m?.useInput) return;
+  send(async () => {
+    const r = await m.useInput!(name);
+    if (r.ok && 'input' in r) onArm?.({ input: r.input ?? null, ...(r.inputProblem ? { problem: r.inputProblem } : {}) });
+  });
+}
+
 /** Each take the engine saves, as it ends (Stop ends one too). */
 export function onTake(listener: (take: MusicTake) => void): () => void {
   return music()?.onTake?.(listener) ?? (() => {});
