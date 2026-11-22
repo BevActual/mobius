@@ -1,0 +1,136 @@
+# The homeserver behind the local Mobius space (Messages step 2): Tuwunel, Apache-2.0, a Matrix homeserver from the
+# Conduit family (docs/reference/licences.md). It is too big and slow to build with every release (about 30 minutes)
+# and pins its own ruma and RocksDB, so it is built here once per pinned commit and published as a prerelease that is
+# never "Latest" (the in-app updater reads Latest). Mobius downloads the file for this computer the first time the space
+# opens and checks it against the SHA-256 pinned in crates/mobius-host/src/homeserver.rs, never against this release.
+#
+# Run it by hand (Actions > Homeserver > Run workflow) after changing TUWUNEL_REV, then copy the printed SHA-256s
+# into homeserver.rs.
+name: Homeserver
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  # Signing in to Azure through OpenID Connect.
+  id-token: write
+
+env:
+  # Tuwunel 2.0.0 (main, 2026-11-18), as checked in the spike (#781).
+  TUWUNEL_REV: 2f0587000ae55ecc91956291c6bc4b305be236d7
+  # Its own defaults bring jemalloc (which does not build on Windows), LDAP, S3, OIDC and more a local space never
+  # uses: these are what it needs.
+  TUWUNEL_FEATURES: brotli_compression,element_hacks,gzip_compression,markdown,media_thumbnail,release_max_log_level
+  CARGO_PROFILE_RELEASE_STRIP: symbols
+  CARGO_PROFILE_RELEASE_DEBUG: '0'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            exe: tuwunel.exe
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            exe: tuwunel
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    # Azure trusts this environment for signing (as the release workflow).
+    environment: release
+    steps:
+      - name: Fetch Tuwunel at the pinned commit
+        shell: bash
+        run: |
+          git init -q tuwunel && cd tuwunel
+          git fetch -q --depth 1 https://github.com/matrix-construct/tuwunel.git "$TUWUNEL_REV"
+          git checkout -q FETCH_HEAD
+          grep -q '^license = "Apache-2.0"' Cargo.toml || { echo "Tuwunel's licence is no longer Apache-2.0"; exit 1; }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build
+        shell: bash
+        working-directory: tuwunel
+        run: cargo build --release --locked --bin tuwunel --target ${{ matrix.target }} --no-default-features --features "$TUWUNEL_FEATURES"
+      - name: Start it once on localhost
+        shell: bash
+        env:
+          TUWUNEL_SERVER_NAME: mobius.localhost
+          TUWUNEL_DATABASE_PATH: ${{ runner.temp }}/hs
+          TUWUNEL_ADDRESS: 127.0.0.1
+          TUWUNEL_PORT: '8448'
+        run: |
+          bin=tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}
+          ( "$bin" > hs.log 2>&1 & )
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8448/_matrix/client/versions > /dev/null && { echo "It answers."; exit 0; }; sleep 1; done
+          cat hs.log; exit 1
+
+      - name: Sign in to Azure
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Sign it
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        uses: azure/artifact-signing-action@v2
+        with:
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.AZURE_CERTIFICATE_PROFILE }}
+          files: ${{ github.workspace }}\tuwunel\target\${{ matrix.target }}\release\tuwunel.exe
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+          description: Mobius
+          description-url: https://github.com/${{ github.repository }}
+      - name: Check the signature
+        if: ${{ runner.os == 'Windows' && vars.AZURE_SIGNING_ACCOUNT != '' }}
+        shell: pwsh
+        run: |
+          $check = Get-AuthenticodeSignature "tuwunel\target\${{ matrix.target }}\release\tuwunel.exe"
+          if ($check.Status -ne 'Valid') { throw "The signed homeserver does not verify: $($check.Status) $($check.StatusMessage)" }
+          Write-Host "Signed by $($check.SignerCertificate.Subject)"
+
+      - name: Pack it
+        id: pack
+        shell: bash
+        run: |
+          short=${TUWUNEL_REV:0:12}
+          name="tuwunel-$short-${{ matrix.target }}.gz"
+          gzip -9 -c "tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}" > "$name"
+          ls -la "$name"
+          echo "SHA-256 $name: $( (sha256sum "$name" 2>/dev/null || shasum -a 256 "$name") | cut -d' ' -f1)"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.pack.outputs.name }}
+          path: ${{ steps.pack.outputs.name }}
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - name: Publish as a prerelease that is never Latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="homeserver-tuwunel-${TUWUNEL_REV:0:12}"
+          cd out
+          sha256sum *
+          notes="Tuwunel (Apache-2.0, https://github.com/matrix-construct/tuwunel) at $TUWUNEL_REV, built for the local Mobius space. Mobius downloads the file for its computer and checks it against the SHA-256 pinned in its own build.
+
+          $(sha256sum *)"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release upload "$tag" -R "$GITHUB_REPOSITORY" --clobber *
+          else
+            gh release create "$tag" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --latest=false --title "Homeserver: Tuwunel ${TUWUNEL_REV:0:12}" --notes "$notes" *
+          fi
