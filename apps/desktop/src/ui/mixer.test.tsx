@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { MixerStrip, faderLabel } from './Mixer';
+import { MixerStrip, SendKnob, Sends, faderLabel, sendLabel } from './Mixer';
 
 const noop = () => {};
 const strip = (extra: Partial<Parameters<typeof MixerStrip>[0]> = {}) => renderToStaticMarkup(
@@ -38,5 +38,22 @@ describe('MixerStrip', () => {
     expect(faderLabel(-3)).toBe('−3.0 dB');
     expect(faderLabel(1.5)).toBe('+1.5 dB');
     expect(faderLabel(-60)).toBe('−∞');
+  });
+});
+
+describe('SendKnob and Sends', () => {
+  it('reads off as minus infinity and whole dB otherwise', () => {
+    expect(sendLabel(0)).toBe('\u2212\u221e');
+    expect(sendLabel(1)).toBe('0');
+    expect(sendLabel(0.5)).toBe('\u22126');
+  });
+  it('names each send by its return and keeps empty room on a strip without sends', () => {
+    const html = renderToStaticMarkup(<Sends count={2} label="Bass sends"><SendKnob letter="A" value={0.5} onChange={noop} /></Sends>);
+    expect(html).toContain('aria-label="Bass sends"');
+    expect(html).toContain('Send A');
+    const empty = renderToStaticMarkup(<Sends count={2} />);
+    expect(empty).toContain('data-empty');
+    expect(empty).toContain('aria-hidden="true"');
+    expect(renderToStaticMarkup(<Sends count={0} />)).toBe('');
   });
 });

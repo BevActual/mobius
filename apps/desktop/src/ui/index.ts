@@ -49,7 +49,7 @@ export { Popover, PopoverTitle, PopoverLink, ChoiceMenu, type Choice } from './P
 export { Dialog, Confirm } from './Dialog';
 export { ContentTabs, tabId, type TabItem } from './Tabs';
 export { NumberField, Readout, LetterToggle, Transport, TapTempo, tapTempo, LevelMeter, GainReductionMeter, TRANSPORT_ICONS, levelPosition, decibelLabel, barsLabel, clockLabel, type NumberFieldProps, type LevelFeed, type LevelMeterProps, type ReductionFeed } from './Pro';
-export { MixerStrip, faderLabel, type MixerStripProps } from './Mixer';
+export { MixerStrip, SendKnob, Sends, faderLabel, sendLabel, type MixerStripProps, type SendKnobProps } from './Mixer';
 export {
   PatchCanvas, Port, layoutFlow, cablePath, defaultCanConnect,
   type PatchCanvasProps, type PatchBox, type PatchCable, type PatchSelection, type PatchLevels, type PortSpec, type PortKind, type PortInfo, type PortEnd, type ParamEnd,
