@@ -375,6 +375,43 @@ impl Engine {
         }
     }
 
+    /// The same engine with no sound output: run on a clock of its own, heard by nobody, so playing, the position,
+    /// meters and the keyboard work on a computer with no output (or one the engine doesn't open yet), and in tests.
+    #[must_use]
+    pub fn silent() -> Engine {
+        const RATE: u32 = 48_000;
+        const BLOCK: usize = 480;
+        let (mut engine, mut audio) = Engine::pair(RATE, String::new());
+        let (end_tx, end_rx) = std::sync::mpsc::channel::<()>();
+        engine.shared.latency_us.store(10_000, Ordering::Relaxed);
+        let spawned = std::thread::Builder::new().name("mobius-audio-silent".into()).spawn(move || {
+            let mut buffer = vec![0f32; BLOCK * 2];
+            let block = std::time::Duration::from_micros(BLOCK as u64 * 1_000_000 / u64::from(RATE));
+            let mut next = std::time::Instant::now();
+            loop {
+                // Blocks as fast as they would be heard; a late wake catches up rather than slowing the song.
+                while next <= std::time::Instant::now() {
+                    audio.fill(&mut buffer, 2);
+                    next += block;
+                }
+                match end_rx.recv_timeout(next.saturating_duration_since(std::time::Instant::now())) {
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+                    _ => break,
+                }
+            }
+        });
+        if spawned.is_ok() {
+            engine._stream = Some(end_tx);
+        }
+        engine
+    }
+
+    /// Whether it plays to no output (see [`Engine::silent`]).
+    #[must_use]
+    pub fn is_silent(&self) -> bool {
+        self.device.is_empty()
+    }
+
     /// The output's name.
     #[must_use]
     pub fn device(&self) -> &str {
@@ -717,6 +754,20 @@ mod tests {
         assert!(buffer.iter().all(|s| *s == 0.0) && !engine.position().playing);
         engine.empty_trash();
         assert!(lock(&engine.trash).pop().is_err());
+    }
+
+    #[test]
+    fn with_no_output_the_engine_still_keeps_time() {
+        let engine = Engine::silent();
+        assert!(engine.is_silent() && engine.latency_ms() > 0.0);
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":8,"tracks":[{"id":"t","instrument":"bass","notes":[{"pitch":45,"start":0,"length":4,"velocity":1}]}]}"#).unwrap();
+        engine.play(&song, Playing::default()).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        let at = engine.position();
+        // 300 ms at 120 bpm is 0.6 of a beat (a slow test machine may lag a little, never run ahead).
+        assert!(at.playing && at.beat > 0.3 && at.beat < 0.7, "{at:?}");
+        assert!(at.meters.iter().any(|(id, db)| id == "t" && db[0] > -60.0), "{at:?}");
+        engine.stop().unwrap();
     }
 
     #[test]
