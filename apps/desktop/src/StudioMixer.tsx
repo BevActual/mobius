@@ -61,7 +61,7 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
     <span className="studio-sends" role="group" aria-label={`${t.name} sends`} style={{ ['--sends' as string]: returns.length }}>
       {returns.map((r, i) => (
         <span key={r.id} className="studio-send-row"><span className="studio-send-letter" aria-hidden="true">{returnName(r, i)}</span>
-        <Knob className="studio-send" label={`Send ${returnName(r, i)}`} value={t.sends?.[r.id] ?? 0} min={0} max={1} step={0.01} reset={0} format={sendText}
+        <Knob className="studio-send" label={`Send to ${returnName(r, i)}`} value={t.sends?.[r.id] ?? 0} min={0} max={1} step={0.01} reset={0} format={sendText}
           onChange={(v) => setTrack(t.id, (x) => { const next = { ...(x.sends ?? {}) }; if (v > 0) next[r.id] = Math.round(v * 100) / 100; else delete next[r.id]; if (Object.keys(next).length > 0) x.sends = next; else delete x.sends; }, `mix-send:${t.id}:${r.id}`)} /></span>
       ))}
     </span>

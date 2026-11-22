@@ -314,6 +314,10 @@
 .studio-send-row { display: flex; align-items: center; gap: var(--sp-1); height: var(--send-h); }
 .studio-send-letter { width: 1ch; font-size: var(--fs-xs); color: var(--muted); }
 .ui-knob.studio-send { --knob-size: 18px; grid-auto-flow: column; align-items: center; gap: var(--sp-1); min-width: 0; }
-.ui-knob.studio-send .ui-knob-name { display: none; }
+.ui-knob.studio-send .ui-knob-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .ui-strip.studio-mixer-return:first-of-type, .studio-mixer > .ui-strip:not(.studio-mixer-return) + .studio-mixer-return { margin-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line-soft); }
 .studio-mixer-add { align-self: center; flex: none; }
+.studio-clip-loop { display: flex; flex: none; align-items: center; gap: var(--sp-2); padding-right: var(--sp-2); border-right: var(--hairline-w) solid var(--line-soft); }
+/* In the Clip toolbar the loop fields sit on one line, each label before its box, so the toolbar keeps a single row. */
+.studio-clip-loop .ui-number { flex-direction: row; align-items: center; gap: var(--sp-1); }
+.studio-clip-loop .ui-number-box { min-width: 0; }

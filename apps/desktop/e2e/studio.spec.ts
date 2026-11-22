@@ -245,8 +245,8 @@ test('the demo ask: a bass line and a warmer pad come in while the song plays, a
   // The ask fits a song with a pad and no bass, so it leads Music's suggestions, and it is made while the song plays.
   // The four bars go round, as in the demo (without the loop they end after 8.6 s, mid-test). Space plays them even with
   // a clip focused, as anywhere else in Music.
-  await shell().getByRole('button', { name: 'Loop' }).click();
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await shell().getByRole('button', { name: 'Loop', exact: true }).click();
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Keys, bar 1' }).focus();
   await shell().keyboard.press('Space');
   await expect(shell().getByRole('button', { name: 'Pause' })).toBeVisible();
@@ -503,7 +503,7 @@ test('picked notes are cut in two, joined back, and their bars looped, from the 
   await shell().keyboard.press('Control+j');
   await expect.poll(() => saved().tracks[0]!.notes.map((n) => `${n.pitch}@${n.start}+${n.length}`).sort()).toEqual(['57@0+4', '60@0+4']);
   await shell().keyboard.press('Control+l');
-  await expect(shell().getByRole('button', { name: 'Loop' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell().getByRole('button', { name: 'Loop', exact: true })).toHaveAttribute('aria-pressed', 'true');
 });
 
 test('the Transform menu arpeggiates a chord and strums it, each undone', async () => {
@@ -596,8 +596,8 @@ test('a return track gets a Send knob on every track, and Main has its own fader
   await expect.poll(() => (saved() as unknown as { returns?: { id: string }[] }).returns?.length).toBe(1);
   const id = (saved() as unknown as { returns: { id: string }[] }).returns[0]!.id;
   expect(saved().tracks.some((t) => (t as { id: string }).id === id)).toBe(false);
-  // Keys' Send A, turned up, sends to it; Main's fader, pulled down, is kept in the song.
-  const send = mixer.getByRole('group', { name: 'Keys sends' }).getByRole('slider', { name: 'Send A' });
+  // Keys' Send to A, turned up, sends to it; Main's fader, pulled down, is kept in the song.
+  const send = mixer.getByRole('group', { name: 'Keys sends' }).getByRole('slider', { name: 'Send to A', exact: true });
   await send.focus();
   await shell().keyboard.press('PageUp');
   await expect.poll(() => (saved().tracks.find((t) => t.name === 'Keys') as { sends?: Record<string, number> }).sends?.[id] ?? 0).toBeGreaterThan(0);
@@ -795,6 +795,18 @@ test('Loop on a clip in Arrange repeats it when it is stretched, as Live\'s Loop
   await expect.poll(() => saved().tracks[0]!.clips?.[0]?.length).toBe(8);
   expect(saved().tracks[0]!.notes).toHaveLength(2);
   await expect(clip().locator('.studio-clip-turn')).toHaveCount(1);
+  // Ctrl+Down halves the loop (Live's Clip View): half a bar, four passes. Opened, the Clip toolbar shows the loop.
+  await clip().focus();
+  await shell().keyboard.press('Control+ArrowDown');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown } | undefined)?.loop).toEqual({ start: 0, end: 2 });
+  await expect(clip().locator('.studio-clip-turn')).toHaveCount(3);
+  await clip().press('Enter');
+  const loop = shell().getByRole('group', { name: /^Loop of / });
+  await expect(loop.getByRole('button', { name: 'Loop clip' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(loop.getByRole('spinbutton', { name: 'Loop length', exact: true })).toHaveAttribute('aria-valuenow', '2');
+  // The start marker: Up moves it a quarter beat into the clip.
+  await loop.getByRole('spinbutton', { name: 'Start', exact: true }).press('ArrowUp');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { offset?: number } | undefined)?.offset).toBe(0.25);
   // Stop Looping takes the loop off; the clip stays as long, and what's past its notes is quiet.
   await clip().click({ button: 'right' });
   await shell().getByRole('menu').getByRole('menuitem', { name: 'Stop Looping' }).click();
