@@ -122,6 +122,10 @@ impl Music {
                 "using": *lock(&self.input_device),
             })),
             "useInput" => self.use_input(arg(0).as_str()),
+            "peaks" => match (arg(0).as_str(), arg(1).as_str()) {
+                (Some(path), Some(file)) => self.peaks(path, file, arg(2).as_u64().unwrap_or(256), songs),
+                _ => Err("a song and a file are needed".to_owned()),
+            },
             "seek" => match arg(0).as_f64() {
                 Some(beat) if beat.is_finite() => self.seek(beat.max(0.0)),
                 _ => Err("a beat is needed".to_owned()),
@@ -153,6 +157,14 @@ impl Music {
         }
         *lock(&self.song) = Some(song);
         Ok(json!({ "ok": true, "missing": missing }))
+    }
+
+    /// A sound file's waveform, for an audio clip to draw: `file` in the folder of the song at `path`, as the lowest
+    /// and highest sample over each `per` frames (`[[min, max], ...]`), with the file's rate and length.
+    fn peaks(&self, path: &str, file: &str, per: u64, songs: &mobius_workspace::notes::Notes) -> Result<Value, String> {
+        let sound = self.samples.sound(&songs.folder_of(path)?, file)?;
+        let (per, points) = mobius_audio::sample::peaks(&sound, usize::try_from(per).unwrap_or(usize::MAX));
+        Ok(json!({ "ok": true, "rate": sound.rate, "frames": sound.left.len(), "per": per, "peaks": points }))
     }
 
     /// Reads the song's audio clips' sounds from the folder of the song at `path`.
@@ -556,6 +568,10 @@ mod tests {
         assert_eq!(loaded["ok"], true, "{loaded}");
         assert_eq!(loaded["missing"].as_array().unwrap().len(), 1, "{loaded}");
         assert_eq!(lock(&m.song).as_ref().unwrap().sounds.len(), 1);
+        // Its waveform, for the clip to draw; a file outside the song's folder is refused.
+        let peaks = m.call("peaks", &[json!("Songs/Song.md"), json!("Samples/Recorded/Vocal 1.wav"), json!(2)], &songs);
+        assert_eq!(peaks["peaks"], json!([[0.5, 0.5], [0.5, 0.5]]), "{peaks}");
+        assert_eq!(m.call("peaks", &[json!("Songs/Song.md"), json!("../../x.wav")], &songs)["ok"], false);
         // Without the song's page, no files are read.
         assert_eq!(m.call("load", &[song], &songs)["missing"], json!([]));
         assert!(lock(&m.song).as_ref().unwrap().sounds.is_empty());

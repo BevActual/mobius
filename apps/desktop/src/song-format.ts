@@ -123,7 +123,32 @@ export function freshEffectId(track: { fx?: readonly { id: string }[] }): string
  * A clip in the Session view: a short loop of notes for one track, started and stopped live. Its notes start from the
  * clip's own beat 0 and it goes round every `bars` bars.
  */
-export interface Clip { name: string; bars: number; notes: SongNote[] }
+export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
+/**
+ * An audio clip's sound (Live 12 manual, chapter 9), as the engine reads it (mobius-audio song.rs `Audio`): a WAV file
+ * in the song's folder (`file`, relative to it), from `offset` seconds in, at `gainDb`. Unwarped, it plays at its own
+ * speed; warped, it follows the song's tempo by its `bpm` or its warp `markers` (a sample frame of the file at a beat
+ * of the clip, as WaveformView's WarpMarker). `mode` is the warp mode, "repitch" first.
+ */
+export interface ClipAudio { file: string; gainDb?: number; offset?: number; warp?: boolean; mode?: string; bpm?: number; markers?: { sample: number; beat: number }[] }
+
+/** An audio clip's sound from a file, or undefined when it has none it can play (no file). */
+export function readAudio(v: unknown): ClipAudio | undefined {
+  const a = obj(v);
+  if (typeof a.file !== 'string' || !a.file.trim()) return undefined;
+  const audio: ClipAudio = { file: a.file.slice(0, 400) };
+  if (typeof a.gainDb === 'number' && Number.isFinite(a.gainDb) && a.gainDb !== 0) audio.gainDb = num(a.gainDb, 0, -70, 24);
+  if (typeof a.offset === 'number' && Number.isFinite(a.offset) && a.offset > 0) audio.offset = num(a.offset, 0, 0, 24 * 3600);
+  if (a.warp === true) audio.warp = true;
+  if (typeof a.mode === 'string' && a.mode) audio.mode = a.mode.slice(0, 20);
+  if (typeof a.bpm === 'number' && Number.isFinite(a.bpm) && a.bpm > 0) audio.bpm = num(a.bpm, 120, 20, 999);
+  const markers = (Array.isArray(a.markers) ? a.markers : []).flatMap((m) => {
+    const mo = obj(m);
+    return typeof mo.sample === 'number' && typeof mo.beat === 'number' && Number.isFinite(mo.sample) && Number.isFinite(mo.beat) && mo.sample >= 0 ? [{ sample: mo.sample, beat: mo.beat }] : [];
+  }).slice(0, 4096);
+  if (markers.length > 0) audio.markers = markers;
+  return audio;
+}
 export const CLIP_BARS = [1, 2, 4, 8, 16] as const;
 /** The rows of the Session view are scenes: one clip slot per track in each. */
 export const MIN_SCENES = 4;
@@ -163,9 +188,9 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  * `offset` (its start marker) in its own time; with a `loop` it goes round from `loop.start` to `loop.end` until
  * `length` runs out, so stretching a looped clip repeats it. The engine plays it the same way (song.rs `notes_of`).
  */
-export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[] }
+export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
 
-export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio'; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[] }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[] }
@@ -231,7 +256,10 @@ function readClip(v: unknown, fallbackName: string): Clip | null {
   const c = obj(v);
   const asked = num(c.bars, 1, 1, 16);
   const bars = [...CLIP_BARS].reverse().find((b) => b <= asked) ?? 1;
-  return { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * BEATS_PER_BAR).filter((n) => n.start < bars * BEATS_PER_BAR) };
+  const clip: Clip = { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * BEATS_PER_BAR).filter((n) => n.start < bars * BEATS_PER_BAR) };
+  const audio = readAudio(c.audio);
+  if (audio) clip.audio = audio;
+  return clip;
 }
 
 export function parseSong(text: string): { song: Song } | { error: string } {
@@ -256,6 +284,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     const color = TRACK_COLOURS.includes(to.color as TrackColour) ? (to.color as TrackColour) : TRACK_COLOURS[i % (TRACK_COLOURS.length - 2)]!;
     const track: Track = { id, name: typeof to.name === 'string' && to.name ? to.name.slice(0, 60) : INSTRUMENT_NAMES[instrument], instrument, volume: num(to.volume, 0.8, 0, 1), pan: num(to.pan, 0, -1, 1), muted: to.muted === true, solo: to.solo === true, color, clips };
     if (to.instrumentOn === false) track.instrumentOn = false;
+    if (to.kind === 'audio') track.kind = 'audio';
+    if (typeof to.input === 'number' && Number.isInteger(to.input) && to.input >= 0 && to.input < 64) track.input = to.input;
     const so = obj(to.sound);
     if (instrument !== 'drums' && Object.keys(so).length > 0) {
       const base = SOUND_DEFAULTS[instrument];
@@ -342,7 +372,7 @@ export function writeSong(song: Song): string {
     ...(song.returns && song.returns.length > 0 ? ['  "returns": [', ...song.returns.map((r, i) => `    ${JSON.stringify(r)}${i < song.returns!.length - 1 ? ',' : ''}`), '  ],'] : []),
     '  "tracks": ['];
   song.tracks.forEach((t, i) => {
-    const head: Record<string, unknown> = { id: t.id, name: t.name, instrument: t.instrument, color: t.color, volume: t.volume };
+    const head: Record<string, unknown> = { id: t.id, name: t.name, ...(t.kind ? { kind: t.kind } : {}), ...(t.input !== undefined ? { input: t.input } : {}), instrument: t.instrument, color: t.color, volume: t.volume };
     if (t.muted) head.muted = true;
     if (t.solo) head.solo = true;
     if (t.instrumentOn === false) head.instrumentOn = false;
@@ -435,6 +465,8 @@ function readClips(list: unknown, beats: number): ArrangeClip[] {
     clip.notes = readNotes(c.notes, own).filter((n) => n.start < own);
     if (typeof c.name === 'string' && c.name) clip.name = c.name.slice(0, 60);
     if (c.muted === true) clip.muted = true;
+    const audio = readAudio(c.audio);
+    if (audio) clip.audio = audio;
     return [clip];
   }).sort((a, b) => a.start - b.start);
   return read.flatMap((c, i): ArrangeClip[] => {
