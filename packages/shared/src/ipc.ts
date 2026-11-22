@@ -1272,8 +1272,9 @@ export interface MobiusBridge {
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
     seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;
-    /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. */
-    render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
+    /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. The file is 32-bit float, so
+     *  nothing is clipped; `peakDb` is its loudest sample and `over` how many samples pass 0 dBFS. */
+    render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string; peakDb?: number; over?: number } | NotesFailure>;
     /** Where playback is, about 30 times a second while playing: each track's level and `master`'s, in dB. */
     onPosition(listener: (position: MusicPosition) => void): () => void;
   };
