@@ -68,6 +68,33 @@ fn secret_name(id: &str) -> String {
     format!("messages-account:{id}")
 }
 
+fn member_secret(bot: &str) -> String {
+    format!("messages-space-member:{bot}")
+}
+
+fn random_hex() -> Res<String> {
+    let mut bytes = [0u8; 24];
+    getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
+    Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// The agent's own conversation for what the person writes to it in the space; it belongs to that agent.
+fn new_conversation(bot: &str) -> Res<String> {
+    let id = &random_hex()?[..16];
+    Ok(if bot == "main" { format!("c-space-{id}") } else { format!("c-{bot}-space-{id}") })
+}
+
+/// An agent as a member of the local space: its account there, and its direct room with the person.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Member {
+    pub bot: String,
+    pub name: String,
+    pub user: String,
+    pub room: String,
+    /// The agent's conversation that what the person writes in the room goes to.
+    pub conversation: String,
+}
+
 /// A Matrix event's address on matrix.to, which any Matrix app opens.
 fn matrix_link(room: &str, event: &str) -> String {
     let part = |s: &str| url::form_urlencoded::byte_serialize(s.as_bytes()).collect::<String>();
@@ -678,6 +705,119 @@ impl Accounts {
         Ok(())
     }
 
+    /// The local space's account and its sign-in, once it has been made.
+    fn local_session(&self) -> Option<(String, Session)> {
+        let me = format!("@{LOCAL_USER}:{}", crate::homeserver::SERVER_NAME);
+        let id = lock(&self.state).iter().find(|a| a.service == "matrix" && a.team == me).map(|a| a.id.clone())?;
+        let session = self.secrets.get(&secret_name(&id)).and_then(|t| serde_json::from_str::<Session>(&t).ok())?;
+        Some((id, session))
+    }
+
+    fn members_file(&self) -> PathBuf {
+        self.file.with_file_name("space-members.json")
+    }
+
+    /// The agents that are members of the local space.
+    pub fn space_members(&self) -> Vec<Member> {
+        std::fs::read_to_string(self.members_file()).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or_default()
+    }
+
+    fn save_members(&self, members: &[Member]) {
+        if let Ok(text) = serde_json::to_string_pretty(members) {
+            let _ = std::fs::write(self.members_file(), text);
+        }
+    }
+
+    /// A member's own sign-in, which the space's server gave it.
+    fn member_session(&self, bot: &str) -> Option<Session> {
+        self.secrets.get(&member_secret(bot)).and_then(|t| serde_json::from_str(&t).ok())
+    }
+
+    /// Each agent (`bots`: id and name, Mobius first) as a member of the local space: the first time, its own account
+    /// there (through `register`) and a direct room with the person, which shows as a message from the agent. A renamed
+    /// agent is renamed there; a removed one leaves. Only the person's own computer reaches this server.
+    pub fn sync_space_members(&self, bots: &[(String, String)], register: &dyn Fn(&str, &str) -> Res<bool>) -> Res<()> {
+        let (_, me) = self.local_session().ok_or("The space isn't made yet.")?;
+        let url = me.homeserver.clone();
+        let call = |method: &str, parts: &[&str], token: &str, body: Option<&Value>| -> Res<Value> {
+            let mut all = vec!["_matrix", "client", "v3"];
+            all.extend_from_slice(parts);
+            self.matrix.call(method, &matrix::endpoint(&url, &all, &[])?, Some(token), body)
+        };
+        let mut members = self.space_members();
+        for (bot, name) in bots {
+            if let Some(m) = members.iter_mut().find(|m| &m.bot == bot) {
+                if &m.name != name {
+                    let s = self.member_session(bot).ok_or("An agent's sign-in to the space is missing.")?;
+                    call("PUT", &["profile", &m.user, "displayname"], &s.access, Some(&json!({ "displayname": name })))?;
+                    call("PUT", &["rooms", &m.room, "state", "m.room.name", ""], &s.access, Some(&json!({ "name": name })))?;
+                    m.name.clone_from(name);
+                }
+                continue;
+            }
+            let local = if bot == "main" { "mobius".to_owned() } else { format!("agent-{bot}") };
+            let password = match self.secrets.get(&format!("{}-password", member_secret(bot))) {
+                Some(p) if p.len() >= 32 => p,
+                _ => {
+                    let p = random_hex()?;
+                    if !self.secrets.put(&format!("{}-password", member_secret(bot)), &p) {
+                        return Err("An agent's sign-in could not be kept in this computer's secret store.".into());
+                    }
+                    p
+                }
+            };
+            register(&local, &password)?;
+            let mut session = self.matrix.password_sign_in(&url, &local, &password)?;
+            session.homeserver.clone_from(&url);
+            self.secrets.put(&member_secret(bot), &serde_json::to_string(&session).map_err(|e| e.to_string())?);
+            call("PUT", &["profile", &session.user, "displayname"], &session.access, Some(&json!({ "displayname": name })))?;
+            let room = call("POST", &["createRoom"], &session.access, Some(&json!({ "name": name, "preset": "trusted_private_chat", "is_direct": true, "invite": [me.user] })))?;
+            let room = room["room_id"].as_str().ok_or("The space's server didn't make the agent's room.")?.to_owned();
+            call("POST", &["join", &room], &me.access, Some(&json!({})))?;
+            // The person's list of direct rooms, so it shows as a message from the agent rather than a channel.
+            let mut direct = call("GET", &["user", &me.user, "account_data", "m.direct"], &me.access, None).unwrap_or_else(|_| json!({}));
+            if !direct.is_object() {
+                direct = json!({});
+            }
+            direct[session.user.as_str()] = json!([room]);
+            call("PUT", &["user", &me.user, "account_data", "m.direct"], &me.access, Some(&direct))?;
+            members.push(Member { bot: bot.clone(), name: name.clone(), user: session.user.clone(), room, conversation: new_conversation(bot)? });
+            self.save_members(&members);
+        }
+        let (keep, gone): (Vec<Member>, Vec<Member>) = members.into_iter().partition(|m| bots.iter().any(|(b, _)| b == &m.bot));
+        for m in &gone {
+            if let Some(s) = self.member_session(&m.bot) {
+                let _ = call("POST", &["rooms", &m.room, "leave"], &s.access, Some(&json!({})));
+            }
+            // The person leaves it too, so it goes from their list.
+            let _ = call("POST", &["rooms", &m.room, "leave"], &me.access, Some(&json!({})));
+            self.secrets.delete(&member_secret(&m.bot));
+            self.secrets.delete(&format!("{}-password", member_secret(&m.bot)));
+        }
+        self.save_members(&keep);
+        Ok(())
+    }
+
+    /// The agent whose direct room `room` is, in the local space's account `id`.
+    pub fn space_member_of(&self, id: &str, room: &str) -> Option<Member> {
+        let (local, _) = self.local_session()?;
+        if local != id {
+            return None;
+        }
+        self.space_members().into_iter().find(|m| m.room == room)
+    }
+
+    /// Posts `text` as the agent `bot`, in its direct room with the person.
+    pub fn space_post(&self, bot: &str, text: &str) -> Res<()> {
+        let (_, me) = self.local_session().ok_or("The space isn't made yet.")?;
+        let m = self.space_members().into_iter().find(|m| m.bot == bot).ok_or("That agent isn't in the space.")?;
+        let s = self.member_session(bot).ok_or("An agent's sign-in to the space is missing.")?;
+        let txn = random_hex()?;
+        let url = matrix::endpoint(&me.homeserver, &["_matrix", "client", "v3", "rooms", &m.room, "send", "m.room.message", &txn], &[])?;
+        self.matrix.call("PUT", &url, Some(&s.access), Some(&json!({ "msgtype": "m.text", "body": text })))?;
+        Ok(())
+    }
+
     /// Signs in to Matrix with a username and password, which go only to the server and are not kept.
     pub fn matrix_sign_in(&self, server: &str, user: &str, password: &str) -> Res<Value> {
         let homeserver = self.matrix.homeserver(server)?;
@@ -859,6 +999,41 @@ mod tests {
         assert_eq!(serde_json::from_str::<Session>(&secrets.get(&secret_name(&id)).unwrap()).unwrap().homeserver, "http://127.0.0.1:1");
         // The wrong token is refused, plainly.
         assert!(crate::homeserver::register(&url, "nope", "me", &"a".repeat(48)).unwrap_err().contains("refused"));
+    }
+
+    #[test]
+    fn each_agent_is_a_member_of_the_local_space_with_a_room_of_its_own() {
+        let (url, log) = crate::matrix::tests::server(false);
+        let (accounts, _dir, secrets) = accounts(&url);
+        let register = |user: &str, password: &str| crate::homeserver::register(&url, "tok", user, password);
+        assert!(accounts.sync_space_members(&[], &register).is_err(), "nothing before the space is made");
+        let id = accounts.local_space(&url, &register).unwrap();
+        let bots = vec![("main".to_owned(), "Mobius".to_owned()), ("ab12cd".to_owned(), "Scout".to_owned())];
+        accounts.sync_space_members(&bots, &register).unwrap();
+        let members = accounts.space_members();
+        assert_eq!(members.iter().map(|m| (m.user.as_str(), m.room.as_str())).collect::<Vec<_>>(), [("@mobius:mobius.localhost", "!dm-Mobius:mobius.localhost"), ("@agent-ab12cd:mobius.localhost", "!dm-Scout:mobius.localhost")]);
+        assert!(members[0].conversation.starts_with("c-space-") && members[1].conversation.starts_with("c-ab12cd-space-"));
+        assert!(crate::agent::is_conversation_id(&members[1].conversation));
+        let made = log.lock().unwrap().clone();
+        assert!(made.iter().any(|l| l.starts_with("POST /_matrix/client/v3/createRoom") && l.contains("@me:mobius.localhost") && l.contains("trusted_private_chat")));
+        assert!(made.iter().any(|l| l.starts_with("POST /_matrix/client/v3/join/!dm-Scout:mobius.localhost")));
+        assert!(made.iter().any(|l| l.starts_with("PUT /_matrix/client/v3/user/@me:mobius.localhost/account_data/m.direct") && l.contains("@agent-ab12cd:mobius.localhost")));
+        // What the person writes in an agent's room is known as that agent's; other rooms and accounts are not.
+        assert_eq!(accounts.space_member_of(&id, "!dm-Scout:mobius.localhost").unwrap().bot, "ab12cd");
+        assert!(accounts.space_member_of(&id, "!general:mobius.localhost").is_none());
+        assert!(accounts.space_member_of("other", "!dm-Scout:mobius.localhost").is_none());
+        accounts.space_post("ab12cd", "Done: the inbox is sorted.").unwrap();
+        assert!(log.lock().unwrap().iter().any(|l| l.starts_with("PUT /_matrix/client/v3/rooms/!dm-Scout:mobius.localhost/send/m.room.message/") && l.contains("the inbox is sorted")));
+        // Again: nothing new is made. Renamed: renamed there. Removed: it leaves, and its sign-in is forgotten.
+        log.lock().unwrap().clear();
+        accounts.sync_space_members(&bots, &register).unwrap();
+        assert!(log.lock().unwrap().is_empty());
+        accounts.sync_space_members(&[("main".to_owned(), "Mobius".to_owned()), ("ab12cd".to_owned(), "Finder".to_owned())], &register).unwrap();
+        assert!(log.lock().unwrap().iter().any(|l| l.starts_with("PUT /_matrix/client/v3/profile/@agent-ab12cd:mobius.localhost/displayname") && l.contains("Finder")));
+        accounts.sync_space_members(&bots[..1], &register).unwrap();
+        assert_eq!(log.lock().unwrap().iter().filter(|l| l.starts_with("POST /_matrix/client/v3/rooms/!dm-Scout:mobius.localhost/leave")).count(), 2, "the agent and the person both leave");
+        assert_eq!(accounts.space_members().len(), 1);
+        assert!(secrets.get(&member_secret("ab12cd")).is_none());
     }
 
     #[test]

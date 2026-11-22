@@ -174,7 +174,7 @@ fn str_at<'a>(v: &'a Value, pointer: &str) -> Option<&'a str> {
 }
 
 /// A server's address with its path, each part encoded.
-fn endpoint(base: &str, parts: &[&str], query: &[(&str, &str)]) -> Res<String> {
+pub(crate) fn endpoint(base: &str, parts: &[&str], query: &[(&str, &str)]) -> Res<String> {
     let mut url = url::Url::parse(base).map_err(|_| "That isn't a server address.".to_owned())?;
     url.path_segments_mut().map_err(|()| "That isn't a server address.".to_owned())?.pop_if_empty().extend(parts);
     if !query.is_empty() {
@@ -1089,9 +1089,10 @@ pub(crate) mod tests {
                     ("POST", "/_matrix/client/v3/login") => {
                         let ok = (json_body["type"] == "m.login.password" && json_body["password"] == "pw" && json_body["identifier"]["user"] == "ana") || (json_body["type"] == "m.login.token" && json_body["token"] == "the-token");
                         // The local space's account (a 48-character password, as Mobius makes).
-                        if json_body["identifier"]["user"] == "me" && json_body["password"].as_str().is_some_and(|p| p.len() == 48) {
+                        let local = json_body["identifier"]["user"].as_str().filter(|u| *u == "me" || *u == "mobius" || u.starts_with("agent-"));
+                        if let Some(local) = local.filter(|_| json_body["password"].as_str().is_some_and(|p| p.len() == 48)) {
                             minted += 1;
-                            (200, json!({ "user_id": "@me:mobius.localhost", "device_id": format!("DEV{minted}"), "access_token": format!("access-{minted}") }))
+                            (200, json!({ "user_id": format!("@{local}:mobius.localhost"), "device_id": format!("DEV{minted}"), "access_token": format!("access-{minted}") }))
                         } else if ok {
                             minted += 1;
                             (200, json!({ "user_id": "@ana:x", "device_id": format!("DEV{minted}"), "access_token": format!("access-{minted}"), "refresh_token": "refresh-1", "expires_in_ms": 300_000 }))
@@ -1133,6 +1134,12 @@ pub(crate) mod tests {
                     ("PUT", p) if p.starts_with("/_matrix/client/v3/rooms/!ops:x/send/m.room.message/") => (200, json!({ "event_id": "$sent" })),
                     ("POST", "/_matrix/client/v3/rooms/!ops:x/read_markers") => (200, json!({})),
                     ("POST", "/_matrix/client/v3/logout") => (200, json!({})),
+                    // The local space's members: an agent's direct room with the person, named, joined and listed.
+                    ("POST", "/_matrix/client/v3/createRoom") if signed && json_body["is_direct"] == true => (200, json!({ "room_id": format!("!dm-{}:mobius.localhost", json_body["name"].as_str().unwrap_or("")) })),
+                    ("PUT", p) if signed && p.starts_with("/_matrix/client/v3/profile/") => (200, json!({})),
+                    ("POST", p) if signed && (p.starts_with("/_matrix/client/v3/join/") || p.ends_with("/leave")) => (200, json!({})),
+                    ("GET", p) if signed && p.ends_with("/account_data/m.direct") => (404, json!({ "errcode": "M_NOT_FOUND" })),
+                    ("PUT", p) if signed && (p.ends_with("/account_data/m.direct") || p.ends_with("/state/m.room.name/") || p.contains("/send/m.room.message/") && p.contains("!dm-")) => (200, json!({ "event_id": "$x" })),
                     ("POST", "/_matrix/client/v3/createRoom") if signed => (200, json!({ "room_id": if json_body["creation_content"]["type"] == "m.space" { "!space:mobius.localhost" } else { "!general:mobius.localhost" } })),
                     ("PUT", p) if signed && p.starts_with("/_matrix/client/v3/rooms/!space:mobius.localhost/state/m.space.child/") => (200, json!({ "event_id": "$child" })),
                     _ => (404, json!({ "errcode": "M_UNRECOGNIZED", "error": "Unrecognized request" })),

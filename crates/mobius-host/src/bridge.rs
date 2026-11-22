@@ -249,6 +249,15 @@ fn launcher_binding_in(preferences: &Value) -> String {
     mobius_store::keys::renew(&bindings).get("launcherAnywhere").and_then(Value::as_str).unwrap_or("").to_owned()
 }
 
+/// A turn whose answer an agent posts in the local space.
+struct SpaceTurn {
+    bot: String,
+    /// Put first (a scheduled request's name).
+    title: Option<String>,
+    /// The turn's last words so far.
+    last: String,
+}
+
 pub struct Bridge {
     engine: std::sync::OnceLock<String>,
     endpoints: Mutex<crate::endpoints::Endpoints>,
@@ -348,6 +357,8 @@ pub struct Bridge {
     fetch_prices: bool,
     /// For each conversation, the app its last message was sent from ("mail"), so its use is counted there.
     sent_from: Mutex<std::collections::HashMap<String, String>>,
+    /// Turns whose answer goes to the local space, by conversation: the agent, a line to put first, and its last words.
+    space_turns: Arc<Mutex<std::collections::HashMap<String, SpaceTurn>>>,
     /// Small questions a tool is asking the model all at once (`ask_each`), waiting for their answers.
     asks: crate::ask_each::Asks,
     /// Signing in to a gateway that hands out a key (OpenRouter); tests point it at a pretend site.
@@ -505,6 +516,7 @@ impl Bridge {
             prices: Arc::new(crate::usage::PriceList::new(data_dir.join("usage-prices.json"))),
             fetch_prices: std::env::var_os("MOBIUS_TEST").is_none(),
             sent_from: Mutex::new(std::collections::HashMap::new()),
+            space_turns: Arc::new(Mutex::new(std::collections::HashMap::new())),
             asks: crate::ask_each::Asks::default(),
             key_sign_in: Mutex::new(Arc::new(crate::key_sign_in::KeySignIn::new(crate::key_sign_in::OPENROUTER))),
             hf_sign_in: Mutex::new(Arc::new(crate::device_sign_in::DeviceSignIn::hugging_face())),
@@ -567,13 +579,20 @@ impl Bridge {
         let _ = bridge.restore_quick();
         // Once the local space's server answers, the person's account and the space are made (the first time) or brought
         // up to date.
-        // Messages is told, so a window waiting on the space shows it without a reload.
+        // Messages is told, so a window waiting on the space shows it without a reload. Each agent is a member, with a
+        // room of its own.
         let accounts = Arc::clone(&bridge.messages);
         let space_emit = bridge.emit.clone();
+        let bots_file = bridge.data_dir.join("bots.json");
         bridge.homeserver.on_ready(Box::new(move |url, token| {
             let url_owned = url.to_owned();
             let token = token.to_owned();
-            let account = accounts.local_space(url, &move |user, password| crate::homeserver::register(&url_owned, &token, user, password))?;
+            let register = move |user: &str, password: &str| crate::homeserver::register(&url_owned, &token, user, password);
+            let account = accounts.local_space(url, &register)?;
+            let bots: Vec<(String, String)> = Bots::open(bots_file.clone(), Box::new(now_ms)).all().iter().map(|b| (b.id.clone(), b.name.clone())).collect();
+            if let Err(error) = accounts.sync_space_members(&bots, &register) {
+                eprintln!("[space] the agents aren't members yet: {error}");
+            }
             space_emit("mobius:messages-changed", json!({ "account": account, "channel": null }));
             Ok(())
         }));
@@ -2005,23 +2024,36 @@ impl Bridge {
         let Some(request) = agent::parse_send(&json!({ "conversation": conversation, "text": schedule.prompt })) else {
             return failed("That request cannot be sent.");
         };
-        match self.workspace.mark("before a scheduled request") {
-            Ok(Some(mark)) => {
-                let mut marks = lock(&self.turn_marks);
-                marks.insert(conversation.clone(), mark.clone());
-                mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
-                self.turn_history.started(&conversation, &mark, &schedule.prompt);
-            }
-            Ok(None) => {}
-            Err(error) => eprintln!("[changes] no mark before the scheduled request: {error}"),
-        }
+        self.mark_before(&conversation, &schedule.prompt, "before a scheduled request");
         let agent = self.bot_for(&conversation);
+        // Its result is posted by its agent in the local space too, when the space has been made.
+        if self.homeserver.url().is_some() {
+            let bot = bot.unwrap_or(MAIN_ID).to_owned();
+            lock(&self.space_turns).insert(conversation.clone(), SpaceTurn { bot, title: Some(schedule.title.clone()), last: String::new() });
+        }
         let result = self.agent.send_remembering(&request, agent.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.instructions());
+        if result["ok"] != json!(true) {
+            lock(&self.space_turns).remove(&conversation);
+        }
         if result["ok"] == json!(true) {
             (self.emit)("mobius:schedule-ran", json!({ "id": schedule.id, "title": schedule.title, "conversation": conversation }));
             json!({ "ok": true, "conversation": conversation })
         } else {
             result
+        }
+    }
+
+    /// Saves where things stand before a turn the person didn't start from a window, so what it changes can be reviewed.
+    fn mark_before(&self, conversation: &str, ask: &str, why: &str) {
+        match self.workspace.mark(why) {
+            Ok(Some(mark)) => {
+                let mut marks = lock(&self.turn_marks);
+                marks.insert(conversation.to_owned(), mark.clone());
+                mobius_store::file::write_json(&self.data_dir.join("turn-marks.json"), &json!(*marks));
+                self.turn_history.started(conversation, &mark, ask);
+            }
+            Ok(None) => {}
+            Err(error) => eprintln!("[changes] no mark {why}: {error}"),
         }
     }
 
@@ -3773,7 +3805,13 @@ impl Bridge {
                 _ => Err("a conversation is needed".to_owned()),
             },
             "send" => match (text(0), text(1), text(2)) {
-                (Some(a), Some(c), Some(t)) => accounts.send(a, c, t, text(3).filter(|t| !t.is_empty())).inspect(|_| changed(a, Some(c))),
+                (Some(a), Some(c), Some(t)) => accounts.send(a, c, t, text(3).filter(|t| !t.is_empty())).inspect(|_| {
+                    changed(a, Some(c));
+                    // Written to an agent in the local space: it reaches that agent.
+                    if let Some(member) = accounts.space_member_of(a, c) {
+                        self.ask_member(&member, t);
+                    }
+                }),
                 _ => Err("a conversation and a message are needed".to_owned()),
             },
             "markRead" => match (text(0), text(1), text(2)) {
@@ -4645,6 +4683,9 @@ impl Bridge {
         if let Some(n) = agent::parse_notification(method, params) {
             // A turn's end is marked too, so what it changed stays apart from what came after.
             let kind = n["params"]["event"]["kind"].as_str().unwrap_or("");
+            if let Some(conversation) = n["params"]["conversation"].as_str() {
+                self.answer_in_space(conversation, kind, &n["params"]["event"]);
+            }
             // Taken on a thread of its own: this one carries the core's messages and must not wait on the disk.
             // After the start's checkpoint, which may still be being taken when a quick turn ends.
             if let Some(conversation) = n["params"]["conversation"].as_str().filter(|_| matches!(kind, "done" | "cancelled" | "failed")) {
@@ -4747,6 +4788,65 @@ impl Bridge {
 
     fn announce_bots(&self) {
         (self.emit)("mobius:bots-changed", self.bots_state());
+        // The space's members follow, while it runs: on a thread of their own, as its server is asked several things.
+        if let (Some(url), Ok(token)) = (self.homeserver.url(), self.homeserver.token()) {
+            let bots: Vec<(String, String)> = lock(&self.bots).all().iter().map(|b| (b.id.clone(), b.name.clone())).collect();
+            let (accounts, emit) = (Arc::clone(&self.messages), self.emit.clone());
+            std::thread::spawn(move || {
+                match accounts.sync_space_members(&bots, &|user, password| crate::homeserver::register(&url, &token, user, password)) {
+                    Ok(()) => emit("mobius:messages-changed", json!({ "account": null, "channel": null })),
+                    Err(error) => eprintln!("[space] the agents' membership wasn't brought up to date: {error}"),
+                }
+            });
+        }
+    }
+
+    /// What the person wrote in an agent's room in the local space goes to that agent, in its own conversation (seen in
+    /// Agents like any other); the answer comes back to the room when the turn ends.
+    fn ask_member(&self, member: &crate::messages::Member, text: &str) {
+        let Some(request) = agent::parse_send(&json!({ "conversation": member.conversation, "text": text })) else {
+            return;
+        };
+        self.mark_before(&member.conversation, text, "before a request from the space");
+        lock(&self.space_turns).insert(member.conversation.clone(), SpaceTurn { bot: member.bot.clone(), title: None, last: String::new() });
+        let agent = self.bot_for(&member.conversation);
+        let result = self.agent.send_remembering(&request, agent.as_ref().map(|b| (b.instructions.as_str(), b.model.as_str())), &self.instructions());
+        if result["ok"] != json!(true) {
+            lock(&self.space_turns).remove(&member.conversation);
+            let why = result["error"].as_str().unwrap_or("the agent isn't set up");
+            let _ = self.messages.space_post(&member.bot, &format!("I couldn't start on that: {why}"));
+        }
+    }
+
+    /// A turn that ended: if its answer goes to the space, it is posted there by its agent.
+    fn answer_in_space(&self, conversation: &str, kind: &str, event: &Value) {
+        if kind == "message" {
+            if let (Some(turn), Some(text)) = (lock(&self.space_turns).get_mut(conversation), event["text"].as_str()) {
+                text.clone_into(&mut turn.last);
+            }
+            return;
+        }
+        if !matches!(kind, "done" | "failed" | "cancelled") {
+            return;
+        }
+        let Some(turn) = lock(&self.space_turns).remove(conversation) else {
+            return;
+        };
+        let said = match kind {
+            "done" if !turn.last.trim().is_empty() => turn.last.trim().to_owned(),
+            "done" => "Done.".to_owned(),
+            "failed" => "That didn't work out. The details are in Agents.".to_owned(),
+            _ => "Stopped.".to_owned(),
+        };
+        let said = match &turn.title {
+            Some(title) => format!("{title}\n\n{said}"),
+            None => said,
+        };
+        let (accounts, emit) = (Arc::clone(&self.messages), self.emit.clone());
+        std::thread::spawn(move || match accounts.space_post(&turn.bot, &said) {
+            Ok(()) => emit("mobius:messages-changed", json!({ "account": null, "channel": null })),
+            Err(error) => eprintln!("[space] an agent's answer wasn't posted: {error}"),
+        });
     }
 
     fn bot_result(&self, result: Result<bots::Bot, String>) -> Value {
