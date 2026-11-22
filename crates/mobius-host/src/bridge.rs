@@ -325,6 +325,8 @@ pub struct Bridge {
     messages: Arc<crate::messages::Accounts>,
     /// Folders on the person's own servers (WebDAV), opened from Files.
     drives: Arc<crate::drives::Drives>,
+    /// Watches the "This computer" folders so Files refreshes when another app changes them.
+    place_watcher: Mutex<Option<::notify::RecommendedWatcher>>,
     /// Files picked on Google Drive, opened from Files (`drive.file` only).
     google_drive: Mutex<Arc<crate::google_drive::GoogleDrive>>,
     /// Workspace folders synced with a folder on a drive.
@@ -474,6 +476,7 @@ impl Bridge {
             downloads: Mutex::new(Downloads::new(data_dir.join("downloads"))),
             browser: OnceLock::new(),
             dialogs: OnceLock::new(),
+            place_watcher: Mutex::new(None),
             agent,
             appearance: Mutex::new(appearance::open(data_dir.join("appearance.json"))),
             preferences: Mutex::new(preferences::open(data_dir.join("preferences.json"))),
@@ -1310,12 +1313,25 @@ impl Bridge {
         lock(&self.appearance).get().get("zoom").and_then(Value::as_f64).filter(|z| (0.5..=3.0).contains(z)).unwrap_or(1.0)
     }
 
-    /// The browser app and the dialogs are provided by the window system once it exists.
     /// The first time the app runs with places in Files: the person's Desktop, Documents and Downloads are added as
-    /// places ("This computer"). Called by the app, not in tests, so a test's drives start empty.
+    /// places ("This computer"). Called by the app, not in tests, so a test's drives start empty. The places are then
+    /// watched, so Files shows what other apps change in them.
     pub fn seed_places(&self) {
         self.drives.seed_places(&self.data_dir);
+        self.watch_places();
     }
+
+    /// Watches the places as they are now (again after one is added or removed): a change made outside Mobius is
+    /// announced as `mobius:drives-changed` by "another app".
+    fn watch_places(&self) {
+        let emit = self.emit.clone();
+        let watcher = crate::local_drive::watch(self.drives.places(), Arc::new(move |drive: &str, path: &str| {
+            emit("mobius:drives-changed", json!({ "drive": drive, "path": path, "by": "another app" }));
+        }));
+        *self.place_watcher.lock().unwrap_or_else(std::sync::PoisonError::into_inner) = watcher;
+    }
+
+    /// The browser app and the dialogs are provided by the window system once it exists.
 
     pub fn attach(&self, browser: Arc<Browser>, dialogs: Arc<dyn Dialogs>) {
         let _ = self.browser.set(browser);
@@ -3627,10 +3643,19 @@ impl Bridge {
             }
             // This computer: a folder the person picks (or names) becomes a place in Files.
             ("addPlace", path) => match path.map(PathBuf::from).or_else(|| self.dialogs.get().and_then(|d| d.pick_folder())) {
-                Some(path) => drives.add_place(&path).inspect(|place| changed(place.get("id").and_then(Value::as_str).unwrap_or(""), "")),
+                Some(path) => drives.add_place(&path).inspect(|place| {
+                    changed(place.get("id").and_then(Value::as_str).unwrap_or(""), "");
+                    self.watch_places();
+                }),
                 None => Ok(json!({ "ok": false, "cancelled": true })),
             },
-            ("remove", Some(id)) => drives.remove(id).inspect(|_| self.syncs.remove_drive(id)),
+            ("remove", Some(id)) => drives.remove(id).inspect(|_| {
+                self.syncs.remove_drive(id);
+                changed(id, "");
+                if !drives.places().is_empty() || self.place_watcher.lock().is_ok_and(|w| w.is_some()) {
+                    self.watch_places();
+                }
+            }),
             ("signIn", Some(id)) => drives.sign_in(id, text(1).unwrap_or("")).inspect(|_| self.syncs.signed_in(id)),
             // Two-way sync of workspace folders (docs/developers/drives.md, "Two-way sync").
             ("syncPairs", _) => Ok(self.syncs.pairs()),
