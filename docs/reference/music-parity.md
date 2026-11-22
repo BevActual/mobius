@@ -158,7 +158,7 @@ How Live lays it out, and what Music takes from it:
   Ctrl+] go back and forward.
 
 **Shipped in the first cut:**
-- The Library is a tab in the left dock, in front, with Songs as the tab beside it (Ctrl+Alt+B).
+- The Library is a tab in the left dock beside Songs (Ctrl+Alt+B). Songs is the first tab, so the list that shows while the last song reopens stays put; whichever tab the person picks is remembered.
 - The panel holds categories (All, Sounds, Drums, Instruments, Audio Effects) and seven collections. They sit in a
   select, since the dock is under 440 px.
 - All-words and `#tag` search, and the tag filters.
