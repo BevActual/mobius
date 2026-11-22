@@ -254,3 +254,9 @@
 .settings-page .conn-more-glyph { width: 16px; height: 16px; fill: currentColor; }
 .settings-page .conn-confirm { display: inline-flex; gap: var(--sp-1); }
 .settings-page .conn-foot { margin: 0; color: var(--muted); }
+.settings-page .conn-empty { min-height: 40px; }
+.settings-page .conn-add { padding: 0; border: 0; background: none; font: inherit; color: var(--muted); cursor: pointer; }
+.settings-page .conn-add:hover, .settings-page .conn-add:focus-visible { color: var(--ink); }
+.settings-page .conn-find { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 var(--sp-2); margin-left: calc(-1 * var(--sp-2)); border: 0; border-radius: var(--radius-control); background: none; font: inherit; color: var(--ink); cursor: pointer; }
+.settings-page .conn-find:hover, .settings-page .conn-find:focus-visible { background: var(--soft); }
+.settings-page .conn-find span { color: var(--muted); }

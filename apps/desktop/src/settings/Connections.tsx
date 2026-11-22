@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { isNotesFailure, type CalendarAccount, type ChatAccount, type DriveAccount, type MailAccount, type ProviderInfo } from '@mobius/shared';
 import { Menu, type MenuEntry } from '../ui';
-import { Empty } from './primitives';
-import { connectionState, gatherConnections, type Connection, type ConnectionSources } from './connections';
+import { ADD_LABEL, ADJUST_IN, connectionState, gatherConnections, type Connection, type ConnectionSources } from './connections';
 import type { SectionId } from './manifest';
 import { siteHue } from '../browser-spaces';
 
@@ -69,16 +68,21 @@ export function ConnectionsList({ onGo, onOpenApp }: { onGo: (section: SectionId
     { label: 'Chat account…', run: () => onGo('messages') },
     { label: 'Model gateway…', run: () => onGo('providers') },
   ];
+  const addKind: Record<string, () => void> = { mail: () => onGo('mail'), drives: () => onOpenApp?.('files'), chat: () => onGo('messages'), models: () => onGo('providers') };
   return (
     <div className="conn" data-setting="connections.accounts.connections">
       <div className="conn-top">
         <Menu label="Add a connection" entries={add} trigger={<button type="button" className="btn">Add a connection…</button>} />
       </div>
-      {loaded && groups.length === 0 && <Empty>Nothing connected yet. Add a mail account, a drive, a chat account or a model gateway.</Empty>}
       {groups.map((g) => (
         <section key={g.id} className="conn-group" aria-label={g.label}>
           <h4 className="conn-group-title">{g.label}</h4>
           <ul className="conn-list" aria-label={g.label}>
+            {g.items.length === 0 && loaded && (
+              <li className="conn-row conn-empty">
+                <button type="button" className="conn-add" onClick={() => addKind[g.id]?.()} disabled={g.id === 'drives' && !onOpenApp}>{ADD_LABEL[g.id]}</button>
+              </li>
+            )}
             {g.items.map((c) => (
               <li key={c.key} className="conn-row" data-problem={c.problem ? 'true' : undefined}>
                 <span className="conn-mark" data-hue={siteHue(c.service)} aria-hidden="true">{c.service.slice(0, 1)}</span>
@@ -97,7 +101,7 @@ export function ConnectionsList({ onGo, onOpenApp }: { onGo: (section: SectionId
                       {c.problem && <span className="conn-dot" aria-hidden="true" />}{connectionState(c)}
                     </span>
                     <Menu label={`${c.account} actions`} align="end" entries={[
-                      { label: 'Adjust', run: () => adjust(c) },
+                      { label: `Adjust in ${ADJUST_IN[c.kind]}`, run: () => adjust(c) },
                       ...(c.problem ? [{ label: 'Sign in again', run: () => adjust(c) }] : []),
                       { label: 'Disconnect…', run: () => setConfirm(c.key), danger: true, separated: true },
                     ]} trigger={<button type="button" className="strip-btn conn-more" aria-label={`More for ${c.account}`} title="More"><MoreGlyph /></button>} />
@@ -109,7 +113,7 @@ export function ConnectionsList({ onGo, onOpenApp }: { onGo: (section: SectionId
         </section>
       ))}
       <p className="conn-foot">
-        <button type="button" className="link-btn" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Abilities</button>
+        <button type="button" className="conn-find" disabled={!onOpenApp} onClick={() => onOpenApp?.('skills')}>Find more in Abilities <span aria-hidden="true">→</span></button>
       </p>
     </div>
   );

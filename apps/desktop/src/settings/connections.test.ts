@@ -8,7 +8,7 @@ const chat = (id: string, status: ChatAccount['status'], message?: string): Chat
 const provider = (id: string, hasKey: boolean): ProviderInfo => ({ id, name: id.toUpperCase(), baseUrl: '', note: '', keyUrl: null, needsKey: true, hasKey, active: false, storage: 'keychain' });
 
 describe('connections', () => {
-  it('gathers every account under its kind, leaving out empty kinds, places on this computer and keyless gateways', () => {
+  it('gathers every account under its kind, keeping empty kinds, leaving out places on this computer and keyless gateways', () => {
     const groups = gatherConnections({
       mail: [mail('me@gmail.com')],
       calendar: [{ id: 'c', kind: 'caldav', name: 'Fastmail', url: '', username: '', calendars: [], taskLists: [], lastSyncMs: 0, problem: null } as CalendarAccount],
@@ -19,15 +19,16 @@ describe('connections', () => {
     expect(groups.map((g) => [g.label, g.items.map((i) => i.account)])).toEqual([
       ['Mail and calendars', ['me@gmail.com', 'Fastmail']],
       ['Drives', ['Nextcloud']],
+      ['Chat', []],
       ['Models', ['OPENAI']],
     ]);
     expect(groups[0]!.items[0]!.service).toBe('Gmail');
-    expect(groups[2]!.items[0]!.adjust).toEqual({ section: 'providers' });
+    expect(groups[3]!.items[0]!.adjust).toEqual({ section: 'providers' });
   });
 
   it('says what needs you in one sentence, and Connected otherwise', () => {
-    const [g] = gatherConnections({ mail: [], calendar: [], drives: [], providers: [], chat: [chat('a', 'ready'), chat('b', 'signed-out'), chat('c', 'error', 'Token revoked.')] });
-    expect(g!.items.map(connectionState)).toEqual(['Connected', 'Signed out. Sign in again to read and send.', 'Token revoked.']);
+    const g = gatherConnections({ mail: [], calendar: [], drives: [], providers: [], chat: [chat('a', 'ready'), chat('b', 'signed-out'), chat('c', 'error', 'Token revoked.')] });
+    expect(g[2]!.items.map(connectionState)).toEqual(['Connected', 'Signed out. Sign in again to read and send.', 'Token revoked.']);
     expect(connectionState(gatherConnections({ mail: [mail('x@y.org', 'The password was refused.')], calendar: [], drives: [], chat: [], providers: [] })[0]!.items[0]!)).toBe('The password was refused.');
   });
 

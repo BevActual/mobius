@@ -51,7 +51,7 @@ export function mailService(email: string): string {
 const chatProblem = (a: ChatAccount): string | null =>
   a.status === 'ready' ? null : a.status === 'signed-out' ? 'Signed out. Sign in again to read and send.' : (a.message?.trim() || 'Something went wrong with this account.');
 
-/** Every connection, grouped as the page shows them; empty groups are left out. Things on this computer are not accounts. */
+/** Every connection, grouped as the page shows them; a kind with none is still listed, so it can be added. Things on this computer are not accounts. */
 export function gatherConnections(s: ConnectionSources): ConnectionGroup[] {
   const groups: ConnectionGroup[] = [
     { id: 'mail', label: 'Mail and calendars', items: [
@@ -62,8 +62,14 @@ export function gatherConnections(s: ConnectionSources): ConnectionGroup[] {
     { id: 'chat', label: 'Chat', items: s.chat.map((a): Connection => ({ key: `chat:${a.id}`, kind: 'chat', id: a.id, service: CHAT_NAMES[a.service] ?? a.service, account: a.name, problem: chatProblem(a), adjust: { section: 'messages' } })) },
     { id: 'models', label: 'Models', items: s.providers.filter((p) => p.hasKey).map((p): Connection => ({ key: `model:${p.id}`, kind: 'model', id: p.id, service: p.name, account: p.name, detail: p.storage === 'session' ? 'Key kept until Mobius closes' : 'Key in your system’s secret store', problem: null, adjust: { section: 'providers' } })) },
   ];
-  return groups.filter((g) => g.items.length > 0);
+  return groups;
 }
 
 /** The words for a connection's state. */
+/** Where a connection's options are, by name, for its menu's Adjust. */
+export const ADJUST_IN: Record<ConnectionKind, string> = { mail: 'Mail', calendar: 'Calendar', drive: 'Files', chat: 'Messages', model: 'Gateways' };
+
+/** The quiet row of a kind with nothing connected. */
+export const ADD_LABEL: Record<string, string> = { mail: 'Add a mail account or calendar…', drives: 'Add a drive…', chat: 'Add a chat account…', models: 'Add a model gateway…' };
+
 export const connectionState = (c: Connection): string => c.problem ?? 'Connected';
