@@ -76,7 +76,9 @@ export interface SectionProps {
   onRefreshConversations: () => Promise<void>;
   coreStatus: CoreStatus;
   /** Open an app (Extensions) and leave Settings. */
-  onOpenApp?: (id: 'skills') => void;
+  onOpenApp?: (id: 'skills' | 'files') => void;
+  /** Go to another section of Settings (and one of its pages). */
+  onGo?: (section: SectionId, subpage?: string) => void;
 }
 
 const rowPath = (section: SectionId, subpage: string, row: string) => settingPath(section, subpage, row);

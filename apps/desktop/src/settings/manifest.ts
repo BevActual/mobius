@@ -1,4 +1,4 @@
-export type SectionId = 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'connections' | 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -28,6 +28,17 @@ const row = (id: string, label: string, description: string, ...keywords: string
  * settings: sections with subpages, and each row can be found by search. Only what Mobius really has is listed.
  */
 const SECTIONS: readonly SettingsSection[] = [
+  {
+    id: 'connections',
+    label: 'Accounts',
+    description: 'Every account Mobius signs in to, in one place. Each app keeps its own options.',
+    keywords: ['connections', 'accounts', 'sign in', 'signed in', 'log in'],
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [
+        row('connections', 'Accounts', 'Mail and calendars, drives, chat and model gateways: which are connected, which need you to sign in again, and Disconnect.', 'connections', 'accounts', 'gmail', 'outlook', 'icloud', 'fastmail', 'slack', 'teams', 'matrix', 'telegram', 'dropbox', 'onedrive', 'webdav', 's3', 'drive', 'disconnect', 'sign in again', 'connected'),
+      ] },
+    ],
+  },
   {
     id: 'appearance',
     label: 'Appearance',
@@ -309,10 +320,11 @@ const SECTIONS: readonly SettingsSection[] = [
 
 /** The sidebar's order, under its headings, as in System Settings. */
 const ORDER: ReadonlyArray<[SectionId, string]> = [
-  ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'],
-  ['providers', 'Models'], ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
+  ['connections', 'Connections'], ['providers', 'Connections'],
+  ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'], ['sessions', 'Mobius'], ['schedules', 'Mobius'],
+  ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['sessions', 'Apps'], ['schedules', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 

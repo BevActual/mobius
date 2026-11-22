@@ -11,12 +11,14 @@ import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from '../ui';
 import { SectionIcon } from './icons';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
+import { ConnectionsList } from './AccountsPage';
 import { CalendarAccountsSettings } from '../CalendarAccounts';
 import { MessagesAccountsSettings } from '../MessagesAccounts';
 
 type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
+  connections: ({ onGo, onOpenApp }) => <ConnectionsList onGo={onGo ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
   general: GeneralSection,
   voice: VoiceSection,
   memory: MemorySection,
@@ -130,7 +132,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
                 {current.subpages.map((page) => (
                   <section key={page.id} className="settings-group" aria-label={page.label} data-subpage={page.id}>
                     {(current.subpages.length > 1 || page.label !== current.label) && !(page.rows.length === 1 && page.rows[0]!.label === page.label) && <h3 className="settings-group-title">{page.label}</h3>}
-                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} {...rest} /></PageBoundary></div>
+                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} onGo={(id, sub) => { openSection(id); if (sub) setSubpage(sub); }} {...rest} /></PageBoundary></div>
                   </section>
                 ))}
               </>
