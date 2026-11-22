@@ -71,6 +71,8 @@ jobs:
           done
           exit 1
       - run: npm ci
+      - name: Licences (nothing copyleft or AGPL is shipped)
+        run: node scripts/check-licences.mjs
       - name: Types
         run: npm run typecheck
       - name: TypeScript tests
