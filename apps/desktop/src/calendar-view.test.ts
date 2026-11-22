@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { CalendarEvent } from '@mobius/shared';
 import { setLocaleForTests } from './dates';
-import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
+import { answerWord, inviteText, parseInvitees, sameInvitees, calendarGlance, dayLabel, parseDayText, parseTimeText, allDayOn, changedSince, clock, hourLabel, daysFor, dragged, draftEnd, movedByDays, eventsInFile, eventsOn, heading, meetingLink, rangeLabel, searchEvents, isoDay, isoWeek, localDate, parseEventWords, placeDay, snapMinutes, step, weekStart } from './calendar-view';
 import { parseWhen } from './tasks-view';
 
 const ev = (title: string, start: string, end: string, allDay = false): CalendarEvent => ({ id: title, calendar: 'Calendar', title, start, end, allDay, location: '', notes: '', repeats: false });
@@ -48,6 +48,15 @@ describe('the days on screen', () => {
     expect(heading('month', day('2026-11-20'), 'en-GB')).toBe('November 2026');
     expect(heading('week', day('2026-11-12'), 'en-GB')).toBe('November 2026');
     expect(heading('week', day('2026-12-01'), 'en-GB')).toBe('Nov – Dec 2026');
+  });
+  it('names the range beside the title: a day, a week across months, a month, a year', () => {
+    const year = String(new Date().getFullYear());
+    const tail = (y: string) => (y === year ? '' : `, ${y}`);
+    expect(rangeLabel('week', day('2026-11-18'), 'en-US')).toBe(`Nov 16 – 22${tail('2026')}`);
+    expect(rangeLabel('week', day('2026-12-01'), 'en-US')).toBe(`Nov 30 – Dec 6${tail('2026')}`);
+    expect(rangeLabel('day', day('2026-11-22'), 'en-US')).toBe('Sun, Nov 22');
+    expect(rangeLabel('month', day('2026-11-22'), 'en-US')).toBe('November 2026');
+    expect(rangeLabel('year', day('2026-11-22'), 'en-US')).toBe('2026');
     expect(heading('week', day('2026-12-31'), 'en-GB')).toBe('Dec 2026 – Jan 2027');
   });
 
@@ -264,5 +273,14 @@ describe('quick event with a place', () => {
     expect(parseEventWithPlace('Dentist tomorrow at 3pm', now, parseWhen)?.location).toBeUndefined();
     expect(parseEventWithPlace('Lunch at noon', now, parseWhen)?.location).toBeUndefined();
     expect(parseEventWithPlace('Offsite next week in Lisbon', now, parseWhen)).toMatchObject({ title: 'Offsite', location: 'Lisbon', allDay: true });
+  });
+});
+
+describe('meetingLink', () => {
+  it('finds a video meeting link in the place or notes, and nothing else', () => {
+    expect(meetingLink('Room 4\nJoin at https://meet.google.com/abc-defg-hij today')).toBe('https://meet.google.com/abc-defg-hij');
+    expect(meetingLink('https://us02web.zoom.us/j/123?pwd=x')).toBe('https://us02web.zoom.us/j/123?pwd=x');
+    expect(meetingLink('Agenda at https://example.com/doc')).toBeNull();
+    expect(meetingLink('Room 4')).toBeNull();
   });
 });

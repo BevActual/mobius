@@ -83,7 +83,9 @@ test('a calendar file from another app shows in the week, and events are added, 
   await expect(shell().getByRole('region', { name: 'Rest of today' }).locator('.glance-label').first()).toHaveText(/^(Still to come|Next)$/);
 
   // New event: the editor opens at the next hour today.
-  await shell().locator('.app-side-new').click();
+  // N, from the page (New event's + in the tool row opens the one-line entry instead).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('n');
   const editor = shell().getByRole('dialog', { name: 'New event' });
   await editor.getByRole('textbox', { name: 'Title' }).fill('Water the plants');
   await editor.getByRole('switch', { name: 'All day' }).click();
@@ -243,11 +245,12 @@ test('an event the agent adds next week opens Calendar on that week, dashed, wit
   await card.getByRole('button', { name: 'Allow once' }).click();
   await expect(shell().getByRole('log', { name: 'Conversation' }).locator('.msg.assistant')).toHaveText('Kickoff is in for next week.');
 
-  // The week moves to the new event, drawn dashed, and the bar says what changed.
+  // The week moves to the new event, drawn dashed, and a bar floating under it says what changed.
   const kickoff = page().getByRole('button', { name: /^Added by Mobius: Kickoff/ });
   await expect(kickoff).toBeVisible();
   await expect(kickoff).toHaveAttribute('data-proposed', 'true');
-  const bar = page().locator('.cal-review');
+  const bar = page().locator('.cal-change-float');
+  await expect(page().locator('.cal-review')).toHaveCount(0);
   await expect(bar).toContainText('“Kickoff”');
   await bar.getByRole('button', { name: 'Keep' }).click();
   await expect(bar).toHaveCount(0);
@@ -288,7 +291,9 @@ test('a subscribed calendar link shows beside the person\'s own, and its events 
   await expect(view).toHaveCount(0);
 
   // New events go only to calendars that can take them.
-  await shell().locator('.app-side-new').click();
+  // N, from the page (New event's + in the tool row opens the one-line entry instead).
+  await shell().evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await shell().keyboard.press('n');
   await expect(shell().getByRole('dialog', { name: 'New event' }).getByRole('combobox', { name: 'Calendar' })).toHaveCount(0);
   await shell().getByRole('dialog', { name: 'New event' }).getByRole('button', { name: 'Cancel' }).click();
 
