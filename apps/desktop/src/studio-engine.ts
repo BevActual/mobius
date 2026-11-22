@@ -65,7 +65,8 @@ function follow(tempo: () => number, cycle: Cycle | null, from: number) {
   };
   /** The level of a part of the device being watched (see watchDevice), in dB, or null when it isn't reported. */
   const level = (track: string, fx: string, part: string) => at.levels[`${track}/${fx}/${part}`] ?? null;
-  return { at, off, beat, level };
+  const meter = (id: string) => at.meters[id] ?? null;
+  return { at, off, beat, level, meter };
 }
 
 /** Plays the Arrange view from `fromBeat`, round `loop` if given. */
@@ -82,6 +83,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
     beat: f.beat,
     update(next) { song = next; loadSong(next); },
     level: f.level,
+    meter: f.meter,
   };
 }
 
@@ -100,6 +102,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
     stop() { f.off(); send(() => m.stop()); },
     beat: f.beat,
     level: f.level,
+    meter: f.meter,
     launch(trackId, slot) { asked = { ...asked, [trackId]: slot }; send(() => m.launch!(trackId, slot)); },
     update(next) { song = next; loadSong(next); },
     playing() {

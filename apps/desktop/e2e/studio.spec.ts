@@ -565,6 +565,22 @@ test('the Library finds a sound by words and tags, puts it on the chosen track o
   await expect(lib.locator('.studio-library-name')).toHaveText(['Reverb']);
 });
 
+test('the Mixer opens beside the Detail with a strip per track: the fader and Mute change the track in the song', async () => {
+  await start();
+  await shell().getByRole('button', { name: 'Mixer', exact: true }).click();
+  const mixer = shell().getByRole('region', { name: 'Mixer' });
+  await expect(mixer.getByRole('slider', { name: 'Keys volume' })).toBeVisible();
+  const fader = mixer.getByRole('slider', { name: 'Keys volume' });
+  const before = Number(await fader.getAttribute('aria-valuenow'));
+  await fader.focus();
+  // Page Down takes 6 dB off: about half the gain.
+  await shell().keyboard.press('PageDown');
+  await expect(fader).toHaveAttribute('aria-valuenow', String(Math.round((before - 6) * 10) / 10));
+  await expect.poll(() => saved().tracks.find((t) => t.name === 'Keys')!.volume).toBeLessThan(0.6);
+  await mixer.getByRole('button', { name: 'Mute Keys' }).click();
+  await expect.poll(() => (saved().tracks[0] as { muted?: boolean }).muted).toBe(true);
+});
+
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
   await start();
   // Wide enough that the Computer keyboard button stays in the toolbar rather than the ⋯ menu.
