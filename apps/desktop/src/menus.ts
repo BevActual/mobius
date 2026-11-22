@@ -31,7 +31,7 @@ export interface MenuContext {
     miniOpen: boolean;
     zoom: number;
     browser: { hasPage: boolean; canBack: boolean; canForward: boolean; bookmarked: boolean; pinned: boolean };
-    notes: { hasPage: boolean; pinned: boolean; changed: boolean };
+    notes: { hasPage: boolean; pinned: boolean; changed: boolean; checkedLast: boolean };
     docs: { hasPage: boolean; isTemplate: boolean; templates: readonly { path: string; title: string }[] };
     tasks: { inList: boolean; done: number };
     calendar: { mode: 'day' | 'week' | 'month' | 'year' };
@@ -57,7 +57,7 @@ export interface MenuContext {
     allApps: () => void;
     launcher: () => void;
     browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; nextSpace: () => void; previousSpace: () => void; selection: () => void; saveToReader: () => void };
-    notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
+    notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void; checkedLast: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
     video: { newProject: () => void; showFolder: () => void };
@@ -177,6 +177,9 @@ function appMenu(c: MenuContext): Menu | null {
         item('history', 'Version history…', d.notes.history, { disabled: !s.notes.hasPage }),
         item('clip-page', 'Clip a web page…', d.notes.clip, { disabled: !s.notes.hasPage }),
         item('show-markdown', 'Show Markdown', d.notes.markdown, { disabled: !s.notes.hasPage }),
+        separator,
+        // A note option, not a text style (panel look review): Apple Notes' Sort checked items, kept for every note.
+        item('checked-last', 'Move checked items to the bottom', d.notes.checkedLast, { checked: s.notes.checkedLast }),
       ] };
     case 'tasks':
       return { id: 'app', label: 'Tasks', items: [

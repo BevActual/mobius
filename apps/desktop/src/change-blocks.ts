@@ -8,6 +8,7 @@ import { changeGroups, type DiffLine } from './line-diff';
 import { placeChanges } from './docs-view';
 import './change-blocks.css';
 import { afterPaint } from './ui/frame';
+import { MARK_PATHS } from './MobiusMark';
 
 /*
  * Mobius's change block, shared by every page that is written in the editor (Docs, Notes): each change of the agent's
@@ -15,9 +16,9 @@ import { afterPaint } from './ui/frame';
  */
 
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
- *  added, with the words it took out struck through at the top), and under it Discard, Try another and Keep for that
+ *  added, with the words it took out struck through at the top), and floating under it Discard, Try another and Keep for that
  *  change alone. Read from `look` when told to look again. */
-export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
+export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Keeps every change at once: offered in each bar when there are several. */ keepAll?: () => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
 export const changeKey = new PluginKey<DecorationSet>('doc-changes');
 /** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
 function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
@@ -32,20 +33,34 @@ function changeWas(group: number, removed: string[], view: ChangeView, whole: bo
   else for (const line of removed) { const p = document.createElement('p'); p.textContent = line || ' '; old.append(p); }
   return old;
 }
-/** The line over a change's block: who did it, then Discard, Try another and Keep. Over a change taller than the view
- *  it is pinned to the top while the change scrolls by. */
-function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null): HTMLElement {
+/** The Mobius mark, drawn without React for the bar's who. */
+function mark(): SVGSVGElement {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('class', 'mobius-mark');
+  svg.setAttribute('viewBox', '0 0 32 32');
+  svg.setAttribute('width', '14');
+  svg.setAttribute('height', '14');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.style.cssText = 'width:14px;height:14px;fill:currentColor;stroke:none';
+  for (const d of MARK_PATHS) { const path = document.createElementNS(ns, 'path'); path.setAttribute('d', d); svg.append(path); }
+  return svg;
+}
+/** The floating bar under a change's block (the panel look, as ReviewBar's floating ChangeBar draws it): the Mobius
+ *  mark and who did it, then Discard, Try another and Keep (and Keep all when there are several). */
+function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, several = false): HTMLElement {
   const note = document.createElement('div');
-  note.className = 'doc-change';
+  note.className = 'doc-change change-float';
   if (added && view.tall?.has(group)) note.dataset.tall = '';
   note.contentEditable = 'false';
   note.dataset.group = String(group);
-  note.setAttribute('role', 'group');
-  note.setAttribute('aria-label', !added ? 'Words Mobius took out' : removed ? 'A change Mobius made' : 'Words Mobius added');
   const bar = document.createElement('div');
-  bar.className = 'doc-change-bar';
+  bar.className = 'change-float-bar';
+  bar.setAttribute('role', 'group');
+  bar.setAttribute('aria-label', !added ? 'Words Mobius took out' : removed ? 'A change Mobius made' : 'Words Mobius added');
   const who = document.createElement('span');
-  who.textContent = !added ? 'Mobius took this out' : removed ? 'Mobius changed this' : 'Mobius added this';
+  who.className = 'change-float-who';
+  who.append(mark(), !added ? 'Mobius took this out' : removed ? 'Mobius changed this' : 'Mobius added this');
   bar.append(who);
   const button = (label: string, name: string, kind: string, run: () => void) => {
     const b = document.createElement('button');
@@ -63,6 +78,7 @@ function changeNote(group: number, removed: boolean, added: boolean, view: Chang
   bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
   if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
   bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
+  if (several && view.keepAll) bar.append(button('Keep all', 'Keep every change Mobius made here', 'keep', () => look()?.keepAll?.()));
   note.append(bar);
   return note;
 }
@@ -108,17 +124,17 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
     const key = `${g}-${removed.join('\u0000').length}${view.waiting ? '-w' : ''}`;
     const opts = (side: number, k: string) => ({ side, key: `change-${k}-${key}`, stopEvent: () => true, ignoreSelection: true });
     if (own.length) {
-      // The answers sit over the change, where it is read first, in Notes and Docs alike.
+      // The answers float under the change, once it has been read, in Notes and Docs alike.
       const tall = view.tall?.has(g) ? '-tall' : '';
-      marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeNote(g, removed.length > 0, true, view, look), opts(-2, `note${tall}`)));
       if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
+      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look, notes.size > 1), opts(1, `note${tall}${notes.size > 1 ? '-n' : ''}`)));
       continue;
     }
     const near = at.block < 0 ? undefined : tops[blocks[at.block]!.top];
     const pos = !near ? 0 : at.before ? near.from : near.to;
     const side = at.before ? -2 : 1;
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side, `note-${pos}`)));
-    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side + 1, `was-${pos}`)));
+    if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side, `was-${pos}`)));
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look, notes.size > 1), opts(side + 1, `note-${pos}${notes.size > 1 ? '-n' : ''}`)));
   }
   return DecorationSet.create(doc, marks);
 }
@@ -138,7 +154,7 @@ export const changeBlocks = (look: () => ChangeView | null) => Extension.create(
 
 /**
  * Draws the changes again whenever `key` (what should show) changes, and measures which are taller than the scroller,
- * so their answers stay pinned at the top while they scroll by. Returns those changes, for the page's ChangeView.
+ * so their answers stay pinned at the bottom of the view while they scroll by. Returns those changes, for the page's ChangeView.
  */
 export function useTallChanges(editor: Editor | null, scroller: HTMLElement | null, key: string, changesNow: MutableRefObject<ChangeView | null>): MutableRefObject<ReadonlySet<number>> {
   const tallGroups = useRef<ReadonlySet<number>>(new Set());
@@ -162,14 +178,13 @@ export function useTallChanges(editor: Editor | null, scroller: HTMLElement | nu
       if (changesNow.current) changesNow.current = { ...changesNow.current, tall };
       editor.view.dispatch(editor.state.tr.setMeta(changeKey, true));
     };
-    // A pinned note lets go once the bottom of its change has gone up past it.
+    // A pinned bar waits at its change's end until the top of the change has come up into the view.
     const unpin = () => {
       if (editor.isDestroyed) return;
-      const top = scroller.getBoundingClientRect().top;
+      const bottom = scroller.getBoundingClientRect().bottom;
       for (const note of editor.view.dom.querySelectorAll<HTMLElement>('.doc-change[data-tall]')) {
-        const ends = editor.view.dom.querySelectorAll<HTMLElement>(`.doc-change-new[data-group="${note.dataset.group}"]`);
-        const end = ends[ends.length - 1];
-        const past = !!end && end.getBoundingClientRect().bottom < top + note.offsetHeight;
+        const start = editor.view.dom.querySelector<HTMLElement>(`:is(.doc-change-new, .doc-change-old)[data-group="${note.dataset.group}"]`);
+        const past = !!start && start.getBoundingClientRect().top > bottom - note.offsetHeight;
         if (past !== note.hasAttribute('data-past')) note.toggleAttribute('data-past', past);
       }
     };

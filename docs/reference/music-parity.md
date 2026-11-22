@@ -112,7 +112,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | Audio tracks and clips | The engine plays audio clips in Arrange and Session from WAV files in the song's folder, with a 4 ms declick fade | The window: audio tracks, clips and their waveforms | XL |
 | Recording audio from an input | The engine records the armed audio track's input while the song plays, to `Samples/Recorded/<track> <n>.wav` (32-bit float), taking off the round-trip latency; an armed audio track hears its input (Auto monitoring, straight out at the track's volume and pan) | Monitoring through the track's effects; the window's record button and take clips | XL (engine) |
-| Warping: stretch to tempo, warp markers, modes | The engine plays warped clips as Re-Pitch, by the file's tempo or its warp markers | The stretcher for Beats, Tones, Texture, Complex and Complex Pro | L |
+| Warping: stretch to tempo, warp markers, modes | The engine warps clips by the file's tempo or its warp markers: Re-Pitch like a turntable, the other modes keeping pitch with a granular stretcher (Beats on a sixteenth-note grid, Tones short grains, Texture long ones) | Beats' transient detection, Texture's Flux, and a phase-vocoder Complex and Complex Pro for full mixes | L |
 | Stem separation, audio to MIDI | None | Later, local models | L |
 | Export stems, MP3 and FLAC | WAV of the whole song | Stems first | S to M |
 
