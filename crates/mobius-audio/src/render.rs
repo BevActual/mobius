@@ -545,11 +545,25 @@ impl Renderer {
                         n.length = n.length.min(to - n.start);
                     }
                 }
+                // Frozen (38.1.4 "Track Freeze"), Arrange plays its file from the song's start in place of its notes,
+                // clips and effects; Session still plays its clips.
+                let frozen = t.frozen.as_ref().filter(|_| !how.session).and_then(|f| song.sounds.get(&f.file)).map(|sound| AudioClip {
+                    start: 0.0,
+                    length: f64::INFINITY,
+                    offset: 0.0,
+                    cycle: None,
+                    placed: Placed::new(&crate::song::Audio { file: String::new(), gain_db: 0.0, offset: 0.0, warp: false, mode: None, bpm: None, markers: Vec::new() }, sound.clone(), song.tempo),
+                    stretch: Stretch::default(),
+                });
+                let is_frozen = frozen.is_some();
+                if is_frozen {
+                    notes.clear();
+                }
                 let mut auto = if how.session { Vec::new() } else { t.volume_auto.clone() };
                 auto.sort_by(|a, b| a.beat.total_cmp(&b.beat));
                 // Notes that started before the play position are not caught up: they begin where they begin.
                 let next = notes.iter().position(|n| clock.sample_of_beat(n.start) >= start).unwrap_or(notes.len());
-                let audio: Vec<AudioClip> = if how.session { Vec::new() } else {
+                let audio: Vec<AudioClip> = if let Some(frozen) = frozen { vec![frozen] } else if how.session { Vec::new() } else {
                     t.clips
                         .iter()
                         .filter(|c| !c.muted && c.length > 0.0)
@@ -566,9 +580,9 @@ impl Renderer {
                         .collect()
                 };
                 // A sampler track's sound and its drum pads' own sounds, from the files the song has read.
-                let samplers = Samplers::of(t, &song.sounds);
+                let samplers = if is_frozen { Samplers::default() } else { Samplers::of(t, &song.sounds) };
                 // An audio track's sound comes in with two channels, as a sampler's does.
-                let stereo = Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
+                let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -583,7 +597,7 @@ impl Renderer {
                     auto,
                     pan: t.pan,
                     stereo,
-                    chain: Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo),
+                    chain: if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) },
                     fx_key: serde_json::to_string(&t.fx).unwrap_or_default(),
                     voices: Vec::with_capacity(MAX_VOICES),
                     hits: Vec::with_capacity(MAX_VOICES),
@@ -1284,5 +1298,22 @@ mod tests {
         d.sounds.clear();
         let (l, _) = render_song(&d, 48_000);
         assert!(l[500..4_800].iter().any(|x| (x.abs() - 0.2).abs() > 0.05));
+    }
+
+    #[test]
+    fn a_frozen_track_plays_its_file_through_its_volume_and_sends_and_sounds_as_before() {
+        let mut s = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"returns":[{"id":"r","volume":1}],"tracks":[
+            {"id":"a","instrument":"lead","volume":0.5,"pan":0,"sends":{"r":0.25},"fx":[{"id":"f","kind":"filter","on":true}],"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":0.5,"length":1,"velocity":1},{"pitch":67,"start":2,"length":1,"velocity":1}]}]}]}"#).unwrap();
+        let before = render_song(&s, 48_000);
+        // Frozen: its instrument, clips and effects at full volume, in the middle.
+        let (fl, fr) = render_song(&s.for_freezing("a").unwrap(), 48_000);
+        s.sounds.insert("Samples/Processed/Freeze/a Freeze.wav".into(), std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: fl, right: fr }));
+        s.tracks[0].frozen = Some(crate::song::Frozen { file: "Samples/Processed/Freeze/a Freeze.wav".into() });
+        // Its notes and effects no longer play: change them and it sounds the same.
+        s.tracks[0].clips.clear();
+        let after = render_song(&s, 48_000);
+        let worst = before.0.iter().zip(&after.0).chain(before.1.iter().zip(&after.1)).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
+        assert!(worst < 1e-4, "{worst}");
+        assert!(before.0.iter().any(|x| x.abs() > 0.05));
     }
 }

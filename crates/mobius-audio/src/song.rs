@@ -90,6 +90,10 @@ pub struct Track {
     /// manual, chapter 9 "Audio Clips, Tempo, and Warping"), or `"sampler"`, notes on its `sampler`'s sound.
     #[serde(default)]
     pub kind: Option<String>,
+    /// When frozen (Live 12 manual, 38.1.4 "Track Freeze"): the file its instrument, clips and effects were rendered
+    /// to, played in their place from the song's start; its volume, pan and sends still apply.
+    #[serde(default)]
+    pub frozen: Option<Frozen>,
     /// A sampler track's sound (36.8 "Working with Samples").
     #[serde(default)]
     pub sampler: Option<crate::sampler::SamplerSound>,
@@ -136,6 +140,12 @@ pub struct Track {
     /// song does not have is left out.
     #[serde(default)]
     pub sends: std::collections::BTreeMap<String, f64>,
+}
+
+/// A frozen track's sound (relative to the song's folder, as `Samples/Processed/Freeze/Lead Freeze.wav`).
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct Frozen {
+    pub file: String,
 }
 
 /// A drums track's kit (song-format.ts `KitSound`): tune in semitones, decay as a multiple, tone from dark to bright.
@@ -379,6 +389,23 @@ impl Song {
     #[must_use]
     pub fn sampler_of(track: &Track) -> Option<&crate::sampler::SamplerSound> {
         track.sampler.as_ref().filter(|_| track.kind.as_deref() == Some("sampler"))
+    }
+
+    /// The song as one track heard alone for freezing `id`: its instrument, clips and effects at full volume, in the
+    /// middle, sending nothing, through a Main with no effects at 1 (so the file is what goes into its volume and pan).
+    /// `None` when the song has no such track.
+    #[must_use]
+    pub fn for_freezing(&self, id: &str) -> Option<Song> {
+        let mut track = self.tracks.iter().find(|t| t.id == id)?.clone();
+        track.volume = 1.0;
+        track.pan = 0.0;
+        track.muted = false;
+        track.solo = false;
+        track.frozen = None;
+        track.volume_auto.clear();
+        track.sends.clear();
+        track.slots.clear();
+        Some(Song { tracks: vec![track], returns: Vec::new(), main: Main { volume: 1.0, fx: Vec::new() }, ..self.clone() })
     }
 
     /// The song's length in beats.

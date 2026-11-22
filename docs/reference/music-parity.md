@@ -103,7 +103,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Master track with its own effects | The engine plays `main` (effects, then level; 0.8 when unset) | Main in the format and the Mixer | M (format) |
 | Return tracks and sends | The engine plays `returns` (up to 12) and each track's post-fader `sends` | Returns and sends in the format and the Mixer | M (format) |
 | A mixer view | None | Mixer, in Session and as a panel in Arrange | M (library `Mixer` exists) |
-| Freeze and flatten | None | Freeze to audio | M (needs audio) |
+| Freeze and flatten | Freeze in the engine: a track's instrument, clips and effects rendered to Samples/Processed/Freeze and played in their place in Arrange, its volume, pan and sends still live (Live 12 manual, 38.1.4 "Track Freeze") | The window's Freeze/Unfreeze; Session clips; flatten | S |
 | Latency compensation, track delay | Not needed yet | Comes with the engine | — |
 
 ### Audio
@@ -293,6 +293,7 @@ interface Track {
   volume: number; pan: number; muted: boolean; solo: boolean; armed?: boolean;
   sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; instrumentOn?: false;
   kind?: "audio" | "sampler";              // none: notes on its instrument
+  frozen?: { file: string };                // frozen: this file plays in Arrange in place of its notes, clips and effects
   sampler?: SamplerSound;                   // kind "sampler": its notes play this; pads may hold one as `sample`
   sends?: Record<string, number>;           // return id -> level 0..1
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
