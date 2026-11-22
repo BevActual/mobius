@@ -58,6 +58,13 @@ impl Hit {
     }
 
     /// The same hit, starting `samples` into the block it is next played in.
+    /// Where in a block of `n` samples it starts (`n` when not in this one), counting that block off its wait.
+    pub fn wait_within(&mut self, n: usize) -> usize {
+        let wait = self.wait.min(n);
+        self.wait -= wait;
+        wait
+    }
+
     #[must_use]
     pub fn waiting(mut self, samples: usize) -> Hit {
         self.wait = samples;

@@ -1,12 +1,13 @@
-import { useState, type ReactNode } from 'react';
-import type { ConversationInfo } from '@mobius/shared';
-import { ReviewStrip } from './ReviewStrip';
+import { useEffect, useState, type ReactNode } from 'react';
+import type { ConversationInfo, MailDraft } from '@mobius/shared';
+import { APP_ICONS } from './Rail';
+import { KEPT_EVENT, ReviewStrip, WaitingRow } from './ReviewStrip';
 import type { HubTarget } from './search-hub';
 
 /**
- * The resting Mobius panel: a quiet chat. Before anything is asked it shows one line for what waits elsewhere (other
- * chats with a question, the last chat's changes still to keep or discard), which opens to them, and the ideas for
- * what is open as chips just above the message box. Earlier chats are in the panel title's list.
+ * The resting Mobius panel: a quiet chat. Before anything is asked it shows a Waiting for you card of the things that
+ * wait elsewhere (other chats with a question, the last chat's changes, replies Mobius drafted), each with Open, and the
+ * ideas for what is open as chips just above the message box. Earlier chats are in the panel title's list.
  */
 export interface Resting {
   /** Other chats waiting for your answer or approval. */
@@ -36,40 +37,81 @@ export function RestingPanel({ conversations, active, onSelect, onOpenItem, idea
   glance?: ReactNode;
 }) {
   const r = restingOf(conversations, active);
-  const [changes, setChanges] = useState(false);
-  const [open, setOpen] = useState(false);
-  const waiting = r.needsYou.length;
-  // One line for what waits elsewhere (Andrew, 21 November 2026: the panel is a conversation first): it opens to the
-  // chats that wait and the last chat's changes. Earlier chats are in the title's list.
-  const said = [waiting > 0 ? `${waiting} waiting` : '', changes ? 'changes to review' : ''].filter(Boolean).join(' · ');
+  const [changes, setChanges] = useState(0);
+  const drafts = useSuggestedReplies();
+  // What waits for you, as the things themselves (the panel look, 22 November 2026): chats with a question, then the
+  // last chat's changes and the replies Mobius drafted, each opened where it is. Kept there, never here: an app's own
+  // bar holds Keep. Nothing waiting, no card.
+  const count = r.needsYou.length + (changes > 0 ? 1 : 0) + drafts.length;
+  const names = useContactNames(drafts.map((d) => d.to));
+  const [all, setAll] = useState(false);
   return (
     <div className="resting">
       {glance}
-      {(r.needsYou.length > 0 || r.latest) && (
-        <section className="resting-part resting-waiting" aria-label="Waiting for you" data-open={open || undefined} hidden={!said || undefined}>
-          <button type="button" className="resting-status" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
-            <span className="resting-status-dot" aria-hidden="true" />
-            <span className="resting-status-text">{said}</span>
-            <span className="resting-status-more">{open ? 'Hide' : 'Review'}</span>
-          </button>
-          <div className="resting-status-list" hidden={!open}>
-            {r.needsYou.map((c) => (
-              <button key={c.id} type="button" className="resting-row resting-needs" onClick={() => onSelect(c.id)} title={`Open ${c.title}`}>
-                <span className="resting-row-title">{c.title}</span>
-                <span className="resting-row-meta">{c.waiting === 1 ? 'Needs your answer' : c.waiting > 1 ? `${c.waiting} questions` : 'Needs you'}</span>
-              </button>
-            ))}
-            {/* The last chat's changes, with Keep and Discard; it says nothing when none are left. Kept mounted, so the
-                line knows whether there are any. */}
-            {r.latest && (
-              <div className="resting-changes" data-from={r.latest.title}>
-                <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onShown={setChanges} />
-              </div>
-            )}
-          </div>
-        </section>
-      )}
+      <section className="resting-part waiting-card" aria-label="Waiting for you" hidden={count === 0 || undefined} data-all={all || undefined}>
+        <h2 className="waiting-card-title">Waiting for you <span className="waiting-card-count">· {count}</span></h2>
+        {r.needsYou.map((c) => (
+          <WaitingRow key={c.id} icon={APP_ICONS.agent} name={c.title} state={c.waiting === 1 ? 'Needs your answer' : c.waiting > 1 ? `${c.waiting} questions` : 'Needs you'} onOpen={() => onSelect(c.id)} />
+        ))}
+        {/* Kept mounted, so the card knows how many changes wait. */}
+        {r.latest && <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onCount={setChanges} variant="waiting" title={r.latest.title} onOpenChat={() => onSelect(r.latest!.id)} />}
+        {drafts.map((d) => (
+          <WaitingRow key={d.id} icon={APP_ICONS.mail} name={`Reply to ${names[d.to] ?? nameOf(d.to)}`} state={`Draft ready · ${d.subject || 'no subject'}`} title={d.to}
+            onOpen={onOpenItem && d.replyTo ? () => onOpenItem({ app: 'mail', id: d.replyTo! }) : undefined} />
+        ))}
+        {/* Three at most, then the rest behind a quiet "N more". */}
+        {count > 3 && <button type="button" className="waiting-more" aria-expanded={all} onClick={() => setAll((a) => !a)}>{all ? 'Show fewer' : `${count - 3} more`}</button>}
+      </section>
       <section className="resting-part resting-ideas" aria-label="Ideas">{ideas}</section>
     </div>
   );
+}
+
+/**
+ * "Priya Nair <priya@…>, sam@…" → "Priya Nair": the first person a reply goes to, by name where the address carries one,
+ * else the address's part before the @ with a capital ("priya@…" → "Priya"). The address book's name wins (useContactNames).
+ */
+export function nameOf(to: string): string {
+  const first = to.split(',')[0]?.trim() ?? '';
+  const named = /^"?([^"<]+?)"?\s*<[^>]+>$/.exec(first);
+  if (named) return named[1]!.trim();
+  const local = /^([^@\s]+)@/.exec(first)?.[1]?.split(/[._+-]/)[0];
+  return local ? local[0]!.toUpperCase() + local.slice(1) : first || 'someone';
+}
+
+/** The address of the first person in a To line ("Priya <priya@x>, …" → "priya@x"). */
+const firstAddress = (to: string): string => {
+  const first = to.split(',')[0]?.trim() ?? '';
+  return (/<([^>]+)>/.exec(first)?.[1] ?? first).trim();
+};
+
+/** Names from the address book for each To line's first address, where a card has it. */
+function useContactNames(tos: readonly string[]): Record<string, string> {
+  const [names, setNames] = useState<Record<string, string>>({});
+  const key = tos.join('\n');
+  useEffect(() => {
+    let live = true;
+    void Promise.all(tos.map(async (to) => {
+      const card = await window.mobius.contacts?.byEmail(firstAddress(to)).catch(() => null);
+      return [to, card && 'name' in card && card.name ? card.name : null] as const;
+    })).then((got) => { if (live) setNames(Object.fromEntries(got.filter((g): g is readonly [string, string] => g[1] !== null))); });
+    return () => { live = false; };
+    // The list by value: a new array with the same addresses reads nothing again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return names;
+}
+
+/** The replies Mobius drafted in Mail that are not yet yours, read again when Mail changes. */
+function useSuggestedReplies(): MailDraft[] {
+  const [drafts, setDrafts] = useState<MailDraft[]>([]);
+  useEffect(() => {
+    let live = true;
+    const read = () => void window.mobius.mail?.drafts().then((got) => { if (live && Array.isArray(got)) setDrafts(got.filter((d) => d.by === 'mobius')); }, () => undefined);
+    read();
+    const off = window.mobius.mail?.onChanged?.(read);
+    window.addEventListener(KEPT_EVENT, read);
+    return () => { live = false; off?.(); window.removeEventListener(KEPT_EVENT, read); };
+  }, []);
+  return drafts;
 }

@@ -6,7 +6,7 @@ import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
-import { countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice } from './studio-engine';
+import { armKeys, countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -761,6 +761,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The engine reports the levels of the device open in the Workbench, for its cables.
   const watched = bench && editing && detail === 'device' ? bench : null;
   useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
+  useEffect(() => { void engineReady().then(() => armKeys(selected)); }, [selected]);
   useEffect(() => { if (song) loadSong(song); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
@@ -1378,7 +1379,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     });
   };
   const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
-    <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} source={mixSource} playing={playing} />
+    <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} setSong={change} source={mixSource} playing={playing} />
   ) };
   // The Library is a tab after Songs, so the songs list that shows while the last song reopens stays in front when
   // it does (a tab group's first panel is in front until the person picks another, which is then remembered).

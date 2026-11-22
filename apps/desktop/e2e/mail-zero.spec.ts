@@ -53,8 +53,10 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await dialog.getByLabel('App password').fill('app-pass');
   await dialog.getByRole('button', { name: 'Connect' }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(inbox().getByRole('option')).toHaveCount(2);
+  // The inbox opens on its Important tab: the terrace mail is from a person; the booking is under Other.
+  await expect(inbox().getByRole('option')).toHaveCount(1);
 }
+const tab = (name: RegExp) => page().getByRole('tab', { name });
 
 test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, Undo all puts it back', async () => {
   await start();
@@ -75,39 +77,51 @@ test('Get to zero is a plan in the Mobius panel: keep it and the inbox empties, 
   expect(servers.commands).toContain('UID MOVE 8 "Archive"');
   await expect.poll(() => fs.existsSync(todos()) && fs.readFileSync(todos(), 'utf8')).toContain('Terrace + lunch for the 13th (Rui Almeida)');
   await zero.getByRole('button', { name: 'Undo all' }).click();
-  await expect(inbox().getByRole('option')).toHaveCount(2);
+  await expect(inbox().getByRole('option')).toHaveCount(1);
   expect(servers.commands.some((c) => c.startsWith('UID MOVE') && c.endsWith('"INBOX"')), 'and back to the inbox there').toBe(true);
   await expect.poll(() => fs.readFileSync(todos(), 'utf8')).not.toContain('Terrace');
   // Discard plan leaves everything as it was.
   await shell().getByRole('button', { name: 'Get to zero' }).click();
   await zero.getByRole('button', { name: 'Discard plan' }).click();
-  await expect(inbox().getByRole('option')).toHaveCount(2);
+  await expect(inbox().getByRole('option')).toHaveCount(1);
   // While one email is open the panel is about that email: the inbox plan steps aside, and comes back with none open.
   await inbox().getByRole('option').first().click();
   await expect(zero).toHaveCount(0);
 });
 
-test('the keys are told in the hint bar at the list\'s foot, not a tooltip over it; E archives and H puts off the open message', async () => {
+test('the keys are told in the hint bar at the list\'s foot, not a tooltip over it; E is Done and H asks when to bring the open message back', async () => {
   await start();
   await expect(page().getByLabel('Keyboard')).toHaveCount(0);
   await expect(inbox()).not.toHaveAttribute('title', /.+/);
   await expect(inbox()).toHaveAttribute('aria-keyshortcuts', 'E R Shift+R F U H');
   // Opening a message gives it the keyboard: E and H act on it at once.
+  await tab(/^Other/).click();
   await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
   await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
   await shell().keyboard.press('e');
-  await expect(inbox().getByRole('option')).toHaveCount(1);
-  // Ctrl+Z takes the archive back, as the toast's Undo does; E then archives it again.
+  await expect(inbox().getByRole('option')).toHaveCount(0);
+  // Ctrl+Z takes the Done back, as the toast's Undo does; E then marks it done again.
   await shell().keyboard.press('Control+z');
-  await expect(inbox().getByRole('option')).toHaveCount(2);
+  await expect(inbox().getByRole('option')).toHaveCount(1);
   await inbox().getByRole('option').filter({ hasText: 'Your booking' }).click();
   await expect(page().getByRole('article', { name: 'Your booking LX7Q2M' })).toBeFocused();
   await shell().keyboard.press('e');
-  await expect(inbox().getByRole('option')).toHaveCount(1);
+  await expect(inbox().getByRole('option')).toHaveCount(0);
+  // Tab moves between the split tabs, from the list: Other wraps round to Important.
+  await tab(/^Other/).focus();
+  await shell().keyboard.press('Tab');
+  await expect(tab(/^Important/)).toHaveAttribute('aria-selected', 'true');
   await inbox().getByRole('option').first().click();
   await expect(page().getByRole('article', { name: 'Terrace + lunch for the 13th' })).toBeFocused();
+  // H asks when: a few choices with their times, or a time in words.
   await shell().keyboard.press('h');
+  const later = page().getByRole('dialog', { name: 'Later' });
+  await later.getByRole('textbox', { name: 'When, in words' }).fill('in 2 hours');
+  await later.getByRole('textbox', { name: 'When, in words' }).press('Enter');
   await expect(inbox().getByRole('option')).toHaveCount(0);
+  await shell().getByRole('region', { name: 'Folders' }).getByRole('button', { name: /^Later/ }).click();
+  await expect(inbox().getByRole('option')).toHaveCount(1);
+  await expect(inbox().getByRole('option').first()).toContainText('Back');
 });
 
 test('Send later on a kept draft: Scheduled by you, and Unschedule', async () => {

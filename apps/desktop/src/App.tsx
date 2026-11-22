@@ -93,7 +93,7 @@ import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
-import { parseLayout } from './ui/PanelLayout';
+import { parseLayout, pressIs } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
@@ -131,13 +131,16 @@ const NOTICES: Record<string, string> = {
   blocked: 'Mobius only opens web addresses (http or https).',
 };
 
+/** The key that shows and hides Mobius beside the work. */
+const MOBIUS_KEYS = 'mod+shift+m';
+
 /** The toolbar's Mobius button. Pressed means Mobius is in front: while it has stepped aside for the inspector (a window
  * with room for only one of the two) it shows not pressed, and a press brings it forward instead of closing it. */
 function MobiusButton({ open, toggle }: { open: boolean; toggle: () => void }) {
   const { aside, bringForward } = useMobiusStepAside();
   const front = open && !aside;
   return (
-    <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={front} aria-label={front ? 'Hide Mobius' : 'Show Mobius'} title={front ? 'Hide Mobius' : 'Ask Mobius, beside the work'}
+    <button type="button" className="strip-btn strip-mobius" data-mobius-face aria-pressed={front} aria-label={front ? 'Hide Mobius' : 'Show Mobius'} title={`${front ? 'Hide Mobius' : 'Ask Mobius, beside the work'} (${describeCombo(MOBIUS_KEYS, window.mobius.platform)})`}
       onClick={open && aside ? bringForward : toggle}>
       <svg viewBox="0 0 20 20" aria-hidden="true">{APP_ICONS.agent}</svg>
     </button>
@@ -789,6 +792,18 @@ export function App() {
   const lastWaiting = useRef('');
   if (waitingNow) lastWaiting.current = waitingNow;
   const toggleMobius = () => { if (rightOpen) { hideRight(); } else { hides.current += 1; setLearnOpen(false); setChatOpen(true); setFocusToken((n) => n + 1); } };
+  // Ctrl+Shift+M (Cmd on macOS) shows and hides Mobius beside the work, as its button does.
+  const mobiusKey = useRef<(() => void) | null>(null);
+  mobiusKey.current = hasRight ? toggleMobius : null;
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.defaultPrevented || !mobiusKey.current || !pressIs(MOBIUS_KEYS, event, window.mobius.platform === 'darwin')) return;
+      event.preventDefault();
+      mobiusKey.current();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   useEffect(() => { if (chatOpen) hides.current += 1; }, [chatOpen]);
   const rightFromEdge = useRef(false);
   // The floating agent panel came out because the pointer reached the edge (not the toolbar button or a shortcut).

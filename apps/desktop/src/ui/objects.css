@@ -326,6 +326,8 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
 .ui-letter:disabled { opacity: 0.4; }
 
 /* Transport: icon buttons in a row; filled glyphs for play, pause, stop and record. */
+.ui-tool-group { display: inline-flex; align-items: center; gap: calc(var(--sp-1) / 2); padding: calc(var(--sp-1) / 2); border-radius: var(--radius-control); background: color-mix(in srgb, var(--sel) 45%, transparent); }
+.ui-tool-group svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .ui-transport { display: inline-flex; align-items: center; gap: calc(var(--sp-1) / 2); }
 .ui-transport svg { fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
 .ui-transport svg[data-fill] { fill: currentColor; stroke: none; }

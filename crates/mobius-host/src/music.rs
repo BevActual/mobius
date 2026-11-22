@@ -25,6 +25,8 @@ pub struct Music {
     start: Mutex<f64>,
     /// The loop and click of the last `play`, kept when the playhead moves.
     how: Mutex<Playing>,
+    /// The track a keyboard plays, by id: armed again from each song the window sends, so it plays the sound as edited.
+    armed: Mutex<Option<String>>,
     /// Set while a thread is sending the position, so only one does.
     reporting: Arc<AtomicBool>,
     emit: crate::bridge::Emit,
@@ -49,7 +51,7 @@ pub fn song_of(value: &Value) -> Result<Song, String> {
 
 impl Music {
     pub fn new(emit: crate::bridge::Emit) -> Music {
-        Music { engine: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), reporting: Arc::new(AtomicBool::new(false)), emit }
+        Music { engine: Mutex::new(None), song: Mutex::new(None), start: Mutex::new(0.0), how: Mutex::new(Playing::default()), armed: Mutex::new(None), reporting: Arc::new(AtomicBool::new(false)), emit }
     }
 
     /// The engine, opening the sound output the first time.
@@ -83,6 +85,13 @@ impl Music {
                 (Value::String(track), Value::String(fx)) => self.watch(Some((track, fx))),
                 _ => Err("a track and an effect, or null, are needed".to_owned()),
             },
+            "midiInputs" => Ok(json!({ "ok": true, "inputs": mobius_audio::midi::inputs(), "listening": lock(&self.engine).as_ref().and_then(|e| e.listening()) })),
+            "listen" => self.listen(arg(0).as_str()),
+            "arm" => self.arm(arg(0).as_str()),
+            "press" => match arg(0).as_u64().and_then(|p| u8::try_from(p).ok()).filter(|p| *p < 128) {
+                Some(pitch) => self.press(pitch, arg(1).as_f64()),
+                None => Err("a pitch is needed".to_owned()),
+            },
             "countIn" => self.count_in(arg(0).as_u64().and_then(|b| usize::try_from(b).ok()), arg(1).as_f64()),
             "stop" => self.stop(),
             "seek" => match arg(0).as_f64() {
@@ -104,6 +113,9 @@ impl Music {
         let song = song_of(value)?;
         if let Some(e) = lock(&self.engine).as_ref() {
             e.update(&song)?;
+            if let Some(id) = lock(&self.armed).as_deref() {
+                e.arm(song.tracks.iter().find(|t| t.id == id));
+            }
         }
         *lock(&self.song) = Some(song);
         Ok(json!({ "ok": true }))
@@ -155,6 +167,37 @@ impl Music {
         let song = lock(&self.song);
         let track = song.as_ref().ok_or("load a song first")?.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
         engine.preview(track, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        self.report(engine);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// Listen to the MIDI keyboard called `input`, or to none.
+    fn listen(&self, input: Option<&str>) -> Result<Value, String> {
+        let listening = self.engine()?.listen(input)?;
+        Ok(json!({ "ok": true, "listening": listening }))
+    }
+
+    /// Play the keyboard (MIDI, or the window's own `press`) on a track of the loaded song, or on none.
+    fn arm(&self, track: Option<&str>) -> Result<Value, String> {
+        let engine = self.engine()?;
+        let song = lock(&self.song);
+        // With no song yet it is armed once one comes.
+        let found = match (track, song.as_ref()) {
+            (Some(id), Some(song)) => Some(song.tracks.iter().find(|t| t.id == id).ok_or_else(|| format!("No track \"{id}\" in the song."))?),
+            _ => None,
+        };
+        engine.arm(found);
+        *lock(&self.armed) = track.map(str::to_owned);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// A key pressed on the armed track, held until `press` again with no velocity (0) lifts it.
+    fn press(&self, pitch: u8, velocity: Option<f64>) -> Result<Value, String> {
+        let engine = self.engine()?;
+        match velocity.filter(|v| *v > 0.0) {
+            Some(v) => engine.press(pitch, v.clamp(0.0, 1.0))?,
+            None => engine.lift(pitch)?,
+        }
         self.report(engine);
         Ok(json!({ "ok": true }))
     }

@@ -1,4 +1,4 @@
-import { BEATS_PER_BAR, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track, trackNotes } from './song-format';
+import { BEATS_PER_BAR, MAIN_VOLUME, KIT_DEFAULTS, PAD_DEFAULTS, audible, autoValueAt, builtinDevice, drumKit, type DrumPad, type Effect, type Instrument, type KitSound, type Song, type Sound, type Track, trackNotes } from './song-format';
 import { cableEnd, type Device } from './device-format';
 import { clipHits, nextBar, songBeat, type Cycle } from './studio-view';
 
@@ -295,8 +295,35 @@ export function deviceGraph(ctx: BaseAudioContext, input: AudioNode, device: Dev
   return ceiling;
 }
 
-/** A track's way into the mix: its volume, then its effects, then its place left to right. Notes connect to `input`. */
-function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsPerBeat: number, lfos: OscillatorNode[] = [], tap?: (fx: string, part: string, node: AudioNode) => void): AudioNode {
+/**
+ * Main and the return tracks, as the engine mixes them: each return's effects, volume and pan into Main, then Main's
+ * effects and volume. Tracks connect to `into`, and send to a return's input. Made when playing starts.
+ */
+export interface Bus { into: AudioNode; returns: Map<string, AudioNode> }
+function busFor(ctx: BaseAudioContext, song: Song, spb: number): Bus {
+  const volume = ctx.createGain();
+  volume.gain.value = song.main?.volume ?? MAIN_VOLUME;
+  volume.connect(ctx.destination);
+  const into = ctx.createGain();
+  effectChain(ctx, into, song.main?.fx ?? [], spb).connect(volume);
+  const returns = new Map<string, AudioNode>();
+  for (const r of song.returns ?? []) {
+    if (r.muted) continue;
+    const input = ctx.createGain();
+    const level = ctx.createGain();
+    level.gain.value = r.volume;
+    effectChain(ctx, input, r.fx ?? [], spb).connect(level);
+    let out: AudioNode = level;
+    if (r.pan) { const pan = ctx.createStereoPanner(); pan.pan.value = r.pan; out.connect(pan); out = pan; }
+    out.connect(into);
+    returns.set(r.id, input);
+  }
+  return { into, returns };
+}
+
+/** A track's way into the mix: its volume, then its effects, then its place left to right, and its sends after that. Notes connect to `input`. */
+function trackStrip(ctx: BaseAudioContext, t: Track, bus: Bus, secondsPerBeat: number, lfos: OscillatorNode[] = [], tap?: (fx: string, part: string, node: AudioNode) => void): AudioNode {
+  const master = bus.into;
   const input = ctx.createGain();
   input.gain.value = t.volume;
   let out = effectChain(ctx, input, t.fx ?? [], secondsPerBeat, lfos, tap);
@@ -307,6 +334,15 @@ function trackStrip(ctx: BaseAudioContext, t: Track, master: AudioNode, secondsP
     out = pan;
   }
   out.connect(master);
+  // Sends are taken after the fader (Live's default), so a send follows the track's volume.
+  for (const [id, amount] of Object.entries(t.sends ?? {})) {
+    const to = bus.returns.get(id);
+    if (!to || amount <= 0) continue;
+    const send = ctx.createGain();
+    send.gain.value = amount;
+    out.connect(send);
+    send.connect(to);
+  }
   return input;
 }
 
@@ -372,9 +408,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
   let song = songIn;
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
-  const master = ctx.createGain();
-  master.gain.value = 0.8;
-  master.connect(ctx.destination);
+  const master = busFor(ctx, song, 60 / song.tempo);
   const noiseBuf = noise(ctx);
   const spb = 60 / song.tempo;
   const total = song.bars * BEATS_PER_BAR;
@@ -401,7 +435,7 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
       if (click) {
         for (let b = Math.ceil(s - 1e-6); b < s + span; b++) {
           if (at(b) < ctx.currentTime) continue;
-          tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
+          tick(ctx, master.into, at(b), b % BEATS_PER_BAR === 0);
         }
       }
       for (const t of audible(song)) {
@@ -435,13 +469,13 @@ export function play(songIn: Song, fromBeat = 0, loop: Cycle | null = null, clic
 }
 
 /** What a track's strip is built from: its pan and effects. Its volume is set on it as it changes. */
-export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? []]);
+export const stripKey = (t: Track) => JSON.stringify([t.pan, t.fx ?? [], t.sends ?? {}]);
 
 /**
  * Each track's strip, made the first time it plays and kept, so echoes and reverb tails carry on. A change to its pan
  * or effects makes a new one (the old one lets what it is playing ring out); a change of volume moves its fader.
  */
-function stripsFor(ctx: BaseAudioContext, master: AudioNode, spb: number): ((t: Track) => AudioNode) & { level: (track: string, fx: string, part: string) => number | null } {
+function stripsFor(ctx: BaseAudioContext, master: Bus, spb: number): ((t: Track) => AudioNode) & { level: (track: string, fx: string, part: string) => number | null } {
   const strips = new Map<string, { key: string; volume: number; out: AudioNode; lfos: OscillatorNode[]; taps: Map<string, AnalyserNode> }>();
   const strip = (t: Track) => {
     const key = stripKey(t);
@@ -491,9 +525,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
   let song = songIn;
   const ctx = new AudioContext();
   void ctx.resume().catch(() => {});
-  const master = ctx.createGain();
-  master.gain.value = 0.8;
-  master.connect(ctx.destination);
+  const master = busFor(ctx, song, 60 / song.tempo);
   const noiseBuf = noise(ctx);
   const spb = 60 / song.tempo;
   const start = ctx.currentTime + 0.08;
@@ -518,7 +550,7 @@ export function playSession(songIn: Song, click = false, launches: SessionQueued
       const bar = nextBar(scheduled + 1e-6);
       const to = Math.min(until, bar);
       const at = (b: number) => start + b * spb;
-      if (click) for (let b = Math.ceil(scheduled - 1e-6); b < to - 1e-9; b++) if (at(b) >= ctx.currentTime) tick(ctx, master, at(b), b % BEATS_PER_BAR === 0);
+      if (click) for (let b = Math.ceil(scheduled - 1e-6); b < to - 1e-9; b++) if (at(b) >= ctx.currentTime) tick(ctx, master.into, at(b), b % BEATS_PER_BAR === 0);
       const heard = new Set(audible(song).map((t) => t.id));
       for (const t of song.tracks) {
         const now = playing[t.id];
@@ -577,9 +609,7 @@ export async function renderSong(song: Song, sampleRate = 44100, onProgress?: (d
     }
   }
   signal?.throwIfAborted();
-  const master = ctx.createGain();
-  master.gain.value = 0.8;
-  master.connect(ctx.destination);
+  const master = busFor(ctx, song, 60 / song.tempo);
   const noiseBuf = noise(ctx);
   for (const t of audible(song)) {
     const out = trackStrip(ctx, t, master, spb);

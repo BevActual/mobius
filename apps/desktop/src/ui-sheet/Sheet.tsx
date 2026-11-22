@@ -11,6 +11,8 @@ import {
   DateField, TimeField, TimeRange, MonthPicker,
   MixerStrip,
   SendKnob,
+  TOOL_ICONS,
+  ToolGroup,
   Sends,
   PatchCanvas, Port, layoutFlow, type PatchBox, type PatchCable, type PatchLevels, type PatchSelection,
   BeforeAfter, HoldButton, useHold,
@@ -191,6 +193,18 @@ function MixerDemo() {
       ))}
       {/* Main: no pan, mute or solo, so only its fader and meter, level with the tracks'. */}
       <MixerStrip name="Main" volume={main} onVolume={setMain} meter={(m) => { meters.current[tracks.length] = m; m?.set(-9, -8); }} />
+    </div>
+  );
+}
+
+function ToolRowDemo() {
+  const b = (icon: keyof typeof TOOL_ICONS, label: string, keys?: string) => <IconButton key={label} label={label} icon={TOOL_ICONS[icon]} {...(keys ? { keys } : {})} onClick={() => {}} />;
+  return (
+    <div className="sheet-row">
+      <ToolGroup label="Reply">{b('reply', 'Reply', 'R')}{b('replyAll', 'Reply all', 'Shift+R')}{b('forward', 'Forward', 'F')}</ToolGroup>
+      <ToolGroup label="Sort">{b('done', 'Done', 'E')}{b('later', 'Later', 'H')}{b('flag', 'Flag', 'S')}</ToolGroup>
+      <ToolGroup label="Song">{b('tap', 'Tap tempo')}{b('mixer', 'Mixer', 'Ctrl+Alt+M')}{b('automation', 'Automation', 'A')}{b('export', 'Export audio')}</ToolGroup>
+      <ToolGroup label="Page">{b('reader', 'Reader view')}{b('save', 'Save', 'Ctrl+D')}{b('comments', 'Comments')}</ToolGroup>
     </div>
   );
 }
@@ -697,6 +711,9 @@ export function Sheet() {
 
         <Card title="Mixer strips (Music's mixer: name, pan, fader beside the meter, M S R). Keys and pad layer: Mobius moved its volume and pan" shot="mixer" wide>
           <MixerDemo />
+        </Card>
+        <Card title="Tool row icons in groups (the panel look: icons for familiar actions, keys in the tooltips)" shot="tool-icons">
+          <ToolRowDemo />
         </Card>
         <Card title="Send knobs (above pan in each mixer strip, one per return; Keys' send B moved by Mobius; a return keeps the room empty)" shot="sends">
           <SendsDemo />

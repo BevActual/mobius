@@ -37,6 +37,12 @@ describe('mailboxes', () => {
   it('Flagged holds flagged mail from Inbox, Archive and Sent', () => {
     expect(inBox('flagged', all).map((x) => x.id)).toEqual(['flagged', 'sent-flagged']);
   });
+  it('Later holds what is put off, soonest back first; Other is everything but Important', () => {
+    const now = 1_000;
+    const later = [m('back-soon', { laterMs: 2_000 }), m('back-later', { laterMs: 5_000 }), m('due', { laterMs: 500 }), m('sorted', { category: 'updates' })];
+    expect(inBox('later', later, 'all', now).map((x) => x.id)).toEqual(['back-soon', 'back-later']);
+    expect(inBox('inbox', later, 'other', now).map((x) => x.id)).toEqual(['sorted']);
+  });
   it('Archive holds archived inbox mail only', () => {
     expect(inBox('archive', all).map((x) => x.id)).toEqual(['archived']);
   });

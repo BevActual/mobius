@@ -1244,6 +1244,14 @@ export interface MobiusBridge {
     preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
     /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
     countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
+    /** The MIDI keyboards the computer has, and the one listened to (null for none). */
+    midiInputs?(): Promise<{ ok: true; inputs: string[]; listening: string | null } | NotesFailure>;
+    /** Listen to the MIDI keyboard called `input` (or to none, with null): it plays the armed track. */
+    listen?(input: string | null): Promise<{ ok: true; listening: string | null } | NotesFailure>;
+    /** The track of the loaded song a keyboard plays (or none, with null). */
+    arm?(trackId: string | null): Promise<{ ok: true } | NotesFailure>;
+    /** A key pressed on the armed track, held until it is pressed again with velocity 0 (lifted). */
+    press?(pitch: number, velocity: number): Promise<{ ok: true } | NotesFailure>;
     /** Listen to one effect's parts while playing, for the Workbench's cables (position `levels`), or to none. */
     watch?(trackId: string | null, fxId: string | null): Promise<{ ok: true } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;
@@ -1479,6 +1487,8 @@ export interface AppearanceSettings {
   toolSteps: ToolSteps;
   /** Whether list views show the small bar of their most useful keys (it also hides itself once the keys are used). */
   keyHints: boolean;
+  /** Whether the panels sit apart on the window's frame, rounded with a gap between them (on), or flush (off). */
+  panelGaps: boolean;
   /** Whether the conversation you were in is opened again when Mobius starts (otherwise it starts blank). */
   resumeLast: boolean;
   /** The agent panel on the right: part of the window, or floating over it and hiding itself. */
@@ -1508,7 +1518,7 @@ export const SIDEBAR_APPS = ['agent', 'search', 'browser', 'mail', 'notes', 'doc
 export type SidebarApp = (typeof SIDEBAR_APPS)[number];
 export type SidebarMode = 'attached' | 'floating';
 export const SIDEBAR_WIDTH = { left: { min: 200, max: 420, default: 248 }, right: { min: 300, max: 640, default: 340 }, inspector: { min: 240, max: 440, default: 280 } } as const;
-export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
+export const DEFAULT_APPEARANCE: AppearanceSettings = { theme: 'system', zoom: 1, chatTextScale: 1, chatFont: 'system', textDirection: 'auto', density: 'comfortable', toolSteps: 'show', keyHints: true, panelGaps: true, resumeLast: true, rightSidebar: 'attached', agentPlace: 'beside', rightWidth: SIDEBAR_WIDTH.right.default, sidebarApps: [...SIDEBAR_APPS], favourites: [], clippingsPage: '' };
 export const ZOOM_RANGE = { min: 0.75, max: 1.5 } as const;
 export const CHAT_TEXT_RANGE = { min: 0.85, max: 1.4 } as const;
 
@@ -1812,6 +1822,7 @@ export const APPEARANCE_CHECKS: { [K in keyof AppearanceSettings]: (v: unknown) 
   density: oneOf<Density>('comfortable', 'compact'),
   toolSteps: oneOf<ToolSteps>('show', 'hide-finished'),
   keyHints: (v): v is boolean => typeof v === 'boolean',
+  panelGaps: (v): v is boolean => typeof v === 'boolean',
   resumeLast: (v): v is boolean => typeof v === 'boolean',
   rightSidebar: oneOf<SidebarMode>('attached', 'floating'),
   agentPlace: oneOf<'sidebar' | 'beside'>('sidebar', 'beside'),

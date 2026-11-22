@@ -970,8 +970,9 @@ html[data-density='compact'] .dl-item { padding: 3px 8px; }
 .review-actions { display: flex; align-items: center; gap: 2px; margin-left: auto; }
 .review-btn { flex: none; white-space: nowrap; height: 26px; padding: 0 10px; border-radius: var(--radius-pill); color: var(--ink); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .review-btn:hover, .review-btn:focus-visible { background: color-mix(in srgb, var(--ink) 8%, transparent); }
-.review-btn[data-kind="keep"] { background: var(--mobius); color: var(--on-mobius); }
-.review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: color-mix(in srgb, var(--mobius) 88%, #000); }
+/* Keep is ink, like every primary button: indigo marks what Mobius did, not what you do (the panel look). */
+.review-btn[data-kind="keep"] { background: var(--ink); color: var(--on-ink); }
+.review-btn[data-kind="keep"]:hover, .review-btn[data-kind="keep"]:focus-visible { background: color-mix(in srgb, var(--ink) 86%, var(--paper)); }
 /* A proposal: dashed until you keep or discard it. */
 .review-strip:not([data-state]) { background: transparent; border: 1px dashed color-mix(in srgb, var(--mobius) 45%, var(--line)); }
 .review-list { list-style: none; margin: 4px 0 2px; padding: 4px 0 0; border-top: 1px solid var(--hairline); display: flex; flex-direction: column; gap: 2px; }
@@ -2033,9 +2034,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 /* One focus ring on the composer: the capsule's, soft; the field inside draws none of its own. */
 .composer textarea:focus, .composer textarea:focus-visible { outline: none; }
 .composer:focus-within { border-color: color-mix(in srgb, var(--accent) 45%, var(--hairline)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 12%, transparent), 0 1px 2px rgba(0, 0, 0, 0.04); }
-/* Row marks: one per row. Indigo, changed by Mobius; blue, unread; a small pin, a comment. */
+/* Row marks: one per row. Indigo, changed by Mobius; ink, unread; a small pin, a comment. */
 .row-mark { flex: none; width: 7px; height: 7px; margin-left: auto; border-radius: 50%; background: var(--mobius); }
-.row-mark[data-kind="unread"] { background: #0A84FF; }
+.row-mark[data-kind="unread"] { background: var(--ink); }
 .row-mark[data-kind="comment"] { width: 9px; height: 9px; border-radius: 4.5px 4.5px 4.5px 1.5px; background: #5856D6; }
 
 /* One floating panel for both sides: the left sidebar and Mobius pinned beside the page share these tokens, so
@@ -2457,6 +2458,14 @@ html :is(.launcher, .hub, .popmenu-list, .convo-menu, .menu-panel, .selection-me
 .doc-change-bar { display: flex; align-items: center; gap: 6px; }
 .doc-change-bar span { margin-right: auto; font-size: var(--fs-xs); color: var(--mobius); }
 .doc-change-bar .review-btn { height: 24px; padding: 0 10px; font-size: var(--fs-xs); }
+/* The panel look's floating change bar: one line on its own surface, centred under the change it answers for. */
+.change-float { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: var(--sp-2) auto 0; max-width: 100%; }
+.change-float-bar { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; padding: 4px 4px 4px 12px; border-radius: var(--radius-group); border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-2); white-space: nowrap; }
+.change-float-who { display: inline-flex; align-items: center; gap: 6px; min-width: 0; margin-right: 8px; overflow: hidden; text-overflow: ellipsis; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--mobius); }
+.change-float-who svg { flex: none; }
+.change-float-bar .review-btn { height: 26px; padding: 0 10px; }
+.change-float-why, .change-float .review-problem { margin: 0; max-width: 60ch; text-align: center; font-size: var(--fs-xs); color: var(--muted); }
+.change-float .review-problem { color: var(--danger); }
 .task-items > .task-change { list-style: none; margin: 10px 0 4px; }
 .task[data-proposed] { outline: 1px dashed var(--mobius); outline-offset: -1px; border-radius: 6px; }
 .task[data-proposed] > .task-line { outline: 0; }
@@ -2682,12 +2691,11 @@ body { font-variant-numeric: tabular-nums; }
 .composer-tools .pill.pill-model { max-width: none; }
 .composer-tools .pill-model .pill-text { overflow: visible; text-overflow: clip; }
 .composer-tools[data-fit] .pill-model .pill-suffix { display: none; }
-.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model .pill-text { display: none; }
-.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model-icon { display: block; }
+.composer-tools[data-fit="model"] .pill-model .pill-text { display: none; }
+.composer-tools[data-fit="model"] .pill-model-icon { display: block; }
 .pill-short { display: none; }
-.composer-tools[data-fit="short"] .pill-long { display: none; }
-.composer-tools[data-fit="short"] .pill-short { display: inline; }
-.composer-tools[data-fit="perm"] .pill-compact:has(.pill-icon) .pill-text { display: none; }
+.composer-tools:is([data-fit="short"], [data-fit="model"]) .pill-long { display: none; }
+.composer-tools:is([data-fit="short"], [data-fit="model"]) .pill-short { display: inline; }
 
 /* The Glance and Result slots of the Mobius panel (PanelSlots.tsx). An empty slot is hidden. */
 .glance-slot:empty, .result-slot:empty { display: none; }
@@ -2783,3 +2791,85 @@ body { font-variant-numeric: tabular-nums; }
 .resting .action-row .action-key { display: none; }
 .chat[data-alt] .resting .action-row .action-key { display: inline-grid; }
 .chat:not(.full) .chat-scroll.messages:has(> .resting) { mask-image: none; padding-bottom: var(--sp-2); }
+
+/* ---- Panels on the frame (docs/design/panel-look.md) ----------------------------------------------------------------
+   The window's background is the frame. Each dock's panel and the app's content are rounded panels one step up from it,
+   a hairline at the edge, a faint light along the top, 8px apart. Headers are 40px with no line under them. The title
+   row and the tool row sit on the frame; the tools are centred. Settings › Appearance › Panels on the frame turns the
+   gaps off (data-panels="flat"), which puts everything flush again with one line between. */
+:root { --panel-gap: 8px; --panel-card-shadow: inset 0 1px 0 var(--panel-highlight), 0 1px 2px rgba(0, 0, 0, 0.04); }
+@media (prefers-color-scheme: dark) { :root { --panel-card-shadow: inset 0 1px 0 var(--panel-highlight), 0 8px 24px rgba(0, 0, 0, 0.35); } }
+:root:not([data-panels="flat"]) { --panel-head-h: 40px; }
+:root:not([data-panels="flat"])[data-density="compact"] { --panel-head-h: 34px; }
+:root:not([data-panels="flat"]) .app { background: var(--frame); }
+:root:not([data-panels="flat"]) :is(.title-row, .context-strip) { background: transparent; border-bottom: 0; }
+:root:not([data-panels="flat"]) .body { padding: 0 var(--panel-gap) var(--panel-gap); }
+/* The stage holds an app's panels: it is only the room they sit in. An app drawn straight on the stage keeps the stage
+   as its one panel. */
+:root:not([data-panels="flat"]) .stage { border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--panel-card-shadow); }
+:root:not([data-panels="flat"]) .stage:has(.ui-panels) { border: 0; border-radius: 0; background: transparent; box-shadow: none; overflow: visible; }
+:root:not([data-panels="flat"]) .ui-panels, :root:not([data-panels="flat"]) .ui-panels-main { gap: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock { gap: var(--panel-gap); background: transparent; border: 0; }
+:root:not([data-panels="flat"]) :is(.ui-dock > .ui-panel, .ui-panels-content) {
+  border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper);
+  box-shadow: var(--panel-card-shadow); overflow: hidden;
+}
+:root:not([data-panels="flat"]) .ui-dock > .ui-panel + .ui-panel { border-top: var(--hairline-w) solid var(--panel-edge); border-left: var(--hairline-w) solid var(--panel-edge); }
+:root:not([data-panels="flat"]) .ui-dock .ui-panel-body { background: transparent; }
+:root:not([data-panels="flat"]) .ui-panel-head { border-bottom: 0; }
+:root:not([data-panels="flat"]) .ui-panel-tab::after { bottom: var(--sp-1); }
+/* A dock's resize edge sits in the gap beside it. */
+:root:not([data-panels="flat"]) .ui-dock[data-dock="left"] > .ui-dock-edge { right: calc(-1 * var(--panel-gap)); width: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock[data-dock="right"] > .ui-dock-edge { left: calc(-1 * var(--panel-gap)); width: var(--panel-gap); }
+:root:not([data-panels="flat"]) .ui-dock[data-dock="bottom"] > .ui-dock-edge { top: calc(-1 * var(--panel-gap)); height: var(--panel-gap); }
+/* Mobius beside the work: the same panel, a gap from the app. */
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) { border-left: 0; padding: 0 0 0 var(--panel-gap); }
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) > .chat {
+  border: var(--hairline-w) solid var(--panel-edge); border-radius: var(--radius-panel); background: var(--paper); box-shadow: var(--panel-card-shadow);
+}
+:root:not([data-panels="flat"]) .chat:not(.full) .chat-head { height: var(--panel-head-h); margin-bottom: 0; }
+:root:not([data-panels="flat"]) .dock.right:not([data-floating]) .chat .composer { background: var(--raised); }
+/* The tool row, in both looks: the app's tools centred on the window, the trailing icons at the end. */
+.context-strip[data-titled]:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 var(--panel-gap); }
+.context-strip[data-titled] > .ui-toolbar-slot { grid-column: 2; justify-content: safe center; }
+.context-strip[data-titled] > .strip-right { grid-column: 3; justify-self: end; }
+/* Tools that fill the row (Calendar's, a browser's address, Sheets' formula bar, an editor's format bar) take all the
+   room before the trailing icons rather than a centred column, which a container-sized child would shrink to nothing. */
+.context-strip[data-titled] > .ui-toolbar-slot:has(.cal-tools, .photo-tabs, .browser-chrome, .sheet-tools, > .ui-toolbar-group > .note-format, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
+
+/* The Mobius button, in every look: its trefoil on a light indigo tint with an indigo edge, the one indigo in the bars. */
+.strip-mobius, .context-strip .strip-mobius { background: color-mix(in srgb, var(--mobius) 10%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
+.strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 16%, transparent); color: var(--mobius); }
+.context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover,
+.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); color: var(--mobius); }
+
+/* ---- The Mobius panel in the panel look (design/reviews/panel-look/mobius-panel.md) ---------------------------------- */
+/* The header is the panel's: the chat's name in ink, 13px semibold. */
+.dock.right .chat:not(.full) .chat-head .chat-switch { font-size: 13px; font-weight: var(--fw-semibold); color: var(--ink); }
+/* Waiting for you: the things that wait, one row each, with Open. Gone when nothing waits. */
+.waiting-card { display: flex; flex-direction: column; gap: 2px; padding: var(--sp-2); border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised); }
+.waiting-card[hidden] { display: none; }
+.waiting-card-title { margin: 0 0 var(--sp-1); padding: 0 var(--sp-1); font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
+.waiting-card-count { font-variant-numeric: tabular-nums; }
+.waiting-row { display: flex; align-items: center; gap: var(--sp-2); width: 100%; min-height: 44px; padding: var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: inherit; font: inherit; text-align: start; }
+button.waiting-row { cursor: pointer; }
+button.waiting-row:hover { background: var(--sel); }
+button.waiting-row:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: calc(var(--focus-w) * -1); }
+.waiting-row-mark { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border: calc(var(--hairline-w) * 1.5) dashed var(--mobius); border-radius: var(--radius-control); color: var(--mobius); }
+.waiting-row-mark svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.waiting-row-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.waiting-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink); }
+.waiting-row-state { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-xs); color: var(--muted); }
+/* Open: a quiet word, shown on hover and focus, and always on the first row. */
+.waiting-row-open { flex: none; display: inline-grid; place-items: center; height: 24px; padding: 0 var(--sp-2); border-radius: var(--radius-control); box-shadow: inset 0 0 0 var(--hairline-w) var(--line); font-size: var(--fs-sm); color: var(--ink); visibility: hidden; }
+.waiting-row:is(:hover, :focus-visible) .waiting-row-open, .waiting-card > .waiting-row:nth-child(2) .waiting-row-open { visibility: visible; }
+/* Three rows at most until "N more" (the title is the first child). */
+.waiting-card:not([data-all]) > .waiting-row:nth-child(n + 5) { display: none; }
+.waiting-more { align-self: flex-start; height: 24px; margin: 2px 0 0 var(--sp-1); padding: 0 var(--sp-1); border: 0; border-radius: var(--radius-control); background: none; color: var(--muted); font: inherit; font-size: var(--fs-xs); cursor: pointer; }
+.waiting-more:hover { color: var(--ink); }
+/* Ideas: quiet chips, a hairline and grey words that turn ink on hover; two rows at most. */
+.resting .actions-list { max-height: calc(2 * (var(--row-h) - var(--sp-1)) + var(--sp-1)); overflow: hidden; }
+.resting .action-row { background: none; color: var(--muted); }
+.resting .action-row:hover { background: none; color: var(--ink); box-shadow: inset 0 0 0 var(--hairline-w) var(--faint); }
+/* The composer's foot in words: Agent ▾ Review ▾ at the start, Best fit ▾ at the end; Send only once there is text. */
+.dock.right .chat .composer .round.send:disabled { display: none; }

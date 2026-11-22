@@ -309,6 +309,14 @@
 /* A looped clip (Live's Loop switch): a notch where each pass begins, and the later passes drawn faintly in the notes editor. */
 .studio-clip-turn { position: absolute; top: 0; bottom: 0; width: 0; border-left: var(--hairline-w) dashed color-mix(in srgb, var(--on-content) 55%, transparent); pointer-events: none; }
 .studio-note[data-echo] { opacity: 0.35; pointer-events: none; }
+/* Sends sit above pan, one knob per return (Live's Mixer); strips without sends keep the same room so faders line up. */
+.studio-sends { --send-h: 22px; display: flex; flex-direction: column; align-items: stretch; gap: 2px; height: calc(var(--sends) * (var(--send-h) + 2px)); }
+.studio-send-row { display: flex; align-items: center; gap: var(--sp-1); height: var(--send-h); }
+.studio-send-letter { width: 1ch; font-size: var(--fs-xs); color: var(--muted); }
+.ui-knob.studio-send { --knob-size: 18px; grid-auto-flow: column; align-items: center; gap: var(--sp-1); min-width: 0; }
+.ui-knob.studio-send .ui-knob-name { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ui-strip.studio-mixer-return:first-of-type, .studio-mixer > .ui-strip:not(.studio-mixer-return) + .studio-mixer-return { margin-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line-soft); }
+.studio-mixer-add { align-self: center; flex: none; }
 .studio-clip-loop { display: flex; flex: none; align-items: center; gap: var(--sp-2); padding-right: var(--sp-2); border-right: var(--hairline-w) solid var(--line-soft); }
 /* In the Clip toolbar the loop fields sit on one line, each label before its box, so the toolbar keeps a single row. */
 .studio-clip-loop .ui-number { flex-direction: row; align-items: center; gap: var(--sp-1); }

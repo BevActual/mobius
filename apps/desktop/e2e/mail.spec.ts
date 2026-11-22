@@ -63,8 +63,12 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 test('an account signs in with an app password, mail is sorted here, and only the person sends a reply', async () => {
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
-  // The Inbox shows everything; the labels show how Mobius sorted it.
-  await expect(list.getByRole('option')).toHaveCount(2);
+  // The inbox opens on Important; Other holds the rest, and the labels show how Mobius sorted it.
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await expect(list.getByRole('option').first()).toContainText('Terrace + lunch for the 13th');
+  await page().getByRole('tab', { name: /^Other/ }).click();
+  await expect(list.getByRole('option')).toHaveCount(1);
+  await expect(list.getByRole('option').first()).toContainText('Your booking LX7Q2M');
   await labels().getByRole('button', { name: /^Primary/ }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
   await expect(list.getByRole('option').first()).toContainText('Terrace + lunch for the 13th');
@@ -131,7 +135,7 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   ]);
   const list = page().getByRole('listbox', { name: 'Messages' });
   await list.getByRole('option').first().click();
-  await page().getByRole('button', { name: 'Draft a reply with Mobius' }).click();
+  await page().getByRole('button', { name: 'Draft with Mobius' }).click();
   const log = shell().getByRole('log', { name: 'Conversation' });
   await log.getByRole('group', { name: 'Approval needed: mail.read' }).getByRole('button', { name: 'Allow once' }).click();
   await expect(log.locator('.msg.assistant')).toHaveText('I drafted a reply for you to check.');
@@ -148,13 +152,13 @@ test('Mobius drafts a reply without sending it; the person opens it as a draft a
   await list.getByRole('option').first().click();
   const kept = page().getByRole('region', { name: 'Your draft reply' });
   await expect(kept).toContainText('two vegetarians');
-  await expect(page().getByRole('button', { name: 'Draft a reply with Mobius' })).toHaveCount(0);
+  await expect(page().getByRole('button', { name: 'Draft with Mobius' })).toHaveCount(0);
   await kept.getByRole('button', { name: 'Send', exact: true }).click();
   await expect.poll(() => servers.sent.length, { timeout: 15_000 }).toBe(1);
   expect(servers.sent[0]).toContain('two vegetarians');
 });
 
-test('the message toolbar: Reply All quotes the message, Flag files it under Flagged, Archive under Archive and back', async () => {
+test('the message toolbar: Reply All quotes the message, Flag files it under Flagged, Done under Done and back', async () => {
   await start();
   const list = page().getByRole('listbox', { name: 'Messages' });
   const tools = shell().getByRole('toolbar', { name: 'Message' });
@@ -203,15 +207,15 @@ test('the message toolbar: Reply All quotes the message, Flag files it under Fla
 
   await labels().getByRole('button', { name: /^Primary/ }).click();
   await list.getByRole('option').first().click();
-  await tools.getByRole('button', { name: 'Archive' }).click();
+  await tools.getByRole('button', { name: 'Done' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);
   // The shared Undo toast takes it back.
-  await page().getByRole('status').filter({ hasText: 'Archived “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
+  await page().getByRole('status').filter({ hasText: 'Done: “Terrace + lunch for the 13th”' }).getByRole('button', { name: 'Undo' }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
   await list.getByRole('option').first().click();
-  await tools.getByRole('button', { name: 'Archive' }).click();
+  await tools.getByRole('button', { name: 'Done' }).click();
   await expect(list.getByRole('option')).toHaveCount(0);
-  await boxes.getByRole('button', { name: 'Archive' }).click();
+  await boxes.getByRole('button', { name: 'Done' }).click();
   await expect(list.getByRole('option')).toHaveCount(1);
   await list.getByRole('option').first().click({ button: 'right' });
   await shell().getByRole('menuitem', { name: 'Move to Inbox' }).click();

@@ -299,7 +299,7 @@ test('a narrow window still opens Mobius on the right, at no less than its narro
   await expect(composer()).toBeVisible();
 });
 
-test('Mobius beside the page is set off by one hairline and nothing else, in every app, light and dark', async () => {
+test('Mobius beside the page is a panel of its own on the frame, a gap and its own edge and no second line, in every app, light and dark', async () => {
   await start();
   for (const theme of ['light', 'dark'] as const) {
     await shell().emulateMedia({ colorScheme: theme });
@@ -309,19 +309,21 @@ test('Mobius beside the page is set off by one hairline and nothing else, in eve
       await shell().keyboard.press('Enter');
       await expect(shell().locator('.app')).toHaveAttribute('data-app', id!);
       await expect(shell().locator('.dock.right:not([data-floating]) > .chat')).toBeVisible();
-      // Every element whose left or right edge is where the page meets the panel: none draws a second line.
+      // Every element whose left or right edge is where the panel starts: none draws a second line beside its own edge.
       const lines = await shell().evaluate(() => {
         const card = document.querySelector('.dock.right:not([data-floating]) > .chat');
         if (!card) return ['no pinned card'];
-        const edge = card.closest('.dock.right')!.getBoundingClientRect().left;
+        const edge = card.getBoundingClientRect().left;
         const visible = (width: string, color: string) => parseFloat(width) > 0 && !/rgba\(\d+, \d+, \d+, 0\)|transparent/.test(color);
         const found: string[] = [];
-        // The timeless frame: the right panel's own left edge is the one hairline between it and the page.
+        // Panels on the frame (docs/design/panel-look.md): the panel's own edge is its one line, a gap from the page.
         const dock = card.closest('.dock.right')!;
-        if (getComputedStyle(dock).borderLeftWidth !== '1px') found.push('no hairline on the right panel');
+        if (getComputedStyle(card).borderLeftWidth !== '1px') found.push('no edge on the Mobius panel');
+        if (getComputedStyle(dock).borderLeftWidth !== '0px') found.push('a line on the dock as well as the panel');
+        if (edge - document.querySelector('.stage')!.getBoundingClientRect().right < 6) found.push('no gap between the page and the panel');
         for (const el of Array.from(document.querySelectorAll('*'))) {
           // A table's own grid running up to the edge is content, not a line between zones.
-          if (el === dock || el.closest('td, th')) continue;
+          if (el === card || el === dock || el.closest('td, th')) continue;
           const r = el.getBoundingClientRect();
           if (r.height < 20) continue;
           const st = getComputedStyle(el);
