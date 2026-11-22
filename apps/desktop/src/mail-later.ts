@@ -17,9 +17,13 @@ function dayAt(now: Date, days: number, hour: number, minute = 0): number {
 
 /** Days from `now` to the next `weekday` (0 Sunday … 6 Saturday), counting a week ahead when it is today. */
 const daysTo = (now: Date, weekday: number) => ((weekday - now.getDay() + 7) % 7) || 7;
+/** Days to next week's Monday: on a Sunday that is not tomorrow (Tomorrow already says Monday) but the one after. */
+const toNextWeek = (now: Date) => { const d = daysTo(now, 1); return d === 1 ? 8 : d; };
+const isWeekend = (now: Date) => now.getDay() === 0 || now.getDay() === 6;
 
 /** The quick choices: Later today (three hours on, or 18:00 if that is sooner and still ahead), Tomorrow 8:00,
- * This weekend (Saturday 9:00; next Saturday when it is the weekend), Next week (Monday 8:00). */
+ * This weekend (Saturday 9:00; on a weekend it is Next weekend, the coming Saturday), Next week (Monday 8:00; on a
+ * Sunday the Monday after tomorrow's). */
 export function laterChoices(now = new Date()): { id: string; label: string; at: number }[] {
   const evening = dayAt(now, 0, 18);
   const soon = now.getTime() + 3 * HOUR;
@@ -27,8 +31,8 @@ export function laterChoices(now = new Date()): { id: string; label: string; at:
   return [
     { id: 'today', label: 'Later today', at: today },
     { id: 'tomorrow', label: 'Tomorrow', at: dayAt(now, 1, 8) },
-    { id: 'weekend', label: 'This weekend', at: dayAt(now, daysTo(now, 6), 9) },
-    { id: 'week', label: 'Next week', at: dayAt(now, daysTo(now, 1), 8) },
+    { id: 'weekend', label: isWeekend(now) ? 'Next weekend' : 'This weekend', at: dayAt(now, daysTo(now, 6), 9) },
+    { id: 'week', label: 'Next week', at: dayAt(now, toNextWeek(now), 8) },
   ];
 }
 
@@ -70,8 +74,8 @@ export function parseLater(text: string, now = new Date()): number | null {
   else if (/\bthis evening\b/.test(words)) found = at(0, { h: 18, m: 0 });
   else if (/\btoday\b/.test(words)) found = time ? at(0, time) : by('today');
   else if (/\btomorrow\b|\btmrw?\b/.test(words)) found = at(1, { h: 8, m: 0 });
-  else if (/\b(this )?weekend\b/.test(words)) found = at(daysTo(now, 6), { h: 9, m: 0 });
-  else if (/\bnext week\b/.test(words)) found = at(daysTo(now, 1), { h: 8, m: 0 });
+  else if (/\b(this |next )?weekend\b/.test(words)) found = at(daysTo(now, 6), { h: 9, m: 0 });
+  else if (/\bnext week\b/.test(words)) found = at(toNextWeek(now), { h: 8, m: 0 });
   else {
     const day = DAYS.findIndex((d) => new RegExp(`\\b(${d}|${d.slice(0, 3)})\\b`).test(words));
     if (day >= 0) found = at(daysTo(now, day), { h: 8, m: 0 });

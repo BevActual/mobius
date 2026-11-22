@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AppMenu, AppSidebar, Button, EmptyState, IconButton, KeyHintBar, Menu, PointMenu, SidebarRow, SidebarSearch, SidebarSection, TOOL_ICONS, ToolbarControls, ToolGroup, UndoToast, type EmptyKind } from './ui';
-import { recentFrom, useAddressSuggestions, useMeetingsWith } from './ContactPanel';
-import type { MailCategory, MailContent, MailDraft, MailFollowUp, MailMessage } from '@mobius/shared';
+import { useAddressSuggestions, useMeetingsWith } from './ContactPanel';
+import { isNotesFailure, type MailCategory, type MailContent, type MailDraft, type MailFollowUp, type MailMessage } from '@mobius/shared';
 import { backAt, IMPORTANT, type MailBox, type MailState, type MailView } from './useMail';
 import { laterChoices, parseLater } from './mail-later';
 import { localDate } from './calendar-view';
@@ -354,14 +354,36 @@ function MessageTools({ mail, content, onLater }: { mail: MailState; content: Ma
   );
 }
 
-/** What Mail knows around the sender, as small pills under their name: earlier mail from them, the next meeting. */
+/** What Mail knows around the sender, read from all mail: earlier messages from them, and when you last wrote. */
+function useSenderMail(email: string, id: string): { earlier: number; wrote: number | null } {
+  const [found, setFound] = useState<{ earlier: number; wrote: number | null }>({ earlier: 0, wrote: null });
+  useEffect(() => {
+    const api = window.mobius.mail;
+    const who = email.trim().toLowerCase();
+    if (!api || !who) { setFound({ earlier: 0, wrote: null }); return undefined; }
+    let live = true;
+    void api.list('all', 'all', who).then((all) => {
+      if (!live || isNotesFailure(all)) return;
+      const self = all.find((m) => m.id === id);
+      const before = (m: MailMessage) => !self || m.dateMs < self.dateMs;
+      const earlier = all.filter((m) => m.id !== id && m.box === 'inbox' && m.from.email.toLowerCase() === who && before(m)).length;
+      const wrote = all.filter((m) => m.box === 'sent' && m.to.some((p) => p.email.toLowerCase() === who)).reduce<number | null>((at, m) => (at === null || m.dateMs > at ? m.dateMs : at), null);
+      setFound({ earlier, wrote });
+    }).catch(() => undefined);
+    return () => { live = false; };
+  }, [email, id]);
+  return found;
+}
+
+/** What Mail knows around the sender, as small pills under their name: earlier mail, your last note, the next meeting. */
 function Facts({ mail, content }: { mail: MailState; content: MailContent }) {
-  const earlier = recentFrom(mail.messages, content.from.email, 100).filter((m) => m.id !== content.id && m.dateMs <= content.dateMs).length;
+  const { earlier, wrote } = useSenderMail(content.from.email, content.id);
   const meeting = useMeetingsWith(content.from.email)[0];
-  if (!earlier && !meeting) return null;
+  if (!earlier && !wrote && !meeting) return null;
   return (
     <ul className="mail-facts" aria-label="About the sender">
       {earlier > 0 && <li><button type="button" className="mail-fact" title={`Find mail from ${content.from.email}`} onClick={() => mail.setQuery(content.from.email)}>{earlier} earlier message{earlier === 1 ? '' : 's'}</button></li>}
+      {wrote !== null && <li><span className="mail-fact">You wrote {when(wrote)}</span></li>}
       {meeting && <li><span className="mail-fact">Meeting {formatWith(localDate(meeting.start).getTime(), { weekday: 'short', hour: 'numeric', minute: '2-digit' })}</span></li>}
     </ul>
   );

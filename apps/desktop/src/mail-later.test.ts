@@ -14,6 +14,21 @@ describe('Later choices', () => {
     expect(c[2]!.at).toBe(at(22, 9));
     expect(c[3]!.at).toBe(at(24, 8));
   });
+  it('on a Sunday, Next week is the Monday after tomorrow, and the weekend row is Next weekend', () => {
+    const sunday = new Date(2025, 10, 23, 10, 0);
+    const c = laterChoices(sunday);
+    expect(c[1]!.at).toBe(at(24, 8));
+    expect(c[3]!.at).toBe(new Date(2025, 11, 1, 8).getTime());
+    expect(c[2]!.label).toBe('Next weekend');
+    expect(c[2]!.at).toBe(at(29, 9));
+    expect(parseLater('next week', sunday)).toBe(new Date(2025, 11, 1, 8).getTime());
+  });
+  it('on a Saturday the weekend row is Next weekend, a week on', () => {
+    const c = laterChoices(new Date(2025, 10, 22, 10, 0));
+    expect(c[2]!.label).toBe('Next weekend');
+    expect(c[2]!.at).toBe(at(29, 9));
+    expect(c[3]!.at).toBe(at(24, 8));
+  });
   it('later today in the afternoon is 18:00 when that comes first', () => {
     expect(laterChoices(new Date(2025, 10, 19, 16, 0))[0]!.at).toBe(at(19, 18));
   });
