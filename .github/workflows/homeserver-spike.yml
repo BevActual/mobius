@@ -1,0 +1,47 @@
+# Spike for the local Mobius space (Messages step 2): does Tuwunel (Apache-2.0) build and answer on Windows and macOS?
+# Runs only on this pull request; it is closed, not merged, once it has answered.
+name: Homeserver spike
+
+on:
+  pull_request:
+    paths: [.github/workflows/homeserver-spike.yml]
+
+jobs:
+  tuwunel:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - name: Fetch Tuwunel
+        shell: bash
+        run: git clone --depth 1 https://github.com/matrix-construct/tuwunel.git && git -C tuwunel log -1 --format='%H %cs'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (default features)
+        id: default
+        continue-on-error: true
+        shell: bash
+        working-directory: tuwunel
+        run: cargo build --release --locked --bin tuwunel 2>&1 | tail -60
+      - name: Build without jemalloc
+        if: steps.default.outcome != 'success'
+        shell: bash
+        working-directory: tuwunel
+        run: cargo build --release --locked --bin tuwunel --no-default-features --features brotli_compression,element_hacks,gzip_compression,io_uring,media_thumbnail,release_max_log_level,systemd,url_preview,zstd_compression 2>&1 | tail -60
+      - name: Size, and does it answer on localhost?
+        shell: bash
+        working-directory: tuwunel
+        env:
+          TUWUNEL_SERVER_NAME: mobius.localhost
+          TUWUNEL_DATABASE_PATH: ${{ runner.temp }}/hs
+          TUWUNEL_ADDRESS: 127.0.0.1
+          TUWUNEL_PORT: '8448'
+          TUWUNEL_ALLOW_REGISTRATION: 'false'
+        run: |
+          ls -la target/release/ | grep -i tuwunel
+          bin=target/release/tuwunel; [ -f "$bin.exe" ] && bin="$bin.exe"
+          ( "$bin" > hs.log 2>&1 & )
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8448/_matrix/client/versions && break; sleep 1; done
+          echo; tail -30 hs.log
