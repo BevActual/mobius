@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNod
 import { Button, CONTENT_COLORS, Dot, FilterBar, Menu, PreviewStrip, SidebarSearch, type TagPicks } from './ui';
 import { CATEGORIES, collect, LIBRARY, previewShape, search, TAG_GROUPS, type Collections, type LibraryCategory, type LibraryItem } from './studio-library';
 import { previewSound } from './studio-engine';
+import { SAMPLE_DRAG, sampleName } from './StudioSample';
 
 /** Collections' seven colours, as in Live; keys 1 to 7 put the chosen item in one. */
 const COLLECTION_COLORS = CONTENT_COLORS.slice(0, 7);
@@ -32,7 +33,7 @@ function audition(item: LibraryItem, key: string, db: number) {
 }
 
 /** Where the Browser is: a Library category, a collection (by its key, 1 to 7), or the Songs place. */
-type Place = LibraryCategory | `c${number}` | 'songs';
+type Place = LibraryCategory | `c${number}` | 'songs' | 'samples';
 
 /**
  * Music's Browser, after Live 12's (docs/reference/music-parity.md, "The Library panel"; Live 12 manual, Working with
@@ -41,8 +42,12 @@ type Place = LibraryCategory | `c${number}` | 'songs';
  * Enter or a double-click puts the chosen item on the chosen track (a sound replaces its sound, an effect is added), or
  * on a new track when the kinds don't match.
  */
-export function StudioLibrary({ songKey, target, onUse, songs }: {
+export function StudioLibrary({ songKey, target, onUse, songs, songPath = '', onUseSample }: {
   songKey: string;
+  /** The open song's page, whose Samples folder the Samples place lists. */
+  songPath?: string;
+  /** A sample put on the chosen track (Enter or a double-click); it can also be dragged onto a sampler, pad or audio track. */
+  onUseSample?: (file: string) => void;
   /** The chosen track, named for the tooltips; null when the song has none. */
   target: { name: string; drums: boolean } | null;
   onUse: (item: LibraryItem) => void;
@@ -50,7 +55,20 @@ export function StudioLibrary({ songKey, target, onUse, songs }: {
   songs?: ReactNode;
 }) {
   const [place, setPlace] = useState<Place>(() => load<Place>(PLACE, 'all'));
-  const category: LibraryCategory | `c${number}` = place === 'songs' ? 'all' : place;
+  const category: LibraryCategory | `c${number}` = place === 'songs' || place === 'samples' ? 'all' : place;
+  // The song's own samples (its Samples folder, takes included), asked of the engine when the place opens.
+  const [samples, setSamples] = useState<string[] | null>(null);
+  const [sampleAt, setSampleAt] = useState<string | null>(null);
+  useEffect(() => {
+    if (place !== 'samples') return;
+    let live = true;
+    setSamples(null);
+    const m = typeof window === 'undefined' ? undefined : window.mobius?.music;
+    if (!songPath || !m?.samples) { setSamples([]); return; }
+    void m.samples(songPath).then((r) => { if (live) setSamples(r.ok ? r.files : []); }, () => { if (live) setSamples([]); });
+    return () => { live = false; };
+  }, [place, songPath]);
+  const shownSamples = (samples ?? []).filter((f) => !query.trim() || f.toLowerCase().includes(query.trim().toLowerCase()));
   const [query, setQuery] = useState('');
   const [picks, setPicks] = useState<TagPicks>({});
   const [collections, setCollections] = useState<Collections>(() => load(STORE, {}));
@@ -121,9 +139,36 @@ export function StudioLibrary({ songKey, target, onUse, songs }: {
           <ul>{COLLECTION_COLORS.map((c, i) => row(`c${i + 1}`, <><Dot color={c} /><span>{collectionName(i)}</span></>, `${collectionName(i)} (collection ${i + 1})`, counts[i]))}</ul>
           <p className="studio-browser-title">Library</p>
           <ul>{CATEGORIES.map((c) => row(c.id, <span>{c.name}</span>, c.name))}</ul>
-          {songs && <><p className="studio-browser-title">Places</p><ul>{row('songs', <span>Songs</span>, 'Songs')}</ul></>}
+          <p className="studio-browser-title">Places</p>
+          <ul>
+            {songs && row('songs', <span>Songs</span>, 'Songs')}
+            {row('samples', <span>Samples</span>, 'Samples in this song')}
+          </ul>
         </nav>
-        {place === 'songs' && songs ? <div className="studio-browser-songs">{songs}</div> : (
+        {place === 'samples' ? (
+          <div className="studio-browser-main">
+            <div className="studio-library-cols" aria-hidden="true"><span>Name</span><span>Folder</span></div>
+            <ul className="studio-library-results" role="listbox" aria-label="Samples">
+              {samples === null && <li className="side-empty" role="presentation">Looking…</li>}
+              {samples !== null && shownSamples.length === 0 && <li className="side-empty" role="presentation">{songPath ? 'No samples in this song yet. Drop a WAV on a sampler or pad, or record a take.' : 'Open a song to see its samples.'}</li>}
+              {shownSamples.map((f, i) => (
+                <li key={f} data-id={f} role="option" aria-selected={f === sampleAt} tabIndex={f === (sampleAt ?? shownSamples[0]) || (!sampleAt && i === 0) ? 0 : -1} draggable
+                  className="studio-library-row" title={`${target ? `Put on ${target.name}` : 'Add as a new Sampler track'} (Enter), or drag onto a sampler, pad or audio track`}
+                  onDragStart={(e) => { e.dataTransfer.setData(SAMPLE_DRAG, f); e.dataTransfer.effectAllowed = 'copy'; }}
+                  onClick={() => setSampleAt(f)} onDoubleClick={() => onUseSample?.(f)}
+                  onKeyDown={(e) => {
+                    const at = shownSamples.indexOf(f);
+                    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); const next = shownSamples[Math.max(0, Math.min(shownSamples.length - 1, at + (e.key === 'ArrowDown' ? 1 : -1)))]; if (next) { setSampleAt(next); window.requestAnimationFrame(() => (e.currentTarget.parentElement?.querySelector<HTMLElement>(`[data-id="${CSS.escape(next)}"]`))?.focus()); } }
+                    else if (e.key === 'Enter') { e.preventDefault(); onUseSample?.(f); }
+                  }}>
+                  <span className="studio-library-name">{sampleName(f)}</span>
+                  <span className="studio-library-dots" />
+                  <span className="studio-library-kind">{f.split('/').slice(1, -1).join('/') || 'Samples'}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : place === 'songs' && songs ? <div className="studio-browser-songs">{songs}</div> : (
           <div className="studio-browser-main">
             <FilterBar groups={TAG_GROUPS.map((g) => ({ id: g.id, name: g.name, tags: g.tags }))} value={picks} onChange={setPicks} onClear={() => setQuery('')} />
             <div className="studio-library-cols" aria-hidden="true"><span>Name</span><span>Type</span></div>
