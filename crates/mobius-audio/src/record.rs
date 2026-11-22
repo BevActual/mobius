@@ -67,6 +67,41 @@ impl Recorder {
     }
 }
 
+/// An input's sound brought to the engine's rate as it comes: each frame out is a cubic (Catmull-Rom) curve through
+/// the four frames around it, so a 48 kHz microphone records into a 44.1 kHz song. At the same rate, frames pass
+/// straight through.
+pub struct Resample {
+    /// Input frames per frame out.
+    step: f64,
+    /// Where the next frame out falls between the middle two of `last`.
+    at: f64,
+    last: [(f32, f32); 4],
+}
+
+impl Resample {
+    #[must_use]
+    pub fn new(from: f64, to: f64) -> Resample {
+        Resample { step: from / to, at: 0.0, last: [(0.0, 0.0); 4] }
+    }
+
+    /// Takes one input frame, giving `out` each frame out it completes (none, one or more).
+    pub fn push(&mut self, frame: (f32, f32), mut out: impl FnMut((f32, f32))) {
+        if (self.step - 1.0).abs() < 1e-12 {
+            out(frame);
+            return;
+        }
+        self.last = [self.last[1], self.last[2], self.last[3], frame];
+        while self.at < 1.0 {
+            let t = self.at as f32;
+            let curve = |a: f32, b: f32, c: f32, d: f32| b + 0.5 * t * (c - a + t * (2.0 * a - 5.0 * b + 4.0 * c - d + t * (3.0 * (b - c) + d - a)));
+            let [p0, p1, p2, p3] = self.last;
+            out((curve(p0.0, p1.0, p2.0, p3.0), curve(p0.1, p1.1, p2.1, p3.1)));
+            self.at += self.step;
+        }
+        self.at -= 1.0;
+    }
+}
+
 /// A new take's file for a track called `name`: `Samples/Recorded/<name> <n>.wav` in the song's `folder`, with the
 /// first number not yet used. The folder is made if need be.
 ///
@@ -92,6 +127,29 @@ pub fn next_take(folder: &Path, name: &str) -> Result<(PathBuf, String), String>
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_48k_input_is_brought_to_44_1k_at_the_same_pitch() {
+        let mut r = Resample::new(48_000.0, 44_100.0);
+        let mut out = Vec::new();
+        for n in 0..48_000 {
+            let x = (std::f64::consts::TAU * 1000.0 * f64::from(n) / 48_000.0).sin() as f32;
+            r.push((x, -x), |f| out.push(f));
+        }
+        assert!((out.len() as i64 - 44_100).abs() <= 1, "{}", out.len());
+        // 1 kHz still: as many upward crossings in the second as before, and the curve stays close to the sine.
+        let ups = out.windows(2).filter(|w| w[0].0 < 0.0 && w[1].0 >= 0.0).count();
+        assert!((ups as i64 - 1000).abs() <= 1, "{ups}");
+        for (i, f) in out.iter().enumerate().skip(10).take(1000) {
+            // Two input frames late.
+            let want = (std::f64::consts::TAU * 1000.0 * (i as f64 / 44_100.0 - 2.0 / 48_000.0)).sin() as f32;
+            assert!((f.0 - want).abs() < 0.01 && (f.1 + f.0).abs() < 1e-6, "{i}: {} vs {want}", f.0);
+        }
+        // The same rate passes frames straight through.
+        let mut same = Vec::new();
+        Resample::new(44_100.0, 44_100.0).push((0.5, 0.25), |f| same.push(f));
+        assert_eq!(same, [(0.5, 0.25)]);
+    }
 
     #[test]
     fn a_take_is_written_as_it_comes_and_numbered_for_its_track() {

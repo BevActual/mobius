@@ -925,12 +925,16 @@ mod device {
         let host = cpal::default_host();
         let device = host.default_input_device().ok_or("This computer has no sound input.")?;
         let name = device.name().unwrap_or_else(|_| "Sound input".to_owned());
-        let range = device
-            .supported_input_configs()
-            .map_err(|e| format!("{name} could not be opened: {e}"))?
-            .find(|c| c.sample_format() == cpal::SampleFormat::F32 && c.min_sample_rate().0 <= rate && rate <= c.max_sample_rate().0)
-            .ok_or_else(|| format!("{name} does not record at {rate} Hz in the format Mobius takes. Set it to {rate} Hz in the computer's sound settings."))?;
-        let config: cpal::StreamConfig = range.with_sample_rate(cpal::SampleRate(rate)).into();
+        // The engine's rate when the input has it; else the input's own (48 kHz on most computers), resampled.
+        let ranges: Vec<_> = device.supported_input_configs().map_err(|e| format!("{name} could not be opened: {e}"))?.filter(|c| c.sample_format() == cpal::SampleFormat::F32).collect();
+        let config: cpal::StreamConfig = match ranges.iter().find(|c| c.min_sample_rate().0 <= rate && rate <= c.max_sample_rate().0) {
+            Some(range) => (*range).with_sample_rate(cpal::SampleRate(rate)).into(),
+            None => match device.default_input_config() {
+                Ok(c) if c.sample_format() == cpal::SampleFormat::F32 => c.into(),
+                _ => ranges.first().copied().map(|r| r.with_max_sample_rate().into()).ok_or_else(|| format!("{name} does not record in a format Mobius takes."))?,
+            },
+        };
+        let mut resample = crate::record::Resample::new(f64::from(config.sample_rate.0), f64::from(rate));
         let channels = usize::from(config.channels).max(1);
         let pick = channel.map(|c| c as usize).filter(|c| *c < channels);
         if channel.is_some() && pick.is_none() {
@@ -953,8 +957,12 @@ mod device {
                             Some(c) => (frame[c], frame[c]),
                             None => (frame[0], *frame.get(1).unwrap_or(&frame[0])),
                         };
-                        let _ = producer.push(l);
-                        let _ = producer.push(r);
+                        resample.push((l, r), |(l, r)| {
+                            if producer.slots() >= 2 {
+                                let _ = producer.push(l);
+                                let _ = producer.push(r);
+                            }
+                        });
                     }
                 },
                 |e| eprintln!("[mobius] sound input: {e}"),
