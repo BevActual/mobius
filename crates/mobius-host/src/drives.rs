@@ -622,6 +622,12 @@ impl Drives {
         json!(self.lock().clone())
     }
 
+    /// The places on this computer: each one's id and folder.
+    #[must_use]
+    pub fn places(&self) -> Vec<(String, PathBuf)> {
+        self.lock().iter().filter(|a| a.kind == "local").map(|a| (a.id.clone(), PathBuf::from(&a.url))).collect()
+    }
+
     /// The drive's name, as the person sees it.
     pub fn name(&self, id: &str) -> Option<String> {
         self.lock().iter().find(|a| a.id == id).map(|a| a.name.clone())

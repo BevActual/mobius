@@ -9,6 +9,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::UNIX_EPOCH;
 
 use crate::drives::{CHANGED, Drive, EXISTS, Entry, File, MAX_FILE};
@@ -127,6 +128,9 @@ impl Drive for LocalFolder {
             }
             let Ok(meta) = entry.metadata() else { continue };
             let name = entry.file_name().to_string_lossy().into_owned();
+            if hidden(&name, &meta) {
+                continue;
+            }
             let folder = meta.is_dir();
             out.push(Entry {
                 path: if prefix.is_empty() { name.clone() } else { format!("{prefix}/{name}") },
@@ -236,6 +240,79 @@ impl Drive for LocalFolder {
     }
 }
 
+/// Left out of a listing, as Explorer and Finder leave them out: hidden and system files (`desktop.ini`,
+/// `Thumbs.db`), and names starting with a dot (Mobius's own half-saved files among them).
+fn hidden(name: &str, meta: &fs::Metadata) -> bool {
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::MetadataExt;
+        const HIDDEN: u32 = 0x2;
+        const SYSTEM: u32 = 0x4;
+        if meta.file_attributes() & (HIDDEN | SYSTEM) != 0 {
+            return true;
+        }
+    }
+    #[cfg(not(windows))]
+    let _ = meta;
+    name.starts_with('.') || name.eq_ignore_ascii_case("desktop.ini") || name.eq_ignore_ascii_case("thumbs.db")
+}
+
+/// Watches the places for changes made outside Mobius (another app, a download landing) and says, at most every
+/// quarter of a second, which place and folder changed: `changed(place id, folder within it)`. Dropped, it stops.
+pub fn watch(places: Vec<(String, PathBuf)>, changed: Arc<dyn Fn(&str, &str) + Send + Sync>) -> Option<notify::RecommendedWatcher> {
+    use notify::Watcher;
+    let roots: Vec<(String, PathBuf)> = places.into_iter().filter_map(|(id, root)| root.canonicalize().ok().map(|r| (id, r))).collect();
+    if roots.is_empty() {
+        return None;
+    }
+    let (send, receive) = std::sync::mpsc::channel::<PathBuf>();
+    let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
+        if let Ok(event) = event {
+            for path in event.paths {
+                let _ = send.send(path);
+            }
+        }
+    })
+    .ok()?;
+    // Recursive where the system watches a whole tree with one handle (Windows, macOS); on Linux each folder costs a
+    // watch, so only the places' own tops are watched there.
+    let mode = if cfg!(target_os = "linux") { notify::RecursiveMode::NonRecursive } else { notify::RecursiveMode::Recursive };
+    for (_, root) in &roots {
+        let _ = watcher.watch(root, mode);
+    }
+    let _ = std::thread::Builder::new().name("mobius-places-watch".into()).spawn(move || {
+        let wait = std::time::Duration::from_millis(250);
+        // Ends when the watcher (holding the sender) is dropped.
+        while let Ok(first) = receive.recv() {
+            let mut seen = std::collections::BTreeSet::new();
+            let mut note = |path: PathBuf| {
+                for (id, root) in &roots {
+                    if let Ok(rest) = path.strip_prefix(root) {
+                        // The folder the change is in, `/`-separated from the place's top.
+                        let folder = rest.parent().map(|p| p.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect::<Vec<_>>().join("/")).unwrap_or_default();
+                        if !rest.file_name().is_some_and(|n| n.to_string_lossy().starts_with('.')) {
+                            seen.insert((id.clone(), folder));
+                        }
+                    }
+                }
+            };
+            note(first);
+            let until = std::time::Instant::now() + wait;
+            while let Some(left) = until.checked_duration_since(std::time::Instant::now()) {
+                match receive.recv_timeout(left) {
+                    Ok(path) => note(path),
+                    Err(std::sync::mpsc::RecvTimeoutError::Timeout) => break,
+                    Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return,
+                }
+            }
+            for (id, folder) in seen {
+                changed(&id, &folder);
+            }
+        }
+    });
+    Some(watcher)
+}
+
 /// The person's own folders Files starts with, where they are on this computer: Desktop, Documents and Downloads.
 #[must_use]
 pub fn known_folders() -> Vec<(&'static str, PathBuf)> {
@@ -316,5 +393,31 @@ mod tests {
         assert_eq!(d.delete("a.txt", Some("0-0")).unwrap_err(), CHANGED);
         assert!(dir.path().join("a.txt").exists());
         assert!(d.delete("gone.txt", None).is_err());
+    }
+    #[test]
+    fn hidden_and_system_files_stay_out_of_the_list() {
+        let dir = tempfile::tempdir().unwrap();
+        for name in [".git", "desktop.ini", "Thumbs.db", "note.md"] {
+            fs::write(dir.path().join(name), "x").unwrap();
+        }
+        let d = LocalFolder::new(dir.path()).unwrap();
+        assert_eq!(d.list("").unwrap().iter().map(|e| e.name.as_str()).collect::<Vec<_>>(), ["note.md"]);
+    }
+
+    #[test]
+    fn a_file_made_by_another_app_names_its_place_and_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let tx = std::sync::Mutex::new(tx);
+        let _w = watch(
+            vec![("place-1".into(), dir.path().to_path_buf())],
+            Arc::new(move |id: &str, folder: &str| { let _ = tx.lock().unwrap().send((id.to_string(), folder.to_string())); }),
+        )
+        .expect("watcher");
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        // At the place's top, which every system watches (Linux watches only the top).
+        fs::write(dir.path().join("new.txt"), "x").unwrap();
+        let got = rx.recv_timeout(std::time::Duration::from_secs(5)).unwrap();
+        assert_eq!(got, ("place-1".to_string(), String::new()));
     }
 }

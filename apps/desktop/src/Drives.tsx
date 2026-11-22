@@ -60,7 +60,7 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
   // A drive or place added elsewhere (the agent, Settings, another window) joins the list when it first changes.
   const known = useRef(accounts);
   known.current = accounts;
-  useEffect(() => api?.onChanged((c) => { if (!known.current.some((a) => a.id === c.drive)) void loadAccounts(); }), [api, loadAccounts]);
+  useEffect(() => api?.onChanged((c) => { if (c.removed || !known.current.some((a) => a.id === c.drive)) void loadAccounts(); }), [api, loadAccounts]);
 
   // One line about what just went wrong, and one about what was just copied where.
   const [notice, setNotice] = useState<string | null>(null);
