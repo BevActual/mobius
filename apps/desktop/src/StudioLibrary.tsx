@@ -72,8 +72,9 @@ export function StudioLibrary({ songKey, target, onUse, songs, songPath = '', on
     void Promise.resolve().then(() => list(songPath)).then((r) => { if (!live) return; setSamples(r.ok ? r.files : []); if (!r.ok) setSamplesProblem(r.message); }, (err) => { if (!live) return; setSamples([]); setSamplesProblem(err instanceof Error ? err.message : String(err)); });
     return () => { live = false; };
   }, [place, songPath]);
-  const shownSamples = (samples ?? []).filter((f) => !query.trim() || f.toLowerCase().includes(query.trim().toLowerCase()));
   const [query, setQuery] = useState('');
+  // After the search it filters by (read during render, so it must be declared first).
+  const shownSamples = (samples ?? []).filter((f) => !query.trim() || f.toLowerCase().includes(query.trim().toLowerCase()));
   const [picks, setPicks] = useState<TagPicks>({});
   const [collections, setCollections] = useState<Collections>(() => load(STORE, {}));
   const [chosen, setChosen] = useState<string | null>(null);
