@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type DragEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react';
 import { onCommand } from './commands';
 import type { TaskItem, TaskRepeat } from '@mobius/shared';
-import { byDay, byList, DEFAULT_LIST_NAME, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
+import { arrange, byDay, byList, DEFAULT_LIST_NAME, TASK_FILTERS, TASK_SORTS, type TaskFilter, type TaskSort, dueLabel, isoDay, listColor, nest, parseWhenAndTime, REPEATS, repeatName, searchTasks, SMART_VIEWS, smartName, smartView, splitDone, tasksGlance, timeWords, type Located, type SmartView } from './tasks-view';
 import type { TasksState } from './useTasks';
 import { ChangeBar, ReviewActions, WhyThis } from './ReviewBar';
 import { keepTurn, turnId } from './ReviewStrip';
@@ -9,8 +9,7 @@ import { useTurnFileChanged } from './liveMarks';
 import { tasksIn } from './tasks-view';
 import { SideNew, type Start } from './SideNew';
 import { FromMobius } from './FromMobius';
-import { MobiusMark } from './MobiusMark';
-import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, UndoToast, PanelLayout, type PanelSpec } from './ui';
+import { AppSidebar, DateField, Menu, PointMenu, Select, SidebarRow, SidebarSearch, SidebarSection, Switch, TimeField, ToolbarControls, UndoToast, PanelLayout, type PanelSpec } from './ui';
 import './tasks.css';
 import { AppGlance, useGlanceSlot } from './PanelSlots';
 
@@ -585,9 +584,32 @@ function NewTask({ tasks, placeholder, target, defaultDue, focusToken }: { tasks
 }
 
 /** The open list or view: a field to add to it at the top, the open tasks, and the completed ones folded away. */
+const SORT_KEY = 'mobius.tasks.sort';
+const FILTER_KEY = 'mobius.tasks.filter';
+function remembered<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
+  try { const v = window.localStorage.getItem(key); if (v && (allowed as readonly string[]).includes(v)) return v as T; } catch { /* Nothing kept. */ }
+  return fallback;
+}
+
 export function TasksPage({ tasks, focusToken = 0, review = null, working = false, onAsk, listPanels = [] }: { tasks: TasksState; focusToken?: number; /** The app's list, from the frame: its left panel. */ listPanels?: readonly PanelSpec[]; /** Mobius's last turn changed the open list, and it waits to be kept. */ review?: { conversation: string } | null; /** Mobius's turn is still running: its changes are marked as they come, and Keep waits for the end. */ working?: boolean; onAsk?: (prompt: string) => void }) {
   const [showDone, setShowDone] = useState(false);
   const [dropEnd, setDropEnd] = useState(false);
+  // The tool row's Sort and Filter, kept on this device.
+  const [sort, setSort] = useState<TaskSort>(() => remembered(SORT_KEY, TASK_SORTS.map((x) => x.id), 'manual'));
+  const [filter, setFilter] = useState<TaskFilter>(() => remembered(FILTER_KEY, TASK_FILTERS.map((x) => x.id), 'all'));
+  const choose = <T extends string>(key: string, set: (v: T) => void) => (v: T) => { set(v); try { window.localStorage.setItem(key, v); } catch { /* Not kept. */ } };
+  // New task (N, or the tool row's +): the add row takes the keys.
+  const [newToken, setNewToken] = useState(0);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'n' || e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return;
+      if ((e.target as HTMLElement | null)?.closest('input, textarea, select, [contenteditable="true"], [role="dialog"], [role="menu"]')) return;
+      e.preventDefault();
+      setNewToken((n) => n + 1);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const now = new Date();
   const view = tasks.view;
   const query = tasks.query.trim();
@@ -645,23 +667,27 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
     if (found.length === 0) empty = `Nothing matches “${query}”.`;
   } else if (view.kind === 'list') {
     const list = tasks.all[view.name] ?? [];
-    const { open, done } = splitDone(nest(list).map((n) => n.task));
+    const split = splitDone(nest(list).map((n) => n.task));
+    const open = arrange(split.open.map((task) => ({ task })), sort, filter, now).map((r) => r.task);
+    const { done } = split;
     const subsOf = (t: TaskItem) => list.filter((s) => s.parent === t.line && s !== t);
-    // The changed tasks are boxed where they are; one indigo line above the first of them says so and holds the
-    // answers, as over a change in Notes, Docs and Mail.
-    const firstNew = review ? open.find((task) => proposal.isNew(task.text)) : undefined;
-    changeShown = firstNew !== undefined;
+    // The changed tasks keep their dashed edge where they are; the floating bar under the last of them holds the
+    // answers, as under a change anywhere in the panel look.
+    const changed = review ? open.filter((task) => proposal.isNew(task.text)) : [];
+    const lastNew = changed[changed.length - 1];
+    changeShown = lastNew !== undefined;
     body = (
       <>
         <ul className="task-items" role="list" aria-label="To do">
           {open.map((task) => [
-            task === firstNew && review && !working && (
+            row({ list: view.name, task }, { showList: false, reorder: sort === 'manual' && filter === 'all', subtasks: subsOf(task) }),
+            task === lastNew && review && !working && (
               <li key="mobius-change" className="task-change">
-                <ChangeBar who={<><MobiusMark size={14} />Mobius changed this</>} onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
+                <ChangeBar floating who={changed.length > 1 ? `Mobius changed ${changed.length} tasks` : 'Mobius changed this'} why={<WhyThis conversation={review.conversation} />}
+                  onKeep={proposal.keep} onDiscard={proposal.discard} problem={proposal.problem}
                   discardTitle="Put this list back as it was before that turn" keepTitle="Keep what Mobius changed in that turn" />
               </li>
             ),
-            row({ list: view.name, task }, { showList: false, reorder: true, subtasks: subsOf(task) }),
           ])}
         </ul>
         <div className="task-drop-end" data-drop={dropEnd || undefined}
@@ -686,7 +712,8 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
         )}
       </>
     );
-    if (open.length === 0 && done.length === 0) empty = 'Type above to add a task, or ask Mobius to plan it with you.';
+    if (open.length === 0 && split.open.length > 0) empty = 'No tasks match this filter.';
+    else if (open.length === 0 && done.length === 0) empty = 'Type above to add a task, or ask Mobius to plan it with you.';
     else if (open.length === 0) empty = 'All done.';
   } else {
     const rows = smartView(view.id, tasks.all, now);
@@ -705,7 +732,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
         </section>
       ));
     } else {
-      body = <ul className="task-items" role="list" aria-label="To do">{rows.map((r) => row(r, { showList: true }))}</ul>;
+      body = <ul className="task-items" role="list" aria-label="To do">{arrange(rows, sort, filter, now).map((r) => row(r, { showList: true }))}</ul>;
     }
     if (rows.length === 0) empty = { today: 'Nothing is due today.', scheduled: 'Nothing has a date yet.', flagged: 'No flagged tasks. Flag one to keep it in sight.', all: 'No open tasks.', completed: 'Nothing is completed yet.' }[view.id];
   }
@@ -726,6 +753,17 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
   ) }] : listPanels;
   return (
     <PanelLayout app="tasks" panels={panels}>
+      <ToolbarControls label="Tasks">
+        <div className="tasks-tools">
+          <button type="button" className="strip-btn" aria-label="New task" title="New task (N)" onClick={() => setNewToken((n) => n + 1)}>
+            <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v10M5 10h10" /></svg>
+          </button>
+          <Menu label="Filter" entries={TASK_FILTERS.map((f) => ({ label: f.name, checked: filter === f.id, run: () => choose<TaskFilter>(FILTER_KEY, setFilter)(f.id) }))}
+            trigger={<button type="button" className="strip-btn" aria-label="Filter" title="Filter" aria-pressed={filter !== 'all'}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 6h12M6.5 10h7M9 14h2" /></svg></button>} />
+          <Menu label="Sort" entries={TASK_SORTS.map((o) => ({ label: o.name, checked: sort === o.id, run: () => choose<TaskSort>(SORT_KEY, setSort)(o.id) }))}
+            trigger={<button type="button" className="strip-btn" aria-label="Sort" title="Sort" aria-pressed={sort !== 'manual'}><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7 4v12M4.5 13.5 7 16l2.5-2.5M13 16V4M10.5 6.5 13 4l2.5 2.5" /></svg></button>} />
+        </div>
+      </ToolbarControls>
       <section className="tasks-page" aria-label={query ? 'Search results' : title} data-inspecting={picked ? true : undefined}>
         <div className="tasks-main">
           {/* The list's name leads the page, as in Things, with how many are left beside it (subtasks not counted on their own, as in the top bar). */}
@@ -742,7 +780,7 @@ export function TasksPage({ tasks, focusToken = 0, review = null, working = fals
           )}
           {query && <p className="tasks-searching">Results for “{query}” <button type="button" className="btn" onClick={() => tasks.setQuery('')}>Clear</button></p>}
           {!query && view.kind === 'smart' && view.id === 'completed' ? null : !query && (
-            <NewTask tasks={tasks} target={addTo?.list ?? target} focusToken={focusToken + (addTo?.token ?? 0)} defaultDue={addTo?.due ?? (view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null)}
+            <NewTask tasks={tasks} target={addTo?.list ?? target} focusToken={focusToken + newToken + (addTo?.token ?? 0)} defaultDue={addTo?.due ?? (view.kind === 'smart' && view.id === 'today' ? isoDay(now) : null)}
               placeholder={addTo ? `Add a task ${addTo.label}` : view.kind === 'list' ? `Add to ${view.name}` : view.id === 'today' ? 'Add something for today' : `Add to ${DEFAULT_LIST_NAME}`} />
           )}
           {tasks.message && <p className="tasks-message" role="alert">{tasks.message}</p>}

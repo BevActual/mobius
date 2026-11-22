@@ -51,7 +51,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
 test('a task typed into a list is a line in a real file, and ticking it off folds it away', async () => {
   await start();
   await lists().getByRole('button', { name: /^Inbox/ }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
   const field = page().getByRole('textbox', { name: 'New task', exact: true });
   await field.fill('Call the plumber');
   await field.press('Enter');
@@ -90,7 +90,7 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   fs.writeFileSync(file('Home'), `# Home\nThoughts stay.\n- [ ] Paint the door (due ${isoToday()})\n- [ ] Fix the tap (due 2001-01-01)\n- [ ] Someday\n`);
   await start();
   // Today opens first and lists what is due or late, from every list, with the list it is in.
-  await expect(shell().locator('.strip-title')).toHaveText('Today');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Today');
   await expect(todo().getByRole('checkbox')).toHaveCount(2);
   await expect(todo().locator('.task').first()).toContainText('Fix the tap');
   await expect(todo().locator('.task').first().locator('.task-due')).toHaveAttribute('data-tone', 'late');
@@ -118,7 +118,7 @@ test('rewording, dates in plain words, new lists, and Today gathering from every
   await shell().getByRole('button', { name: 'New list' }).click();
   await shell().getByRole('textbox', { name: 'List name' }).fill('Groceries');
   await shell().getByRole('textbox', { name: 'List name' }).press('Enter');
-  await expect(shell().locator('.strip-title')).toHaveText('Groceries');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Groceries');
   expect(fs.existsSync(file('Groceries'))).toBe(true);
 });
 
@@ -198,7 +198,7 @@ test('details beside the list: notes, a flag, subtasks and another list, all pla
   // The move writes the new list, then takes the task out of the old one: two writes, so wait for the second.
   await expect.poll(() => fs.readFileSync(file('Home'), 'utf8')).toBe('# Home\n\n- [ ] Fix the tap\n');
   await lists().getByRole('button', { name: /^Flagged/ }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Flagged');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Flagged');
   await expect(todo().getByRole('checkbox', { name: 'Paint the door' })).toBeVisible();
 });
 
@@ -231,16 +231,16 @@ test('a date said in words becomes the due date, and a deleted task or list come
   await shell().getByRole('menuitem', { name: 'Rename…' }).click();
   await shell().getByRole('textbox', { name: 'New name for Home' }).fill('House');
   await shell().getByRole('textbox', { name: 'New name for Home' }).press('Enter');
-  await expect(shell().locator('.strip-title')).toHaveText('House');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('House');
   expect(fs.existsSync(file('Home'))).toBe(false);
   await lists().getByRole('button', { name: 'More for House' }).click({ force: true });
   await shell().getByRole('menuitem', { name: 'Delete list…' }).click();
   await shell().getByRole('alertdialog', { name: 'Delete House?' }).getByRole('button', { name: 'Delete' }).click();
   await expect.poll(() => fs.existsSync(file('House'))).toBe(false);
-  await expect(shell().locator('.strip-title')).toHaveText('Today');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Today');
   await page().getByRole('status').getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => fs.existsSync(file('House'))).toBe(true);
-  await expect(shell().locator('.strip-title')).toHaveText('House');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('House');
 });
 
 test('Scheduled sorts by day, a task has a right-click menu, and the keyboard moves through and acts on tasks', async () => {
@@ -250,7 +250,7 @@ test('Scheduled sorts by day, a task has a right-click menu, and the keyboard mo
   fs.writeFileSync(file('Garden'), '# Garden\n\n');
   await start();
   await lists().getByRole('button', { name: /^Scheduled/ }).click();
-  await expect(shell().locator('.strip-title')).toHaveText('Scheduled');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Scheduled');
   await expect(page().getByRole('region', { name: 'Overdue' }).getByRole('checkbox', { name: 'Pay the gas bill' })).toBeVisible();
   await expect(page().getByRole('region', { name: 'Today' }).getByRole('checkbox', { name: 'Fix the tap' })).toBeVisible();
   await expect(page().getByRole('region', { name: 'Tomorrow' }).getByRole('checkbox', { name: 'Paint the door' })).toBeVisible();

@@ -80,7 +80,7 @@ test('Search finds notes, tasks and pages in one place and opens each in its own
   await expect(results.getByRole('button')).toHaveCount(1);
   await results.getByRole('button', { name: /Buy tulip bulbs/ }).click();
   await onApp('Tasks');
-  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
 
   await open('Search');
   await shell().getByRole('navigation', { name: 'Search in' }).getByRole('button', { name: 'All' }).click();
@@ -119,7 +119,7 @@ test('while the agent works the composer says what it is doing, and a change els
   await expect(pinned.getByRole('option', { name: 'Tasks, 1 waiting' })).toBeVisible();
   await pinned.getByRole('option', { name: 'Tasks, 1 waiting' }).click();
   // The turn's change is still waiting for Keep, so Tasks opens on the list it is in rather than Today.
-  await expect(shell().locator('.strip-title')).toHaveText('Inbox');
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Inbox');
   await open('Browser');
   await expect(goButton(shell())).not.toHaveAccessibleName(/waiting/);
 });

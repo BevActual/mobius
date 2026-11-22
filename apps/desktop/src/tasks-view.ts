@@ -235,3 +235,28 @@ export function parseWhenAndTime(text: string, now: Date): { text: string; due: 
   if (day) return { text: day.text, due: day.due, time: t.time, phrase: `${day.phrase} ${t.phrase}` };
   return { text: t.rest, due: isoDay(now), time: t.time, phrase: t.phrase };
 }
+
+/** How a list is ordered (the tool row's Sort): as arranged by hand, by due date (undated last), or by name. */
+export type TaskSort = 'manual' | 'due' | 'name';
+/** Which open tasks a list shows (the tool row's Filter). */
+export type TaskFilter = 'all' | 'flagged' | 'dated' | 'week';
+export const TASK_SORTS: readonly { id: TaskSort; name: string }[] = [
+  { id: 'manual', name: 'Manual' },
+  { id: 'due', name: 'Due date' },
+  { id: 'name', name: 'Name' },
+];
+export const TASK_FILTERS: readonly { id: TaskFilter; name: string }[] = [
+  { id: 'all', name: 'All tasks' },
+  { id: 'flagged', name: 'Flagged' },
+  { id: 'dated', name: 'With a due date' },
+  { id: 'week', name: 'Due this week' },
+];
+
+/** `tasks` as the tool row asks: kept to the filter, then sorted. Manual keeps their order; ties keep it too. */
+export function arrange<T extends { task: TaskItem }>(rows: readonly T[], sort: TaskSort, filter: TaskFilter, now: Date): T[] {
+  const week = isoDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6));
+  const kept = rows.filter(({ task: t }) => filter === 'all' || (filter === 'flagged' ? !!t.flagged : filter === 'dated' ? !!t.due : !!t.due && t.due <= week));
+  if (sort === 'manual') return kept;
+  const key = (t: TaskItem) => (sort === 'due' ? `${t.due ?? '9999-99-99'}T${t.time ?? '99:99'}` : t.text.toLocaleLowerCase());
+  return kept.map((r, i) => ({ r, i })).sort((a, b) => key(a.r.task).localeCompare(key(b.r.task)) || a.i - b.i).map(({ r }) => r);
+}

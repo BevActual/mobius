@@ -61,7 +61,8 @@
 .tasks-main > .task-items { margin-left: auto; margin-right: auto; }
 
 /* The add row: a row like the others, with a + where the check would be. */
-.tasks-page .task-new { gap: var(--check-gap); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--row-pad); border-bottom: var(--hairline-w) solid var(--line); }
+.tasks-page .task-new { gap: var(--check-gap); min-height: var(--row-list); padding: 0 var(--sp-2) 0 var(--row-pad); border-bottom: 0; border-radius: var(--radius-control); }
+.tasks-page .task-new:focus-within { background: color-mix(in srgb, var(--sel) 55%, transparent); }
 .tasks-page .task-new input[aria-label="New task"] { height: var(--control-h); font-size: var(--fs-md); }
 .task-new input[aria-label="New task"]::placeholder { color: var(--faint); }
 .tasks-page .task-date { height: var(--control-h); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
@@ -80,13 +81,11 @@
 .task-items .task { display: block; padding: 0; border: 0; border-radius: 0; background: transparent; transition: none; }
 .task-items .task:hover { background: transparent; }
 .task-line { position: relative; display: flex; align-items: center; gap: var(--check-gap); height: var(--row-list); padding: 0 var(--sp-2) 0 var(--row-pad); border-radius: var(--radius-control); transition: background var(--dur-fast) var(--ease); }
-/* The hairline runs from the words, not under the check. */
-.task-line::after { content: ""; position: absolute; left: calc(var(--row-pad) + var(--check) + var(--check-gap)); right: 0; bottom: 0; height: var(--hairline-w); background: var(--line-soft); }
+/* Rows float on the page with no lines between them (the panel look); the pointer's row takes a soft fill. */
 .task-line:hover { background: color-mix(in srgb, var(--sel) 55%, transparent); --tools-bg: color-mix(in srgb, var(--sel) 55%, var(--bg)); }
 /* Picked, the keyboard's row and the row whose menu is open read as selected: a grey fill. */
 .task[data-picked] > .task-line, .task-line:focus, .task-line[data-menu] { outline: none; background: var(--sel); --tools-bg: var(--sel); }
 .task-line:focus-visible { box-shadow: inset 0 0 0 2px var(--ink); }
-.task[data-picked] > .task-line::after, .task[data-proposed] > .task-line::after, .task-line:hover::after, .task-line:focus::after, .task-line[data-menu]::after { opacity: 0; }
 .task[data-fresh] > .task-line { background: var(--mobius-wash); --tools-bg: var(--mobius-wash); }
 .task[data-proposed] > .task-line { outline: 1.5px dashed var(--mobius); outline-offset: -2px; }
 .task[data-drop] > .task-line { box-shadow: inset 0 2px 0 var(--ink); }
@@ -226,9 +225,6 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 
 /* Completed sits one row's gap under the list, as part of it. */
 .tasks-page .tasks-done { margin-top: var(--sp-2); }
-/* "Mobius changed this list": a quiet label with the Mobius mark, then Discard, Try another and Keep. */
-.task-change .doc-change-bar > span:first-child { display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--mobius); white-space: nowrap; }
-.task-change .doc-change-bar > span:first-child svg { color: var(--mobius); }
 /* A list Mobius changed keeps its count; the change itself is shown in the list (and under From Mobius), not as a dot. */
 .ui-dock[data-dock="left"] .side .list-row[data-proposed]:has(> .list-count)::after { content: none; }
 /* The page heading: the list's name, the size Settings and Knowledge use, and its count, muted. */
@@ -236,3 +232,9 @@ html[data-density='compact'] .task-line:has(.task-note) { height: var(--row-list
 .tasks-title-count { font-size: var(--fs-md); font-weight: var(--fw-regular); letter-spacing: 0; color: var(--muted); font-variant-numeric: tabular-nums; }
 /* A done subtask stays in place, muted, and shows its tools only under the pointer (or keyboard focus), not after its tick. */
 .task-items .task[data-done]:not([data-picked]) > .task-line:not(:hover):not(:has(:focus-visible)) > .task-tools { display: none; }
+
+/* The tool row: New task, Filter and Sort, centred. */
+.tasks-tools { display: inline-flex; align-items: center; gap: 2px; }
+.tasks-tools .strip-btn[aria-pressed="true"] { background: var(--sel); color: var(--ink); }
+/* Mobius's change: the floating bar under the last task it changed. */
+.task-items > .task-change { list-style: none; padding: 0 0 var(--sp-2); }
