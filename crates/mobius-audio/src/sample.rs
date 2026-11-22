@@ -30,6 +30,15 @@ impl Samples {
         Samples::default()
     }
 
+    /// The sound in `file` in `folder` (kept, as a clip's is), for drawing its waveform.
+    ///
+    /// # Errors
+    /// When it is outside the folder, missing, or not a WAV it reads.
+    pub fn sound(&self, folder: &Path, file: &str) -> Result<Arc<Sound>, String> {
+        let mut kept = self.kept.lock().unwrap_or_else(PoisonError::into_inner);
+        read(folder, file, &mut kept).map(|(_, sound)| sound)
+    }
+
     /// Reads every sound the song's audio clips name, from `folder`, into the song's `sounds`. A file outside the
     /// folder, missing or not a WAV it reads is left out, so its clip is silent; what went wrong with each is returned.
     pub fn attach(&self, song: &mut Song, folder: &Path) -> Vec<String> {
@@ -86,6 +95,26 @@ fn read(folder: &Path, file: &str, kept: &mut Kept) -> Result<(PathBuf, Arc<Soun
     let sound = Arc::new(crate::wav::read(&std::fs::read(&path).map_err(|e| e.to_string())?)?);
     kept.insert(path.clone(), (changed, sound.clone()));
     Ok((path, sound))
+}
+
+/// The most points [`peaks`] gives.
+pub const MAX_PEAKS: usize = 100_000;
+
+/// A sound's waveform for drawing: the lowest and highest of left and right together over each `per` frames (more
+/// frames a point when that would pass [`MAX_PEAKS`]). Returns the frames a point, and the points.
+#[must_use]
+pub fn peaks(sound: &Sound, per: usize) -> (usize, Vec<[f32; 2]>) {
+    let frames = sound.left.len();
+    let per = per.max(1).max(frames.div_ceil(MAX_PEAKS));
+    let points = (0..frames)
+        .step_by(per)
+        .map(|start| {
+            let end = (start + per).min(frames);
+            let both = sound.left[start..end].iter().chain(&sound.right[start..end]);
+            both.fold([f32::INFINITY, f32::NEG_INFINITY], |[lo, hi], x| [lo.min(*x), hi.max(*x)])
+        })
+        .collect();
+    (per, points)
 }
 
 /// Where a playing clip's last two grains start in its file (for a warp mode that keeps pitch), so each new grain
@@ -317,6 +346,14 @@ mod tests {
         // And at its own tempo it is the file as it is, near enough.
         let same = Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"texture","bpm":60}"#), Arc::new(Sound { rate: 1000.0, left: vec![0.5; 2000], right: vec![0.5; 2000] }), 60.0);
         assert!((same.at(0.7, &mut Stretch::default()).0 - 0.5).abs() < 1e-4);
+    }
+
+    #[test]
+    fn peaks_give_each_stretch_its_lowest_and_highest() {
+        let sound = Sound { rate: 1000.0, left: vec![0.1, -0.5, 0.2, 0.9, 0.0], right: vec![0.0, 0.0, -0.3, 0.0, 0.0] };
+        assert_eq!(peaks(&sound, 2), (2, vec![[-0.5, 0.1], [-0.3, 0.9], [0.0, 0.0]]));
+        let long = Sound { rate: 1000.0, left: vec![0.0; MAX_PEAKS * 3], right: vec![0.0; MAX_PEAKS * 3] };
+        assert_eq!(peaks(&long, 1).0, 3);
     }
 
     #[test]

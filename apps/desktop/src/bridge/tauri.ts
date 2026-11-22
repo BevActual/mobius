@@ -761,6 +761,7 @@ export function createTauriBridge(): MobiusBridge {
       listen: (input) => call('music', 'listen', [input], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       arm: (trackId) => call('music', 'arm', [trackId], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       record: (on) => call('music', 'record', [on], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
+      peaks: (path, file, per) => call('music', 'peaks', [path, file, per ?? 256], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       onTake: (listener) => on<MusicTake>('mobius:music-take', listener),
       press: (pitch, velocity) => call('music', 'press', [pitch, velocity], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       watch: (trackId, fxId) => call('music', 'watch', [trackId, fxId], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),

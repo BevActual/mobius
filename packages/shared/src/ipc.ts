@@ -1280,6 +1280,9 @@ export interface MobiusBridge {
     /** Record the armed audio track's input while the song plays (true), or end the take (false; Stop ends it too).
      *  The take is saved in the song's Samples/Recorded folder and announced with onTake. */
     record?(on: boolean): Promise<{ ok: true; file?: string; take?: MusicTake | null } | NotesFailure>;
+    /** An audio file's waveform (`file` relative to the folder of the song at page `path`): the lowest and highest
+     *  sample over each `per` frames (default 256; more when the file would give over 100,000 points). */
+    peaks?(path: string, file: string, per?: number): Promise<{ ok: true; rate: number; frames: number; per: number; peaks: [number, number][] } | NotesFailure>;
     /** A take has been saved: add it as an audio clip on its track. */
     onTake?(listener: (take: MusicTake) => void): () => void;
     /** A key pressed on the armed track, held until it is pressed again with velocity 0 (lifted). */
