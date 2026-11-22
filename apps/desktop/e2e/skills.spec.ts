@@ -36,13 +36,14 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await shell().keyboard.press('Enter');
   // Store opens on its installed apps; the skills are a place beside them.
   await shell().getByRole('complementary', { name: 'Store' }).getByRole('button', { name: /^Skills/ }).click();
+  // Store opens with Mobius closed, as a place does; skills are asked for in Mobius, so it is brought back.
+  await shell().getByRole('button', { name: 'Show Mobius' }).click();
 }
 
 test('a skill is plain steps kept as SKILL.md, and every change keeps the version before it', async () => {
   await start();
-  // New skill is the sidebar's New (its Create button), first as New is in every app.
-  await expect(shell().locator('.app-side-new')).toHaveAccessibleName('New skill');
-  await shell().locator('.app-side-new').click();
+  // New skill is in the Skills page's tool row, beside Install a skill.
+  await shell().locator('.strip-btn.abl-tool', { hasText: 'New skill' }).click();
   await shell().getByRole('textbox', { name: 'Skill name' }).fill('Compare stays');
   await shell().getByRole('textbox', { name: 'When to use it' }).fill('When choosing where to stay');
   await shell().getByRole('textbox', { name: 'When to use it' }).press('Enter');
