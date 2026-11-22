@@ -6,6 +6,7 @@ use crate::clock::Clock;
 use crate::drum::Hit;
 use crate::fx::{pan, Chain};
 use crate::sample::{Placed, Stretch};
+use crate::sampler::{SampleVoice, Samplers};
 use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
@@ -53,6 +54,11 @@ struct Lane {
     audio: Vec<AudioClip>,
     /// Where the grains of the Session clip playing on it start, when its warp keeps pitch.
     slot_stretch: Stretch,
+    /// A sampler track's sound, or the drums' pads that hold sounds of their own.
+    samplers: Samplers,
+    /// Sampler notes sounding, each with how far into the block it starts the first time (as a hit waits) and the
+    /// note that started it.
+    sample_voices: Vec<(SampleVoice, usize, u8)>,
 }
 
 /// An audio clip in Arrange: `length` song beats from `start`, playing its own beats from `offset`, going round
@@ -104,8 +110,27 @@ impl Lane {
     /// Starts a note `offset` samples into this block. A voice sounds into the scratch from there at once; a drum
     /// hit waits for the second pass, as it can be panned.
     fn start(&mut self, note: &Note, offset: usize, frames: usize, spb: f64, rate: f64) {
-        if self.instrument == Instrument::Drums {
-            let pad = self.pads.iter().find(|(p, _)| *p == note.pitch).map_or_else(Pad::default, |(_, pad)| *pad);
+        let drums = self.instrument == Instrument::Drums && self.samplers.track.is_none();
+        let pad = self.pads.iter().find(|(p, _)| drums && *p == note.pitch).map(|(_, pad)| pad);
+        // A sampler track's note, or a pad's own sound.
+        if let Some(voice) = self.samplers.note(note.pitch, note.velocity, note.length * spb, self.kit.tune, pad) {
+            if self.samplers.monophonic(note.pitch) {
+                // One-Shot is monophonic: a new note cuts the last off (on a pad, the last of that pad's).
+                for (v, _, key) in &mut self.sample_voices {
+                    if !drums || *key == note.pitch {
+                        v.choke();
+                    }
+                }
+            }
+            if self.sample_voices.len() >= MAX_VOICES {
+                self.sample_voices.remove(0);
+            }
+            self.sample_voices.push((voice, offset.min(frames), note.pitch));
+            return;
+        }
+        if drums {
+            const NO_PAD: Pad = Pad { tune: 0.0, decay: 1.0, level: 1.0, pan: 0.0, sample: None };
+            let pad = pad.unwrap_or(&NO_PAD);
             self.seed = self.seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
             if self.hits.len() >= MAX_VOICES {
                 self.hits.remove(0);
@@ -133,7 +158,11 @@ pub struct Oneshots {
     voices: Vec<(Voice, Gains)>,
     held: Vec<Held>,
     hits: Vec<(Hit, Gains)>,
+    samples: Vec<HeldSample>,
     ticks: Vec<Tick>,
+    /// The song's Main level: notes go through it as the song's own do (Live: a played note is heard through the
+    /// Main track). A count-in's ticks do not, as Live's metronome has a level of its own.
+    pub main: f32,
     mono: Vec<f32>,
     left: Vec<f32>,
     right: Vec<f32>,
@@ -167,6 +196,28 @@ pub enum Oneshot {
     Press { key: u8, voice: Voice, gains: Gains, wait: usize },
     /// A key lifted, `wait` samples into the next block.
     Lift { key: u8, wait: usize },
+    /// A sampler's note (or a drum pad's sound), from `wait` samples into the next block, let go when `key` is lifted
+    /// if it has not ended first. It cuts off the notes before it as `cuts` says (One-Shot is monophonic).
+    Sample { key: u8, voice: SampleVoice, gains: Gains, wait: usize, cuts: Cuts },
+}
+
+/// Which notes sounding a new sampler note cuts off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Cuts {
+    None,
+    /// Those of the same key: a One-Shot drum pad.
+    SameKey,
+    /// All: a One-Shot sampler track.
+    All,
+}
+
+/// A sampler note sounding apart from the song.
+struct HeldSample {
+    key: u8,
+    voice: SampleVoice,
+    gains: Gains,
+    wait: usize,
+    lift: Option<usize>,
 }
 
 /// A note held down on a keyboard.
@@ -185,7 +236,7 @@ const ONESHOTS: usize = 16;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
-        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
+        Oneshots { voices: Vec::with_capacity(ONESHOTS), held: Vec::with_capacity(ONESHOTS), hits: Vec::with_capacity(ONESHOTS), samples: Vec::with_capacity(ONESHOTS), ticks: Vec::with_capacity(ONESHOTS), main: 1.0, mono: vec![0.0; MAX_BLOCK], left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] }
     }
 }
 
@@ -217,6 +268,7 @@ impl Oneshots {
                 self.voices.clear();
                 self.held.clear();
                 self.hits.clear();
+                self.samples.clear();
             }
             Oneshot::Press { key, voice, gains, wait } => {
                 self.lift(key, wait);
@@ -226,6 +278,17 @@ impl Oneshots {
                 self.held.push(Held { key, voice, gains, wait, lift: None });
             }
             Oneshot::Lift { key, wait } => self.lift(key, wait),
+            Oneshot::Sample { key, voice, gains, wait, cuts } => {
+                for held in &mut self.samples {
+                    if cuts == Cuts::All || (cuts == Cuts::SameKey && held.key == key) {
+                        held.voice.choke();
+                    }
+                }
+                if self.samples.len() >= ONESHOTS {
+                    self.samples.remove(0);
+                }
+                self.samples.push(HeldSample { key, voice, gains, wait, lift: None });
+            }
         }
     }
 
@@ -234,25 +297,30 @@ impl Oneshots {
         for held in self.held.iter_mut().filter(|h| h.key == key && h.lift.is_none()) {
             held.lift = Some(wait.max(held.wait));
         }
+        for held in self.samples.iter_mut().filter(|h| h.key == key && h.lift.is_none()) {
+            held.lift = Some(wait.max(held.wait));
+        }
     }
 
     /// Whether anything is sounding or waiting to.
     #[must_use]
     pub fn busy(&self) -> bool {
-        !(self.voices.is_empty() && self.held.is_empty() && self.hits.is_empty() && self.ticks.is_empty())
+        !(self.voices.is_empty() && self.held.is_empty() && self.hits.is_empty() && self.samples.is_empty() && self.ticks.is_empty())
     }
 
     /// Adds what is sounding into `left` and `right`.
     pub fn add_to(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
+        let main = self.main;
         for (l, r) in left.chunks_mut(MAX_BLOCK).zip(right.chunks_mut(MAX_BLOCK)) {
             let n = l.len();
             let mono = &mut self.mono[..n];
             for (v, (gl, gr)) in &mut self.voices {
                 mono.fill(0.0);
                 v.add_to(mono, rate);
+                let (gl, gr) = (*gl * main, *gr * main);
                 for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
-                    *a += *m * *gl;
-                    *b += *m * *gr;
+                    *a += *m * gl;
+                    *b += *m * gr;
                 }
             }
             for h in &mut self.held {
@@ -272,8 +340,8 @@ impl Oneshots {
                 }
                 h.wait -= start;
                 for ((a, b), m) in l.iter_mut().zip(r.iter_mut()).zip(mono.iter()) {
-                    *a += *m * h.gains.0;
-                    *b += *m * h.gains.1;
+                    *a += *m * h.gains.0 * main;
+                    *b += *m * h.gains.1 * main;
                 }
             }
             let (hl, hr) = (&mut self.left[..n], &mut self.right[..n]);
@@ -283,12 +351,35 @@ impl Oneshots {
                 let wait = h.wait_within(n);
                 h.add_to(&mut hl[wait..], &mut hr[wait..], rate);
                 for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
-                    *a += *x * *gl;
-                    *b += *y * *gr;
+                    *a += *x * *gl * main;
+                    *b += *y * *gr * main;
+                }
+            }
+            for h in &mut self.samples {
+                hl.fill(0.0);
+                hr.fill(0.0);
+                let start = h.wait.min(n);
+                match h.lift {
+                    Some(lift) if lift < n => {
+                        h.voice.add_to(&mut hl[start..lift], &mut hr[start..lift], rate);
+                        h.voice.lift();
+                        h.voice.add_to(&mut hl[lift..], &mut hr[lift..], rate);
+                        h.lift = Some(0);
+                    }
+                    lift => {
+                        h.voice.add_to(&mut hl[start..], &mut hr[start..], rate);
+                        h.lift = lift.map(|l| l - n);
+                    }
+                }
+                h.wait -= start;
+                for (((a, b), x), y) in l.iter_mut().zip(r.iter_mut()).zip(hl.iter()).zip(hr.iter()) {
+                    *a += *x * h.gains.0 * main;
+                    *b += *y * h.gains.1 * main;
                 }
             }
             self.ticks.retain_mut(|t| !t.add_to(l, r, rate));
         }
+        self.samples.retain(|h| !h.voice.done());
         self.voices.retain(|(v, _)| !v.done());
         self.held.retain(|h| !h.voice.done());
         self.hits.retain(|(h, _)| !h.done());
@@ -474,8 +565,10 @@ impl Renderer {
                         })
                         .collect()
                 };
-                // An audio track's sound comes in with two channels.
-                let stereo = Song::is_audio(t) || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
+                // A sampler track's sound and its drum pads' own sounds, from the files the song has read.
+                let samplers = Samplers::of(t, &song.sounds);
+                // An audio track's sound comes in with two channels, as a sampler's does.
+                let stereo = Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -483,7 +576,7 @@ impl Renderer {
                     sound: t.sound,
                     instrument: t.instrument,
                     kit: t.kit.unwrap_or_default(),
-                    pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, *pad))).collect(),
+                    pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, pad.clone()))).collect(),
                     gains: { let (l, r) = pan_gains(t.pan); (l * t.volume, r * t.volume) },
                     volume: t.volume,
                     volumes: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
@@ -506,6 +599,8 @@ impl Renderer {
                         .collect(),
                     audio,
                     slot_stretch: Stretch::default(),
+                    samplers,
+                    sample_voices: Vec::with_capacity(MAX_VOICES),
                 }
             })
             .collect();
@@ -600,6 +695,7 @@ impl Renderer {
             if let Some(was) = old.lanes.iter_mut().find(|w| w.id == lane.id) {
                 std::mem::swap(&mut lane.voices, &mut was.voices);
                 std::mem::swap(&mut lane.hits, &mut was.hits);
+                std::mem::swap(&mut lane.sample_voices, &mut was.sample_voices);
                 // Effects that are just as they were keep their echoes and rooms ringing.
                 if lane.fx_key == was.fx_key && lane.chain.is_some() {
                     std::mem::swap(&mut lane.chain, &mut was.chain);
@@ -774,6 +870,11 @@ impl Renderer {
                 hit.add_to(&mut scratch[offset..], &mut right_scratch[offset..], rate);
             }
             lane.hits.retain(|h| !h.done());
+            for (voice, wait, _) in &mut lane.sample_voices {
+                let offset = std::mem::take(wait).min(frames);
+                voice.add_to(&mut scratch[offset..], &mut right_scratch[offset..], rate);
+            }
+            lane.sample_voices.retain(|(v, _, _)| !v.done());
             // Audio clips, sample by sample at the file's frame for each beat.
             let slot_audio = clip.and_then(|(length, _, start, audio)| Some((length, start, audio?)));
             if !lane.audio.is_empty() || slot_audio.is_some() {
@@ -1158,5 +1259,30 @@ mod tests {
         let (mut left, mut right) = (vec![0f32; 512], vec![0f32; 512]);
         r.render(&mut left, &mut right);
         assert!((left[0] - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn a_sampler_track_and_a_drum_pad_play_their_sounds_from_their_notes() {
+        // A tenth of a second of steady sound, left 0.5 and right 0.25.
+        let sound = std::sync::Arc::new(crate::wav::Sound { rate: 48_000.0, left: vec![0.5; 4_800], right: vec![0.25; 4_800] });
+        let mut s = song(r#"{"id":"s","kind":"sampler","sampler":{"file":"hit.wav","mode":"oneshot"},"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":60,"start":1,"length":0.01,"velocity":1}]}]}"#);
+        s.sounds.insert("hit.wav".into(), sound.clone());
+        let (l, r) = render_song(&s, 48_000);
+        // From beat 1 (half a second at 120) its whole region plays, though the note is short, in two channels.
+        assert_eq!(onset(&l, 1e-3), Some(24_000));
+        // Through Main at 0.8.
+        assert!((l[24_500] - 0.4).abs() < 0.01 && (r[24_500] - 0.2).abs() < 0.01, "{} {}", l[24_500], r[24_500]);
+        assert!(l[24_000 + 4_900..].iter().all(|x| x.abs() < 1e-6));
+        // On a drum pad it plays in place of the drum, at the pad's level, and the other drums are as they were.
+        let mut d = song(r#"{"id":"d","instrument":"drums","pads":{"36":{"tune":0,"decay":1,"level":0.5,"pan":0,"sample":{"file":"hit.wav","mode":"oneshot"}}},"clips":[{"id":"c","start":0,"length":4,"notes":[{"pitch":36,"start":0,"length":0.25,"velocity":1},{"pitch":38,"start":2,"length":0.25,"velocity":1}]}]}"#);
+        d.sounds.insert("hit.wav".into(), sound);
+        let (l, r) = render_song(&d, 48_000);
+        assert!((l[500] - 0.2).abs() < 0.01 && (r[500] - 0.1).abs() < 0.01, "{} {}", l[500], r[500]);
+        assert!(l[5_000..48_000].iter().all(|x| x.abs() < 1e-6));
+        assert!(onset(&l[48_000..], 1e-3).is_some());
+        // With the file missing, the pad plays its drum.
+        d.sounds.clear();
+        let (l, _) = render_song(&d, 48_000);
+        assert!(l[500..4_800].iter().any(|x| (x.abs() - 0.2).abs() > 0.05));
     }
 }

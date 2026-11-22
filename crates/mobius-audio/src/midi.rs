@@ -125,7 +125,7 @@ mod tests {
     fn played_notes_from_a_keyboard_land_a_block_late_to_the_sample_and_release_when_lifted() {
         let (engine, mut audio) = Engine::pair(48_000, "test".into());
         let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"bass","sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.3,"sustain":1,"release":0.2,"vibrato":0,"rate":5}}]}"#).unwrap();
-        engine.arm(Some(&song.tracks[0]));
+        engine.arm(Some(&song.tracks[0]), &song.sounds);
         let keys = engine.keys();
         // Blocks of 10 ms, as a sound output asks for them; a note on comes 3 ms before the first, on channel 2.
         let start = Instant::now() + Duration::from_secs(1);

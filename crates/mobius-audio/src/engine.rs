@@ -36,6 +36,8 @@ pub(crate) enum Command {
     Monitor(Option<(f32, f32)>),
     /// A take: what comes in is handed to it while the song plays, or the take ends.
     Record(Option<rtrb::Producer<f32>>),
+    /// The song's Main level, which notes played apart from it go through as its own do.
+    Main(f32),
 }
 
 /// What the audio thread reports.
@@ -142,12 +144,14 @@ impl AudioSide {
                     }
                 }
                 Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
+                Command::Main(level) => self.oneshots.main = level,
                 Command::Played(shot, at) => {
                     let wait = place(at, now, frames, self.rate);
                     let shot = match shot {
                         Oneshot::Press { key, voice, gains, .. } => Oneshot::Press { key, voice, gains, wait },
                         Oneshot::Lift { key, .. } => Oneshot::Lift { key, wait },
                         Oneshot::Hit(hit, gains) => Oneshot::Hit(hit.waiting(wait), gains),
+                        Oneshot::Sample { key, voice, gains, cuts, .. } => Oneshot::Sample { key, voice, gains, wait, cuts },
                         other => other,
                     };
                     self.oneshots.start(shot, self.rate);
@@ -323,20 +327,32 @@ fn read_input(input: Option<&mut rtrb::Consumer<f32>>, left: &mut [f32], right: 
     }
 }
 
-/// A note of a track, made on the caller's side: a drum through its kit and pad, anything else through its sound.
+/// A note of a track, made on the caller's side: a drum through its kit and pad, a sampler's note (or a pad's own
+/// sound) from `samplers`, anything else through its sound.
 // Made and taken apart at once on the caller's side, never stored.
 #[allow(clippy::large_enum_variant)]
 enum Note {
     Hit(crate::drum::Hit, crate::render::Gains),
     Voice(crate::voice::Voice, crate::render::Gains),
+    Sample(crate::sampler::SampleVoice, crate::render::Gains, crate::render::Cuts),
 }
 
-fn note_of(track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Note {
+fn note_of(track: &crate::song::Track, samplers: &crate::sampler::Samplers, pitch: u8, velocity: f64, seconds: f64) -> Note {
     // Heard at the track's volume and pan, as its notes are when it plays.
     let gains = crate::render::track_gains(track);
-    if track.instrument == crate::song::Instrument::Drums {
-        let pad = track.pads.get(&pitch.to_string()).copied().unwrap_or_default();
-        Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
+    let drums = track.instrument == crate::song::Instrument::Drums && samplers.track.is_none();
+    let pad = track.pads.get(&pitch.to_string()).filter(|_| drums);
+    if let Some(voice) = samplers.note(pitch, velocity, seconds, track.kit.unwrap_or_default().tune, pad) {
+        let cuts = match (samplers.monophonic(pitch), drums) {
+            (false, _) => crate::render::Cuts::None,
+            (true, true) => crate::render::Cuts::SameKey,
+            (true, false) => crate::render::Cuts::All,
+        };
+        return Note::Sample(voice, gains, cuts);
+    }
+    if drums {
+        let pad = pad.cloned().unwrap_or_default();
+        Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), &pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
     } else {
         Note::Voice(match &track.sound {
             Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
@@ -356,7 +372,7 @@ const _: fn() = || {
 pub(crate) struct Keys {
     commands: Arc<Mutex<rtrb::Producer<Command>>>,
     /// The track a keyboard plays.
-    armed: Arc<Mutex<Option<crate::song::Track>>>,
+    armed: Arc<Mutex<Option<(crate::song::Track, crate::sampler::Samplers)>>>,
     /// Told when a key is pressed (off the audio thread), so whoever reports the position starts while stopped.
     pressed: Arc<Mutex<Option<Pressed>>>,
 }
@@ -372,12 +388,13 @@ impl Keys {
     /// `pitch` pressed `at` on the armed track (nothing when none is armed).
     pub(crate) fn press(&self, pitch: u8, velocity: f64, at: std::time::Instant) -> Result<(), String> {
         let note = match lock(&self.armed).as_ref() {
-            Some(track) => note_of(track, pitch, velocity.clamp(0.0, 1.0), crate::voice::HELD_SECONDS),
+            Some((track, samplers)) => note_of(track, samplers, pitch, velocity.clamp(0.0, 1.0), crate::voice::HELD_SECONDS),
             None => return Ok(()),
         };
         let shot = match note {
             Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
             Note::Voice(voice, gains) => Oneshot::Press { key: pitch, voice, gains, wait: 0 },
+            Note::Sample(voice, gains, cuts) => Oneshot::Sample { key: pitch, voice, gains, wait: 0, cuts },
         };
         self.send(Command::Played(shot, at))?;
         let told = lock(&self.pressed).clone();
@@ -573,6 +590,7 @@ impl Engine {
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
         self.aim(Some(song));
+        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
         self.send(Command::Play(renderer))
     }
 
@@ -607,14 +625,17 @@ impl Engine {
     }
 
     /// Sounds a note of `track` at once, playing or not, as the window does when a key is pressed or a note is put on
-    /// the roll: its instrument and sound (a drum through its kit and pad), straight out, `seconds` long.
+    /// the roll: its instrument and sound (a drum through its kit and pad, a sampler's from the song's `sounds`),
+    /// straight out, `seconds` long.
     ///
     /// # Errors
     /// As [`Engine::play`].
-    pub fn preview(&self, track: &crate::song::Track, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
-        let shot = match note_of(track, pitch, velocity, seconds) {
+    pub fn preview(&self, track: &crate::song::Track, sounds: &crate::song::Sounds, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
+        let shot = match note_of(track, &crate::sampler::Samplers::of(track, sounds), pitch, velocity, seconds) {
             Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
             Note::Voice(voice, gains) => Oneshot::Voice(voice, gains),
+            // Its own length: no key lifts it.
+            Note::Sample(voice, gains, cuts) => Oneshot::Sample { key: u8::MAX, voice, gains, wait: 0, cuts },
         };
         *lock(&self.heard) = Some(track.id.clone()).filter(|id| id != "preview");
         self.send(Command::Oneshot(shot))
@@ -674,8 +695,10 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn monitor(&self, track: Option<(&str, crate::render::Gains)>) -> Result<(), String> {
-        // Stopped, its meter is the one that moves with Main's.
-        *lock(&self.heard) = track.map(|(id, _)| id.to_owned());
+        // Stopped, its meter is the one that moves with Main's. Monitoring nothing leaves the armed track's.
+        if let Some((id, _)) = track {
+            *lock(&self.heard) = Some(id.to_owned());
+        }
         self.send(Command::Monitor(track.map(|(_, gains)| gains)))
     }
 
@@ -723,9 +746,10 @@ impl Engine {
         Ok(Some(Take { written, beat, offset: latency, lost: self.shared.take_lost.load(Ordering::Relaxed) }))
     }
 
-    /// Plays a keyboard on `track` (its instrument and sound, at its volume and pan), or on none.
-    pub fn arm(&self, track: Option<&crate::song::Track>) {
-        *lock(&self.keys.armed) = track.cloned();
+    /// Plays a keyboard on `track` (its instrument and sound, or its samples from the song's `sounds`, at its volume
+    /// and pan), or on none.
+    pub fn arm(&self, track: Option<&crate::song::Track>, sounds: &crate::song::Sounds) {
+        *lock(&self.keys.armed) = track.map(|t| (t.clone(), crate::sampler::Samplers::of(t, sounds)));
         *lock(&self.heard) = track.map(|t| t.id.clone());
     }
 
@@ -791,6 +815,7 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn update(&self, song: &Song) -> Result<(), String> {
+        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
         let at = self.position();
         let how = Playing { from: at.beat, ..*lock(&self.how) };
         if at.playing { self.play(song, how) } else { Ok(()) }
@@ -1157,7 +1182,7 @@ mod tests {
         let (engine, mut audio) = Engine::pair(48_000, "test".into());
         let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"k","instrument":"piano"},{"id":"d","instrument":"drums"}]}"#).unwrap();
         let mut buffer = vec![0f32; 4_800 * 2];
-        engine.preview(&song.tracks[0], 60, 0.8, 0.35).unwrap();
+        engine.preview(&song.tracks[0], &song.sounds, 60, 0.8, 0.35).unwrap();
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().any(|s| s.abs() > 0.01) && !engine.position().playing);
         // While it sounds the position says so: the master's level, which is the previewed track's too.
@@ -1172,7 +1197,7 @@ mod tests {
         assert!(buffer.iter().all(|s| *s == 0.0));
         let at = engine.position();
         assert!(!at.sounding && at.meters.is_empty(), "{:?}", at.meters);
-        engine.preview(&song.tracks[1], 36, 1.0, 0.35).unwrap();
+        engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.35).unwrap();
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().any(|s| s.abs() > 0.01));
         for _ in 0..30 {
@@ -1207,7 +1232,7 @@ mod tests {
         let mut block = vec![0f32; 480 * 2];
         audio.fill(&mut block, 2);
         assert!(block.iter().all(|s| *s == 0.0));
-        engine.arm(Some(&song.tracks[0]));
+        engine.arm(Some(&song.tracks[0]), &song.sounds);
         // Pressed 4 ms before a 10 ms block is made: it starts 6 ms into it, whatever block it came in.
         let made = Instant::now() + Duration::from_secs(1);
         engine.keys.press(69, 1.0, made - Duration::from_millis(4)).unwrap();
@@ -1229,7 +1254,7 @@ mod tests {
         }
         assert!(block.iter().all(|s| *s == 0.0) && !engine.position().sounding);
         // A drum pad rings out on its own.
-        engine.arm(Some(&song.tracks[1]));
+        engine.arm(Some(&song.tracks[1]), &song.sounds);
         engine.press(36, 1.0).unwrap();
         for chunk in out.chunks_mut(960) {
             audio.fill(chunk, 2);
@@ -1252,7 +1277,7 @@ mod tests {
         let song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"a","instrument":"piano","volume":1},{"id":"b","instrument":"piano","volume":0.1},{"id":"c","instrument":"piano","volume":1,"pan":-1},{"id":"d","instrument":"drums","volume":0.1}]}"#).unwrap();
         let peaks = |track: usize, pitch: u8| {
             let (engine, mut audio) = Engine::pair(48_000, "test".into());
-            engine.preview(&song.tracks[track], pitch, 0.8, 0.35).unwrap();
+            engine.preview(&song.tracks[track], &song.sounds, pitch, 0.8, 0.35).unwrap();
             let mut buffer = vec![0f32; 4_800 * 2];
             audio.fill(&mut buffer, 2);
             let peak = |c: usize| buffer.iter().skip(c).step_by(2).fold(0f32, |m, s| m.max(s.abs()));
@@ -1264,7 +1289,7 @@ mod tests {
         let (left, right) = peaks(2, 60);
         assert!(left > 0.01 && right < 1e-6, "{left} {right}");
         let (drum, _) = peaks(3, 36);
-        let loud = { let mut s = song.clone(); s.tracks[3].volume = 1.0; let (engine, mut audio) = Engine::pair(48_000, "test".into()); engine.preview(&s.tracks[3], 36, 0.8, 0.35).unwrap(); let mut b = vec![0f32; 4_800 * 2]; audio.fill(&mut b, 2); b.iter().step_by(2).fold(0f32, |m, x| m.max(x.abs())) };
+        let loud = { let mut s = song.clone(); s.tracks[3].volume = 1.0; let (engine, mut audio) = Engine::pair(48_000, "test".into()); engine.preview(&s.tracks[3], &s.sounds, 36, 0.8, 0.35).unwrap(); let mut b = vec![0f32; 4_800 * 2]; audio.fill(&mut b, 2); b.iter().step_by(2).fold(0f32, |m, x| m.max(x.abs())) };
         assert!((drum / loud - 0.1).abs() < 0.01, "{drum} {loud}");
     }
 
@@ -1355,5 +1380,48 @@ mod tests {
         let sound = crate::wav::read(&std::fs::read(dir.join("take.wav")).unwrap()).unwrap();
         assert_eq!(&sound.left[..4800], &[0.5; 4800][..]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn a_key_on_a_sampler_track_plays_its_sound_until_lifted_and_a_pad_sample_rings_out() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let mut song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"tracks":[{"id":"s","kind":"sampler","sampler":{"file":"a.wav","loop":true},"sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0,"sustain":1,"release":0.05,"vibrato":0,"rate":5}},{"id":"d","instrument":"drums","pads":{"36":{"tune":0,"decay":1,"level":1,"pan":0,"sample":{"file":"a.wav","mode":"oneshot","end":0.05}}}}]}"#).unwrap();
+        song.sounds.insert("a.wav".into(), Arc::new(crate::wav::Sound { rate: 48_000.0, left: vec![0.5; 4_800], right: vec![0.5; 4_800] }));
+        engine.arm(Some(&song.tracks[0]), &song.sounds);
+        // Arming a track that is not audio hears no input, and its keys still move its meter while stopped.
+        engine.monitor(None).unwrap();
+        engine.press(60, 1.0).unwrap();
+        let mut block = vec![0f32; 480 * 2];
+        // Held for half a second of a tenth-of-a-second sound: its loop keeps it going.
+        for _ in 0..50 {
+            audio.fill(&mut block, 2);
+        }
+        assert!(block.iter().all(|s| (s - 0.5).abs() < 0.01), "{}", block[0]);
+        assert!(engine.position().meters.iter().any(|(id, _)| id == "s"), "{:?}", engine.position().meters);
+        engine.lift(60).unwrap();
+        for _ in 0..10 {
+            audio.fill(&mut block, 2);
+        }
+        assert!(block.iter().all(|s| *s == 0.0));
+        // The kick pad's sound plays its 50 ms through, though the key is lifted at once.
+        engine.arm(Some(&song.tracks[1]), &song.sounds);
+        engine.press(36, 1.0).unwrap();
+        engine.lift(36).unwrap();
+        // Pressed just now, it starts on the last frame of the next block made, and its 2,400 frames end in the one
+        // after.
+        audio.fill(&mut block, 2);
+        let mut out = vec![0f32; 4_800 * 2];
+        audio.fill(&mut out, 2);
+        assert!((out[2_300 * 2] - 0.5).abs() < 0.01 && out[2_400 * 2..].iter().all(|s| *s == 0.0), "{} {:?}", out[2_300 * 2], out.iter().rposition(|s| *s != 0.0));
+        // And previewed, as a note put on the roll is.
+        engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
+        audio.fill(&mut out, 2);
+        assert!((out[1_000 * 2] - 0.5).abs() < 0.01);
+        // Through the song's Main level, as its notes are when it plays.
+        song.main.volume = 0.5;
+        engine.update(&song).unwrap();
+        engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
+        audio.fill(&mut out, 2);
+        assert!((out[1_000 * 2] - 0.25).abs() < 0.01, "{}", out[1_000 * 2]);
     }
 }

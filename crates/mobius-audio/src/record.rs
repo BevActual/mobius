@@ -110,9 +110,7 @@ impl Resample {
 pub fn next_take(folder: &Path, name: &str) -> Result<(PathBuf, String), String> {
     let recorded = folder.join("Samples").join("Recorded");
     std::fs::create_dir_all(&recorded).map_err(|e| format!("The Samples folder could not be made: {e}"))?;
-    let clean: String = name.chars().map(|c| if c.is_control() || "/\\:*?\"<>|".contains(c) { ' ' } else { c }).collect();
-    let clean = clean.trim().trim_matches('.').trim();
-    let stem = if clean.is_empty() { "Audio" } else { clean };
+    let stem = file_stem(name, "Audio");
     let mut n = 1;
     loop {
         let file = format!("{stem} {n}.wav");
@@ -121,6 +119,15 @@ pub fn next_take(folder: &Path, name: &str) -> Result<(PathBuf, String), String>
         }
         n += 1;
     }
+}
+
+/// `name` made safe as a file's name on any system (no slashes, colons and the like, no leading or trailing dots),
+/// or `otherwise` when nothing is left.
+#[must_use]
+pub fn file_stem(name: &str, otherwise: &str) -> String {
+    let clean: String = name.chars().map(|c| if c.is_control() || "/\\:*?\"<>|".contains(c) { ' ' } else { c }).collect();
+    let clean = clean.trim().trim_matches('.').trim();
+    if clean.is_empty() { otherwise.to_owned() } else { clean.chars().take(120).collect() }
 }
 
 #[cfg(test)]

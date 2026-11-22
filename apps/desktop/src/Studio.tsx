@@ -3,10 +3,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave } from './studio-wave';
-import { soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
+import { SampleSlot, sampleName } from './StudioSample';
+import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
 import { StudioMixer } from './StudioMixer';
@@ -14,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
+import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
 import { dayLabel, timeLabel, weekdayLabel } from './dates';
@@ -33,8 +34,9 @@ export const STUDIO_WORDS: SidebarWords = { app: 'Music', group: 'folder', group
 const ADD_TRACK = 'mobius:studio-add-track';
 /** An audio clip's file, by its own name: "Samples/Recorded/take 1.wav" is "take 1". */
 const fileName = (file: string) => file.split(/[\\/]/).pop()?.replace(/\.[^.]+$/, '') || file;
-/** Adds a track of a sound to the open song, or an audio track (Live 12, chapter 9: it plays recordings and samples). */
-const askToAddTrack = (instrument: Instrument | 'audio') => window.dispatchEvent(new CustomEvent<Instrument | 'audio'>(ADD_TRACK, { detail: instrument }));
+/** Adds a track of a sound to the open song, an audio track (Live 12, chapter 9: it plays recordings and samples), or a
+ *  Sampler track (36.8: its notes play a sample). */
+const askToAddTrack = (instrument: Instrument | 'audio' | 'sampler') => window.dispatchEvent(new CustomEvent<Instrument | 'audio' | 'sampler'>(ADD_TRACK, { detail: instrument }));
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
 const SOUNDS: Instrument[] = ['drums', 'bass', 'piano', 'pad', 'lead'];
 
@@ -374,7 +376,7 @@ const COUNT_IN_KEY = 'mobius.music.countIn';
 /** The keys that play the pads while the grid has focus, laid out as the pads are: two rows of three. */
 const PAD_KEYS = ['Q', 'W', 'E', 'A', 'S', 'D'];
 const STEP_ROWS = DRUMS.map((d) => ({ id: String(d.pitch), name: d.name }));
-const PAD_CELLS: readonly { k: keyof DrumPad; name: string; step: number; log?: boolean; format: (v: number) => string }[] = [
+const PAD_CELLS: readonly { k: PadSetting; name: string; step: number; log?: boolean; format: (v: number) => string }[] = [
   { k: 'tune', name: 'Tune', step: 1, format: (v) => kitText('tune', v) },
   { k: 'decay', name: 'Decay', step: 0.01, log: true, format: (v) => kitText('decay', v) },
   { k: 'level', name: 'Level', step: 0.01, format: (v) => `${Math.round(v * 100)}%` },
@@ -384,12 +386,47 @@ const INSTRUMENT_CHOICES = INSTRUMENTS.map((i) => ({ value: i, label: INSTRUMENT
 const KEY_CHOICES = KEYS.map((k) => ({ value: k, label: k }));
 const GRID_CHOICES = GRIDS.map((g) => ({ value: String(g.beats), label: g.label }));
 
+const SAMPLER_MODES = [{ value: 'classic', label: 'Classic' }, { value: 'oneshot', label: 'One-Shot' }] as const;
+
+/**
+ * A Sampler track's sample and how it plays (Live 12 manual, 36.8 "Working with Samples"): the file, Classic (held
+ * keys, the track's envelope, an optional loop) or One-Shot (played through, or gated, with fades), the note it plays at
+ * its own pitch on, and its gain.
+ */
+function SamplerSection({ track, songPath, onTrack }: { track: Track; songPath: string; onTrack: (fn: (t: Track) => void, tag?: string) => void }) {
+  const s = track.sampler;
+  const put = (patch: Partial<SamplerSound>, tag: string) => onTrack((t) => { if (!t.sampler) return; t.sampler = { ...t.sampler, ...patch }; for (const [k, v] of Object.entries(patch)) if (v === undefined) delete (t.sampler as unknown as Record<string, unknown>)[k]; }, `sampler:${tag}`);
+  const oneShot = s?.mode === 'oneshot';
+  return (
+    <section className="studio-dev-section studio-dev-col" data-wide aria-label="Sample">
+      <h4 className="studio-dev-head">Sample</h4>
+      <SampleSlot label="Sample" songPath={songPath} sample={s} onSample={(next) => onTrack((t) => { if (next) t.sampler = next; else delete t.sampler; })} />
+      {s && <>
+        <Segmented label="Playback" value={oneShot ? 'oneshot' : 'classic'} choices={SAMPLER_MODES} onChange={(m) => put({ mode: m === 'oneshot' ? 'oneshot' : undefined }, 'mode')} />
+        <ParamGrid label="Sample settings" columns={oneShot ? 4 : 3}>
+          <Knob label="Root" value={s.root ?? 60} min={0} max={127} step={1} origin={60} reset={60} format={(v) => noteName(Math.round(v))} onChange={(v) => put({ root: Math.round(v) === 60 ? undefined : Math.round(v) }, 'root')} />
+          <Knob label="Gain" value={s.gainDb ?? 0} min={-70} max={24} step={0.1} origin={0} reset={0} format={(v) => `${v > 0 ? '+' : ''}${v.toFixed(1)} dB`} onChange={(v) => put({ gainDb: v === 0 ? undefined : v }, 'gain')} />
+          {oneShot ? <>
+            <Knob label="Fade in" value={s.fadeIn ?? 0} min={0} max={2} step={0.001} reset={0} format={(v) => `${Math.round(v * 1000)} ms`} onChange={(v) => put({ fadeIn: v > 0 ? v : undefined }, 'fadeIn')} />
+            <Knob label="Fade out" value={s.fadeOut ?? 0} min={0} max={2} step={0.001} reset={0} format={(v) => `${Math.round(v * 1000)} ms`} onChange={(v) => put({ fadeOut: v > 0 ? v : undefined }, 'fadeOut')} />
+          </> : null}
+        </ParamGrid>
+        {oneShot
+          ? <Switch label="Gate: stop when the key lifts" checked={s.gate === true} onChange={(on) => put({ gate: on || undefined }, 'gate')} />
+          : <Switch label="Loop while held" checked={s.loop === true} onChange={(on) => put({ loop: on || undefined }, 'loop')} />}
+      </>}
+    </section>
+  );
+}
+
 /**
  * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
  * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack, onOpen, proposed }: {
+export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }: {
   track: Track | null;
+  /** The open song's page, for a sample dropped on a sampler or a pad. */
+  songPath?: string;
   /** Opens one of the track's effects in the Workbench, by its id. */
   onOpen?: (fx: string) => void;
   /** The settings Mobius changed on this track and nobody has kept yet (soundChanges keys): marked, and turned to. */
@@ -420,11 +457,12 @@ export function StudioDevice({ track, onTrack, onOpen, proposed }: {
         </ParamGrid>
       </section>
       {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
-      <DeviceFrame className="studio-instrument" title="Instrument" index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
+      <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
-        actions={<Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
+        actions={track.kind === 'sampler' ? undefined : <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
         <div className="studio-dev-cols">
-          {sound && base && SOUND_GROUPS.map((g) => (
+          {track.kind === 'sampler' && <SamplerSection track={track} songPath={songPath} onTrack={onTrack} />}
+          {sound && base && SOUND_GROUPS.filter((g) => track.kind !== 'sampler' || g.name === 'Envelope').map((g) => (
             <section key={g.name} className="studio-dev-section studio-dev-col" data-graph={g.name === 'Filter' || g.name === 'Envelope' || undefined} aria-label={g.name}>
               <h4 className="studio-dev-head">{g.name}</h4>
               {g.name === 'Filter' && (
@@ -469,6 +507,8 @@ export function StudioDevice({ track, onTrack, onOpen, proposed }: {
                         onChange={(v) => onTrack((t) => { t.pads = { ...(t.pads ?? {}), [drum.pitch]: { ...padOf(t, drum.pitch), [k]: v } }; }, `pad:${drum.pitch}:${k}`)} />
                     ))}
                   </ParamGrid>
+                  <SampleSlot label={`${drum.name} sample`} songPath={songPath} sample={own.sample}
+                    onSample={(next) => onTrack((t) => { const p = { ...padOf(t, drum.pitch) }; if (next) p.sample = next; else delete p.sample; t.pads = { ...(t.pads ?? {}), [drum.pitch]: p }; })} />
                 </div>
               </section>
             );
@@ -840,11 +880,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The sidebar's Sounds and the menus' Play or stop reach the open song while Music is on screen.
   useEffect(() => {
     const onAdd = (e: Event) => {
-      const asked = (e as CustomEvent<Instrument | 'audio'>).detail;
+      const asked = (e as CustomEvent<Instrument | 'audio' | 'sampler'>).detail;
       change((s) => {
         const id = freshTrackId(s);
         // An audio track keeps an instrument for the file's sake (the engine ignores it); its clips play sounds.
         if (asked === 'audio') s.tracks.push({ id, name: 'Audio', kind: 'audio', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
+        // A Sampler track too: its sample comes once one is dropped on it; its envelope is the track's sound.
+        else if (asked === 'sampler') s.tracks.push({ id, name: 'Sampler', kind: 'sampler', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
         else s.tracks.push({ id, name: INSTRUMENT_NAMES[asked], instrument: asked, volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
         setSelected(id);
       });
@@ -859,9 +901,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [keyOctave, setKeyOctave] = useState(4);
   const [keyVelocity, setKeyVelocity] = useState(100);
   const [held, setHeld] = useState<ReadonlyMap<string, number>>(new Map());
+  // The computer keys held down through the engine, by key, so each lifts the note it pressed.
+  const pressed = useRef(new Map<string, number>());
   useEffect(() => {
-    const up = (e: KeyboardEvent) => { finishKey.current?.(e.key.toLowerCase()); setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; }); };
-    const clear = () => { finishAll.current?.(); setHeld(new Map()); };
+    const lift = (k: string) => { const pitch = pressed.current.get(k); if (pitch === undefined) return; pressed.current.delete(k); pressKey(pitch, 0); };
+    const up = (e: KeyboardEvent) => { lift(e.key.toLowerCase()); finishKey.current?.(e.key.toLowerCase()); setHeld((h) => { if (!h.has(e.key.toLowerCase())) return h; const next = new Map(h); next.delete(e.key.toLowerCase()); return next; }); };
+    const clear = () => { for (const k of [...pressed.current.keys()]) lift(k); finishAll.current?.(); setHeld(new Map()); };
     window.addEventListener('keyup', up);
     window.addEventListener('blur', clear);
     return () => { window.removeEventListener('keyup', up); window.removeEventListener('blur', clear); };
@@ -957,7 +1002,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     return { notes: moved.notes.map((x, i) => (moved.picked.has(i) ? { ...x, pitch: rows[rowOf(x.pitch) + dr]!.pitch } : x)), picked: moved.picked };
   });
   /** The sounds to add a track from, as a menu at a point: the sidebar's Sounds, for the row at the end of the tracks. */
-  const soundsMenu = (x: number, y: number) => setMenu({ x, y, label: 'Add track', items: [...SOUNDS.map((i) => ({ label: INSTRUMENT_NAMES[i], run: () => askToAddTrack(i) })), { label: 'Audio track', run: () => askToAddTrack('audio') }] });
+  const soundsMenu = (x: number, y: number) => setMenu({ x, y, label: 'Add track', items: [...SOUNDS.map((i) => ({ label: INSTRUMENT_NAMES[i], run: () => askToAddTrack(i) })), { label: 'Audio track', run: () => askToAddTrack('audio') }, { label: 'Sampler', run: () => askToAddTrack('sampler') }] });
   const setTrack = (id: string, fn: (t: Track) => void, tag = '') => change((s) => { const t = s.tracks.find((x) => x.id === id); if (t) fn(t); }, tag);
   const duplicateTrack = (id: string) => change((s) => {
     const i = s.tracks.findIndex((x) => x.id === id);
@@ -1311,7 +1356,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     const pitch = drums ? keyboardDrum(k, DRUMS_UP.map((d) => d.pitch)) : keyboardPitch(k, keyOctave);
     if (pitch === null) return false;
     if (!e.repeat) {
-      previewOn(track, pitch, keyVelocity / 127, 0.45, track.pads?.[pitch]);
+      // Held on the armed (chosen) track until the key lifts, as a MIDI key; a short preview without the engine.
+      if (track.id === selected && pressKey(pitch, keyVelocity / 127)) pressed.current.set(k, pitch);
+      else previewOn(track, pitch, keyVelocity / 127, 0.45, track.pads?.[pitch]);
       setHeld((h) => new Map(h).set(k, pitch));
       if (recording && player.current) takeKeys.current.set(k, { pitch, start: player.current.beat(), velocity: keyVelocity / 127 });
     }
@@ -1486,7 +1533,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     <StudioWorkbench device={benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
-    <StudioDevice track={track} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+    <StudioDevice track={track} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
   ) : drumView === 'steps' ? (
@@ -1686,7 +1733,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                 <div className="studio-track-head" onContextMenu={(e) => { e.preventDefault(); setSelected(t.id); trackMenu(t, e.clientX, e.clientY); }} onDoubleClick={(e) => { if ((e.target as HTMLElement).tagName !== 'INPUT') openDevice(t.id); }}>
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
-                  {t.kind !== 'audio' && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
+                  {!t.kind && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
+                  {t.kind === 'sampler' && <span className="studio-track-sub" title={t.sampler?.file}>{t.sampler ? sampleName(t.sampler.file) : 'No sample'}</span>}
                   {t.kind === 'audio' && armed?.track === t.id && (armed.input !== null
                     ? <button type="button" className="studio-track-sub studio-track-input" title="The sound input this track records: choose another" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>{armed.input}</button>
                     : <button type="button" className="studio-track-sub studio-track-input" data-problem title={`${armed.problem ?? 'No sound input'}. Choose an input`} onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>No input</button>)}

@@ -34,7 +34,7 @@ pub struct Hit {
 impl Hit {
     /// A hit of the drum at `pitch` through `kit`, with the drum's own `pad`. `seed` varies the noise.
     #[must_use]
-    pub fn new(pitch: u8, velocity: f64, kit: Kit, pad: Pad, seed: u32) -> Hit {
+    pub fn new(pitch: u8, velocity: f64, kit: Kit, pad: &Pad, seed: u32) -> Hit {
         let tune = 2f64.powf((kit.tune + pad.tune).clamp(-24.0, 24.0) / 12.0);
         let decay = kit.decay * pad.decay;
         let bright = 2f64.powf((kit.tone - 0.5) * 2.0);
@@ -148,7 +148,7 @@ mod tests {
 
     #[test]
     fn a_kick_falls_in_pitch_and_dies_away() {
-        let (l, r) = run(Hit::new(36, 1.0, Kit::default(), Pad::default(), 1), 0.5);
+        let (l, r) = run(Hit::new(36, 1.0, Kit::default(), &Pad::default(), 1), 0.5);
         assert_eq!(l, r);
         let peak = l.iter().fold(0.0f32, |m, x| m.max(x.abs()));
         assert!(peak > 0.9 && peak <= 1.0, "{peak}");
@@ -158,21 +158,21 @@ mod tests {
 
     #[test]
     fn a_closed_hat_is_short_and_a_panned_drum_leans_to_its_side() {
-        let (l, _) = run(Hit::new(42, 1.0, Kit::default(), Pad::default(), 7), 0.2);
+        let (l, _) = run(Hit::new(42, 1.0, Kit::default(), &Pad::default(), 7), 0.2);
         assert!(rms(&l[..1200]) > 0.01);
         assert!(l[4_900..].iter().all(|x| *x == 0.0));
         let pad = Pad { pan: -1.0, ..Pad::default() };
-        let (l, r) = run(Hit::new(38, 1.0, Kit::default(), pad, 7), 0.2);
+        let (l, r) = run(Hit::new(38, 1.0, Kit::default(), &pad, 7), 0.2);
         assert!(rms(&l) > 0.01 && rms(&r) < 1e-6);
     }
 
     #[test]
     fn a_longer_decay_rings_longer_and_level_scales_it() {
-        let short = run(Hit::new(38, 1.0, Kit::default(), Pad::default(), 3), 0.5).0;
-        let long = run(Hit::new(38, 1.0, Kit { decay: 2.0, ..Kit::default() }, Pad::default(), 3), 0.5).0;
+        let short = run(Hit::new(38, 1.0, Kit::default(), &Pad::default(), 3), 0.5).0;
+        let long = run(Hit::new(38, 1.0, Kit { decay: 2.0, ..Kit::default() }, &Pad::default(), 3), 0.5).0;
         assert!(rms(&long[9000..12_000]) > 3.0 * rms(&short[9000..12_000]));
-        let half = run(Hit::new(38, 1.0, Kit::default(), Pad { level: 0.5, ..Pad::default() }, 3), 0.1).0;
-        let full = run(Hit::new(38, 1.0, Kit::default(), Pad::default(), 3), 0.1).0;
+        let half = run(Hit::new(38, 1.0, Kit::default(), &Pad { level: 0.5, ..Pad::default() }, 3), 0.1).0;
+        let full = run(Hit::new(38, 1.0, Kit::default(), &Pad::default(), 3), 0.1).0;
         // The fall is to a fixed 0.001, as the window's, so half the level is a little more than half as loud.
         let ratio = rms(&half) / rms(&full);
         assert!(ratio > 0.5 && ratio < 0.75, "{ratio}");
