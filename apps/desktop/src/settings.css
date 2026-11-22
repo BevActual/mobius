@@ -265,8 +265,8 @@
 .settings-page .theme-tiles { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 .settings-page .theme-tile { position: relative; display: grid; justify-items: center; gap: 6px; cursor: pointer; }
 .settings-page .theme-tile input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
-.settings-page .theme-pic { position: relative; display: flex; gap: 3px; width: 76px; height: 50px; padding: 5px; border-radius: 8px; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); overflow: hidden; }
-.settings-page .theme-pic-side { flex: 0 0 18px; display: grid; align-content: start; gap: 4px; padding: 5px 4px; border-radius: 3px; }
+.settings-page .theme-pic { position: relative; display: flex; gap: 3px; width: 112px; height: 72px; padding: 6px; border-radius: 8px; box-shadow: inset 0 0 0 var(--hairline-w) var(--line); overflow: hidden; }
+.settings-page .theme-pic-side { flex: 0 0 26px; display: grid; align-content: start; gap: 4px; padding: 5px 4px; border-radius: 3px; }
 .settings-page .theme-pic-page { flex: 1 1 auto; display: grid; align-content: start; gap: 4px; padding: 6px 6px; border-radius: 3px; }
 .settings-page .theme-pic i { display: block; height: 2px; border-radius: 1px; opacity: 0.55; }
 .settings-page .theme-pic-page i:first-child { width: 60%; opacity: 0.85; }
