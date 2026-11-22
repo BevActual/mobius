@@ -36,8 +36,8 @@ pub(crate) enum Command {
     Monitor(Option<(f32, f32)>),
     /// A take: what comes in is handed to it while the song plays, or the take ends.
     Record(Option<rtrb::Producer<f32>>),
-    /// The song's Main level, which notes played apart from it go through as its own do.
-    Main(f32),
+    /// The song's Main level, which notes played apart from it go through as its own do, and its metronome's level.
+    Levels { main: f32, metronome: f32 },
 }
 
 /// What the audio thread reports.
@@ -146,7 +146,10 @@ impl AudioSide {
                     }
                 }
                 Command::Oneshot(shot) => self.oneshots.start(shot, self.rate),
-                Command::Main(level) => self.oneshots.main = level,
+                Command::Levels { main, metronome } => {
+                    self.oneshots.main = main;
+                    self.oneshots.metronome = metronome;
+                }
                 Command::Played(shot, at) => {
                     let wait = place(at, now, frames, self.rate);
                     let shot = match shot {
@@ -382,6 +385,11 @@ const _: fn() = || {
     fn shared<T: Send + Sync>() {}
     shared::<Engine>();
 };
+
+/// The song's Main and metronome levels, for what sounds apart from the song.
+fn levels(song: &Song) -> Command {
+    Command::Levels { main: song.main.volume.max(0.0) as f32, metronome: song.metronome.volume.clamp(0.0, 1.0) as f32 }
+}
 
 /// Puts a block's `peak` in a meter's `slot`, held at its highest for [`METER_HOLD`] (so a short hit is read whenever
 /// the position is), then following the sound again.
@@ -625,7 +633,7 @@ impl Engine {
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
         self.aim(Some(song));
-        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
+        self.send(levels(song))?;
         self.send(Command::Play(renderer))
     }
 
@@ -850,7 +858,7 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn update(&self, song: &Song) -> Result<(), String> {
-        self.send(Command::Main(song.main.volume.max(0.0) as f32))?;
+        self.send(levels(song))?;
         let at = self.position();
         let how = Playing { from: at.beat, ..*lock(&self.how) };
         if at.playing { self.play(song, how) } else { Ok(()) }
@@ -1458,6 +1466,23 @@ mod tests {
         engine.preview(&song.tracks[1], &song.sounds, 36, 1.0, 0.1).unwrap();
         audio.fill(&mut out, 2);
         assert!((out[1_000 * 2] - 0.25).abs() < 0.01, "{}", out[1_000 * 2]);
+    }
+
+    #[test]
+    fn a_count_in_is_at_the_metronomes_level_and_notes_at_mains() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let mut song = Song::parse(r#"{"version":2,"tempo":120,"bars":1,"main":{"volume":0.1},"metronome":{"volume":0.4},"tracks":[]}"#).unwrap();
+        engine.update(&song).unwrap();
+        engine.count_in(120.0, Some(1)).unwrap();
+        let mut out = vec![0f32; 4_800 * 2];
+        audio.fill(&mut out, 2);
+        let peak = out.iter().fold(0f32, |m, x| m.max(x.abs()));
+        assert!((f64::from(peak) - 0.28 * 0.4).abs() < 0.01, "{peak}");
+        song.metronome.volume = 0.0;
+        engine.update(&song).unwrap();
+        engine.count_in(120.0, Some(1)).unwrap();
+        audio.fill(&mut out, 2);
+        assert!(out.iter().all(|x| *x == 0.0));
     }
 
     #[test]
