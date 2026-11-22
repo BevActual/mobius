@@ -31,6 +31,63 @@ pub fn write(out: &mut impl Write, left: &[f32], right: &[f32], sample_rate: u32
     out.write_all(&bytes)
 }
 
+/// A 32-bit float stereo WAV written as it comes, for a recording: its sizes are filled in by [`Writer::finish`].
+pub struct Writer<W: Write + std::io::Seek> {
+    out: W,
+    frames: u64,
+}
+
+impl<W: Write + std::io::Seek> Writer<W> {
+    /// Starts the file with its header, sizes to come.
+    ///
+    /// # Errors
+    /// When writing fails.
+    pub fn new(mut out: W, sample_rate: u32) -> std::io::Result<Writer<W>> {
+        out.write_all(b"RIFF\0\0\0\0WAVEfmt ")?;
+        out.write_all(&16u32.to_le_bytes())?;
+        out.write_all(&3u16.to_le_bytes())?;
+        out.write_all(&2u16.to_le_bytes())?;
+        out.write_all(&sample_rate.to_le_bytes())?;
+        out.write_all(&(sample_rate * 8).to_le_bytes())?;
+        out.write_all(&8u16.to_le_bytes())?;
+        out.write_all(&32u16.to_le_bytes())?;
+        out.write_all(b"data\0\0\0\0")?;
+        Ok(Writer { out, frames: 0 })
+    }
+
+    /// Adds frames, left and right interleaved.
+    ///
+    /// # Errors
+    /// When writing fails, or the file would pass the 4 GB a WAV file holds.
+    pub fn write(&mut self, interleaved: &[f32]) -> std::io::Result<()> {
+        let frames = (interleaved.len() / 2) as u64;
+        if 44 + (self.frames + frames) * 8 > u64::from(u32::MAX) {
+            return Err(std::io::Error::other("The recording is too long for a WAV file."));
+        }
+        let mut bytes = Vec::with_capacity(interleaved.len() * 4);
+        for s in &interleaved[..frames as usize * 2] {
+            bytes.extend_from_slice(&s.to_le_bytes());
+        }
+        self.out.write_all(&bytes)?;
+        self.frames += frames;
+        Ok(())
+    }
+
+    /// Fills in the sizes, and gives back how many frames it holds.
+    ///
+    /// # Errors
+    /// When writing fails.
+    pub fn finish(mut self) -> std::io::Result<u64> {
+        let data = (self.frames * 8) as u32;
+        self.out.seek(std::io::SeekFrom::Start(4))?;
+        self.out.write_all(&(36 + data).to_le_bytes())?;
+        self.out.seek(std::io::SeekFrom::Start(40))?;
+        self.out.write_all(&data.to_le_bytes())?;
+        self.out.flush()?;
+        Ok(self.frames)
+    }
+}
+
 /// The largest sound read for a clip: about 45 minutes of 48 kHz stereo float.
 pub const MAX_READ: usize = 1024 * 1024 * 1024;
 
@@ -127,6 +184,18 @@ mod tests {
         assert_eq!(sound.rate, 44_100.0);
         assert_eq!(sound.left, [0.5, -0.5, 0.125]);
         assert_eq!(sound.right, [0.25, 0.0, -1.0]);
+    }
+
+    #[test]
+    fn a_wav_written_as_it_comes_matches_one_written_at_once() {
+        let mut out = std::io::Cursor::new(Vec::new());
+        let mut w = super::Writer::new(&mut out, 48_000).unwrap();
+        w.write(&[0.5, 0.25]).unwrap();
+        w.write(&[-0.5, 0.0]).unwrap();
+        assert_eq!(w.finish().unwrap(), 2);
+        let mut whole = Vec::new();
+        super::write(&mut whole, &[0.5, -0.5], &[0.25, 0.0], 48_000).unwrap();
+        assert_eq!(out.into_inner(), whole);
     }
 
     /// A WAV of `channels` channels of `bits`-bit PCM, with an odd chunk before the sound to skip.

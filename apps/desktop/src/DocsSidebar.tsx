@@ -5,7 +5,6 @@ import { relativeTime } from './relative-time';
 import type { NotesState } from './useNotes';
 import { SideNew, type Start } from './SideNew';
 import { dayLabel, daysFrom, timeLabel, weekdayLabel } from './dates';
-import { useDocOutline } from './docs-outline';
 import { newItemIn } from './NotesSidebar';
 import { AppSidebar, PointMenu, SidebarRow, SidebarSection, SidebarSearch, type MenuEntry } from './ui';
 
@@ -20,8 +19,7 @@ export function editedLabel(modified: number, now: number): string {
 
 /**
  * Docs' sidebar, as the timeless mock has it (ui/AppSidebar): New, Search, then each folder as a heading over its
- * documents, each with when it was edited on the right. Under the open document, its headings, indented: choosing one
- * moves the page there. Then From Mobius, the documents its last turn changed. A row's menu opens or deletes it, and
+ * documents, each with when it was edited on the right (its headings are in the Outline panel, beside the page). Then From Mobius, the documents its last turn changed. A row's menu opens or deletes it, and
  * Delete asks once more in a second menu at the same place. New folder is in the app's menu (and its command).
  */
 export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
@@ -43,7 +41,6 @@ export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
   useEffect(() => onCommand('new-folder', () => setNaming(true)), []);
 
   const all = useMemo(() => docs.notebooks.flatMap((nb) => nb.pages.map((pg) => ({ ...pg, folder: nb.name }))), [docs.notebooks]);
-  const outline = useDocOutline();
   const fromMobius = all.filter((pg) => changed?.has(pg.path));
   const openFolder = docs.page?.path.split('/')[0] ?? docs.notebooks[0]?.name;
 
@@ -78,7 +75,6 @@ export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
   const row = (pg: NotePage) => {
     const when = relativeTime(pg.modified, Math.max(now, pg.modified));
     const open = docs.page?.path === pg.path;
-    const headings = open && outline?.path === pg.path ? outline.items : [];
     return (
       <Fragment key={pg.path}>
         <SidebarRow label={pg.title} current={open} proposed={changed?.has(pg.path) === true}
@@ -86,18 +82,6 @@ export function DocsSidebar({ docs, changed, starts, onStart, synced }: {
           onSelect={() => void docs.open(pg.path, pg.title)}
           onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, page: pg }); }}
           {...(open ? {} : { trail: <span className="doc-side-when" aria-hidden="true">{editedLabel(pg.modified, now)}</span> })} />
-        {headings.length > 0 && (
-          <li className="doc-side-outline">
-            <ul role="list" aria-label={`Outline of ${pg.title}`}>
-              {headings.map((h, i) => (
-                <li key={`${i}:${h.text}`}>
-                  <button type="button" className="list-row doc-side-heading" data-level={Math.min(h.level, 3)} aria-current={i === outline!.current ? 'location' : undefined}
-                    onClick={() => outline!.go(i)}>{h.text || 'Untitled'}</button>
-                </li>
-              ))}
-            </ul>
-          </li>
-        )}
       </Fragment>
     );
   };

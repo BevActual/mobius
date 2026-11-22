@@ -144,6 +144,17 @@ export interface NoteContent { path: string; content: string; modified: number }
 export interface NoteHit { path: string; title: string; notebook: string; line: string }
 /** A refused notes call. `conflict` means the page changed elsewhere (the assistant) since it was read. */
 /** Where Music's engine is playing, and the levels, left and right in dB, by track id then `master`. */
+/** A recorded take: its file (relative to the song's folder), the beat it starts on, how far into the file that beat
+ *  is (the input and output latency, taken off as Live does), its length, and whether the disk fell behind. */
+export interface MusicTake {
+  track: string;
+  file: string;
+  start: number;
+  offset: number;
+  seconds: number;
+  lost: boolean;
+}
+
 export interface MusicPosition {
   playing: boolean;
   /** A note preview, a key played or a count-in is sounding. Stopped, `meters` then holds `master` and the track the notes are on. Missing from older shells. */
@@ -1263,8 +1274,14 @@ export interface MobiusBridge {
     midiInputs?(): Promise<{ ok: true; inputs: string[]; listening: string | null } | NotesFailure>;
     /** Listen to the MIDI keyboard called `input` (or to none, with null): it plays the armed track. */
     listen?(input: string | null): Promise<{ ok: true; listening: string | null } | NotesFailure>;
-    /** The track of the loaded song a keyboard plays (or none, with null). */
-    arm?(trackId: string | null): Promise<{ ok: true } | NotesFailure>;
+    /** The track of the loaded song a keyboard plays (or none, with null). An audio track opens the sound input and
+     *  hears it (Live's Auto monitoring): `input` is its name, or null with `inputProblem` saying why. */
+    arm?(trackId: string | null): Promise<{ ok: true; input?: string | null; inputProblem?: string } | NotesFailure>;
+    /** Record the armed audio track's input while the song plays (true), or end the take (false; Stop ends it too).
+     *  The take is saved in the song's Samples/Recorded folder and announced with onTake. */
+    record?(on: boolean): Promise<{ ok: true; file?: string; take?: MusicTake | null } | NotesFailure>;
+    /** A take has been saved: add it as an audio clip on its track. */
+    onTake?(listener: (take: MusicTake) => void): () => void;
     /** A key pressed on the armed track, held until it is pressed again with velocity 0 (lifted). */
     press?(pitch: number, velocity: number): Promise<{ ok: true } | NotesFailure>;
     /** Listen to one effect's parts while playing, for the Workbench's cables (position `levels`), or to none. */
@@ -1272,8 +1289,9 @@ export interface MobiusBridge {
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
     seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;
-    /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. */
-    render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string } | NotesFailure>;
+    /** Render a song (or the loaded one) to WAV in `Exports`, as `songs.saveExport` saves. The file is 32-bit float, so
+     *  nothing is clipped; `peakDb` is its loudest sample and `over` how many samples pass 0 dBFS. */
+    render(path: string, name: string, song?: unknown): Promise<{ path: string; saved: string; name: string; peakDb?: number; over?: number } | NotesFailure>;
     /** Where playback is, about 30 times a second while playing: each track's level and `master`'s, in dB. */
     onPosition(listener: (position: MusicPosition) => void): () => void;
   };
