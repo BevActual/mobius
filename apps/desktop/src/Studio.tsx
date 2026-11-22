@@ -13,7 +13,7 @@ import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -779,9 +779,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       if (!t) return;
       const taken = new Set(t.clips.map((c) => c.id));
       let n = t.clips.length + 1;
-      while (taken.has(`c${n}`)) n++;
-      const clip = takeClip(take, s.tempo, `c${n}`);
-      t.clips = [...t.clips, clip].sort((a, b) => a.start - b.start);
+      const nextId = () => { while (taken.has(`c${n}`)) n++; taken.add(`c${n}`); return `c${n}`; };
+      const clip = takeClip(take, s.tempo, nextId());
+      // As Live's Arrangement records: the take replaces what it covers on its track, cutting or splitting clips under it.
+      t.clips = [...recordOver(t.clips, clip.start, clip.start + clip.length, s.tempo, nextId), clip].sort((a, b) => a.start - b.start);
       const end = Math.ceil((clip.start + clip.length) / BEATS_PER_BAR);
       if (end > s.bars) s.bars = end;
     }, `take:${take.file}`);

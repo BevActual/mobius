@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { duplicateClip, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, followScroll, soundChanges, notesDiffer, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
+import { recordOver, duplicateClip, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, followScroll, soundChanges, notesDiffer, recordedNote, splitNotes, joinNotes, keyboardPitch, keyboardDrum, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipHits, nextBar, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, fromSlider, kitText, panText, soundText, toSlider, cycleOf, fitTracks, songBeat, nudgeVelocity, duplicateNotes, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, stretchNotes } from './studio-view';
 
 const n = (pitch: number, start: number, length = 1, velocity = 0.8) => ({ pitch, start, length, velocity });
 const notes = [n(57, 0, 4), n(60, 0, 4), n(64, 4)];
@@ -314,5 +314,22 @@ describe('a clip\'s loop and start marker (Live\'s Clip View)', () => {
     expect(scaleClipLoop(on, 'c1', 2)[0]!.loop).toEqual({ start: 0, end: 8 });
     expect(scaleClipLoop(on, 'c1', 0.5)[0]!.loop).toEqual({ start: 0, end: 2 });
     expect(scaleClipLoop(clips, 'c1', 2)[0]!.loop).toBeUndefined();
+  });
+});
+
+describe('recordOver', () => {
+  const ids = () => { let n = 10; return () => `c${n++}`; };
+  const audio = (id: string, start: number, length: number, offset = 0) => ({ id, start, length, notes: [], audio: { file: `${id}.wav`, ...(offset ? { offset } : {}) } });
+  it('removes a clip the take covers and leaves clips outside it alone', () => {
+    expect(recordOver([audio('c1', 0, 4), audio('c2', 4, 4), audio('c3', 8, 4)], 4, 8, 120, ids()).map((c) => c.id)).toEqual(['c1', 'c3']);
+  });
+  it('cuts back a clip it overlaps; the later part plays on from the same place in its sound', () => {
+    const out = recordOver([audio('c1', 0, 8), audio('c2', 10, 6, 1)], 6, 12, 120, ids());
+    expect(out).toEqual([audio('c1', 0, 6), audio('c2', 12, 4, 2)]);
+  });
+  it('splits a clip the take falls inside, and a note clip keeps its notes by its start marker', () => {
+    const notes = [{ pitch: 60, start: 0, length: 1, velocity: 0.8 }, { pitch: 62, start: 6, length: 1, velocity: 0.8 }];
+    const out = recordOver([{ id: 'c1', start: 0, length: 8, notes }], 2, 4, 120, ids());
+    expect(out.map((c) => [c.id, c.start, c.length, c.offset ?? 0, c.notes.length])).toEqual([['c1', 0, 2, 0, 1], ['c10', 4, 4, 4, 2]]);
   });
 });
