@@ -747,6 +747,35 @@ test('the loop goes round bars picked on the ruler, and a track has a menu', asy
   await expect.poll(() => saved().tracks.map((t) => t.name)).toEqual(['Keys', 'Lead']);
 });
 
+test('Loop on a clip in Arrange repeats it when it is stretched, as Live\'s Loop switch does', async () => {
+  await start();
+  await resizeWindow(mobius!.app, 1440, 900);
+  const ruler = shell().getByRole('slider', { name: 'Playhead' });
+  await ruler.click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Add 4 Bars' }).click();
+  const bar = (await ruler.boundingBox())!.width / 8;
+  const clip = () => shell().getByRole('button', { name: /^Keys, bar/ }).first();
+  await clip().click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Loop', exact: true }).click();
+  await expect(clip()).toHaveAccessibleName('Keys, bar 1, looped');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown } | undefined)?.loop).toEqual({ start: 0, end: 4 });
+  // Stretched a bar, it plays its bar twice: the notes are kept once, and the second pass is drawn after a notch.
+  const b = (await clip().boundingBox())!;
+  await shell().mouse.move(b.x + b.width - 2, b.y + b.height / 2);
+  await shell().mouse.down();
+  await shell().mouse.move(b.x + b.width - 2 + bar, b.y + b.height / 2, { steps: 6 });
+  await shell().mouse.up();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 1 to 2, looped');
+  await expect.poll(() => saved().tracks[0]!.clips?.[0]?.length).toBe(8);
+  expect(saved().tracks[0]!.notes).toHaveLength(2);
+  await expect(clip().locator('.studio-clip-turn')).toHaveCount(1);
+  // Stop Looping takes the loop off; the clip stays as long, and what's past its notes is quiet.
+  await clip().click({ button: 'right' });
+  await shell().getByRole('menu').getByRole('menuitem', { name: 'Stop Looping' }).click();
+  await expect(clip()).toHaveAccessibleName('Keys, bars 1 to 2');
+  await expect.poll(() => (saved().tracks[0]!.clips?.[0] as { loop?: unknown; length?: number } | undefined)?.length === 8 && !(saved().tracks[0]!.clips?.[0] as { loop?: unknown }).loop).toBe(true);
+});
+
 test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied with Ctrl+D and deleted, each undone', async () => {
   await start();
   await resizeWindow(mobius!.app, 1440, 900);

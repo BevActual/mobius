@@ -514,7 +514,21 @@ export function resizeClip(clips: readonly ArrangeClip[], id: string, length: nu
   if (!c) return [...clips];
   const { hi } = roomFor(clips, id, songBeats);
   const to = cleanBeat(Math.max(Math.min(1, hi - c.start), Math.min(hi - c.start, length)));
-  return clips.map((x) => (x.id === id ? { ...x, length: to, notes: x.notes.filter((n) => n.start < to) } : x));
+  // A looped clip keeps its notes (stretching it shows more passes); a plain one loses what falls past its new end.
+  return clips.map((x) => (x.id === id ? { ...x, length: to, notes: x.loop || x.offset ? x.notes : x.notes.filter((n) => n.start < to) } : x));
+}
+
+/**
+ * Turns a clip's loop on or off, as Live's Loop switch does. On, the loop is what the clip plays now: from its start
+ * marker for its length, so it sounds the same until it is stretched, when it repeats.
+ */
+export function toggleClipLoop(clips: readonly ArrangeClip[], id: string): ArrangeClip[] {
+  return clips.map((c) => {
+    if (c.id !== id) return c;
+    if (c.loop) { const { loop: _, ...rest } = c; return rest; }
+    const from = c.offset ?? 0;
+    return { ...c, loop: { start: from, end: Math.round((from + c.length) * 1e4) / 1e4 } };
+  });
 }
 
 /** A copy of a clip straight after it, when there is room there before the next clip and the song's end; else null. */

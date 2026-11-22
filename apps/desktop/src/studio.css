@@ -306,3 +306,6 @@
 .studio-mixer { display: flex; gap: var(--sp-2); height: 100%; min-height: 0; padding: var(--sp-2); overflow-x: auto; overflow-y: hidden; }
 .studio-mixer > * { flex: none; }
 .ui-strip.studio-mixer-main { margin-left: var(--sp-2); border-left: var(--hairline-w) solid var(--line-soft); }
+/* A looped clip (Live's Loop switch): a notch where each pass begins, and the later passes drawn faintly in the notes editor. */
+.studio-clip-turn { position: absolute; top: 0; bottom: 0; width: 0; border-left: var(--hairline-w) dashed color-mix(in srgb, var(--on-content) 55%, transparent); pointer-events: none; }
+.studio-note[data-echo] { opacity: 0.35; pointer-events: none; }
