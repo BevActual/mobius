@@ -2825,6 +2825,9 @@ body { font-variant-numeric: tabular-nums; }
 .context-strip[data-titled]:not([hidden]) { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); padding: 0 var(--panel-gap); }
 .context-strip[data-titled] > .ui-toolbar-slot { grid-column: 2; justify-content: safe center; }
 .context-strip[data-titled] > .strip-right { grid-column: 3; justify-self: end; }
+/* Tools that fill the row (Calendar's, a browser's address, Sheets' formula bar, an editor's format bar) take all the
+   room before the trailing icons rather than a centred column, which a container-sized child would shrink to nothing. */
+.context-strip[data-titled] > .ui-toolbar-slot:has(.cal-tools, .photo-tabs, .browser-chrome, .sheet-tools, > .ui-toolbar-group > .note-format, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
 
 /* The Mobius button, in every look: its trefoil on a light indigo tint with an indigo edge, the one indigo in the bars. */
 .strip-mobius, .context-strip .strip-mobius { background: color-mix(in srgb, var(--mobius) 10%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
