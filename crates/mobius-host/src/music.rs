@@ -361,7 +361,7 @@ mod tests {
         assert_eq!(m.call("position", &[], &songs)["beat"], 8.0);
         assert_eq!(m.call("seek", &[json!("x")], &songs)["ok"], false);
         assert_eq!(m.call("nope", &[], &songs)["ok"], false);
-        if cfg!(not(windows)) {
+        if cfg!(not(any(windows, target_os = "macos"))) {
             assert_eq!(m.call("engine", &[], &songs)["ok"], false);
         }
     }

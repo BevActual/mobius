@@ -5,8 +5,8 @@
 //! back through a second queue to be dropped here, so the audio thread neither allocates nor frees. Its position and
 //! the levels go the other way as atomics, read whenever the window asks (about 30 times a second).
 
-// The audio side is driven by the Windows output device; elsewhere only the tests use it.
-#![cfg_attr(not(windows), allow(dead_code))]
+// The audio side is driven by the output device on Windows and macOS; elsewhere only the tests use it.
+#![cfg_attr(not(any(windows, target_os = "macos")), allow(dead_code))]
 
 use crate::render::{Oneshot, Oneshots, Playing, Renderer, SessionState, MAX_BLOCK};
 use crate::song::Song;
@@ -365,13 +365,13 @@ impl Engine {
     /// # Errors
     /// When there is no output, or it cannot be opened.
     pub fn open() -> Result<Engine, String> {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         {
             device::open()
         }
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         {
-            Err("The sound engine plays on Windows only for now.".to_owned())
+            Err("The sound engine plays on Windows and macOS only for now.".to_owned())
         }
     }
 
@@ -613,7 +613,7 @@ impl Engine {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 mod device {
     use super::{AudioSide, Engine, Ordering};
     use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
