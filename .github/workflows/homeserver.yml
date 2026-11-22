@@ -103,7 +103,7 @@ jobs:
         run: |
           short=${TUWUNEL_REV:0:12}
           name="tuwunel-$short-${{ matrix.target }}.gz"
-          gzip -9 -c "tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}" > "$name"
+          gzip -9 -n -c "tuwunel/target/${{ matrix.target }}/release/${{ matrix.exe }}" > "$name"
           ls -la "$name"
           echo "SHA-256 $name: $( (sha256sum "$name" 2>/dev/null || shasum -a 256 "$name") | cut -d' ' -f1)"
           echo "name=$name" >> "$GITHUB_OUTPUT"
