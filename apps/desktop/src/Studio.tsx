@@ -1660,9 +1660,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
               {song.tracks.length === 0 && <span className="studio-none">No tracks yet.</span>}
             </div>
             {/* Under the tracks, centred on what is in view however far the arrangement scrolls. */}
-            {proposal && <div className="studio-float" style={{ width: laneW + HEAD_W }}>{proposal}</div>}
             <span className="studio-playhead" style={{ left: HEAD_W + beat * bw }} aria-hidden="true" />
           </div>
+          {/* Under the tracks, outside them so the playhead never crosses it, centred on what is in view. */}
+          {proposal && <div className="studio-float" style={{ width: laneW + HEAD_W }}>{proposal}</div>}
           </>}
         </div>
       </div>

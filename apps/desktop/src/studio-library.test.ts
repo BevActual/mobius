@@ -32,3 +32,14 @@ describe('the Library', () => {
     expect(collect(c, 'a', 0)).toEqual({});
   });
 });
+
+describe('the preview shape', () => {
+  it('draws what the audition plays, and nothing for an effect', async () => {
+    const { LIBRARY: all, previewShape } = await import('./studio-library');
+    const pad = previewShape(all.find((i) => i.id === 'sound:string-pad')!)!;
+    expect(pad.peaks).toHaveLength(64);
+    expect(pad.seconds).toBeGreaterThan(1);
+    expect(Math.max(...pad.peaks)).toBeGreaterThan(0.3);
+    expect(previewShape(all.find((i) => i.id === 'effect:reverb')!)).toBeNull();
+  });
+});

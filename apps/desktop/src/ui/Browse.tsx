@@ -67,7 +67,7 @@ export function FilterBar({ groups, value, onChange, label = 'Filters', onClear 
 
 const HEADPHONES = 'M3 10V8.5a5 5 0 0 1 10 0V10M3 10h2v3.5H3.8a.8.8 0 0 1-.8-.8zM13 10h-2v3.5h1.2a.8.8 0 0 0 .8-.8z';
 
-export function PreviewStrip({ on, onToggle, raw, onRaw, name, peaks, position, onScrub, volume, onVolume, keys = 'Shift+Enter' }: {
+export function PreviewStrip({ on, onToggle, raw, onRaw, name, peaks, position, onScrub, volume, onVolume, keys = 'Shift+Enter', time, compact = false }: {
   /** Preview on: choosing a row (Up and Down too) plays it. */
   on: boolean;
   onToggle: (on: boolean) => void;
@@ -87,6 +87,10 @@ export function PreviewStrip({ on, onToggle, raw, onRaw, name, peaks, position, 
   onVolume: (db: number) => void;
   /** The key that previews the chosen row while Preview is off. */
   keys?: string;
+  /** Its length, in mono after the shape ("0:04"). */
+  time?: string;
+  /** One line for a narrow panel: Raw and the volume live in the panel's ⋯ menu instead. */
+  compact?: boolean;
 }) {
   const area = useRef<HTMLDivElement>(null);
   const at = (e: PointerEvent<HTMLDivElement>) => {
@@ -131,8 +135,11 @@ export function PreviewStrip({ on, onToggle, raw, onRaw, name, peaks, position, 
           </>
         ) : <span className="ui-preview-name">Preview</span>}
       </div>
-      <button type="button" className="ui-preview-raw" aria-pressed={raw} title={raw ? 'Raw: at its own tempo, once' : 'Raw: off, so it starts on the next bar and loops in time'} onClick={() => onRaw(!raw)}>Raw</button>
-      <Knob className="ui-preview-volume" label="Preview volume" value={volume} onChange={onVolume} min={-60} max={6} step={0.5} reset={0} unit="dB" />
+      {time && name && <span className="ui-preview-time">{time}</span>}
+      {!compact && <>
+        <button type="button" className="ui-preview-raw" aria-pressed={raw} title={raw ? 'Raw: at its own tempo, once' : 'Raw: off, so it starts on the next bar and loops in time'} onClick={() => onRaw(!raw)}>Raw</button>
+        <Knob className="ui-preview-volume" label="Preview volume" value={volume} onChange={onVolume} min={-60} max={6} step={0.5} reset={0} unit="dB" />
+      </>}
     </div>
   );
 }

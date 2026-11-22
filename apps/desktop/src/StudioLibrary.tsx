@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
-import { Button, CONTENT_COLORS, Dot, FilterBar, PreviewStrip, SidebarSearch, type TagPicks } from './ui';
-import { CATEGORIES, collect, LIBRARY, search, TAG_GROUPS, type Collections, type LibraryCategory, type LibraryItem } from './studio-library';
+import { Button, CONTENT_COLORS, Dot, FilterBar, Menu, PreviewStrip, SidebarSearch, type TagPicks } from './ui';
+import { CATEGORIES, collect, LIBRARY, previewShape, search, TAG_GROUPS, type Collections, type LibraryCategory, type LibraryItem } from './studio-library';
 import { previewNote } from './studio-audio';
 
 /** Collections' seven colours, as in Live; keys 1 to 7 put the chosen item in one. */
@@ -67,6 +67,8 @@ export function StudioLibrary({ songKey, target, onUse, songs }: {
     return inCollection ? found.filter((it) => collections[it.id]?.includes(inCollection)) : found;
   }, [category, inCollection, query, picks, collections]);
   const item = results.find((it) => it.id === chosen) ?? null;
+  const shape = useMemo(() => (item ? previewShape(item) : null), [item]);
+  const seconds = shape ? Math.max(1, Math.round(shape.seconds)) : 0;
   const counts = useMemo(() => COLLECTION_COLORS.map((_, i) => Object.values(collections).filter((ks) => ks.includes(i + 1)).length), [collections]);
 
   const choose = (it: LibraryItem, play: boolean) => {
@@ -107,6 +109,11 @@ export function StudioLibrary({ songKey, target, onUse, songs }: {
       onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); if (place === 'songs') setPlace('all'); e.currentTarget.querySelector<HTMLInputElement>('.studio-library-search input, .studio-library-search')?.focus(); } }}>
       <div className="studio-library-head">
         <span className="studio-library-search"><SidebarSearch label="Search the library" value={query} onChange={(q) => { setQuery(q); if (place === 'songs' && q) setPlace('all'); }} /></span>
+        {/* Raw and the preview volume live here, so the preview strip stays one line. */}
+        <Menu label="Browser options" entries={[
+          { label: 'Raw (its own tempo, once)', checked: preview.raw, run: () => setPreview((p) => ({ ...p, raw: !p.raw })) },
+          ...[0, -6, -12, -18].map((db, i) => ({ label: `Preview volume ${db === 0 ? '0' : `−${-db}`} dB`, checked: preview.db === db, separated: i === 0, run: () => setPreview((p) => ({ ...p, db })) })),
+        ]} trigger={<button type="button" className="ui-icon-button studio-browser-more" aria-label="Browser options" title="Browser options: Raw, preview volume"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h.01M8 8h.01M12.5 8h.01" /></svg></button>} />
       </div>
       <div className="studio-browser-cols">
         <nav className="studio-browser-side" aria-label="Places">
@@ -136,8 +143,8 @@ export function StudioLibrary({ songKey, target, onUse, songs }: {
         )}
       </div>
       <div className="studio-browser-foot">
-        <PreviewStrip on={preview.on} onToggle={(on) => setPreview((p) => ({ ...p, on }))} raw={preview.raw} onRaw={(raw) => setPreview((p) => ({ ...p, raw }))}
-          name={item?.name} volume={preview.db} onVolume={(db) => setPreview((p) => ({ ...p, db }))} />
+        <PreviewStrip compact on={preview.on} onToggle={(on) => setPreview((p) => ({ ...p, on }))} raw={preview.raw} onRaw={(raw) => setPreview((p) => ({ ...p, raw }))}
+          name={item?.name} {...(shape ? { peaks: shape.peaks, time: `0:${String(seconds).padStart(2, '0')}` } : {})} volume={preview.db} onVolume={(db) => setPreview((p) => ({ ...p, db }))} />
         <Button disabled={!item || item.category === 'effects'} title={item ? `Sounds like ${item.name}: the same kind, with the same tags` : 'Choose a sound first'} onClick={() => { if (item) similar(item); }}>Similar sounds</Button>
       </div>
     </div>

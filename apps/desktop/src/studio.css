@@ -336,7 +336,19 @@
 .studio-browser-place[aria-current] { background: var(--sel); color: var(--ink); }
 .studio-browser-count { color: var(--muted); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
 .studio-browser-main, .studio-browser-songs { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.studio-browser-main > .ui-filter { padding: var(--sp-2) var(--sp-2) 0; }
+.studio-browser-main > .ui-filters { padding: var(--sp-2) var(--sp-3) 0; }
+/* The tag chips as one block from the results' left edge: the groups' names are for assistive tech, as in the mock. */
+.studio-browser-main .ui-filter-group { display: block; }
+.studio-browser-main .ui-filter-name { display: none; }
+.studio-browser-main .ui-filters { gap: calc(var(--sp-1) / 2); }
+.studio-library-head { display: flex; align-items: center; gap: var(--sp-1); }
+.studio-library-head > .studio-library-search { flex: 1; min-width: 0; }
+.studio-browser-more svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; }
+.studio-browser-foot .ui-preview { height: auto; padding: 0; border-top: 0; background: none; }
+/* Light: clip fills a step lighter (the colour at about 70% over paper), so a dashed Mobius clip and the selection read. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="cool"]) .studio-page .studio-clip:not([data-proposed]) { background: color-mix(in srgb, var(--tc) 70%, var(--paper)); }
+}
 .studio-browser-songs { overflow-y: auto; }
 .studio-browser-songs > .app-sidebar, .studio-browser-songs > aside { border: 0; background: transparent; width: auto; }
 .studio-library-cols { display: flex; justify-content: space-between; padding: var(--sp-2) var(--sp-3) 2px; font-size: var(--fs-xs); color: var(--muted); }

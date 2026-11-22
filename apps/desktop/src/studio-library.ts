@@ -89,3 +89,30 @@ export function collect(all: Collections, id: string, key: number): Collections 
   if (list.length) next[id] = list; else delete next[id];
   return next;
 }
+
+/**
+ * The preview's shape: what the audition plays (three notes 180 ms apart, or four drum hits), drawn from the sound's
+ * envelope as peaks for the preview strip, with its length in seconds. Nothing for an effect.
+ */
+export function previewShape(item: LibraryItem, slices = 64): { peaks: number[]; seconds: number } | null {
+  if (!item.instrument) return null;
+  const drums = item.instrument === 'drums';
+  const gap = 0.18;
+  const hold = item.instrument === 'pad' ? 0.6 : 0.3;
+  const env = item.sound ?? { attack: 0.005, decay: 0.15 * (item.kit?.decay ?? 1), sustain: 0, release: 0.08 };
+  const count = drums ? 4 : 3;
+  const seconds = (count - 1) * gap + hold + env.release;
+  const level = (t: number) => {
+    if (t < 0) return 0;
+    if (t < env.attack) return t / Math.max(env.attack, 1e-3);
+    if (t < hold) return Math.max(env.sustain, 1 - ((t - env.attack) / Math.max(env.decay, 1e-3)) * (1 - env.sustain));
+    return Math.max(0, Math.max(env.sustain, drums ? 0 : 0.2) * (1 - (t - hold) / Math.max(env.release, 1e-3)));
+  };
+  const peaks = Array.from({ length: slices }, (_, i) => {
+    const t = (i / (slices - 1)) * seconds;
+    let sum = 0;
+    for (let n = 0; n < count; n++) sum += level(t - n * gap);
+    return Math.min(1, sum * 0.8);
+  });
+  return { peaks, seconds };
+}
