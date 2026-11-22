@@ -60,6 +60,10 @@ pub struct Accounts {
     telegram: std::sync::OnceLock<Option<Arc<Telegram>>>,
 }
 
+/// The person's account on the local Mobius space, and where its password is kept.
+const LOCAL_USER: &str = "me";
+const LOCAL_PASSWORD: &str = "messages-local-space-password";
+
 fn secret_name(id: &str) -> String {
     format!("messages-account:{id}")
 }
@@ -616,6 +620,64 @@ impl Accounts {
         self.matrix.methods(server).map(|m| m.to_json())
     }
 
+    /// The local Mobius space, on the homeserver Mobius runs at `url`: the first time, makes the person's account there
+    /// (through `register`, with a password kept in this computer's secret store), keeps it like any Matrix account
+    /// (named "Mobius space"), and makes the space with a General channel. Later, only its address is brought up to date.
+    pub fn local_space(&self, url: &str, register: &dyn Fn(&str, &str) -> Res<bool>) -> Res<String> {
+        let me = format!("@{LOCAL_USER}:{}", crate::homeserver::SERVER_NAME);
+        let existing = lock(&self.state).iter().find(|a| a.service == "matrix" && a.team == me).map(|a| a.id.clone());
+        if let Some(id) = existing {
+            if let Some(mut session) = self.secrets.get(&secret_name(&id)).and_then(|t| serde_json::from_str::<Session>(&t).ok()) {
+                if session.homeserver != url {
+                    session.homeserver = url.to_owned();
+                    let text = serde_json::to_string(&session).map_err(|e| e.to_string())?;
+                    self.secrets.put(&secret_name(&id), &text);
+                    self.matrix.forget(&id);
+                }
+                return Ok(id);
+            }
+        }
+        let password = match self.secrets.get(LOCAL_PASSWORD) {
+            Some(p) if p.len() >= 32 => p,
+            _ => {
+                let mut bytes = [0u8; 24];
+                getrandom::fill(&mut bytes).map_err(|e| e.to_string())?;
+                let p: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+                if !self.secrets.put(LOCAL_PASSWORD, &p) {
+                    return Err("The space's sign-in could not be kept in this computer's secret store.".into());
+                }
+                p
+            }
+        };
+        let made = register(LOCAL_USER, &password)?;
+        let session = self.matrix.password_sign_in(url, LOCAL_USER, &password)?;
+        let kept = self.keep_matrix(&session)?;
+        let id = kept["id"].as_str().unwrap_or_default().to_owned();
+        {
+            let mut all = lock(&self.state);
+            if let Some(a) = all.iter_mut().find(|a| a.id == id) {
+                a.name = "Mobius space".into();
+            }
+            self.save(&all);
+        }
+        if made {
+            self.make_space(&session)?;
+        }
+        Ok(id)
+    }
+
+    /// The space itself and its first channel.
+    fn make_space(&self, s: &Session) -> Res<()> {
+        let room = |body: Value| self.matrix.call("POST", &format!("{}/_matrix/client/v3/createRoom", s.homeserver), Some(&s.access), Some(&body));
+        let space = room(json!({ "name": "Mobius", "topic": "Your own space: channels, and a message from each agent.", "preset": "private_chat", "creation_content": { "type": "m.space" } }))?;
+        let space = space["room_id"].as_str().ok_or("The space's server didn't make the space.")?.to_owned();
+        let general = room(json!({ "name": "General", "preset": "private_chat", "initial_state": [{ "type": "m.space.parent", "state_key": space, "content": { "via": [crate::homeserver::SERVER_NAME], "canonical": true } }] }))?;
+        let general = general["room_id"].as_str().ok_or("The space's server didn't make its channel.")?;
+        let child = format!("{}/_matrix/client/v3/rooms/{}/state/m.space.child/{}", s.homeserver, percent_encoding::utf8_percent_encode(&space, percent_encoding::NON_ALPHANUMERIC), percent_encoding::utf8_percent_encode(general, percent_encoding::NON_ALPHANUMERIC));
+        self.matrix.call("PUT", &child, Some(&s.access), Some(&json!({ "via": [crate::homeserver::SERVER_NAME], "suggested": true })))?;
+        Ok(())
+    }
+
     /// Signs in to Matrix with a username and password, which go only to the server and are not kept.
     pub fn matrix_sign_in(&self, server: &str, user: &str, password: &str) -> Res<Value> {
         let homeserver = self.matrix.homeserver(server)?;
@@ -773,6 +835,30 @@ mod tests {
         secrets.put(&secret_name(&id), &serde_json::to_string(&Tokens { expires: 1, ..tokens }).unwrap());
         assert!(accounts.channels(&id).is_ok());
         assert!(serde_json::from_str::<Tokens>(&secrets.get(&secret_name(&id)).unwrap()).unwrap().fresh());
+    }
+
+    #[test]
+    fn the_local_space_makes_its_account_and_space_once_and_follows_its_address() {
+        let (url, log) = crate::matrix::tests::server(false);
+        let (accounts, _dir, secrets) = accounts(&url);
+        let register = |user: &str, password: &str| crate::homeserver::register(&url, "tok", user, password);
+        let id = accounts.local_space(&url, &register).unwrap();
+        let list = accounts.list();
+        assert_eq!(list.as_array().unwrap().len(), 1);
+        assert_eq!(list[0]["name"], "Mobius space");
+        let made = log.lock().unwrap().clone();
+        assert_eq!(made.iter().filter(|l| l.starts_with("POST /_matrix/client/v3/register")).count(), 2);
+        assert!(made.iter().any(|l| l.contains("createRoom") && l.contains("m.space")));
+        assert!(made.iter().any(|l| l.starts_with("PUT /_matrix/client/v3/rooms/!space:mobius.localhost/state/m.space.child/!general:mobius.localhost")));
+        // The password is kept only in the secret store.
+        assert_eq!(secrets.get(LOCAL_PASSWORD).unwrap().len(), 48);
+        // Started again (on another port): the same account, its address moved, nothing made again.
+        log.lock().unwrap().clear();
+        assert_eq!(accounts.local_space("http://127.0.0.1:1", &register).unwrap(), id);
+        assert!(log.lock().unwrap().is_empty());
+        assert_eq!(serde_json::from_str::<Session>(&secrets.get(&secret_name(&id)).unwrap()).unwrap().homeserver, "http://127.0.0.1:1");
+        // The wrong token is refused, plainly.
+        assert!(crate::homeserver::register(&url, "nope", "me", &"a".repeat(48)).unwrap_err().contains("refused"));
     }
 
     #[test]
