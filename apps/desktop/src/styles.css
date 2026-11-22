@@ -2837,11 +2837,13 @@ body { font-variant-numeric: tabular-nums; }
    room before the trailing icons rather than a centred column, which a container-sized child would shrink to nothing. */
 .context-strip[data-titled] > .ui-toolbar-slot:has(.cal-tools, .photo-tabs, .sheet-tools, > .ui-toolbar-group > .note-format, .doc-toolbar[data-frame], .design-tools) { grid-column: 1 / 3; justify-content: flex-start; }
 
-/* The Mobius button, in every look: its trefoil on a light indigo tint with an indigo edge, the one indigo in the bars. */
-.strip-mobius, .context-strip .strip-mobius { background: color-mix(in srgb, var(--mobius) 10%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
-.strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 16%, transparent); color: var(--mobius); }
+/* The Mobius button, in every look: an indigo trefoil, the one indigo in the bars. At rest it has no tint, so open and
+   closed read apart; hover gives a light tint (8%), and only while the panel is open is it pressed, with a 20% tint and
+   an indigo edge. */
+.strip-mobius, .context-strip .strip-mobius { background: transparent; box-shadow: none; color: var(--mobius); }
+.strip-mobius:hover, .context-strip .strip-mobius:hover { background: color-mix(in srgb, var(--mobius) 8%, transparent); color: var(--mobius); }
 .context-strip .strip-mobius[aria-pressed="true"], .context-strip .strip-mobius[aria-pressed="true"]:hover,
-.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); color: var(--mobius); }
+.title-row .strip-mobius[aria-pressed="true"], .title-row .strip-mobius[aria-pressed="true"]:hover { background: color-mix(in srgb, var(--mobius) 20%, transparent); box-shadow: inset 0 0 0 var(--hairline-w) color-mix(in srgb, var(--mobius) 35%, transparent); color: var(--mobius); }
 
 /* ---- The Mobius panel in the panel look (design/reviews/panel-look/mobius-panel.md) ---------------------------------- */
 /* The header is the panel's: the chat's name in ink, 13px semibold. */
