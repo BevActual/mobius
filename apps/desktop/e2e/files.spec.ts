@@ -274,6 +274,38 @@ test('the Trash lists what was trashed and where it was, puts it back there, and
   expect(fs.readdirSync(path.join(userData, 'workspace', '.trash')).filter((n) => !n.startsWith('.'))).toEqual([]);
 });
 
+test('a folder on this computer shows under This computer: browsed like a drive, deleting asks for the Recycle Bin, and removing it leaves the folder', async () => {
+  const place = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-place-'));
+  try {
+    fs.mkdirSync(path.join(place, 'Invoices'));
+    fs.writeFileSync(path.join(place, 'Budget.csv'), 'Item,Cost\nVenue,900\n');
+    await start();
+    type Bridge = { drives: { addPlace?(p: string): Promise<{ id: string; name: string }> } };
+    const added = await shell().evaluate((p) => (window as unknown as { mobius: Bridge }).mobius.drives.addPlace!(p), place);
+    await openFiles();
+    const side = shell().getByRole('complementary', { name: 'Places' });
+    const row = side.getByRole('button', { name: added.name, exact: true });
+    await row.click();
+    const folder = shell().getByRole('region', { name: `${added.name} folder` });
+    await expect(folder.getByRole('row', { name: 'Invoices', exact: true })).toBeVisible();
+    await expect(folder.getByRole('row', { name: 'Budget.csv', exact: true })).toBeVisible();
+    // On this computer a delete goes to the Recycle Bin, so it says so; cancelled, the file stays.
+    await folder.getByRole('row', { name: 'Budget.csv', exact: true }).click({ button: 'right' });
+    await shell().getByRole('menuitem', { name: /^Move to (Recycle Bin|Trash)/ }).click();
+    await expect(shell().getByRole('alertdialog')).toContainText(/Move “Budget.csv” to the (Recycle Bin|Trash)\?/);
+    await shell().getByRole('button', { name: 'Cancel' }).click();
+    expect(fs.existsSync(path.join(place, 'Budget.csv'))).toBe(true);
+    // Taken off the list, the folder and its files stay on the disk.
+    await row.click({ button: 'right' });
+    await shell().getByRole('menuitem', { name: 'Remove from This Computer…' }).click();
+    await shell().getByRole('button', { name: 'Remove', exact: true }).click();
+    await expect(row).toBeHidden();
+    expect(fs.existsSync(path.join(place, 'Budget.csv'))).toBe(true);
+  } finally {
+    fs.rmSync(place, { recursive: true, force: true });
+  }
+});
+
 test('a drive on the person\'s own server: added from its address, browsed, and files copied both ways', async () => {
   let dav: WebDavFixture | undefined;
   try {

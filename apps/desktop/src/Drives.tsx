@@ -16,6 +16,10 @@ export type DrivePlace = { kind: 'drive'; drive: string; path: string } | { kind
 export interface DriveDrag { drive: string; path: string; folder: boolean }
 
 const failed = (r: unknown): r is DriveFailure => !!r && typeof r === 'object' && (r as { ok?: unknown }).ok === false;
+/** A folder on this computer (Desktop, Documents, one the person added), listed under This computer rather than Drives. */
+export const isPlace = (a: DriveAccount | null | undefined): boolean => a?.kind === 'local';
+/** Where a deleted file on this computer goes: the Recycle Bin on Windows, the Trash on a Mac. */
+export const binName = (): string => (/Mac/i.test(navigator.platform) ? 'Trash' : 'Recycle Bin');
 const parentOf = (path: string) => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '');
 const nameOf = (path: string) => path.slice(path.lastIndexOf('/') + 1);
 const join = (folder: string, name: string) => (folder ? `${folder}/${name}` : name);
@@ -100,6 +104,15 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     return null;
   };
   const cancelCloud = (kind: CloudKind) => { void (kind === 'dropbox' ? api?.dropboxCancel?.() : api?.onedriveCancel?.()); setCloud(kind, (c) => ({ ...c, waiting: false })); };
+  /** Adds a folder on this computer: the system's folder picker asks which. Cancelled, nothing changes. */
+  const addPlace = async () => {
+    const r = await api?.addPlace?.().catch(() => null);
+    if (!r) { setNotice('Folders on this computer can\'t be added here.'); return; }
+    if ('cancelled' in r) return;
+    if (failed(r)) { setNotice(r.message); return; }
+    await loadAccounts();
+    setPlace({ kind: 'drive', drive: r.id, path: '' });
+  };
   const remove = async (id: string) => {
     await act(api?.remove(id));
     await loadAccounts();
@@ -170,7 +183,8 @@ export function useDrives(place: { kind: string; drive?: string; path?: string }
     accounts, drive, folder, entries, problem, loading, notice, copied, dragging, setDragging,
     account: accounts.find((a) => a.id === drive) ?? null,
     clouds, addCloud, cancelCloud,
-    list, add, remove, newFolder, rename, moveInto, del, download, upload, saveBack, nameOfDrive,
+    canAddPlace: typeof api?.addPlace === 'function',
+    list, add, addPlace, remove, newFolder, rename, moveInto, del, download, upload, saveBack, nameOfDrive,
     canSaveBack: typeof api?.saveBack === 'function',
     dismissNotice: () => setNotice(null), dismissCopied: () => setCopied(null),
   };
@@ -310,6 +324,7 @@ export function DrivePage({ drives, tools, sort, setSort, query, workspaceDrag, 
   }, [drives.entries, query, sort]);
   if (!drive) return null;
   const account = drives.account;
+  const local = isPlace(account);
   const go = (path: string) => onPlace({ kind: 'drive', drive, path });
   /** A file opens as a copy in the workspace's Drives folder, in the app that opens its kind. */
   const openCopy = async (e: DriveEntry) => {
@@ -334,7 +349,7 @@ export function DrivePage({ drives, tools, sort, setSort, query, workspaceDrag, 
     ...(e.folder || drives.canCopy ? [{ label: e.folder ? 'Open' : 'Open a Copy', keys: 'Enter', run: () => open(e) }] : []),
     { label: 'Rename', keys: 'F2', run: () => setRenaming(e.path) },
     ...(!e.folder && drives.canCopy ? [{ label: 'Copy to Workspace', run: () => void drives.download(drive, e.path, '') }] : []),
-    { label: 'Delete…', keys: 'Delete', danger: true, separated: true, run: () => setConfirm(e) },
+    { label: local ? `Move to ${binName()}…` : 'Delete…', keys: 'Delete', danger: true, separated: true, run: () => setConfirm(e) },
   ];
   // Drops: a row of this drive moves into the folder; a workspace file is copied into it.
   const drop = (into: string): SidebarRowDrop<HTMLElement> => {
@@ -392,7 +407,7 @@ export function DrivePage({ drives, tools, sort, setSort, query, workspaceDrag, 
       onBlur={(ev) => void finishRename(path, ev.currentTarget.value)} />
   ) : <span className="files-label">{label}</span>);
   return (
-    <section className="skills-page files-page" aria-label={account ? `${account.name} drive` : 'Drive'}>
+    <section className="skills-page files-page" aria-label={account ? `${account.name} ${local ? 'folder' : 'drive'}` : 'Drive'}>
       {tools(() => void startNewFolder())}
       <DriveBars drives={drives} />
       {drives.problem && <p className="field-error" role="alert">{drives.problem}</p>}
@@ -400,7 +415,7 @@ export function DrivePage({ drives, tools, sort, setSort, query, workspaceDrag, 
         <div className="files-loading" role="status" aria-label="Loading this folder">{['46%', '32%', '58%', '38%', '50%'].map((w) => <span key={w} style={{ '--w': w } as React.CSSProperties} />)}</div>
       )}
       {!drives.problem && !drives.loading && drives.entries.length === 0 && (
-        <EmptyState icon={GLYPH.folder} title="This folder is empty" line={drives.canCopy ? 'Drag a file here from the workspace to copy it to the server.' : undefined} action={{ label: 'New folder', run: () => void startNewFolder() }} />
+        <EmptyState icon={GLYPH.folder} title="This folder is empty" line={drives.canCopy ? `Drag a file here from the workspace to copy it ${local ? 'here' : 'to the server'}.` : undefined} action={{ label: 'New folder', run: () => void startNewFolder() }} />
       )}
       {!drives.problem && !drives.loading && drives.entries.length > 0 && (
         <div className="files-table" role="grid" aria-label="Files in this folder" aria-rowcount={rows.length + 1} {...(workspaceDrag ? drop(here) : {})}>
@@ -432,8 +447,10 @@ export function DrivePage({ drives, tools, sort, setSort, query, workspaceDrag, 
         ))}
       </nav>
       {menu && <PointMenu x={menu.x} y={menu.y} label={menu.entry.name} entries={items(menu.entry)} onClose={() => setMenu(null)} />}
-      <Confirm open={confirm !== null} title={`Delete “${confirm?.name ?? ''}” from ${account?.name ?? 'the drive'}?`}
-        description={confirm?.folder ? 'The folder and everything in it go from the server.' : 'The file goes from the server.'} permanent action="Delete"
+      {/* On this computer a delete goes to the Recycle Bin (as Explorer's does), so it can be put back there; on a server it's for good. */}
+      <Confirm open={confirm !== null} title={local ? `Move “${confirm?.name ?? ''}” to the ${binName()}?` : `Delete “${confirm?.name ?? ''}” from ${account?.name ?? 'the drive'}?`}
+        description={local ? `You can put ${confirm?.folder ? 'it and everything in it' : 'it'} back from the ${binName()}.` : confirm?.folder ? 'The folder and everything in it go from the server.' : 'The file goes from the server.'}
+        permanent={!local} action={local ? `Move to ${binName()}` : 'Delete'}
         onCancel={() => setConfirm(null)} onConfirm={() => { const e = confirm; setConfirm(null); setSelected(null); if (e) void drives.del(e); }} />
     </section>
   );
