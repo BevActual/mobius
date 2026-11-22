@@ -100,6 +100,8 @@
 .note-format .note-style-btn { display: inline-flex; align-items: center; gap: 2px; min-width: 104px; justify-content: space-between; padding: 0 var(--sp-1) 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
 .note-format .note-style-btn svg { width: 14px; height: 14px; color: var(--muted); }
 .note-format .doc-tool:disabled { color: var(--faint, var(--muted)); opacity: 0.5; }
+/* Focus: the controls library's ring (ui/controls.css), rounded with the button, not the page's heavy default. */
+.note-format .doc-tool:focus-visible { outline: var(--focus-w) solid var(--ink); outline-offset: var(--hairline-w); }
 .note-format .doc-tool { color: var(--body); transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
 .note-format .doc-tool:hover { color: var(--ink); background: var(--sel); }
 .note-format .doc-tool[aria-pressed="true"], .note-format .doc-tool[aria-expanded="true"] { color: var(--ink); background: var(--sel); }
