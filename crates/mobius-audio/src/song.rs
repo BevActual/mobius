@@ -80,6 +80,9 @@ pub enum Instrument {
 #[serde(rename_all = "camelCase")]
 pub struct Track {
     pub id: String,
+    /// What the person calls it: a recording on it is named for it.
+    #[serde(default)]
+    pub name: Option<String>,
     /// What it plays: notes on an instrument (none in the file), or `"audio"`, its clips' recorded sound (Live 12
     /// manual, chapter 9 "Audio Clips, Tempo, and Warping").
     #[serde(default)]

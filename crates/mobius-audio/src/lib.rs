@@ -19,6 +19,7 @@ pub mod engine;
 pub mod fx;
 pub mod midi;
 pub mod param;
+pub mod record;
 pub mod render;
 pub mod sample;
 pub mod song;
