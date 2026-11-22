@@ -11,7 +11,7 @@ import { AppSidebar, KeyCaps, SidebarRow, SidebarSection } from '../ui';
 import { SectionIcon } from './icons';
 import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
-import { ConnectionsList } from './Connections';
+import { ConnectionsList } from './AccountsPage';
 import { CalendarAccountsSettings } from '../CalendarAccounts';
 import { MessagesAccountsSettings } from '../MessagesAccounts';
 
