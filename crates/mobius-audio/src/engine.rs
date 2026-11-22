@@ -428,8 +428,21 @@ pub struct Engine {
     take: Mutex<Option<crate::record::Recorder>>,
 }
 
-/// The sound input open: its name, its channel, and the end that closes it.
-type OpenInput = (String, Option<u32>, std::sync::mpsc::Sender<()>);
+/// The computer's sound inputs: each one's name and how many channels it has (none on Linux for now).
+#[must_use]
+pub fn inputs() -> Vec<(String, u16)> {
+    #[cfg(any(windows, target_os = "macos"))]
+    {
+        device::inputs()
+    }
+    #[cfg(not(any(windows, target_os = "macos")))]
+    {
+        Vec::new()
+    }
+}
+
+/// The sound input open: its name, the one asked for (none for the default), its channel, and the end that closes it.
+type OpenInput = (String, Option<String>, Option<u32>, std::sync::mpsc::Sender<()>);
 
 /// A recorded take: its file, the beat it starts on, and how far into the file that beat is (the time from the
 /// sound being made to it coming back in, which Live also takes off a recording: 19.1.1).
@@ -612,16 +625,16 @@ impl Engine {
         *lock(&self.keys.pressed) = Some(pressed);
     }
 
-    /// Opens the computer's default sound input, keeping its `channel` (counted from 0) on both sides, or its first
-    /// two as left and right with none (Live 12 manual, 19.1 "Choosing what to record"). Returns its name. Open
-    /// already with the same channel, it is kept.
+    /// Opens the sound input called `device` (as [`inputs`] names them), or the computer's default, keeping its
+    /// `channel` (counted from 0) on both sides, or its first two as left and right with none (Live 12 manual, 19.1
+    /// "Choosing what to record"). Returns its name. Open already the same way, it is kept.
     ///
     /// # Errors
     /// When there is no input, it cannot be opened at the engine's rate, or the engine has no output.
-    pub fn open_input(&self, channel: Option<u32>) -> Result<String, String> {
+    pub fn open_input(&self, device: Option<&str>, channel: Option<u32>) -> Result<String, String> {
         let mut input = lock(&self.input);
-        if let Some((name, open, _)) = input.as_ref() {
-            if *open == channel {
+        if let Some((name, wanted, open, _)) = input.as_ref() {
+            if *open == channel && wanted.as_deref() == device {
                 return Ok(name.clone());
             }
         }
@@ -632,14 +645,14 @@ impl Engine {
                 return Err("There is no sound output to monitor through.".to_owned());
             }
             self.shared.input_frames.store(0, Ordering::Relaxed);
-            let (name, queue, end) = device::open_input(self.sample_rate, channel, Arc::clone(&self.shared))?;
+            let (name, queue, end) = device::open_input(self.sample_rate, device.map(str::to_owned), channel, Arc::clone(&self.shared))?;
             self.send(Command::Input(Some(queue)))?;
-            *input = Some((name.clone(), channel, end));
+            *input = Some((name.clone(), device.map(str::to_owned), channel, end));
             Ok(name)
         }
         #[cfg(not(any(windows, target_os = "macos")))]
         {
-            let _ = channel;
+            let _ = (device, channel);
             Err("Recording audio works on Windows and macOS only for now.".to_owned())
         }
     }
@@ -917,12 +930,12 @@ mod device {
 
     /// The default input at `rate`, its stream kept on a thread of its own as the output's is, its sound (`channel`
     /// on both sides, or the first two) put into a queue for the audio thread.
-    pub(super) fn open_input(rate: u32, channel: Option<u32>, shared: std::sync::Arc<super::Shared>) -> Result<Opened, String> {
+    pub(super) fn open_input(rate: u32, device: Option<String>, channel: Option<u32>, shared: std::sync::Arc<super::Shared>) -> Result<Opened, String> {
         let (ready_tx, ready_rx) = std::sync::mpsc::channel::<Result<(String, rtrb::Consumer<f32>), String>>();
         let (end_tx, end_rx) = std::sync::mpsc::channel::<()>();
         std::thread::Builder::new()
             .name("mobius-audio-in".into())
-            .spawn(move || match start_input(rate, channel, shared) {
+            .spawn(move || match start_input(rate, device.as_deref(), channel, shared) {
                 Ok((name, queue, stream)) => {
                     let _ = ready_tx.send(Ok((name, queue)));
                     let _ = end_rx.recv();
@@ -937,9 +950,22 @@ mod device {
         Ok((name, queue, end_tx))
     }
 
-    fn start_input(rate: u32, channel: Option<u32>, shared: std::sync::Arc<super::Shared>) -> Result<(String, rtrb::Consumer<f32>, cpal::Stream), String> {
+    /// The sound inputs, by name, and how many channels each has by default.
+    pub(super) fn inputs() -> Vec<(String, u16)> {
+        let Ok(devices) = cpal::default_host().input_devices() else { return Vec::new() };
+        devices.filter_map(|d| Some((d.name().ok()?, d.default_input_config().map_or(0, |c| c.channels())))).collect()
+    }
+
+    fn start_input(rate: u32, wanted: Option<&str>, channel: Option<u32>, shared: std::sync::Arc<super::Shared>) -> Result<(String, rtrb::Consumer<f32>, cpal::Stream), String> {
         let host = cpal::default_host();
-        let device = host.default_input_device().ok_or("This computer has no sound input.")?;
+        let device = match wanted {
+            Some(want) => host
+                .input_devices()
+                .map_err(|e| e.to_string())?
+                .find(|d| d.name().is_ok_and(|n| n == want))
+                .ok_or_else(|| format!("{want} is not connected."))?,
+            None => host.default_input_device().ok_or("This computer has no sound input.")?,
+        };
         let name = device.name().unwrap_or_else(|_| "Sound input".to_owned());
         // The engine's rate when the input has it; else the input's own (48 kHz on most computers), resampled.
         let ranges: Vec<_> = device.supported_input_configs().map_err(|e| format!("{name} could not be opened: {e}"))?.filter(|c| c.sample_format() == cpal::SampleFormat::F32).collect();
