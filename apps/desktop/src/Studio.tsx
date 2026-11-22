@@ -1380,6 +1380,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const mixerPanel: PanelSpec = { id: 'mixer', name: 'Mixer', dock: 'bottom', group: 'bottom', keys: 'mod+alt+m', size: 300, reveal: mixerReveal, render: () => (
     <StudioMixer song={song} selected={track?.id ?? null} onSelect={setSelected} setTrack={setTrack} source={mixSource} playing={playing} />
   ) };
+  // The Library is a tab after Songs, so the songs list that shows while the last song reopens stays in front when
+  // it does (a tab group's first panel is in front until the person picks another, which is then remembered).
   const libraryPanel: PanelSpec = { id: 'library', name: 'Library', dock: 'left', shown: true, group: 'browse', keys: 'mod+alt+b', render: () => (
     <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} />
   ) };
@@ -1571,7 +1573,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           <IconButton label="Export as WAV" keys="Ctrl+Shift+E" disabled={exporting || song.tracks.length === 0} title={exporting ? 'Exporting…' : 'Export the song as a WAV file, every track mixed down'} icon={<Icon d={ICONS.export} />} onClick={() => void exportWav()} />
         </ToolbarItem>
       </ToolbarControls>
-      <PanelLayout app="studio" panels={[libraryPanel, ...listPanels.map((p) => ({ ...p, group: 'browse' })), ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
+      <PanelLayout app="studio" panels={[...listPanels.map((p) => ({ ...p, group: 'browse' })), libraryPanel, ...(detailPanel ? [detailPanel] : []), mixerPanel]}>
       <div className="studio-main">
         {proposal}
         <div ref={arrangeEl} className="studio-arrange" data-empty={song.tracks.length === 0 || undefined} style={{ ['--head' as string]: `${HEAD_W}px`, ['--bar' as string]: `${BEATS_PER_BAR * bw}px` }}

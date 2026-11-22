@@ -46,6 +46,13 @@ On 21 November 2026, after #711 and #709, the slowest app's median was 89 to 136
 slowest app got a budget of its own, 150 ms. Scaled by start time, the runs so far came to 97 to 127 ms on both the
 fast and the slow machines.
 
+By 22 November 2026 it had failed three times in a day (152, 156 and 168 ms) while the passing runs came to 105 to
+143 ms. In all but one of them Notes was the slowest, at 1.6 to 2 times the median switch, and nothing in the app had
+doubled. Notes mounts its editor on every visit, and setting `contenteditable` on it forces about 10 ms of style work in
+a local profile, work the frame would otherwise do anyway. The one outlier (Calendar at 239 ms, its usual being
+100 to 190 ms) came alone. So the budget is now 180 ms: above the spread of runs without a change, and still below
+what twice the work gives (about 240 ms scaled).
+
 Notes drew every page of a long notebook each time it opened, which took 0.84 s for 2,000 pages in a smaller window.
 It now draws the first 100 and more as the list scrolls. Next is switching itself, which costs over 100 ms even
 between simple apps at this size.
