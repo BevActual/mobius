@@ -145,7 +145,7 @@ test('Take Over stops a running plan and puts the steps left in Tasks', async ()
   await expect(tasks).toContainText('Book the room');
   await expect(tasks).toContainText('Send the invite');
   await expect(tasks).not.toContainText('Find a venue');
-  await expect(shell().getByRole('button', { name: 'Send', exact: true })).toBeAttached();
+  await expect(shell().getByRole('button', { name: 'Send', exact: true, includeHidden: true })).toBeAttached();
 });
 
 test('Mobius asks before remembering, uses what it remembers next time, and it can be forgotten in Settings', async () => {
@@ -158,7 +158,7 @@ test('Mobius asks before remembering, uses what it remembers next time, and it c
   expect(fs.readFileSync(path.join(userData, 'memory.md'), 'utf8')).toContain('- Prefers boutique hotels');
   // The reply has finished (it can show its words while still streaming): Send is back in place of Stop. It shows
   // only once there is text, so it is there rather than seen.
-  await expect(shell().getByRole('button', { name: 'Send', exact: true })).toBeAttached();
+  await expect(shell().getByRole('button', { name: 'Send', exact: true, includeHidden: true })).toBeAttached();
   await say('find me a hotel');
   await expect(log().locator('.msg.assistant').last()).toHaveText('Noted.');
   expect(JSON.stringify(model!.requests.at(-1))).toContain('Prefers boutique hotels');

@@ -69,7 +69,7 @@ test('Stop on the control bar ends the task', async () => {
   const bar = shell.getByRole('status', { name: 'You have control' });
   await bar.getByRole('button', { name: 'Stop' }).click();
   await expect(bar).toBeHidden();
-  await expect(shell.getByRole('button', { name: 'Send' })).toBeAttached();
+  await expect(shell.getByRole('button', { name: 'Send', includeHidden: true })).toBeAttached();
 });
 
 test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s again on Hand back', async () => {
