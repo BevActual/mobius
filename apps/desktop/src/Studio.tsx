@@ -5,6 +5,7 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
+import { ClipWave } from './studio-wave';
 import { armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
@@ -162,7 +163,7 @@ interface ClipActions { onMove: (id: string, start: number) => void; onResize: (
  * Mobius proposes them, faded when muted. Drag one to move it and its right edge to stretch it, a bar at a time (a
  * beat with Alt held); it never passes the clips beside it.
  */
-function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; proposed: boolean; bw: number; onOpen: (fromBeat: number, clip: string) => void; actions: ClipActions }) {
+function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { track: Track; proposed: boolean; bw: number; songPath: string; tempo: number; onOpen: (fromBeat: number, clip: string) => void; actions: ClipActions }) {
   const pitches = track.clips.flatMap((c) => c.notes.map((n) => n.pitch));
   const lo = Math.min(...pitches, 127), hi = Math.max(...pitches, 0);
   const span = Math.max(1, hi - lo);
@@ -231,7 +232,7 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
             }}
           >
             {/* An audio clip: its sound as a band (the file's waveform comes with the engine's peaks); a MIDI clip: its notes. */}
-            {c.audio ? <span className="studio-clip-wave" aria-hidden="true" /> : <span className="studio-clip-notes" aria-hidden="true">
+            {c.audio ? <ClipWave songPath={songPath} file={c.audio.file} offset={c.audio.offset ?? 0} seconds={(length * 60) / (c.audio.warp && c.audio.bpm ? c.audio.bpm : tempo)} width={length * bw - 8} /> : <span className="studio-clip-notes" aria-hidden="true">
               {heard.map((n, i) => (
                 <span key={i} style={{ left: n.start * bw, width: Math.max(1, n.length * bw - 1), top: `${(1 - (n.pitch - lo) / span) * 85}%` }} />
               ))}
@@ -1681,7 +1682,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   </div>
                 </div>
                 <div className="studio-lane" style={{ width: total * bw }}>
-                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
+                  <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && <>
                   <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>
