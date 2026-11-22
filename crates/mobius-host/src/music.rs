@@ -80,6 +80,10 @@ impl Music {
                 report(&reporting, &emit, engine);
             }
         }));
+        // A song loaded before the engine opened: its Main level is what notes played while stopped go through.
+        if let Some(song) = lock(&self.song).as_ref() {
+            opened.update(song)?;
+        }
         *engine = Some(opened.clone());
         Ok(opened)
     }
