@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { Button, CONTENT_COLORS, Dot, FilterBar, Menu, PreviewStrip, SidebarSearch, type TagPicks } from './ui';
 import { CATEGORIES, collect, LIBRARY, previewShape, search, TAG_GROUPS, type Collections, type LibraryCategory, type LibraryItem } from './studio-library';
-import { previewNote } from './studio-audio';
+import { previewSound } from './studio-engine';
 
 /** Collections' seven colours, as in Live; keys 1 to 7 put the chosen item in one. */
 const COLLECTION_COLORS = CONTENT_COLORS.slice(0, 7);
@@ -28,7 +28,7 @@ function audition(item: LibraryItem, key: string, db: number) {
   const gain = Math.min(1, 0.8 * 10 ** (db / 20));
   const root = 48 + Math.max(0, ROOTS.indexOf(key.split(' ')[0] ?? 'C'));
   const notes = item.instrument === 'drums' ? [36, 42, 38, 42] : item.instrument === 'bass' ? [root - 12, root - 5, root] : [root, root + 7, root + 12];
-  notes.forEach((p, i) => window.setTimeout(() => previewNote(item.instrument!, p, gain, item.instrument === 'pad' ? 0.6 : 0.3, item.sound, item.kit), i * 180));
+  notes.forEach((p, i) => window.setTimeout(() => previewSound({ instrument: item.instrument!, sound: item.sound, kit: item.kit }, p, gain, item.instrument === 'pad' ? 0.6 : 0.3), i * 180));
 }
 
 /** Where the Browser is: a Library category, a collection (by its key, 1 to 7), or the Songs place. */

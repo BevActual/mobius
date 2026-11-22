@@ -60,7 +60,11 @@ impl Music {
         if let Some(e) = engine.as_ref() {
             return Ok(e.clone());
         }
-        let opened = Arc::new(Engine::open()?);
+        // No output (or none the engine opens yet): the engine runs silently, so Music works the same, unheard.
+        let opened = Arc::new(Engine::open().unwrap_or_else(|why| {
+            eprintln!("[music] playing silently: {why}");
+            Engine::silent()
+        }));
         *engine = Some(opened.clone());
         Ok(opened)
     }
@@ -68,7 +72,7 @@ impl Music {
     pub fn call(&self, method: &str, args: &[Value], songs: &mobius_workspace::notes::Notes) -> Value {
         let arg = |i: usize| args.get(i).unwrap_or(&Value::Null);
         let result = match method {
-            "engine" => self.engine().map(|e| json!({ "ok": true, "device": e.device(), "sampleRate": e.sample_rate(), "latencyMs": e.latency_ms() })),
+            "engine" => self.engine().map(|e| json!({ "ok": true, "device": e.device(), "silent": e.is_silent(), "sampleRate": e.sample_rate(), "latencyMs": e.latency_ms() })),
             "load" => self.load(arg(0)),
             "play" => self.play(arg(0).as_f64(), cycle_of(arg(1)), arg(2).as_bool().unwrap_or(false)),
             "playSession" => self.play_session(arg(0).as_bool().unwrap_or(false), arg(1)),
@@ -76,8 +80,10 @@ impl Music {
                 Some(track) => self.launch(track, arg(1)),
                 None => Err("a track is needed".to_owned()),
             },
-            "preview" => match (arg(0).as_str(), arg(1).as_u64().and_then(|p| u8::try_from(p).ok()).filter(|p| *p < 128)) {
-                (Some(track), Some(pitch)) => self.preview(track, pitch, arg(2).as_f64().unwrap_or(0.8), arg(3).as_f64().unwrap_or(0.35)),
+            "preview" => match (arg(0), arg(1).as_u64().and_then(|p| u8::try_from(p).ok()).filter(|p| *p < 128)) {
+                (Value::String(track), Some(pitch)) => self.preview(track, pitch, arg(2).as_f64().unwrap_or(0.8), arg(3).as_f64().unwrap_or(0.35)),
+                // A sound from the Library, on no track: `{ instrument, sound?, kit? }`.
+                (sound @ Value::Object(_), Some(pitch)) => self.audition(sound, pitch, arg(2).as_f64().unwrap_or(0.8), arg(3).as_f64().unwrap_or(0.35)),
                 _ => Err("a track and a pitch are needed".to_owned()),
             },
             "watch" => match (arg(0), arg(1)) {
@@ -167,6 +173,21 @@ impl Music {
         let song = lock(&self.song);
         let track = song.as_ref().ok_or("load a song first")?.tracks.iter().find(|t| t.id == track).ok_or_else(|| format!("No track \"{track}\" in the song."))?;
         engine.preview(track, pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
+        self.report(engine);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// A sound heard on its own, as the Library previews it: an instrument with its sound or kit, at full volume.
+    fn audition(&self, sound: &Value, pitch: u8, velocity: f64, seconds: f64) -> Result<Value, String> {
+        let mut track = json!({ "id": "preview" });
+        for key in ["instrument", "sound", "kit"] {
+            if let Some(v) = sound.get(key) {
+                track[key] = v.clone();
+            }
+        }
+        let song = song_of(&json!({ "version": 2, "tempo": 120, "bars": 1, "tracks": [track] }))?;
+        let engine = self.engine()?;
+        engine.preview(&song.tracks[0], pitch, velocity.clamp(0.0, 1.0), seconds.clamp(0.01, 8.0))?;
         self.report(engine);
         Ok(json!({ "ok": true }))
     }
@@ -362,7 +383,13 @@ mod tests {
         assert_eq!(m.call("seek", &[json!("x")], &songs)["ok"], false);
         assert_eq!(m.call("nope", &[], &songs)["ok"], false);
         if cfg!(not(any(windows, target_os = "macos"))) {
-            assert_eq!(m.call("engine", &[], &songs)["ok"], false);
+            // No output here: the engine plays silently, and says so.
+            let engine = m.call("engine", &[], &songs);
+            assert!(engine["ok"] == true && engine["silent"] == true, "{engine}");
+            // A Library sound is heard on no track; a track's needs a song.
+            assert_eq!(m.call("preview", &[json!({ "instrument": "piano" }), json!(60)], &songs)["ok"], true);
+            assert_eq!(m.call("preview", &[json!("keys"), json!(60)], &songs)["ok"], false);
+            assert_eq!(m.call("play", &[], &songs)["ok"], false);
         }
     }
 }
