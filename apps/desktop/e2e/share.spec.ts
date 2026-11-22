@@ -44,7 +44,7 @@ test('another agent can read the workspace over MCP once allowed, and change fil
 
   await openSettings(shell());
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Advanced', exact: true }).click();
-  await page().getByRole('tab', { name: 'Other apps', exact: true }).click();
+  await page().locator('.settings-group[aria-label="Other apps"]').scrollIntoViewIfNeeded();
   await expect(page().getByLabel('Connect an app')).toHaveCount(0);
   await page().getByRole('switch', { name: 'Let other apps use Mobius' }).click();
 

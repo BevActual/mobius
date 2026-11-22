@@ -149,7 +149,7 @@ test('the agent panel’s width and mode survive a restart, and the settings pag
   const page = shell().getByRole('region', { name: 'Settings' });
   await expect(page).toBeVisible();
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Appearance', exact: true }).click();
-  await page.getByRole('tab', { name: 'Layout', exact: true }).click();
+  await page.locator('.settings-group[aria-label="Layout"]').scrollIntoViewIfNeeded();
   await expect(page.getByText('Now: 500 px.')).toBeVisible();
   await page.getByRole('button', { name: 'Reset size' }).click();
   await expect.poll(async () => (await appearance()).rightWidth).toBe(340);

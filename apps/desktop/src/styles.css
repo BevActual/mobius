@@ -2067,7 +2067,8 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
 
 /* Settings is an app: its search and sections are the sidebar's list, and the page fills the rest. */
 .settings-body:not(:has(> .ui-side)) { grid-template-columns: minmax(0, 1fr); }
-.app[data-settings] .toolbar-sub, .app[data-settings] .context-strip .strip-middle { display: none; }
+/* Settings (panel look): its title row shows the section in grey after "Settings"; the tool row's middle stays hidden. */
+.app[data-settings] .context-strip .strip-middle { display: none; }
 
 /* Settings rows, as in System Settings: inset grouped cards with inset hairlines; the name and its grey help on the
    left, the control trailing on the same row (a wide control, such as a list, takes the row under them). */

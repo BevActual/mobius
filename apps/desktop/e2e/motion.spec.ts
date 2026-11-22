@@ -65,7 +65,7 @@ test('a field shows one soft focus ring: never a ring inside a ring', async () =
   const shell = mobius!.shell;
   const rings = (selector: string) => shell.evaluate((s) => {
     const field = document.querySelector<HTMLElement>(s)!;
-    const box = field.closest('.search-box, .hub-search') as HTMLElement | null;
+    const box = field.closest('.search-box, .hub-search, .settings-search') as HTMLElement | null;
     const ring = (el: HTMLElement) => { const st = getComputedStyle(el); return (st.outlineStyle !== 'none' && parseFloat(st.outlineWidth) > 0 ? 1 : 0) + (st.boxShadow !== 'none' && /0px 0px 0px [1-9]/.test(st.boxShadow) ? 1 : 0); };
     return ring(field) + (box ? ring(box) : 0);
   }, selector);

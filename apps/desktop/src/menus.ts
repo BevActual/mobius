@@ -16,6 +16,8 @@ const separator: MenuItem = { kind: 'separator' };
 /** What the menus can do, and what is true now. Everything here already exists in the app; the menus only gather it. */
 export interface MenuContext {
   app: AppId;
+  /** A place (Settings, Store) is showing, not an app: there is no app menu. */
+  place?: boolean;
   apps: readonly { id: AppId; name: string }[];
   keys: { newTab?: string; closeTab?: string; settings?: string; find?: string; launcher?: string; splitView?: string; littleMobius?: string; address?: string };
   state: {
@@ -133,7 +135,7 @@ export function buildMenus(c: MenuContext): Menu[] {
     item('shortcuts', 'Keyboard shortcuts', d.shortcuts),
     item('about', 'About Mobius', d.about),
   ] };
-  const own = appMenu(c);
+  const own = c.place ? null : appMenu(c);
   return [file, edit, view, go, ...(own ? [own] : []), window, help];
 }
 
