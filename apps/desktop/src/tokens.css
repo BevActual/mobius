@@ -66,6 +66,9 @@
   --on-ink: #ffffff;
   --line: #e3e1da;
   --line-soft: #efede7;
+  /* A panel's own edge on the frame, and the light along its top. */
+  --panel-edge: var(--line);
+  --panel-highlight: rgba(255, 255, 255, 0.6);
   --sel: #e9e7e0;
   --mobius: #4b48c8;
   --mobius-wash: #f0effb;
@@ -136,7 +139,7 @@
   /* A two-line row in a master list beside a reading pane (Mail, Notes): sender or title, then a line of preview. */
   --row-list-2: 56px;
   --row-reading: 44px;
-  --toolbar-h: 52px;
+  --toolbar-h: 44px;
   --panel-head-h: 30px;
   --info-h: 24px;
   --rail-w: 52px;
@@ -275,19 +278,22 @@
     --chart-violet: #9085e9;
     --chart-yellow: #a89200;
     --chart-stone: #8f8b83;
-    --frame: #1a1a19;
-    --paper: #222221;
-    --raised: #2b2b29;
-    --ink: #ecebe6;
-    --body: #d8d7d1;
-    --muted: #a09f99;
-    --faint: #6f6e69;
-    --on-ink: #1a1a19;
-    --line: #353533;
-    --line-soft: #2b2b29;
-    --sel: #30302e;
-    --mobius: #9a98f5;
-    --mobius-wash: #2a2946;
+    /* A near-black frame with each panel one step up; edges are light at low alpha, and three steps of ink. */
+    --frame: #09090a;
+    --paper: #121214;
+    --raised: #19191c;
+    --ink: #ededef;
+    --body: #d2d3d7;
+    --muted: #a0a2a8;
+    --faint: #6e7178;
+    --on-ink: #09090a;
+    --line: rgba(255, 255, 255, 0.10);
+    --line-soft: rgba(255, 255, 255, 0.06);
+    --panel-edge: rgba(255, 255, 255, 0.06);
+    --panel-highlight: rgba(255, 255, 255, 0.04);
+    --sel: #232327;
+    --mobius: #8b88ff;
+    --mobius-wash: #1d1c33;
     --on-mobius: #12112e;
     --red: #f08a80;
     --red-wash: #3d1f1d;
@@ -374,7 +380,7 @@ html[data-density='compact'], .app[data-density='compact'] {
   --control-h: 24px;
   --control-h-lg: 30px;
   --menu-row-h: 26px;
-  --toolbar-h: 44px;
+  --toolbar-h: 40px;
   --panel-head-h: 26px;
   --info-h: 22px;
   --sidebar-w: 220px;
