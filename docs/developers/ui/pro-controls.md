@@ -40,6 +40,21 @@ building one in an app.
   pan={t.pan} onPan={setPan} mute={t.mute} onMute={setMute} solo={t.solo} onSolo={setSolo} meter={bassMeter} />
 ```
 
+### Sends
+
+![Three tracks' Send A and B knobs, one moved by Mobius, and a return keeping the same room empty](img/sends.png)
+
+Live puts a Send knob per return track above pan in every strip, named by the return's letter ([Live 12 manual, Mixing](https://www.ableton.com/en/live-manual/12/mixing/): "Return Tracks and the Main Track", "The Mixer Section"). `SendKnob` is one of them: the letter, a small dial and the level in dB (`sendLabel`: −∞ when off, whole dB otherwise). Its value is a gain from 0 to 1, as the song keeps it. `Sends` stacks them for a strip's `sends` slot.
+
+- Pass the same `count` (the number of returns) on every strip, so the faders line up. A strip with no sends, such as a return or Main, passes `<Sends count={n} />` and keeps the room empty.
+- Keys, double-click and `proposed` work as on every `Knob`.
+
+```tsx
+<MixerStrip name="Bass" ... sends={<Sends count={returns.length} label="Bass sends">
+  {returns.map((r, i) => <SendKnob key={r.id} letter={returnName(r, i)} value={t.sends?.[r.id] ?? 0} onChange={(v) => setSend(r.id, v)} />)}
+</Sends>} />
+```
+
 ## Before and after
 
 ![Hold Show original: the button, the edited stand-in, and the same while held with the Original tag](img/before-after.png)

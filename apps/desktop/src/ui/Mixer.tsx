@@ -1,4 +1,4 @@
-import { useId, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type Ref } from 'react';
+import { useId, useRef, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from 'react';
 import type { ContentColor } from './Bits';
 import { Knob, panLabel } from './Instrument';
 import { LetterToggle, LevelMeter, decibelLabel, levelPosition, type LevelFeed } from './Pro';
@@ -148,4 +148,49 @@ export function MixerStrip({
       </div>
     </div>
   );
+}
+
+/** A send's amount as a strip shows it: −∞ when off, else its level in whole dB (Live prints -inf and dB). `v` is a gain, 0 to 1. */
+export const sendLabel = (v: number): string => (v <= 0.001 ? '\u2212\u221e' : String(Math.round(Math.max(-60, 20 * Math.log10(v)))).replace('-', '\u2212'));
+
+export interface SendKnobProps {
+  /** The return's letter (A, B, C…) or its short name, shown beside the dial. */
+  letter: string;
+  /** Read aloud; defaults to "Send A". */
+  label?: string;
+  /** How much goes to the return, as a gain from 0 (off) to 1 (0 dB). */
+  value: number;
+  onChange: (v: number) => void;
+  onCommit?: (v: number) => void;
+  /** Mobius moved it and nobody has kept it yet. */
+  proposed?: boolean;
+  disabled?: boolean;
+}
+
+/**
+ * One send of a mixer strip, as in Live's Mixer: the return's letter, a small dial and its level in dB. Live 12 manual,
+ * Mixing: "Return Tracks and the Main Track" (each track's Send knobs set how much goes to each return) and "The Mixer
+ * Section" (sends sit above pan). https://www.ableton.com/en/live-manual/12/mixing/
+ */
+export function SendKnob({ letter, label, value, onChange, onCommit, proposed, disabled }: SendKnobProps) {
+  return (
+    <span className="ui-send">
+      <span className="ui-send-letter" aria-hidden="true">{letter}</span>
+      <Knob className="ui-send-knob" label={label ?? `Send ${letter}`} value={value} min={0} max={1} step={0.01} reset={0} format={sendLabel}
+        proposed={proposed} disabled={disabled} onChange={onChange} {...(onCommit ? { onCommit } : {})} />
+    </span>
+  );
+}
+
+/**
+ * The sends of one strip, for MixerStrip's `sends`. Every strip in a mixer passes the same `count` (the number of
+ * returns), so their faders line up: a strip with no sends (a return, Main) passes `<Sends count={n} />` with no
+ * children and keeps the room empty.
+ */
+export function Sends({ count, label, children }: { count: number; label?: string; children?: ReactNode }) {
+  if (count <= 0) return null;
+  const style = { '--sends': count } as CSSProperties;
+  return children
+    ? <span className="ui-sends" role="group" aria-label={label ?? 'Sends'} style={style}>{children}</span>
+    : <span className="ui-sends" data-empty aria-hidden="true" style={style} />;
 }

@@ -431,6 +431,14 @@ button.ui-readout:focus-visible { outline: var(--focus-w) solid var(--ink); outl
 .ui-strip-pan .ui-knob-value { margin-top: calc(var(--sp-1) * -1); }
 /* The Main strip has no pan, mute or solo: their places stay, empty, so its fader and meter line up with the tracks'. */
 .ui-strip-empty.ui-strip-pan { display: block; height: calc(var(--knob-size) + var(--fs-sm) * 1.2 - var(--sp-1)); }
+/* Sends: one row per return above pan (Live's Mixer), letter, small dial, level in dB. Every strip keeps the same room,
+   so the faders line up; a strip with none keeps it empty. */
+.ui-sends { display: flex; flex-direction: column; gap: calc(var(--sp-1) / 2); flex: none; height: calc(var(--sends) * (var(--letter-size) + var(--sp-1) / 2)); }
+.ui-send { display: flex; align-items: center; gap: var(--sp-1); height: var(--letter-size); }
+.ui-send-letter { width: 1.2ch; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); text-align: center; }
+.ui-send-knob.ui-knob { --knob-size: var(--letter-size); grid-auto-flow: column; align-items: center; gap: var(--sp-1); min-width: 0; }
+.ui-send-knob .ui-knob-name { position: absolute; width: var(--hairline-w); height: var(--hairline-w); overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.ui-send-knob .ui-knob-value { min-width: 3ch; font-size: var(--fs-xs); }
 .ui-strip[data-color="amber"] { --strip-ink: var(--c-amber); }
 .ui-strip[data-color="yellow"] { --strip-ink: var(--c-yellow); }
 .ui-strip[data-color="green"] { --strip-ink: var(--c-green); }
