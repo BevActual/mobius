@@ -18,7 +18,7 @@ import { MARK_PATHS } from './MobiusMark';
 /** What Mobius's last turn changed, as the page shows it: each change one dashed block where it is (the blocks it
  *  added, with the words it took out struck through at the top), and floating under it Discard, Try another and Keep for that
  *  change alone. Read from `look` when told to look again. */
-export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
+export interface ChangeView { diff: DiffLine[]; render: (markdown: string) => string | null; keep: (group: number) => void; discard: (group: number) => void; again?: (group: number) => void; /** Keeps every change at once: offered in each bar when there are several. */ keepAll?: () => void; /** Mobius is still at work: its changes show, and their answers wait for the turn's end. */ waiting?: boolean; /** Changes taller than the page's view: their answers show at the top too. */ tall?: ReadonlySet<number> }
 export const changeKey = new PluginKey<DecorationSet>('doc-changes');
 /** The words a change took out, struck through: the top of its dashed block, or all of it when nothing was added. */
 function changeWas(group: number, removed: string[], view: ChangeView, whole: boolean): HTMLElement {
@@ -49,7 +49,7 @@ function mark(): SVGSVGElement {
 /** The floating bar under a change's block (the panel look, as ReviewBar's floating ChangeBar draws it): the Mobius
  *  mark and who did it, then Discard, Try another and Keep. Under a change taller than the view it is pinned to the
  *  bottom of the view while the change is in sight. */
-function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null): HTMLElement {
+function changeNote(group: number, removed: boolean, added: boolean, view: ChangeView, look: () => ChangeView | null, several = false): HTMLElement {
   const note = document.createElement('div');
   note.className = 'doc-change change-float';
   if (added && view.tall?.has(group)) note.dataset.tall = '';
@@ -79,6 +79,7 @@ function changeNote(group: number, removed: boolean, added: boolean, view: Chang
   bar.append(button('Discard', 'Discard this change', 'discard', () => look()?.discard(group)));
   if (view.again) bar.append(button('Try another', 'Try another way for this change', 'again', () => look()?.again?.(group)));
   bar.append(button('Keep', 'Keep this change', 'keep', () => look()?.keep(group)));
+  if (several && view.keepAll) bar.append(button('Keep all', 'Keep every change Mobius made here', 'keep', () => look()?.keepAll?.()));
   note.append(bar);
   return note;
 }
@@ -127,14 +128,14 @@ function changeDecorations(doc: PmNode, look: () => ChangeView | null): Decorati
       // The answers float under the change, once it has been read, in Notes and Docs alike.
       const tall = view.tall?.has(g) ? '-tall' : '';
       if (removed.length) marks.push(Decoration.widget(tops[Math.min(...own)]!.from, () => changeWas(g, removed, view, false), opts(-1, 'was')));
-      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look), opts(1, `note${tall}`)));
+      marks.push(Decoration.widget(tops[Math.max(...own)]!.to, () => changeNote(g, removed.length > 0, true, view, look, notes.size > 1), opts(1, `note${tall}${notes.size > 1 ? '-n' : ''}`)));
       continue;
     }
     const near = at.block < 0 ? undefined : tops[blocks[at.block]!.top];
     const pos = !near ? 0 : at.before ? near.from : near.to;
     const side = at.before ? -2 : 1;
     if (removed.length) marks.push(Decoration.widget(pos, () => changeWas(g, removed, view, true), opts(side, `was-${pos}`)));
-    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look), opts(side + 1, `note-${pos}`)));
+    marks.push(Decoration.widget(pos, () => changeNote(g, removed.length > 0, false, view, look, notes.size > 1), opts(side + 1, `note-${pos}${notes.size > 1 ? '-n' : ''}`)));
   }
   return DecorationSet.create(doc, marks);
 }

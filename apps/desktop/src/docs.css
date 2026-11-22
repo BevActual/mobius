@@ -80,12 +80,9 @@
 
 /* In the top bar's middle, the tools centred and Share at the end, as Notes has them; the less-used tools drop into
    the ⋯ menu first when room is short (ToolbarItem). */
-.ui-toolbar-slot:has(.doc-toolbar[data-frame]) { flex: 1 1 auto; min-width: 0; }
-.ui-toolbar-group:has(> .doc-toolbar[data-frame]) { flex: 1; }
-.doc-toolbar[data-frame] { flex: 1; min-width: 0; flex-wrap: nowrap; padding: 0; border: 0; background: none; }
-.doc-toolbar[data-frame] > .spacer { flex: 1; }
+/* The tool row (panel look A1): centred on the window, its own width. */
+.doc-toolbar[data-frame] { min-width: 0; flex-wrap: nowrap; justify-content: center; padding: 0; border: 0; background: none; }
 /* Knowledge: the tools start right after the page's name, as in Sheets. */
-.context-strip:has(.doc-toolbar[data-flush]) .ui-toolbar-slot { justify-content: flex-start; }
 .doc-toolbar .doc-tool-writing { display: inline-flex; align-items: center; gap: 2px; color: var(--accent); }
 
 /* Linking: a field under the toolbar, with the documents whose names match. */
@@ -189,13 +186,10 @@
 
 /* Mobius's changes are drawn by change-blocks.css. */
 
-/* Docs' sidebar: each document's edited day on the right, and the open document's headings indented under it. */
+/* Docs' sidebar: each document's edited day on the right; its headings are in the Outline panel. */
 .doc-side-when { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--muted); font-variant-numeric: tabular-nums; pointer-events: none; }
-.doc-side-review { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--mobius, var(--accent)); white-space: nowrap; }
-.doc-side-outline > ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--hairline-w, 1px); }
-.side .doc-side-outline .doc-side-heading.list-row { padding-left: var(--sp-6); color: var(--muted); }
-.side .doc-side-outline .doc-side-heading.list-row[data-level="3"] { padding-left: calc(var(--sp-6) + var(--sp-3)); }
-.side .doc-side-outline .doc-side-heading.list-row:is(:hover, [aria-current]) { color: var(--ink); }
+/* To review: ink, not indigo (indigo is only Mobius's own mark and edges). */
+.doc-side-review { flex: none; padding-right: var(--sp-2); font-size: var(--fs-xs); color: var(--ink); white-space: nowrap; }
 
 /* The sidebar while its folders are read: placeholder bars on the sidebar's rows. */
 .doc-side-loading { list-style: none; margin: 0; padding: var(--sp-2) 0; }

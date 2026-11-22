@@ -289,6 +289,10 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
       <ToolbarControls label="Docs">
         <div className="doc-toolbar doc-bar" data-frame data-flush={flush || undefined} role="toolbar" aria-label="Format">
           <span className="doc-bar-group">
+            {btn('Undo', `Undo (${mod}Z)`, undefined, run((c) => c.undo()), <Icon d="M7.5 6 4 9.5 7.5 13M4.5 9.5H12a4 4 0 0 1 0 8h-2" />)}
+            {btn('Redo', `Redo (${mod}Shift+Z)`, undefined, run((c) => c.redo()), <Icon d="M12.5 6 16 9.5 12.5 13M15.5 9.5H8a4 4 0 0 0 0 8h2" />)}
+          </span>
+          <span className="doc-bar-group">
             <Menu label="Paragraph style" entries={STYLES_SHOWN.map((s) => ({ label: s.label, checked: state.style === s.id, keys: `${mod}Alt+${s.key}`, run: () => setStyle(s.id) }))}
               trigger={<button type="button" className="doc-bar-style" aria-label={`Paragraph style: ${styleName}`} title="Paragraph style"><span>{styleName}</span><svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3.5 5 6 7.5 8.5 5" /></svg></button>} />
             {btn('Bold', `Bold (${mod}B)`, state.bold, run((c) => c.toggleBold()), <b>B</b>)}
@@ -298,6 +302,8 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
           <span className="doc-bar-group">
             {btn('Bulleted list', `Bulleted list (${mod}Shift+8)`, state.bullet, run((c) => c.toggleBulletList()),
               <Icon><circle cx="5" cy="6" r="1" /><circle cx="5" cy="10" r="1" /><circle cx="5" cy="14" r="1" /><path d="M8.5 6h7M8.5 10h7M8.5 14h7" /></Icon>)}
+            {btn('Numbered list', `Numbered list (${mod}Shift+7)`, state.ordered, run((c) => c.toggleOrderedList()),
+              <Icon d="M4 5h1.5v3M4 8h3M4 12.5c.5-.8 2.5-.8 2.5.3 0 .8-2.5 1.5-2.5 2.2h2.6M9.5 6h6M9.5 10h6M9.5 14h6" />, { gives: true })}
             {/* Table inserts one; in a table, it has the rows and columns. */}
             {state.table
               ? <Menu label="Table" entries={tableRows} trigger={<button type="button" className="strip-btn doc-bar-btn" aria-label="Table" aria-pressed title="Rows and columns">{tableIcon}</button>} />
@@ -305,7 +311,6 @@ function Toolbar({ editor, onTool, busy, extras, trailing, inFrame, flush = fals
             {btn('Link', state.link ? 'Remove the link' : 'Link to a web page or another document', state.link, () => (state.link ? editor.chain().focus().extendMarkRange('link').unsetLink().run() : extras.onLink()),
               <Icon d="M8.5 11.5a3 3 0 0 0 4.2 0l2.5-2.5a3 3 0 0 0-4.2-4.2l-.8.8M11.5 8.5a3 3 0 0 0-4.2 0L4.8 11a3 3 0 0 0 4.2 4.2l.8-.8" />, { gives: true })}
           </span>
-          <span className="spacer" />
           {extras.onShare && (() => {
             const share = extras.onShare;
             return (
@@ -609,7 +614,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   const nextCount = () => setCount((c) => { const next = COUNT_ORDER[(COUNT_ORDER.indexOf(c) + 1) % COUNT_ORDER.length]!; try { window.localStorage.setItem(COUNT_KEY, next); } catch { /* Not kept. */ } return next; });
   const [font, setFontState] = useState<DocFont>(readFont);
   const setFont = (f: DocFont) => { setFontState(f); try { window.localStorage.setItem(FONT_KEY, f); } catch { /* Not kept. */ } };
-  // On the frame, the outline is in the sidebar, under the document (docs-outline), and the count is in the line
+  // On the frame, the outline is the Outline panel (docs-outline), and the count is in the line
   // under the title, with when it was last edited.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => { const t = window.setInterval(() => setNow(Date.now()), 30_000); return () => window.clearInterval(t); }, []);
@@ -870,7 +875,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, waiting: busy, tall: tallGroups.current };
+  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, keepAll: () => void keepAll(), waiting: busy, tall: tallGroups.current };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (
@@ -918,8 +923,8 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
           )}
         </form>
       )}
-      {/* The outline, as the right panel's Outline tab beside Mobius. */}
-      {inFrame && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
+      {/* The outline, as its own panel beside the page (Word's Navigation pane), there once the document has headings. */}
+      {inFrame && outline.length > outlineFrom && <PanelTab id="outline" name="Outline"><DocOutlinePanel /></PanelTab>}
       {/* Comments, as the inspector's Comments panel: each opens its words in the page. Hidden until asked for. */}
       {inFrame && own && commentState.available && (
         <PanelTab id="comments" name="Comments">
