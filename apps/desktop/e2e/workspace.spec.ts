@@ -283,6 +283,8 @@ test('every app and Mobius page is found in All apps by its name and opens with 
   await openAllApps(shell());
   await hub.getByRole('searchbox', { name: 'Find apps' }).fill('Reader');
   await expect(hub.getByRole('button', { name: /^Reader/ })).toHaveCount(0);
+  // A search field's first Escape only clears it; with it empty, Escape closes All apps.
+  await hub.getByRole('searchbox', { name: 'Find apps' }).fill('');
   await shell().keyboard.press('Escape');
   await expect(hub).toBeHidden();
   await byKeys('Agents');
