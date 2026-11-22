@@ -1241,7 +1241,8 @@ export interface MobiusBridge {
    *  has it; without it Music plays in the window. Each call answers `{ ok: false, message }` when it can't. */
   music?: {
     /** Open the sound output if it isn't yet, and say which one it is. */
-    engine(): Promise<{ ok: true; device: string; sampleRate: number; latencyMs: number } | NotesFailure>;
+    /** `silent` when there is no sound output: the engine still plays (and keeps time), unheard. */
+    engine(): Promise<{ ok: true; device: string; silent?: boolean; sampleRate: number; latencyMs: number } | NotesFailure>;
     /** Take the song file (version 1 or 2) the window has open; while playing, it goes on with the change. */
     load(song: unknown): Promise<{ ok: true } | NotesFailure>;
     /** Play from a beat, or from where the playhead was left; round `loop` (beats) if given, with the metronome if `click`. */
@@ -1250,8 +1251,11 @@ export interface MobiusBridge {
     playSession?(click?: boolean, launches?: Record<string, number | null>): Promise<{ ok: true } | NotesFailure>;
     /** Start a track's clip in `slot` (or stop it, with null) at the next bar line. */
     launch?(trackId: string, slot: number | null): Promise<{ ok: true } | NotesFailure>;
-    /** Sound a note of a track of the loaded song at once, playing or not (a key pressed, a note put in): `seconds` long (0.35). */
-    preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
+    /**
+     * Sound a note of a track of the loaded song at once, playing or not (a key pressed, a note put in): `seconds` long
+     * (0.35). Given a sound instead of a track id (the Library's preview), that sound is heard on no track.
+     */
+    preview?(trackId: string | { instrument: string; sound?: unknown; kit?: unknown }, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
     /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
     countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
     /** The MIDI keyboards the computer has, and the one listened to (null for none). */
