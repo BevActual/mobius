@@ -42,32 +42,64 @@ export function RestingPanel({ conversations, active, onSelect, onOpenItem, idea
   // What waits for you, as the things themselves (the panel look, 22 November 2026): chats with a question, then the
   // last chat's changes and the replies Mobius drafted, each opened where it is. Kept there, never here: an app's own
   // bar holds Keep. Nothing waiting, no card.
-  const count = r.needsYou.length + changes + drafts.length;
+  const count = r.needsYou.length + (changes > 0 ? 1 : 0) + drafts.length;
+  const names = useContactNames(drafts.map((d) => d.to));
+  const [all, setAll] = useState(false);
   return (
     <div className="resting">
       {glance}
-      <section className="resting-part waiting-card" aria-label="Waiting for you" hidden={count === 0 || undefined}>
+      <section className="resting-part waiting-card" aria-label="Waiting for you" hidden={count === 0 || undefined} data-all={all || undefined}>
         <h2 className="waiting-card-title">Waiting for you <span className="waiting-card-count">· {count}</span></h2>
         {r.needsYou.map((c) => (
           <WaitingRow key={c.id} icon={APP_ICONS.agent} name={c.title} state={c.waiting === 1 ? 'Needs your answer' : c.waiting > 1 ? `${c.waiting} questions` : 'Needs you'} onOpen={() => onSelect(c.id)} />
         ))}
         {/* Kept mounted, so the card knows how many changes wait. */}
-        {r.latest && <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onCount={setChanges} variant="waiting" />}
+        {r.latest && <ReviewStrip conversation={r.latest.id} busy={false} onOpenItem={onOpenItem} onCount={setChanges} variant="waiting" title={r.latest.title} onOpenChat={() => onSelect(r.latest!.id)} />}
         {drafts.map((d) => (
-          <WaitingRow key={d.id} icon={APP_ICONS.mail} name={`Reply to ${nameOf(d.to)}`} state={`Draft ready · ${d.subject || 'no subject'}`} title={d.to}
+          <WaitingRow key={d.id} icon={APP_ICONS.mail} name={`Reply to ${names[d.to] ?? nameOf(d.to)}`} state={`Draft ready · ${d.subject || 'no subject'}`} title={d.to}
             onOpen={onOpenItem && d.replyTo ? () => onOpenItem({ app: 'mail', id: d.replyTo! }) : undefined} />
         ))}
+        {/* Three at most, then the rest behind a quiet "N more". */}
+        {count > 3 && <button type="button" className="waiting-more" aria-expanded={all} onClick={() => setAll((a) => !a)}>{all ? 'Show fewer' : `${count - 3} more`}</button>}
       </section>
       <section className="resting-part resting-ideas" aria-label="Ideas">{ideas}</section>
     </div>
   );
 }
 
-/** "Priya Nair <priya@…>, sam@…" → "Priya Nair": the first person a reply goes to, by name where it has one. */
+/**
+ * "Priya Nair <priya@…>, sam@…" → "Priya Nair": the first person a reply goes to, by name where the address carries one,
+ * else the address's part before the @ with a capital ("priya@…" → "Priya"). The address book's name wins (useContactNames).
+ */
 export function nameOf(to: string): string {
   const first = to.split(',')[0]?.trim() ?? '';
   const named = /^"?([^"<]+?)"?\s*<[^>]+>$/.exec(first);
-  return named ? named[1]!.trim() : first || 'someone';
+  if (named) return named[1]!.trim();
+  const local = /^([^@\s]+)@/.exec(first)?.[1]?.split(/[._+-]/)[0];
+  return local ? local[0]!.toUpperCase() + local.slice(1) : first || 'someone';
+}
+
+/** The address of the first person in a To line ("Priya <priya@x>, …" → "priya@x"). */
+const firstAddress = (to: string): string => {
+  const first = to.split(',')[0]?.trim() ?? '';
+  return (/<([^>]+)>/.exec(first)?.[1] ?? first).trim();
+};
+
+/** Names from the address book for each To line's first address, where a card has it. */
+function useContactNames(tos: readonly string[]): Record<string, string> {
+  const [names, setNames] = useState<Record<string, string>>({});
+  const key = tos.join('\n');
+  useEffect(() => {
+    let live = true;
+    void Promise.all(tos.map(async (to) => {
+      const card = await window.mobius.contacts?.byEmail(firstAddress(to)).catch(() => null);
+      return [to, card && 'name' in card && card.name ? card.name : null] as const;
+    })).then((got) => { if (live) setNames(Object.fromEntries(got.filter((g): g is readonly [string, string] => g[1] !== null))); });
+    return () => { live = false; };
+    // The list by value: a new array with the same addresses reads nothing again.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return names;
 }
 
 /** The replies Mobius drafted in Mail that are not yet yours, read again when Mail changes. */

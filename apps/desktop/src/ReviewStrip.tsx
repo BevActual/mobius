@@ -198,7 +198,7 @@ async function suggestedInTurn(conversation: string): Promise<CalendarSuggestion
   return now.filter((x) => !before.has(x.id));
 }
 
-export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, onCount, variant = 'summary' }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined; /** Told how many things wait. */ onCount?: ((count: number) => void) | undefined; /** 'waiting': one row per thing with Open, for the resting panel's Waiting for you card; it is kept in its app. */ variant?: 'summary' | 'waiting' }) {
+export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, onCount, variant = 'summary', title, onOpenChat }: { conversation: string; busy: boolean; onOpenItem?: ((target: HubTarget) => void) | undefined; /** When the last turn was asked (ms): replies Mobius suggested in Mail since then are part of it. */ since?: number | undefined; /** Told whether there is anything to keep or discard, for a count beside it. */ onShown?: ((shown: boolean) => void) | undefined; /** Told how many things wait. */ onCount?: ((count: number) => void) | undefined; /** 'waiting': one row for the chat's changes, for the resting panel's Waiting for you card. */ variant?: 'summary' | 'waiting'; /** The chat's name, for the 'waiting' row. */ title?: string | undefined; /** Opens the chat, for the 'waiting' row. */ onOpenChat?: (() => void) | undefined }) {
   const [files, setFiles] = useState<string[]>([]);
   // Files the turn moved or renamed, new path to old: each is one change, though both paths changed.
   const [moved, setMoved] = useState<ReadonlyMap<string, string>>(new Map());
@@ -332,15 +332,8 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, on
     ...drafts.map((d): SummaryEntry => ({ key: d.id, app: 'Mail', name: d.subject || 'Suggested reply', count: 1, unit: 'draft reply', title: d.subject, target: d.replyTo ? { app: 'mail', id: d.replyTo } : null, undo: () => void window.mobius.mail?.deleteDraft(d.id).then(() => load()) })),
   ];
   if (variant === 'waiting') {
-    // One row per thing, each opened where it is, where its change sits dashed with Keep beside it.
-    return (
-      <>
-        {entries.map((e) => (
-          <WaitingRow key={e.key} icon={APP_ICONS[APP_IDS[e.app] ?? 'files']} name={e.name} state={`${e.app} · ${e.unit === 'draft reply' ? 'draft ready' : 'not kept yet'}`} title={e.title}
-            onOpen={onOpenItem && e.target ? () => onOpenItem(e.target!) : undefined} />
-        ))}
-      </>
-    );
+    // One row for the chat's changes, named for the chat: Open goes to its list of changes, each kept in its app.
+    return <WaitingRow icon={APP_ICONS.agent} name={title ?? 'Last chat'} state={`${count === 1 ? '1 change' : `${count} changes`} · ${apps.join(', ')}`} onOpen={onOpenChat} />;
   }
   const groups = groupByApp(entries);
   const words = count === 1 ? '1 change' : `${count} changes`;
@@ -387,15 +380,21 @@ export function ReviewStrip({ conversation, busy, onOpenItem, since, onShown, on
  * name, one grey line of state, and Open, which goes to it in its app.
  */
 export function WaitingRow({ icon, name, state, title, onOpen }: { icon: ReactNode; name: string; state: string; title?: string | undefined; onOpen?: (() => void) | undefined }) {
-  return (
-    <div className="waiting-row">
+  const inner = (
+    <>
       <span className="waiting-row-mark" aria-hidden="true"><svg viewBox="0 0 20 20">{icon}</svg></span>
       <span className="waiting-row-text">
-        <span className="waiting-row-name" title={title && title !== name ? title : undefined}>{name}</span>
+        <span className="waiting-row-name">{name}</span>
         <span className="waiting-row-state">{state}</span>
       </span>
-      {onOpen && <button type="button" className="btn waiting-row-open" aria-label={`Open ${name}`} onClick={onOpen}>Open</button>}
-    </div>
+    </>
+  );
+  // The whole row opens it; Open itself shows on hover and focus (always on the first row).
+  if (!onOpen) return <div className="waiting-row" title={title}>{inner}</div>;
+  return (
+    <button type="button" className="waiting-row" title={title && title !== name ? title : undefined} aria-label={`Open ${name}: ${state}`} onClick={onOpen}>
+      {inner}<span className="waiting-row-open" aria-hidden="true">Open</span>
+    </button>
   );
 }
 

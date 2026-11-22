@@ -21,7 +21,8 @@ describe('nameOf', () => {
   it('names the first person a reply goes to, by name where it has one', () => {
     expect(nameOf('"Priya Nair" <priya@northway.example>, sam@example.com')).toBe('Priya Nair');
     expect(nameOf('Priya Nair <priya@northway.example>')).toBe('Priya Nair');
-    expect(nameOf('priya@northway.example')).toBe('priya@northway.example');
+    expect(nameOf('priya@northway.example')).toBe('Priya');
+    expect(nameOf('sam.okafor@axion.example')).toBe('Sam');
     expect(nameOf('')).toBe('someone');
   });
 });
