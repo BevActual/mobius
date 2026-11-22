@@ -59,8 +59,9 @@ test('a new document is written on the page with formatting and kept as Markdown
   await shell().keyboard.press('Control+b');
   await shell().keyboard.type(' early.');
   await expect.poll(() => fs.readFileSync(file('Documents/Untitled.md'), 'utf8'), { timeout: 5000 }).toContain('## Plan\n\nBook the **terrace** early.');
-  // The sidebar lists the open document's headings under it, and the line under the title counts its words.
-  await expect(shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
+  // The outline beside the page lists its headings (not the Documents list), and the line under the title counts its words.
+  await expect(shell().getByRole('navigation', { name: 'Outline' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(1);
+  await expect(shell().getByRole('complementary', { name: 'Documents' }).getByRole('button', { name: 'Plan', exact: true })).toHaveCount(0);
   await expect(page().locator('.doc-meta')).toContainText(/\d+ words/);
   await expect(editor().locator('.doc-status')).toHaveCount(0);
 });

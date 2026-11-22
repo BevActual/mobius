@@ -5,7 +5,7 @@
 use crate::clock::Clock;
 use crate::drum::Hit;
 use crate::fx::{pan, Chain};
-use crate::sample::Placed;
+use crate::sample::{Placed, Stretch};
 use crate::song::{auto_value_at, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
@@ -51,6 +51,8 @@ struct Lane {
     sends: Vec<(usize, f32)>,
     /// An audio track's clips in Arrange.
     audio: Vec<AudioClip>,
+    /// Where the grains of the Session clip playing on it start, when its warp keeps pitch.
+    slot_stretch: Stretch,
 }
 
 /// An audio clip in Arrange: `length` song beats from `start`, playing its own beats from `offset`, going round
@@ -61,6 +63,7 @@ struct AudioClip {
     offset: f64,
     cycle: Option<(f64, f64)>,
     placed: Placed,
+    stretch: Stretch,
 }
 
 impl AudioClip {
@@ -466,6 +469,7 @@ impl Renderer {
                                 offset: c.offset,
                                 cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)),
                                 placed: placed(song, Song::is_audio(t), c.audio.as_ref())?,
+                                stretch: Stretch::default(),
                             })
                         })
                         .collect()
@@ -501,6 +505,7 @@ impl Renderer {
                         .filter_map(|(id, level)| Some((returns.iter().position(|r| &r.id == id)?, level.min(1.0) as f32)))
                         .collect(),
                     audio,
+                    slot_stretch: Stretch::default(),
                 }
             })
             .collect();
@@ -774,16 +779,16 @@ impl Renderer {
             if !lane.audio.is_empty() || slot_audio.is_some() {
                 for i in 0..frames {
                     let beat = clock.beat(from + i as u64);
-                    for c in &lane.audio {
+                    for c in &mut lane.audio {
                         if let Some((own, fade)) = c.own_beat(beat, spb) {
-                            let (l, r) = c.placed.at(own);
+                            let (l, r) = c.placed.at(own, &mut c.stretch);
                             scratch[i] += l * fade;
                             right_scratch[i] += r * fade;
                         }
                     }
                     if let Some((length, start, placed)) = slot_audio {
                         if beat >= start {
-                            let (l, r) = placed.at((beat - start).rem_euclid(length));
+                            let (l, r) = placed.at((beat - start).rem_euclid(length), &mut lane.slot_stretch);
                             scratch[i] += l;
                             right_scratch[i] += r;
                         }
