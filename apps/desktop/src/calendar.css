@@ -159,10 +159,10 @@
 .calendar-page .cal-month-cell .cal-event[data-compact][data-selected]:not([data-all-day]) { background: var(--sel); }
 
 /* The current time: faint across the week, strong across today, and written in red in the hour column. */
-.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: color-mix(in srgb, var(--danger) 35%, transparent); pointer-events: none; z-index: 1; }
+.calendar-page .cal-now-across { position: absolute; right: 0; height: 1px; background: var(--danger); opacity: 0.55; pointer-events: none; z-index: 1; }
 .calendar-page .cal-now-time { position: absolute; right: 4px; z-index: 2; transform: translateY(-50%); padding: 1px 3px; white-space: nowrap; border-radius: var(--radius-small); background: var(--paper); color: var(--danger); font-size: var(--fs-xs); font-weight: var(--fw-semibold); font-variant-numeric: tabular-nums; }
 /* Now is red, one hairline with a small dot at its start (Google Calendar, Fantastical). */
-.calendar-page .cal-now { height: 1px; background: var(--danger); }
+.calendar-page .cal-now { height: 1px; background: var(--danger); z-index: 3; pointer-events: none; }
 .calendar-page .cal-now::before { left: -4px; top: -4px; width: 9px; height: 9px; background: var(--danger); }
 /* In the popover the row names take less room, so a whole date fits beside its time. */
 .cal-editor[data-pop] .cal-editor-group > .cal-editor-row > span { width: 56px; }
