@@ -1314,7 +1314,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       if (stop.signal.aborted) throw new Error('stopped');
       // A 32-bit float file keeps anything over 0 dB; say so, as it clips once made into 16 or 24-bit.
       const loud = done && 'saved' in done && (done.over ?? 0) > 0 ? ` It peaks at +${(done.peakDb ?? 0).toFixed(1)} dB, so it will clip if made 16 or 24-bit.` : '';
-      if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}.${loud}`, kind: loud ? 'note' : 'done' });
+      if (done && 'saved' in done) setExported({ text: `Exported “${done.name}” to ${done.saved.split('/')[0]}.${loud}`, kind: 'done' });
       else setExported({ text: done && 'message' in done ? `Couldn’t export: ${done.message}` : 'Couldn’t export the song.', kind: 'note' });
     } catch (err) {
       if (stop.signal.aborted) setExported({ text: `Didn’t export “${name}”`, kind: 'note' });
