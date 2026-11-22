@@ -193,6 +193,13 @@ function goToSpace(id: string, tabs: readonly BrowserTabState[], onNewTab: () =>
   if (show) window.mobius.browser.activate(show); else onNewTab();
 }
 
+/** Goes to the space after (1) or before (-1) the current one, going round: Browser › Next space and Previous space. */
+export function stepSpace(step: 1 | -1, tabs: readonly BrowserTabState[], onNewTab: () => void) {
+  const at = spaces.spaces.findIndex((s) => s.id === spaces.current);
+  const to = spaces.spaces[(at + step + spaces.spaces.length) % spaces.spaces.length];
+  if (to && to.id !== spaces.current) goToSpace(to.id, tabs, onNewTab);
+}
+
 /** A site's letter on a chip in its colour (one of a few muted hues), or its own icon when it has one. */
 function SiteChip({ url, icon, big = false }: { url: string; icon?: string | null; big?: boolean }) {
   const site = hostOf(url);
@@ -248,9 +255,7 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
       if (e.altKey && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         if ((e.target as Element | null)?.closest?.('input, textarea, [contenteditable="true"]')) return;
         e.preventDefault();
-        const at = spaces.spaces.findIndex((s) => s.id === spaces.current);
-        const to = spaces.spaces[(at + (e.key === 'ArrowLeft' ? -1 : 1) + spaces.spaces.length) % spaces.spaces.length];
-        if (to && to.id !== spaces.current) goToSpace(to.id, tabs, onNewTab);
+        stepSpace(e.key === 'ArrowLeft' ? -1 : 1, tabs, onNewTab);
       }
     };
     window.addEventListener('keydown', onKey);

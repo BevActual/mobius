@@ -61,7 +61,7 @@ import { useDatabases } from './useDatabases';
 import { TerminalPage, TerminalSidebar } from './Terminal';
 import { useTerminal } from './useTerminal';
 import { ReviewPage, ReviewSidebar, useReview } from './Review';
-import { BrowserChrome, BrowserPage, BrowserSidebar } from './Browser';
+import { BrowserChrome, BrowserPage, BrowserSidebar, stepSpace } from './Browser';
 import { hostOf } from './browser-view';
 import { PhotoEditor, PhotoSidebar } from './Photo';
 import { StudioEditor, StudioSidebar, StudioSub } from './Studio';
@@ -1361,6 +1361,8 @@ export function App() {
         bookmark: () => void window.mobius.bookmarks.toggle(),
         pin: () => { if (active) togglePin({ kind: 'page', id: active.url, title: active.title || active.url }); },
         reopen: () => void window.mobius.browser.reopenClosed?.(),
+        nextSpace: () => stepSpace(1, browser.tabs, newTab),
+        previousSpace: () => stepSpace(-1, browser.tabs, newTab),
         selection: () => setSelectionMenu(true),
         saveToReader: () => { if (active) void saveToReader(reading, active.url).then((done) => setToast(done.ok ? 'Saved to Reader' : done.message)); },
       },

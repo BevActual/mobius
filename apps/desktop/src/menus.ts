@@ -54,7 +54,7 @@ export interface MenuContext {
     open: (app: AppId) => void;
     allApps: () => void;
     launcher: () => void;
-    browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; selection: () => void; saveToReader: () => void };
+    browser: { back: () => void; forward: () => void; reload: () => void; address: () => void; bookmark: () => void; pin: () => void; reopen: () => void; nextSpace: () => void; previousSpace: () => void; selection: () => void; saveToReader: () => void };
     notes: { newNotebook: () => void; today: () => void; pin: () => void; changes: () => void; history: () => void; clip: () => void; markdown: () => void };
     tasks: { newList: () => void; clearDone: () => void; today: () => void; scheduled: () => void };
     docs: { newDocument: () => void; newFolder: () => void; fromTemplate: (path: string, title: string) => void; saveAsTemplate: () => void };
@@ -151,6 +151,8 @@ function appMenu(c: MenuContext): Menu | null {
         item('bookmark', s.browser.bookmarked ? 'Remove bookmark' : 'Bookmark this page', d.browser.bookmark, { keys: 'mod+d', disabled: !s.browser.hasPage }),
         item('pin-page', s.browser.pinned ? 'Unpin' : 'Pin', d.browser.pin, { disabled: !s.browser.hasPage }),
         item('reopen', 'Reopen closed tab', d.browser.reopen, { keys: 'mod+shift+t' }),
+        item('next-space', 'Next space', d.browser.nextSpace, { keys: 'mod+alt+right' }),
+        item('previous-space', 'Previous space', d.browser.previousSpace, { keys: 'mod+alt+left' }),
         separator,
         item('selection', 'Selected text…', d.browser.selection, { disabled: !s.browser.hasPage }),
         item('save-to-reader', 'Save page to Reader', d.browser.saveToReader, { disabled: !s.browser.hasPage }),
