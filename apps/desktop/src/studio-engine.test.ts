@@ -67,6 +67,20 @@ describe('Music on the native engine', () => {
     expect(p.beat()).toBeCloseTo(10);
   });
 
+  it('while stopped, a key played moves its track\'s meter and Main\'s, and they fall quiet once it stops sounding', async () => {
+    const e = fakeEngine();
+    const m = await import('./studio-engine');
+    await m.engineReady();
+    const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    expect(m.stoppedMeter('k')).toBeNull();
+    e.send({ playing: false, sounding: true, beat: 0, meters: { k: [-10, -11], master: [-10, -11] } } as MusicPosition);
+    expect(m.stoppedMeter('k')).toEqual([-10, -11]);
+    expect(m.stoppedMeter('master')).toEqual([-10, -11]);
+    expect(m.stoppedMeter('other')).toBeNull();
+    now.mockReturnValue(1400);
+    expect(m.stoppedMeter('k')).toBeNull();
+  });
+
   it('shows a launch as waiting until the engine answers, then what is playing', async () => {
     const e = fakeEngine();
     const m = await import('./studio-engine');

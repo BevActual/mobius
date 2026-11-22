@@ -246,7 +246,7 @@ host, written in Rust. The window becomes the UI only.
 | 32-bit float inside; a track can go over 0 dB without clipping, only the main output and export clip | The same: float all the way, clipped only by the output |
 | Volume automation is applied every sample | The same (part 5) |
 | Export matches playback when nothing non-neutral is applied; render at 32 bits, dither once at the end | Playback and export are the same code; WAV export is 32-bit float |
-| Constant-power pan: 0 dB in the middle, +3 dB hard to one side | Pan still follows the Web Audio panner's law (also constant power); match Live's law next |
+| Constant-power pan: 0 dB in the middle, +3 dB hard to one side | The same: constant power, 0 dB in the middle and +3 dB hard over (22 November) |
 | Devices' delays are compensated automatically | Every device today has no delay (the reverb is zero-latency), so nothing to compensate yet; needed with plug-ins or lookahead |
 | MIDI in: latency is preferred to jitter, using the driver's timestamps | The plan for MIDI in: place each event by its timestamp a buffer late, never as soon as it comes |
 | Clip start and end get a declick fade of up to 4 ms | Done for Arrange's audio clips |

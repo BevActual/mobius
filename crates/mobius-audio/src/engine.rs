@@ -353,7 +353,12 @@ pub(crate) struct Keys {
     commands: Arc<Mutex<rtrb::Producer<Command>>>,
     /// The track a keyboard plays.
     armed: Arc<Mutex<Option<crate::song::Track>>>,
+    /// Told when a key is pressed (off the audio thread), so whoever reports the position starts while stopped.
+    pressed: Arc<Mutex<Option<Pressed>>>,
 }
+
+/// Called when a keyboard's key is pressed.
+pub type Pressed = Arc<dyn Fn() + Send + Sync>;
 
 impl Keys {
     fn send(&self, command: Command) -> Result<(), String> {
@@ -370,7 +375,12 @@ impl Keys {
             Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
             Note::Voice(voice, gains) => Oneshot::Press { key: pitch, voice, gains, wait: 0 },
         };
-        self.send(Command::Played(shot, at))
+        self.send(Command::Played(shot, at))?;
+        let told = lock(&self.pressed).clone();
+        if let Some(told) = told {
+            told();
+        }
+        Ok(())
     }
 
     /// `pitch` lifted `at`.
@@ -402,6 +412,8 @@ pub struct Engine {
     how: Mutex<Playing>,
     /// The effect the Workbench has open: its track's id, its own id, and its parts' ids.
     watching: Mutex<Option<(String, String, Vec<String>)>>,
+    /// The track whose notes sound while stopped (the armed one, or the last previewed): the master's level is its own.
+    heard: Mutex<Option<String>>,
     sample_rate: u32,
     device: String,
     /// Dropped to end the stream.
@@ -458,8 +470,8 @@ impl Engine {
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
         let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), watch_turn: 0, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK], input: None, in_left: vec![0.0; MAX_BLOCK], in_right: vec![0.0; MAX_BLOCK], monitor: None, take: None, take_started: false };
-        let keys = Keys { commands: Arc::new(Mutex::new(commands)), armed: Arc::new(Mutex::new(None)) };
-        let engine = Engine { keys, midi: Mutex::new(None), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), sample_rate, device, _stream: None, input: Mutex::new(None), take: Mutex::new(None) };
+        let keys = Keys { commands: Arc::new(Mutex::new(commands)), armed: Arc::new(Mutex::new(None)), pressed: Arc::new(Mutex::new(None)) };
+        let engine = Engine { keys, midi: Mutex::new(None), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), heard: Mutex::new(None), sample_rate, device, _stream: None, input: Mutex::new(None), take: Mutex::new(None) };
         (engine, audio)
     }
 
@@ -587,7 +599,13 @@ impl Engine {
             Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
             Note::Voice(voice, gains) => Oneshot::Voice(voice, gains),
         };
+        *lock(&self.heard) = Some(track.id.clone()).filter(|id| id != "preview");
         self.send(Command::Oneshot(shot))
+    }
+
+    /// `pressed` is called each time a key is pressed, from a MIDI keyboard or [`Engine::press`].
+    pub fn on_key(&self, pressed: Pressed) {
+        *lock(&self.keys.pressed) = Some(pressed);
     }
 
     /// Opens the computer's default sound input, keeping its `channel` (counted from 0) on both sides, or its first
@@ -679,6 +697,7 @@ impl Engine {
     /// Plays a keyboard on `track` (its instrument and sound, at its volume and pan), or on none.
     pub fn arm(&self, track: Option<&crate::song::Track>) {
         *lock(&self.keys.armed) = track.cloned();
+        *lock(&self.heard) = track.map(|t| t.id.clone());
     }
 
     /// A key pressed on the armed track: its note sounds until [`Engine::lift`] (a drum's hit rings out alone).
@@ -797,6 +816,12 @@ impl Engine {
         let level = |i: usize| shared.peaks.get(i).map_or([-120.0; 2], |(l, r)| [db(f32::from_bits(l.load(Ordering::Relaxed))), db(f32::from_bits(r.load(Ordering::Relaxed)))]);
         let mut meters: Vec<(String, [f64; 2])> = tracks.iter().take(count).enumerate().map(|(i, id)| (id.clone(), level(i))).collect();
         if playing || sounding {
+            // Stopped, what sounds is one track's notes (a key played, a note put in): its meter moves too, as in Live.
+            if !playing {
+                if let Some(id) = lock(&self.heard).clone() {
+                    meters.push((id, level(count)));
+                }
+            }
             meters.push(("master".to_owned(), level(count)));
         }
         let session = lock(&self.session)
@@ -1064,11 +1089,11 @@ mod tests {
         engine.preview(&song.tracks[0], 60, 0.8, 0.35).unwrap();
         audio.fill(&mut buffer, 2);
         assert!(buffer.iter().any(|s| s.abs() > 0.01) && !engine.position().playing);
-        // While it sounds the position says so, with the master's level and no tracks.
+        // While it sounds the position says so: the master's level, which is the previewed track's too.
         let at = engine.position();
         assert!(at.sounding);
-        assert_eq!(at.meters.len(), 1);
-        assert!(at.meters[0].0 == "master" && at.meters[0].1[0] > -40.0, "{:?}", at.meters);
+        assert_eq!(at.meters.iter().map(|(id, _)| id.as_str()).collect::<Vec<_>>(), ["k", "master"]);
+        assert!(at.meters[1].1[0] > -40.0 && at.meters[0].1 == at.meters[1].1, "{:?}", at.meters);
         // It rings out and goes quiet.
         for _ in 0..30 {
             audio.fill(&mut buffer, 2);

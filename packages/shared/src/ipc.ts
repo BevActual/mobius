@@ -157,7 +157,7 @@ export interface MusicTake {
 
 export interface MusicPosition {
   playing: boolean;
-  /** A note preview or count-in is sounding. Stopped, `meters` then holds only `master`. Missing from older shells. */
+  /** A note preview, a key played or a count-in is sounding. Stopped, `meters` then holds `master` and the track the notes are on. Missing from older shells. */
   sounding?: boolean;
   beat: number;
   meters: Record<string, [number, number]>;
