@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Button, Knob, MixerStrip, type LevelFeed } from './ui';
+import { Button, MixerStrip, SendKnob, Sends, type LevelFeed } from './ui';
 import { MAIN_VOLUME, MAX_RETURNS, returnName, type ReturnTrack, type Song, type Track } from './song-format';
 import type { Player } from './studio-audio';
 
@@ -16,7 +16,6 @@ export function freshReturnId(song: Song): string {
 }
 
 /** A send's amount, short enough for a strip: −∞ when off, else its level in whole dB (Live shows -inf and dB). */
-const sendText = (v: number) => (v <= 0.001 ? '−∞' : String(Math.round(gainToDb(v))).replace('-', '−'));
 
 /**
  * Music's Mixer, a tab beside the Detail at the bottom (Design's layout, after Live's Mixer view): a strip per track
@@ -56,16 +55,15 @@ export function StudioMixer({ song, selected, onSelect, setTrack, setSong, sourc
   const returns = song.returns ?? [];
   const setReturn = (id: string, fn: (r: ReturnTrack) => void, tag = '') => setSong((s) => { const r = s.returns?.find((x) => x.id === id); if (r) fn(r); }, tag);
   // Every strip has the same room for sends, so the faders line up: knobs on a track, the same space on the others.
-  const spacer = returns.length > 0 ? <span className="studio-sends" data-empty aria-hidden="true" style={{ ['--sends' as string]: returns.length }} /> : null;
-  const sendsOf = (t: Track) => (returns.length === 0 ? null : (
-    <span className="studio-sends" role="group" aria-label={`${t.name} sends`} style={{ ['--sends' as string]: returns.length }}>
+  const spacer = <Sends count={returns.length} />;
+  const sendsOf = (t: Track) => (
+    <Sends count={returns.length} label={`${t.name} sends`}>
       {returns.map((r, i) => (
-        <span key={r.id} className="studio-send-row"><span className="studio-send-letter" aria-hidden="true">{returnName(r, i)}</span>
-        <Knob className="studio-send" label={`Send to ${returnName(r, i)}`} value={t.sends?.[r.id] ?? 0} min={0} max={1} step={0.01} reset={0} format={sendText}
-          onChange={(v) => setTrack(t.id, (x) => { const next = { ...(x.sends ?? {}) }; if (v > 0) next[r.id] = Math.round(v * 100) / 100; else delete next[r.id]; if (Object.keys(next).length > 0) x.sends = next; else delete x.sends; }, `mix-send:${t.id}:${r.id}`)} /></span>
+        <SendKnob key={r.id} letter={returnName(r, i)} label={`Send to ${returnName(r, i)}`} value={t.sends?.[r.id] ?? 0}
+          onChange={(v) => setTrack(t.id, (x) => { const next = { ...(x.sends ?? {}) }; if (v > 0) next[r.id] = Math.round(v * 100) / 100; else delete next[r.id]; if (Object.keys(next).length > 0) x.sends = next; else delete x.sends; }, `mix-send:${t.id}:${r.id}`)} />
       ))}
-    </span>
-  ));
+    </Sends>
+  );
   const addReturn = () => setSong((s) => { s.returns = [...(s.returns ?? []), { id: freshReturnId(s), volume: MAIN_VOLUME, pan: 0 }]; });
   return (
     // The panel around it is already the "Mixer" region.
