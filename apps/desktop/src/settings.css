@@ -226,8 +226,6 @@
 .settings-page .settings-column > .slist .hit-where { font-size: var(--fs-sm); color: var(--muted); }
 .settings-page .settings-column > .slist .hit-desc { font-size: var(--fs-sm); color: var(--muted); }
 /* The sections panel's header, as Mail's "Mailboxes": ink, 13px semibold, a 40px row. Group labels stay small and grey. */
-.ui-panel:has(.settings-nav) > .ui-panel-head { height: 40px; }
-.ui-panel:has(.settings-nav) > .ui-panel-head > .ui-panel-name { font-size: var(--fs-md); font-weight: var(--fw-semibold); color: var(--ink); }
 
 /* Accounts: the page's card steps aside, so each kind is its own card under a small grey heading, as the other groups. */
 .settings-page .settings-group .settings-card:has(> .conn) { border: 0; border-radius: 0; background: transparent; overflow: visible; }
