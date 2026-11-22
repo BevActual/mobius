@@ -24,12 +24,12 @@ jobs:
         continue-on-error: true
         shell: bash
         working-directory: tuwunel
-        run: cargo build --release --locked --bin tuwunel 2>&1 | tail -60
+        run: cargo build --release --locked --bin tuwunel 2>&1 | tail -60; exit ${PIPESTATUS[0]}
       - name: Build without jemalloc
         if: steps.default.outcome != 'success'
         shell: bash
         working-directory: tuwunel
-        run: cargo build --release --locked --bin tuwunel --no-default-features --features brotli_compression,element_hacks,gzip_compression,io_uring,media_thumbnail,release_max_log_level,systemd,url_preview,zstd_compression 2>&1 | tail -60
+        run: cargo build --release --locked --bin tuwunel --no-default-features --features brotli_compression,element_hacks,gzip_compression,markdown,media_thumbnail,release_max_log_level 2>&1 | tail -60; exit ${PIPESTATUS[0]}
       - name: Size, and does it answer on localhost?
         shell: bash
         working-directory: tuwunel
