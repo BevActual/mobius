@@ -363,6 +363,14 @@ impl Notes {
         Ok(full)
     }
 
+    /// The folder a page is in (a song's folder, where its audio clips' files are).
+    ///
+    /// # Errors
+    /// When `path` is not a page here.
+    pub fn folder_of(&self, path: &str) -> Res<PathBuf> {
+        self.page(path)?.parent().map(Path::to_path_buf).ok_or_else(|| "that is not a page".into())
+    }
+
     /// Every notebook with its pages, notebooks by name, pages newest first.
     pub fn list(&self) -> Res<Value> {
         self.ensure()?;

@@ -20,6 +20,7 @@ pub mod fx;
 pub mod midi;
 pub mod param;
 pub mod render;
+pub mod sample;
 pub mod song;
 pub mod voice;
 pub mod wav;

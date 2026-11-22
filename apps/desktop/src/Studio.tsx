@@ -759,7 +759,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const watched = bench && editing && detail === 'device' ? bench : null;
   useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
   useEffect(() => { void engineReady().then(() => armKeys(selected)); }, [selected]);
-  useEffect(() => { if (song) loadSong(song); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (song) loadSong(song, songs.page?.path ?? null); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
