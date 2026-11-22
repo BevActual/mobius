@@ -789,6 +789,8 @@ impl Accounts {
             if let Some(s) = self.member_session(&m.bot) {
                 let _ = call("POST", &["rooms", &m.room, "leave"], &s.access, Some(&json!({})));
             }
+            // The person leaves it too, so it goes from their list.
+            let _ = call("POST", &["rooms", &m.room, "leave"], &me.access, Some(&json!({})));
             self.secrets.delete(&member_secret(&m.bot));
             self.secrets.delete(&format!("{}-password", member_secret(&m.bot)));
         }
@@ -1029,7 +1031,7 @@ mod tests {
         accounts.sync_space_members(&[("main".to_owned(), "Mobius".to_owned()), ("ab12cd".to_owned(), "Finder".to_owned())], &register).unwrap();
         assert!(log.lock().unwrap().iter().any(|l| l.starts_with("PUT /_matrix/client/v3/profile/@agent-ab12cd:mobius.localhost/displayname") && l.contains("Finder")));
         accounts.sync_space_members(&bots[..1], &register).unwrap();
-        assert!(log.lock().unwrap().iter().any(|l| l.starts_with("POST /_matrix/client/v3/rooms/!dm-Scout:mobius.localhost/leave")));
+        assert_eq!(log.lock().unwrap().iter().filter(|l| l.starts_with("POST /_matrix/client/v3/rooms/!dm-Scout:mobius.localhost/leave")).count(), 2, "the agent and the person both leave");
         assert_eq!(accounts.space_members().len(), 1);
         assert!(secrets.get(&member_secret("ab12cd")).is_none());
     }
