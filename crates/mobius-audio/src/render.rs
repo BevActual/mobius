@@ -293,10 +293,8 @@ impl Renderer {
         let clock = Clock::new(sample_rate, song.tempo);
         let total = song.beats();
         let cycle = how.cycle.map(|(a, b)| (a.max(0.0), b.min(total))).filter(|(a, b)| b - a > 1e-9);
-        let from_beat = match cycle {
-            Some((a, b)) if how.from >= b => a,
-            _ => how.from.max(0.0),
-        };
+        // Started past the loop's end, it plays on to the song's end, as Live does; it loops once it is in the loop.
+        let from_beat = how.from.max(0.0);
         let start = clock.sample_of_beat(from_beat);
         let heard: Vec<&crate::song::Track> = song.audible().filter(|t| t.instrument_on != Some(false)).collect();
         // The Session view keeps every track's clips, heard or not, so a muted track's clip goes on round.
@@ -371,6 +369,22 @@ impl Renderer {
     /// The tracks heard, in the order `peaks` gives their levels.
     pub fn track_ids(&self) -> impl Iterator<Item = &str> {
         self.lanes.iter().map(|l| l.id.as_str())
+    }
+
+    /// Listens to the parts of one effect (by its [`crate::fx::fx_key`]) on the lane at `lane`, or to none.
+    pub fn watch(&mut self, watch: Option<(usize, u64)>) {
+        for (i, lane) in self.lanes.iter_mut().enumerate() {
+            if let Some(chain) = &mut lane.chain {
+                chain.watch(watch.filter(|(l, _)| *l == i).map(|(_, key)| key));
+            }
+        }
+    }
+
+    /// The levels of the parts listened to on the lane at `lane` since last asked (see [`crate::fx::Chain::levels`]).
+    pub fn part_levels(&mut self, lane: usize, level: impl FnMut(usize, f64)) {
+        if let Some(chain) = self.lanes.get_mut(lane).and_then(|l| l.chain.as_mut()) {
+            chain.levels(level);
+        }
     }
 
     /// Each track's loudest sample in the last block (left, right), then the master's.
@@ -449,7 +463,7 @@ impl Renderer {
     /// Whether it has played to the song's end (never, round a loop): what is ringing still rings out.
     #[must_use]
     pub fn past_end(&self) -> bool {
-        self.cycle.is_none() && self.sample >= self.end
+        self.sample >= self.end && self.cycle.is_none_or(|(_, to)| self.sample > to)
     }
 
     /// Whether it has played past the song's end and the tail after it, so nothing more will sound.
@@ -469,8 +483,9 @@ impl Renderer {
         while done < frames {
             let mut n = (frames - done).min(MAX_BLOCK);
             // A piece stops at the loop's end, and playing goes back to the loop's start.
-            if let Some((_, to)) = self.cycle {
-                n = n.min(usize::try_from(to.saturating_sub(self.sample)).unwrap_or(usize::MAX).max(1));
+            let in_loop = self.cycle.is_some_and(|(_, to)| self.sample < to);
+            if let Some((_, to)) = self.cycle.filter(|_| in_loop) {
+                n = n.min(usize::try_from(to - self.sample).unwrap_or(usize::MAX));
             }
             // In the Session view a piece stops at the next bar line, where launches land.
             let mut bar = None;
@@ -486,7 +501,7 @@ impl Renderer {
             if bar == Some(self.sample) {
                 self.land();
             }
-            if let Some((from, to)) = self.cycle {
+            if let Some((from, to)) = self.cycle.filter(|_| in_loop) {
                 if self.sample >= to {
                     self.go_to(from);
                 }
@@ -627,7 +642,9 @@ impl Renderer {
 impl Renderer {
     /// Where the song (or the loop) ends, in beats.
     fn end_beat(&self) -> f64 {
-        self.cycle_end.min(self.total)
+        // Past the loop's end (started there), the song's.
+        let in_loop = self.cycle.is_some_and(|(_, to)| self.sample < to);
+        if in_loop { self.cycle_end.min(self.total) } else { self.total }
     }
 }
 
@@ -755,9 +772,15 @@ mod tests {
         }
         assert!(level(24_000) > 0.01);
         assert!((r.beat() - 1.0).abs() < 1e-9 && !r.past_end());
-        // Played from after the loop, it starts at the loop.
-        let r = Renderer::playing(&s, 48_000, Playing { from: 3.0, ..how });
-        assert!((r.beat() - 1.0).abs() < 1e-9);
+        // Played from after the loop, it plays on from there to the song's end without going round, as Live does.
+        let mut r = Renderer::playing(&s, 48_000, Playing { from: 3.0, ..how });
+        assert!((r.beat() - 3.0).abs() < 1e-9);
+        let (mut left, mut right) = (vec![0f32; 1_000], vec![0f32; 1_000]);
+        while !r.past_end() {
+            r.render(&mut left, &mut right);
+            assert!(r.beat() >= 3.0, "{}", r.beat());
+        }
+        assert!(r.beat() >= 4.0);
     }
 
     #[test]
