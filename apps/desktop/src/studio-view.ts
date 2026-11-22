@@ -540,3 +540,33 @@ export function duplicateClip(clips: readonly ArrangeClip[], id: string, songBea
   const copy: ArrangeClip = { ...c, id: `c${n}`, start: cleanBeat(c.start + c.length), notes: c.notes.map((x) => ({ ...x })) };
   return { clips: [...clips, copy].sort((a, b) => a.start - b.start), id: copy.id };
 }
+
+/**
+ * The track's clips once a recording from `from` to `to` (beats) lands on it, as Live's Arrangement records: what the
+ * take covers goes. A clip it covers whole is removed, one it overlaps is cut back to where it starts or ends (the
+ * later part keeps playing from the same place in its notes or sound), and one it falls inside is split in two around
+ * it. `nextId` names any new piece; `tempo` turns beats into seconds for an unwarped sound.
+ */
+export function recordOver(clips: readonly ArrangeClip[], from: number, to: number, tempo: number, nextId: () => string): ArrangeClip[] {
+  const out: ArrangeClip[] = [];
+  const later = (c: ArrangeClip, cut: number, id: string): ArrangeClip => {
+    const by = cut - c.start;
+    const next: ArrangeClip = { ...c, id, start: beat4(cut), length: beat4(c.start + c.length - cut), notes: c.notes.map((n) => ({ ...n })) };
+    if (c.audio) {
+      const secs = (by * 60) / (c.audio.warp && c.audio.bpm ? c.audio.bpm : tempo);
+      next.audio = { ...c.audio, offset: Math.round(((c.audio.offset ?? 0) + secs) * 1e6) / 1e6 };
+    } else next.offset = beat4((c.offset ?? 0) + by);
+    return next;
+  };
+  const earlier = (c: ArrangeClip, cut: number): ArrangeClip => {
+    const length = beat4(cut - c.start);
+    return { ...c, length, notes: c.loop || c.offset ? c.notes : c.notes.filter((n) => n.start < length) };
+  };
+  for (const c of clips) {
+    const end = c.start + c.length;
+    if (end <= from + 1e-9 || c.start >= to - 1e-9) { out.push(c); continue; }
+    if (c.start < from - 1e-9) out.push(earlier(c, from));
+    if (end > to + 1e-9) out.push(later(c, to, c.start < from - 1e-9 ? nextId() : c.id));
+  }
+  return out.sort((a, b) => a.start - b.start);
+}
