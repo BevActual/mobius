@@ -21,9 +21,8 @@
 .ProseMirror:is(.doc-page, .note-page) .doc-change-old :is(h1, h2, h3, p, ul, ol, blockquote) { margin: 0 0 2px; font-size: inherit; font-weight: inherit; letter-spacing: 0; line-height: inherit; }
 .ProseMirror:is(.doc-page, .note-page) .doc-change-old :is(ul, ol) { padding-left: 18px; }
 .ProseMirror:is(.doc-page, .note-page) .doc-change-new[data-bottom] { margin-bottom: 0.9em; }
-/* Who changed it, and its answers, floating under the block (the panel look's ChangeBar). Under a change taller than
-   the view it is pinned to the bottom of the view while the change is in sight (not data-past). */
+/* Who changed it, and its answers, floating under the block (the panel look's ChangeBar), in a slot of its own in
+   the page: never over the words, even under a change taller than the view (the page's own bar keeps all of it). */
 .ProseMirror:is(.doc-page, .note-page) .doc-change { margin: var(--sp-2) auto 0.9em; font-family: var(--font, system-ui), sans-serif; line-height: 1.45; user-select: none; }
 .ProseMirror:is(.doc-page, .note-page) :is(.doc-change-new, .doc-change-old):has(+ .doc-change) { margin-bottom: 0; }
-.ProseMirror:is(.doc-page, .note-page) .doc-change[data-tall]:not([data-past]) { position: sticky; bottom: var(--sp-3); z-index: 2; }
 @media print { .doc-change, .doc-change-old { display: none !important; } .ProseMirror:is(.doc-page, .note-page) .doc-change-new { border: 0 !important; padding: 0 !important; } }

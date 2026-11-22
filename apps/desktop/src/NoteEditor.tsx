@@ -724,7 +724,7 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, waiting: working, tall: tallGroups.current } : null;
+  changesNow.current = showingChanges && changes ? { diff: changes, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, keepAll: () => void keepChanges(), waiting: working, tall: tallGroups.current } : null;
   // The Notes menu's "Show what the agent changed".
   const showLatest = useRef(showChanges);
   showLatest.current = showChanges;
