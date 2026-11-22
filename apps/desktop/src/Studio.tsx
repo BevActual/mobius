@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { renderSong, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-audio';
 import { countIn, engineOn, engineReady, loadSong, play, playSession, previewOn, watchDevice } from './studio-engine';
@@ -13,7 +13,7 @@ import { StudioMixer } from './StudioMixer';
 import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
-import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, encodeWav, toBase64, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, Segmented, Swatches, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -194,6 +194,11 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
         const start = drag?.id === c.id && !drag.size ? drag.now : c.start;
         const length = drag?.id === c.id && drag.size ? drag.now : c.length;
         const first = Math.floor(c.start / BEATS_PER_BAR) + 1, last = Math.ceil((c.start + c.length) / BEATS_PER_BAR - 1e-9);
+        // What it plays, round its loop and from its start marker, drawn from its left edge; a notch where each pass begins.
+        const heard = playedNotes({ ...c, start: 0, length });
+        const pass = firstPass(c);
+        const turns: number[] = [];
+        if (c.loop) for (let at = pass.to - pass.from; at < length - 1e-9 && turns.length < 256; at += c.loop.end - c.loop.start) turns.push(at);
         const words = first >= last ? `bar ${first}` : `bars ${first} to ${last}`;
         return (
           <button
@@ -202,9 +207,10 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
             className="studio-clip"
             data-proposed={proposed || undefined}
             data-muted={c.muted || undefined}
+            data-looped={c.loop ? true : undefined}
             data-dragging={drag?.id === c.id || undefined}
             style={{ left: start * bw + 1, width: length * bw - 3 }}
-            aria-label={`${c.name ?? track.name}, ${words}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
+            aria-label={`${c.name ?? track.name}, ${words}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
             {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
             onPointerDown={(e) => grab(e, c.id, false)}
             onPointerMove={follow}
@@ -222,10 +228,11 @@ function Clips({ track, proposed, bw, onOpen, actions }: { track: Track; propose
             }}
           >
             <span className="studio-clip-notes" aria-hidden="true">
-              {c.notes.map((n, i) => (
+              {heard.map((n, i) => (
                 <span key={i} style={{ left: n.start * bw, width: Math.max(1, n.length * bw - 1), top: `${(1 - (n.pitch - lo) / span) * 85}%` }} />
               ))}
             </span>
+            {turns.map((at) => <span key={at} className="studio-clip-turn" aria-hidden="true" style={{ left: at * bw }} />)}
             <span className="studio-clip-name">{c.name ?? track.name}</span>
             {!proposed && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
           </button>
@@ -877,6 +884,13 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   beatW.current = view === 'arrange' ? bw : 0;
   // Worked out on each render: this is after the early returns above, where no hook may be.
   const notes = clip ? clip.notes : track ? trackNotes(track) : [];
+  // A looped clip's later passes, drawn faintly after its first: they play what the first pass holds, and change with it.
+  const echoes = !clip && track ? track.clips.flatMap((c) => {
+    if (!c.loop) return [];
+    const pass = firstPass(c);
+    const edge = c.start + pass.to - pass.from;
+    return playedNotes(c).filter((n) => n.start >= edge - 1e-9);
+  }) : [];
   const heldPitches = new Set(held.values());
   const lastHeld = [...held.values()].at(-1);
   const heldName = lastHeld === undefined ? null : spellIn(lastHeld, song.key);
@@ -999,6 +1013,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(trackId, c.start) },
         { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
         { label: c.muted ? 'Unmute' : 'Mute', keys: '0', run: () => arrangeClip(trackId, id, 'mute') },
+        { label: c.loop ? 'Stop Looping' : 'Loop', run: () => editClips(trackId, (cs) => toggleClipLoop(cs, id), '') },
         { label: 'Delete', keys: 'Delete', run: () => arrangeClip(trackId, id, 'delete') },
       ] });
     },
@@ -1451,6 +1466,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                 >{width > 10 && <span className="studio-note-end" aria-hidden="true" />}</span>
               );
             })}
+            {echoes.map((n, j) => (n.pitch !== r.pitch ? null : (
+              <span key={`e${j}`} className="studio-note" data-echo aria-hidden="true" data-instrument={track.instrument}
+                style={{ left: n.start * rbw, width: Math.max(4, n.length * rbw - 1), ['--vel' as string]: n.velocity }} />
+            )))}
           </div>
         </div>
       ))}

@@ -44,7 +44,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 
 | Live does | Music today | Gap | Size |
 | --- | --- | --- | --- |
-| Clips are objects on a track: start, length, loop, offset, name, colour | Notes per track; clips are drawn from them | Real clips in Arrange, shared with Session | XL (format) |
+| Clips are objects on a track: start, length, loop, offset, name, colour | Real clips in Arrange with name and mute; **loop and start marker in the format and played by the engine and the window player alike; Loop in a clip's menu, stretching a looped clip repeats it** | Clip View fields (Start, Loop Position, Loop Length with Set), the loop brace in the notes editor, Ctrl+Up/Down to double or halve the loop, colour | XL (format) |
 | Drag clips between Session and Arrange; record Session into Arrange | Separate | Comes with real clips | L |
 | Time signature and tempo changes along the song | One tempo, 4/4 | Tempo and meter lanes | M |
 | Locators and arrangement markers, sections to move as a whole | None | Markers, then sections | M |
@@ -359,3 +359,18 @@ Sources for Live's features: [Live 12 release notes](https://www.ableton.com/en/
 [All new features in Live 12](https://ableton.com/en/live/all-new-features) and
 [Live 12.4 is out now](https://www.ableton.com/blog/live-12-4-is-out-now/). For latency in the window:
 [Audio latency in browser-based DAWs (W3C workshop)](https://w3.org/2021/03/media-production-workshop/talks/ulf-hammarqvist-audio-latency.html).
+
+### Sources: clip loops and start markers
+
+Read on 2026-11-22: Live 12 manual, [Clip View](https://www.ableton.com/en/live-manual/12/clip-view/) (8.2.1 Clip and
+Loop Region Settings, 8.8 Playing and Scrubbing Clips, 8.9 Looping Clips) and
+[Arrangement View](https://www.ableton.com/en/live-manual/12/arrangement-view/) (6.6 The Arrangement Loop, 6.7 Moving
+and Resizing Clips, 6.13 Consolidating Clips).
+
+- **Copied:** a clip plays from its start marker; with Loop on, it plays to the loop's end and goes round the loop
+  ("run into a loop"), and stretching a looped clip in Arrange adds passes. Turning Loop on makes the loop what the clip
+  plays now, so it sounds the same until stretched. Shortening a looped clip keeps its contents.
+- **Adapted:** Mobius's notes editor shows a whole track, not one clip, so it edits each clip's first pass in place and
+  draws later passes faintly; a note written in a later pass goes into the loop, so it plays on every pass.
+- **Not yet:** Clip View's Start, Loop Position and Loop Length fields and Set buttons, the loop brace, and Ctrl+Up/Down
+  (double or halve the loop). Live's Ctrl+L is the Arrangement loop, which Music already has (L).

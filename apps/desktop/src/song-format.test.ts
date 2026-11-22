@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, type Song } from './song-format';
+import { putNotes, trackNotes, SOUND_RANGE, autoValueAt, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -227,5 +227,43 @@ describe('clips in Arrange', () => {
     expect(out[1]!.name).toBe('Hook');
     // A clip whose notes are all taken out goes.
     expect(putNotes(clips, [], 4)).toEqual([]);
+  });
+});
+
+describe('clip loops and start markers (as Live, and as the engine plays them)', () => {
+  const looped = song(JSON.stringify({ version: 2, tempo: 120, bars: 4, tracks: [{ id: 't1', instrument: 'bass', clips: [
+    { id: 'c1', start: 4, length: 5, loop: { start: 0, end: 2 }, notes: [{ pitch: 40, start: 0, length: 1, velocity: 1 }, { pitch: 43, start: 1.5, length: 1, velocity: 1 }] },
+    { id: 'c2', start: 10, length: 2, offset: 1, notes: [{ pitch: 50, start: 0, length: 1, velocity: 1 }, { pitch: 52, start: 2, length: 4, velocity: 1 }] },
+    { id: 'c3', start: 12, length: 2, muted: true, notes: [{ pitch: 60, start: 0, length: 1, velocity: 1 }] },
+  ] }] }));
+  const t = looped.tracks[0]!;
+
+  it('plays the same notes as the engine (song.rs clips_lay_their_notes_out_in_song_time_going_round_their_loops)', () => {
+    expect(trackNotes(t, true).map((n) => [n.pitch, n.start, n.length])).toEqual([[40, 4, 1], [43, 5.5, 0.5], [40, 6, 1], [43, 7.5, 0.5], [40, 8, 1], [52, 11, 1]]);
+  });
+
+  it('keeps a loop and a start marker through writing and reading, with notes past the clip\'s length', () => {
+    const again = song(writeSong(looped)).tracks[0]!;
+    expect(again.clips[0]!.loop).toEqual({ start: 0, end: 2 });
+    expect(again.clips[1]!.offset).toBe(1);
+    expect(again.clips[1]!.notes.map((n) => n.pitch)).toEqual([50, 52]);
+  });
+
+  it('edits the first pass in place, and a note written in a repeat goes into the loop', () => {
+    // The editor shows c1's first pass (beats 4 to 6) and c2 from its start marker; 50, before the marker, stays hidden.
+    const shown = trackNotes(t);
+    expect(shown.map((n) => [n.pitch, n.start])).toEqual([[40, 4], [43, 5.5], [52, 11], [60, 12]]);
+    // A note at beat 7 is in c1's second pass: it lands at beat 1 of the loop, so it plays on every pass.
+    const clips = putNotes(t.clips, [...shown, { pitch: 45, start: 7, length: 0.5, velocity: 0.8 }], looped.bars);
+    expect(clips[0]!.notes.map((n) => [n.pitch, n.start])).toEqual([[40, 0], [45, 1], [43, 1.5]]);
+    // The hidden note before c2's marker is kept.
+    expect(clips[1]!.notes.map((n) => [n.pitch, n.start])).toEqual([[50, 0], [52, 2]]);
+  });
+
+  it('says where a beat in a clip falls in its own time', () => {
+    expect(ownAt({ length: 8, loop: { start: 0, end: 2 } }, 5)).toBe(1);
+    expect(ownAt({ length: 8, offset: 1, loop: { start: 0, end: 2 } }, 1)).toBe(0);
+    expect(ownAt({ length: 4, offset: 1 }, 2)).toBe(3);
+    expect(firstPass({ length: 8, offset: 1, loop: { start: 0, end: 2 } })).toEqual({ from: 1, to: 2 });
   });
 });

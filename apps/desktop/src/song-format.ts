@@ -158,7 +158,12 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  * A clip in the Arrange view: where it sits in the song (`start` and `length`, in beats) and its notes, timed from the
  * clip's own start. Clips on a track are in time order and never overlap. A muted clip is kept but not played.
  */
-export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; notes: SongNote[] }
+/**
+ * A clip in Arrange: `length` song beats from `start`. Its notes are in its own time, from 0. As in Live, it plays from
+ * `offset` (its start marker) in its own time; with a `loop` it goes round from `loop.start` to `loop.end` until
+ * `length` runs out, so stretching a looped clip repeats it. The engine plays it the same way (song.rs `notes_of`).
+ */
+export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[] }
 
 export interface Track { id: string; name: string; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[] }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[] }
@@ -379,7 +384,15 @@ function readClips(list: unknown, beats: number): ArrangeClip[] {
     let id = typeof c.id === 'string' && c.id ? c.id.slice(0, 40) : `c${i + 1}`;
     while (taken.has(id)) id = `${id}-${i}`;
     taken.add(id);
-    const clip: ArrangeClip = { id, start, length, notes: readNotes(c.notes, length).filter((n) => n.start < length) };
+    const lp = obj(c.loop);
+    const loop = typeof lp.start === 'number' && typeof lp.end === 'number' && Number.isFinite(lp.start) && Number.isFinite(lp.end) && lp.end - lp.start >= 0.25
+      ? { start: round(num(lp.start, 0, 0, MAX_OWN)), end: round(num(lp.end, 4, 0.25, MAX_OWN)) } : null;
+    const offset = typeof c.offset === 'number' && Number.isFinite(c.offset) ? round(num(c.offset, 0, 0, MAX_OWN)) : 0;
+    const clip: ArrangeClip = { id, start, length, notes: [] };
+    if (loop && loop.end > loop.start) clip.loop = loop;
+    if (offset > 0) clip.offset = offset;
+    const own = ownLength(clip);
+    clip.notes = readNotes(c.notes, own).filter((n) => n.start < own);
     if (typeof c.name === 'string' && c.name) clip.name = c.name.slice(0, 60);
     if (c.muted === true) clip.muted = true;
     return [clip];
@@ -388,13 +401,70 @@ function readClips(list: unknown, beats: number): ArrangeClip[] {
     const next = read[i + 1];
     if (!next || c.start + c.length <= next.start) return [c];
     const length = round(next.start - c.start);
-    return length > 0 ? [{ ...c, length, notes: c.notes.filter((n) => n.start < length) }] : [];
+    // Cut short by the next clip: a looped or offset clip keeps all its notes (Live keeps a clip's contents when it's shortened).
+    return length > 0 ? [{ ...c, length, notes: c.loop || c.offset ? c.notes : c.notes.filter((n) => n.start < length) }] : [];
   });
 }
 
-/** A track's notes in song time, in order: what the notes editor shows. `playing` leaves out muted clips. */
+/** The furthest a clip's own time reaches (a loop or start marker can be far into it). */
+const MAX_OWN = 4096;
+/** How far a clip's notes may reach in its own time: past its loop's end, or its start marker plus its length. */
+export function ownLength(c: Pick<ArrangeClip, 'length' | 'loop' | 'offset'>): number {
+  return round(Math.max(c.loop?.end ?? 0, (c.offset ?? 0) + c.length, c.length));
+}
+
+/**
+ * The clip's first pass (what the notes editor edits in place): from the start marker to the loop's end, or to the
+ * clip's end without a loop, in its own time; and its length in song beats.
+ */
+export function firstPass(c: Pick<ArrangeClip, 'length' | 'loop' | 'offset'>): { from: number; to: number } {
+  const from = c.offset ?? 0;
+  const to = c.loop && from < c.loop.end ? Math.min(c.loop.end, from + c.length) : from + c.length;
+  return { from, to: round(to) };
+}
+
+/** Where a beat `rel` from the clip's start falls in its own time: through the first pass, then round the loop. */
+export function ownAt(c: Pick<ArrangeClip, 'length' | 'loop' | 'offset'>, rel: number): number {
+  const { from, to } = firstPass(c);
+  if (rel < to - from - 1e-9 || !c.loop) return round(from + rel);
+  const span = c.loop.end - c.loop.start;
+  return round(c.loop.start + ((((rel - (to - from)) % span) + span) % span));
+}
+
+/**
+ * The notes a clip plays, in song time: from its start marker, cut at its end and going round its loop. The same as
+ * the engine's `notes_of` (crates/mobius-audio/src/song.rs), so the window player and the engine agree.
+ */
+export function playedNotes(c: ArrangeClip): SongNote[] {
+  const looped = !!c.loop && c.loop.end > c.loop.start;
+  const [lo, hi] = looped ? [c.loop!.start, c.loop!.end] : [-Infinity, Infinity];
+  const out: SongNote[] = [];
+  let own = c.offset ?? 0;
+  let played = 0;
+  while (played < c.length && out.length < 20_000) {
+    const span = Math.min((looped ? hi : Infinity) - own, c.length - played);
+    for (const n of c.notes) {
+      if (n.start < own - 1e-9 || n.start >= own + span - 1e-9 || n.length <= 0) continue;
+      const at = c.start + played + (n.start - own);
+      out.push({ ...n, start: round(at), length: round(Math.min(n.length, c.start + played + span - at)) });
+    }
+    played += span;
+    own = looped ? lo : own + span;
+    if (!looped || span <= 1e-9) break;
+  }
+  return out;
+}
+
+/**
+ * A track's notes in song time, in order. For the notes editor: each clip's first pass, where it can be edited in
+ * place (its loop's repeats are drawn from `playedNotes`). `playing`: what is heard, round loops and without muted clips.
+ */
 export function trackNotes(track: Pick<Track, 'clips'>, playing = false): SongNote[] {
-  return track.clips.flatMap((c) => (playing && c.muted ? [] : c.notes.map((n) => ({ ...n, start: round(c.start + n.start) })))).sort(byStart);
+  if (playing) return track.clips.flatMap((c) => (c.muted ? [] : playedNotes(c))).sort(byStart);
+  return track.clips.flatMap((c) => {
+    const { from, to } = firstPass(c);
+    return c.notes.filter((n) => n.start >= from - 1e-9 && n.start < to - 1e-9).map((n) => ({ ...n, start: round(c.start + n.start - from) }));
+  }).sort(byStart);
 }
 
 /** A fresh clip id among a track's clips. */
@@ -411,12 +481,15 @@ export function newClipId(clips: readonly ArrangeClip[]): string {
  * did before clips were kept; new clips next to each other join.
  */
 export function putNotes(clips: readonly ArrangeClip[], notes: readonly SongNote[], bars: number): ArrangeClip[] {
-  const kept = clips.map((c) => ({ ...c, notes: [] as SongNote[] }));
+  // Notes outside a clip's first pass (before its start marker, or past its loop) aren't in the editor; they stay.
+  const kept = clips.map((c) => { const { from, to } = firstPass(c); return { ...c, notes: c.notes.filter((n) => n.start < from - 1e-9 || n.start >= to - 1e-9) }; });
   const rest: SongNote[] = [];
   for (const n of [...notes].sort(byStart)) {
     const home = kept.find((c) => n.start >= c.start - 1e-9 && n.start < c.start + c.length - 1e-9);
-    if (home) home.notes.push({ ...n, start: round(n.start - home.start) }); else rest.push(n);
+    // In a looped clip's repeats, a note goes into the loop, so it is heard on every pass (as editing a loop in Live).
+    if (home) home.notes.push({ ...n, start: ownAt(home, n.start - home.start) }); else rest.push(n);
   }
+  for (const c of kept) c.notes.sort(byStart);
   const made: ArrangeClip[] = [];
   for (const n of rest) {
     // A note at or after the song's end has no bar to go in, and is never heard.
