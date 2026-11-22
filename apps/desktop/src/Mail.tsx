@@ -262,12 +262,12 @@ function DraftEditor({ mail, draft, inline = false }: { mail: MailState; draft: 
 function Suggested({ mail, draft }: { mail: MailState; draft: MailDraft }) {
   return (
     <section className="mail-suggested" aria-label="Suggested reply">
-      {/* One indigo line above the box, as Notes and Docs mark a change: who, then Discard, Try another and Keep and edit. */}
+      <p className="mail-suggested-body">{draft.body}</p>
+      {/* One line under the draft, as Notes and Docs mark a change: who, then Discard, Try another and Keep and edit. */}
       <ChangeBar
         who={<span className="mail-suggested-head" title={draft.why ? `Why this: ${draft.why}. Mobius never sends; you press Send.` : 'Mobius never sends; you press Send.'}><MobiusMark size={14} />Mobius drafted this</span>}
         onDiscard={() => mail.deleteDraft(draft.id)} discardTitle="Delete this suggestion"
-        onKeep={() => mail.setEditing({ ...draft, by: 'you' })} keepText="Keep and edit" keepTitle="Keep it: it opens as your draft, to change and send" />
-      <p className="mail-suggested-body">{draft.body}</p>
+        onKeep={() => mail.setEditing({ ...draft, by: 'you' })} keepText="Keep" keepTitle="Keep it: it opens as your draft, to change and send" />
     </section>
   );
 }

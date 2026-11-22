@@ -82,7 +82,7 @@
 /* Mobius's draft: one dashed indigo block, its text as the person would send it. */
 .mail-suggested { display: flex; flex-direction: column; gap: var(--sp-3); }
 .mail-suggested { gap: var(--sp-2); }
-.mail-suggested .doc-change-bar { flex-wrap: wrap; row-gap: var(--sp-1); }
+.mail-suggested .doc-change-bar { flex-wrap: nowrap; }
 .mail-suggested .doc-change-bar > span:first-child { display: inline-flex; flex: 1 1 auto; }
 .mail-suggested-head { display: inline-flex; align-items: center; white-space: nowrap; flex: none; gap: var(--sp-1); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--mobius); cursor: help; }
 .mail-suggested-head .mobius-mark { color: var(--mobius); }
