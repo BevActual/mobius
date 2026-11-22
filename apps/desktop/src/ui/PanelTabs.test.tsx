@@ -6,7 +6,8 @@ const tab = (id: string, shown = false) => ({ id, name: id, shown });
 
 describe('the inspector', () => {
   it('takes no room while the app has no panels of its own', () => {
-    expect(renderToStaticMarkup(<PanelTabsProvider><InspectorDock /></PanelTabsProvider>)).toBe('');
+    // Kept, hidden, so visiting such an app doesn't draw it again (and leave the old one held).
+    expect(renderToStaticMarkup(<PanelTabsProvider><InspectorDock /></PanelTabsProvider>)).toMatch(/^<aside class="dock inspector" aria-label="Inspector" hidden=""/);
     expect(renderToStaticMarkup(<InspectorDock />)).toBe('');
   });
   it('draws nothing for a panel outside the frame, or before the inspector gives it a place', () => {
