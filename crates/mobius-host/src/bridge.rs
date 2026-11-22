@@ -308,6 +308,8 @@ pub struct Bridge {
     songs: mobius_workspace::notes::Notes,
     /// Music's own sound engine.
     music: crate::music::Music,
+    /// The local Mobius space's homeserver, fetched and started the first time the space opens.
+    homeserver: Arc<crate::homeserver::Homeserver>,
     photos: mobius_workspace::photos::Photos,
     skills: mobius_workspace::skills::Skills,
     video: mobius_workspace::video::Video,
@@ -517,6 +519,7 @@ impl Bridge {
             skills: mobius_workspace::skills::Skills::new(data_dir.join("workspace"), data_dir.join("checkpoints")),
             video: mobius_workspace::video::Video::new(data_dir.join("workspace")),
             music: crate::music::Music::new(emit.clone()),
+            homeserver: Arc::new(crate::homeserver::Homeserver::new(data_dir.join("homeserver"), emit.clone())),
             songs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "studio").of_files("json", mobius_workspace::notes::song_starter),
             designs: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "designs").of_files("json", mobius_workspace::notes::design_starter).with_files(),
             boards: mobius_workspace::notes::Notes::in_folder(data_dir.join("workspace"), data_dir.join("checkpoints"), "boards").of_files("json", mobius_workspace::notes::board_starter),
@@ -720,6 +723,7 @@ impl Bridge {
                 Err(e) => json!({ "ok": false, "message": e }),
             }),
             ("music", _) => Ok(self.music.call(method, args, &self.songs)),
+            ("space", _) => self.homeserver.call(method).map_err(BridgeError::Invalid),
             ("songs", _) => Ok(self.notes_call(&self.songs, "mobius:songs-changed", method, args)),
             ("designs", _) => Ok(self.notes_call(&self.designs, "mobius:designs-changed", method, args)),
             ("boards", _) => Ok(self.notes_call(&self.boards, "mobius:boards-changed", method, args)),
@@ -986,6 +990,7 @@ impl Bridge {
     /// The application is ending: the core is asked to stop (and killed if it does not), so nothing it started
     /// outlives the app or keeps its data folder in use.
     pub fn stop_core(&self) {
+        self.homeserver.stop();
         self.core.stop_shared();
     }
 

@@ -22,6 +22,7 @@ import {
   type ModelsEvent,
   type NotesChange,
   type MusicPosition,
+  type SpaceStatus,
   type DbChange,
   type TasksChanged,
   type ChatChanged,
@@ -764,6 +765,11 @@ export function createTauriBridge(): MobiusBridge {
       seek: (beat) => call('music', 'seek', [beat], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       render: (path, name, song) => call('music', 'render', [path, name, song ?? null], () => ({ ok: false as const, message: 'Music\'s engine is not available.' })),
       onPosition: (listener) => on<MusicPosition>('mobius:music-position', listener),
+    },
+    space: {
+      status: () => call('space', 'status', [], () => ({ state: 'failed' as const, message: 'The Mobius space is not available.', offline: false })),
+      open: () => call('space', 'open', [], () => ({ state: 'failed' as const, message: 'The Mobius space is not available.', offline: false })),
+      onStatus: (listener) => on<SpaceStatus>('mobius:space-status', listener),
     },
     bookmarks: {
       get: (query) => call('bookmarks', 'get', [query], () => []),
