@@ -2513,7 +2513,7 @@ body { font-variant-numeric: tabular-nums; }
 /* Composer row (Instrument): plus, Mode, Permission keep their words; the model sits at the right and gives way first. */
 .composer-tools { flex: 1 1 auto; }
 .composer-tools > .popmenu:has(> .pill-compact) { flex: none; }
-.composer-tools .pill-compact { min-width: 0; }
+.composer-tools .pill-compact { min-width: 0; max-width: none; }
 .composer-tools .pill-compact .pill-text { overflow: visible; }
 .composer-tools > .popmenu:has(> .pill-model) { flex: 0 1 auto; min-width: 0; margin-left: auto; }
 .composer-tools .pill-model { max-width: 100%; }
@@ -2677,14 +2677,17 @@ body { font-variant-numeric: tabular-nums; }
 .model-effort-back { flex-direction: row; align-items: center; gap: var(--sp-1); color: var(--muted); }
 .model-best-fit-link { color: var(--muted); font-size: var(--fs-sm); }
 .pill-suffix { color: var(--muted); }
-/* The model's name is never cut short: the row measures itself and drops Permission's words, then the model's (Composer.tsx). */
+/* Nothing is cut short: the row measures itself and drops the effort, then the model's name, then Permission's words (Composer.tsx). */
 .composer-tools > .popmenu:has(> .pill-model) { flex: none; }
 .composer-tools .pill.pill-model { max-width: none; }
 .composer-tools .pill-model .pill-text { overflow: visible; text-overflow: clip; }
-.composer-tools[data-fit] .pill-compact:has(.pill-icon) .pill-text { display: none; }
-.composer-tools[data-fit="effort"] .pill-model .pill-suffix, .composer-tools[data-fit="model"] .pill-model .pill-suffix { display: none; }
-.composer-tools[data-fit="model"] .pill-model .pill-text { display: none; }
-.composer-tools[data-fit="model"] .pill-model-icon { display: block; }
+.composer-tools[data-fit] .pill-model .pill-suffix { display: none; }
+.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model .pill-text { display: none; }
+.composer-tools:is([data-fit="model"], [data-fit="short"], [data-fit="perm"]) .pill-model-icon { display: block; }
+.pill-short { display: none; }
+.composer-tools[data-fit="short"] .pill-long { display: none; }
+.composer-tools[data-fit="short"] .pill-short { display: inline; }
+.composer-tools[data-fit="perm"] .pill-compact:has(.pill-icon) .pill-text { display: none; }
 
 /* The Glance and Result slots of the Mobius panel (PanelSlots.tsx). An empty slot is hidden. */
 .glance-slot:empty, .result-slot:empty { display: none; }
