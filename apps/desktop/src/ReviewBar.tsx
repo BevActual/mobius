@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { linkedFrom } from './conversation';
+import { MobiusMark } from './MobiusMark';
 
 /**
  * Asking Mobius for another go at what was just discarded. The app provides it while a conversation can take a new
@@ -85,14 +86,38 @@ export function ReviewActions({ onKeep, onDiscard, keepTitle, discardTitle, keep
 /**
  * The line under a change block, for pages drawn in React (Tasks): who changed it, then Discard, Try another and Keep.
  * The editor's pages draw the same line themselves (change-blocks.ts).
+ *
+ * `floating` is the panel look's change bar (docs/design/panel-look.md): one rounded bar on its own surface, centred
+ * under the change, with the Mobius mark, who, an optional Why (it opens the ask under the bar), then the answers.
+ * Use it wherever a change sits in place (a Mail draft, Music's clips, a dashed event); it never wraps its buttons.
  */
 // Music (marked): `who` may carry a Why this link after the words.
-export function ChangeBar({ who, problem, ...actions }: Props & { who: ReactNode; problem?: string | null }) {
+export function ChangeBar({ who, problem, floating, why, ...actions }: Props & {
+  who: ReactNode;
+  problem?: string | null;
+  floating?: boolean;
+  /** What was asked, shown under the bar from the Why button (a `WhyThis`, or plain words). Floating bars only. */
+  why?: ReactNode;
+}) {
+  const [showWhy, setShowWhy] = useState(false);
+  if (!floating) {
+    return (
+      <div className="doc-change-bar" role="group" aria-label="A change Mobius made">
+        <span>{who}</span>
+        <ReviewActions {...actions} />
+        {problem && <span className="review-problem" role="alert">{problem}</span>}
+      </div>
+    );
+  }
   return (
-    <div className="doc-change-bar" role="group" aria-label="A change Mobius made">
-      <span>{who}</span>
-      <ReviewActions {...actions} />
-      {problem && <span className="review-problem" role="alert">{problem}</span>}
+    <div className="change-float">
+      <div className="change-float-bar" role="group" aria-label="A change Mobius made">
+        <span className="change-float-who"><MobiusMark size={14} />{who}</span>
+        {why && <button type="button" className="review-btn" aria-expanded={showWhy} onClick={() => setShowWhy((v) => !v)}>Why</button>}
+        <ReviewActions {...actions} />
+      </div>
+      {why && showWhy && <p className="change-float-why">{why}</p>}
+      {problem && <p className="review-problem" role="alert">{problem}</p>}
     </div>
   );
 }
