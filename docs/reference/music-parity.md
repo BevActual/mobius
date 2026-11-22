@@ -372,7 +372,7 @@ and Resizing Clips, 6.13 Consolidating Clips).
   plays now, so it sounds the same until stretched. Shortening a looped clip keeps its contents.
 - **Adapted:** Mobius's notes editor shows a whole track, not one clip, so it edits each clip's first pass in place and
   draws later passes faintly; a note written in a later pass goes into the loop, so it plays on every pass.
-- **Then (#757):** the Clip toolbar shows the opened Arrange clip's Loop switch, Start (its start marker), and the
+- **Then (#758):** the Clip toolbar shows the opened Arrange clip's Loop switch, Start (its start marker), and the
   loop's start and length, in beats of its own time; Ctrl+Up and Ctrl+Down on a looped clip double and halve its loop.
 - **Not yet:** the Set buttons (set from the playhead), the loop brace drawn in the notes editor, and bars.beats.16ths
   readouts. Live's Ctrl+L is the Arrangement loop, which Music already has (L).
