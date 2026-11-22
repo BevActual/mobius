@@ -143,6 +143,9 @@ export interface MusicPosition {
   sounding?: boolean;
   beat: number;
   meters: Record<string, [number, number]>;
+  /** While `watch` has an effect open and it plays: each of its parts' level in dB (RMS, silence at -90), keyed
+   * `track/fx/part`. An LFO's and the output's are left out. Missing from older shells. */
+  levels?: Record<string, number>;
   /** In the Session view: each track's slot playing (null for none) since `start`, and the launch waiting for the next bar. */
   session?: Record<string, { slot: number | null; start: number | null; queued: number | 'stop' | null }>;
 }
@@ -1238,6 +1241,8 @@ export interface MobiusBridge {
     preview?(trackId: string, pitch: number, velocity?: number, seconds?: number): Promise<{ ok: true } | NotesFailure>;
     /** A count-in: `beats` ticks at the song's tempo (or `tempo`), a high one first, from 50 ms on; null cuts one short. */
     countIn?(beats: number | null, tempo?: number): Promise<{ ok: true } | NotesFailure>;
+    /** Listen to one effect's parts while playing, for the Workbench's cables (position `levels`), or to none. */
+    watch?(trackId: string | null, fxId: string | null): Promise<{ ok: true } | NotesFailure>;
     stop(): Promise<{ ok: true } | NotesFailure>;
     /** Move the playhead: playing goes on from there, stopped starts there next. */
     seek(beat: number): Promise<{ ok: true; beat: number } | NotesFailure>;

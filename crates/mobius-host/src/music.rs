@@ -78,6 +78,11 @@ impl Music {
                 (Some(track), Some(pitch)) => self.preview(track, pitch, arg(2).as_f64().unwrap_or(0.8), arg(3).as_f64().unwrap_or(0.35)),
                 _ => Err("a track and a pitch are needed".to_owned()),
             },
+            "watch" => match (arg(0), arg(1)) {
+                (Value::Null, _) | (_, Value::Null) => self.watch(None),
+                (Value::String(track), Value::String(fx)) => self.watch(Some((track, fx))),
+                _ => Err("a track and an effect, or null, are needed".to_owned()),
+            },
             "countIn" => self.count_in(arg(0).as_u64().and_then(|b| usize::try_from(b).ok()), arg(1).as_f64()),
             "stop" => self.stop(),
             "seek" => match arg(0).as_f64() {
@@ -160,6 +165,18 @@ impl Music {
         let tempo = tempo.filter(|t| t.is_finite() && *t > 0.0).or_else(|| lock(&self.song).as_ref().map(|s| s.tempo)).ok_or("a tempo is needed")?;
         engine.count_in(tempo, beats)?;
         self.report(engine);
+        Ok(json!({ "ok": true }))
+    }
+
+    /// Listen to one effect's parts (for the Workbench's cables) while playing, or to none.
+    fn watch(&self, target: Option<(&str, &str)>) -> Result<Value, String> {
+        let engine = self.engine()?;
+        let song = lock(&self.song);
+        match song.as_ref() {
+            Some(song) => engine.watch(song, target),
+            None if target.is_none() => {}
+            None => return Err("load a song first".to_owned()),
+        }
         Ok(json!({ "ok": true }))
     }
 
@@ -257,6 +274,8 @@ fn position_json(engine: &Engine) -> Value {
 
 fn position_json_of(p: &mobius_audio::engine::Position) -> Value {
     let meters: serde_json::Map<String, Value> = p.meters.iter().map(|(id, [l, r])| (id.clone(), json!([l, r]))).collect();
+    // The Workbench's open effect: each part's level, keyed `track/fx/part`.
+    let levels: serde_json::Map<String, Value> = p.levels.iter().map(|(key, db)| (key.clone(), json!(db))).collect();
     // The Session view: each track's slot playing and the beat it started on, and the launch waiting (a slot, or
     // "stop"; null when none waits).
     let session: serde_json::Map<String, Value> = p
@@ -265,9 +284,9 @@ fn position_json_of(p: &mobius_audio::engine::Position) -> Value {
         .map(|(id, s)| (id.clone(), json!({ "slot": s.playing.map(|(slot, _)| slot), "start": s.playing.map(|(_, b)| b), "queued": s.queued.map(|q| q.map_or_else(|| json!("stop"), |n| json!(n))) })))
         .collect();
     if session.is_empty() {
-        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters })
+        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters, "levels": levels })
     } else {
-        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters, "session": session })
+        json!({ "playing": p.playing, "sounding": p.sounding, "beat": p.beat, "meters": meters, "levels": levels, "session": session })
     }
 }
 

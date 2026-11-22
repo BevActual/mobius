@@ -44,7 +44,16 @@ pub(crate) struct Shared {
     /// In the Session view, each track's slot playing (-1 for none), the beat it started on (f64 bits), and the
     /// launch waiting (`NO_LAUNCH` for none, -1 to stop).
     session: Vec<(AtomicI32, AtomicU64, AtomicI32)>,
+    /// The effect the Workbench has open: its lane (-1 for none), its [`crate::fx::fx_key`], and a count that moves on
+    /// each time it changes. Then each of its parts' level in dB, as f64 bits (NaN for none yet).
+    watch_lane: AtomicI32,
+    watch_key: AtomicU64,
+    watch_turn: AtomicU32,
+    parts: Vec<AtomicU64>,
 }
+
+/// The most parts of a device (as `Device::new` takes).
+const MAX_PARTS: usize = 24;
 
 const NO_LAUNCH: i32 = i32::MIN;
 
@@ -58,6 +67,10 @@ impl Shared {
             tracks: AtomicU32::new(0),
             latency_us: AtomicU64::new(0),
             session: (0..MAX_METERS).map(|_| (AtomicI32::new(-1), AtomicU64::new(0), AtomicI32::new(NO_LAUNCH))).collect(),
+            watch_lane: AtomicI32::new(-1),
+            watch_key: AtomicU64::new(0),
+            watch_turn: AtomicU32::new(0),
+            parts: (0..MAX_PARTS).map(|_| AtomicU64::new(f64::NAN.to_bits())).collect(),
         }
     }
 }
@@ -70,6 +83,8 @@ pub(crate) struct AudioSide {
     playing: Option<Box<Renderer>>,
     oneshots: Oneshots,
     rate: f64,
+    /// The `watch_turn` last seen.
+    watch_turn: u32,
     left: Vec<f32>,
     right: Vec<f32>,
 }
@@ -118,6 +133,10 @@ impl AudioSide {
             return;
         }
         let (mut peak_l, mut peak_r) = (0.0f32, 0.0f32);
+        let watch = self.watching();
+        if let Some(renderer) = self.playing.as_mut() {
+            renderer.watch(watch);
+        }
         for frames in data.chunks_mut(MAX_BLOCK * channels) {
             let n = frames.len() / channels;
             let (left, right) = (&mut self.left[..n], &mut self.right[..n]);
@@ -142,7 +161,7 @@ impl AudioSide {
             }
         }
         self.shared.sounding.store(self.oneshots.busy(), Ordering::Release);
-        let Some(renderer) = self.playing.as_ref() else {
+        let Some(renderer) = self.playing.as_mut() else {
             // Stopped, with a preview or count-in sounding: no tracks, and the master is what is heard.
             self.shared.tracks.store(0, Ordering::Relaxed);
             self.shared.peaks[0].0.store(peak_l.to_bits(), Ordering::Relaxed);
@@ -158,6 +177,13 @@ impl AudioSide {
             count += 1;
         }
         shared.tracks.store(count.saturating_sub(1), Ordering::Relaxed);
+        if let Some((lane, _)) = watch {
+            renderer.part_levels(lane, |i, db| {
+                if let Some(slot) = shared.parts.get(i) {
+                    slot.store(db.to_bits(), Ordering::Relaxed);
+                }
+            });
+        }
         for (slot, (_, state)) in shared.session.iter().zip(renderer.session()) {
             let as_i32 = |n: usize| i32::try_from(n).unwrap_or(i32::MAX);
             slot.0.store(state.playing.map_or(-1, |(s, _)| as_i32(s)), Ordering::Relaxed);
@@ -167,6 +193,20 @@ impl AudioSide {
         shared.beat.store(renderer.beat().to_bits(), Ordering::Release);
         // At the song's end it says it has stopped, while what is ringing rings out.
         shared.playing.store(!renderer.past_end(), Ordering::Release);
+    }
+
+    /// The effect to listen to: its lane and key. When it has changed, the levels of the last one are cleared.
+    fn watching(&mut self) -> Option<(usize, u64)> {
+        let shared = &self.shared;
+        let turn = shared.watch_turn.load(Ordering::Acquire);
+        if turn != self.watch_turn {
+            self.watch_turn = turn;
+            for slot in &shared.parts {
+                slot.store(f64::NAN.to_bits(), Ordering::Relaxed);
+            }
+        }
+        let lane = usize::try_from(shared.watch_lane.load(Ordering::Acquire)).ok()?;
+        Some((lane, shared.watch_key.load(Ordering::Acquire)))
     }
 
     fn let_go(&mut self, old: Box<Renderer>) {
@@ -186,6 +226,8 @@ pub struct Engine {
     session: Mutex<Vec<String>>,
     /// How it was last asked to play: its loop and click carry on through a change to the song.
     how: Mutex<Playing>,
+    /// The effect the Workbench has open: its track's id, its own id, and its parts' ids.
+    watching: Mutex<Option<(String, String, Vec<String>)>>,
     sample_rate: u32,
     device: String,
     /// Dropped to end the stream.
@@ -203,6 +245,9 @@ pub struct Position {
     pub meters: Vec<(String, [f64; 2])>,
     /// In the Session view, each track's id and what it is doing.
     pub session: Vec<(String, SessionState)>,
+    /// While an effect is listened to ([`Engine::watch`]) and playing: each of its parts' level in dB, named
+    /// `track/fx/part` as the Workbench asks for them.
+    pub levels: Vec<(String, f64)>,
 }
 
 fn db(level: f32) -> f64 {
@@ -220,8 +265,8 @@ impl Engine {
         let (commands, consumer) = rtrb::RingBuffer::new(64);
         let (trash_in, trash) = rtrb::RingBuffer::new(64);
         let shared = Arc::new(Shared::new());
-        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
-        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), sample_rate, device, _stream: None };
+        let audio = AudioSide { commands: consumer, trash: trash_in, shared: Arc::clone(&shared), playing: None, oneshots: Oneshots::default(), rate: f64::from(sample_rate), watch_turn: 0, left: vec![0.0; MAX_BLOCK], right: vec![0.0; MAX_BLOCK] };
+        let engine = Engine { commands: Mutex::new(commands), trash: Mutex::new(trash), shared, tracks: Mutex::new(Vec::new()), session: Mutex::new(Vec::new()), how: Mutex::new(Playing::default()), watching: Mutex::new(None), sample_rate, device, _stream: None };
         (engine, audio)
     }
 
@@ -268,6 +313,7 @@ impl Engine {
         let renderer = Box::new(Renderer::playing(song, self.sample_rate, how));
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = renderer.session().map(|(id, _)| id.to_owned()).collect();
+        self.aim(Some(song));
         self.send(Command::Play(renderer))
     }
 
@@ -288,6 +334,7 @@ impl Engine {
         }
         *lock(&self.tracks) = renderer.track_ids().map(str::to_owned).collect();
         *lock(&self.session) = ids;
+        self.aim(Some(song));
         self.send(Command::Play(renderer))
     }
 
@@ -343,6 +390,33 @@ impl Engine {
         if at.playing { self.play(song, how) } else { Ok(()) }
     }
 
+    /// Listens to the parts of one effect, `(track, fx)` by their ids in `song`, for the Workbench's cables: while it
+    /// plays, [`Position::levels`] gives each part's level. `None` stops listening. It carries on through `play` and
+    /// changes to the song.
+    pub fn watch(&self, song: &Song, target: Option<(&str, &str)>) {
+        *lock(&self.watching) = target.map(|(track, fx)| (track.to_owned(), fx.to_owned(), Vec::new()));
+        self.aim(Some(song));
+    }
+
+    /// Points the audio thread at the effect being listened to, in the lanes it has now; with `song`, its parts'
+    /// ids are read again (they may have changed).
+    fn aim(&self, song: Option<&Song>) {
+        let mut watching = lock(&self.watching);
+        let lane = watching.as_mut().and_then(|(track, fx, parts)| {
+            if let Some(song) = song {
+                let e = song.tracks.iter().find(|t| t.id == *track).and_then(|t| t.fx.iter().find(|e| e.get("id").and_then(serde_json::Value::as_str) == Some(fx.as_str())));
+                *parts = e.map(crate::fx::part_ids).unwrap_or_default();
+            }
+            let lane = lock(&self.tracks).iter().position(|t| t == track)?;
+            Some((lane, crate::fx::fx_key(fx)))
+        });
+        let shared = &self.shared;
+        let (lane, key) = lane.map_or((-1, 0), |(l, k)| (i32::try_from(l).unwrap_or(-1), k));
+        shared.watch_key.store(key, Ordering::Release);
+        shared.watch_lane.store(lane, Ordering::Release);
+        shared.watch_turn.fetch_add(1, Ordering::AcqRel);
+    }
+
     /// Stops; what was sounding stops with it.
     ///
     /// # Errors
@@ -380,7 +454,21 @@ impl Engine {
                 (id.clone(), state)
             })
             .collect();
-        Position { playing, sounding, beat, meters, session }
+        let levels = lock(&self.watching)
+            .as_ref()
+            .filter(|_| playing)
+            .map(|(track, fx, parts)| {
+                parts
+                    .iter()
+                    .zip(&shared.parts)
+                    .filter_map(|(part, slot)| {
+                        let db = f64::from_bits(slot.load(Ordering::Relaxed));
+                        (!db.is_nan()).then(|| (format!("{track}/{fx}/{part}"), db))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Position { playing, sounding, beat, meters, session, levels }
     }
 
     fn send(&self, command: Command) -> Result<(), String> {
@@ -591,5 +679,43 @@ mod tests {
         let (drum, _) = peaks(3, 36);
         let loud = { let mut s = song.clone(); s.tracks[3].volume = 1.0; let (engine, mut audio) = Engine::pair(48_000, "test".into()); engine.preview(&s.tracks[3], 36, 0.8, 0.35).unwrap(); let mut b = vec![0f32; 4_800 * 2]; audio.fill(&mut b, 2); b.iter().step_by(2).fold(0f32, |m, x| m.max(x.abs())) };
         assert!((drum / loud - 0.1).abs() < 0.01, "{drum} {loud}");
+    }
+
+    #[test]
+    fn the_effect_the_workbench_has_open_reports_each_parts_level_while_playing() {
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        let song = Song::parse(r#"{"version":2,"tempo":120,"bars":2,"tracks":[{"id":"keys","instrument":"lead","notes":[{"pitch":72,"start":0,"length":2,"velocity":1}],
+            "fx":[{"id":"eq1","kind":"eq","low":0,"mid":0,"high":-12},{"id":"verb","kind":"reverb","size":1,"damp":0.4,"mix":0}]}]}"#).unwrap();
+        let mut buffer = vec![0f32; 960 * 2];
+        engine.watch(&song, Some(("keys", "verb")));
+        // Stopped, nothing is reported.
+        audio.fill(&mut buffer, 2);
+        assert!(engine.position().levels.is_empty());
+        engine.play(&song, Playing::default()).unwrap();
+        audio.fill(&mut buffer, 2);
+        let levels = engine.position().levels;
+        let names: Vec<&str> = levels.iter().map(|(n, _)| n.as_str()).collect();
+        // The output's level is the effect's own; the rest are each part's.
+        assert_eq!(names, ["keys/verb/in", "keys/verb/room", "keys/verb/mix"]);
+        let level = |name: &str| levels.iter().find(|(n, _)| n == name).unwrap().1;
+        assert!(level("keys/verb/in") > -30.0, "{levels:?}");
+        // The mix is all dry, so it is the input's level.
+        assert!((level("keys/verb/mix") - level("keys/verb/in")).abs() < 0.5, "{levels:?}");
+        // Another effect, then none.
+        engine.watch(&song, Some(("keys", "eq1")));
+        audio.fill(&mut buffer, 2);
+        let names: Vec<String> = engine.position().levels.into_iter().map(|(n, _)| n).collect();
+        assert_eq!(names, ["keys/eq1/in", "keys/eq1/low", "keys/eq1/mid", "keys/eq1/high"]);
+        engine.watch(&song, None);
+        audio.fill(&mut buffer, 2);
+        assert!(engine.position().levels.is_empty());
+        // It carries on through a new play, and an effect not in the song reports nothing.
+        engine.watch(&song, Some(("keys", "verb")));
+        engine.play(&song, Playing { from: 1.0, ..Playing::default() }).unwrap();
+        audio.fill(&mut buffer, 2);
+        assert_eq!(engine.position().levels.len(), 3);
+        engine.watch(&song, Some(("keys", "nope")));
+        audio.fill(&mut buffer, 2);
+        assert!(engine.position().levels.is_empty());
     }
 }
