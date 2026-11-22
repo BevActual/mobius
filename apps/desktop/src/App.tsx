@@ -1085,6 +1085,8 @@ export function App() {
         const NEW = '.app-side .side-new > .side-new-row, .app-side .app-side-new';
         const create = within.querySelector<HTMLButtonElement>(NEW) ?? document.querySelector<HTMLButtonElement>(NEW);
         if (create && !create.disabled) { claim(); create.click(); }
+        // Calendar's New event is in its tool row, not its panel: the key makes one all the same.
+        else if (!create && app === 'calendar') { claim(); setEventToken((n) => n + 1); }
       }
       // Stop is fixed (Cmd-period, Ctrl-period elsewhere) unless that press was given to something else.
       else if (action === null && (press.ctrl || press.meta) && !press.alt && !press.shift && press.code === 'Period' && conversation.state.busy) { claim(); void conversation.stop(); }
