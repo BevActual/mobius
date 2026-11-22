@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ConversationInfo } from '@mobius/shared';
-import { restingOf } from './Resting';
+import { nameOf, restingOf } from './Resting';
 
 const c = (id: string, updated: number, more: Partial<ConversationInfo> = {}): ConversationInfo => ({ id, title: id, updated_ms: updated, messages: 2, activity: 'idle', waiting: 0, ...more });
 
@@ -14,5 +14,14 @@ describe('the resting panel', () => {
   });
   it('skips a chat that is still working for the changes', () => {
     expect(restingOf([c('w', 9, { activity: 'working' }), c('x', 5)], 'here').latest?.id).toBe('x');
+  });
+});
+
+describe('nameOf', () => {
+  it('names the first person a reply goes to, by name where it has one', () => {
+    expect(nameOf('"Priya Nair" <priya@northway.example>, sam@example.com')).toBe('Priya Nair');
+    expect(nameOf('Priya Nair <priya@northway.example>')).toBe('Priya Nair');
+    expect(nameOf('priya@northway.example')).toBe('priya@northway.example');
+    expect(nameOf('')).toBe('someone');
   });
 });
