@@ -276,7 +276,8 @@ export interface DriveFailure { ok: false; message: string; conflict: boolean }
 export type DriveSignIn = { kind: 'dropbox' | 'onedrive'; ok: true; drive: DriveAccount } | { kind: 'dropbox' | 'onedrive'; ok: false; message: string };
 /** A Dropbox, OneDrive or SharePoint drive to add after the browser sign-in: `folder` in it (made if missing; empty for all of it). For OneDrive, `link` is a SharePoint (or OneDrive) folder's or library's link; without it, the person's own OneDrive. `again` renews that drive's sign-in. */
 export interface NewCloudDrive { name?: string; folder?: string; link?: string; again?: string }
-export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' }
+/** `removed` is set when the drive itself was removed; `by` is 'another app' when a program outside Mobius changed a place's folder. */
+export interface DrivesChanged { drive: string; path: string; by: 'person' | 'assistant' | 'another app'; removed?: boolean }
 export interface GoogleDriveStatus { setUp: boolean; signedIn: boolean; account: string | null; pending: GoogleDrivePending | null; hint: string | null }
 export interface GoogleDrivePending { url: string; kind: 'signIn' | 'pick' }
 /** A file picked on Google Drive and copied into the workspace at `path`. `exported`: a Google Docs, Sheets or Slides copy, not saved back. */

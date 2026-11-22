@@ -3651,7 +3651,7 @@ impl Bridge {
             },
             ("remove", Some(id)) => drives.remove(id).inspect(|_| {
                 self.syncs.remove_drive(id);
-                changed(id, "");
+                (self.emit)("mobius:drives-changed", json!({ "drive": id, "path": "", "by": "person", "removed": true }));
                 if !drives.places().is_empty() || self.place_watcher.lock().is_ok_and(|w| w.is_some()) {
                     self.watch_places();
                 }
