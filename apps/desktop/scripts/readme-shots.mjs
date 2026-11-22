@@ -39,7 +39,7 @@ try {
   for (const scheme of ['light', 'dark']) {
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, colorScheme: scheme, reducedMotion: 'reduce' });
     await page.goto(`http://127.0.0.1:${port}/`);
-    await page.waitForSelector('.rail');
+    await page.waitForSelector('.strip-mobius');
     await page.evaluate(() => document.fonts.ready);
     await page.addStyleTag({ content: '*{caret-color:transparent!important}' });
     for (const [name, query] of APPS) {
@@ -61,7 +61,7 @@ try {
       if (THEN[name]) { await THEN[name](page); await page.waitForTimeout(800); }
       // The app's own window, without the Mobius panel beside it.
       // (Search has no panel of its own: its Mobius button goes Home, so it is left alone.)
-      const mobius = page.locator('.rail-mobius[aria-pressed="true"]');
+      const mobius = page.locator('.strip-mobius[aria-pressed="true"]');
       if (name !== 'search' && await mobius.count()) { await mobius.click(); await page.waitForTimeout(400); }
       await page.mouse.move(1439, 899);
       await page.waitForTimeout(200);
