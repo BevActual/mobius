@@ -221,7 +221,6 @@
 .browser-side .tab-new:hover { background: var(--side-hover); color: var(--ink); }
 .browser-side .tab-new svg { flex: none; width: var(--sp-4); height: var(--sp-4); padding: 2px; box-sizing: border-box; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; }
 .browser-side .tab-new > span { flex: 1 1 auto; text-align: left; }
-.browser-side .tab-new .ui-keycaps, .browser-side .space-search .ui-keycaps { opacity: 0.8; }
 .browser-side .tab-loading { margin-right: var(--sp-1); border-radius: 50%; }
 
 /* From Mobius: one row under its own small head. */

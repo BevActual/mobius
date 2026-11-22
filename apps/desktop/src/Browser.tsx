@@ -288,8 +288,9 @@ export function BrowserSidebar({ tabs, onNewTab, onAsk, downloads, pinnedPages, 
         </div>
         <label className="space-search">
           <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M7 2.5a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9zM10.3 10.3 13.5 13.5" /></svg>
-          <input ref={search} type="search" aria-label="Search tabs and bookmarks" placeholder="Search tabs" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); } }} />
-          {!query && <KeyCaps keys="Ctrl+Shift+A" />}
+          <input ref={search} type="search" aria-label="Search tabs and bookmarks" title="Search tabs and bookmarks (Ctrl+Shift+A)" placeholder="Search tabs" value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape' && query) { e.preventDefault(); setQuery(''); } }} />
+          {/* The keys are said in the field's title; the caps are only seen. */}
+          {!query && <span aria-hidden="true"><KeyCaps keys="Ctrl+Shift+A" /></span>}
         </label>
         {!searching && sp.favourites.length > 0 && (
           <ul className="favourites" role="list" aria-label="Favourites">
