@@ -70,7 +70,7 @@ Work is taken in this order. A lower line never holds up a higher one.
 
 ## Now
 
-As of 21 November 2026. Building comes first; demo runs are stopped until recording.
+As of 22 November 2026. Building comes first; demo runs are stopped until recording.
 
 On `main` since 18 November: apps own their panels and the rail is gone (#520, #526 to #531), the launcher from
 anywhere with each app's finds and commands (#566 to #574, #581, #582), first run (#577), Meetings (#533, #535),
@@ -80,6 +80,7 @@ Teams chats and Telegram (#537, #548, #583 to #591), the tray (#589), an install
 
 | Item | Owner | Status |
 | --- | --- | --- |
+| **Current focus: the panel look** (Andrew approved 22 November 2026, "we will need to design mobius around this"): [spec](../design/panel-look.md). 1. Design lead: library pieces (icon tool group with key tooltips, panel header, floating change bar, Waiting-for-you card), then mocks for Home, Calendar, Tasks, Notes, Docs, then the rest. 2. Builder: the shared frame (panels on the frame, centred tool row, Mobius and Comments icons, dark tokens, indigo only for Mobius). 3. Apps lead: one pull request per app on top, Mail first, then Music's browser, Browser, Settings | Design lead, Builder, Apps lead | Starting |
 | Polish each app's UI and UX, one app at a time: the Design lead reviews the app on `main` and sends findings, the Apps lead fixes them in one pull request | Design lead, Apps lead | First pass done 21 November 2026: all 17 apps, #649 to #669. Left: a tooltip on Files' sidebar counts |
 | Fixes from Andrew using the installed build every day | Apps lead, Builder for the shell | Ongoing, ahead of the polish pass |
 | The Builder's queue below: speed, then accessibility | Builder | Next |
