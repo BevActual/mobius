@@ -40,8 +40,23 @@ const saved = () => {
 };
 const tracks = (): Locator => shell().getByRole('list', { name: 'Tracks' });
 
-/** Adds a track from Sounds in the sidebar. */
+/**
+ * Brings the songs list to the front: with a song open it is a tab beside the Library, in front of it only once
+ * chosen; with none open it is the only panel on the left.
+ */
+async function showSongs(): Promise<void> {
+  const songsTab = shell().getByRole('tab', { name: 'Songs' });
+  await expect(songsTab.or(shell().getByRole('complementary', { name: 'Songs' })).first()).toBeVisible();
+  if ((await songsTab.count()) > 0 && (await songsTab.getAttribute('aria-selected')) !== 'true') await songsTab.click();
+}
+/** Opens a song from the songs list. */
+async function openSong(name: string): Promise<void> {
+  await showSongs();
+  await shell().getByRole('button', { name, exact: true }).click();
+}
+/** Adds a track from Sounds in the songs list. */
 async function addTrack(name: string): Promise<void> {
+  await showSongs();
   await shell().getByRole('complementary', { name: 'Songs' }).getByRole('region', { name: 'Sounds' }).getByRole('button', { name, exact: true }).click();
 }
 /** Opens the notes editor on a track, with a double-click on its first clip. */
@@ -66,7 +81,7 @@ async function start(replies: ModelReply[] = [], track = 'Keys'): Promise<void> 
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
+  await openSong('Night Drive');
   await expect(tracks().getByRole('listitem', { name: track })).toBeVisible();
   await openNotes(track);
 }
@@ -365,7 +380,7 @@ test('a song with a device that breaks a rule says which, and is left as it is',
   await shell().keyboard.press('Control+k');
   await shell().getByRole('combobox', { name: 'Find apps, pages and commands' }).fill('Music');
   await shell().keyboard.press('Enter');
-  await shell().getByRole('button', { name: 'Night Drive', exact: true }).click();
+  await openSong('Night Drive');
   await expect(shell().getByText(/Track “Keys”, effect fx1: Loop has a loop with no delay in it \(a → b → a\)/)).toBeVisible();
   expect(fs.readFileSync(file(), 'utf8')).toBe(text);
 });
@@ -519,6 +534,35 @@ test('the view switch leads the toolbar: Alt+1 and Alt+2 pick Session or Arrange
   const tap = shell().getByRole('button', { name: 'Tap tempo' });
   for (let i = 0; i < 4; i++) { await tap.click(); await shell().waitForTimeout(400); }
   await expect.poll(() => saved().tempo).not.toBe(112);
+});
+
+test('the Library finds a sound by words and tags, puts it on the chosen track or adds an effect, and keeps collections', async () => {
+  await start();
+  await shell().getByRole('tab', { name: 'Library' }).click();
+  const lib = shell().locator('.studio-library');
+  const search = lib.getByRole('searchbox', { name: 'Search the library' });
+  // Every word must match; #word matches tags only.
+  await search.fill('keys soft');
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Electric Keys', 'Felt Keys']);
+  await search.fill('#pluck');
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Mallet', 'Pluck']);
+  // A sound onto the chosen melodic track replaces its sound (hot-swap), as one Undo step.
+  await search.fill('felt');
+  await lib.getByRole('option', { name: 'Felt Keys' }).click();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => (saved().tracks[0] as { sound?: { cutoff: number } }).sound?.cutoff).toBe(1800);
+  expect(saved().tracks.length).toBe(1);
+  // An effect is added to the chosen track.
+  await search.fill('reverb');
+  await lib.getByRole('option', { name: 'Reverb' }).click();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => (saved().tracks[0] as { fx?: { kind: string }[] }).fx?.map((f) => f.kind)).toEqual(['reverb']);
+  // 3 puts the chosen item in the third collection, which then lists only it.
+  await shell().keyboard.press('3');
+  await search.fill('');
+  await lib.getByRole('combobox', { name: 'Show' }).click();
+  await shell().getByRole('option', { name: /^Collection 3/ }).click();
+  await expect(lib.locator('.studio-library-name')).toHaveText(['Reverb']);
 });
 
 test('Record plays from the playhead and writes what is played on the computer keyboard into the track, undone as one take', async () => {
