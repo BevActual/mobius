@@ -60,11 +60,11 @@ const styleOfMessage = (prop: string) => shell().evaluate((p) => {
 test('the conversation font and text direction change how messages are drawn', async () => {
   await start([]);
   await openPage('Appearance', 'Typography');
-  await page().getByRole('radio', { name: 'Serif' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'Serif' }).check();
   await expect.poll(() => styleOfMessage('font-family')).toMatch(/serif|Georgia/i);
-  await page().getByRole('radio', { name: 'Monospace' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'Monospace' }).check();
   await expect.poll(() => styleOfMessage('font-family')).toMatch(/mono|Consolas/i);
-  await page().getByRole('radio', { name: 'System' }).check();
+  await page().locator('.settings-group[aria-label="Typography"]').getByRole('radio', { name: 'System' }).check();
   await expect.poll(() => styleOfMessage('font-family')).not.toMatch(/mono|Georgia/i);
   await page().locator('.settings-group[aria-label="Conversation"]').scrollIntoViewIfNeeded();
   await page().getByRole('radio', { name: 'Right to left' }).check();
