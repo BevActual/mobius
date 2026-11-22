@@ -134,6 +134,41 @@ function Slider({ label, value, range, step, onCommit, format }: { label: string
   );
 }
 
+/** Each theme's own frame, panel and ink, for its picture; System shows Light and Dark side by side. */
+const THEME_PICTURE: Record<Exclude<ThemeChoice, 'system'>, { frame: string; paper: string; ink: string }> = {
+  light: { frame: '#f4f3ef', paper: '#ffffff', ink: '#1b1b1a' },
+  mid: { frame: '#c9c9c5', paper: '#e3e3e0', ink: '#121211' },
+  dark: { frame: '#09090a', paper: '#121214', ink: '#ededef' },
+  cool: { frame: '#171b21', paper: '#1e232b', ink: '#e6eaf0' },
+};
+
+function ThemePicture({ id }: { id: Exclude<ThemeChoice, 'system'> }) {
+  const t = THEME_PICTURE[id];
+  return (
+    <span className="theme-pic" style={{ background: t.frame }} aria-hidden="true">
+      <span className="theme-pic-side" style={{ background: t.paper }}><i style={{ background: t.ink }} /><i style={{ background: t.ink }} /></span>
+      <span className="theme-pic-page" style={{ background: t.paper }}><i style={{ background: t.ink }} /><i style={{ background: t.ink }} /><i style={{ background: t.ink }} /></span>
+    </span>
+  );
+}
+
+/** Theme as a row of pictures, the chosen one ringed in ink (System Settings' Appearance); still a radio group. */
+function ThemeTiles({ value, onChange }: { value: ThemeChoice; onChange: (value: ThemeChoice) => void }) {
+  return (
+    <div className="theme-tiles" role="radiogroup" aria-label="Theme">
+      {THEMES.map((theme) => (
+        <label key={theme.id} className="theme-tile" data-checked={value === theme.id}>
+          <input type="radio" name="theme" value={theme.id} checked={value === theme.id} onChange={() => onChange(theme.id)} />
+          {theme.id === 'system'
+            ? <span className="theme-pic theme-pic-split" aria-hidden="true"><ThemePicture id="light" /><ThemePicture id="dark" /></span>
+            : <ThemePicture id={theme.id} />}
+          <span className="theme-tile-name">{theme.label}</span>
+        </label>
+      ))}
+    </div>
+  );
+}
+
 export function Choice<T extends string>({ label, name, value, options, onChange }: { label: string; name: string; value: T; options: ReadonlyArray<{ id: T; label: string }>; onChange: (value: T) => void }) {
   return (
     <div className="segmented" role="radiogroup" aria-label={label}>
@@ -246,7 +281,7 @@ export function AppearanceSection({ subpage, highlight, appearance, onAppearance
   }
   return (
     <Row path={path('theme')} title="Theme" description="Follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark." highlight={highlight === 'theme'}>
-      <Choice label="Theme" name="theme" value={appearance.theme} options={THEMES} onChange={(theme) => set({ theme })} />
+      <ThemeTiles value={appearance.theme} onChange={(theme) => set({ theme })} />
     </Row>
   );
 }
