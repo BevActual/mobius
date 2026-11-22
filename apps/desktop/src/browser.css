@@ -213,7 +213,7 @@
 .browser-side .side-head { height: var(--row-side); padding: 0 var(--sp-1) 0 var(--sp-2); }
 .browser-side .side-title { font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--muted); }
 .browser-side { --tab-row: calc(var(--row-side) - 8px); }
-.browser-side .tab, .browser-side .tab-main { height: var(--tab-row); }
+.ui-side > .browser-side .tab, .ui-side > .browser-side .tab-main { height: var(--tab-row); }
 .browser-side .tab { border-radius: var(--radius-control); }
 .browser-side .tab-main { font-size: var(--fs-md); }
 .browser-side .today-clear { margin-left: auto; height: 22px; padding: 0 var(--sp-1); border-radius: var(--radius-control); font-size: var(--fs-xs); color: var(--muted); }
