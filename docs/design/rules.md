@@ -12,6 +12,10 @@ does. This page says how they must look and behave. Where the two disagree, this
 panel with its composer. Andrew agreed it on 13 November 2026. This page is the short checklist for a review. Where this
 page is silent, Instrument decides.
 
+> **The panel look (22 November 2026).** [The panel look](panel-look.md) changes the frame: rounded panels on a
+> darker frame, a centred tool row, Mobius and Comments as icons, indigo only for Mobius. Where it disagrees with this
+> page, it wins.
+
 Before you open a pull request for an app, check its screenshots against this page in light and dark, at full width
 and in a narrow window.
 
