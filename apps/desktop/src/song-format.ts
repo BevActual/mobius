@@ -179,26 +179,64 @@ export const MIN_SCENES = 4;
 export const MAX_SCENES = 64;
 
 /** A track: its instrument and notes, its colour, in the mix its `volume` (0 to 1) and `pan` (-1 left to 1 right), and its effects. */
-/** A point on an automation line: where in the song (beats from 0) and the setting there, 0 to 1. */
-export interface AutoPoint { beat: number; value: number }
+/**
+ * A point on an automation line: where in the song (beats from 0), the setting there, and how the line bends on its
+ * way to the next point (Live 12 manual, 25.5.2: `curve` -1 to 1, 0 or left out straight; toward 1 it moves early).
+ */
+export interface AutoPoint { beat: number; value: number; curve?: number }
 
-/** Automation points read from a file: in the song, values kept 0 to 1, in order, at most one a sixty-fourth apart. */
-export function readAuto(list: unknown, beats: number): AutoPoint[] {
+/** A song's automation, by setting: "volume" and sends 0 to 1, "pan" -1 to 1, "send:<return id>", and "fx:<id>:<setting>" in the setting's own units (a device's settings keep to its range where it plays). */
+export type Automation = Record<string, AutoPoint[]>;
+/** What each automated setting's values may be: pan goes -1 to 1, the rest 0 to 1 (device settings by their own range, next). */
+export const autoRange = (name: string): { lo: number; hi: number } => (name === 'pan' ? { lo: -1, hi: 1 } : name.startsWith('fx:') ? { lo: -1e6, hi: 1e6 } : { lo: 0, hi: 1 });
+/** Effect settings go by the effect's id and the setting's name; a Workbench device's by "<part id>.<setting>". */
+const AUTO_NAME = /^(volume|pan|send:[\w-]{1,40}|fx:[\w-]{1,20}:[\w-]{1,40}(\.[\w-]{1,40})?)$/;
+
+/** Automation points read from a file: in the song, values kept in range, in order. */
+export function readAuto(list: unknown, beats: number, range: { lo: number; hi: number } = { lo: 0, hi: 1 }): AutoPoint[] {
   const points = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((p): AutoPoint[] => {
     const o = obj(p);
     if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
-    return [{ beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(0, Math.min(1, o.value)) * 1000) / 1000 }];
+    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(range.lo, Math.min(range.hi, o.value)) * 1000) / 1000 };
+    if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1000) / 1000;
+    return [point];
   });
   return points.sort((a, b) => a.beat - b.beat);
 }
 
-/** An automation line's value at a beat: flat before the first point and after the last, straight between. */
+/** A song's or Main's automation from a file, by setting; `old` is a pre-`auto` volume line, read as `auto.volume`. */
+export function readAutomation(v: unknown, beats: number, old?: unknown): Automation | undefined {
+  const o = obj(v);
+  const out: Automation = {};
+  for (const [name, list] of Object.entries(o).slice(0, 64)) {
+    if (!AUTO_NAME.test(name)) continue;
+    const points = readAuto(list, beats, autoRange(name));
+    if (points.length > 0) out[name] = points;
+  }
+  if (!out.volume && old !== undefined) { const points = readAuto(old, beats); if (points.length > 0) out.volume = points; }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+/** The overridden settings (Live 12, 25.4): names, once each. */
+export function readAutoOff(v: unknown): string[] | undefined {
+  const names = [...new Set((Array.isArray(v) ? v : []).filter((n): n is string => typeof n === 'string' && AUTO_NAME.test(n)))].slice(0, 64);
+  return names.length > 0 ? names : undefined;
+}
+
+/** How far along a segment bent by `curve` its value is, `t` (0 to 1) of the way, as the engine bends it (song.rs `bend`). */
+export function bend(t: number, curve = 0): number {
+  const c = Math.max(-1, Math.min(1, curve));
+  const at = Math.max(0, Math.min(1, t));
+  return Math.abs(c) < 1e-9 ? at : at ** (4 ** -c);
+}
+
+/** An automation line's value at a beat: flat before the first point and after the last, along each segment's bend between. */
 export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: number): number {
   if (!points.length) return empty;
   if (beat <= points[0]!.beat) return points[0]!.value;
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1]!, b = points[i]!;
-    if (beat <= b.beat) return b.beat === a.beat ? b.value : a.value + ((beat - a.beat) / (b.beat - a.beat)) * (b.value - a.value);
+    if (beat <= b.beat) return b.beat === a.beat ? b.value : a.value + bend((beat - a.beat) / (b.beat - a.beat), a.curve) * (b.value - a.value);
   }
   return points[points.length - 1]!.value;
 }
@@ -214,10 +252,10 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. */ volumeAuto?: AutoPoint[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
-export interface MainTrack { volume: number; fx?: Effect[] }
+export interface MainTrack { volume: number; fx?: Effect[]; /** Main's volume along the song. */ auto?: Automation; autoOff?: string[] }
 /** A return track: what tracks send to it goes through its effects, its volume and pan, into Main. Its id never matches a track's. */
 export interface ReturnTrack { id: string; name?: string; volume: number; pan: number; muted?: boolean; fx?: Effect[] }
 export const MAX_RETURNS = 12;
@@ -328,8 +366,10 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
     if (fx.length > 0) track.fx = fx;
-    const volumeAuto = readAuto(to.volumeAuto, bars * BEATS_PER_BAR);
-    if (volumeAuto.length > 0) track.volumeAuto = volumeAuto;
+    const auto = readAutomation(to.auto, bars * BEATS_PER_BAR, to.volumeAuto);
+    if (auto) track.auto = auto;
+    const autoOff = readAutoOff(to.autoOff);
+    if (autoOff) track.autoOff = autoOff;
     const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name));
     while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
     if (slots.length > 0) track.slots = slots;
@@ -375,7 +415,14 @@ export function parseSong(text: string): { song: Song } | { error: string } {
   const mainFx = readFx(mo.fx, 'Main', (why) => { refused ??= why; });
   if (refused) return { error: refused };
   const song: Song = { version: 2, tempo: Math.round(num(o.tempo, 112, 30, 300)), key: typeof o.key === 'string' && KEYS.includes(o.key) ? o.key : 'C major', bars, tracks };
-  if (Object.keys(mo).length > 0) { song.main = { volume: num(mo.volume, MAIN_VOLUME, 0, 1) }; if (mainFx.length > 0) song.main.fx = mainFx; }
+  if (Object.keys(mo).length > 0) {
+    song.main = { volume: num(mo.volume, MAIN_VOLUME, 0, 1) };
+    if (mainFx.length > 0) song.main.fx = mainFx;
+    const mainAuto = readAutomation(mo.auto, bars * BEATS_PER_BAR);
+    if (mainAuto) song.main.auto = mainAuto;
+    const mainOff = readAutoOff(mo.autoOff);
+    if (mainOff) song.main.autoOff = mainOff;
+  }
   if (returns.length > 0) song.returns = returns;
   const met = obj(o.metronome);
   if (typeof met.volume === 'number' && Number.isFinite(met.volume)) song.metronome = { volume: num(met.volume, METRONOME_VOLUME, 0, 1) };
@@ -428,7 +475,8 @@ export function writeSong(song: Song): string {
       if (Object.keys(pads).length > 0) head.pads = pads;
     }
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
-    if (t.volumeAuto && t.volumeAuto.length > 0) head.volumeAuto = t.volumeAuto;
+    if (t.auto && Object.keys(t.auto).length > 0) head.auto = t.auto;
+    if (t.autoOff && t.autoOff.length > 0) head.autoOff = t.autoOff;
     if (t.slots && t.slots.some((c) => c !== null)) head.slots = t.slots;
     const last = i === song.tracks.length - 1;
     if (t.clips.length === 0) { lines.push(`    ${JSON.stringify({ ...head, clips: [] })}${last ? '' : ','}`); return; }

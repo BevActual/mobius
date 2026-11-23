@@ -156,10 +156,13 @@ A small studio for writing songs as notes.
   top. The keys you hold light up on the notes editor's keyboard. **Record** (the dot after Stop, or F9) plays from the playhead with the computer
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
   and one Undo takes the take back. It records in the Arrange view for now.
-- **Automation** (the line button in the toolbar, or A): a Volume line under each track in the Arrange view. Click it
-  to add a point and drag to place it, drag a point to move it, double-click it (or Delete) to take it out. With points,
-  the track's volume follows the line as it plays; with none, it stays at its Volume. Saved as each track's
-  `volumeAuto`.
+- **Automation** (the line button in the toolbar, or A): a line under each track in the Arrange view. Its name (Volume
+  at first) chooses the setting it moves: Volume, Pan, a send, or a setting of one of the track's effects (EQ bands, delay time,
+  feedback and mix, compressor makeup, reverb mix). Click the line to add a point and drag to place it, drag
+  a point to move it, double-click it (or Delete) to take it out. With points, the setting follows the line as it plays;
+  with none, it stays where it is set. Moving an automated knob or fader by hand overrides its line, which greys with a
+  Re-enable button; the track menu's Re-Enable Automation brings back every line (Live 12, 25.4). Saved as each
+  track's `auto` and `autoOff`.
 - **Export as WAV** (the arrow button in the toolbar, or Ctrl+Shift+E): plays the whole song into a file, every track
   through its sound, devices, pan and volume line, plus two seconds for echoes to ring out. 44.1 kHz stereo, saved in
   the workspace's `Exports` folder (Show in folder opens it), never over an earlier export.

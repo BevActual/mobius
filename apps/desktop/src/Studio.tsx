@@ -15,6 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
+import { autoChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -532,7 +533,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
               <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
-                onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
+                onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) { const before = { ...x }; fn(x); overrideEffect(t, before, x); } }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
           </DeviceChain>
@@ -592,8 +593,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [drawLength, setDrawLength] = useState(1);
   // Draw mode (B): a press or a drag on the roll writes notes a grid step long; on a note, it takes notes out.
   const [draw, setDraw] = useState(false);
-  // Automation (A): a Volume line under each track in the Arrange view, drawn with points.
+  // Automation (A): a line under each track in the Arrange view, drawn with points.
   const [showAuto, setShowAuto] = useState(false);
+  // The setting each track's automation lane shows, by track id (Volume when not chosen).
+  const [autoLane, setAutoLane] = useState<Record<string, string>>({});
   // The track being frozen, while its render runs (a hook, so above the early returns).
   const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -1199,6 +1202,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     { action: 'duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateTrack(t.id) },
     { label: t.muted ? 'Unmute' : 'Mute', keys: 'M', run: () => setTrack(t.id, (v) => { v.muted = !v.muted; }) },
     { label: t.solo ? 'Unsolo' : 'Solo', keys: 'S', run: () => setTrack(t.id, (v) => { v.solo = !v.solo; }) },
+    ...(t.autoOff?.length ? [{ label: 'Re-Enable Automation', separated: true, run: () => setTrack(t.id, (v) => reEnable(v)) }] : []),
     { action: 'delete', label: 'Delete Track', keys: 'Delete', danger: true, separated: true, run: () => deleteTrack(t.id) },
   ] });
   // What Mobius changed, by track and where: "Pad idea, bars 13 to 24", or how it sounds: "Pad: cutoff 4.2 kHz → 1.1 kHz".
@@ -1753,7 +1757,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         </ToolbarItem>
         <span className="studio-sep" aria-hidden="true" />
         <IconButton label="Mixer" keys="Ctrl+Alt+M" title="Mixer: a strip per track, with meters" icon={TOOL_ICONS.mixer} onClick={() => setMixerReveal((n) => n + 1)} />
-        {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Automation: a volume line under each track'} icon={TOOL_ICONS.automation} onClick={() => setShowAuto((a) => !a)} />}
+        {view === 'arrange' && <IconButton label="Automation" keys="A" pressed={showAuto} title={showAuto ? 'Hide automation' : 'Automation: a line under each track for its volume, pan or sends'} icon={TOOL_ICONS.automation} onClick={() => setShowAuto((a) => !a)} />}
         <IconButton label="Computer keyboard" pressed={keyboard}
           title={keyboard ? `Playing from the computer keyboard: A S D F… from C${keyOctave}, velocity ${keyVelocity} (Z X octave, C V velocity)` : 'Play notes from the computer keyboard'}
           icon={<Icon d={ICONS.keys} />} onClick={() => { setKeyboard((on) => !on); page.current?.focus(); }} />
@@ -1845,11 +1849,22 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   } : undefined}>
                   <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
-                {showAuto && <>
-                  <div className="studio-auto-head" aria-hidden="true"><span className="studio-auto-name">Volume</span></div>
-                  <AutomationLane className="studio-auto" label="Volume" head={false} color={t.color} points={t.volumeAuto ?? []} beats={total} pxPerBeat={bw} empty={t.volume}
-                    onChange={(next) => setTrack(t.id, (x) => { if (next.length) x.volumeAuto = next; else delete x.volumeAuto; }, `auto:${t.id}`)} />
-                </>}
+                {showAuto && (() => {
+                  const choices = autoChoices(t, song.returns);
+                  const lane = choices.find((c) => c.name === autoLane[t.id]) ?? choices[0]!;
+                  const off = t.autoOff?.includes(lane.name);
+                  const was = t.auto?.[lane.name] ?? [];
+                  return <>
+                    <div className="studio-auto-head" data-off={off || undefined}>
+                      <button type="button" className="studio-auto-name" aria-haspopup="menu" title="Choose the setting this line moves" aria-label={`${t.name} automation: ${lane.label}`}
+                        onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${t.name} automation`, items: choices.map((c) => ({ label: `${c.label}${t.auto?.[c.name]?.length ? ' •' : ''}`, checked: c.name === lane.name, run: () => setAutoLane((m) => ({ ...m, [t.id]: c.name })) })) }); }}>{lane.label}</button>
+                      {off && <button type="button" className="studio-auto-off" title="Moved by hand: it plays the hand's value. Re-enable the line" onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => reEnable(x, lane.name)); }}>Re-enable</button>}
+                    </div>
+                    <AutomationLane className="studio-auto" label={lane.label} head={false} color={t.color} points={toLane(was, lane)} beats={total} pxPerBeat={bw} empty={laneEmpty(lane)}
+                      format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : lane.kind ? (v) => effectText(lane.kind!, lane.setting!, lane.lo + v * (lane.hi - lane.lo)) : undefined}
+                      onChange={(next) => setTrack(t.id, (x) => setAuto(x, lane.name, fromLane(next, x.auto?.[lane.name] ?? [], lane)), `auto:${t.id}:${lane.name}`)} />
+                  </>;
+                })()}
               </div>
             ))}
             <div className="studio-add-row">
