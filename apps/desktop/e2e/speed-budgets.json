@@ -9,7 +9,7 @@
   "interface memory after long use": 40,
   "interface memory growth over long use": 20,
   "DOM nodes after long use": 6000,
-  "DOM node growth over long use": 1500,
+  "DOM node growth over long use": 400,
   "core memory after long use": 40,
   "core memory growth over long use": 10
 }
