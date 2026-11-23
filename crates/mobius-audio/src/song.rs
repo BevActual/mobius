@@ -144,6 +144,10 @@ pub struct Track {
     pub notes: Vec<Note>,
     #[serde(default)]
     pub sound: Option<Sound>,
+    /// An instrument stack (Live 12's Instrument Rack): its chains play each note in their key and velocity zones in
+    /// place of the track's own instrument. None, or no chain, plays the track's own.
+    #[serde(default)]
+    pub stack: Option<InstrumentStack>,
     /// A drums track's kit, and each drum's own settings by its pitch (`"36"` and so on).
     #[serde(default)]
     pub kit: Option<Kit>,
@@ -176,6 +180,63 @@ pub struct Track {
     /// song does not have is left out.
     #[serde(default)]
     pub sends: std::collections::BTreeMap<String, f64>,
+}
+
+/// A track's instrument stack: chains side by side, each an instrument of its own.
+#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+pub struct InstrumentStack {
+    #[serde(default)]
+    pub chains: Vec<InstrumentChain>,
+}
+
+/// One chain of an instrument stack: an instrument and its sound, the notes it plays (Live's key and velocity zones,
+/// without their fades), and its volume and pan after the instrument. A drums chain plays nothing.
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+pub struct InstrumentChain {
+    #[serde(default)]
+    pub instrument: Instrument,
+    /// None plays the instrument's own sound, as a track with none does.
+    #[serde(default)]
+    pub sound: Option<Sound>,
+    /// The lowest and highest key it plays (MIDI notes, 0 to 127); none plays every key.
+    #[serde(default)]
+    pub keys: Option<Zone>,
+    /// The softest and hardest note it plays (MIDI velocities, 1 to 127); none plays every one.
+    #[serde(default)]
+    pub velocities: Option<Zone>,
+    #[serde(default = "one")]
+    pub volume: f64,
+    #[serde(default)]
+    pub pan: f64,
+    #[serde(default)]
+    pub muted: bool,
+}
+
+/// A key or velocity zone, both ends in it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+pub struct Zone {
+    pub low: u8,
+    pub high: u8,
+}
+
+impl InstrumentChain {
+    /// Whether it plays `pitch` at `velocity` (0 to 1).
+    #[must_use]
+    pub fn plays(&self, pitch: u8, velocity: f64) -> bool {
+        let v = (velocity.clamp(0.0, 1.0) * 127.0).round().max(1.0) as u8;
+        !self.muted && self.instrument != Instrument::Drums && self.keys.is_none_or(|z| (z.low..=z.high).contains(&pitch)) && self.velocities.is_none_or(|z| (z.low..=z.high).contains(&v))
+    }
+}
+
+/// The most chains an instrument stack plays, as Live's racks.
+pub const MAX_CHAINS: usize = 16;
+
+impl Track {
+    /// Its instrument stack's chains that play, if it has any (no more than [`MAX_CHAINS`]).
+    #[must_use]
+    pub fn chains(&self) -> &[InstrumentChain] {
+        self.stack.as_ref().map_or(&[], |s| &s.chains[..s.chains.len().min(MAX_CHAINS)])
+    }
 }
 
 /// A frozen track's sound (relative to the song's folder, as `Samples/Processed/Freeze/Lead Freeze.wav`).

@@ -153,7 +153,7 @@ impl AudioSide {
                 Command::Played(shot, at) => {
                     let wait = place(at, now, frames, self.rate);
                     let shot = match shot {
-                        Oneshot::Press { key, voice, gains, .. } => Oneshot::Press { key, voice, gains, wait },
+                        Oneshot::Press { key, voice, gains, layer, .. } => Oneshot::Press { key, voice, gains, wait, layer },
                         Oneshot::Lift { key, .. } => Oneshot::Lift { key, wait },
                         Oneshot::Hit(hit, gains) => Oneshot::Hit(hit.waiting(wait), gains),
                         Oneshot::Sample { key, voice, gains, cuts, .. } => Oneshot::Sample { key, voice, gains, wait, cuts },
@@ -352,7 +352,8 @@ fn read_input(input: Option<&mut rtrb::Consumer<f32>>, left: &mut [f32], right: 
 #[allow(clippy::large_enum_variant)]
 enum Note {
     Hit(crate::drum::Hit, crate::render::Gains),
-    Voice(crate::voice::Voice, crate::render::Gains),
+    /// Its instrument's note, or one for each chain of its stack that plays it (none when none does).
+    Voices(Vec<(crate::voice::Voice, crate::render::Gains)>),
     Sample(crate::sampler::SampleVoice, crate::render::Gains, crate::render::Cuts),
 }
 
@@ -372,11 +373,26 @@ fn note_of(track: &crate::song::Track, samplers: &crate::sampler::Samplers, pitc
     if drums {
         let pad = pad.cloned().unwrap_or_default();
         Note::Hit(crate::drum::Hit::new(pitch, velocity, track.kit.unwrap_or_default(), &pad, u32::from(pitch).wrapping_mul(2_654_435_761)), gains)
+    } else if !track.chains().is_empty() {
+        // Each chain's own volume and pan, then the track's: a panned chain is a stereo sound, so the track's pan is a
+        // balance on it, as the lane mixes it.
+        let pan = crate::voice::pan_gains(track.pan);
+        Note::Voices(
+            track
+                .chains()
+                .iter()
+                .filter(|c| c.plays(pitch, velocity))
+                .map(|c| {
+                    let (l, r) = crate::render::chain_gains(c);
+                    (crate::render::chain_voice(c, pitch, seconds, velocity), ((f64::from(l) * pan.0 * track.volume) as f32, (f64::from(r) * pan.1 * track.volume) as f32))
+                })
+                .collect(),
+        )
     } else {
-        Note::Voice(match &track.sound {
+        Note::Voices(vec![(match &track.sound {
             Some(sound) => crate::voice::Voice::new(track.instrument, sound, pitch, seconds, velocity),
             None => crate::voice::Voice::legacy(track.instrument, pitch, seconds, velocity),
-        }, gains)
+        }, gains)])
     }
 }
 
@@ -434,12 +450,14 @@ impl Keys {
             Some((track, samplers)) => note_of(track, samplers, pitch, velocity.clamp(0.0, 1.0), crate::voice::HELD_SECONDS),
             None => return Ok(()),
         };
-        let shot = match note {
-            Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
-            Note::Voice(voice, gains) => Oneshot::Press { key: pitch, voice, gains, wait: 0 },
-            Note::Sample(voice, gains, cuts) => Oneshot::Sample { key: pitch, voice, gains, wait: 0, cuts },
+        let shots = match note {
+            Note::Hit(hit, gains) => vec![Oneshot::Hit(hit, gains)],
+            Note::Voices(voices) => voices.into_iter().enumerate().map(|(k, (voice, gains))| Oneshot::Press { key: pitch, voice, gains, wait: 0, layer: k > 0 }).collect(),
+            Note::Sample(voice, gains, cuts) => vec![Oneshot::Sample { key: pitch, voice, gains, wait: 0, cuts }],
         };
-        self.send(Command::Played(shot, at))?;
+        for shot in shots {
+            self.send(Command::Played(shot, at))?;
+        }
         let told = lock(&self.pressed).clone();
         if let Some(told) = told {
             told();
@@ -674,14 +692,14 @@ impl Engine {
     /// # Errors
     /// As [`Engine::play`].
     pub fn preview(&self, track: &crate::song::Track, sounds: &crate::song::Sounds, pitch: u8, velocity: f64, seconds: f64) -> Result<(), String> {
-        let shot = match note_of(track, &crate::sampler::Samplers::of(track, sounds), pitch, velocity, seconds) {
-            Note::Hit(hit, gains) => Oneshot::Hit(hit, gains),
-            Note::Voice(voice, gains) => Oneshot::Voice(voice, gains),
+        let shots = match note_of(track, &crate::sampler::Samplers::of(track, sounds), pitch, velocity, seconds) {
+            Note::Hit(hit, gains) => vec![Oneshot::Hit(hit, gains)],
+            Note::Voices(voices) => voices.into_iter().map(|(voice, gains)| Oneshot::Voice(voice, gains)).collect(),
             // Its own length: no key lifts it.
-            Note::Sample(voice, gains, cuts) => Oneshot::Sample { key: u8::MAX, voice, gains, wait: 0, cuts },
+            Note::Sample(voice, gains, cuts) => vec![Oneshot::Sample { key: u8::MAX, voice, gains, wait: 0, cuts }],
         };
         *lock(&self.heard) = Some(track.id.clone()).filter(|id| id != "preview");
-        self.send(Command::Oneshot(shot))
+        shots.into_iter().try_for_each(|shot| self.send(Command::Oneshot(shot)))
     }
 
     /// `pressed` is called each time a key is pressed, from a MIDI keyboard or [`Engine::press`].
@@ -1303,6 +1321,38 @@ mod tests {
             audio.fill(chunk, 2);
         }
         assert!(out.iter().any(|s| s.abs() > 0.05));
+    }
+
+    #[test]
+    fn a_key_on_a_stacked_track_plays_every_chain_it_is_in_until_lifted() {
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.3,"sustain":1,"release":0.05,"vibrato":0,"rate":5}"#;
+        let song = Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"tracks":[{{"id":"k","instrument":"piano","stack":{{"chains":[
+            {{"instrument":"lead",{sound},"pan":-1}},{{"instrument":"bass",{sound},"pan":1}},{{"instrument":"lead",{sound},"keys":{{"low":0,"high":40}}}}]}}}}]}}"#)).unwrap();
+        let (engine, mut audio) = Engine::pair(48_000, "test".into());
+        engine.arm(Some(&song.tracks[0]), &song.sounds);
+        engine.press(69, 1.0).unwrap();
+        let mut out = vec![0f32; 9_600 * 2];
+        for chunk in out.chunks_mut(960) {
+            audio.fill(chunk, 2);
+        }
+        let peak = |b: &[f32], c: usize| b.iter().skip(c).step_by(2).fold(0f32, |m, s| m.max(s.abs()));
+        // Both chains in the key's zone sound, one on each side: the second did not let the first go.
+        assert!(peak(&out[9_600..], 0) > 0.1 && peak(&out[9_600..], 1) > 0.1);
+        engine.lift(69).unwrap();
+        let mut block = vec![0f32; 960];
+        for _ in 0..20 {
+            audio.fill(&mut block, 2);
+        }
+        assert!(block.iter().all(|s| *s == 0.0) && !engine.position().sounding);
+        // A key in no chain's zone is not heard.
+        let mut quiet = song.clone();
+        quiet.tracks[0].stack.as_mut().unwrap().chains.drain(..2);
+        engine.arm(Some(&quiet.tracks[0]), &quiet.sounds);
+        engine.press(69, 1.0).unwrap();
+        for chunk in out.chunks_mut(960) {
+            audio.fill(chunk, 2);
+        }
+        assert!(out.iter().all(|s| *s == 0.0));
     }
 
     #[test]

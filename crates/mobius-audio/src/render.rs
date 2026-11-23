@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use crate::fx::{balance, Aim, Chain, QUANTUM};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
-use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
+use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, InstrumentChain, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
 use crate::voice::{pan_gains, Voice};
 
 /// The longest block made at once: a longer one is made in pieces of this.
@@ -26,6 +26,12 @@ struct Lane {
     next: usize,
     sound: Option<Sound>,
     instrument: Instrument,
+    /// Its instrument stack's chains, which play its notes in place of its instrument when there are any.
+    chains: Vec<InstrumentChain>,
+    /// The stack's notes sounding, each with its chain's left and right gains and how far into the block it starts
+    /// the first time (as a hit waits), and a block of one voice's sound.
+    stacked: Vec<(Voice, Gains, usize)>,
+    mono: Vec<f32>,
     /// A drums track's kit and its drums' own settings by pitch.
     kit: Kit,
     pads: Vec<(u8, Pad)>,
@@ -399,6 +405,16 @@ impl Lane {
             self.hits.push(Hit::new(note.pitch, note.velocity, self.kit, pad, self.seed).waiting(offset));
             return;
         }
+        // A stack's chains each play the notes in their zones, panned on their own, so they wait for the second pass.
+        if !self.chains.is_empty() {
+            for chain in self.chains.iter().filter(|c| c.plays(note.pitch, note.velocity)) {
+                if self.stacked.len() >= MAX_VOICES {
+                    self.stacked.remove(0);
+                }
+                self.stacked.push((chain_voice(chain, note.pitch, note.length * spb, note.velocity), chain_gains(chain), offset.min(frames)));
+            }
+            return;
+        }
         // A track with no sound of its own plays its instrument's own voices, as the window does.
         let mut voice = match &self.sound {
             Some(sound) => Voice::new(self.instrument, sound, note.pitch, note.length * spb, note.velocity),
@@ -432,6 +448,23 @@ pub struct Oneshots {
 /// The left and right gains a note is heard at: its track's volume and pan.
 pub type Gains = (f32, f32);
 
+/// A stack chain's note: its instrument with its sound, or the instrument's own.
+#[must_use]
+pub fn chain_voice(chain: &InstrumentChain, pitch: u8, seconds: f64, velocity: f64) -> Voice {
+    match &chain.sound {
+        Some(sound) => Voice::new(chain.instrument, sound, pitch, seconds, velocity),
+        None => Voice::legacy(chain.instrument, pitch, seconds, velocity),
+    }
+}
+
+/// A stack chain's volume and pan as left and right gains on its instrument's (mono) sound.
+#[must_use]
+pub fn chain_gains(chain: &InstrumentChain) -> Gains {
+    let (l, r) = pan_gains(chain.pan);
+    let v = chain.volume.max(0.0);
+    ((l * v) as f32, (r * v) as f32)
+}
+
 /// A track's volume and pan as left and right gains, as its lane mixes them.
 #[must_use]
 pub fn track_gains(track: &crate::song::Track) -> Gains {
@@ -453,8 +486,8 @@ pub enum Oneshot {
     /// Silence what is sounding (a count-in cut short).
     Hush,
     /// A key pressed on a keyboard: its note sounds from `wait` samples into the next block until the key is lifted.
-    /// The same key pressed again lets its last note go first.
-    Press { key: u8, voice: Voice, gains: Gains, wait: usize },
+    /// The same key pressed again lets its last note go first, unless `layer`: another chain of the same press.
+    Press { key: u8, voice: Voice, gains: Gains, wait: usize, layer: bool },
     /// A key lifted, `wait` samples into the next block.
     Lift { key: u8, wait: usize },
     /// A sampler's note (or a drum pad's sound), from `wait` samples into the next block, let go when `key` is lifted
@@ -493,7 +526,7 @@ struct Held {
 }
 
 /// The most notes, drum hits and ticks sounding at once apart from the song.
-const ONESHOTS: usize = 16;
+const ONESHOTS: usize = 32;
 
 impl Default for Oneshots {
     fn default() -> Oneshots {
@@ -531,8 +564,10 @@ impl Oneshots {
                 self.hits.clear();
                 self.samples.clear();
             }
-            Oneshot::Press { key, voice, gains, wait } => {
-                self.lift(key, wait);
+            Oneshot::Press { key, voice, gains, wait, layer } => {
+                if !layer {
+                    self.lift(key, wait);
+                }
                 if self.held.len() >= ONESHOTS {
                     self.held.remove(0);
                 }
@@ -861,7 +896,7 @@ impl Renderer {
                 // A sampler track's sound and its drum pads' own sounds, from the files the song has read.
                 let samplers = if is_frozen { Samplers::default() } else { Samplers::of(t, &song.sounds) };
                 // An audio track's sound comes in with two channels, as a sampler's does.
-                let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
+                let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9)) || t.chains().iter().any(|c| c.pan.abs() > 1e-9);
                 let chain = if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) };
                 // Clip envelopes: what they move gets a level for each sample, as automation does.
                 let enveloped: std::collections::BTreeSet<&str> = t.clips.iter().map(|c| &c.envelopes).chain(t.slots.iter().flatten().map(|c| &c.envelopes)).flat_map(|e| e.keys().map(String::as_str)).collect();
@@ -899,6 +934,9 @@ impl Renderer {
                     next,
                     sound: t.sound,
                     instrument: t.instrument,
+                    chains: if is_frozen { Vec::new() } else { t.chains().to_vec() },
+                    stacked: Vec::with_capacity(MAX_VOICES),
+                    mono: vec![0.0; MAX_BLOCK],
                     kit: t.kit.unwrap_or_default(),
                     pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, pad.clone()))).collect(),
                     gains: pan_gains(t.pan),
@@ -1069,6 +1107,7 @@ impl Renderer {
                 std::mem::swap(&mut lane.voices, &mut was.voices);
                 std::mem::swap(&mut lane.hits, &mut was.hits);
                 std::mem::swap(&mut lane.sample_voices, &mut was.sample_voices);
+                std::mem::swap(&mut lane.stacked, &mut was.stacked);
                 // Effects that are just as they were keep their echoes and rooms ringing.
                 if lane.fx_key == was.fx_key && lane.chain.is_some() {
                     std::mem::swap(&mut lane.chain, &mut was.chain);
@@ -1270,6 +1309,17 @@ impl Renderer {
                 voice.add_to(&mut scratch[offset..], &mut right_scratch[offset..], rate);
             }
             lane.sample_voices.retain(|(v, _, _)| !v.done());
+            for (voice, (gl, gr), wait) in &mut lane.stacked {
+                let offset = std::mem::take(wait).min(frames);
+                let mono = &mut lane.mono[..frames];
+                mono.fill(0.0);
+                voice.add_to(&mut mono[offset..], rate);
+                for i in offset..frames {
+                    scratch[i] += mono[i] * *gl;
+                    right_scratch[i] += mono[i] * *gr;
+                }
+            }
+            lane.stacked.retain(|(v, _, _)| !v.done());
             // Audio clips, sample by sample at the file's frame for each beat.
             let slot_audio = clip.and_then(|(length, _, start, audio, _)| Some((length, start, audio?)));
             if !lane.audio.is_empty() || slot_audio.is_some() {
@@ -1539,6 +1589,32 @@ mod tests {
             odd.render(a, b);
         }
         assert_eq!(l, whole);
+    }
+
+    #[test]
+    fn a_stacks_chains_play_their_own_zones_each_panned_on_its_own() {
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5}"#;
+        let notes = r#""notes":[{"pitch":48,"start":0,"length":0.5,"velocity":1},{"pitch":72,"start":1,"length":0.5,"velocity":1},{"pitch":72,"start":2,"length":0.5,"velocity":0.3}]"#;
+        let stack = format!(r#""stack":{{"chains":[
+            {{"instrument":"lead",{sound},"keys":{{"low":0,"high":59}},"pan":-1}},
+            {{"instrument":"lead",{sound},"keys":{{"low":60,"high":127}},"velocities":{{"low":64,"high":127}},"pan":1}},
+            {{"instrument":"lead",{sound},"muted":true}}]}}"#);
+        let (l, r) = render_song(&song(&format!(r#"{{"id":"t","instrument":"piano",{stack},{notes}}}"#)), 48_000);
+        let rms = |s: &[f32]| (s.iter().map(|x| f64::from(*x).powi(2)).sum::<f64>() / s.len() as f64).sqrt();
+        // The low note is the low chain's, hard left; the high one the high chain's, hard right.
+        assert!(rms(&l[0..12_000]) > 0.05 && rms(&r[0..12_000]) < 1e-6);
+        assert!(rms(&r[24_000..36_000]) > 0.05 && rms(&l[24_000..36_000]) < 1e-6);
+        // The soft high note is in no chain's zones: nothing plays it, not even the track's own piano.
+        assert!(rms(&l[49_000..60_000]) < 1e-6 && rms(&r[49_000..60_000]) < 1e-6);
+        // One chain in the middle at full volume is the track's own instrument with that sound, to the sample.
+        let one = render_song(&song(&format!(r#"{{"id":"t","instrument":"piano","stack":{{"chains":[{{"instrument":"lead",{sound}}}]}},{notes}}}"#)), 48_000);
+        let plain = render_song(&song(&format!(r#"{{"id":"t","instrument":"lead",{sound},{notes}}}"#)), 48_000);
+        assert_eq!(one, plain);
+        // A chain's volume scales it, and an empty stack plays the track's own instrument.
+        let half = render_song(&song(&format!(r#"{{"id":"t","instrument":"piano","stack":{{"chains":[{{"instrument":"lead",{sound},"volume":0.5}}]}},{notes}}}"#)), 48_000);
+        assert!(half.0.iter().zip(&plain.0).all(|(a, b)| (a - b * 0.5).abs() < 1e-6));
+        let empty = render_song(&song(&format!(r#"{{"id":"t","instrument":"lead",{sound},"stack":{{"chains":[]}},{notes}}}"#)), 48_000);
+        assert_eq!(empty, plain);
     }
 
     #[test]
