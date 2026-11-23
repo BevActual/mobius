@@ -594,6 +594,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [draw, setDraw] = useState(false);
   // Automation (A): a Volume line under each track in the Arrange view, drawn with points.
   const [showAuto, setShowAuto] = useState(false);
+  // The track being frozen, while its render runs (a hook, so above the early returns).
+  const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [gesture, setGestureState] = useState<Gesture | null>(null);
   // The gesture is read back from a ref as well, so a pointer-up that comes before React has drawn the last move still
@@ -1172,7 +1174,6 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       ...(missing ? [{ label: `${found.using} (not connected)`, checked: true, disabled: true, separated: true, run: () => {} }] : []),
     ] });
   };
-  const [freezing, setFreezing] = useState<string | null>(null);
   /** Renders a track through the engine into Samples/Processed/Freeze and plays that in its place in Arrange. */
   const freeze = async (trackId: string) => {
     if (!songs.page || freezing) return;
