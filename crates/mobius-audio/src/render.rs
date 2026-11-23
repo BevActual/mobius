@@ -120,11 +120,22 @@ struct Mod {
     kind: ModKind,
     amount: f64,
     values: Vec<f32>,
+    /// An LFO's or shaper's value glides to where it jumps (a square's edge, a drawn step) over a couple of
+    /// milliseconds, so a jump in what it moves does not click: the share it goes a sample, and where it is (none
+    /// before it starts, when it starts where it should be).
+    glide: f64,
+    at: Option<f64>,
 }
+
+/// How long an LFO's or shaper's jump takes, in seconds.
+const MOD_GLIDE: f64 = 0.002;
 
 enum ModKind {
     /// Free in Hz, or synced to `sync` beats a round; from `phase`.
     Lfo { shape: Shape, rate: f64, sync: Option<f64>, phase: f64 },
+    /// Timed as an LFO, along a drawn line: its points in order through one round, with the last before the first and
+    /// the first after the last so that it goes round smoothly.
+    Shaper { points: Vec<AutoPoint>, rate: f64, sync: Option<f64>, phase: f64 },
     /// The track's level, rising and falling by these shares a sample.
     Follow { rise: f64, fall: f64, level: f64 },
 }
@@ -142,8 +153,28 @@ impl Mod {
     fn new(m: &crate::song::Modulator, sample_rate: u32) -> Mod {
         let rate = f64::from(sample_rate);
         let share = |seconds: f64| 1.0 - (-1.0 / (seconds.max(0.0001) * rate)).exp();
+        let rate_of = || m.rate.clamp(0.0, 40.0);
+        let sync_of = || m.sync.filter(|b| b.is_finite() && *b > 0.0);
         let kind = if m.kind == "follow" {
             ModKind::Follow { rise: share(m.attack), fall: share(m.release), level: 0.0 }
+        } else if m.kind == "shaper" {
+            let mut points: Vec<AutoPoint> = m
+                .points
+                .iter()
+                .filter(|p| p.beat.is_finite() && p.value.is_finite())
+                .take(MAX_SHAPER_POINTS)
+                .map(|p| AutoPoint { beat: p.beat.clamp(0.0, 1.0), value: p.value.clamp(-1.0, 1.0), ..*p })
+                .collect();
+            points.sort_by(|a, b| a.beat.total_cmp(&b.beat));
+            if let (Some(&first), Some(&last)) = (points.first(), points.last()) {
+                if first.beat > 0.0 {
+                    points.insert(0, AutoPoint { beat: last.beat - 1.0, ..last });
+                }
+                if last.beat < 1.0 {
+                    points.push(AutoPoint { beat: first.beat + 1.0, ..first });
+                }
+            }
+            ModKind::Shaper { points, rate: rate_of(), sync: sync_of(), phase: m.phase.rem_euclid(1.0) }
         } else {
             let shape = match m.shape.as_deref() {
                 Some("triangle") => Shape::Triangle,
@@ -152,9 +183,27 @@ impl Mod {
                 Some("ramp") => Shape::Ramp,
                 _ => Shape::Sine,
             };
-            ModKind::Lfo { shape, rate: m.rate.clamp(0.0, 40.0), sync: m.sync.filter(|b| b.is_finite() && *b > 0.0), phase: m.phase.rem_euclid(1.0) }
+            ModKind::Lfo { shape, rate: rate_of(), sync: sync_of(), phase: m.phase.rem_euclid(1.0) }
         };
-        Mod { kind, amount: m.amount, values: vec![0.0; MAX_BLOCK] }
+        Mod { kind, amount: m.amount, values: vec![0.0; MAX_BLOCK], glide: share(MOD_GLIDE), at: None }
+    }
+}
+
+/// The most points a shaper's line has.
+const MAX_SHAPER_POINTS: usize = 64;
+
+/// Moves `at` the share `glide` of the way to `to` and gives where it is (at once to `to` the first time).
+fn glide(at: &mut Option<f64>, glide: f64, to: f64) -> f32 {
+    let now = at.map_or(to, |a| a + (to - a) * glide);
+    *at = Some(now);
+    now as f32
+}
+
+/// How many rounds an LFO or shaper has gone at sample `at`: synced to `sync` beats a round, or free at `rate` Hz.
+fn rounds(clock: &Clock, at: u64, rate: f64, sync: Option<f64>) -> f64 {
+    match sync {
+        Some(beats) => clock.beat(at) / beats,
+        None => at as f64 * (1.0 / clock.sample_rate) * rate,
     }
 }
 
@@ -186,17 +235,18 @@ struct Moving<'a> {
 fn run_mods(mods: &mut [Mod], sound: (&[f32], &[f32]), moving: Moving<'_>, clock: &Clock, from: u64, frames: usize) {
     let (scratch, scratch_right) = sound;
     let Moving { volumes, pans, sends, volume_mods, pan_mods } = moving;
-    let seconds = 1.0 / clock.sample_rate;
     for m in mods.iter_mut() {
         match &mut m.kind {
             ModKind::Lfo { shape, rate, sync, phase } => {
                 for (i, v) in m.values[..frames].iter_mut().enumerate() {
-                    let at = from + i as u64;
-                    let round = match sync {
-                        Some(beats) => clock.beat(at) / *beats,
-                        None => at as f64 * seconds * *rate,
-                    };
-                    *v = wave(*shape, (*phase + round).rem_euclid(1.0)) as f32;
+                    let round = rounds(clock, from + i as u64, *rate, *sync);
+                    *v = glide(&mut m.at, m.glide, wave(*shape, (*phase + round).rem_euclid(1.0)));
+                }
+            }
+            ModKind::Shaper { points, rate, sync, phase } => {
+                for (i, v) in m.values[..frames].iter_mut().enumerate() {
+                    let round = rounds(clock, from + i as u64, *rate, *sync);
+                    *v = glide(&mut m.at, m.glide, auto_value_at(points, (*phase + round).rem_euclid(1.0), 0.0));
                 }
             }
             ModKind::Follow { rise, fall, level } => {
@@ -1980,6 +2030,39 @@ mod tests {
         let moved = render_song(&held("", &format!(r#"{fx},"mods":[{{"kind":"lfo","target":"fx:d:mix","amount":1,"shape":"square","sync":2}}]"#)), 48_000).0;
         assert!(moved[..24_000].iter().zip(&dry[..24_000]).any(|(a, b)| (a - b).abs() > 1e-3));
         assert_eq!(&moved[24_000 + 256..48_000], &dry[24_000 + 256..48_000]);
+    }
+
+    #[test]
+    fn a_shaper_moves_along_its_drawn_line_and_goes_round() {
+        let at = |x: &[f32], beat: f64| loudest(&x[(beat * 24_000.0) as usize..(beat * 24_000.0) as usize + 2_400]);
+        // Drawn as a square synced to two beats, it moves a fader as the square LFO does.
+        let points = r#"[{"beat":0,"value":1},{"beat":0.5,"value":1},{"beat":0.5,"value":-1},{"beat":1,"value":-1}]"#;
+        let shaped = held("", &format!(r#","volume":0.5,"mods":[{{"kind":"shaper","target":"volume","amount":0.5,"sync":2,"points":{points}}}]"#));
+        let full = render_song(&held("", r#","volume":1"#), 48_000).0;
+        let (l, _) = render_song(&shaped, 48_000);
+        assert!((at(&l, 0.5) / at(&full, 0.5) - 1.0).abs() < 0.02);
+        assert!(at(&l, 1.2) < 1e-6);
+        assert!((at(&l, 2.5) / at(&full, 2.5) - 1.0).abs() < 0.02);
+        // A jump in its line (here back up at each round) glides over a couple of milliseconds: no click, the steps
+        // between samples no bigger than the tone's own at full volume.
+        let pump = held("", r#","volume":0.5,"mods":[{"kind":"shaper","target":"volume","amount":0.4,"sync":1,"phase":0.0005,"points":[{"beat":0,"value":1},{"beat":0.1,"value":-1},{"beat":1,"value":-1}]}]"#);
+        let step = |x: &[f32]| x.windows(2).map(|w| (w[1] - w[0]).abs()).fold(0f32, f32::max);
+        let (l, _) = render_song(&pump, 48_000);
+        assert!(step(&l[..96_000]) <= step(&full[..96_000]) * 1.05, "{} {}", step(&l[..96_000]), step(&full[..96_000]));
+        // Its line goes round from the last point to the first: two points a half apart make a triangle whose middle
+        // falls at 0, out of order and out of range as they come.
+        let m = crate::song::Modulator { kind: "shaper".into(), target: "volume".into(), amount: 1.0, rate: 1.0, sync: None, shape: None, phase: 0.0, points: vec![AutoPoint { beat: 0.75, value: -3.0, curve: 0.0 }, AutoPoint { beat: 0.25, value: 1.0, curve: 0.0 }], attack: 0.01, release: 0.2, on: None };
+        let line = |m: &crate::song::Modulator| match Mod::new(m, 48_000).kind {
+            ModKind::Shaper { points, .. } => points,
+            _ => Vec::new(),
+        };
+        let points = line(&m);
+        assert_eq!(points.len(), 4);
+        let v = |p: f64| auto_value_at(&points, p, 0.0);
+        assert!(v(0.0).abs() < 1e-12 && (v(0.25) - 1.0).abs() < 1e-12 && (v(0.5)).abs() < 1e-12 && (v(0.75) + 1.0).abs() < 1e-12 && v(0.999) < 0.0 && v(0.999) > -0.01);
+        // With no points it rests at nothing.
+        let none = crate::song::Modulator { points: Vec::new(), ..m };
+        assert_eq!(auto_value_at(&line(&none), 0.3, 0.0), 0.0);
     }
 
     #[test]

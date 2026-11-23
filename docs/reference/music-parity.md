@@ -91,7 +91,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | About 40 audio effects | 11 built-in in the engine (EQ, compressor, delay, reverb, gate, limiter, saturator, auto filter, chorus, phaser, stack), plus Workbench; the window lists the first five | The window's six new effects; flanger, multiband, utility, beat repeat, vocoder, shifter | M each |
 | Sidechain on compressor and gate | Compressor and gate: in the engine, an effect's `sidechain: { track, gain?, mix? }` (dB, 0..1) keys it by that track after its volume and effects; `sidechain.eq: { type, freq, q?, gain?, on? }` has only that band trigger it, with or without a track | Sidechain input and EQ in the window | M |
-| LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO and envelope follower) on its volume, pan, sends and effect settings; no shaper yet | Modulators on any setting | L |
+| LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO, shaper and envelope follower) on its volume, pan, sends and effect settings; a shaper draws one round as `points: [{ beat (0..1), value (-1..1), curve? }]`, up to 64, going round from the last to the first | Modulators on any setting | L |
 | Automation of every parameter, clip envelopes | In the engine: Arrangement automation of volume, pan, sends, Main and effect settings (curves, overrides); clip envelopes of volume, pan and sends | Device-setting clip envelopes, transposition, unlinked envelopes | M |
 | Effect racks, parallel chains, macros | In the engine: an effect `{ kind: "stack", chains: [{ fx, volume?, pan?, muted? }], macros: [{ value, maps: [{ target: "fx:<id>:<setting>", min, max }] }] }`, up to 16 chains and macros, automated as `fx:<stack id>:macro<N>`; no stack in a stack | The window | M |
 
@@ -366,7 +366,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
    - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings, and clip envelopes of volume, pan and sends, in the engine done).
-   - Modulators and sidechain (the compressor's sidechain, LFO and envelope follower in the engine done).
+   - Modulators and sidechain (the compressor's sidechain, LFO, shaper and envelope follower in the engine done).
    - Stacks with macros.
    - Six more effects.
 5. **Notes tools** (about 2 weeks):
