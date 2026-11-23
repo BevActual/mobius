@@ -53,6 +53,11 @@ a local profile, work the frame would otherwise do anyway. The one outlier (Cale
 100 to 190 ms) came alone. So the budget is now 180 ms: above the spread of runs without a change, and still below
 what twice the work gives (about 240 ms scaled).
 
+On 23 November 2026 the DOM growth budget came down from 1,500 to 400 nodes. Every visit to Docs or Notes had kept its
+editor's Markdown reader in the shared `marked` instance (about 105 nodes a visit), which the old budget let through
+until a long run on calendar-look went over it. #846 gives each editor its own reader; main then grew 169 nodes over
+the 120 switches, so a leak of that size now fails CI.
+
 Notes drew every page of a long notebook each time it opened, which took 0.84 s for 2,000 pages in a smaller window.
 It now draws the first 100 and more as the list scrolls. Next is switching itself, which costs over 100 ms even
 between simple apps at this size.
