@@ -322,6 +322,9 @@ interface ArrangeClip {
   loop?: { start: number; end: number };       // beats in the clip's own time; repeats to fill `length`
   offset?: number;                             // where in its own time the clip starts playing
   notes: SongNote[];                           // starts in the clip's own time, from 0
+  envelopes?: Record<string, AutoPoint[]>;     // clip envelopes (27), in its own time, going round its loop:
+                                               // "volume" 0..1 a share of the track's, "pan" -1..1 added to it,
+                                               // "send:<return id>" 0..1 a share of the send; Session clips have them too
 }
 interface Return { id: string; name: string; volume: number; fx: Effect[] }
 ```
@@ -358,7 +361,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Warping, with a stretcher in the engine.
    - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
-   - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings in the engine done; clip envelopes next).
+   - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings, and clip envelopes of volume, pan and sends, in the engine done).
    - Modulators and sidechain.
    - Stacks with macros.
    - Six more effects.
