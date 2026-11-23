@@ -12,6 +12,7 @@ Change the song with `files.edit`, not by writing the whole file: it is much fas
 `{"id","name","instrument":"piano|bass|pad|lead|drums","color","volume" 0-1,"pan" -1 (left) to 1,"clips":[...],"sound"?,"kit"?,"pads"?,"fx"?,"auto"?,"autoOff"?}`
 - colours: blue, amber, green, violet, teal, pink, yellow, coral, stone.
 - a clip (the song is `"version": 2`): `{"id","start" beat from 0,"length" beats,"name"?,"muted"?,"notes":[...]}`, in time order, never overlapping. Its notes' `start` is from the clip's own start.
+- a clip may have `"envelopes"`: `{"volume"|"pan"|"send:<return id>": [{"beat","value","curve"?}]}` in the clip's own beats, going round its loop: volume and sends 0-1 as a share of the track's, pan -1 to 1 added to the track's.
 - For a new part, you may give the track `"notes":[...]` in song time instead of `clips`: Music puts them into clips, a bar at a time.
 - a note: `{"pitch" MIDI,"start" beat,"length" beats,"velocity" 0-1}`. Drums use pitches 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 45 tom.
 - `mods`: modulators, `[{"kind":"lfo"|"follow","target" (named as `auto` is),"amount" in the target's own units,"rate"? Hz,"sync"? beats per cycle,"shape"? sine|triangle|square|saw|ramp,"phase"? 0-1,"attack"? s,"release"? s,"on"?}]`. An LFO moves the target from -amount to +amount around where it is; a follower adds up to amount with the track's level (a negative amount ducks).
