@@ -874,6 +874,24 @@ test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied
   await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
 });
 
+test('Freeze renders a track and plays that in its place, locking its clips and devices until Unfreeze', async () => {
+  await start();
+  const keys = tracks().getByRole('listitem', { name: 'Keys' });
+  await keys.getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
+  await shell().getByRole('menuitem', { name: 'Freeze Track' }).click();
+  // The render is kept in the song's folder, and the track says it is frozen.
+  await expect.poll(() => (saved().tracks[0] as { frozen?: { file: string } }).frozen?.file, { timeout: 30_000 }).toMatch(/^Samples\/Processed\/Freeze\/.+\.wav$/);
+  const render = path.join(path.dirname(file()), (saved().tracks[0] as unknown as { frozen: { file: string } }).frozen.file);
+  expect(fs.readFileSync(render).subarray(0, 4).toString('latin1')).toBe('RIFF');
+  await expect(keys.getByText('Frozen', { exact: true })).toBeVisible();
+  // Its notes can't be opened while frozen; it says why.
+  await keys.getByRole('textbox', { name: 'Track name' }).click({ button: 'right' });
+  await expect(shell().getByRole('menuitem', { name: 'Edit Notes' })).toBeDisabled();
+  await shell().getByRole('menuitem', { name: 'Unfreeze Track' }).click();
+  await expect.poll(() => (saved().tracks[0] as { frozen?: unknown }).frozen).toBeUndefined();
+  await expect(keys.getByText('Frozen', { exact: true })).toHaveCount(0);
+});
+
 /** A short WAV (16-bit mono, 48 kHz) of `seconds` of a quiet tone, for samples. */
 function wav(seconds: number): Buffer {
   const rate = 48_000;

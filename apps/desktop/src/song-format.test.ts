@@ -341,6 +341,21 @@ describe('samplers', () => {
   });
 });
 
+describe('frozen tracks', () => {
+  it('keeps a frozen track’s render through a read and a write, and drops one with no file', () => {
+    const read = parseSong(JSON.stringify({ version: 2, bars: 4, tracks: [
+      { id: 't1', name: 'Pad', instrument: 'pad', frozen: { file: 'Samples/Processed/Freeze/Pad.wav' }, clips: [] },
+      { id: 't2', name: 'Bass', instrument: 'bass', frozen: {}, clips: [] },
+    ] }));
+    if ('error' in read) throw new Error(read.error);
+    expect(read.song.tracks[0]!.frozen).toEqual({ file: 'Samples/Processed/Freeze/Pad.wav' });
+    expect(read.song.tracks[1]!.frozen).toBeUndefined();
+    const again = parseSong(writeSong(read.song));
+    if ('error' in again) throw new Error(again.error);
+    expect(again.song).toEqual(read.song);
+  });
+});
+
 describe('the metronome level', () => {
   it('keeps the metronome’s volume apart from Main through a read and a write, and leaves it out when unset', () => {
     const read = parseSong(JSON.stringify({ version: 2, bars: 4, metronome: { volume: 0.35 }, tracks: [] }));
