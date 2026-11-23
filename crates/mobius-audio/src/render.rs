@@ -744,7 +744,7 @@ pub struct Renderer {
     main_fx_auto: Vec<Move>,
     /// The lanes keying Main's compressors, as a return's `key_from`.
     main_key_from: Vec<Option<usize>>,
-    /// Each lane's level this block, after its volume and effects and before its pan, for the lanes keying a chain
+    /// Each lane's sound this block (the louder side, with its sign), after its volume and effects and before its pan, for the lanes keying a chain
     /// (empty for the others).
     keys: Vec<Vec<f32>>,
     /// The order lanes are made in: a keying lane before the lanes it keys.
@@ -1408,7 +1408,8 @@ impl Renderer {
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
                     if !key.is_empty() {
-                        key[i] = scratch[i].abs().max(right_scratch[i].abs());
+                        // The louder side, keeping its sign so a sidechain EQ can filter it.
+                        key[i] = if scratch[i].abs() >= right_scratch[i].abs() { scratch[i] } else { right_scratch[i] };
                     }
                     let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                     let (a, b) = balance(a, b, p);
@@ -1421,7 +1422,7 @@ impl Renderer {
                 let volume = if lane.volumes.is_empty() { lane.volume } else { f64::from(lane.volumes[i]) };
                 let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                 if let Some(k) = self.keys[index].get_mut(i) {
-                    *k = (a.abs().max(b.abs()) * volume) as f32;
+                    *k = ((if a.abs() >= b.abs() { a } else { b }) * volume) as f32;
                 }
                 // Each side keeps its own channel (a mono sound has the same on both).
                 let (gl, gr) = if lane.pans.is_empty() { lane.gains } else { pan_gains(p) };
