@@ -339,13 +339,14 @@ pub fn auto_value_at(points: &[AutoPoint], beat: f64, empty: f64) -> f64 {
     last.value
 }
 
-/// A modulator on a track (Live 12's LFO and Envelope Follower, as devices that map to a setting): it moves `target`
+/// A modulator on a track (Live 12's LFO, Shaper and Envelope Follower, as devices that map to a setting): it moves `target`
 /// by `amount` (in the setting's own units) times what it makes, added to where the setting is (its automation, or
 /// its own value).
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Modulator {
-    /// `"lfo"`, from -1 to 1 along its shape, or `"follow"`, from 0 to 1 with the track's level before its volume.
+    /// `"lfo"`, from -1 to 1 along its shape; `"shaper"`, from -1 to 1 along the line its `points` draw; or `"follow"`,
+    /// from 0 to 1 with the track's level before its volume.
     pub kind: String,
     /// `"volume"`, `"pan"`, `"send:<return id>"` or `"fx:<effect id>:<setting>"`.
     pub target: String,
@@ -359,9 +360,13 @@ pub struct Modulator {
     /// An LFO's shape: `"sine"` (the default), `"triangle"`, `"square"`, `"saw"` (rising) or `"ramp"` (falling).
     #[serde(default)]
     pub shape: Option<String>,
-    /// Where in its round an LFO starts, 0 to 1, at the song's start.
+    /// Where in its round an LFO or shaper starts, 0 to 1, at the song's start.
     #[serde(default)]
     pub phase: f64,
+    /// A shaper's line through one round: each point's `beat` is where in the round (0 to 1), its `value` -1 to 1, and
+    /// its `curve` bends the line to the next point, as automation's. It goes round from the last point to the first.
+    #[serde(default)]
+    pub points: Vec<AutoPoint>,
     /// An envelope follower's rise and fall times in seconds.
     #[serde(default = "follow_attack")]
     pub attack: f64,
