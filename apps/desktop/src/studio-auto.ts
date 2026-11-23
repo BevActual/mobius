@@ -19,6 +19,8 @@ export const AUTOMATABLE: { [K in EffectKind]: readonly string[] } = {
   chorus: ['rate', 'depth', 'mix'],
   phaser: ['rate', 'depth', 'mix'],
 };
+/** A setting's name where an effect's knob calls it something else (Live's Dry/Wet). */
+const KIND_SETTING_NAMES: Partial<Record<EffectKind, Record<string, string>>> = { saturator: { mix: 'Dry/Wet' }, chorus: { mix: 'Dry/Wet' }, phaser: { mix: 'Dry/Wet' } };
 const SETTING_NAMES: Record<string, string> = { low: 'Low', lowFreq: 'Low freq', mid: 'Mid', midFreq: 'Mid freq', midQ: 'Mid Q', high: 'High', highFreq: 'High freq', makeup: 'Makeup', time: 'Time', feedback: 'Feedback', mix: 'Mix', gain: 'Gain', drive: 'Drive', shape: 'Shape', output: 'Output', cutoff: 'Frequency', resonance: 'Resonance', rate: 'Rate', depth: 'Amount' };
 
 /** The settings a track's lane can show: Volume, Pan, a send per return track, then each built-in effect's settings. */
@@ -39,7 +41,7 @@ export function autoChoices(track: Track, returns: readonly ReturnTrack[] = []):
       const values = e as unknown as Record<string, number>;
       for (const k of AUTOMATABLE[e.kind]) {
         const r = EFFECT_PARAMS[e.kind][k]!;
-        out.push({ name: `fx:${e.id}:${k}`, label: `${prefix}${EFFECT_NAMES[e.kind]}${twice ? ` ${n}` : ''} ${SETTING_NAMES[k] ?? k}`, lo: r.lo, hi: r.hi, own: values[k] ?? r.start, kind: e.kind, setting: k });
+        out.push({ name: `fx:${e.id}:${k}`, label: `${prefix}${EFFECT_NAMES[e.kind]}${twice ? ` ${n}` : ''} ${KIND_SETTING_NAMES[e.kind]?.[k] ?? SETTING_NAMES[k] ?? k}`, lo: r.lo, hi: r.hi, own: values[k] ?? r.start, kind: e.kind, setting: k });
       }
     }
   };
@@ -61,7 +63,7 @@ export function toLane(points: readonly AutoPoint[], { lo, hi }: { lo: number; h
 /** The lane's edited points back in the setting's range, each keeping the bend of the point it was at that beat. */
 export function fromLane(next: readonly { beat: number; value: number }[], was: readonly AutoPoint[], { lo, hi }: { lo: number; hi: number }): AutoPoint[] {
   return next.map((p) => {
-    const point: AutoPoint = { beat: p.beat, value: Math.round((lo + p.value * (hi - lo)) * 1000) / 1000 };
+    const point: AutoPoint = { beat: p.beat, value: Math.round((lo + p.value * (hi - lo)) * 1e6) / 1e6 };
     const curve = was.find((w) => w.beat === p.beat)?.curve;
     if (curve !== undefined) point.curve = curve;
     return point;
@@ -117,6 +119,6 @@ export function setEnvelope(clip: { envelopes?: Record<string, AutoPoint[]> }, n
 export function stackTargets(stack: { chains: readonly { name?: string; fx: readonly Effect[] }[] }): { target: string; label: string; lo: number; hi: number }[] {
   return stack.chains.flatMap((c, ci) => c.fx.flatMap((e) => {
     if (e.kind === 'device' || e.kind === 'stack') return [];
-    return AUTOMATABLE[e.kind].map((k) => ({ target: `fx:${e.id}:${k}`, label: `${c.name ?? `Chain ${ci + 1}`} ${EFFECT_NAMES[e.kind]} ${SETTING_NAMES[k] ?? k}`, lo: EFFECT_PARAMS[e.kind][k]!.lo, hi: EFFECT_PARAMS[e.kind][k]!.hi }));
+    return AUTOMATABLE[e.kind].map((k) => ({ target: `fx:${e.id}:${k}`, label: `${c.name ?? `Chain ${ci + 1}`} ${EFFECT_NAMES[e.kind]} ${KIND_SETTING_NAMES[e.kind]?.[k] ?? SETTING_NAMES[k] ?? k}`, lo: EFFECT_PARAMS[e.kind][k]!.lo, hi: EFFECT_PARAMS[e.kind][k]!.hi }));
   }));
 }

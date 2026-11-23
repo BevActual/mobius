@@ -274,7 +274,7 @@ export function readAuto(list: unknown, beats: number, range: { lo: number; hi: 
   const points = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((p): AutoPoint[] => {
     const o = obj(p);
     if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
-    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(range.lo, Math.min(range.hi, o.value)) * 1000) / 1000 };
+    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(range.lo, Math.min(range.hi, o.value)) * 1e6) / 1e6 };
     if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1000) / 1000;
     return [point];
   });
@@ -599,7 +599,8 @@ function readFx(list: unknown, where: string, refuse: (why: string) => void, nes
     }
     const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
     if (!kind) return [];
-    const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
+    // Kept to six decimals, not three: a chorus's depth and a gate's attack are fractions of a millisecond.
+    const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, typeof eo[k] === 'number' && Number.isFinite(eo[k]) ? Math.min(r.hi, Math.max(r.lo, Math.round((eo[k] as number) * 1e6) / 1e6)) : r.start]));
     const words = Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, typeof eo[k] === 'string' && w.choices.includes(eo[k] as string) ? eo[k] : w.start]));
     const side = KEYED_KINDS.includes(kind) ? readSidechain(eo.sidechain) : undefined;
     return [{ id: fxId, kind, on: eo.on !== false, ...params, ...words, ...(side ? { sidechain: side } : {}) } as Effect];

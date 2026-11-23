@@ -174,6 +174,9 @@ describe('a track\'s effects', () => {
     expect(fx[5]).toMatchObject({ center: 1200, rate: 0.5, depth: 600, mix: 0.5 });
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
     expect(newEffect('autofilter', 'fx9')).toMatchObject({ filter: 'lowpass', shape: 'sine', cutoff: 1000 });
+    // Fractions of a millisecond survive a save: a chorus's depth, a gate's attack.
+    const fine = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [{ id: 'c', kind: 'chorus', depth: 0.0045 }, { id: 'g', kind: 'gate', attack: 0.0004 }] }] }));
+    expect(song(writeSong(fine)).tracks[0]!.fx).toMatchObject([{ depth: 0.0045 }, { attack: 0.0004 }]);
   });
   it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
