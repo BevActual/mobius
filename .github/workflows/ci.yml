@@ -79,5 +79,14 @@ jobs:
         run: npm test --workspaces --if-present
       - name: Rust tests
         run: cargo test --workspace
+      # The dev bridge (crates/mobius-host/src/dev_bridge.rs) is for `npm run e2e:local` only: it still builds, and no
+      # crate turns its feature on (a release build with it does not compile, and the release checks the program too).
+      - name: The dev bridge builds, and nothing that ships turns it on
+        run: |
+          if grep -n "dev-bridge" crates/*/Cargo.toml | grep -v "^crates/mobius-host/Cargo.toml"; then
+            echo "::error::Only mobius-host may name the dev-bridge feature."
+            exit 1
+          fi
+          cargo build -p mobius-host --features dev-bridge --bin mobius-dev-bridge
       - name: Generated types match the Rust ones
         run: npm run check:types

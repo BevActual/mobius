@@ -45,6 +45,27 @@ The suite refuses to run against a shell built before the interface, since it wo
 
 Pass `--trace off` unless you need traces; turn them on to debug a failure (`--trace on`).
 
+### On Linux or macOS: `npm run e2e:local`
+
+The shell is built for Windows CI, but the same specs run on Linux or macOS (a cloud session included) with one
+command, from `apps/desktop`:
+
+```
+npm run e2e:local -- e2e/notes.spec.ts --trace off
+```
+
+It builds the core and `mobius-dev-bridge`, builds the interface and serves it on 127.0.0.1:5199, and for each test
+starts the **real** host (`crates/mobius-host`, with its core) behind the dev bridge, then drives the interface in
+Chromium. The page gets a stand-in for Tauri's internals (`e2e/dev-bridge.ts`), so the interface runs its real Tauri
+bridge against the real host: files, Notes, the agent and its fixture model servers all work as in the shell. What only
+the shell does (the window itself, the browser's pages, the tray, global keys) is not there: a test that needs it is
+skipped here, and Windows CI runs it. Windows CI stays the gate.
+
+The dev bridge (`crates/mobius-host/src/dev_bridge.rs`) is development only. It sits behind the `dev-bridge` cargo
+feature, which no other crate turns on (CI checks); a release build with it does not compile; and the release workflow
+fails if a program it built carries the dev bridge's mark. It listens on 127.0.0.1 only and answers only requests that
+carry its token, a new random one each start. Set `MOBIUS_E2E_HOST_LOG=1` to see everything the host says.
+
 **Times of day.** CI runs around the clock, in UTC. A test that makes data for today must work at any hour: give
 an event or reminder a time relative to now (an hour from now) or the whole day, never a fixed hour such as 23:30, which
 stops being "coming" late in the evening. The interface and the shell both read the real clock, so the e2e page clock
