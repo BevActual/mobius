@@ -141,6 +141,9 @@ fn room(rate: f64, size: f64, damp: f64, seed: &mut u32) -> [Vec<f32>; 2] {
 /// rate set by the deepest cut asked for, and back up for release along an adaptive curve (faster from deeper cuts),
 /// updated every 32 samples; a 6 ms look-ahead; and the whole lifted by 0.6 of the gain it takes at full level.
 struct Compressor {
+    /// Keyed by another track (Live 12 manual, 29.9.1): that track's level, raised by `gain`, triggers it in the share
+    /// `mix` of the sidechain to its own sound.
+    side: Option<(f64, f64)>,
     threshold: f64,
     knee_db: f64,
     slope: f64,
@@ -204,6 +207,7 @@ impl Compressor {
             -0.042_416_883_008_123_074 * y1 + 0.111_569_382_798_760_2 * y2 - 0.097_646_763_252_658_72 * y3 + 0.028_494_263_462_021_576 * y4,
         ];
         let mut c = Compressor {
+            side: None,
             threshold,
             knee_db: threshold_db + knee,
             slope,
@@ -264,12 +268,24 @@ impl Compressor {
         }
     }
 
-    fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
+    /// Keys it to another track: its level is raised by `gain_db`, and `mix` (0 to 1) of what triggers it is that
+    /// track's. Automatic makeup is off, as Live's is with a sidechain.
+    fn key(&mut self, gain_db: f64, mix: f64) {
+        self.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
+        self.makeup = 1.0;
+    }
+
+    /// `key` is the keying track's level now (0 when it isn't keyed).
+    fn process(&mut self, l: f32, r: f32, key: f32) -> (f32, f32) {
         if self.division == 0 {
             self.plan();
         }
         self.division = (self.division + 1) % DIVISION;
-        let level = f64::from(l.abs().max(r.abs()));
+        let own = f64::from(l.abs().max(r.abs()));
+        let level = match self.side {
+            Some((gain, mix)) => (1.0 - mix) * own + mix * gain * f64::from(key),
+            None => own,
+        };
         let attenuation = if level <= 0.0001 { 1.0 } else { self.curve(level) / level };
         let sat_release = linear((-db(attenuation)).max(2.0) / self.sat_release_frames) - 1.0;
         let step = if attenuation > self.detector { sat_release } else { 1.0 };
@@ -339,6 +355,8 @@ struct Device {
     limit: bool,
     /// Its effect's id, as [`fx_key`] makes it: how the Workbench names the device it has open.
     key: u64,
+    /// The track keying its compressors, by its place in the chain's [`Chain::sources`].
+    side: Option<usize>,
     /// While the Workbench has it open: each part's sum of squares since its levels were last read, and over how
     /// many samples.
     watched: bool,
@@ -532,7 +550,7 @@ impl Device {
             })
             .collect();
         let energy = vec![0.0; parts.len()];
-        Some(Device { parts, cables, late, order, input, output: into_out.then_some(out_part), limit, key: 0, watched: false, energy, samples: 0 })
+        Some(Device { parts, cables, late, order, input, output: into_out.then_some(out_part), limit, key: 0, side: None, watched: false, energy, samples: 0 })
     }
 
     fn stereo_out(&self) -> bool {
@@ -540,7 +558,8 @@ impl Device {
     }
 
     /// Runs `l` and `r` (at most `QUANTUM` long) through the device, in place.
-    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64) {
+    /// `key` is the keying track's level, sample by sample (empty when it isn't keyed).
+    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64, key: &[f32]) {
         let n = l.len().min(r.len()).min(QUANTUM);
         let input = self.input;
         self.parts[input].out[0][..n].copy_from_slice(&l[..n]);
@@ -554,7 +573,7 @@ impl Device {
             if !feedback_delay {
                 self.gather(p, n);
             }
-            self.run(p, n, rate, feedback_delay);
+            self.run(p, n, rate, feedback_delay, key);
         }
         // Feedback delays take what has come in now that the piece is made.
         for step in 0..self.order.len() {
@@ -644,7 +663,7 @@ impl Device {
         }
     }
 
-    fn run(&mut self, p: usize, n: usize, rate: f64, feedback_delay: bool) {
+    fn run(&mut self, p: usize, n: usize, rate: f64, feedback_delay: bool, key: &[f32]) {
         let part = &mut self.parts[p];
         let Part { kind, ins, out, moved, has_cable, rest, .. } = part;
         let param = |k: usize, i: usize| if has_cable[k] { f64::from(moved[k][i]) } else { rest[k] };
@@ -726,7 +745,7 @@ impl Device {
             }
             Kind::Compressor(c) => {
                 for i in 0..n {
-                    let (a, b) = c.process(ins[0][0][i], ins[0][1][i]);
+                    let (a, b) = c.process(ins[0][0][i], ins[0][1][i], key.get(i).copied().unwrap_or(0.0));
                     out[0][i] = a;
                     out[1][i] = b;
                 }
@@ -814,6 +833,8 @@ fn builtin(e: &Value) -> Option<Value> {
 pub struct Chain {
     devices: Vec<Device>,
     stereo_out: bool,
+    /// The tracks keying its effects' compressors (by id), each once.
+    sources: Vec<String>,
 }
 
 impl Chain {
@@ -825,6 +846,7 @@ impl Chain {
         let mut seed = 0x2545_F491u32;
         let mut stereo = stereo_in;
         let mut devices = Vec::new();
+        let mut sources: Vec<String> = Vec::new();
         for e in fx.iter().take(16) {
             if e.get("on").and_then(Value::as_bool) == Some(false) {
                 continue;
@@ -835,11 +857,30 @@ impl Chain {
             };
             if let Some(mut d) = device {
                 d.key = fx_key(e.get("id").and_then(Value::as_str).unwrap_or_default());
+                // A sidechain from another track (29.9.1) keys every compressor in the effect.
+                let side = e.get("sidechain").filter(|s| s.is_object());
+                if let Some(track) = side.and_then(|s| s.get("track")).and_then(Value::as_str).filter(|t| !t.is_empty()) {
+                    let side = side.unwrap_or(&Value::Null);
+                    let (gain, mix) = (num(side, "gain", 0.0), num(side, "mix", 1.0));
+                    let mut keyed = false;
+                    for part in &mut d.parts {
+                        if let Kind::Compressor(c) = &mut part.kind {
+                            c.key(gain, mix);
+                            keyed = true;
+                        }
+                    }
+                    if keyed {
+                        d.side = Some(sources.iter().position(|s| s == track).unwrap_or_else(|| {
+                            sources.push(track.to_owned());
+                            sources.len() - 1
+                        }));
+                    }
+                }
                 stereo = d.stereo_out();
                 devices.push(d);
             }
         }
-        (!devices.is_empty()).then_some(Chain { devices, stereo_out: stereo })
+        (!devices.is_empty()).then_some(Chain { devices, stereo_out: stereo, sources })
     }
 
     /// Whether what comes out has two channels (so the track's pan moves it as a stereo sound).
@@ -875,14 +916,31 @@ impl Chain {
         }
     }
 
+    /// The tracks keying its compressors (by id): [`Chain::process_keyed`] takes their levels in this order.
+    #[must_use]
+    pub fn sources(&self) -> &[String] {
+        &self.sources
+    }
+
     /// Runs a block through every effect, in place.
     pub fn process(&mut self, left: &mut [f32], right: &mut [f32], rate: f64) {
+        self.process_keyed(left, right, rate, &[]);
+    }
+
+    /// Runs a block through every effect, in place, with the level of each of its [`Chain::sources`] for each sample
+    /// of the block; a source left out is silent.
+    pub fn process_keyed(&mut self, left: &mut [f32], right: &mut [f32], rate: f64, keys: &[&[f32]]) {
+        const SILENT: [f32; QUANTUM] = [0.0; QUANTUM];
         let n = left.len().min(right.len());
         let mut done = 0;
         while done < n {
             let m = (n - done).min(QUANTUM);
             for d in &mut self.devices {
-                d.process(&mut left[done..done + m], &mut right[done..done + m], rate);
+                let key = match d.side {
+                    Some(k) => keys.get(k).and_then(|k| k.get(done..done + m)).unwrap_or(&SILENT[..m]),
+                    None => &[],
+                };
+                d.process(&mut left[done..done + m], &mut right[done..done + m], rate, key);
             }
             done += m;
         }
