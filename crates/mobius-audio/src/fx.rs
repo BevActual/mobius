@@ -809,6 +809,8 @@ impl Device {
                         let [x1, x2, y1, y2] = &mut state[ch];
                         let x = f64::from(ins[0][ch][i]);
                         let y = c[0] * x + c[1] * *x1 + c[2] * *x2 - c[3] * *y1 - c[4] * *y2;
+                        // A decaying tail is let go once it is far below hearing, so it never reaches denormal values.
+                        let y = if y.abs() < 1e-20 { 0.0 } else { y };
                         (*x2, *x1, *y2, *y1) = (*x1, x, *y1, y);
                         out[ch][i] = y as f32;
                     }
@@ -1661,6 +1663,17 @@ mod tests {
         for (kind, setting) in [("saturator", "drive"), ("saturator", "shape"), ("saturator", "output"), ("autofilter", "cutoff"), ("autofilter", "depth"), ("chorus", "rate"), ("phaser", "mix"), ("limiter", "gain")] {
             let fx = [json!({ "id": "x", "kind": kind })];
             assert!(Chain::new(&fx, RATE, 0.5, false).unwrap().aim(&fx, "x", setting, 0.5).is_some(), "{kind} {setting}");
+        }
+    }
+
+    #[test]
+    fn filter_tails_fall_to_silence_without_denormals() {
+        let mut input = sine(330.0, 48_000);
+        input.resize(48_000 * 8, 0.0);
+        for kind in ["phaser", "autofilter"] {
+            let (l, r) = run(json!([{ "id": "x", "kind": kind }]), &input);
+            assert!(l.iter().chain(&r).all(|x| !x.is_subnormal()), "{kind}");
+            assert!(l[48_000 * 7..].iter().chain(&r[48_000 * 7..]).all(|x| *x == 0.0), "{kind}");
         }
     }
 
