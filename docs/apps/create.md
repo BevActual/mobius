@@ -167,7 +167,9 @@ A small studio for writing songs as notes.
   softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the
   top. The keys you hold light up on the notes editor's keyboard. **Record** (the dot after Stop, or F9) plays from the playhead with the computer
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
-  and one Undo takes the take back. It records in the Arrange view for now.
+  and one Undo takes the take back. It records in the Arrange view for now. A chosen MIDI track is armed for its notes;
+  an audio track records its input only once its **Arm** button (the dot by M and S) is on, so choosing one never opens
+  the computer's input (Live 12, 19.2).
 - **Automation** (the line button in the toolbar, or A): a line under each track in the Arrange view. Its name (Volume
   at first) chooses the setting it moves: Volume, Pan, a send, or a setting of one of the track's effects (EQ bands, delay time,
   feedback and mix, compressor makeup, reverb mix). Click the line to add a point and drag to place it, drag
