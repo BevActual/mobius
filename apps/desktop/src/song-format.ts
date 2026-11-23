@@ -158,7 +158,7 @@ export function readSidechain(v: unknown): Sidechain | undefined {
   }
   const eo = o.eq && typeof o.eq === 'object' ? obj(o.eq) : null;
   if (eo) {
-    const fit = (x: unknown, r: { lo: number; hi: number; start: number }) => (typeof x === 'number' && Number.isFinite(x) ? Math.round(Math.max(r.lo, Math.min(r.hi, x)) * 1000) / 1000 : r.start);
+    const fit = (x: unknown, r: { lo: number; hi: number; start: number }) => (typeof x === 'number' && Number.isFinite(x) ? Math.round(Math.max(r.lo, Math.min(r.hi, x)) * 1e6) / 1e6 : r.start);
     const eq: SideEq = { type: (FILTER_TYPES as readonly string[]).includes(eo.type as string) ? (eo.type as SideEq['type']) : 'lowpass', freq: fit(eo.freq, SIDE_EQ_RANGE.freq) };
     const q = fit(eo.q, SIDE_EQ_RANGE.q), gain = fit(eo.gain, SIDE_EQ_RANGE.gain);
     if (q !== SIDE_EQ_RANGE.q.start) eq.q = q;
@@ -372,8 +372,8 @@ export function readShaperPoints(v: unknown): AutoPoint[] {
   return (Array.isArray(v) ? v : []).flatMap((p): AutoPoint[] => {
     const o = obj(p);
     if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
-    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(1, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(-1, Math.min(1, o.value)) * 1e4) / 1e4 };
-    if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1000) / 1000;
+    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(1, o.beat)) * 1e6) / 1e6, value: Math.round(Math.max(-1, Math.min(1, o.value)) * 1e6) / 1e6 };
+    if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1e6) / 1e6;
     return [point];
   }).sort((a, b) => a.beat - b.beat).slice(0, MAX_SHAPER_POINTS);
 }

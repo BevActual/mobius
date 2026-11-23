@@ -349,7 +349,7 @@ function ModBlock({ mod, at, choices, onChange, onRemove }: { mod: Modulator; at
         <Select label="Moves" value={target ? mod.target : MISSING_TARGET} choices={targets}
           onChange={(v) => { const next = choices.find((c) => c.name === v); if (next) onChange((m) => { const share = m.amount / span; m.target = next.name; m.amount = Math.round(share * (next.hi - next.lo) * 1e4) / 1e4; }, 'mod:target'); }} />
         {mod.kind === 'shaper' && (
-          <AutomationLane className="studio-shaper" label={`${name} line`} head={false} points={toLane(mod.points ?? [], SHAPER_RANGE)} beats={1} pxPerBeat={192} grid={1 / 16} beatsPerBar={1} empty={0.5}
+          <AutomationLane className="studio-shaper" label={`${name} line`} head={false} points={toLane(mod.points ?? [], SHAPER_RANGE)} beats={1} pxPerBeat={240} grid={1 / 16} beatsPerBar={1} empty={0.5}
             format={(v) => pct(v * 2 - 1)} onChange={(next) => onChange((m) => { m.points = fromLane(next, m.points ?? [], SHAPER_RANGE).map((p) => ({ ...p, beat: Math.min(1, p.beat) })); }, 'mod:points')} />
         )}
         {mod.kind !== 'follow' && <>

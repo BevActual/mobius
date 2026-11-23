@@ -206,6 +206,10 @@ describe('a track\'s effects', () => {
       undefined,
     ]);
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+    // Six decimals, as effect settings keep.
+    const fine = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [{ id: 'c', kind: 'compressor', sidechain: { eq: { type: 'bandpass', freq: 1234.5678, q: 1.234567 } } }], mods: [{ kind: 'shaper', target: 'volume', amount: 0.2, points: [{ beat: 0.333333, value: -0.123456, curve: 0.4567 }] }] }] }));
+    expect((fine.tracks[0]!.fx![0] as { sidechain?: unknown }).sidechain).toEqual({ eq: { type: 'bandpass', freq: 1234.5678, q: 1.234567 } });
+    expect(fine.tracks[0]!.mods![0]!.points).toEqual([{ beat: 0.333333, value: -0.123456, curve: 0.4567 }]);
   });
   it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [

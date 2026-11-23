@@ -425,3 +425,5 @@
 .studio-stack-chain[data-muted] { opacity: 0.55; }
 .studio-stack-chain-head { display: flex; align-items: center; gap: var(--sp-1); }
 .studio-stack-chain-head .studio-dev-head { flex: 1; }
+/* A shaper's line: tall enough to draw on. */
+.studio-page .studio-shaper { --lane-h: calc(var(--sp-8) * 2.5); }
