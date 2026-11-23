@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -320,17 +320,19 @@ const BENCH_ICON = 'M3.5 6.5h3M13.5 13.5h3M6.5 6.5c4 0 3 7 7 7M6.5 6.5a1.5 1.5 0
 /** The button on an effect's head that opens it up in the Workbench. */
 const BenchButton = ({ name, onOpen }: { name: string; onOpen: () => void }) => <IconButton label={`Open ${name} in Workbench`} title="See its parts and cables" icon={<Icon d={BENCH_ICON} />} onClick={onOpen} />;
 
-const MOD_NAMES = { lfo: 'LFO', follow: 'Envelope Follower' } as const;
-const MOD_DETAILS = { lfo: 'Moves a setting up and down in a repeating shape', follow: 'Moves a setting with the track’s own level' } as const;
+const MOD_NAMES = { lfo: 'LFO', shaper: 'Shaper', follow: 'Envelope Follower' } as const;
+const MOD_DETAILS = { lfo: 'Moves a setting up and down in a repeating shape', shaper: 'Moves a setting along a line you draw, round and round', follow: 'Moves a setting with the track’s own level' } as const;
 const SHAPE_CHOICES = [{ value: 'sine', label: 'Sine' }, { value: 'triangle', label: 'Triangle' }, { value: 'square', label: 'Square' }, { value: 'saw', label: 'Saw up' }, { value: 'ramp', label: 'Saw down' }] as const;
 /** An LFO synced to the song: beats for once round, as note values and bars. */
 const SYNC_CHOICES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '1', label: '1/4' }, { value: '2', label: '1/2' }, { value: '4', label: '1 bar' }, { value: '8', label: '2 bars' }, { value: '16', label: '4 bars' }, { value: '32', label: '8 bars' }];
 const RATE_MODES = [{ value: 'sync', label: 'Sync' }, { value: 'hz', label: 'Hz' }] as const;
 const MISSING_TARGET = ' missing';
+/** A shaper's line runs -1 to 1 through one round. */
+const SHAPER_RANGE = { lo: -1, hi: 1 } as const;
 const timeText = (v: number) => (v < 1 ? `${Math.round(v * 1000)} ms` : `${v.toFixed(2)} s`);
 
 /**
- * A modulator on the track (Live 12's LFO and Envelope Follower devices, mapped to one setting): what it moves, and by
+ * A modulator on the track (Live 12's LFO, Shaper and Envelope Follower devices, mapped to one setting): what it moves, and by
  * how much as a share of that setting's range (saved in the setting's own units), then its own settings.
  */
 function ModBlock({ mod, at, choices, onChange, onRemove }: { mod: Modulator; at: number; choices: readonly AutoChoice[]; onChange: (fn: (m: Modulator) => void, tag?: string) => void; onRemove: () => void }) {
@@ -346,17 +348,21 @@ function ModBlock({ mod, at, choices, onChange, onRemove }: { mod: Modulator; at
       <div className="studio-fx-body">
         <Select label="Moves" value={target ? mod.target : MISSING_TARGET} choices={targets}
           onChange={(v) => { const next = choices.find((c) => c.name === v); if (next) onChange((m) => { const share = m.amount / span; m.target = next.name; m.amount = Math.round(share * (next.hi - next.lo) * 1e4) / 1e4; }, 'mod:target'); }} />
-        {mod.kind === 'lfo' && <>
-          <Select label="Shape" value={mod.shape ?? 'sine'} choices={SHAPE_CHOICES} onChange={(v) => onChange((m) => { if (v === 'sine') delete m.shape; else m.shape = v; }, 'mod:shape')} />
+        {mod.kind === 'shaper' && (
+          <AutomationLane className="studio-shaper" label={`${name} line`} head={false} points={toLane(mod.points ?? [], SHAPER_RANGE)} beats={1} pxPerBeat={192} grid={1 / 16} beatsPerBar={1} empty={0.5}
+            format={(v) => pct(v * 2 - 1)} onChange={(next) => onChange((m) => { m.points = fromLane(next, m.points ?? [], SHAPER_RANGE).map((p) => ({ ...p, beat: Math.min(1, p.beat) })); }, 'mod:points')} />
+        )}
+        {mod.kind !== 'follow' && <>
+          {mod.kind === 'lfo' && <Select label="Shape" value={mod.shape ?? 'sine'} choices={SHAPE_CHOICES} onChange={(v) => onChange((m) => { if (v === 'sine') delete m.shape; else m.shape = v; }, 'mod:shape')} />}
           <Segmented label="Rate in" wide value={mod.sync !== undefined ? 'sync' : 'hz'} choices={RATE_MODES} onChange={(v) => onChange((m) => { if (v === 'sync') m.sync = 4; else delete m.sync; }, 'mod:mode')} />
           {mod.sync !== undefined && <Select label="Rate" value={String(mod.sync)} choices={syncs} onChange={(v) => onChange((m) => { m.sync = Number(v); }, 'mod:sync')} />}
         </>}
         <ParamGrid label={`${name} settings`} columns={3}>
           <Knob label="Amount" value={Math.max(-1, Math.min(1, mod.amount / span))} min={-1} max={1} step={0.01} origin={0} reset={0} format={pct}
             onChange={(v) => onChange((m) => { m.amount = Math.round(v * span * 1e4) / 1e4; }, 'mod:amount')} />
-          {mod.kind === 'lfo' && mod.sync === undefined && <Knob label="Rate" value={mod.rate ?? 1} min={MOD_RANGE.rate.lo} max={MOD_RANGE.rate.hi} step={0.01} scale="log" reset={1} format={(v) => `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`}
+          {mod.kind !== 'follow' && mod.sync === undefined && <Knob label="Rate" value={mod.rate ?? 1} min={MOD_RANGE.rate.lo} max={MOD_RANGE.rate.hi} step={0.01} scale="log" reset={1} format={(v) => `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`}
             onChange={(v) => onChange((m) => { const r = Math.round(v * 100) / 100; if (r === 1) delete m.rate; else m.rate = r; }, 'mod:rate')} />}
-          {mod.kind === 'lfo' && <Knob label="Phase" value={mod.phase ?? 0} min={0} max={1} step={1 / 360} reset={0} format={(v) => `${Math.round(v * 360)}°`}
+          {mod.kind !== 'follow' && <Knob label="Phase" value={mod.phase ?? 0} min={0} max={1} step={1 / 360} reset={0} format={(v) => `${Math.round(v * 360)}°`}
             onChange={(v) => onChange((m) => { const p = Math.round(v * 1e4) / 1e4; if (p === 0) delete m.phase; else m.phase = p; }, 'mod:phase')} />}
           {mod.kind === 'follow' && <>
             <Knob label="Attack" value={mod.attack ?? 0.01} min={MOD_RANGE.attack.lo} max={MOD_RANGE.attack.hi} step={0.001} scale="log" reset={0.01} format={timeText} onChange={(v) => onChange((m) => { m.attack = Math.round(v * 1000) / 1000; }, 'mod:attack')} />
@@ -378,23 +384,44 @@ const NO_SIDECHAIN = ' none';
 function SidechainSection({ effect, name, sources, onChange }: { effect: Extract<Effect, { kind: 'compressor' | 'gate' | 'device' }>; name: string; sources: readonly SideSource[]; onChange: (fn: (e: Effect) => void, tag?: string) => void }) {
   const side = effect.sidechain;
   const put = (fn: (s: Sidechain) => void, tag: string) => onChange((e) => { const x = e as { sidechain?: Sidechain }; if (x.sidechain) fn(x.sidechain); }, tag);
+  /** Changes the sidechain, which goes once it has neither a track nor an EQ. */
+  const edit = (fn: (s: Sidechain) => void, tag: string) => onChange((e) => { const x = e as { sidechain?: Sidechain }; const s = { ...(x.sidechain ?? {}) }; fn(s); if (s.track !== undefined || s.eq) x.sidechain = s; else delete x.sidechain; }, tag);
   const choices = [{ value: NO_SIDECHAIN, label: 'None' }, ...sources.map((t) => ({ value: t.id, label: t.name || 'Untitled track' }))];
-  if (side && !sources.some((t) => t.id === side.track)) choices.push({ value: side.track, label: 'A track no longer in the song' });
+  if (side?.track !== undefined && !sources.some((t) => t.id === side.track)) choices.push({ value: side.track, label: 'A track no longer in the song' });
+  const eq = side?.eq;
+  const shapes = eq && (eq.type === 'peaking' || eq.type === 'lowshelf' || eq.type === 'highshelf');
+  const putEq = (fn: (q: SideEq) => void, tag: string) => put((s) => { if (s.eq) fn(s.eq); }, tag);
+  const hz = (v: number) => (v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${Math.round(v)} Hz`);
   return (
     <section className="studio-fx-side" aria-label={`${name} sidechain`}>
       <h4 className="studio-dev-head">Sidechain</h4>
       <Select label="Audio From" value={side?.track ?? NO_SIDECHAIN} choices={choices}
-        onChange={(id) => onChange((e) => { const x = e as { sidechain?: Sidechain }; if (id === NO_SIDECHAIN) delete x.sidechain; else x.sidechain = { ...(x.sidechain ?? {}), track: id }; }, 'fx:side')} />
-      {side && <ParamGrid label={`${name} sidechain settings`} columns={2}>
+        onChange={(id) => edit((s) => { if (id === NO_SIDECHAIN) { delete s.track; delete s.gain; delete s.mix; } else s.track = id; }, 'fx:side')} />
+      {side?.track !== undefined && <ParamGrid label={`${name} sidechain settings`} columns={2}>
         <Knob label="Gain" value={side.gain ?? 0} min={SIDECHAIN_GAIN.lo} max={SIDECHAIN_GAIN.hi} step={0.5} origin={0} reset={0} format={(v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`}
           onChange={(v) => put((s) => { const g = Math.round(v * 10) / 10; if (g === 0) delete s.gain; else s.gain = g; }, 'fx:side-gain')} />
         <Knob label="Dry/Wet" value={side.mix ?? 1} min={0} max={1} step={0.01} reset={1} format={(v) => `${Math.round(v * 100)}%`}
           onChange={(v) => put((s) => { const m = Math.round(v * 100) / 100; if (m === 1) delete s.mix; else s.mix = m; }, 'fx:side-mix')} />
       </ParamGrid>}
-      {side && <p className="studio-dev-note">Ducks under the other track's level. Automatic makeup is off while keyed.</p>}
+      {side?.track !== undefined && <p className="studio-dev-note">Ducks under the other track's level. Automatic makeup is off while keyed.</p>}
+      {/* The sidechain EQ (Live 12, 29.9.1): only its band of what triggers it counts, with or without another track. */}
+      <Switch label="Sidechain EQ" checked={!!eq && eq.on !== false}
+        onChange={(on) => edit((s) => { if (on) { s.eq = s.eq ? { ...s.eq } : { type: 'highpass', freq: SIDE_EQ_RANGE.freq.start }; delete s.eq.on; } else if (s.eq) s.eq = { ...s.eq, on: false }; }, 'fx:side-eq')} />
+      {eq && eq.on !== false && <>
+        <Select label="EQ type" value={eq.type} choices={SIDE_EQ_TYPES} onChange={(v) => putEq((q) => { q.type = v as SideEq['type']; if (!(v === 'peaking' || v === 'lowshelf' || v === 'highshelf')) delete q.gain; }, 'fx:side-eq-type')} />
+        <ParamGrid label={`${name} sidechain EQ`} columns={shapes ? 3 : 2}>
+          <Knob label="Frequency" value={eq.freq} min={SIDE_EQ_RANGE.freq.lo} max={SIDE_EQ_RANGE.freq.hi} step={1} scale="log" reset={SIDE_EQ_RANGE.freq.start} format={hz} onChange={(v) => putEq((q) => { q.freq = Math.round(v); }, 'fx:side-eq-freq')} />
+          <Knob label="Q" value={eq.q ?? SIDE_EQ_RANGE.q.start} min={SIDE_EQ_RANGE.q.lo} max={SIDE_EQ_RANGE.q.hi} step={0.01} scale="log" reset={SIDE_EQ_RANGE.q.start} format={(v) => v.toFixed(2)}
+            onChange={(v) => putEq((q) => { const r = Math.round(v * 100) / 100; if (r === SIDE_EQ_RANGE.q.start) delete q.q; else q.q = r; }, 'fx:side-eq-q')} />
+          {shapes && <Knob label="EQ gain" value={eq.gain ?? 0} min={SIDE_EQ_RANGE.gain.lo} max={SIDE_EQ_RANGE.gain.hi} step={0.5} origin={0} reset={0} format={(v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`}
+            onChange={(v) => putEq((q) => { const g = Math.round(v * 10) / 10; if (g === 0) delete q.gain; else q.gain = g; }, 'fx:side-eq-gain')} />}
+        </ParamGrid>
+      </>}
     </section>
   );
 }
+/** The sidechain EQ's filter types, named as Live's. */
+const SIDE_EQ_TYPES = [{ value: 'lowpass', label: 'Low-pass' }, { value: 'highpass', label: 'High-pass' }, { value: 'bandpass', label: 'Band-pass' }, { value: 'notch', label: 'Notch' }, { value: 'peaking', label: 'Bell' }, { value: 'lowshelf', label: 'Low shelf' }, { value: 'highshelf', label: 'High shelf' }];
 
 /** A new effect's id in a stack: the stack's id and a number, unique across its chains (and never a top-level fxN). */
 const freshInnerId = (s: StackEffect): string => { const used = new Set(s.chains.flatMap((c) => c.fx.map((e) => e.id))); let n = 1; while (used.has(`${s.id}-${n}`)) n++; return `${s.id}-${n}`; };
@@ -802,7 +829,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
             onChange={(fn, tag) => onTrack((t) => { const x = t.mods?.[i]; if (x) fn(x); }, tag ? `${tag}:${i}` : undefined)}
             onRemove={() => onTrack((t) => { t.mods = (t.mods ?? []).filter((_, j) => j !== i); if (t.mods.length === 0) delete t.mods; })} />
         ))}
-        {(track.mods?.length ?? 0) < 8 && <Menu label="Add modulator" entries={(['lfo', 'follow'] as const).map((k) => ({ label: MOD_NAMES[k], detail: MOD_DETAILS[k], run: () => onTrack((t) => { t.mods = [...(t.mods ?? []), k === 'lfo' ? { kind: 'lfo', target: 'volume', amount: 0.25, sync: 4 } : { kind: 'follow', target: 'volume', amount: -0.5 }]; }) }))}
+        {(track.mods?.length ?? 0) < 8 && <Menu label="Add modulator" entries={(['lfo', 'shaper', 'follow'] as const).map((k) => ({ label: MOD_NAMES[k], detail: MOD_DETAILS[k], run: () => onTrack((t) => { t.mods = [...(t.mods ?? []), k === 'lfo' ? { kind: 'lfo', target: 'volume', amount: 0.25, sync: 4 } : k === 'shaper' ? { kind: 'shaper', target: 'volume', amount: 0.25, sync: 4, points: [{ beat: 0, value: 1 }, { beat: 0.5, value: -1 }] } : { kind: 'follow', target: 'volume', amount: -0.5 }]; }) }))}
           trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add modulator</Button>} />}
       </section>
       </div>
