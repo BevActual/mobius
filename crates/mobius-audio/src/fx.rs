@@ -33,6 +33,7 @@ enum FilterType {
     HighShelf,
     Peaking,
     Notch,
+    AllPass,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -66,6 +67,10 @@ fn biquad(kind: FilterType, freq: f64, q: f64, gain_db: f64, rate: f64) -> Coeff
         FilterType::Notch => {
             let alpha = sin / (2.0 * q);
             (1.0, -2.0 * cos, 1.0, 1.0 + alpha, -2.0 * cos, 1.0 - alpha)
+        }
+        FilterType::AllPass => {
+            let alpha = sin / (2.0 * q);
+            (1.0 - alpha, -2.0 * cos, 1.0 + alpha, 1.0 + alpha, -2.0 * cos, 1.0 - alpha)
         }
         FilterType::Peaking => {
             let alpha = sin / (2.0 * q);
@@ -305,6 +310,108 @@ impl Compressor {
     }
 }
 
+/// A gate, as Live's: it opens when the level goes over `threshold` and closes when it falls `return` dB
+/// under that, fading up over `attack`, staying open at least `hold`, and fading down over `release` to `floor`. Like
+/// the compressor, it can be keyed by another track.
+struct Gate {
+    open_at: f64,
+    close_at: f64,
+    rise: f64,
+    fall: f64,
+    hold: usize,
+    floor: f64,
+    side: Option<(f64, f64)>,
+    open: bool,
+    held: usize,
+    gain: f64,
+}
+
+impl Gate {
+    fn new(threshold_db: f64, return_db: f64, attack: f64, hold: f64, release: f64, floor_db: f64, rate: f64) -> Gate {
+        let step = |seconds: f64| 1.0 / (seconds.max(0.0001) * rate);
+        Gate {
+            open_at: linear(threshold_db),
+            close_at: linear(threshold_db - return_db.max(0.0)),
+            rise: step(attack),
+            fall: step(release),
+            hold: (hold.max(0.0) * rate) as usize,
+            floor: if floor_db <= -90.0 { 0.0 } else { linear(floor_db.min(0.0)) },
+            side: None,
+            open: false,
+            held: 0,
+            gain: 0.0,
+        }
+    }
+
+    /// Keys it to another track, as [`Compressor::key`].
+    fn key(&mut self, gain_db: f64, mix: f64) {
+        self.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
+    }
+
+    fn process(&mut self, l: f32, r: f32, key: f32) -> (f32, f32) {
+        let own = f64::from(l.abs().max(r.abs()));
+        let level = match self.side {
+            Some((gain, mix)) => (1.0 - mix) * own + mix * gain * f64::from(key),
+            None => own,
+        };
+        if level >= self.open_at {
+            self.open = true;
+            self.held = self.hold;
+        } else if level < self.close_at {
+            if self.held > 0 {
+                self.held -= 1;
+            } else {
+                self.open = false;
+            }
+        }
+        self.gain = if self.open { (self.gain + self.rise).min(1.0) } else { (self.gain - self.fall).max(0.0) };
+        let g = (self.floor + (1.0 - self.floor) * self.gain) as f32;
+        (l * g, r * g)
+    }
+}
+
+/// A limiter: nothing goes over `ceiling`. It looks 1.5 ms ahead, so the gain is down before a peak arrives, holds it
+/// that long, then lets go over `release`.
+struct Limiter {
+    ceiling: f64,
+    recover: f64,
+    ahead: Vec<(f32, f32)>,
+    at: usize,
+    gain: f64,
+    held: usize,
+}
+
+impl Limiter {
+    fn new(ceiling_db: f64, release: f64, rate: f64) -> Limiter {
+        Limiter {
+            ceiling: linear(ceiling_db.min(0.0)),
+            recover: 1.0 - (-1.0 / (release.max(0.001) * rate)).exp(),
+            ahead: vec![(0.0, 0.0); ((0.0015 * rate).round() as usize).max(1)],
+            at: 0,
+            gain: 1.0,
+            held: 0,
+        }
+    }
+
+    fn process(&mut self, l: f32, r: f32) -> (f32, f32) {
+        let peak = f64::from(l.abs().max(r.abs()));
+        let wanted = if peak > self.ceiling { self.ceiling / peak } else { 1.0 };
+        if wanted < self.gain {
+            self.gain = wanted;
+            self.held = self.ahead.len();
+        } else if self.held > 0 {
+            self.held -= 1;
+        } else {
+            self.gain += (1.0 - self.gain) * self.recover;
+        }
+        let (dl, dr) = std::mem::replace(&mut self.ahead[self.at], (l, r));
+        self.at = (self.at + 1) % self.ahead.len();
+        let c = self.ceiling as f32;
+        let g = self.gain as f32;
+        ((dl * g).clamp(-c, c), (dr * g).clamp(-c, c))
+    }
+}
+
 enum Kind {
     Input,
     Output,
@@ -314,6 +421,8 @@ enum Kind {
     Lfo { rate: f64, wave: Wave, phase: f64 },
     Drive { amount: f64 },
     Compressor(Box<Compressor>),
+    Gate(Box<Gate>),
+    Limiter(Box<Limiter>),
     Reverb(Box<[Convolver; 2]>),
     Pan { stereo_in: bool },
     Mix { amount: f64 },
@@ -423,6 +532,7 @@ impl Device {
                         "highshelf" => FilterType::HighShelf,
                         "peaking" => FilterType::Peaking,
                         "notch" => FilterType::Notch,
+                        "allpass" => FilterType::AllPass,
                         _ => FilterType::LowPass,
                     };
                     // A shelf has no resonance in Web Audio, so it rests at the node's own 1.
@@ -431,7 +541,8 @@ impl Device {
                     Kind::Filter { kind, state: [[0.0; 4]; 2], cached: None }
                 }
                 "delay" => {
-                    rest[0] = (num(p, "time", 0.75) * seconds_per_beat).clamp(0.0, MAX_DELAY);
+                    // In beats, or in `seconds` when it has them (a chorus's few milliseconds, whatever the tempo).
+                    rest[0] = p.get("seconds").and_then(Value::as_f64).filter(|s| s.is_finite()).unwrap_or_else(|| num(p, "time", 0.75) * seconds_per_beat).clamp(0.0, MAX_DELAY);
                     Kind::Delay { ring: vec![(0.0, 0.0); (MAX_DELAY * rate) as usize + 2 * QUANTUM + 2], at: 0, feedback: false }
                 }
                 "lfo" => {
@@ -442,8 +553,10 @@ impl Device {
                         _ => Wave::Sine,
                     };
                     rest[0] = num(p, "depth", 0.0);
-                    Kind::Lfo { rate: num(p, "rate", 1.0).clamp(0.0, 40.0), wave, phase: 0.0 }
+                    Kind::Lfo { rate: num(p, "rate", 1.0).clamp(0.0, 40.0), wave, phase: num(p, "phase", 0.0).rem_euclid(1.0) }
                 }
+                "gate" => Kind::Gate(Box::new(Gate::new(num(p, "threshold", -40.0), num(p, "return", 3.0), num(p, "attack", 0.001), num(p, "hold", 0.01), num(p, "release", 0.1), num(p, "floor", -90.0), rate))),
+                "limiter" => Kind::Limiter(Box::new(Limiter::new(num(p, "ceiling", -0.3), num(p, "release", 0.05), rate))),
                 "drive" => Kind::Drive { amount: num(p, "amount", 0.3).clamp(0.0, 1.0) },
                 "compressor" => Kind::Compressor(Box::new(Compressor::new(num(p, "threshold", -18.0), num(p, "knee", 6.0), num(p, "ratio", 4.0), num(p, "attack", 0.01), num(p, "release", 0.2), rate))),
                 "reverb" => {
@@ -517,7 +630,7 @@ impl Device {
             }
             for p in &mut parts {
                 // A compressor always sends two channels on, as browsers make it.
-                if matches!(p.kind, Kind::Reverb(_) | Kind::Pan { .. } | Kind::Compressor(_)) {
+                if matches!(p.kind, Kind::Reverb(_) | Kind::Pan { .. } | Kind::Compressor(_) | Kind::Gate(_) | Kind::Limiter(_)) {
                     p.stereo = true;
                 }
             }
@@ -743,6 +856,20 @@ impl Device {
                     }
                 }
             }
+            Kind::Gate(g) => {
+                for i in 0..n {
+                    let (a, b) = g.process(ins[0][0][i], ins[0][1][i], key.get(i).copied().unwrap_or(0.0));
+                    out[0][i] = a;
+                    out[1][i] = b;
+                }
+            }
+            Kind::Limiter(lim) => {
+                for i in 0..n {
+                    let (a, b) = lim.process(ins[0][0][i], ins[0][1][i]);
+                    out[0][i] = a;
+                    out[1][i] = b;
+                }
+            }
             Kind::Compressor(c) => {
                 for i in 0..n {
                     let (a, b) = c.process(ins[0][0][i], ins[0][1][i], key.get(i).copied().unwrap_or(0.0));
@@ -824,6 +951,70 @@ fn builtin(e: &Value) -> Option<Value> {
             ],
             vec![["in", "mix.dry"], ["in", "room"], ["room", "mix.wet"], ["mix", "out"]],
         ),
+        // After Live 12's Gate, Limiter, Saturator, Auto Filter, Chorus and Phaser, as parts.
+        "gate" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("gate", "gate", serde_json::json!({ "threshold": n("threshold", -40.0), "return": n("return", 3.0), "attack": n("attack", 0.001), "hold": n("hold", 0.01), "release": n("release", 0.1), "floor": n("floor", -90.0) })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "gate"], ["gate", "out"]],
+        ),
+        "limiter" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("gain", "gain", serde_json::json!({ "gain": 10f64.powf(n("gain", 0.0) / 20.0) })),
+                part("limit", "limiter", serde_json::json!({ "ceiling": n("ceiling", -0.3), "release": n("release", 0.05) })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "gain"], ["gain", "limit"], ["limit", "out"]],
+        ),
+        "saturator" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("drive", "gain", serde_json::json!({ "gain": 10f64.powf(n("drive", 6.0) / 20.0) })),
+                part("shape", "drive", serde_json::json!({ "amount": n("shape", 0.0) })),
+                part("output", "gain", serde_json::json!({ "gain": 10f64.powf(n("output", 0.0) / 20.0) })),
+                part("mix", "mix", serde_json::json!({ "amount": n("mix", 1.0) })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "mix.dry"], ["in", "drive"], ["drive", "shape"], ["shape", "output"], ["output", "mix.wet"], ["mix", "out"]],
+        ),
+        "autofilter" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("f", "filter", serde_json::json!({ "type": e.get("filter").and_then(Value::as_str).unwrap_or("lowpass"), "cutoff": n("cutoff", 1000.0), "resonance": n("resonance", 3.0), "gain": 0 })),
+                part("lfo", "lfo", serde_json::json!({ "rate": n("rate", 1.0), "depth": n("depth", 0.0), "shape": e.get("shape").and_then(Value::as_str).unwrap_or("sine") })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "f"], ["lfo", "f.cutoff"], ["f", "out"]],
+        ),
+        "chorus" => (
+            vec![
+                part("in", "input", serde_json::json!({})),
+                part("voice", "delay", serde_json::json!({ "seconds": n("delay", 0.012) })),
+                part("lfo", "lfo", serde_json::json!({ "rate": n("rate", 0.8), "depth": n("depth", 0.003) })),
+                part("mix", "mix", serde_json::json!({ "amount": n("mix", 0.5) })),
+                part("out", "output", serde_json::json!({})),
+            ],
+            vec![["in", "mix.dry"], ["in", "voice"], ["lfo", "voice.time"], ["voice", "mix.wet"], ["mix", "out"]],
+        ),
+        "phaser" => {
+            let stage = |id: &str| part(id, "filter", serde_json::json!({ "type": "allpass", "cutoff": n("center", 800.0), "resonance": 0.7, "gain": 0 }));
+            (
+                vec![
+                    part("in", "input", serde_json::json!({})),
+                    stage("a1"),
+                    stage("a2"),
+                    stage("a3"),
+                    stage("a4"),
+                    part("lfo", "lfo", serde_json::json!({ "rate": n("rate", 0.5), "depth": n("depth", 600.0) })),
+                    part("mix", "mix", serde_json::json!({ "amount": n("mix", 0.5) })),
+                    part("out", "output", serde_json::json!({})),
+                ],
+                vec![["in", "mix.dry"], ["in", "a1"], ["a1", "a2"], ["a2", "a3"], ["a3", "a4"], ["a4", "mix.wet"], ["lfo", "a1.cutoff"], ["lfo", "a2.cutoff"], ["lfo", "a3.cutoff"], ["lfo", "a4.cutoff"], ["mix", "out"]],
+            )
+        }
         _ => return None,
     };
     Some(serde_json::json!({ "parts": parts, "cables": cables }))
@@ -1003,10 +1194,12 @@ impl Chain {
                     let (gain, mix) = (num(side, "gain", 0.0), num(side, "mix", 1.0));
                     let mut keyed = false;
                     for part in &mut d.parts {
-                        if let Kind::Compressor(c) = &mut part.kind {
-                            c.key(gain, mix);
-                            keyed = true;
+                        match &mut part.kind {
+                            Kind::Compressor(c) => c.key(gain, mix),
+                            Kind::Gate(g) => g.key(gain, mix),
+                            _ => continue,
                         }
+                        keyed = true;
                     }
                     if keyed {
                         d.side = Some(sources.iter().position(|s| s == track).unwrap_or_else(|| {
@@ -1160,7 +1353,14 @@ impl Chain {
                 ("compressor", "makeup") => ("makeup", "gain", Scale::Db),
                 ("delay", "time") => ("echo", "time", Scale::Same),
                 ("delay", "feedback") => ("back", "gain", Scale::Same),
-                ("delay" | "reverb", "mix") => ("mix", "amount", Scale::Same),
+                ("delay" | "reverb" | "saturator" | "chorus" | "phaser", "mix") => ("mix", "amount", Scale::Same),
+                ("saturator", "drive") => ("drive", "gain", Scale::Db),
+                ("saturator", "shape") => ("shape", "amount", Scale::Same),
+                ("saturator", "output") | ("limiter", "gain") => (if kind == "limiter" { "gain" } else { "output" }, "gain", Scale::Db),
+                ("autofilter", "cutoff") => ("f", "cutoff", Scale::Same),
+                ("autofilter", "resonance") => ("f", "resonance", Scale::Same),
+                ("autofilter" | "chorus" | "phaser", "rate") => ("lfo", "rate", Scale::Same),
+                ("autofilter" | "chorus" | "phaser", "depth") => ("lfo", "depth", Scale::Same),
                 _ => return None,
             },
         };
@@ -1397,6 +1597,71 @@ mod tests {
 
     fn sine(hz: f64, n: usize) -> Vec<f32> {
         (0..n).map(|i| (TAU * hz * i as f64 / f64::from(RATE)).sin() as f32 * 0.5).collect()
+    }
+
+    fn peak(s: &[f32]) -> f32 {
+        s.iter().fold(0f32, |m, x| m.max(x.abs()))
+    }
+
+    #[test]
+    fn a_gate_lets_through_only_what_is_loud_enough_or_what_its_key_opens() {
+        // A loud second, then a quiet one: the gate at -20 dB passes the first and shuts on the second.
+        let input: Vec<f32> = sine(440.0, 96_000).iter().enumerate().map(|(i, x)| if i < 48_000 { *x } else { x * 0.01 }).collect();
+        let (l, _) = run(json!([{ "id": "g", "kind": "gate", "threshold": -20, "release": 0.01 }]), &input);
+        assert!((rms(&l[4_800..44_000]) / rms(&input[4_800..44_000]) - 1.0).abs() < 0.01);
+        assert!(peak(&l[60_000..]) < 1e-6);
+        // A floor lets some through when shut.
+        let (l, _) = run(json!([{ "id": "g", "kind": "gate", "threshold": -20, "release": 0.01, "floor": -20 }]), &input);
+        assert!((rms(&l[60_000..]) / rms(&input[60_000..]) - 0.1).abs() < 0.01);
+        // Keyed by a track that is silent, it stays shut however loud its own sound.
+        let fx = json!([{ "id": "g", "kind": "gate", "threshold": -20, "sidechain": { "track": "k" } }]);
+        let mut chain = Chain::new(fx.as_array().unwrap(), RATE, 0.5, false).unwrap();
+        assert_eq!(chain.sources(), ["k"]);
+        let (mut a, mut b) = (input.clone(), input);
+        chain.process(&mut a, &mut b, f64::from(RATE));
+        assert!(peak(&a) < 1e-6);
+    }
+
+    #[test]
+    fn a_limiter_keeps_everything_under_its_ceiling() {
+        let loud: Vec<f32> = sine(220.0, 48_000).iter().map(|x| x * 4.0).collect();
+        let (l, r) = run(json!([{ "id": "m", "kind": "limiter", "ceiling": -1 }]), &loud);
+        let ceiling = 10f32.powf(-1.0 / 20.0);
+        assert!(peak(&l) <= ceiling + 1e-6 && peak(&r) <= ceiling + 1e-6);
+        // Held near the ceiling once it has caught the level, not squashed far under it.
+        assert!(peak(&l[24_000..]) > ceiling * 0.9);
+        // Under its ceiling, it only delays.
+        let quiet = sine(220.0, 4_800);
+        let (l, _) = run(json!([{ "id": "m", "kind": "limiter", "ceiling": -1 }]), &quiet);
+        assert!(l[72..].iter().zip(&quiet).all(|(a, b)| (a - b).abs() < 1e-6));
+    }
+
+    #[test]
+    fn saturator_auto_filter_chorus_and_phaser_colour_the_sound_and_at_mix_0_pass_it() {
+        let input = sine(330.0, 48_000);
+        for kind in ["saturator", "chorus", "phaser"] {
+            let (dry, _) = run(json!([{ "id": "x", "kind": kind, "mix": 0 }]), &input);
+            assert!(dry.iter().zip(&input).all(|(a, b)| (a - b).abs() < 1e-6), "{kind}");
+            let (wet, _) = run(json!([{ "id": "x", "kind": kind }]), &input);
+            assert!(wet.iter().zip(&input).any(|(a, b)| (a - b).abs() > 1e-3), "{kind}");
+            assert!(peak(&wet) < 2.0, "{kind}");
+        }
+        // The saturator rounds a loud sine off: its peaks come down relative to its body.
+        let (sat, _) = run(json!([{ "id": "x", "kind": "saturator", "drive": 12, "output": -12, "mix": 1 }]), &input);
+        assert!(f64::from(peak(&sat)) / rms(&sat) < f64::from(peak(&input)) / rms(&input));
+        // The auto filter's LFO sweeps a low-pass over a 2 kHz tone: it comes and goes twice a second.
+        let (swept, _) = run(json!([{ "id": "x", "kind": "autofilter", "cutoff": 1500, "depth": 1400, "rate": 2 }]), &sine(2_000.0, 48_000));
+        let windows: Vec<f64> = (0..8).map(|k| rms(&swept[k * 6_000..(k + 1) * 6_000])).collect();
+        let (lo, hi) = windows.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
+        assert!(hi > 3.0 * lo, "{windows:?}");
+        // With no depth it is a plain low-pass.
+        let (still, _) = run(json!([{ "id": "x", "kind": "autofilter", "cutoff": 500, "depth": 0 }]), &sine(4_000.0, 48_000));
+        assert!(rms(&still[4_800..]) < 0.1 * rms(&sine(4_000.0, 48_000)));
+        // Their settings can be moved.
+        for (kind, setting) in [("saturator", "drive"), ("saturator", "shape"), ("saturator", "output"), ("autofilter", "cutoff"), ("autofilter", "depth"), ("chorus", "rate"), ("phaser", "mix"), ("limiter", "gain")] {
+            let fx = [json!({ "id": "x", "kind": kind })];
+            assert!(Chain::new(&fx, RATE, 0.5, false).unwrap().aim(&fx, "x", setting, 0.5).is_some(), "{kind} {setting}");
+        }
     }
 
     #[test]
