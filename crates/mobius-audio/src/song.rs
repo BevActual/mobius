@@ -395,9 +395,14 @@ pub struct SlotClip {
     #[serde(default)]
     pub audio: Option<Audio>,
     /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
-    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send) and
+    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays).
     #[serde(default)]
     pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
+    /// Envelopes unlinked from the clip (27): each goes round its own loop, in beats from when the clip starts, and
+    /// not the clip's.
+    #[serde(default)]
+    pub unlinked: std::collections::BTreeMap<String, Span>,
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it
@@ -418,9 +423,14 @@ pub struct Clip {
     #[serde(default)]
     pub audio: Option<Audio>,
     /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
-    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    /// volume), `"pan"` (-1 to 1, added to the track's pan), `"send:<return id>"` (0 to 1, a share of the send) and
+    /// `"fx:<effect id>:<setting>"` (the setting itself, in its own units, while the clip plays).
     #[serde(default)]
     pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
+    /// Envelopes unlinked from the clip (27): each goes round its own loop, in beats from when the clip starts, and
+    /// not the clip's.
+    #[serde(default)]
+    pub unlinked: std::collections::BTreeMap<String, Span>,
 }
 
 /// An audio clip's sound (Live 12 manual, chapter 9): a WAV file in the song's folder, from `offset` seconds in, at
