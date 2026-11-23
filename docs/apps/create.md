@@ -144,6 +144,10 @@ A small studio for writing songs as notes.
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
   or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
   keyed. Saved as the effect's `sidechain`.
+- **Modulators** follow the effects: **Add modulator** puts an LFO (Shape, a Rate synced to the song or in Hz, Phase)
+  or an Envelope Follower (Attack, Release) on the track, as Live's devices of those names. **Moves** picks the setting
+  (Volume, Pan, a send or an effect setting) and **Amount** how far, as a share of that setting's range. Saved as the
+  track's `mods`, in the setting's own units.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
   started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
