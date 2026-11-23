@@ -63,10 +63,26 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
  */
 export type Effect =
   | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
-  | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number }
+  | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number; sidechain?: Sidechain }
   | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
   | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number }
-  | { id: string; kind: 'device'; on: boolean; device: Device };
+  | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain };
+/**
+ * Another track keying an effect's compressors (Live 12 manual, 29.9.1 "Sidechain Parameters"): that track's level after
+ * its volume and effects, raised by `gain` dB (-24 to 24, 0 when left out), triggers them, in the share `mix` (0 to 1,
+ * 1 when left out) of the sidechain to the effect's own sound. Automatic makeup is off while keyed.
+ */
+export interface Sidechain { track: string; gain?: number; mix?: number }
+export const SIDECHAIN_GAIN = { lo: -24, hi: 24 } as const;
+/** A sidechain from a file: a track id, with gain and mix in range and left out at their defaults. */
+export function readSidechain(v: unknown): Sidechain | undefined {
+  const o = obj(v);
+  if (typeof o.track !== 'string' || !o.track) return undefined;
+  const side: Sidechain = { track: o.track.slice(0, 40) };
+  if (typeof o.gain === 'number' && Number.isFinite(o.gain) && o.gain !== 0) side.gain = Math.round(Math.max(SIDECHAIN_GAIN.lo, Math.min(SIDECHAIN_GAIN.hi, o.gain)) * 10) / 10;
+  if (typeof o.mix === 'number' && Number.isFinite(o.mix) && o.mix !== 1) side.mix = Math.round(Math.max(0, Math.min(1, o.mix)) * 100) / 100;
+  return side;
+}
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
 export type EffectKind = Exclude<Effect['kind'], 'device'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
@@ -479,12 +495,14 @@ function readFx(list: unknown, where: string, refuse: (why: string) => void): Ef
     if (eo.kind === 'device') {
       const read = parseDevice(eo.device);
       if ('error' in read) { refuse(`${where}, effect ${fxId}: ${read.error}`); return []; }
-      return [{ id: fxId, kind: 'device', on: eo.on !== false, device: read.device }];
+      const side = readSidechain(eo.sidechain);
+      return [{ id: fxId, kind: 'device', on: eo.on !== false, device: read.device, ...(side ? { sidechain: side } : {}) }];
     }
     const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
     if (!kind) return [];
     const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
-    return [{ id: fxId, kind, on: eo.on !== false, ...params } as Effect];
+    const side = kind === 'compressor' ? readSidechain(eo.sidechain) : undefined;
+    return [{ id: fxId, kind, on: eo.on !== false, ...params, ...(side ? { sidechain: side } : {}) } as Effect];
   });
 }
 

@@ -346,6 +346,29 @@ test('an LFO and an envelope follower move a track setting, by a share of its ra
   await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
 });
 
+test('a compressor keyed by another track: Audio From, Gain and Dry/Wet, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Compressor', exact: true }).click();
+  const side = device.getByRole('region', { name: 'Compressor sidechain' });
+  await side.getByRole('combobox', { name: 'Audio From' }).click();
+  await shell().getByRole('option', { name: 'Bass', exact: true }).click();
+  const keyed = () => (saved().tracks[0] as { fx?: { sidechain?: { track: string; gain?: number; mix?: number } }[] }).fx?.[0]?.sidechain;
+  await expect.poll(keyed).toEqual({ track: 't2' });
+  await side.getByRole('slider', { name: 'Gain' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await side.getByRole('slider', { name: 'Dry/Wet' }).focus();
+  await shell().keyboard.press('ArrowLeft');
+  await expect.poll(() => keyed()?.gain).toBeGreaterThan(0);
+  await expect.poll(() => keyed()?.mix).toBeLessThan(1);
+  // None takes the sidechain off.
+  await side.getByRole('combobox', { name: 'Audio From' }).click();
+  await shell().getByRole('option', { name: 'None', exact: true }).click();
+  await expect.poll(keyed).toBeUndefined();
+});
+
 test('a song’s own device plays on the track with the knobs its file names, kept in the song', async () => {
   const TONE = { name: 'Dark Echo', about: 'Echoes that get darker each time round', parts: [
     { id: 'in', kind: 'input' }, { id: 'echo', kind: 'delay', time: 0.75 }, { id: 'tone', kind: 'filter', type: 'lowpass', cutoff: 3000 },
