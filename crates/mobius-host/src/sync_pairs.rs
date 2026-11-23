@@ -426,8 +426,14 @@ impl Syncs {
             match due {
                 Some(pair) => self.run(&pair),
                 None => {
-                    let inner = self.lock();
-                    if inner.now.is_empty() {
+                    let mut inner = self.lock();
+                    // Asked for since `next_due` looked: go round at once, letting go of the lock first (the candidates
+                    // below take it again). A pair asked for and gone since is forgotten, so this never spins.
+                    let ids: std::collections::HashSet<String> = inner.pairs.iter().map(|p| p.id.clone()).collect();
+                    inner.now.retain(|id| ids.contains(id));
+                    if !inner.now.is_empty() {
+                        drop(inner);
+                    } else {
                         let wait = inner
                             .pairs
                             .iter()
