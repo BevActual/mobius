@@ -135,6 +135,10 @@ A small studio for writing songs as notes.
   Volume is a slider; the other settings are knobs, two to a row, with their value in mono under each. Drag a knob
   up or down (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song
   (`pan`, `sound`, `kit`, `pads`), so Mobius can read and set it too.
+- **Instrument Stack** (the stack button by the instrument's name, as Live's Instrument Rack, 22): chains side by side,
+  each with its own instrument, a key zone (Key low and high), a velocity zone, Volume, Pan and Mute. Each note plays on
+  every chain whose zones hold it, in place of the track's instrument, so a split or a layer is a couple of chains.
+  **Add chain** adds one, up to 16. Saved as the track's `stack`.
 - **Effects** follow the instrument, to its right. **Add effect** puts an EQ (three numbered bands on a curve: drag a
   band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,

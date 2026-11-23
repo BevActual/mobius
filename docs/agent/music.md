@@ -22,6 +22,9 @@ Change the song with `files.edit`, not by writing the whole file: it is much fas
 All 13 keys, each within its range: `shape` 0-1 (0 round and sine-like, 1 a bright saw), `detune` 0-50 cents (width), `sub` 0-1, `drive` 0-1 (grit), `cutoff` 80-12000 Hz, `resonance` 0-1, `envAmount` 0-1 (filter opens on each note), `attack` 0.001-2 s, `decay` 0.01-4 s, `sustain` 0-1, `release` 0.02-4 s, `vibrato` 0-50 cents, `rate` 0.1-12 Hz.
 Starting points: piano shape 0.2 cutoff 5000 attack 0.005 decay 0.8 sustain 0.3 release 0.3; bass shape 1 cutoff 700 sustain 1 release 0.08; pad shape 1 detune 14 cutoff 1800 attack 0.25 release 0.5; lead shape 0.7 cutoff 5000. A track with no `sound` uses its instrument's; write all 13 keys when you add one.
 
+## stack (an instrument rack, any track but drums)
+`"stack":{"chains":[{"instrument","sound"?,"keys"?:{"low","high"} MIDI 0-127,"velocities"?:{"low","high"} 1-127,"volume"? 0-2,"pan"? -1 to 1,"muted"?}]}`, up to 16 chains. Each note plays on every chain whose zones hold it, in place of the track's own instrument; no zone plays every note. A split: a bass chain with `keys` 0-59 and a pad chain with `keys` 60-127. A layer: two chains with no zones.
+
 ## kit (drums)
 `"kit":{"tune" -12 to 12 semitones,"decay" 0.5-2 (× how long each rings),"tone" 0 dark to 1 bright}`. One drum on its own: `"pads":{"38":{"tune","decay" 0.25-4,"level" 0-1,"pan"}}`.
 
