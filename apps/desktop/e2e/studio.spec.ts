@@ -327,7 +327,7 @@ test('effects are added to a track, switched off and moved, kept in the song', a
 });
 
 test('a compressor keyed by another track: Audio From, Gain and Dry/Wet, kept in the song', async () => {
-  fs.writeFileSync(file(), JSON.stringify(SONG));
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();
   const device = await openDevice('Keys');
   await device.getByRole('button', { name: 'Add effect' }).click();
