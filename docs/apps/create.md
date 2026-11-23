@@ -140,6 +140,10 @@ A small studio for writing songs as notes.
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
   Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
+- **Sidechain**: a Compressor (and a song's own device with a compressor in it) has a Sidechain section, as in Live
+  (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
+  or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
+  keyed. Saved as the effect's `sidechain`.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
   started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
