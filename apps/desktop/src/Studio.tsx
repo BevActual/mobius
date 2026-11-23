@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -15,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { type AutoChoice, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, toLane } from './studio-auto';
+import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -382,24 +382,110 @@ function SidechainSection({ effect, name, sources, onChange }: { effect: Extract
   );
 }
 
+/** A new effect's id in a stack: the stack's id and a number, unique across its chains (and never a top-level fxN). */
+const freshInnerId = (s: StackEffect): string => { const used = new Set(s.chains.flatMap((c) => c.fx.map((e) => e.id))); let n = 1; while (used.has(`${s.id}-${n}`)) n++; return `${s.id}-${n}`; };
+const dbText = (g: number) => (g <= 0.0001 ? '−∞ dB' : `${20 * Math.log10(g) > 0 ? '+' : ''}${(20 * Math.log10(g)).toFixed(1)} dB`);
+
+/**
+ * A stack of effects (Live 12's Audio Effect Rack, manual 22): its macros as knobs, each mapped to settings in its
+ * chains between two ends, then its chains side by side, each with its own volume, pan, mute and effects.
+ */
+function StackBlock({ effect, at, onChange, onRemove, folded, onFold }: {
+  effect: StackEffect; at: number;
+  folded: boolean; onFold: (folded: boolean) => void;
+  onChange: (fn: (e: StackEffect) => void, tag?: string) => void;
+  onRemove: () => void;
+}) {
+  const targets = stackTargets(effect);
+  const labelOf = (t: string) => targets.find((x) => x.target === t)?.label ?? 'A setting no longer in the stack';
+  const toggleMap = (k: number, t: { target: string; lo: number; hi: number }) => onChange((s) => {
+    const m = s.macros[k];
+    if (!m) return;
+    m.maps = m.maps.some((x) => x.target === t.target) ? m.maps.filter((x) => x.target !== t.target) : [...m.maps, { target: t.target, min: t.lo, max: t.hi }];
+  }, `stack-map:${k}`);
+  const setChain = (ci: number, fn: (c: StackChain) => void, tag = '') => onChange((s) => { const c = s.chains[ci]; if (c) fn(c); }, tag);
+  return (
+    <DeviceFrame className="studio-fx studio-fx-stack" title="Stack" index={at} on={effect.on} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
+      actions={<IconButton label="Remove Stack" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      <div className="studio-fx-body">
+        <ParamGrid label="Stack macros" columns={4}>
+          {effect.macros.map((m, k) => (
+            <div key={k} className="studio-macro">
+              <Knob label={m.name ?? `Macro ${k + 1}`} value={m.value} min={0} max={1} step={0.01} reset={0} format={(v) => `${Math.round(v * 100)}%`}
+                onChange={(v) => onChange((s) => { const x = s.macros[k]; if (x) x.value = Math.round(v * 1000) / 1000; }, `stack-macro:${k}`)} />
+              <Menu label={`Map ${m.name ?? `Macro ${k + 1}`}`} entries={targets.length ? targets.map((t) => ({ label: t.label, checked: m.maps.some((x) => x.target === t.target), run: () => toggleMap(k, t) })) : [{ label: 'Add an effect to a chain first', disabled: true, run: () => {} }]}
+                trigger={<Button kind="quiet" className="studio-macro-map">{m.maps.length ? `${m.maps.length} mapped` : 'Map'}</Button>} />
+            </div>
+          ))}
+        </ParamGrid>
+        {effect.macros.some((m) => m.maps.length) && (
+          <ul className="studio-macro-maps" aria-label="Macro mappings">
+            {effect.macros.flatMap((m, k) => m.maps.map((x, j) => (
+              <li key={`${k}:${x.target}`}>
+                <span>{m.name ?? `Macro ${k + 1}`} → {labelOf(x.target)}</span>
+                <NumberField label="From" value={x.min} min={-1e6} max={1e6} step={0.01} decimals={2} width={5} onChange={(v) => onChange((s) => { const y = s.macros[k]?.maps[j]; if (y) y.min = v; }, `stack-min:${k}:${j}`)} />
+                <NumberField label="To" value={x.max} min={-1e6} max={1e6} step={0.01} decimals={2} width={5} onChange={(v) => onChange((s) => { const y = s.macros[k]?.maps[j]; if (y) y.max = v; }, `stack-max:${k}:${j}`)} />
+                <IconButton label={`Unmap ${labelOf(x.target)}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => onChange((s) => { const y = s.macros[k]; if (y) y.maps = y.maps.filter((_, n) => n !== j); })} />
+              </li>
+            )))}
+          </ul>
+        )}
+        <div className="studio-stack-chains" role="list" aria-label="Stack chains">
+          {effect.chains.map((c, ci) => {
+            const name = c.name ?? `Chain ${ci + 1}`;
+            return (
+              <section key={ci} className="studio-stack-chain" role="listitem" aria-label={name} data-muted={c.muted || undefined}>
+                <div className="studio-stack-chain-head">
+                  <span className="studio-dev-head">{name}</span>
+                  <IconButton label={`Mute ${name}`} pressed={!!c.muted} icon={<span aria-hidden="true">M</span>} onClick={() => setChain(ci, (x) => { if (x.muted) delete x.muted; else x.muted = true; })} />
+                  {effect.chains.length > 1 && <IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => onChange((s) => { s.chains.splice(ci, 1); })} />}
+                </div>
+                <ParamGrid label={`${name} mix`} columns={2}>
+                  <Knob label="Volume" value={c.volume ?? 1} min={0} max={2} step={0.01} reset={1} format={dbText} onChange={(v) => setChain(ci, (x) => { const g = Math.round(v * 1000) / 1000; if (g === 1) delete x.volume; else x.volume = g; }, `stack-vol:${ci}`)} />
+                  <Knob label="Pan" value={c.pan ?? 0} min={-1} max={1} step={0.01} origin={0} reset={0} format={panText} onChange={(v) => setChain(ci, (x) => { const p = Math.round(v * 100) / 100; if (p === 0) delete x.pan; else x.pan = p; }, `stack-pan:${ci}`)} />
+                </ParamGrid>
+                {c.fx.map((e, i) => (
+                  <EffectBlock key={e.id} effect={e} at={i} folded={false} onFold={() => {}}
+                    onChange={(fn, tag) => setChain(ci, (x) => { const y = x.fx.find((f) => f.id === e.id); if (y) fn(y); }, tag ? `${tag}:${e.id}` : '')}
+                    onRemove={() => onChange((s) => {
+                      const x = s.chains[ci];
+                      if (!x) return;
+                      x.fx = x.fx.filter((f) => f.id !== e.id);
+                      // A macro mapped to a setting of the effect taken out lets it go.
+                      for (const m of s.macros) m.maps = m.maps.filter((y) => !y.target.startsWith(`fx:${e.id}:`));
+                    })} />
+                ))}
+                {c.fx.length < 8 && <Menu label={`Add effect to ${name}`} entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onChange((s) => { const x = s.chains[ci]; if (x) x.fx = [...x.fx, newEffect(k, freshInnerId(s))]; }) }))}
+                  trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />}
+              </section>
+            );
+          })}
+          {effect.chains.length < MAX_STACK && <Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />} onClick={() => onChange((s) => { s.chains = [...s.chains, { fx: [] }]; })}>Add chain</Button>}
+        </div>
+      </div>
+    </DeviceFrame>
+  );
+}
+
 function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed, sources = [] }: {
   effect: Effect; at: number;
   /** The tracks that can key its compressors (sidechain). */
   sources?: readonly SideSource[];
-  /** Opens the effect in the Workbench. */
-  onOpen: () => void;
+  /** Opens the effect in the Workbench (none inside a stack). */
+  onOpen?: () => void;
   /** What Mobius changed on this effect and nobody has kept yet: `fx:<id>` for the whole effect, `fx:<id>:<setting>`. */
   proposed?: ReadonlySet<string>;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
 }) {
+  if (effect.kind === 'stack') return <StackBlock effect={effect} at={at} folded={folded} onFold={onFold} onRemove={onRemove} onChange={(fn, tag) => onChange((e) => { if (e.kind === 'stack') fn(e); }, tag)} />;
   if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} sources={sources} onChange={onChange} onRemove={onRemove} onOpen={onOpen} folded={folded} onFold={onFold} proposed={proposed} />;
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
     <DeviceFrame className={`studio-fx studio-fx-${effect.kind}`} title={name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
-      actions={<><BenchButton name={name} onOpen={onOpen} /><IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
+      actions={<>{onOpen && <BenchButton name={name} onOpen={onOpen} />}<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
       <div className="studio-fx-body">
       {effect.kind === 'delay' && (
         <Segmented label="Time" wide value={String(effect.time) as (typeof DELAY_TIMES)[number]['value']} choices={DELAY_TIMES} onChange={(v) => onChange((e) => { (e as Extract<Effect, { kind: 'delay' }>).time = Number(v); }, 'fx:time')} />
@@ -427,7 +513,7 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
 /** A song's own device on the track: its name, what it is for, and the knobs its file names as controls. */
 function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed, sources = [] }: {
   effect: Extract<Effect, { kind: 'device' }>; at: number; proposed?: ReadonlySet<string>; sources?: readonly SideSource[];
-  onOpen: () => void;
+  onOpen?: () => void;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
@@ -435,7 +521,7 @@ function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
   const { device } = effect;
   return (
     <DeviceFrame className="studio-fx studio-fx-device" title={device.name} index={at} on={effect.on} proposed={proposed?.has(`fx:${effect.id}`)} onToggle={(on) => onChange((e) => { e.on = on; })} collapsed={folded} onCollapse={onFold}
-      actions={<><BenchButton name={device.name} onOpen={onOpen} /><IconButton label={`Remove ${device.name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
+      actions={<>{onOpen && <BenchButton name={device.name} onOpen={onOpen} />}<IconButton label={`Remove ${device.name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} /></>}>
       <div className="studio-fx-body">
         {device.about && <p className="studio-fx-about">{device.about}</p>}
         {device.controls.length > 0 && <ParamGrid label={`${device.name} controls`} columns={4}>
@@ -624,7 +710,8 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
             ))}
           </DeviceChain>
         )}
-        <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
+        <Menu label="Add effect" entries={[...EFFECT_KINDS.map((k): MenuEntry => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) })),
+          { label: 'Stack', detail: 'Chains of effects side by side, with macros', separated: true, run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newStack(freshEffectId(t))]; }) }]}
           trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
       </section>
       {/* Then what moves its settings: LFOs and envelope followers, each mapped to one setting. */}
@@ -1061,7 +1148,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const track = song.tracks.find((t) => t.id === selected) ?? song.tracks[0] ?? null;
   const total = song.bars * BEATS_PER_BAR;
   // The Workbench shows its effect while that track stays chosen and the effect is still on it.
-  const benchFx = bench && track && bench.track === track.id ? track.fx?.find((e) => e.id === bench.fx) ?? null : null;
+  const benchFx = bench && track && bench.track === track.id ? track.fx?.find((e): e is Exclude<Effect, StackEffect> => e.id === bench.fx && e.kind !== 'stack') ?? null : null;
   // In the Session view the bottom area edits the chosen clip, which goes round on its own length.
   const clip: Clip | null = view === 'session' && track && clipAt !== null ? (track.slots?.[clipAt] ?? null) : null;
   const span = clip ? clip.bars * BEATS_PER_BAR : total;

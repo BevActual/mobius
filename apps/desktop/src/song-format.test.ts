@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
+import { readSampler, putNotes, trackNotes, SOUND_RANGE, autoValueAt, bend, readAuto, writeSong as writeSongForAuto, sceneCount, sceneName, audible, PAD_DEFAULTS, drumKit, EFFECT_PARAMS, freshEffectId, newEffect, newStack, nextColour, TRACK_COLOURS, changedTracks, freshTrackId, keyPitches, noteName, parseSong, songSeconds, writeSong, ownAt, firstPass, type Song } from './song-format';
 
 const FILE = JSON.stringify({
   tempo: 112, key: 'A minor', bars: 4,
@@ -154,6 +154,22 @@ describe('a track\'s effects', () => {
     const fx = s.tracks[0]!.fx as { sidechain?: unknown }[];
     expect(fx.map((e) => e.sidechain)).toEqual([{ track: 'kick', gain: 24, mix: 0.5 }, { track: 'kick' }, undefined, undefined]);
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+  });
+  it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'fx1', kind: 'stack', chains: [
+        { name: 'Wet', volume: 0.5, pan: -3, muted: true, fx: [{ id: 'fx2', kind: 'reverb', mix: 1 }, { id: 'in', kind: 'stack', chains: [] }] },
+        { fx: [], volume: 1, pan: 0 },
+      ], macros: [{ value: 2, name: 'Space', maps: [{ target: 'fx:fx2:mix', min: 0.1, max: 0.9 }, { target: 'volume', min: 0, max: 1 }] }, {}] },
+    ] }] }));
+    const stack = s.tracks[0]!.fx![0]!;
+    expect(stack).toEqual({ id: 'fx1', kind: 'stack', on: true,
+      chains: [{ name: 'Wet', volume: 0.5, pan: -1, muted: true, fx: [{ ...newEffect('reverb', 'fx2'), mix: 1 }] }, { fx: [] }],
+      macros: [{ name: 'Space', value: 1, maps: [{ target: 'fx:fx2:mix', min: 0.1, max: 0.9 }] }, { value: 0, maps: [] }] });
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+    expect(freshEffectId(s.tracks[0]!)).toBe('fx3');
+    expect(newStack('fx3')).toMatchObject({ kind: 'stack', chains: [{ fx: [] }] });
+    expect(newStack('fx3').macros).toHaveLength(8);
   });
   it('starts a new effect from its defaults with the next free id', () => {
     const t = song(JSON.stringify({ tracks: [{ id: 'a', fx: [{ id: 'fx1', kind: 'reverb' }], notes: [] }] })).tracks[0]!;
