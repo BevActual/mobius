@@ -38,6 +38,8 @@ const fileName = (file: string) => file.split(/[\\/]/).pop()?.replace(/\.[^.]+$/
 /** Adds a track of a sound to the open song, an audio track (Live 12, chapter 9: it plays recordings and samples), or a
  *  Sampler track (36.8: its notes play a sample). */
 const askToAddTrack = (instrument: Instrument | 'audio' | 'sampler') => window.dispatchEvent(new CustomEvent<Instrument | 'audio' | 'sampler'>(ADD_TRACK, { detail: instrument }));
+/** The engine's Freeze, once it has one (music.freeze). */
+type FreezeTrack = (path: string, trackId: string, song?: unknown) => Promise<{ ok: true; file: string } | { ok: false; message: string }>;
 /** The engine's stems export, once it has one (music.renderStems). */
 type RenderStems = (path: string, name: string, song?: unknown) => Promise<{ ok: true; saved: string; path: string; files: { file: string; peakDb: number; over: boolean }[] } | { ok: false; message: string }>;
 /** The order the sidebar lists sounds in: drums first, as most songs start with a beat. */
@@ -172,10 +174,12 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
   const pitches = track.clips.flatMap((c) => c.notes.map((n) => n.pitch));
   const lo = Math.min(...pitches, 127), hi = Math.max(...pitches, 0);
   const span = Math.max(1, hi - lo);
+  // A frozen track's clips stay where they are until it is unfrozen (Live 12, 38.1.4), as proposed ones do until kept.
+  const still = proposed || !!track.frozen;
   // A drag under way: the clip, how, where it began, and where it is now (in beats), shown before it is let go.
   const [drag, setDrag] = useState<{ id: string; size: boolean; x: number; start: number; length: number; now: number } | null>(null);
   const grab = (e: React.PointerEvent, id: string, size: boolean) => {
-    if (e.button !== 0 || proposed) return;
+    if (e.button !== 0 || still) return;
     const c = track.clips.find((x) => x.id === id);
     if (!c) return;
     e.stopPropagation();
@@ -215,6 +219,7 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
             data-muted={c.muted || undefined}
             data-looped={c.loop ? true : undefined}
             data-audio={c.audio ? true : undefined}
+            data-frozen={track.frozen ? true : undefined}
             data-dragging={drag?.id === c.id || undefined}
             style={{ left: start * bw + 1, width: length * bw - 3 }}
             aria-label={`${c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}, ${words}${c.audio ? ', audio' : ''}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
@@ -228,7 +233,7 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
             onKeyDown={(e) => {
               const mod = e.ctrlKey || e.metaKey;
               if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start, c.id); return; }
-              if (proposed) return;
+              if (still) return;
               if ((e.key === 'Delete' || e.key === 'Backspace') && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'delete'); }
               else if (mod && e.key.toLowerCase() === 'd') { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'duplicate'); }
               else if (e.key === '0' && !mod) { e.preventDefault(); e.stopPropagation(); actions.onKey(c.id, 'mute'); }
@@ -244,7 +249,7 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
             </span>}
             {turns.map((at) => <span key={at} className="studio-clip-turn" aria-hidden="true" style={{ left: at * bw }} />)}
             <span className="studio-clip-name">{c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}</span>
-            {!proposed && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
+            {!still && <span className="studio-clip-edge" aria-hidden="true" onPointerDown={(e) => grab(e, c.id, true)} />}
           </button>
         );
       })}
@@ -459,6 +464,9 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }
           <Knob label="Pan" value={track.pan} min={-1} max={1} step={0.01} reset={0} format={panText} proposed={proposed?.has('pan')} onChange={(v) => onTrack((t) => { t.pan = v; }, 'pan')} />
         </ParamGrid>
       </section>
+      {/* Frozen (Live 12, 38.1.4): the instrument and effects are a render now, so they wait, unchangeable, until it is unfrozen. */}
+      {track.frozen && <p className="studio-dev-note studio-dev-frozen" role="status">Frozen: this track plays its render. Unfreeze it from its menu to change its sound.</p>}
+      <div className="studio-dev-lock" inert={!!track.frozen} data-frozen={track.frozen ? true : undefined}>
       {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
       <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
@@ -533,6 +541,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }
         <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
           trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
       </section>
+      </div>
     </div>
   );
 }
@@ -584,10 +593,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [drawLength, setDrawLength] = useState(1);
   // Draw mode (B): a press or a drag on the roll writes notes a grid step long; on a note, it takes notes out.
   const [draw, setDraw] = useState(false);
-  // Automation (A): a Volume line under each track in the Arrange view, drawn with points.
+  // Automation (A): a line under each track in the Arrange view, drawn with points.
   const [showAuto, setShowAuto] = useState(false);
   // The setting each track's automation lane shows, by track id (Volume when not chosen).
   const [autoLane, setAutoLane] = useState<Record<string, string>>({});
+  // The track being frozen, while its render runs (a hook, so above the early returns).
+  const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [gesture, setGestureState] = useState<Gesture | null>(null);
   // The gesture is read back from a ref as well, so a pointer-up that comes before React has drawn the last move still
@@ -1024,6 +1035,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   /** Opens the notes editor on a track, scrolled to `fromBeat`. */
   const openNotes = (id: string, fromBeat = 0, arrangeClipId: string | null = null) => {
     setSelected(id);
+    if (song.tracks.find((t) => t.id === id)?.frozen) { setExported({ text: 'This track is frozen. Unfreeze it to edit its notes.', kind: 'note' }); return; }
     setClipAt(null);
     setOpenClip(arrangeClipId);
     setEditing(true);
@@ -1096,6 +1108,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       const c = song.tracks.find((t) => t.id === trackId)?.clips.find((k) => k.id === id);
       if (!c) return;
       setSelected(trackId);
+      const frozenTrack = song.tracks.find((t) => t.id === trackId);
+      if (frozenTrack?.frozen) { setMenu({ x, y, label: c.name ?? 'Clip', items: [{ label: 'Unfreeze Track', run: () => unfreeze(trackId) }] }); return; }
       setMenu({ x, y, label: c.name ?? 'Clip', items: [
         { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(trackId, c.start) },
         { label: 'Duplicate', keys: 'Ctrl+D', separated: true, disabled: !duplicateArrange(song.tracks.find((t) => t.id === trackId)!.clips, id, song.bars * BEATS_PER_BAR), run: () => arrangeClip(trackId, id, 'duplicate') },
@@ -1163,8 +1177,28 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       ...(missing ? [{ label: `${found.using} (not connected)`, checked: true, disabled: true, separated: true, run: () => {} }] : []),
     ] });
   };
+  /** Renders a track through the engine into Samples/Processed/Freeze and plays that in its place in Arrange. */
+  const freeze = async (trackId: string) => {
+    if (!songs.page || freezing) return;
+    const engine = (await engineReady()) ? (window.mobius?.music as (NonNullable<typeof window.mobius>['music'] & { freeze?: FreezeTrack }) | undefined) : undefined;
+    if (!engine?.freeze) { setExported({ text: engine ? 'Freezing needs a newer Mobius desktop app.' : 'Freezing needs the Mobius desktop app.', kind: 'note' }); return; }
+    const name = song.tracks.find((t) => t.id === trackId)?.name ?? 'track';
+    setFreezing(trackId);
+    setExported({ text: `Freezing “${name}”…`, kind: 'busy' });
+    try {
+      const done = await engine.freeze(songs.page.path, trackId, song);
+      if (!done.ok) { setExported({ text: `Couldn’t freeze “${name}”: ${done.message}`, kind: 'note' }); return; }
+      setTrack(trackId, (t) => { t.frozen = { file: done.file }; });
+      setExported(null);
+    } catch (err) {
+      setExported({ text: `Couldn’t freeze “${name}”: ${err instanceof Error ? err.message : String(err)}`, kind: 'note' });
+    } finally { setFreezing(null); }
+  };
+  const unfreeze = (trackId: string) => setTrack(trackId, (t) => { delete t.frozen; });
   const trackMenu = (t: Track, x: number, y: number) => setMenu({ x, y, label: t.name, items: [
-    { label: 'Edit Notes', keys: 'Enter', run: () => openNotes(t.id) },
+    { label: 'Edit Notes', keys: 'Enter', disabled: !!t.frozen, run: () => openNotes(t.id) },
+    // Freeze (Live 12, 38.1.4): renders the track and plays that, to spare the computer; its mix stays live.
+    t.frozen ? { label: 'Unfreeze Track', run: () => unfreeze(t.id) } : { label: 'Freeze Track', disabled: freezing !== null || (t.kind === 'audio' && t.clips.length === 0), run: () => void freeze(t.id) },
     { action: 'duplicate', keys: 'Ctrl+D', separated: true, run: () => duplicateTrack(t.id) },
     { label: t.muted ? 'Unmute' : 'Mute', keys: 'M', run: () => setTrack(t.id, (v) => { v.muted = !v.muted; }) },
     { label: t.solo ? 'Unsolo' : 'Solo', keys: 'S', run: () => setTrack(t.id, (v) => { v.solo = !v.solo; }) },
@@ -1793,6 +1827,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   <span className="studio-track-no" aria-hidden="true">{String(n + 1).padStart(2, '0')}</span>
                   <input className="studio-track-name" aria-label="Track name" value={t.name} maxLength={60} onChange={(e) => setTrack(t.id, (x) => { x.name = e.target.value; }, `name:${t.id}`)} />
                   {!t.kind && t.name !== INSTRUMENT_NAMES[t.instrument] && <span className="studio-track-sub">{INSTRUMENT_NAMES[t.instrument]}</span>}
+                  {t.frozen && <span className="studio-track-frozen" title="Frozen: it plays its render. Unfreeze it from its menu to edit">Frozen</span>}
                   {t.kind === 'sampler' && <span className="studio-track-sub" title={t.sampler?.file}>{t.sampler ? sampleName(t.sampler.file) : 'No sample'}</span>}
                   {t.kind === 'audio' && armed?.track === t.id && (armed.input !== null
                     ? <button type="button" className="studio-track-sub studio-track-input" title="The sound input this track records: choose another" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>{armed.input}</button>

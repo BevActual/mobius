@@ -397,3 +397,9 @@
 .studio-sample-btn:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 8%, transparent); }
 .studio-sample-btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
 .studio-sample-problem { flex-basis: 100%; margin: 0; font-size: var(--fs-sm); color: var(--danger); }
+
+/* A frozen track (Live 12, 38.1.4): its clips greyed and still, its devices locked until it is unfrozen. */
+.studio-clip[data-frozen] { filter: grayscale(0.85); opacity: 0.75; cursor: default; }
+.studio-track-frozen { flex: none; font-size: var(--fs-xs); color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 0 6px; }
+.studio-dev-lock { display: contents; }
+.studio-dev-lock[data-frozen] > * { opacity: 0.5; }
