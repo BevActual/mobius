@@ -927,8 +927,10 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const armTarget = chosenAudio ? (audioArm === selected ? selected : null) : selected;
   useEffect(() => {
     setArmed(null);
-    void engineReady().then(() => armKeys(armTarget, (heard) => { if (armTarget) setArmed({ track: armTarget, ...heard }); }));
-  }, [armTarget]);
+    // The engine has the song before a track is armed, or arming right after the window opens finds no input.
+    const now = song, path = songs.page?.path ?? null;
+    void engineReady().then(() => { if (now) loadSong(now, path); armKeys(armTarget, (heard) => { if (armTarget) setArmed({ track: armTarget, ...heard }); }); });
+  }, [armTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   // A take the engine saved becomes an audio clip on its track where it was recorded, as one step for undo.
   const changeNow = useRef(change);
   changeNow.current = change;
@@ -947,7 +949,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     }, `take:${take.file}`);
     if (take.lost) setExported({ text: 'The disk fell behind while recording, so the take has gaps.', kind: 'note' });
   }), []);
-  useEffect(() => { if (song) loadSong(song, songs.page?.path ?? null); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Waits for the engine to open, so a song read before it is ready still reaches it.
+  useEffect(() => { if (!song) return; const now = song, path = songs.page?.path ?? null; void engineReady().then(() => loadSong(now, path)); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
