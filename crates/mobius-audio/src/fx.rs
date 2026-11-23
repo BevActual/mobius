@@ -889,6 +889,106 @@ impl Chain {
     }
 }
 
+/// One effect setting that automation moves (Live 12 manual, 25): which device and part of a [`Chain`] it is, and how
+/// the song's value becomes the part's.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Aim {
+    device: usize,
+    part: usize,
+    slot: Slot,
+    scale: Scale,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Slot {
+    /// One of the settings a cable can move (`Part::rest`).
+    Rest(usize),
+    /// A drive's or mix's amount.
+    Amount,
+    /// An LFO's rate in Hz.
+    Rate,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Scale {
+    Same,
+    /// dB in the song, a gain in the part (the compressor's makeup).
+    Db,
+    /// Beats in the song, seconds in the part (a delay's time), at this many seconds a beat.
+    Beats(f64),
+}
+
+impl Chain {
+    /// Where the setting `setting` of the effect `id` in `fx` (the list this chain was made from) lives, or None when
+    /// it is off, can't be moved while playing (a reverb's room, a compressor's curve) or isn't there. A built-in
+    /// effect's settings are named as in its JSON (`"low"`, `"time"`, `"mix"`); a Workbench device's are
+    /// `"<part id>.<setting>"`.
+    #[must_use]
+    pub fn aim(&self, fx: &[Value], id: &str, setting: &str, seconds_per_beat: f64) -> Option<Aim> {
+        let key = fx_key(id);
+        let device = self.devices.iter().position(|d| d.key == key)?;
+        let e = fx.iter().find(|e| e.get("id").and_then(Value::as_str) == Some(id))?;
+        let (part_id, name, scale) = match e.get("kind").and_then(Value::as_str)? {
+            "device" => {
+                let (part, name) = setting.split_once('.')?;
+                (part, name, Scale::Same)
+            }
+            kind => match (kind, setting) {
+                ("eq", "low" | "mid" | "high") => (setting, "gain", Scale::Same),
+                ("eq", "lowFreq") => ("low", "cutoff", Scale::Same),
+                ("eq", "midFreq") => ("mid", "cutoff", Scale::Same),
+                ("eq", "highFreq") => ("high", "cutoff", Scale::Same),
+                ("eq", "midQ") => ("mid", "resonance", Scale::Same),
+                ("compressor", "makeup") => ("makeup", "gain", Scale::Db),
+                ("delay", "time") => ("echo", "time", Scale::Same),
+                ("delay", "feedback") => ("back", "gain", Scale::Same),
+                ("delay" | "reverb", "mix") => ("mix", "amount", Scale::Same),
+                _ => return None,
+            },
+        };
+        let part = part_ids(e).iter().position(|p| p == part_id)?;
+        let slot = match (&self.devices[device].parts.get(part)?.kind, name) {
+            (Kind::Gain, "gain") | (Kind::Filter { .. }, "cutoff") | (Kind::Pan { .. }, "pan") | (Kind::Lfo { .. }, "depth") | (Kind::Delay { .. }, "time") => Slot::Rest(0),
+            (Kind::Filter { kind, .. }, "resonance") if !matches!(kind, FilterType::LowShelf | FilterType::HighShelf) => Slot::Rest(1),
+            (Kind::Filter { .. }, "gain") => Slot::Rest(2),
+            (Kind::Drive { .. } | Kind::Mix { .. }, "amount") => Slot::Amount,
+            (Kind::Lfo { .. }, "rate") => Slot::Rate,
+            _ => return None,
+        };
+        let scale = if matches!(self.devices[device].parts[part].kind, Kind::Delay { .. }) { Scale::Beats(seconds_per_beat) } else { scale };
+        Some(Aim { device, part, slot, scale })
+    }
+
+    /// Puts the setting `aim` names at `value` (as the song has it), from the next sample on.
+    pub fn set(&mut self, aim: Aim, value: f64) {
+        let Some(part) = self.devices.get_mut(aim.device).and_then(|d| d.parts.get_mut(aim.part)) else { return };
+        let value = match aim.scale {
+            Scale::Same => value,
+            Scale::Db => linear(value),
+            Scale::Beats(spb) => (value * spb).clamp(0.0, MAX_DELAY),
+        };
+        match (aim.slot, &mut part.kind) {
+            (Slot::Rest(k), _) => part.rest[k] = value,
+            (Slot::Amount, Kind::Drive { amount }) => *amount = value.clamp(0.0, 1.0),
+            (Slot::Amount, Kind::Mix { amount }) => *amount = value,
+            (Slot::Rate, Kind::Lfo { rate, .. }) => *rate = value.clamp(0.0, 40.0),
+            _ => {}
+        }
+    }
+
+    /// Puts the setting `aim` names back as `from` (a chain made from the same effects) has it: how a chain kept
+    /// ringing through a change of song lets go of automation the song no longer has.
+    pub fn copy_setting(&mut self, from: &Chain, aim: Aim) {
+        let (Some(to), Some(from)) = (self.devices.get_mut(aim.device).and_then(|d| d.parts.get_mut(aim.part)), from.devices.get(aim.device).and_then(|d| d.parts.get(aim.part))) else { return };
+        match (aim.slot, &mut to.kind, &from.kind) {
+            (Slot::Rest(k), _, _) => to.rest[k] = from.rest[k],
+            (Slot::Amount, Kind::Drive { amount }, Kind::Drive { amount: was }) | (Slot::Amount, Kind::Mix { amount }, Kind::Mix { amount: was }) => *amount = *was,
+            (Slot::Rate, Kind::Lfo { rate, .. }, Kind::Lfo { rate: was, .. }) => *rate = *was,
+            _ => {}
+        }
+    }
+}
+
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
@@ -896,6 +996,65 @@ mod tests {
     use serde_json::json;
 
     const RATE: u32 = 48_000;
+
+    /// A setting moved to `value` on a chain made with it at `base` sounds as a chain made with it at `value` does.
+    fn moves_like_set(base: Value, setting: &str, value: f64, json_value: f64) {
+        let input: Vec<f32> = (0..9_600).map(|i| ((i as f32) * 0.05).sin() * if i % 2_400 < 300 { 0.9 } else { 0.1 }).collect();
+        let id = base["id"].as_str().unwrap().to_owned();
+        let mut wanted = base.clone();
+        match setting.split_once('.') {
+            Some((part, name)) => {
+                for p in wanted["device"]["parts"].as_array_mut().unwrap() {
+                    if p["id"] == part {
+                        p[name] = json!(json_value);
+                    }
+                }
+            }
+            None => wanted[setting] = json!(json_value),
+        }
+        let base = [base];
+        let mut chain = Chain::new(&base, RATE, 0.5, false).unwrap();
+        let aim = chain.aim(&base, &id, setting, 0.5).unwrap();
+        chain.set(aim, value);
+        let (mut l, mut r) = (input.clone(), input.clone());
+        chain.process(&mut l, &mut r, f64::from(RATE));
+        let mut made = Chain::new(&[wanted], RATE, 0.5, false).unwrap();
+        let (mut l2, mut r2) = (input.clone(), input);
+        made.process(&mut l2, &mut r2, f64::from(RATE));
+        assert_eq!((l, r), (l2, r2), "{setting}");
+    }
+
+    #[test]
+    fn automation_moves_each_setting_as_if_it_were_set_there() {
+        let eq = json!({ "id": "e", "kind": "eq", "low": 0, "lowFreq": 120, "mid": 0, "midFreq": 1000, "midQ": 1, "high": 0, "highFreq": 6000 });
+        for (setting, value) in [("low", -12.0), ("mid", 6.0), ("high", 3.0), ("lowFreq", 300.0), ("midFreq", 2_000.0), ("midQ", 4.0), ("highFreq", 9_000.0)] {
+            moves_like_set(eq.clone(), setting, value, value);
+        }
+        let delay = json!({ "id": "d", "kind": "delay", "time": 0.75, "feedback": 0.35, "mix": 0.25 });
+        for (setting, value) in [("time", 0.5), ("feedback", 0.7), ("mix", 0.9)] {
+            moves_like_set(delay.clone(), setting, value, value);
+        }
+        moves_like_set(json!({ "id": "c", "kind": "compressor", "threshold": -20, "ratio": 4, "attack": 0.01, "release": 0.2, "makeup": 0 }), "makeup", 6.0, 6.0);
+        moves_like_set(json!({ "id": "r", "kind": "reverb", "size": 1, "damp": 0.4, "mix": 0.25 }), "mix", 0.6, 0.6);
+        let device = json!({ "id": "w", "kind": "device", "device": { "parts": [
+            { "id": "in", "kind": "input" }, { "id": "f", "kind": "filter", "type": "lowpass", "cutoff": 800, "resonance": 0.7, "gain": 0 },
+            { "id": "g", "kind": "gain", "gain": 1 }, { "id": "x", "kind": "drive", "amount": 0.2 }, { "id": "out", "kind": "output" }],
+            "cables": [["in", "f"], ["f", "g"], ["g", "x"], ["x", "out"]] } });
+        for (setting, value) in [("f.cutoff", 2_000.0), ("f.resonance", 3.0), ("g.gain", 0.5), ("x.amount", 0.8)] {
+            moves_like_set(device.clone(), setting, value, value);
+        }
+        // What can't be moved while it plays, or isn't there, has no aim.
+        let base = [json!({ "id": "r", "kind": "reverb", "size": 1, "damp": 0.4, "mix": 0.25 })];
+        let chain = Chain::new(&base, RATE, 0.5, false).unwrap();
+        assert_eq!(chain.aim(&base, "r", "size", 0.5), None);
+        assert_eq!(chain.aim(&base, "nope", "mix", 0.5), None);
+        // Letting go puts a moved setting back as a fresh chain has it.
+        let mut moved = Chain::new(&base, RATE, 0.5, false).unwrap();
+        let aim = moved.aim(&base, "r", "mix", 0.5).unwrap();
+        moved.set(aim, 1.0);
+        moved.copy_setting(&chain, aim);
+        assert!(matches!(moved.devices[0].parts[aim.part].kind, Kind::Mix { amount } if (amount - 0.25).abs() < 1e-12));
+    }
 
     fn run(fx: Value, input: &[f32]) -> (Vec<f32>, Vec<f32>) {
         let mut chain = Chain::new(fx.as_array().unwrap(), RATE, 0.5, false).unwrap();

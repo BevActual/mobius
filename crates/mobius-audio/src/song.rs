@@ -44,11 +44,16 @@ pub struct Main {
     /// Its effects in order, as a track's are.
     #[serde(default)]
     pub fx: Vec<serde_json::Value>,
+    /// Its automation and what of it is overridden, as a track's (`"volume"`).
+    #[serde(default)]
+    pub auto: std::collections::BTreeMap<String, Vec<AutoPoint>>,
+    #[serde(default)]
+    pub auto_off: Vec<String>,
 }
 
 impl Default for Main {
     fn default() -> Main {
-        Main { volume: main_volume(), fx: Vec::new() }
+        Main { volume: main_volume(), fx: Vec::new(), auto: std::collections::BTreeMap::new(), auto_off: Vec::new() }
     }
 }
 
@@ -144,9 +149,19 @@ pub struct Track {
     pub kit: Option<Kit>,
     #[serde(default)]
     pub pads: std::collections::BTreeMap<String, Pad>,
-    /// How its volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`.
+    /// How its volume moves along the song (beats from 0, values 0 to 1); none keeps `volume`. The older form of
+    /// `auto["volume"]`, read when that is not there.
     #[serde(default)]
     pub volume_auto: Vec<AutoPoint>,
+    /// Arrangement automation (Live 12 manual, chapter 25): how a setting moves along the song, by the setting's name:
+    /// `"volume"` (0 to 1), `"pan"` (-1 to 1), `"send:<return id>"` (0 to 1), `"fx:<effect id>:<setting>"` (in the
+    /// setting's own units). A setting with automation plays it in place of its own value.
+    #[serde(default)]
+    pub auto: std::collections::BTreeMap<String, Vec<AutoPoint>>,
+    /// Automation overridden by hand, by the same names: it does not play until re-enabled, as Live's does when a
+    /// control is moved (25.4 "Deleting Automation", the Re-Enable Automation button).
+    #[serde(default)]
+    pub auto_off: Vec<String>,
     /// The Session view's clips, one slot per scene; an empty slot is null.
     #[serde(default)]
     pub slots: Vec<Option<SlotClip>>,
@@ -197,11 +212,47 @@ impl Default for Pad {
     }
 }
 
-/// A point on an automation line: the value at a beat, with straight lines between points.
+/// A point on an automation line: the value at a beat, and how the line bends on its way to the next point (Live 12
+/// manual, 25.5.2: a segment is curved by Alt-dragging it): 0 straight; toward 1 it moves early and eases in, toward -1
+/// it waits and moves late.
 #[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
 pub struct AutoPoint {
     pub beat: f64,
     pub value: f64,
+    #[serde(default)]
+    pub curve: f64,
+}
+
+/// How far along a segment bent by `curve` its value is, `t` of the way (0 to 1) from one point to the next.
+#[must_use]
+pub fn bend(t: f64, curve: f64) -> f64 {
+    let c = curve.clamp(-1.0, 1.0);
+    if c.abs() < 1e-9 { t } else { t.clamp(0.0, 1.0).powf(4f64.powf(-c)) }
+}
+
+/// An automation line's value at each sample of a block: `beat_of(i)` is sample `i`'s beat (rising), and `out` is
+/// filled from where the last call left `at` (a place in `points`), so a block costs a step per sample, not a search.
+pub fn fill_auto(points: &[AutoPoint], beat_of: impl Fn(usize) -> f64, out: &mut [f32], empty: f64) {
+    if points.is_empty() {
+        out.fill(empty as f32);
+        return;
+    }
+    // The first point after the block's first beat.
+    let mut next = points.partition_point(|p| p.beat <= beat_of(0));
+    for (i, v) in out.iter_mut().enumerate() {
+        let beat = beat_of(i);
+        while next < points.len() && points[next].beat <= beat {
+            next += 1;
+        }
+        *v = (if next == 0 {
+            points[0].value
+        } else if next == points.len() {
+            points[next - 1].value
+        } else {
+            let (a, b) = (points[next - 1], points[next]);
+            a.value + bend((beat - a.beat) / (b.beat - a.beat), a.curve) * (b.value - a.value)
+        }) as f32;
+    }
 }
 
 /// The value of an automation line at a beat (song-format.ts `autoValueAt`): flat before the first point and after
@@ -217,7 +268,7 @@ pub fn auto_value_at(points: &[AutoPoint], beat: f64, empty: f64) -> f64 {
     for pair in points.windows(2) {
         let (a, b) = (pair[0], pair[1]);
         if beat <= b.beat {
-            return if b.beat == a.beat { b.value } else { a.value + (beat - a.beat) / (b.beat - a.beat) * (b.value - a.value) };
+            return if b.beat == a.beat { b.value } else { a.value + bend((beat - a.beat) / (b.beat - a.beat), a.curve) * (b.value - a.value) };
         }
     }
     last.value
@@ -232,6 +283,10 @@ pub struct SlotClip {
     /// On an audio track, the sound it plays.
     #[serde(default)]
     pub audio: Option<Audio>,
+    /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
+    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    #[serde(default)]
+    pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it
@@ -251,6 +306,10 @@ pub struct Clip {
     /// On an audio track, the sound it plays.
     #[serde(default)]
     pub audio: Option<Audio>,
+    /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
+    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    #[serde(default)]
+    pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
 }
 
 /// An audio clip's sound (Live 12 manual, chapter 9): a WAV file in the song's folder, from `offset` seconds in, at
@@ -402,6 +461,19 @@ impl Song {
         track.kind.as_deref() == Some("audio")
     }
 
+    /// The automation of `track`'s setting `name`, in beat order, unless it has none or it is overridden.
+    #[must_use]
+    pub fn auto_of(track: &Track, name: &str) -> Vec<AutoPoint> {
+        let fallback = if name == "volume" { track.volume_auto.as_slice() } else { &[] };
+        points_of(&track.auto, &track.auto_off, name, fallback)
+    }
+
+    /// Main's automation of `name` (`"volume"`), as [`Song::auto_of`] a track's.
+    #[must_use]
+    pub fn main_auto_of(&self, name: &str) -> Vec<AutoPoint> {
+        points_of(&self.main.auto, &self.main.auto_off, name, &[])
+    }
+
     /// The sampler a track plays its notes on, if it is a sampler track.
     #[must_use]
     pub fn sampler_of(track: &Track) -> Option<&crate::sampler::SamplerSound> {
@@ -420,9 +492,10 @@ impl Song {
         track.solo = false;
         track.frozen = None;
         track.volume_auto.clear();
+        track.auto.retain(|name, _| name.starts_with("fx:"));
         track.sends.clear();
         track.slots.clear();
-        Some(Song { tracks: vec![track], returns: Vec::new(), main: Main { volume: 1.0, fx: Vec::new() }, ..self.clone() })
+        Some(Song { tracks: vec![track], returns: Vec::new(), main: Main { volume: 1.0, ..Main::default() }, ..self.clone() })
     }
 
     /// The song's length in beats.
@@ -430,6 +503,17 @@ impl Song {
     pub fn beats(&self) -> f64 {
         f64::from(self.bars) * BEATS_PER_BAR
     }
+}
+
+/// The points of `name` in `auto` (or `fallback` when it has none), finite and in beat order; none when it is overridden.
+pub(crate) fn points_of(auto: &std::collections::BTreeMap<String, Vec<AutoPoint>>, off: &[String], name: &str, fallback: &[AutoPoint]) -> Vec<AutoPoint> {
+    if off.iter().any(|n| n == name) {
+        return Vec::new();
+    }
+    let mut points = auto.get(name).map_or_else(|| fallback.to_vec(), Clone::clone);
+    points.retain(|p| p.beat.is_finite() && p.value.is_finite());
+    points.sort_by(|a, b| a.beat.total_cmp(&b.beat));
+    points
 }
 
 #[cfg(test)]
@@ -460,3 +544,4 @@ mod tests {
         assert_eq!(notes, [(40, 4.0, 1.0), (43, 5.5, 0.5), (40, 6.0, 1.0), (43, 7.5, 0.5), (40, 8.0, 1.0), (52, 11.0, 1.0)]);
     }
 }
+

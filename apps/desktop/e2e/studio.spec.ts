@@ -879,3 +879,31 @@ test('a clip in Arrange is moved and stretched by dragging, muted with 0, copied
   await shell().keyboard.press('Control+z');
   await expect(shell().getByRole('button', { name: /^Keys, bar/ })).toHaveCount(2);
 });
+
+/** A short WAV (16-bit mono, 48 kHz) of `seconds` of a quiet tone, for samples. */
+function wav(seconds: number): Buffer {
+  const rate = 48_000;
+  const n = Math.round(seconds * rate);
+  const b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0); b.writeUInt32LE(36 + n * 2, 4); b.write('WAVE', 8); b.write('fmt ', 12);
+  b.writeUInt32LE(16, 16); b.writeUInt16LE(1, 20); b.writeUInt16LE(1, 22); b.writeUInt32LE(rate, 24); b.writeUInt32LE(rate * 2, 28); b.writeUInt16LE(2, 32); b.writeUInt16LE(16, 34);
+  b.write('data', 36); b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin((i / rate) * 2 * Math.PI * 220) * 8000), 44 + i * 2);
+  return b;
+}
+
+test('the Library lists the song’s samples, and one put on the song becomes a Sampler track that plays it', async () => {
+  const samples = path.join(path.dirname(file()), 'Samples');
+  fs.mkdirSync(samples, { recursive: true });
+  fs.writeFileSync(path.join(samples, 'Pluck.wav'), wav(0.5));
+  await start();
+  const lib = shell().locator('.studio-library');
+  await lib.getByRole('navigation', { name: 'Places' }).getByRole('button', { name: 'Samples in this song' }).click();
+  // Its text says what's wrong if it can't list them.
+  await expect(lib.getByRole('listbox', { name: 'Samples' })).toContainText('Pluck');
+  const row = lib.getByRole('listbox', { name: 'Samples' }).getByRole('option', { name: /Pluck/ });
+  // On a track that isn't a sampler, Enter adds a Sampler track for it, named by it.
+  await row.click();
+  await shell().keyboard.press('Enter');
+  await expect.poll(() => (saved().tracks as unknown as { kind?: string; name: string; sampler?: { file: string } }[]).find((t) => t.kind === 'sampler')).toMatchObject({ name: 'Pluck', sampler: { file: 'Samples/Pluck.wav' } });
+});

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SampleSlot, sampleName } from './StudioSample';
+import { SampleSlot, sampleName, withFile } from './StudioSample';
 import { importSample, toBase64 } from './studio-engine';
 
 const noop = () => {};
@@ -15,6 +15,10 @@ describe('the sample slot', () => {
     expect(held).toContain('kick 01');
     expect(held).toContain('Replace…');
     expect(held).toContain('Remove');
+  });
+  it('keeps how a sample plays on a new file, but not its region in the old one', () => {
+    expect(withFile({ file: 'a.wav', mode: 'oneshot', root: 48, start: 0.2, end: 1, loopStart: 0.5, fadeOut: 0.1 }, 'Samples/b.wav')).toEqual({ file: 'Samples/b.wav', mode: 'oneshot', root: 48, fadeOut: 0.1 });
+    expect(withFile(undefined, 'Samples/b.wav')).toEqual({ file: 'Samples/b.wav' });
   });
   it('names a sample by its file', () => expect(sampleName('Samples/Recorded/take 2.wav')).toBe('take 2'));
 });

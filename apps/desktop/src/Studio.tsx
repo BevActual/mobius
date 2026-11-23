@@ -5,8 +5,8 @@ import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
 import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
-import { ClipWave } from './studio-wave';
-import { SampleSlot, sampleName } from './StudioSample';
+import { ClipWave, loadPeaks } from './studio-wave';
+import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
 import { StudioLibrary } from './StudioLibrary';
@@ -1481,6 +1481,33 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
    * (melodic onto melodic, a kit onto drums), else it comes in as a new track; an effect is added to the chosen track.
    * One Undo step either way.
    */
+  /** A sample from the song's folder as an audio clip on an audio track, from `at` (beats) for its own length, replacing what it covers. */
+  const placeSample = async (trackId: string, file: string, at: number) => {
+    const peaks = songs.page ? await loadPeaks(songs.page.path, file) : null;
+    const seconds = peaks ? (peaks.peaks.length * peaks.per) / peaks.rate : 2;
+    change((s) => {
+      const t = s.tracks.find((x) => x.id === trackId);
+      if (!t) return;
+      const taken = new Set(t.clips.map((c) => c.id));
+      let n = t.clips.length + 1;
+      const nextId = () => { while (taken.has(`c${n}`)) n++; taken.add(`c${n}`); return `c${n}`; };
+      const clip = takeClip({ track: trackId, file, start: at, offset: 0, seconds, lost: false }, s.tempo, nextId());
+      t.clips = [...recordOver(t.clips, clip.start, clip.start + clip.length, s.tempo, nextId), clip].sort((a, b) => a.start - b.start);
+      const end = Math.ceil((clip.start + clip.length) / BEATS_PER_BAR);
+      if (end > s.bars) s.bars = end;
+    }, `sample:${file}`);
+  };
+  /** A sample from the Library's Samples place on the chosen track: a sampler plays it, an audio track gets it as a clip at
+   *  the playhead; any other track (or none) gets a new Sampler track for it. */
+  const applySample = (file: string) => {
+    if (track?.kind === 'sampler') { setTrack(track.id, (t) => { t.sampler = withFile(t.sampler, file); }); return; }
+    if (track?.kind === 'audio') { void placeSample(track.id, file, Math.floor(beat)); return; }
+    change((s) => {
+      const id = freshTrackId(s);
+      s.tracks.push({ id, name: sampleName(file).slice(0, 60), kind: 'sampler', sampler: { file }, instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: nextColour(s.tracks), clips: [] });
+      setSelected(id);
+    });
+  };
   const applyLibraryItem = (it: LibraryItem) => {
     if (it.effect) {
       if (!track) return;
@@ -1507,7 +1534,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The Browser (Live 12's): the Library, Collections and Places in one panel; the songs list is its Songs place.
   const songsList = listPanels[0];
   const libraryPanel: PanelSpec = { id: 'library', name: 'Browser', dock: 'left', shown: true, size: 420, keys: 'mod+alt+b', render: () => (
-    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} songs={songsList?.render()} />
+    <StudioLibrary songKey={song.key} target={track ? { name: track.name, drums: track.instrument === 'drums' } : null} onUse={applyLibraryItem} songs={songsList?.render()} songPath={songs.page?.path ?? ''} onUseSample={applySample} />
   ) };
   const detailPanel: PanelSpec | null = editing && track ? { id: 'detail', name: detail === 'notes' ? 'Clip' : 'Devices', dock: 'bottom', group: 'bottom', shown: true, size: 340, reveal: detailReveal, onHide: () => setEditing(false), render: () => (
     <div ref={setEditorEl} className="studio-editor" data-instrument={track.instrument} style={{ '--tc': `var(--c-${track.color})` } as CSSProperties}>
@@ -1775,7 +1802,16 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
                   </div>
                 </div>
-                <div className="studio-lane" style={{ width: total * bw }}>
+                <div className="studio-lane" style={{ width: total * bw }}
+                  onDragOver={t.kind === 'audio' ? (e) => { if (Array.from(e.dataTransfer.types).includes(SAMPLE_DRAG)) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } } : undefined}
+                  onDrop={t.kind === 'audio' ? (e) => {
+                    const file = e.dataTransfer.getData(SAMPLE_DRAG);
+                    if (!file) return;
+                    e.preventDefault();
+                    // Where it was dropped, on the beat.
+                    const at = Math.max(0, Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / bw));
+                    void placeSample(t.id, file, at);
+                  } : undefined}>
                   <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && (() => {
