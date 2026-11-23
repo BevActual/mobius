@@ -1,4 +1,4 @@
-import { LFO_SHAPES, parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
+import { FILTER_TYPES, LFO_SHAPES, parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
 /**
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
@@ -140,17 +140,33 @@ export const newStack = (id: string): StackEffect => ({ id, kind: 'stack', on: t
  * Another track keying an effect's compressors (Live 12 manual, 29.9.1 "Sidechain Parameters"): that track's level after
  * its volume and effects, raised by `gain` dB (-24 to 24, 0 when left out), triggers them, in the share `mix` (0 to 1,
  * 1 when left out) of the sidechain to the effect's own sound. Automatic makeup is off while keyed.
+ * The sidechain EQ (`eq`), with or without a track, lets only its band of what triggers it count: a filter of `type`
+ * at `freq` Hz, with `q` and (shelves and peaking) `gain` dB; `on: false` keeps it but leaves it out.
  */
-export interface Sidechain { track: string; gain?: number; mix?: number }
+export interface Sidechain { track?: string; gain?: number; mix?: number; eq?: SideEq }
+export interface SideEq { type: (typeof FILTER_TYPES)[number]; freq: number; q?: number; gain?: number; on?: false }
 export const SIDECHAIN_GAIN = { lo: -24, hi: 24 } as const;
-/** A sidechain from a file: a track id, with gain and mix in range and left out at their defaults. */
+export const SIDE_EQ_RANGE = { freq: { lo: 20, hi: 20000, start: 100 }, q: { lo: 0.1, hi: 20, start: 0.7 }, gain: { lo: -24, hi: 24, start: 0 } } as const;
+/** A sidechain from a file: a track id and an EQ, either or both, with the rest in range and left out at their defaults. */
 export function readSidechain(v: unknown): Sidechain | undefined {
   const o = obj(v);
-  if (typeof o.track !== 'string' || !o.track) return undefined;
-  const side: Sidechain = { track: o.track.slice(0, 40) };
-  if (typeof o.gain === 'number' && Number.isFinite(o.gain) && o.gain !== 0) side.gain = Math.round(Math.max(SIDECHAIN_GAIN.lo, Math.min(SIDECHAIN_GAIN.hi, o.gain)) * 10) / 10;
-  if (typeof o.mix === 'number' && Number.isFinite(o.mix) && o.mix !== 1) side.mix = Math.round(Math.max(0, Math.min(1, o.mix)) * 100) / 100;
-  return side;
+  const side: Sidechain = {};
+  if (typeof o.track === 'string' && o.track) side.track = o.track.slice(0, 40);
+  if (side.track !== undefined) {
+    if (typeof o.gain === 'number' && Number.isFinite(o.gain) && o.gain !== 0) side.gain = Math.round(Math.max(SIDECHAIN_GAIN.lo, Math.min(SIDECHAIN_GAIN.hi, o.gain)) * 10) / 10;
+    if (typeof o.mix === 'number' && Number.isFinite(o.mix) && o.mix !== 1) side.mix = Math.round(Math.max(0, Math.min(1, o.mix)) * 100) / 100;
+  }
+  const eo = o.eq && typeof o.eq === 'object' ? obj(o.eq) : null;
+  if (eo) {
+    const fit = (x: unknown, r: { lo: number; hi: number; start: number }) => (typeof x === 'number' && Number.isFinite(x) ? Math.round(Math.max(r.lo, Math.min(r.hi, x)) * 1000) / 1000 : r.start);
+    const eq: SideEq = { type: (FILTER_TYPES as readonly string[]).includes(eo.type as string) ? (eo.type as SideEq['type']) : 'lowpass', freq: fit(eo.freq, SIDE_EQ_RANGE.freq) };
+    const q = fit(eo.q, SIDE_EQ_RANGE.q), gain = fit(eo.gain, SIDE_EQ_RANGE.gain);
+    if (q !== SIDE_EQ_RANGE.q.start) eq.q = q;
+    if (gain !== 0) eq.gain = gain;
+    if (eo.on === false) eq.on = false;
+    side.eq = eq;
+  }
+  return side.track !== undefined || side.eq ? side : undefined;
 }
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
 export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
@@ -342,24 +358,38 @@ export const MOD_RANGE = { rate: { lo: 0.01, hi: 40 }, sync: { lo: 0.0625, hi: 6
  * (named as automation is) by `amount`, in that setting's own units, times what it makes, added around where the setting
  * is. An LFO makes -1 to 1 along `shape` (sine when left out), at `rate` Hz, or once every `sync` beats, starting
  * `phase` (0 to 1) round at the song's start. A follower makes 0 to 1 from the track's level, rising over `attack`
- * seconds and falling over `release`. `on: false` turns it off.
+ * seconds and falling over `release`. A shaper (Live 12's Shaper) is timed as an LFO and makes -1 to 1 along the line
+ * its `points` draw through one round (each `beat` 0 to 1 in the round, `value` -1 to 1, `curve` as automation's), up
+ * to 64 of them. `on: false` turns it off.
  */
-export interface Modulator { kind: 'lfo' | 'follow'; target: string; amount: number; rate?: number; sync?: number; shape?: ModShape; phase?: number; attack?: number; release?: number; on?: false }
+export const MAX_SHAPER_POINTS = 64;
+export interface Modulator { points?: AutoPoint[]; kind: 'lfo' | 'shaper' | 'follow'; target: string; amount: number; rate?: number; sync?: number; shape?: ModShape; phase?: number; attack?: number; release?: number; on?: false }
 /** Whether a name is one a modulator or an automation line can move. */
 export const isAutoName = (name: string): boolean => AUTO_NAME.test(name);
 /** A track's modulators from a file: a known kind and target, the rest in range and left out at their defaults. */
+/** A shaper's line from a file: up to 64 points, in order through one round, each in range. */
+export function readShaperPoints(v: unknown): AutoPoint[] {
+  return (Array.isArray(v) ? v : []).flatMap((p): AutoPoint[] => {
+    const o = obj(p);
+    if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
+    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(1, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(-1, Math.min(1, o.value)) * 1e4) / 1e4 };
+    if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1000) / 1000;
+    return [point];
+  }).sort((a, b) => a.beat - b.beat).slice(0, MAX_SHAPER_POINTS);
+}
 export function readMods(v: unknown): Modulator[] | undefined {
   const fit = (x: unknown, r: { lo: number; hi: number }) => (typeof x === 'number' && Number.isFinite(x) ? Math.round(Math.max(r.lo, Math.min(r.hi, x)) * 1e4) / 1e4 : undefined);
   const mods = (Array.isArray(v) ? v : []).slice(0, 16).flatMap((m): Modulator[] => {
     const o = obj(m);
-    if ((o.kind !== 'lfo' && o.kind !== 'follow') || typeof o.target !== 'string' || !AUTO_NAME.test(o.target)) return [];
+    if ((o.kind !== 'lfo' && o.kind !== 'shaper' && o.kind !== 'follow') || typeof o.target !== 'string' || !AUTO_NAME.test(o.target)) return [];
     if (typeof o.amount !== 'number' || !Number.isFinite(o.amount)) return [];
     const mod: Modulator = { kind: o.kind, target: o.target, amount: Math.round(Math.max(-1e6, Math.min(1e6, o.amount)) * 1e4) / 1e4 };
-    if (o.kind === 'lfo') {
+    if (o.kind === 'lfo' || o.kind === 'shaper') {
       const rate = fit(o.rate, MOD_RANGE.rate), sync = fit(o.sync, MOD_RANGE.sync), phase = fit(o.phase, { lo: 0, hi: 1 });
       if (rate !== undefined && rate !== 1) mod.rate = rate;
       if (sync !== undefined) mod.sync = sync;
-      if (typeof o.shape === 'string' && (MOD_SHAPES as readonly string[]).includes(o.shape) && o.shape !== 'sine') mod.shape = o.shape as ModShape;
+      if (o.kind === 'lfo' && typeof o.shape === 'string' && (MOD_SHAPES as readonly string[]).includes(o.shape) && o.shape !== 'sine') mod.shape = o.shape as ModShape;
+      if (o.kind === 'shaper') mod.points = readShaperPoints(o.points);
       if (phase) mod.phase = phase;
     } else {
       const attack = fit(o.attack, MOD_RANGE.attack), release = fit(o.release, MOD_RANGE.release);

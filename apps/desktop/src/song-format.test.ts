@@ -193,6 +193,20 @@ describe('a track\'s effects', () => {
     expect(song(writeSong(s)).tracks[0]!.stack).toEqual(s.tracks[0]!.stack);
     expect(writeSong(s)).not.toContain('"stack":{"chains":[]}');
   });
+  it('keeps a sidechain EQ, with or without a track, in range', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'c', kind: 'compressor', sidechain: { eq: { type: 'highpass', freq: 99999, q: 0.7, gain: 3 } } },
+      { id: 'g', kind: 'gate', sidechain: { track: 'kick', eq: { type: 'wobble', on: false } } },
+      { id: 'd', kind: 'compressor', sidechain: { eq: 'nope', gain: 4 } },
+    ] }] }));
+    const fx = s.tracks[0]!.fx as { sidechain?: unknown }[];
+    expect(fx.map((e) => e.sidechain)).toEqual([
+      { eq: { type: 'highpass', freq: 20000, gain: 3 } },
+      { track: 'kick', eq: { type: 'lowpass', freq: 100, on: false } },
+      undefined,
+    ]);
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+  });
   it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
       { id: 'fx1', kind: 'stack', chains: [
@@ -268,6 +282,7 @@ describe('volume automation', () => {
       { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, rate: 1, sync: 4, shape: 'square', phase: 0.25 },
       { kind: 'lfo', target: 'pan', amount: 0.5, rate: 99, shape: 'sine', on: false },
       { kind: 'follow', target: 'volume', amount: -0.5, attack: 0.01, release: 0.5 },
+      { kind: 'shaper', target: 'volume', amount: 0.25, sync: 2, shape: 'square', points: [{ beat: 0.5, value: -3, curve: 0.4 }, { beat: 0, value: 1 }, { beat: 'x', value: 0 }] },
       { kind: 'wobble', target: 'volume', amount: 1 }, { kind: 'lfo', target: 'bogus', amount: 1 }, { kind: 'lfo', target: 'pan' },
     ] }] }));
     if (!('song' in r)) throw new Error('no song');
@@ -276,6 +291,7 @@ describe('volume automation', () => {
       { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, sync: 4, shape: 'square', phase: 0.25 },
       { kind: 'lfo', target: 'pan', amount: 0.5, rate: 40, on: false },
       { kind: 'follow', target: 'volume', amount: -0.5, release: 0.5 },
+      { kind: 'shaper', target: 'volume', amount: 0.25, sync: 2, points: [{ beat: 0, value: 1 }, { beat: 0.5, value: -1, curve: 0.4 }] },
     ]);
     const again = parseSong(writeSongForAuto(r.song));
     if (!('song' in again)) throw new Error('no song');

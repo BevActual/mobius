@@ -346,6 +346,28 @@ test('an LFO and an envelope follower move a track setting, by a share of its ra
   await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
 });
 
+test('a Shaper draws its own line, and a Gate\'s sidechain EQ is kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  const mods = device.getByRole('region', { name: 'Modulators' });
+  await mods.getByRole('button', { name: 'Add modulator' }).click();
+  await shell().getByRole('menuitem', { name: /^Shaper/ }).click();
+  const shaper = () => (saved().tracks[0] as { mods?: { kind: string; points?: { beat: number; value: number }[] }[] }).mods?.[0];
+  await expect.poll(shaper).toMatchObject({ kind: 'shaper', points: [{ beat: 0, value: 1 }, { beat: 0.5, value: -1 }] });
+  const plot = mods.getByRole('group', { name: 'Shaper line automation' }).locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.75, y: box.height * 0.5 } });
+  await expect.poll(() => shaper()?.points?.length).toBe(3);
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Gate', exact: true }).click();
+  const side = device.getByRole('region', { name: 'Gate sidechain' });
+  await side.getByRole('switch', { name: 'Sidechain EQ' }).click();
+  const gate = () => ((saved().tracks[0] as { fx?: { sidechain?: unknown }[] }).fx ?? [])[0]?.sidechain;
+  await expect.poll(gate).toEqual({ eq: { type: 'highpass', freq: 100 } });
+  await side.getByRole('switch', { name: 'Sidechain EQ' }).click();
+  await expect.poll(gate).toEqual({ eq: { type: 'highpass', freq: 100, on: false } });
+});
+
 test('the newer effects: a Saturator\'s Drive and an Auto Filter\'s type, kept in the song', async () => {
   await start();
   const device = await openDevice('Keys');

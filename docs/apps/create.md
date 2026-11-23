@@ -151,13 +151,15 @@ A small studio for writing songs as notes.
 - **Sidechain**: a Compressor or Gate (and a song's own device with a compressor in it) has a Sidechain section, as in Live
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
   or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
-  keyed. Saved as the effect's `sidechain`.
+  keyed. **Sidechain EQ**, with or without another track, lets only one band of what triggers it count (a type,
+  Frequency, Q and, for a bell or shelf, a gain), so a gate opens on the kick but not the hats. Saved as the effect's
+  `sidechain`.
 - **Stack** (Live's Audio Effect Rack, 22): in Add effect, a Stack runs chains of effects side by side, each with its
   own Volume, Pan, mute and effects (Add chain for another, up to 16). Its eight macros each have a **Map** menu of the
   settings in its chains; a mapped setting moves between From and To as the macro turns. Automation and modulators can
   move a macro or any effect in a chain. Saved as an effect with `kind: "stack"`.
-- **Modulators** follow the effects: **Add modulator** puts an LFO (Shape, a Rate synced to the song or in Hz, Phase)
-  or an Envelope Follower (Attack, Release) on the track, as Live's devices of those names. **Moves** picks the setting
+- **Modulators** follow the effects: **Add modulator** puts an LFO (Shape, a Rate synced to the song or in Hz, Phase),
+  a Shaper (a line you draw through one round, then Rate and Phase as the LFO's) or an Envelope Follower (Attack, Release) on the track, as Live's devices of those names. **Moves** picks the setting
   (Volume, Pan, a send or an effect setting) and **Amount** how far, as a share of that setting's range. Saved as the
   track's `mods`, in the setting's own units.
 - **The notes editor** draws, moves and stretches notes, selects with
