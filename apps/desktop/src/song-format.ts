@@ -139,7 +139,7 @@ export function freshEffectId(track: { fx?: readonly { id: string }[] }): string
  * A clip in the Session view: a short loop of notes for one track, started and stopped live. Its notes start from the
  * clip's own beat 0 and it goes round every `bars` bars.
  */
-export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
+export interface Clip { name: string; bars: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats: see `readEnvelopes`. */ envelopes?: Automation }
 /**
  * An audio clip's sound (Live 12 manual, chapter 9), as the engine reads it (mobius-audio song.rs `Audio`): a WAV file
  * in the song's folder (`file`, relative to it), from `offset` seconds in, at `gainDb`. Unwarped, it plays at its own
@@ -233,6 +233,17 @@ export function readAutomation(v: unknown, beats: number, old?: unknown): Automa
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/**
+ * A clip's envelopes from a file (Live 12 manual, 27 "Clip Envelopes"), in the clip's own beats: "volume" (0 to 1, a
+ * share of the track's volume), "pan" (-1 to 1, added to the track's pan) and "send:<return id>" (0 to 1, a share of
+ * that send). They go round the clip's loop with it.
+ */
+export function readEnvelopes(v: unknown, beats: number): Automation | undefined {
+  const all = readAutomation(v, beats);
+  const out = Object.fromEntries(Object.entries(all ?? {}).filter(([name]) => !name.startsWith('fx:')));
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
 /** The overridden settings (Live 12, 25.4): names, once each. */
 export function readAutoOff(v: unknown): string[] | undefined {
   const names = [...new Set((Array.isArray(v) ? v : []).filter((n): n is string => typeof n === 'string' && AUTO_NAME.test(n)))].slice(0, 64);
@@ -266,7 +277,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  * `offset` (its start marker) in its own time; with a `loop` it goes round from `loop.start` to `loop.end` until
  * `length` runs out, so stretching a looped clip repeats it. The engine plays it the same way (song.rs `notes_of`).
  */
-export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio }
+export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation }
 
 export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
@@ -341,6 +352,8 @@ function readClip(v: unknown, fallbackName: string): Clip | null {
   const clip: Clip = { name: typeof c.name === 'string' && c.name ? c.name.slice(0, 60) : fallbackName, bars, notes: readNotes(c.notes, bars * BEATS_PER_BAR).filter((n) => n.start < bars * BEATS_PER_BAR) };
   const audio = readAudio(c.audio);
   if (audio) clip.audio = audio;
+  const envelopes = readEnvelopes(c.envelopes, bars * BEATS_PER_BAR);
+  if (envelopes) clip.envelopes = envelopes;
   return clip;
 }
 
@@ -576,6 +589,8 @@ function readClips(list: unknown, beats: number): ArrangeClip[] {
     if (c.muted === true) clip.muted = true;
     const audio = readAudio(c.audio);
     if (audio) clip.audio = audio;
+    const envelopes = readEnvelopes(c.envelopes, own);
+    if (envelopes) clip.envelopes = envelopes;
     return [clip];
   }).sort((a, b) => a.start - b.start);
   return read.flatMap((c, i): ArrangeClip[] => {

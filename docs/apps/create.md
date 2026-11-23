@@ -167,6 +167,9 @@ A small studio for writing songs as notes.
   with none, it stays where it is set. Moving an automated knob or fader by hand overrides its line, which greys with a
   Re-enable button; the track menu's Re-Enable Automation brings back every line (Live 12, 25.4). Saved as each
   track's `auto` and `autoOff`.
+- **Clip envelopes** (Live 12, 27): under a clip's notes and velocities, a lane moves that clip's Volume (a share of
+  the track's), Pan (added to the track's) or a send, in the clip's own beats; it goes round the clip's loop and moves
+  with the clip. Its name chooses the setting. Saved as the clip's `envelopes`.
 - **Export as WAV** (the arrow button in the toolbar, or Ctrl+Shift+E): plays the whole song into a file, every track
   through its sound, devices, pan and volume line, plus two seconds for echoes to ring out. 44.1 kHz stereo, saved in
   the workspace's `Exports` folder (Show in folder opens it), never over an earlier export.
