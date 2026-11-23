@@ -144,6 +144,10 @@ A small studio for writing songs as notes.
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
   or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
   keyed. Saved as the effect's `sidechain`.
+- **Modulators** follow the effects: **Add modulator** puts an LFO (Shape, a Rate synced to the song or in Hz, Phase)
+  or an Envelope Follower (Attack, Release) on the track, as Live's devices of those names. **Moves** picks the setting
+  (Volume, Pan, a send or an effect setting) and **Amount** how far, as a share of that setting's range. Saved as the
+  track's `mods`, in the setting's own units.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
   started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
@@ -167,6 +171,9 @@ A small studio for writing songs as notes.
   with none, it stays where it is set. Moving an automated knob or fader by hand overrides its line, which greys with a
   Re-enable button; the track menu's Re-Enable Automation brings back every line (Live 12, 25.4). Saved as each
   track's `auto` and `autoOff`.
+- **Clip envelopes** (Live 12, 27): under a clip's notes and velocities, a lane moves that clip's Volume (a share of
+  the track's), Pan (added to the track's) or a send, in the clip's own beats; it goes round the clip's loop and moves
+  with the clip. Its name chooses the setting. Saved as the clip's `envelopes`.
 - **Export as WAV** (the arrow button in the toolbar, or Ctrl+Shift+E): plays the whole song into a file, every track
   through its sound, devices, pan and volume line, plus two seconds for echoes to ring out. 44.1 kHz stereo, saved in
   the workspace's `Exports` folder (Show in folder opens it), never over an earlier export.

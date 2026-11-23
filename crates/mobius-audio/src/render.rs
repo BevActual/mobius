@@ -6,7 +6,7 @@ use crate::clock::Clock;
 use crate::drum::Hit;
 use std::collections::BTreeMap;
 
-use crate::fx::{pan, Aim, Chain, QUANTUM};
+use crate::fx::{balance, Aim, Chain, QUANTUM};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
 use crate::song::{auto_value_at, fill_auto, AutoPoint, Instrument, Kit, Note, Pad, Song, Sound, BEATS_PER_BAR};
@@ -37,8 +37,6 @@ struct Lane {
     /// Its volume at each sample of a block, when it moves.
     volumes: Vec<f32>,
     pan: f64,
-    /// Whether its sound comes in with two channels: a drum panned on its pad.
-    stereo: bool,
     /// Its Arrange clips with envelopes, in time order (none in the Session view), and each Session slot's envelopes.
     env_spans: Vec<EnvSpan>,
     slot_envs: Vec<Option<Envelopes>>,
@@ -908,7 +906,6 @@ impl Renderer {
                     volumes: moves(&auto, "volume"),
                     auto,
                     pan: t.pan,
-                    stereo,
                     fx_auto: fx_moves(chain.as_ref(), &t.fx, t.auto.keys().chain(mods.iter().map(|(_, m)| &m.target)), |name| arranged(name), modding, 60.0 / song.tempo),
                     mods: mods.iter().map(|(_, m)| Mod::new(m, sample_rate)).collect(),
                     volume_mods: modding("volume"),
@@ -1307,7 +1304,6 @@ impl Renderer {
                     *b *= v;
                 }
                 run_chain(chain, &lane.fx_auto, &lane.mods, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames));
-                let stereo = chain.stereo_out();
                 let key = &mut self.keys[index];
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
@@ -1315,7 +1311,7 @@ impl Renderer {
                         key[i] = scratch[i].abs().max(right_scratch[i].abs());
                     }
                     let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
-                    let (a, b) = if p.abs() < 1e-9 { (a, b) } else { pan(a, b, p, stereo) };
+                    let (a, b) = balance(a, b, p);
                     out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
                 }
                 continue;
@@ -1327,13 +1323,9 @@ impl Renderer {
                 if let Some(k) = self.keys[index].get_mut(i) {
                     *k = (a.abs().max(b.abs()) * volume) as f32;
                 }
-                // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
-                let (l, r) = if lane.stereo && p.abs() > 1e-9 {
-                    pan(a * volume, b * volume, p, true)
-                } else {
-                    let (gl, gr) = if lane.pans.is_empty() { lane.gains } else { pan_gains(p) };
-                    (a * gl * volume, b * gr * volume)
-                };
+                // Each side keeps its own channel (a mono sound has the same on both).
+                let (gl, gr) = if lane.pans.is_empty() { lane.gains } else { pan_gains(p) };
+                let (l, r) = (a * gl * volume, b * gr * volume);
                 out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (l as f32, r as f32), left, right);
             }
         }
@@ -1345,7 +1337,7 @@ impl Renderer {
             }
             for i in 0..frames {
                 let (a, b) = (f64::from(rl[i]) * ret.volume, f64::from(rr[i]) * ret.volume);
-                let (a, b) = if ret.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, ret.pan, true) };
+                let (a, b) = balance(a, b, ret.pan);
                 let (l, r) = (a as f32, b as f32);
                 ret.peak = (ret.peak.0.max((l * mains[i]).abs()), ret.peak.1.max((r * mains[i]).abs()));
                 if !ret.stem.0.is_empty() {

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -15,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { autoChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
+import { type AutoChoice, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -121,6 +121,8 @@ const DRUM_ROW_H = 26;
 const DRUM_KEYS_W = 96;
 /** The velocity lane under the roll. */
 const VEL_H = 64;
+/** The clip envelope lane under the velocities (Live 12, 27). */
+const ENV_H = 64;
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>;
 /** How a clip opens is said on it until the person has opened clips a few times; after that the tip only gets in the way. */
@@ -304,6 +306,54 @@ const BENCH_ICON = 'M3.5 6.5h3M13.5 13.5h3M6.5 6.5c4 0 3 7 7 7M6.5 6.5a1.5 1.5 0
 /** The button on an effect's head that opens it up in the Workbench. */
 const BenchButton = ({ name, onOpen }: { name: string; onOpen: () => void }) => <IconButton label={`Open ${name} in Workbench`} title="See its parts and cables" icon={<Icon d={BENCH_ICON} />} onClick={onOpen} />;
 
+const MOD_NAMES = { lfo: 'LFO', follow: 'Envelope Follower' } as const;
+const MOD_DETAILS = { lfo: 'Moves a setting up and down in a repeating shape', follow: 'Moves a setting with the track’s own level' } as const;
+const SHAPE_CHOICES = [{ value: 'sine', label: 'Sine' }, { value: 'triangle', label: 'Triangle' }, { value: 'square', label: 'Square' }, { value: 'saw', label: 'Saw up' }, { value: 'ramp', label: 'Saw down' }] as const;
+/** An LFO synced to the song: beats for once round, as note values and bars. */
+const SYNC_CHOICES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '1', label: '1/4' }, { value: '2', label: '1/2' }, { value: '4', label: '1 bar' }, { value: '8', label: '2 bars' }, { value: '16', label: '4 bars' }, { value: '32', label: '8 bars' }];
+const RATE_MODES = [{ value: 'sync', label: 'Sync' }, { value: 'hz', label: 'Hz' }] as const;
+const MISSING_TARGET = ' missing';
+const timeText = (v: number) => (v < 1 ? `${Math.round(v * 1000)} ms` : `${v.toFixed(2)} s`);
+
+/**
+ * A modulator on the track (Live 12's LFO and Envelope Follower devices, mapped to one setting): what it moves, and by
+ * how much as a share of that setting's range (saved in the setting's own units), then its own settings.
+ */
+function ModBlock({ mod, at, choices, onChange, onRemove }: { mod: Modulator; at: number; choices: readonly AutoChoice[]; onChange: (fn: (m: Modulator) => void, tag?: string) => void; onRemove: () => void }) {
+  const name = MOD_NAMES[mod.kind];
+  const target = choices.find((c) => c.name === mod.target);
+  const span = target ? target.hi - target.lo : 1;
+  const targets = [...choices.map((c) => ({ value: c.name, label: c.label })), ...(target ? [] : [{ value: MISSING_TARGET, label: 'A setting no longer on the track' }])];
+  const pct = (v: number) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(Math.round(v * 100))}%`;
+  const syncs = mod.sync === undefined || SYNC_CHOICES.some((c) => c.value === String(mod.sync)) ? SYNC_CHOICES : [...SYNC_CHOICES, { value: String(mod.sync), label: `${mod.sync} beats` }];
+  return (
+    <DeviceFrame className="studio-mod" title={name} index={at} on={mod.on !== false} onToggle={(on) => onChange((m) => { if (on) delete m.on; else m.on = false; })}
+      actions={<IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      <div className="studio-fx-body">
+        <Select label="Moves" value={target ? mod.target : MISSING_TARGET} choices={targets}
+          onChange={(v) => { const next = choices.find((c) => c.name === v); if (next) onChange((m) => { const share = m.amount / span; m.target = next.name; m.amount = Math.round(share * (next.hi - next.lo) * 1e4) / 1e4; }, 'mod:target'); }} />
+        {mod.kind === 'lfo' && <>
+          <Select label="Shape" value={mod.shape ?? 'sine'} choices={SHAPE_CHOICES} onChange={(v) => onChange((m) => { if (v === 'sine') delete m.shape; else m.shape = v; }, 'mod:shape')} />
+          <Segmented label="Rate in" wide value={mod.sync !== undefined ? 'sync' : 'hz'} choices={RATE_MODES} onChange={(v) => onChange((m) => { if (v === 'sync') m.sync = 4; else delete m.sync; }, 'mod:mode')} />
+          {mod.sync !== undefined && <Select label="Rate" value={String(mod.sync)} choices={syncs} onChange={(v) => onChange((m) => { m.sync = Number(v); }, 'mod:sync')} />}
+        </>}
+        <ParamGrid label={`${name} settings`} columns={3}>
+          <Knob label="Amount" value={Math.max(-1, Math.min(1, mod.amount / span))} min={-1} max={1} step={0.01} origin={0} reset={0} format={pct}
+            onChange={(v) => onChange((m) => { m.amount = Math.round(v * span * 1e4) / 1e4; }, 'mod:amount')} />
+          {mod.kind === 'lfo' && mod.sync === undefined && <Knob label="Rate" value={mod.rate ?? 1} min={MOD_RANGE.rate.lo} max={MOD_RANGE.rate.hi} step={0.01} scale="log" reset={1} format={(v) => `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`}
+            onChange={(v) => onChange((m) => { const r = Math.round(v * 100) / 100; if (r === 1) delete m.rate; else m.rate = r; }, 'mod:rate')} />}
+          {mod.kind === 'lfo' && <Knob label="Phase" value={mod.phase ?? 0} min={0} max={1} step={1 / 360} reset={0} format={(v) => `${Math.round(v * 360)}°`}
+            onChange={(v) => onChange((m) => { const p = Math.round(v * 1e4) / 1e4; if (p === 0) delete m.phase; else m.phase = p; }, 'mod:phase')} />}
+          {mod.kind === 'follow' && <>
+            <Knob label="Attack" value={mod.attack ?? 0.01} min={MOD_RANGE.attack.lo} max={MOD_RANGE.attack.hi} step={0.001} scale="log" reset={0.01} format={timeText} onChange={(v) => onChange((m) => { m.attack = Math.round(v * 1000) / 1000; }, 'mod:attack')} />
+            <Knob label="Release" value={mod.release ?? 0.2} min={MOD_RANGE.release.lo} max={MOD_RANGE.release.hi} step={0.01} scale="log" reset={0.2} format={timeText} onChange={(v) => onChange((m) => { m.release = Math.round(v * 1000) / 1000; }, 'mod:release')} />
+          </>}
+        </ParamGrid>
+      </div>
+    </DeviceFrame>
+  );
+}
+
 /** A track that can key a compressor: any other track, by id and name. */
 type SideSource = { id: string; name: string };
 const NO_SIDECHAIN = ' none';
@@ -463,8 +513,10 @@ function SamplerSection({ track, songPath, onTrack }: { track: Track; songPath: 
  * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
  * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', sources = [] }: {
+export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', sources = [], returns = [] }: {
   track: Track | null;
+  /** The song's return tracks, whose sends a modulator can move. */
+  returns?: readonly ReturnTrack[];
   /** The song's other tracks, which can key a compressor on this one (sidechain). */
   sources?: readonly SideSource[];
   /** The open song's page, for a sample dropped on a sampler or a pad. */
@@ -575,6 +627,16 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
         <Menu label="Add effect" entries={EFFECT_KINDS.map((k) => ({ label: EFFECT_NAMES[k], detail: EFFECT_DETAILS[k], run: () => onTrack((t) => { t.fx = [...(t.fx ?? []), newEffect(k, freshEffectId(t))]; }) }))}
           trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add effect</Button>} />
       </section>
+      {/* Then what moves its settings: LFOs and envelope followers, each mapped to one setting. */}
+      <section className="studio-fx-chain studio-mods" aria-label="Modulators">
+        {(track.mods ?? []).map((m, i) => (
+          <ModBlock key={i} mod={m} at={i} choices={autoChoices(track, returns)}
+            onChange={(fn, tag) => onTrack((t) => { const x = t.mods?.[i]; if (x) fn(x); }, tag ? `${tag}:${i}` : undefined)}
+            onRemove={() => onTrack((t) => { t.mods = (t.mods ?? []).filter((_, j) => j !== i); if (t.mods.length === 0) delete t.mods; })} />
+        ))}
+        {(track.mods?.length ?? 0) < 8 && <Menu label="Add modulator" entries={(['lfo', 'follow'] as const).map((k) => ({ label: MOD_NAMES[k], detail: MOD_DETAILS[k], run: () => onTrack((t) => { t.mods = [...(t.mods ?? []), k === 'lfo' ? { kind: 'lfo', target: 'volume', amount: 0.25, sync: 4 } : { kind: 'follow', target: 'volume', amount: -0.5 }]; }) }))}
+          trigger={<Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />}>Add modulator</Button>} />}
+      </section>
       </div>
     </div>
   );
@@ -631,6 +693,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [showAuto, setShowAuto] = useState(false);
   // The setting each track's automation lane shows, by track id (Volume when not chosen).
   const [autoLane, setAutoLane] = useState<Record<string, string>>({});
+  // The setting each clip's envelope lane shows, by clip (Volume when not chosen).
+  const [envLane, setEnvLane] = useState<Record<string, string>>({});
   // The track being frozen, while its render runs (a hook, so above the early returns).
   const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -997,11 +1061,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // Where the playhead is in what the bottom area shows: the clip's own time round, or nowhere when it is not playing.
   const clipPlaying = clip && track ? sessionNow.playing[track.id] : undefined;
   const rollBeat = view === 'arrange' ? beat : clip && clipPlaying && clipPlaying.slot === clipAt ? (((beat - clipPlaying.start) % span) + span) % span : -1;
+  const arrClip = !clip && view === 'arrange' && track ? track.clips.find((c) => c.id === openClip) ?? null : null;
   const inKey = keyPitches(song.key);
   const drums = track?.instrument === 'drums';
   // Drum rows grow to fill the editor (there are only six), up to a comfortable pad size.
   // The list fits its tracks and the row for adding one after them.
-  const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((editorH - 38 - VEL_H - 2) / DRUMS.length))) : ROW_H;
+  const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((editorH - 38 - VEL_H - ((clip ?? arrClip) ? ENV_H : 0) - 2) / DRUMS.length))) : ROW_H;
   const keysW = drums ? DRUM_KEYS_W : KEYS_W;
   const rows = drums ? DRUMS.map((d) => ({ pitch: d.pitch, label: d.name, shade: false, black: false, c: true })) : Array.from({ length: MELODY_TOP - MELODY_BOTTOM + 1 }, (_, i) => MELODY_TOP - i).map((p) => ({ pitch: p, label: noteName(p), shade: !inKey.has(p % 12), black: isBlack(p), c: p % 12 === 0 }));
   const rowOf = (pitch: number) => rows.findIndex((r) => r.pitch === pitch);
@@ -1013,7 +1078,6 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // Worked out on each render: this is after the early returns above, where no hook may be.
   const notes = clip ? clip.notes : track ? trackNotes(track) : [];
   // The Arrange clip opened from its block, while it's still there and the notes editor shows Arrange.
-  const arrClip = !clip && view === 'arrange' && track ? track.clips.find((c) => c.id === openClip) ?? null : null;
   // A looped clip's later passes, drawn faintly after its first: they play what the first pass holds, and change with it.
   const echoes = !clip && track ? track.clips.flatMap((c) => {
     if (!c.loop) return [];
@@ -1657,7 +1721,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     <StudioWorkbench device={benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
-    <StudioDevice track={track} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+    <StudioDevice track={track} returns={song.returns ?? []} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
   ) : drumView === 'steps' ? (
@@ -1753,6 +1817,38 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       {rollBeat >= 0 && <span className="studio-playhead" style={{ left: rollBeat * rbw }} aria-hidden="true" />}
     </div>
   </div>
+  {(clip || arrClip) && (() => {
+    // The open clip's envelope (Live 12, 27), in its own beats: a Session clip fills the editor; an Arrange clip's own
+    // beat 0 sits where its start would be, its offset back, and the lane shows its first time round its loop.
+    const c = (clip ?? arrClip)!;
+    // A looped clip's envelope goes round its loop as its notes do, so its lane ends at the loop's end.
+    const own = clip ? span : arrClip!.loop ? arrClip!.loop.end : ownLength(arrClip!);
+    const at = clip ? 0 : arrClip!.start - (arrClip!.offset ?? 0);
+    const choices = envelopeChoices(song.returns);
+    const envKey = clip ? `${track.id}:${clipAt}` : arrClip!.id;
+    const lane = choices.find((x) => x.name === envLane[envKey]) ?? choices[0]!;
+    const was = c.envelopes?.[lane.name] ?? [];
+    const name = (clip ? clip.name : arrClip!.name) ?? track.name;
+    const put = (next: { beat: number; value: number }[]) => {
+      const points = fromLane(next, was, lane);
+      if (clip && clipAt !== null) setClip(track.id, clipAt, (x) => setEnvelope(x, lane.name, points), `env:${lane.name}`);
+      else if (arrClip) editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; setEnvelope(y, lane.name, points); return y; }), `env:${arrClip.id}:${lane.name}`);
+    };
+    return (
+      <div className="studio-env" role="group" aria-label={`Envelopes of ${name}`} style={{ height: ENV_H, ['--keys' as string]: `${keysW}px` }}>
+        <span className="studio-vel-label studio-env-label">
+          <button type="button" className="studio-auto-name" aria-haspopup="menu" title="Choose the setting this envelope moves" aria-label={`${name} envelope: ${lane.label}`}
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane((m) => ({ ...m, [envKey]: x.name })) })) }); }}>{lane.label}</button>
+        </span>
+        <div className="studio-env-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)` }}>
+          <div className="studio-env-clip" style={{ left: at * rbw, width: own * rbw }}>
+            <AutomationLane className="studio-env-lane" label={`${lane.label} envelope`} head={false} color={track.color} points={toLane(was, lane)} beats={own} pxPerBeat={rbw} empty={laneEmpty(lane)}
+              format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : undefined} onChange={put} />
+          </div>
+        </div>
+      </div>
+    );
+  })()}
   </>}
     </div>
   ) } : null;

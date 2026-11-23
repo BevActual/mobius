@@ -326,6 +326,26 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect(device.getByRole('region', { name: 'Oscillator' })).toBeVisible();
 });
 
+test('an LFO and an envelope follower move a track setting, by a share of its range, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify(SONG));
+  await start();
+  const device = await openDevice('Keys');
+  const mods = device.getByRole('region', { name: 'Modulators' });
+  await mods.getByRole('button', { name: 'Add modulator' }).click();
+  await shell().getByRole('menuitem', { name: /^LFO/ }).click();
+  const saved0 = () => (saved().tracks[0] as { mods?: { kind: string; target: string; amount: number; sync?: number }[] }).mods;
+  await expect.poll(() => saved0()?.[0]).toMatchObject({ kind: 'lfo', target: 'volume', amount: 0.25, sync: 4 });
+  // Pan runs -1 to 1, so the same share of its range is twice the amount in its own units.
+  await mods.getByRole('combobox', { name: 'Moves' }).click();
+  await shell().getByRole('option', { name: 'Pan', exact: true }).click();
+  await expect.poll(() => saved0()?.[0]).toMatchObject({ target: 'pan', amount: 0.5 });
+  await mods.getByRole('button', { name: 'Add modulator' }).click();
+  await shell().getByRole('menuitem', { name: /^Envelope Follower/ }).click();
+  await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['lfo', 'follow']);
+  await mods.getByRole('button', { name: 'Remove LFO' }).click();
+  await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
+});
+
 test('a compressor keyed by another track: Audio From, Gain and Dry/Wet, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();
@@ -686,6 +706,23 @@ test('automation draws a volume or pan line under a track with points, kept in t
   await shell().locator('.studio-page').focus();
   await shell().keyboard.press('a');
   await expect(lane).toHaveCount(0);
+});
+
+test('a clip envelope moves the open clip’s volume or pan in its own beats, kept with the clip', async () => {
+  await start();
+  await openNotes('Keys');
+  const env = shell().getByRole('group', { name: /^Envelopes of / });
+  const plot = env.getByRole('group', { name: 'Volume envelope automation' }).locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.1, y: box.height * 0.8 } });
+  const envelopes = () => (saved().tracks[0]!.clips?.[0] as { envelopes?: Record<string, { beat: number; value: number }[]> } | undefined)?.envelopes;
+  await expect.poll(() => envelopes()?.volume?.length).toBe(1);
+  expect(envelopes()!.volume![0]!.value).toBeLessThan(0.5);
+  // Its name chooses the setting: Pan is added to the track's, -1 (left) to 1.
+  await env.getByRole('button', { name: /envelope: Volume/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: /^Pan/ }).click();
+  await env.getByRole('group', { name: 'Pan envelope automation' }).locator('.ui-lane-plot').click({ position: { x: box.width * 0.1, y: box.height * 0.1 } });
+  await expect.poll(() => envelopes()?.pan?.[0]?.value ?? 0).toBeGreaterThan(0.5);
 });
 
 test('Export as WAV renders the song and saves it in the Exports folder', async () => {

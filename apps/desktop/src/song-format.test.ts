@@ -209,6 +209,37 @@ describe('volume automation', () => {
     expect(again.song.tracks[0]!.auto).toEqual(t.auto);
     expect(again.song.tracks[0]!.autoOff).toEqual(['pan']);
   });
+  it('keeps a track\'s modulators, in range, with their defaults left out, and drops unknown kinds and targets', () => {
+    const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [], mods: [
+      { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, rate: 1, sync: 4, shape: 'square', phase: 0.25 },
+      { kind: 'lfo', target: 'pan', amount: 0.5, rate: 99, shape: 'sine', on: false },
+      { kind: 'follow', target: 'volume', amount: -0.5, attack: 0.01, release: 0.5 },
+      { kind: 'wobble', target: 'volume', amount: 1 }, { kind: 'lfo', target: 'bogus', amount: 1 }, { kind: 'lfo', target: 'pan' },
+    ] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    const mods = r.song.tracks[0]!.mods;
+    expect(mods).toEqual([
+      { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, sync: 4, shape: 'square', phase: 0.25 },
+      { kind: 'lfo', target: 'pan', amount: 0.5, rate: 40, on: false },
+      { kind: 'follow', target: 'volume', amount: -0.5, release: 0.5 },
+    ]);
+    const again = parseSong(writeSongForAuto(r.song));
+    if (!('song' in again)) throw new Error('no song');
+    expect(again.song.tracks[0]!.mods).toEqual(mods);
+  });
+  it('keeps a clip\'s envelopes in its own beats, Session and Arrange, without effect settings', () => {
+    const env = { volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 99, value: 1 }], pan: [{ beat: 2, value: -2 }], 'fx:d:mix': [{ beat: 0, value: 1 }] };
+    const r = parseSong(JSON.stringify({ version: 2, tempo: 100, key: 'C major', bars: 8, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8,
+      clips: [{ id: 'c', start: 0, length: 8, notes: [], envelopes: env }], slots: [{ name: 'S', bars: 1, notes: [], envelopes: env }] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    const t = r.song.tracks[0]!;
+    expect(t.clips[0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 8, value: 1 }], pan: [{ beat: 2, value: -1 }] });
+    expect(t.slots![0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 4, value: 1 }], pan: [{ beat: 2, value: -1 }] });
+    const again = parseSong(writeSongForAuto(r.song));
+    if (!('song' in again)) throw new Error('no song');
+    expect(again.song.tracks[0]!.clips[0]!.envelopes).toEqual(t.clips[0]!.envelopes);
+    expect(again.song.tracks[0]!.slots![0]!.envelopes).toEqual(t.slots![0]!.envelopes);
+  });
   it('bends a curved segment as the engine does', () => {
     const line = [{ beat: 0, value: 0, curve: 1 }, { beat: 4, value: 1 }];
     expect(autoValueAt(line, 2, 0)).toBeCloseTo(0.5 ** 0.25);
