@@ -106,6 +106,8 @@ impl Send {
 /// An effect setting that moves: where it is in the chain, where it rests (as the song has it), its automation and the
 /// modulators on it (by their place in the lane's).
 struct Move {
+    /// What it moves, as automation names it (`"fx:<effect id>:<setting>"`).
+    name: String,
     aim: Aim,
     rest: f64,
     points: Vec<AutoPoint>,
@@ -278,20 +280,68 @@ fn run_mods(mods: &mut [Mod], sound: (&[f32], &[f32]), moving: Moving<'_>, clock
 }
 
 /// A clip's envelopes (Live 12 manual, 27), in its own beats, as they move what its track plays: a share of its
-/// volume, an amount added to its pan, a share of each send (by its place in the track's sends).
+/// volume, an amount added to its pan, a share of each send (by its place in the track's sends), and its effect
+/// settings themselves (by their place in the track's automated settings).
 #[derive(Default)]
 struct Envelopes {
-    volume: Vec<AutoPoint>,
-    pan: Vec<AutoPoint>,
-    sends: Vec<Vec<AutoPoint>>,
+    volume: Env,
+    pan: Env,
+    sends: Vec<Env>,
+    settings: Vec<Env>,
+}
+
+/// One envelope: its points, and, when unlinked from the clip, its own loop (27).
+#[derive(Default)]
+struct Env {
+    points: Vec<AutoPoint>,
+    unlinked: Option<(f64, f64)>,
+}
+
+impl Env {
+    fn is_empty(&self) -> bool {
+        self.points.is_empty()
+    }
+
+    /// Its value with the clip at its own beat `own`, `played` beats after it started: an unlinked one goes round
+    /// its own loop from when the clip started.
+    fn at(&self, own: f64, played: f64) -> f64 {
+        match self.unlinked {
+            Some((from, to)) => env_at(&self.points, from + played.max(0.0).rem_euclid(to - from)),
+            None => env_at(&self.points, own),
+        }
+    }
 }
 
 impl Envelopes {
-    /// The envelopes of `env` that move a track with these `sends`; None when there are none.
-    fn of(env: &BTreeMap<String, Vec<AutoPoint>>, sends: &[Send]) -> Option<Envelopes> {
-        let points = |name: &str| crate::song::points_of(env, &[], name, &[]);
-        let e = Envelopes { volume: points("volume"), pan: points("pan"), sends: sends.iter().map(|s| points(&s.name)).collect() };
-        (!e.volume.is_empty() || !e.pan.is_empty() || e.sends.iter().any(|p| !p.is_empty())).then_some(e)
+    /// The envelopes of a clip (`env`, and those of them `unlinked`) that move a track with these `sends` and these
+    /// automated effect `settings`; None when there are none.
+    fn of(env: &BTreeMap<String, Vec<AutoPoint>>, unlinked: &BTreeMap<String, crate::song::Span>, sends: &[Send], settings: &[Move]) -> Option<Envelopes> {
+        let one = |name: &str| Env {
+            points: crate::song::points_of(env, &[], name, &[]),
+            unlinked: unlinked.get(name).filter(|l| l.start.is_finite() && l.end.is_finite() && l.end > l.start).map(|l| (l.start, l.end)),
+        };
+        let e = Envelopes { volume: one("volume"), pan: one("pan"), sends: sends.iter().map(|s| one(&s.name)).collect(), settings: settings.iter().map(|m| one(&m.name)).collect() };
+        (!e.volume.is_empty() || !e.pan.is_empty() || e.sends.iter().any(|p| !p.is_empty()) || e.settings.iter().any(|p| !p.is_empty())).then_some(e)
+    }
+}
+
+/// The Session slot playing, with its envelopes: Some(None) when Arrange plays, None when the slot playing has none.
+fn playing_slot(slot_envs: &[Option<Envelopes>], slot: Option<(f64, f64, usize)>) -> Option<Option<(f64, f64, &Envelopes)>> {
+    match slot {
+        Some((length, start, at)) => slot_envs.get(at).and_then(Option::as_ref).map(|env| Some((length, start, env))),
+        None => Some(None),
+    }
+}
+
+/// The envelopes of the clip playing at `beat` (the Session slot, or the Arrange clip there), its own beat there and
+/// how many beats it has played.
+fn clip_at<'a>(env_spans: &'a [EnvSpan], slot: Option<(f64, f64, &'a Envelopes)>, beat: f64) -> Option<(&'a Envelopes, f64, f64)> {
+    match slot {
+        Some((length, start, env)) => (beat >= start).then(|| (env, (beat - start).rem_euclid(length), beat - start)),
+        None => {
+            let k = env_spans.partition_point(|s| s.end <= beat);
+            env_spans.get(k).filter(|s| s.start <= beat).map(|s| (&s.env, s.own_beat(beat), beat - s.start))
+        }
     }
 }
 
@@ -389,35 +439,21 @@ impl Lane {
     /// shares of where they are, pan is added to it (Live 12 manual, 27).
     fn modulate(&mut self, beat_of: impl Fn(usize) -> f64, frames: usize, slot: Option<(f64, f64, usize)>) {
         let Lane { env_spans, slot_envs, volumes, pans, sends, .. } = self;
-        let slot = match slot {
-            Some((length, start, at)) => match slot_envs.get(at).and_then(Option::as_ref) {
-                Some(env) => Some((length, start, env)),
-                None => return,
-            },
-            None => None,
-        };
+        let Some(slot) = playing_slot(slot_envs, slot) else { return };
         if env_spans.is_empty() && slot.is_none() {
             return;
         }
         for i in 0..frames {
-            let beat = beat_of(i);
-            let at = match slot {
-                Some((length, start, env)) => (beat >= start).then(|| (env, (beat - start).rem_euclid(length))),
-                None => {
-                    let k = env_spans.partition_point(|s| s.end <= beat);
-                    env_spans.get(k).filter(|s| s.start <= beat).map(|s| (&s.env, s.own_beat(beat)))
-                }
-            };
-            let Some((env, own)) = at else { continue };
+            let Some((env, own, played)) = clip_at(env_spans, slot, beat_of(i)) else { continue };
             if !env.volume.is_empty() && !volumes.is_empty() {
-                volumes[i] *= env_at(&env.volume, own).clamp(0.0, 1.0) as f32;
+                volumes[i] *= env.volume.at(own, played).clamp(0.0, 1.0) as f32;
             }
             if !env.pan.is_empty() && !pans.is_empty() {
-                pans[i] = (f64::from(pans[i]) + env_at(&env.pan, own)).clamp(-1.0, 1.0) as f32;
+                pans[i] = (f64::from(pans[i]) + env.pan.at(own, played)).clamp(-1.0, 1.0) as f32;
             }
-            for (send, points) in sends.iter_mut().zip(&env.sends) {
-                if !points.is_empty() && !send.levels.is_empty() {
-                    send.levels[i] *= env_at(points, own).clamp(0.0, 1.0) as f32;
+            for (send, e) in sends.iter_mut().zip(&env.sends) {
+                if !e.is_empty() && !send.levels.is_empty() {
+                    send.levels[i] *= e.at(own, played).clamp(0.0, 1.0) as f32;
                 }
             }
         }
@@ -965,6 +1001,9 @@ impl Renderer {
                         (level > 0.0 || !auto.is_empty() || !modding(&name).is_empty()).then(|| Send { to, level, levels: moves(&auto, &name), mods: modding(&name), auto, name })
                     })
                     .collect();
+                // Its effect settings that move: by automation, a modulator or a clip envelope.
+                let clip_keys = t.clips.iter().map(|c| &c.envelopes).chain(t.slots.iter().flatten().map(|c| &c.envelopes)).flat_map(BTreeMap::keys);
+                let fx_auto = fx_moves(chain.as_ref(), &t.fx, t.auto.keys().chain(mods.iter().map(|(_, m)| &m.target)).chain(clip_keys), |name| arranged(name), modding, |name| enveloped.contains(name), 60.0 / song.tempo);
                 let mut env_spans: Vec<EnvSpan> = if how.session || is_frozen {
                     Vec::new()
                 } else {
@@ -972,12 +1011,12 @@ impl Renderer {
                         .iter()
                         .filter(|c| !c.muted && c.length > 0.0)
                         .filter_map(|c| {
-                            Some(EnvSpan { start: c.start, end: c.start + c.length, own: c.offset, cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)), env: Envelopes::of(&c.envelopes, &sends)? })
+                            Some(EnvSpan { start: c.start, end: c.start + c.length, own: c.offset, cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)), env: Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto)? })
                         })
                         .collect()
                 };
                 env_spans.sort_by(|a, b| a.start.total_cmp(&b.start));
-                let slot_envs = if how.session { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &sends))).collect() } else { Vec::new() };
+                let slot_envs = if how.session { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &c.unlinked, &sends, &fx_auto))).collect() } else { Vec::new() };
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -994,7 +1033,7 @@ impl Renderer {
                     volumes: moves(&auto, "volume"),
                     auto,
                     pan: t.pan,
-                    fx_auto: fx_moves(chain.as_ref(), &t.fx, t.auto.keys().chain(mods.iter().map(|(_, m)| &m.target)), |name| arranged(name), modding, 60.0 / song.tempo),
+                    fx_auto,
                     mods: mods.iter().map(|(_, m)| Mod::new(m, sample_rate)).collect(),
                     volume_mods: modding("volume"),
                     pan_mods: modding("pan"),
@@ -1037,7 +1076,7 @@ impl Renderer {
         let keying: Vec<bool> = (0..lanes.len()).map(|j| lanes.iter().map(|l| &l.key_from).chain(returns.iter().map(|r| &r.key_from)).chain([&main_key_from]).any(|k| k.contains(&Some(j)))).collect();
         let keys = keying.iter().map(|&k| if k { vec![0.0; MAX_BLOCK] } else { Vec::new() }).collect();
         let order = keyed_order(&lanes.iter().map(|l| l.key_from.iter().flatten().copied().collect()).collect::<Vec<Vec<usize>>>());
-        let main_fx_auto = fx_moves(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, |_| Vec::new(), 60.0 / song.tempo);
+        let main_fx_auto = fx_moves(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, |_| Vec::new(), |_| false, 60.0 / song.tempo);
         Renderer {
             clock,
             lanes,
@@ -1403,7 +1442,13 @@ impl Renderer {
                     *a *= v;
                     *b *= v;
                 }
-                run_chain(chain, &lane.fx_auto, &lane.mods, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames));
+                let playing = playing_slot(&lane.slot_envs, clip.map(|(length, _, start, _, slot)| (length, start, slot))).flatten();
+                let env_spans = &lane.env_spans;
+                let setting = |k: usize, beat: f64| {
+                    let (env, own, played) = clip_at(env_spans, playing, beat)?;
+                    env.settings.get(k).filter(|e| !e.is_empty()).map(|e| e.at(own, played))
+                };
+                run_chain(chain, &lane.fx_auto, &lane.mods, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames), setting);
                 let key = &mut self.keys[index];
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
@@ -1451,7 +1496,7 @@ impl Renderer {
         }
         // Main: its effects, then its level.
         if let Some(chain) = &mut self.main {
-            run_chain(chain, &self.main_fx_auto, &[], left, right, rate, |i| clock.beat(from + i as u64), &key_slices(&self.keys, &self.main_key_from, frames));
+            run_chain(chain, &self.main_fx_auto, &[], left, right, rate, |i| clock.beat(from + i as u64), &key_slices(&self.keys, &self.main_key_from, frames), |_, _| None);
         }
         for ((l, r), v) in left.iter_mut().zip(right.iter_mut()).zip(&self.main_volumes) {
             *l *= v;
@@ -1518,7 +1563,8 @@ pub fn render_song(song: &Song, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
 /// The effect settings of a chain that move (`"fx:<effect id>:<setting>"` among `names`), each with where it lives
 /// in `chain`, its automation (`points` gives a name's, none when overridden) and the modulators on it (`mods`); one
 /// the chain can't move is left out.
-fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Iterator<Item = &'a String>, points: impl Fn(&str) -> Vec<AutoPoint>, mods: impl Fn(&str) -> Vec<usize>, seconds_per_beat: f64) -> Vec<Move> {
+#[allow(clippy::too_many_arguments)]
+fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Iterator<Item = &'a String>, points: impl Fn(&str) -> Vec<AutoPoint>, mods: impl Fn(&str) -> Vec<usize>, enveloped: impl Fn(&str) -> bool, seconds_per_beat: f64) -> Vec<Move> {
     let Some(chain) = chain else { return Vec::new() };
     let mut seen = std::collections::BTreeSet::new();
     names
@@ -1527,7 +1573,7 @@ fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Ite
             let (id, setting) = name.strip_prefix("fx:")?.split_once(':')?;
             let aim = chain.aim(fx, id, setting, seconds_per_beat)?;
             let (points, mods) = (points(name), mods(name));
-            (!points.is_empty() || !mods.is_empty()).then(|| Move { aim, rest: chain.get(aim), points, mods })
+            (!points.is_empty() || !mods.is_empty() || enveloped(name)).then(|| Move { name: name.clone(), aim, rest: chain.get(aim), points, mods })
         })
         .collect()
 }
@@ -1535,7 +1581,7 @@ fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Ite
 /// Runs a block through `chain`, moving its automated settings at the start of each 128-sample piece (where its
 /// devices take their settings, as Web Audio's do).
 #[allow(clippy::too_many_arguments)]
-fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>) {
+fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>, clip: impl Fn(usize, f64) -> Option<f64>) {
     if autos.is_empty() {
         chain.process_keyed(left, right, rate, &keys.0[..keys.1]);
         return;
@@ -1544,8 +1590,10 @@ fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], 
     let mut done = 0;
     while done < n {
         let m = (n - done).min(QUANTUM);
-        for m in autos {
-            let at = if m.points.is_empty() { m.rest } else { auto_value_at(&m.points, beat_of(done), m.rest) };
+        for (k, m) in autos.iter().enumerate() {
+            // A clip envelope of the setting, while its clip plays, puts it where it draws; else its automation does.
+            let beat = beat_of(done);
+            let at = clip(k, beat).unwrap_or_else(|| if m.points.is_empty() { m.rest } else { auto_value_at(&m.points, beat, m.rest) });
             let moved: f64 = m.mods.iter().filter_map(|&k| mods.get(k)).map(|k| k.amount * f64::from(k.values[done])).sum();
             chain.set(m.aim, at + moved);
         }
@@ -1942,6 +1990,36 @@ mod tests {
         let send = enveloped(r#""returns":[{"id":"a"}],"#, r#","sends":{"a":1}"#, r#""start":0,"length":8,"envelopes":{"send:a":[{"beat":0,"value":0.5}]}"#);
         let dry = enveloped("", "", r#""start":0,"length":8"#);
         assert!((level(&send, 1.0) / level(&dry, 1.0) - 1.5).abs() < 0.02);
+    }
+
+    #[test]
+    fn a_clip_envelope_sets_an_effect_setting_while_its_clip_plays_and_an_unlinked_one_keeps_its_own_loop() {
+        let level = |s: &Song, beat: f64| {
+            let l = render_song(s, 48_000).0;
+            let at = (beat * 24_000.0) as usize;
+            loudest(&l[at..at + 480])
+        };
+        // A compressor that changes nothing but its makeup gain: the clip's envelope puts it at 6 dB from its own beat
+        // 2 (song beat 3, as the clip starts at 1); before the clip, and with no envelope, it is the setting's 0 dB.
+        let comp = r#","fx":[{"id":"m","kind":"compressor","threshold":0,"ratio":1,"attack":0.01,"release":0.2,"makeup":0}]"#;
+        let plain = enveloped("", comp, r#""start":1,"length":7"#);
+        let made = enveloped("", comp, r#""start":1,"length":7,"envelopes":{"fx:m:makeup":[{"beat":0,"value":0},{"beat":1.999999,"value":0},{"beat":2,"value":6}]}"#);
+        assert!((level(&made, 2.0) / level(&plain, 2.0) - 1.0).abs() < 0.01);
+        assert!((level(&made, 3.5) / level(&plain, 3.5) - linear_of(6.0)).abs() < 0.02, "{}", level(&made, 3.5) / level(&plain, 3.5));
+        // It wins over the setting's automation while the clip plays.
+        let auto = enveloped("", &format!(r#"{comp},"auto":{{"fx:m:makeup":[{{"beat":0,"value":12}}]}}"#), r#""start":1,"length":7,"envelopes":{"fx:m:makeup":[{"beat":0,"value":6}]}"#);
+        assert!((level(&auto, 3.5) / level(&plain, 3.5) - linear_of(6.0)).abs() < 0.02);
+        // Unlinked: a one-beat loop of its own, silent for the first half each time round, though the clip has no loop.
+        // Linked, the same points end at beat 1 and stay up from there.
+        let env = r#""envelopes":{"volume":[{"beat":0,"value":0},{"beat":0.499999,"value":0},{"beat":0.5,"value":1}]}"#;
+        let linked = enveloped("", "", &format!(r#""start":0,"length":8,{env}"#));
+        let unlinked = enveloped("", "", &format!(r#""start":0,"length":8,{env},"unlinked":{{"volume":{{"start":0,"end":1}}}}"#));
+        let dry = enveloped("", "", r#""start":0,"length":8"#);
+        for beat in [3.1, 6.2] {
+            assert!((level(&linked, beat) / level(&dry, beat) - 1.0).abs() < 0.02, "{beat}");
+            assert!(level(&unlinked, beat) < 1e-6, "{beat}");
+            assert!((level(&unlinked, beat + 0.5) / level(&dry, beat + 0.5) - 1.0).abs() < 0.02, "{beat}");
+        }
     }
 
     #[test]
