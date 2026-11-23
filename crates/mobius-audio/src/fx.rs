@@ -1253,7 +1253,11 @@ impl Chain {
                     let c = biquad(filter_type(eq), num(eq, "freq", 100.0), num(eq, "q", 0.7), num(eq, "gain", 0.0), rate);
                     for part in &mut d.parts {
                         match &mut part.kind {
-                            Kind::Compressor(k) => k.trigger.eq = Some((c, [0.0; 2])),
+                            // Its automatic makeup is off, as with a key: what it hears is no longer what it turns down.
+                            Kind::Compressor(k) => {
+                                k.trigger.eq = Some((c, [0.0; 2]));
+                                k.makeup = 1.0;
+                            }
                             Kind::Gate(k) => k.trigger.eq = Some((c, [0.0; 2])),
                             _ => {}
                         }
@@ -1700,7 +1704,10 @@ mod tests {
         let loud: Vec<f32> = low.iter().map(|x| x * 0.9).collect();
         let (squashed, _) = run(json!([{ "id": "c", "kind": "compressor", "threshold": -30, "ratio": 8, "makeup": 0 }]), &loud);
         let (free, _) = run(json!([{ "id": "c", "kind": "compressor", "threshold": -30, "ratio": 8, "makeup": 0, "sidechain": { "eq": { "type": "highpass", "freq": 4000 } } }]), &loud);
-        assert!(rms(&free[24_000..]) > 2.0 * rms(&squashed[24_000..]), "{} {}", rms(&free[24_000..]), rms(&squashed[24_000..]));
+        // Untouched and with no automatic makeup (as when keyed), it comes out as loud as it went in; without the EQ it
+        // is turned down far more than its makeup brings back.
+        assert!((rms(&free[24_000..]) / rms(&loud[24_000..]) - 1.0).abs() < 0.01, "{}", rms(&free[24_000..]) / rms(&loud[24_000..]));
+        assert!(rms(&squashed[24_000..]) < 0.8 * rms(&loud[24_000..]), "{}", rms(&squashed[24_000..]));
     }
 
     #[test]
