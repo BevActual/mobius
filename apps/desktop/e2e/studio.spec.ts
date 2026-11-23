@@ -346,6 +346,23 @@ test('an LFO and an envelope follower move a track setting, by a share of its ra
   await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
 });
 
+test('an instrument stack: chains with their own instruments and key zones, kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Stack instruments' }).click();
+  const stack = () => (saved().tracks[0] as { stack?: { chains: Record<string, unknown>[] } }).stack;
+  await expect.poll(() => stack()?.chains).toEqual([{ instrument: 'piano' }]);
+  const rack = device.getByRole('list', { name: 'Instrument chains' });
+  await rack.getByRole('button', { name: 'Add chain' }).click();
+  await rack.getByRole('combobox', { name: 'Chain 2 instrument' }).click();
+  await shell().getByRole('option', { name: 'Bass', exact: true }).click();
+  await rack.getByRole('listitem', { name: 'Chain 1' }).getByRole('slider', { name: 'Key high' }).focus();
+  await shell().keyboard.press('ArrowDown');
+  await expect.poll(() => stack()?.chains).toEqual([{ instrument: 'piano', keys: { low: 0, high: 126 } }, { instrument: 'bass' }]);
+  await device.getByRole('button', { name: 'Remove Instrument Stack' }).click();
+  await expect.poll(() => stack()).toBeUndefined();
+});
+
 test('a compressor keyed by another track: Audio From, Gain and Dry/Wet, kept in the song', async () => {
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, BASS] }));
   await start();

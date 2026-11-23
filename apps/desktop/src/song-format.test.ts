@@ -155,6 +155,21 @@ describe('a track\'s effects', () => {
     expect(fx.map((e) => e.sidechain)).toEqual([{ track: 'kick', gain: 24, mix: 0.5 }, { track: 'kick' }, undefined, undefined]);
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
   });
+  it('keeps an instrument stack\'s chains, zones in range and in order, and leaves its defaults out', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', instrument: 'pad', notes: [], stack: { chains: [
+      { instrument: 'bass', keys: { low: 0, high: 59 }, volume: 1, pan: 0 },
+      { instrument: 'lead', keys: { low: 200, high: 60 }, velocities: { low: 0, high: 127 }, volume: 3, pan: -0.5, muted: true, sound: { cutoff: 99999 } },
+      { instrument: 'nope', keys: { low: 0, high: 127 } },
+    ] } }, { id: 'b', notes: [], stack: { chains: [] } }] }));
+    expect(s.tracks[0]!.stack!.chains).toEqual([
+      { instrument: 'bass', keys: { low: 0, high: 59 } },
+      expect.objectContaining({ instrument: 'lead', keys: { low: 60, high: 127 }, volume: 2, pan: -0.5, muted: true, sound: expect.objectContaining({ cutoff: 12000 }) }),
+      { instrument: 'piano' },
+    ]);
+    expect(s.tracks[1]!.stack).toBeUndefined();
+    expect(song(writeSong(s)).tracks[0]!.stack).toEqual(s.tracks[0]!.stack);
+    expect(writeSong(s)).not.toContain('"stack":{"chains":[]}');
+  });
   it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
       { id: 'fx1', kind: 'stack', chains: [
