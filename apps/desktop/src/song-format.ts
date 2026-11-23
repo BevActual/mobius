@@ -185,11 +185,12 @@ export const MAX_SCENES = 64;
  */
 export interface AutoPoint { beat: number; value: number; curve?: number }
 
-/** A song's automation, by setting: "volume" and sends 0 to 1, "pan" -1 to 1, "send:<return id>", "fx:<id>:<setting>". */
+/** A song's automation, by setting: "volume" and sends 0 to 1, "pan" -1 to 1, "send:<return id>", and "fx:<id>:<setting>" in the setting's own units (a device's settings keep to its range where it plays). */
 export type Automation = Record<string, AutoPoint[]>;
 /** What each automated setting's values may be: pan goes -1 to 1, the rest 0 to 1 (device settings by their own range, next). */
-export const autoRange = (name: string): { lo: number; hi: number } => (name === 'pan' ? { lo: -1, hi: 1 } : { lo: 0, hi: 1 });
-const AUTO_NAME = /^(volume|pan|send:[\w-]{1,40}|fx:[\w-]{1,20}:[\w-]{1,40})$/;
+export const autoRange = (name: string): { lo: number; hi: number } => (name === 'pan' ? { lo: -1, hi: 1 } : name.startsWith('fx:') ? { lo: -1e6, hi: 1e6 } : { lo: 0, hi: 1 });
+/** Effect settings go by the effect's id and the setting's name; a Workbench device's by "<part id>.<setting>". */
+const AUTO_NAME = /^(volume|pan|send:[\w-]{1,40}|fx:[\w-]{1,20}:[\w-]{1,40}(\.[\w-]{1,40})?)$/;
 
 /** Automation points read from a file: in the song, values kept in range, in order. */
 export function readAuto(list: unknown, beats: number, range: { lo: number; hi: number } = { lo: 0, hi: 1 }): AutoPoint[] {

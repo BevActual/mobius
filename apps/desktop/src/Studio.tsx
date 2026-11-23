@@ -15,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { autoChoices, fromLane, laneEmpty, reEnable, setAuto, toLane } from './studio-auto';
+import { autoChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -525,7 +525,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
               <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
-                onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) fn(x); }, tag ? `${tag}:${e.id}` : undefined)}
+                onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) { const before = { ...x }; fn(x); overrideEffect(t, before, x); } }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
           </DeviceChain>
@@ -1779,7 +1779,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                   <Clips track={t} proposed={changed.has(t.id) && notesDiffer(wasSong?.tracks.find((w) => w.id === t.id), t)} bw={bw} songPath={songs.page?.path ?? ''} tempo={song.tempo} onOpen={(from, id) => openNotes(t.id, from, id)} actions={clipActions(t.id)} />
                 </div>
                 {showAuto && (() => {
-                  const choices = autoChoices(song.returns);
+                  const choices = autoChoices(t, song.returns);
                   const lane = choices.find((c) => c.name === autoLane[t.id]) ?? choices[0]!;
                   const off = t.autoOff?.includes(lane.name);
                   const was = t.auto?.[lane.name] ?? [];
@@ -1789,9 +1789,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                         onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${t.name} automation`, items: choices.map((c) => ({ label: `${c.label}${t.auto?.[c.name]?.length ? ' •' : ''}`, checked: c.name === lane.name, run: () => setAutoLane((m) => ({ ...m, [t.id]: c.name })) })) }); }}>{lane.label}</button>
                       {off && <button type="button" className="studio-auto-off" title="Moved by hand: it plays the hand's value. Re-enable the line" onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => reEnable(x, lane.name)); }}>Re-enable</button>}
                     </div>
-                    <AutomationLane className="studio-auto" label={lane.label} head={false} color={t.color} points={toLane(was, lane.name)} beats={total} pxPerBeat={bw} empty={laneEmpty(t, lane.name)}
-                      format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : undefined}
-                      onChange={(next) => setTrack(t.id, (x) => setAuto(x, lane.name, fromLane(next, x.auto?.[lane.name] ?? [], lane.name)), `auto:${t.id}:${lane.name}`)} />
+                    <AutomationLane className="studio-auto" label={lane.label} head={false} color={t.color} points={toLane(was, lane)} beats={total} pxPerBeat={bw} empty={laneEmpty(lane)}
+                      format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : lane.kind ? (v) => effectText(lane.kind!, lane.setting!, lane.lo + v * (lane.hi - lane.lo)) : undefined}
+                      onChange={(next) => setTrack(t.id, (x) => setAuto(x, lane.name, fromLane(next, x.auto?.[lane.name] ?? [], lane)), `auto:${t.id}:${lane.name}`)} />
                   </>;
                 })()}
               </div>

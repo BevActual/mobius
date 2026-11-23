@@ -186,12 +186,12 @@ describe('volume automation', () => {
     delete r.song.tracks[0]!.auto;
     expect(writeSongForAuto(r.song)).not.toContain('"auto"');
   });
-  it('keeps pan, sends, curves and overrides, in range, and drops unknown names', () => {
+  it('keeps pan, sends, effect settings in their own units, curves and overrides, in range, and drops unknown names', () => {
     const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [],
-      auto: { pan: [{ beat: 0, value: -3, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }], bogus: [{ beat: 0, value: 1 }] }, autoOff: ['pan', 'pan', 'bogus'] }] }));
+      auto: { pan: [{ beat: 0, value: -3, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }], 'fx:m:makeup': [{ beat: 0, value: 6 }], 'fx:b:osc.cutoff': [{ beat: 0, value: 800 }], bogus: [{ beat: 0, value: 1 }] }, autoOff: ['pan', 'pan', 'bogus'] }] }));
     if (!('song' in r)) throw new Error('no song');
     const t = r.song.tracks[0]!;
-    expect(t.auto).toEqual({ pan: [{ beat: 0, value: -1, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }] });
+    expect(t.auto).toEqual({ pan: [{ beat: 0, value: -1, curve: 0.5 }, { beat: 8, value: 1 }], 'send:r1': [{ beat: 4, value: 0.4 }], 'fx:m:makeup': [{ beat: 0, value: 6 }], 'fx:b:osc.cutoff': [{ beat: 0, value: 800 }] });
     expect(t.autoOff).toEqual(['pan']);
     const again = parseSong(writeSongForAuto(r.song));
     if (!('song' in again)) throw new Error('no song');

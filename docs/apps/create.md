@@ -157,7 +157,8 @@ A small studio for writing songs as notes.
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
   and one Undo takes the take back. It records in the Arrange view for now.
 - **Automation** (the line button in the toolbar, or A): a line under each track in the Arrange view. Its name (Volume
-  at first) chooses the setting it moves: Volume, Pan or a send. Click the line to add a point and drag to place it, drag
+  at first) chooses the setting it moves: Volume, Pan, a send, or a setting of one of the track's effects (EQ bands, delay time,
+  feedback and mix, compressor makeup, reverb mix). Click the line to add a point and drag to place it, drag
   a point to move it, double-click it (or Delete) to take it out. With points, the setting follows the line as it plays;
   with none, it stays where it is set. Moving an automated knob or fader by hand overrides its line, which greys with a
   Re-enable button; the track menu's Re-Enable Automation brings back every line (Live 12, 25.4). Saved as each
