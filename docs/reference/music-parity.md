@@ -83,7 +83,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Sample playback (one-shot, slicing, classic) | Sampler track in the engine: Classic (polyphonic, the track's ADSR, optional loop) and One-Shot (monophonic, trigger or gate, fades), a region and a root note (Live 12 manual, 36.8 "Working with Samples") | Slicing; the window's Sampler track and file drop | M |
 | A drum rack: a pad per sample, its own chain on each pad | Synth kit with pads; a pad can hold a sample, played at its own pitch with the pad's tune, level and pan (25.6.1 "Pad View") | A chain on each pad; instruments on pads | M |
 | Wavetable, FM, granular, physical modelling synths | One subtractive voice | Morph synth (Next), FM, grain cloud, modelled | L each |
-| Instrument racks with macros | None | Stacks with macro knobs | L |
+| Instrument racks with macros | In the engine: a track's `stack: { chains: [{ instrument, sound?, keys?: { low, high }, velocities?: { low, high }, volume?, pan?, muted? }] }`, up to 16 chains, each playing the notes in its key and velocity zones in place of the track's instrument, in songs and from a keyboard | The window; zone fades; macros; sampler and drum chains | M |
 
 ### Effects and modulation
 
@@ -93,7 +93,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Sidechain on compressor and gate | Compressor and gate: in the engine, an effect's `sidechain: { track, gain?, mix? }` (dB, 0..1) keys it by that track after its volume and effects | Sidechain input | M |
 | LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO and envelope follower) on its volume, pan, sends and effect settings; no shaper yet | Modulators on any setting | L |
 | Automation of every parameter, clip envelopes | In the engine: Arrangement automation of volume, pan, sends, Main and effect settings (curves, overrides); clip envelopes of volume, pan and sends | Device-setting clip envelopes, transposition, unlinked envelopes | M |
-| Effect racks, parallel chains, macros | In the engine: an effect `{ kind: "stack", chains: [{ fx, volume?, pan?, muted? }], macros: [{ value, maps: [{ target: "fx:<id>:<setting>", min, max }] }] }`, up to 16 chains and macros, automated as `fx:<stack id>:macro<N>`; no stack in a stack | The window; instrument stacks | M |
+| Effect racks, parallel chains, macros | In the engine: an effect `{ kind: "stack", chains: [{ fx, volume?, pan?, muted? }], macros: [{ value, maps: [{ target: "fx:<id>:<setting>", min, max }] }] }`, up to 16 chains and macros, automated as `fx:<stack id>:macro<N>`; no stack in a stack | The window | M |
 
 ### Mixing
 
