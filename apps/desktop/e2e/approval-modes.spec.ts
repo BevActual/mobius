@@ -181,7 +181,7 @@ test('per app: Tasks following Propose changes a list without asking, Always ask
   expect(fs.readFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), 'utf8')).not.toContain('Feed the cat');
 });
 
-test('sign in once per task: a page that asks for a password stops as Needs you, the person signs in, and the task does not ask again', async () => {
+test('sign in once per task: a page that asks for a password stops as Needs you, the person signs in, and the task does not ask again', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([
     callsTool('browser-open', { url: fixture.origin + '/form' }), says(['I need you to sign in.']),
     says(['Carrying on.']),

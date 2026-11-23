@@ -17,5 +17,7 @@ export default defineConfig({
   ...(process.env.MOBIUS_E2E_ANY_BUILD || process.env.MOBIUS_E2E_LOCAL ? {} : { globalSetup: './e2e/stale-build.ts' }),
   // `npm run e2e:local`: the interface from the dev server, with the real host behind the dev bridge (e2e/dev-bridge.ts).
   ...(process.env.MOBIUS_E2E_LOCAL ? { webServer: { command: 'npx vite build && npx vite preview --host 127.0.0.1 --port 5199 --strictPort', url: 'http://127.0.0.1:5199/', reuseExistingServer: true, timeout: 180_000 } } : {}),
+  // A local run leaves out what only the shell can do (tagged `@shell`, with the reason): Windows CI runs those.
+  ...(process.env.MOBIUS_E2E_LOCAL ? { grepInvert: /@shell/ } : {}),
   use: { trace: 'retain-on-failure' },
 });

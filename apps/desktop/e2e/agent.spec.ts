@@ -72,7 +72,7 @@ test('Enter sends, Shift+Enter adds a line, and a blank message cannot be sent',
   await expect(composer()).toHaveValue('');
 });
 
-test('a question typed into the address bar goes to the agent instead of the web', async () => {
+test('a question typed into the address bar goes to the agent instead of the web', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['Because physics.'])]);
   const address = mobius!.shell.getByRole('textbox', { name: 'Address or question' });
   await address.fill('why is the sky blue?');
@@ -288,7 +288,7 @@ const toolResult = (index: number): Record<string, unknown> | string => {
 };
 const tabTitles = () => mobius!.shell.locator('.tab-title');
 
-test('the agent can open a page after you allow that site, and it shows up as a tab', async () => {
+test('the agent can open a page after you allow that site, and it shows up as a tab', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-open', { url: fixture.origin + '/second' }), says(['Opened it.'])]);
   await say('open the second page');
   const card = mobius!.shell.getByRole('group', { name: 'Approval needed: browser.open' });
@@ -302,7 +302,7 @@ test('the agent can open a page after you allow that site, and it shows up as a 
   expect(toolResult(1)).toMatchObject({ tabId: expect.stringMatching(/^tab-/), loaded: true, title: 'Second page' });
 });
 
-test('allowing a site once covers all its pages when you choose Always, but not another site', async () => {
+test('allowing a site once covers all its pages when you choose Always, but not another site', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   const other = 'http://localhost:' + new URL(fixture.origin).port;
   await start([
     callsTool('browser-open', { url: fixture.origin + '/second' }), says(['one']),
@@ -320,7 +320,7 @@ test('allowing a site once covers all its pages when you choose Always, but not 
   await expect(mobius!.shell.getByRole('group', { name: 'Approval needed: browser.open' })).toBeVisible();
 });
 
-test('reading a page returns its text marked as untrusted, and instructions inside it are not acted on', async () => {
+test('reading a page returns its text marked as untrusted, and instructions inside it are not acted on', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([
     callsTool('browser-open', { url: fixture.origin + '/article' }), says(['opened']),
     callsTool('browser-read', {}), says(['The article is about nothing.']),
@@ -345,7 +345,7 @@ test('reading a page returns its text marked as untrusted, and instructions insi
   expect(fixture.hits.some((h) => h.includes('evil'))).toBe(false);
 });
 
-test('the agent can list tabs, and addresses that are not plain web addresses never reach you as a question', async () => {
+test('the agent can list tabs, and addresses that are not plain web addresses never reach you as a question', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([
     callsTool('browser-tabs'), says(['One tab.']),
     callsTool('browser-open', { url: 'file:///C:/Windows/win.ini' }), says(['That did not work.']),

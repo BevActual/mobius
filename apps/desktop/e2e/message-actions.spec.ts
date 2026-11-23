@@ -91,7 +91,7 @@ test('the actions work in the Agent app too', async () => {
   await expect(log().locator('.msg.assistant')).toHaveText('Again in the app.');
 });
 
-test('a finished tool step shows what it was asked and what it returned', async () => {
+test('a finished tool step shows what it was asked and what it returned', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-tabs'), says(['You have one tab.'])]);
   await say('what tabs are open?');
   const approval = shell().getByRole('group', { name: /Approval needed/ });

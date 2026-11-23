@@ -35,7 +35,7 @@ const go = async (route: string) => {
   await address.press('Enter');
 };
 
-test('a download is saved to the folder, listed, and can be shown', async () => {
+test('a download is saved to the folder, listed, and can be shown', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_DOWNLOADS_DIR: folder } });
   await expect(list()).toHaveCount(0);
   await go('/file.txt');
@@ -48,7 +48,7 @@ test('a download is saved to the folder, listed, and can be shown', async () => 
   await expect(mobius.shell.locator('.tab-title')).toHaveText('Fixture home');
 });
 
-test('a second download of the same name does not overwrite the first', async () => {
+test('a second download of the same name does not overwrite the first', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_DOWNLOADS_DIR: folder } });
   await go('/file.txt');
   await expect((await shown()).getByRole('listitem')).toHaveCount(1);
@@ -74,7 +74,7 @@ test('a file that could run a program is saved but cannot be opened from here', 
   expect(fs.existsSync(path.join(folder, 'setup.exe'))).toBe(true);
 });
 
-test('a running download can be cancelled, and clearing forgets the finished ones', async () => {
+test('a running download can be cancelled, and clearing forgets the finished ones', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_DOWNLOADS_DIR: folder } });
   await go('/file.txt');
   await expect(await shown()).toContainText('Done');

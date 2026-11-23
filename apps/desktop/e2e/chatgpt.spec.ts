@@ -39,7 +39,7 @@ async function openProviders(): Promise<void> {
   await shell().getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Gateways', exact: true }).click();
 }
 
-test('signing in on ChatGPT\'s page lets the agent answer on the ChatGPT plan', async () => {
+test('signing in on ChatGPT\'s page lets the agent answer on the ChatGPT plan', { tag: '@shell', annotation: { type: 'needs the shell', description: "ChatGPT's sign-in page opens in the shell's browser" } }, async () => {
   first = await startModel([]);
   openai = await startOpenAi(['Hello from ChatGPT.']);
   mobius = await launch(fixture.origin + '/', { openMobius: true, userData, env: { MOBIUS_AGENT_URL: first.url, MOBIUS_AGENT_MODEL: 'first-model', MOBIUS_TEST_CHATGPT: openai.url } });

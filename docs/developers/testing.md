@@ -54,12 +54,17 @@ command, from `apps/desktop`:
 npm run e2e:local -- e2e/notes.spec.ts --trace off
 ```
 
-It builds the core and `mobius-dev-bridge`, builds the interface and serves it on 127.0.0.1:5199, and for each test
+It builds the programs (all but the shell) and `mobius-dev-bridge`, builds the interface and serves it on 127.0.0.1:5199, and for each test
 starts the **real** host (`crates/mobius-host`, with its core) behind the dev bridge, then drives the interface in
 Chromium. The page gets a stand-in for Tauri's internals (`e2e/dev-bridge.ts`), so the interface runs its real Tauri
 bridge against the real host: files, Notes, the agent and its fixture model servers all work as in the shell. What only
-the shell does (the window itself, the browser's pages, the tray, global keys) is not there: a test that needs it is
-skipped here, and Windows CI runs it. Windows CI stays the gate.
+the shell does (the browser's own pages and tabs, the window, profiles, Software Update, keys registered with the system,
+the media address) is not there. A test that needs it is tagged `@shell`, with the reason as an annotation
+(`test('…', { tag: '@shell', annotation: { type: 'needs the shell', description: '…' } }, …)`), and a local run leaves it
+out; Windows CI runs it. So a local run is all green, and anything red is a real failure. Tag a new test `@shell` only
+when it needs one of those. Windows CI stays the gate.
+
+A local run needs a few GB of free disk: the core refuses a model download that would leave the disk nearly full.
 
 The dev bridge (`crates/mobius-host/src/dev_bridge.rs`) is development only. It sits behind the `dev-bridge` cargo
 feature, which no other crate turns on (CI checks); a release build with it does not compile; and the release workflow

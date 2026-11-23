@@ -32,7 +32,7 @@ const openBookmarks = async () => {
 };
 const saved = (): Locator => settings().getByRole('list', { name: 'Bookmarks' }).getByRole('listitem');
 
-test('the star saves the open page, shows that it is saved, and removes it', async () => {
+test('the star saves the open page, shows that it is saved, and removes it', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/');
   await expect(star()).toHaveAccessibleName('Bookmark this page');
   await star().click();
@@ -52,7 +52,7 @@ test('pages that are not on the web cannot be bookmarked', async () => {
   await expect(star()).toBeDisabled();
 });
 
-test('saved pages are listed in settings, can be searched and removed, and survive a restart', async () => {
+test('saved pages are listed in settings, can be searched and removed, and survive a restart', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-bm-'));
   try {
     mobius = await launch(fixture.origin + '/', { userData });

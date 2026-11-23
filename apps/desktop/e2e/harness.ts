@@ -133,24 +133,29 @@ async function launchLocal(userData: string, env: Record<string, string>): Promi
   const bridge = await startDevBridge(userData, env);
   // A Chromium already on the computer (the cloud sessions' /opt/pw-browsers/chromium) when Playwright's own isn't.
   const chrome = process.env.MOBIUS_E2E_CHROMIUM ?? (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined);
-  const browser = await chromium.launch(chrome ? { executablePath: chrome, args: ['--no-sandbox'] } : {});
   // The page's policy lets it reach only its own server (connect-src 'self'); in the shell the bridge is no address at
-  // all, here it is the dev bridge's.
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, bypassCSP: true });
+  // all, here it is the dev bridge's. Its storage is kept in the data folder, as the shell's web view keeps it, so a
+  // restart on the same folder finds what the page saved. A pretend camera and microphone, as the shell has in tests.
+  const context = await chromium.launchPersistentContext(path.join(userData, 'webview'), {
+    ...(chrome ? { executablePath: chrome } : {}),
+    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    viewport: { width: 1440, height: 900 },
+    bypassCSP: true,
+  });
   await context.addInitScript(tauriStandIn, { url: bridge.url, token: bridge.token });
-  const shell = await context.newPage();
+  const shell = context.pages()[0] ?? await context.newPage();
   shell.on('console', (message) => { if (message.text().startsWith('[mobius]')) console.log(`[e2e app] ${test.info().titlePath.slice(1).join(' › ')}: ${message.text()}`); });
   await shell.goto(LOCAL_URL);
   await shell.waitForSelector('html[data-keys-ready]', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
   const handle: AppHandle = {};
   localParts.set(handle, shell);
-  tauriParts.set(handle, { browser: browser as unknown as Awaited<ReturnType<typeof chromium.connectOverCDP>>, shell });
+  tauriParts.set(handle, { browser: context.browser() as Awaited<ReturnType<typeof chromium.connectOverCDP>>, shell });
   return {
     app: handle,
     shell,
     userData,
     close: async (closeOptions = {}) => {
-      await browser.close();
+      await context.close();
       await bridge.stop();
       if (!closeOptions.keepUserData) removeTestData(userData);
     },

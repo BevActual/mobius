@@ -125,7 +125,7 @@ test('the choices survive a restart', async () => {
   await expect(page()).toBeVisible();
 });
 
-test('quick entry is off until chosen, then it is registered with the system and can bring up a message', async () => {
+test('quick entry is off until chosen, then it is registered with the system and can bring up a message', { tag: '@shell', annotation: { type: 'needs the shell', description: "quick entry registers a key with the system" } }, async () => {
   expect(await hook((h) => h.quickEntry.active())).toBe(false);
   await openKeyboard();
   await expect(page().getByTestId('quick-entry-working')).toHaveCount(0);

@@ -48,7 +48,7 @@ async function start(replies: ModelReply[] = []): Promise<void> {
   await expect(footage()).toBeVisible();
 }
 
-test('clips are played through the media address, added to the cut as shots, trimmed and titled', async () => {
+test('clips are played through the media address, added to the cut as shots, trimmed and titled', { tag: '@shell', annotation: { type: 'needs the shell', description: "clips play through the shell's media address" } }, async () => {
   await start();
   // The player reads each clip's length from the file.
   await expect(footage().getByRole('listitem').filter({ hasText: 'terrace.webm' })).toContainText('0:05.0');
@@ -98,7 +98,7 @@ test('a rough cut from Mobius is shown dashed, and kept', async () => {
   expect(saved().shots).toHaveLength(2);
 });
 
-test('the cut is exported as a film in the project’s Exports folder, never listed as footage', async () => {
+test('the cut is exported as a film in the project’s Exports folder, never listed as footage', { tag: '@shell', annotation: { type: 'needs the shell', description: "clips play through the shell's media address" } }, async () => {
   fs.writeFileSync(cutFile(), JSON.stringify({ version: 1, shots: [{ id: 's1', clip: 'sunset.webm', in: 0, out: 1, title: 'Lisbon' }, { id: 's2', clip: 'terrace.webm', in: 1, out: 2 }] }));
   await start();
   await expect(timeline().getByRole('option')).toHaveCount(2);

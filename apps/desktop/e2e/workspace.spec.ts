@@ -124,7 +124,7 @@ test('while the agent works the composer says what it is doing, and a change els
   await expect(goButton(shell())).not.toHaveAccessibleName(/waiting/);
 });
 
-test('the app hub shows every app with what is happening in it, starts new things, and lists the apps to come', async () => {
+test('the app hub shows every app with what is happening in it, starts new things, and lists the apps to come', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   seed();
   fs.writeFileSync(path.join(userData, 'workspace', 'tasks', 'Inbox.md'), `# Inbox\n\n- [ ] Buy tulip bulbs (due 2001-01-01)\n`);
   await start();
@@ -227,7 +227,7 @@ test('the Mobius button shows and hides Mobius in the right panel, and the sideb
   await expect(leftSide().getByRole('textbox', { name: 'Message Mobius' })).toHaveCount(0);
 });
 
-test('with the agent panel put away, the Mobius button brings it back on the right and its message box says what it would ask about', async () => {
+test('with the agent panel put away, the Mobius button brings it back on the right and its message box says what it would ask about', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['That page is the fixture home.'])]);
   // No second ask box in the toolbar: Mobius opens from the trefoil at the toolbar's end, and the corner glyphs say
   // what they are.

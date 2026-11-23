@@ -24,7 +24,7 @@ const openIn = async (path: string) => {
   await address().press('Enter');
 };
 
-test('the address bar shows the site at rest and the whole address to edit; Escape puts it back', async () => {
+test('the address bar shows the site at rest and the whole address to edit; Escape puts it back', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await expect(titles()).toHaveText(['Fixture home']);
   const host = new URL(fixture.origin).hostname;
   await expect(shell().locator('.address-rest')).toHaveText(host);
@@ -39,7 +39,7 @@ test('the address bar shows the site at rest and the whole address to edit; Esca
   await expect(shell().locator('.address-rest')).toHaveText(host);
 });
 
-test('a tab has a menu: pin it, then close the others', async () => {
+test('a tab has a menu: pin it, then close the others', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await openIn('/');
@@ -57,14 +57,14 @@ test('a tab has a menu: pin it, then close the others', async () => {
   await expect(titles()).toHaveText(['Second page']);
 });
 
-test('a middle click closes a tab', async () => {
+test('a middle click closes a tab', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await shell().locator('.tab', { hasText: 'Fixture home' }).locator('.tab-main').click({ button: 'middle' });
   await expect(titles()).toHaveText(['Second page']);
 });
 
-test('Ctrl+Tab and Ctrl+Shift+Tab step through the tabs, going round', async () => {
+test('Ctrl+Tab and Ctrl+Shift+Tab step through the tabs, going round', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   const current = () => shell().locator('.tab[aria-current="page"] .tab-title');

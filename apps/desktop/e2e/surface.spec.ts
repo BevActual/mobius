@@ -41,7 +41,7 @@ const openApp = async (name: string) => {
 const GREETING = /^Good (morning|afternoon|evening)$/;
 const sent = () => JSON.stringify(model!.requests.at(-1)?.messages ?? []);
 
-test('an empty Agent app is the desk: one greeting, suggestions under it, which are sent as is', async () => {
+test('an empty Agent app is the desk: one greeting, suggestions under it, which are sent as is', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['Here is an overview.'])]);
   await openApp('Agent');
   const region = shell().getByRole('region', { name: 'Agent conversation' });
@@ -139,7 +139,7 @@ test('Find a time with… puts only those words in the box: who you name finishe
   expect(sent()).toContain('I want to meet with Sam');
 });
 
-test('in the browser, a page suggestion attaches the page you see, as a chip', async () => {
+test('in the browser, a page suggestion attaches the page you see, as a chip', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['A short summary.'])]);
   const address = shell().getByRole('textbox', { name: 'Address or question' });
   await address.fill(fixture.origin + '/article');

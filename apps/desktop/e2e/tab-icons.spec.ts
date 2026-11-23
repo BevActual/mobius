@@ -12,7 +12,7 @@ test.afterEach(async () => {
   await fixture.close();
 });
 
-test('a tab shows the icon its page offers, and a plain placeholder when it has none', async () => {
+test('a tab shows the icon its page offers, and a plain placeholder when it has none', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/icon');
   const tab = mobius.shell.locator('.tab').first();
   await expect(tab.locator('img.tab-icon')).toHaveAttribute('src', /^data:image\/png;base64,/);

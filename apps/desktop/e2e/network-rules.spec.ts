@@ -34,7 +34,7 @@ const say = async (text: string) => {
 };
 const tabCount = () => shell().locator('.tab').count();
 
-test('by default the agent cannot open a local address, and says why', async () => {
+test('by default the agent cannot open a local address, and says why', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-open', { url: fixture.origin + '/second' }), says(['It would not open.'])]);
   expect(await tabCount()).toBe(1);
   await say('open the second page');
@@ -61,7 +61,7 @@ test('the switch in settings turns the rule off and on', async () => {
   await expect.poll(allowed).toBe(false);
 });
 
-test('once allowed, the agent can open a local address', async () => {
+test('once allowed, the agent can open a local address', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-open', { url: fixture.origin + '/second' }), says(['Opened it.'])]);
   await shell().evaluate(() => window.mobius.preferences.set({ agentPrivateUrls: true }));
   await say('open the second page');
@@ -70,7 +70,7 @@ test('once allowed, the agent can open a local address', async () => {
   await expect.poll(tabCount).toBe(2);
 });
 
-test('the person can still open a local address themselves', async () => {
+test('the person can still open a local address themselves', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([]);
   const address = shell().getByRole('textbox', { name: 'Address or question' });
   await address.fill(fixture.origin + '/second');
@@ -78,7 +78,7 @@ test('the person can still open a local address themselves', async () => {
   await expect(shell().locator('.tab-title').first()).toHaveText('Second page');
 });
 
-test('the agent cannot read a local page the person has open, until allowed', async () => {
+test('the agent cannot read a local page the person has open, until allowed', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-read', {}), says(['I could not read it.'])]);
   await say('read this page');
   await shell().getByRole('group', { name: /Approval needed/ }).getByRole('button', { name: 'Allow once' }).click();

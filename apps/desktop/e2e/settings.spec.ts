@@ -363,7 +363,7 @@ test('search at the top of the sidebar finds settings by their old names too', a
   await expect(page().locator('.settings-group[aria-label="Speaking"]')).toBeVisible();
 });
 
-test('Software Update: About shows the version and says the updater is off in this build; the switch is kept', async () => {
+test('Software Update: About shows the version and says the updater is off in this build; the switch is kept', { tag: '@shell', annotation: { type: 'needs the shell', description: "Software Update is the shell's" } }, async () => {
   await start([]);
   await openSettings();
   await go('About');

@@ -31,7 +31,7 @@ const openHistory = async () => {
 };
 const pages = (): Locator => settings().getByRole('list', { name: 'Pages you visited' }).getByRole('listitem');
 
-test('pages you visit are listed, can be searched, removed and cleared', async () => {
+test('pages you visit are listed, can be searched, removed and cleared', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/');
   await visit('/second', 'Second page');
   await openHistory();
@@ -49,7 +49,7 @@ test('pages you visit are listed, can be searched, removed and cleared', async (
   await expect(settings().getByText('No pages yet.')).toBeVisible();
 });
 
-test('turning history off stops recording, and the choice and the pages survive a restart', async () => {
+test('turning history off stops recording, and the choice and the pages survive a restart', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'mobius-hist-'));
   try {
     mobius = await launch(fixture.origin + '/', { userData });
