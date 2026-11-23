@@ -427,3 +427,6 @@
 .studio-stack-chain-head .studio-dev-head { flex: 1; }
 /* A shaper's line: tall enough to draw on. */
 .studio-page .studio-shaper { --lane-h: calc(var(--sp-8) * 2.5); }
+/* An unlinked envelope's own loop (Live 12, 27.3): shaded on its lane, with its start and end at the top right. */
+.studio-page .studio-env-loop { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--tc, var(--ink)) 10%, transparent); border-inline: var(--hairline-w) dashed var(--line); pointer-events: none; }
+.studio-page .studio-env-unlinked { position: absolute; top: var(--sp-1); right: var(--sp-2); z-index: 3; display: flex; gap: var(--sp-2); padding: 0 var(--sp-1); background: var(--paper); border-radius: var(--radius-small); }

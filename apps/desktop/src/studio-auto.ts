@@ -1,6 +1,6 @@
 // A track's automation in the Arrange view: which settings have a line, the lane's 0-to-1 points for one, and the
 // overrides a hand on a control makes (Ableton Live 12 manual, 25 "Automation and Editing Envelopes", 25.4 overriding).
-import { EFFECT_NAMES, EFFECT_PARAMS, returnName, type AutoPoint, type Effect, type EffectKind, type ReturnTrack, type Track } from './song-format';
+import { EFFECT_NAMES, EFFECT_PARAMS, returnName, type AutoPoint, type Effect, type EffectKind, type ReturnTrack, type Track, type Unlinked } from './song-format';
 
 /** A setting a track's lane can show: its engine name, its name in the window, its range and its own value now. */
 export interface AutoChoice { name: string; label: string; lo: number; hi: number; own: number; kind?: EffectKind; setting?: string }
@@ -99,20 +99,30 @@ export function reEnable(track: Track, name?: string): void {
   if (left.length > 0) track.autoOff = left; else delete track.autoOff;
 }
 
-/** The settings a clip's envelopes can move (Live 12, 27): volume and sends as a share of the track's, pan added to it. */
-export function envelopeChoices(returns: readonly ReturnTrack[] = []): AutoChoice[] {
+/** The settings a clip's envelopes can move (Live 12, 27): volume and sends as a share of the track's, pan added to it,
+ * and the track's effect settings themselves. */
+export function envelopeChoices(returns: readonly ReturnTrack[] = [], track?: Track): AutoChoice[] {
   return [
     { name: 'volume', label: 'Volume', lo: 0, hi: 1, own: 1 },
     { name: 'pan', label: 'Pan', lo: -1, hi: 1, own: 0 },
     ...returns.map((r, i) => ({ name: `send:${r.id}`, label: `Send ${returnName(r, i)}`, lo: 0, hi: 1, own: 1 })),
+    // The track's effect settings, in their own units: the setting itself while the clip plays.
+    ...(track ? autoChoices(track, returns).filter((c) => c.name.startsWith('fx:')) : []),
   ];
 }
 
 /** Sets one of a clip's envelopes, dropping it (and the clip's envelopes) when empty. */
-export function setEnvelope(clip: { envelopes?: Record<string, AutoPoint[]> }, name: string, points: AutoPoint[]): void {
+export function setEnvelope(clip: { envelopes?: Record<string, AutoPoint[]>; unlinked?: Unlinked }, name: string, points: AutoPoint[]): void {
   const env = { ...(clip.envelopes ?? {}) };
   if (points.length > 0) env[name] = points; else delete env[name];
   if (Object.keys(env).length > 0) clip.envelopes = env; else delete clip.envelopes;
+}
+
+/** Unlinks one of a clip's envelopes with its own loop (Live 12, 27.3), or links it back to the clip's with none. */
+export function setUnlinked(clip: { unlinked?: Unlinked }, name: string, loop: { start: number; end: number } | null): void {
+  const all = { ...(clip.unlinked ?? {}) };
+  if (loop && loop.end > loop.start) all[name] = loop; else delete all[name];
+  if (Object.keys(all).length > 0) clip.unlinked = all; else delete clip.unlinked;
 }
 
 /** The settings a stack's macros can move: each built-in effect's in its chains, by chain, with their ranges. */

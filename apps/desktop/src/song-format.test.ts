@@ -301,18 +301,31 @@ describe('volume automation', () => {
     if (!('song' in again)) throw new Error('no song');
     expect(again.song.tracks[0]!.mods).toEqual(mods);
   });
-  it('keeps a clip\'s envelopes in its own beats, Session and Arrange, without effect settings', () => {
+  it('keeps a clip\'s envelopes in its own beats, Session and Arrange, with effect settings', () => {
     const env = { volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 99, value: 1 }], pan: [{ beat: 2, value: -2 }], 'fx:d:mix': [{ beat: 0, value: 1 }] };
     const r = parseSong(JSON.stringify({ version: 2, tempo: 100, key: 'C major', bars: 8, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8,
       clips: [{ id: 'c', start: 0, length: 8, notes: [], envelopes: env }], slots: [{ name: 'S', bars: 1, notes: [], envelopes: env }] }] }));
     if (!('song' in r)) throw new Error('no song');
     const t = r.song.tracks[0]!;
-    expect(t.clips[0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 8, value: 1 }], pan: [{ beat: 2, value: -1 }] });
-    expect(t.slots![0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 4, value: 1 }], pan: [{ beat: 2, value: -1 }] });
+    expect(t.clips[0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 8, value: 1 }], pan: [{ beat: 2, value: -1 }], 'fx:d:mix': [{ beat: 0, value: 1 }] });
+    expect(t.slots![0]!.envelopes).toEqual({ volume: [{ beat: 0, value: 0.5, curve: 0.3 }, { beat: 4, value: 1 }], pan: [{ beat: 2, value: -1 }], 'fx:d:mix': [{ beat: 0, value: 1 }] });
     const again = parseSong(writeSongForAuto(r.song));
     if (!('song' in again)) throw new Error('no song');
     expect(again.song.tracks[0]!.clips[0]!.envelopes).toEqual(t.clips[0]!.envelopes);
     expect(again.song.tracks[0]!.slots![0]!.envelopes).toEqual(t.slots![0]!.envelopes);
+  });
+  it('keeps an unlinked envelope\'s own loop, its points running to the loop\'s end past the clip\'s', () => {
+    const r = parseSong(JSON.stringify({ version: 2, tempo: 100, key: 'C major', bars: 8, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8,
+      slots: [{ name: 'S', bars: 1, notes: [], envelopes: { volume: [{ beat: 0, value: 0 }, { beat: 6, value: 1 }], pan: [{ beat: 6, value: 1 }] },
+        unlinked: { volume: { start: 0, end: 6 }, pan: { start: 3, end: 2 }, bogus: { start: 0, end: 1 }, 'send:r': { start: -1, end: 999 } } }] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    const s = r.song.tracks[0]!.slots![0]!;
+    expect(s.unlinked).toEqual({ volume: { start: 0, end: 6 }, 'send:r': { start: 0, end: 256 } });
+    // The unlinked volume runs to 6 beats; the linked pan ends with the 4-beat clip.
+    expect(s.envelopes).toEqual({ volume: [{ beat: 0, value: 0 }, { beat: 6, value: 1 }], pan: [{ beat: 4, value: 1 }] });
+    const again = parseSong(writeSongForAuto(r.song));
+    if (!('song' in again)) throw new Error('no song');
+    expect(again.song.tracks[0]!.slots![0]!.unlinked).toEqual(s.unlinked);
   });
   it('bends a curved segment as the engine does', () => {
     const line = [{ beat: 0, value: 0, curve: 1 }, { beat: 4, value: 1 }];

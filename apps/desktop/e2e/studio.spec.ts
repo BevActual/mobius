@@ -827,6 +827,28 @@ test('a clip envelope moves the open clip’s volume or pan in its own beats, ke
   await expect.poll(() => envelopes()?.pan?.[0]?.value ?? 0).toBeGreaterThan(0.5);
 });
 
+test('a clip envelope moves an effect setting, and an unlinked one keeps its own loop, kept with the clip', async () => {
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [{ ...SONG.tracks[0], fx: [{ id: 'fx1', kind: 'reverb', on: true, size: 2, damp: 0.4, mix: 0.25 }] }] }));
+  await start();
+  await openNotes('Keys');
+  const env = shell().getByRole('group', { name: /^Envelopes of / });
+  await env.getByRole('button', { name: /envelope: Volume/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: /^Reverb Mix/ }).click();
+  const plot = env.getByRole('group', { name: 'Reverb Mix envelope automation' }).locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.1, y: box.height * 0.1 } });
+  const clip = () => saved().tracks[0]!.clips?.[0] as { envelopes?: Record<string, { value: number }[]>; unlinked?: Record<string, { start: number; end: number }> } | undefined;
+  await expect.poll(() => clip()?.envelopes?.['fx:fx1:mix']?.[0]?.value ?? 0).toBeGreaterThan(0.5);
+  // Unlinked, it goes round a loop of its own, from the clip's start.
+  await env.getByRole('button', { name: /envelope: Reverb Mix/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Unlink Reverb Mix from the clip' }).click();
+  await expect.poll(() => clip()?.unlinked?.['fx:fx1:mix']?.start).toBe(0);
+  await expect(env.getByRole('group', { name: 'Reverb Mix envelope loop' })).toBeVisible();
+  await env.getByRole('button', { name: /envelope: Reverb Mix/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: 'Unlink Reverb Mix from the clip' }).click();
+  await expect.poll(() => clip()?.unlinked).toBeUndefined();
+});
+
 test('Export as WAV renders the song and saves it in the Exports folder', async () => {
   await start();
   // Wide enough that Export stays in the toolbar rather than the ⋯ menu (it is the first control to drop).
