@@ -59,16 +59,18 @@ describe('device files', () => {
     expect(error(with_({ parts: many }))).toMatch(/at most 24/);
     expect(error(with_({ controls: [{ label: 'Shape', part: 'wobble', param: 'shape' }] }))).toMatch(/not a number setting/);
   });
-  it('has each of the four built-in effects as a device that reads back as it is', () => {
-    for (const kind of EFFECT_KINDS) {
-      const device = builtinDevice(newEffect(kind, 'fx1') as BuiltinEffect);
+  it('has each built-in effect the Workbench can draw as a device that reads back as it is', () => {
+    const drawn = EFFECT_KINDS.filter((kind) => builtinDevice(newEffect(kind, 'fx1') as BuiltinEffect) !== null);
+    expect(EFFECT_KINDS.filter((kind) => !drawn.includes(kind))).toEqual(['gate', 'limiter', 'chorus']);
+    for (const kind of drawn) {
+      const device = builtinDevice(newEffect(kind, 'fx1') as BuiltinEffect)!;
       const r = read(JSON.parse(JSON.stringify(device)) as Device);
       if (!('device' in r)) throw new Error(`${kind}: ${r.error}`);
       expect(r.device).toEqual(device);
     }
-    const delay = builtinDevice({ id: 'fx1', kind: 'delay', on: true, time: 0.5, feedback: 0.6, mix: 0.4 });
+    const delay = builtinDevice({ id: 'fx1', kind: 'delay', on: true, time: 0.5, feedback: 0.6, mix: 0.4 })!;
     expect(delay.parts.find((p) => p.id === 'back')).toMatchObject({ gain: 0.6 });
-    const comp = builtinDevice({ id: 'fx1', kind: 'compressor', on: true, threshold: -20, ratio: 4, attack: 0.01, release: 0.2, makeup: 6 });
+    const comp = builtinDevice({ id: 'fx1', kind: 'compressor', on: true, threshold: -20, ratio: 4, attack: 0.01, release: 0.2, makeup: 6 })!;
     expect(comp.parts.find((p) => p.id === 'makeup')!.gain).toBeCloseTo(1.995, 3);
   });
 });

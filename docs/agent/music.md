@@ -16,7 +16,7 @@ Change the song with `files.edit`, not by writing the whole file: it is much fas
 - For a new part, you may give the track `"notes":[...]` in song time instead of `clips`: Music puts them into clips, a bar at a time.
 - a note: `{"pitch" MIDI,"start" beat,"length" beats,"velocity" 0-1}`. Drums use pitches 36 kick, 38 snare, 39 clap, 42 closed hat, 46 open hat, 45 tom.
 - `mods`: modulators, `[{"kind":"lfo"|"follow","target" (named as `auto` is),"amount" in the target's own units,"rate"? Hz,"sync"? beats per cycle,"shape"? sine|triangle|square|saw|ramp,"phase"? 0-1,"attack"? s,"release"? s,"on"?}]`. An LFO moves the target from -amount to +amount around where it is; a follower adds up to amount with the track's level (a negative amount ducks).
-- `auto`: lines by setting, `{"volume"|"pan"|"send:<return id>"|"fx:<effect id>:<setting>": [{"beat","value","curve"?}]}`, each sorted by beat. Volume and sends run 0-1, pan -1 to 1, an effect setting in its own units (EQ all seven, delay time/feedback/mix, compressor makeup, reverb mix; a Workbench device's as `fx:<id>:<part id>.<setting>`); `curve` (-1 to 1) bends the way to the next point. The setting follows the line and stays flat before the first point and after the last. `autoOff` lists settings moved by hand, which keep their own value until re-enabled. An old `volumeAuto` is read as `auto.volume`.
+- `auto`: lines by setting, `{"volume"|"pan"|"send:<return id>"|"fx:<effect id>:<setting>": [{"beat","value","curve"?}]}`, each sorted by beat. Volume and sends run 0-1, pan -1 to 1, an effect setting in its own units (EQ all seven, delay time/feedback/mix, compressor makeup, reverb mix, limiter gain, saturator drive/shape/output/mix, autofilter cutoff/resonance/rate/depth, chorus and phaser rate/depth/mix; a Workbench device's as `fx:<id>:<part id>.<setting>`); `curve` (-1 to 1) bends the way to the next point. The setting follows the line and stays flat before the first point and after the last. `autoOff` lists settings moved by hand, which keep their own value until re-enabled. An old `volumeAuto` is read as `auto.volume`.
 
 ## sound (every instrument but drums)
 All 13 keys, each within its range: `shape` 0-1 (0 round and sine-like, 1 a bright saw), `detune` 0-50 cents (width), `sub` 0-1, `drive` 0-1 (grit), `cutoff` 80-12000 Hz, `resonance` 0-1, `envAmount` 0-1 (filter opens on each note), `attack` 0.001-2 s, `decay` 0.01-4 s, `sustain` 0-1, `release` 0.02-4 s, `vibrato` 0-50 cents, `rate` 0.1-12 Hz.
@@ -29,10 +29,16 @@ Starting points: piano shape 0.2 cutoff 5000 attack 0.005 decay 0.8 sustain 0.3 
 `[{"id":"fx1","kind","on":true,...}]`:
 - `eq`: `low`/`mid`/`high` -18 to 18 dB, `lowFreq` 30-400, `midFreq` 200-8000, `midQ` 0.3-8, `highFreq` 2000-16000.
 - `compressor`: `threshold` -60-0 dB, `ratio` 1-20, `attack` 0.001-0.5 s, `release` 0.02-1 s, `makeup` 0-24 dB.
-- sidechain (ducking): a compressor, or a device with a compressor part, may have `"sidechain":{"track":<track id>,"gain"? -24 to 24 dB,"mix"? 0-1}`; that track's level then triggers it, as a kick ducks a bass or pad.
+- sidechain (ducking): a compressor or gate, or a device with a compressor part, may have `"sidechain":{"track":<track id>,"gain"? -24 to 24 dB,"mix"? 0-1}`; that track's level then triggers it, as a kick ducks a bass or pad.
 - `stack` (an effect rack): `{"id","kind":"stack","chains":[{"name"?,"fx":[...],"volume"? 0-2,"pan"? -1 to 1,"muted"?}],"macros":[{"name"?,"value" 0-1,"maps":[{"target":"fx:<effect id in a chain>:<setting>","min","max"}]}]}`; up to 16 chains and 16 macros, no stack inside a stack. Chains run side by side and add up; each macro moves its mapped settings from `min` (at 0) to `max` (at 1). Automation and `mods` reach a macro as `fx:<stack id>:macro1`..`macro16`, and an effect in a chain by its own id (ids are unique across the track).
 - `delay`: `time` 0.25-2 beats, `feedback` 0-0.9, `mix` 0-1.
 - `reverb`: `size` 0.3-8 s, `damp` 0-1 (darker tail), `mix` 0-1.
+- `gate`: `threshold` -80-0 dB (opens above it), `return` 0-24 dB (closes that far below), `attack` 0.0001-0.15 s, `hold` 0.001-3 s, `release` 0.001-4 s, `floor` -90-0 dB (how far it shuts). It may have a `sidechain` as the compressor does.
+- `limiter`: `gain` -24 to 24 dB in, `ceiling` -24-0 dB it never goes over, `release` 0.001-3 s.
+- `saturator`: `drive` -36 to 36 dB, `shape` 0-1 (harder clipping), `output` -36 to 36 dB, `mix` 0-1.
+- `autofilter`: `filter` lowpass|highpass|bandpass|notch, `cutoff` 20-20000 Hz, `resonance` 0.1-20, an LFO of `shape` sine|triangle|square|sawtooth at `rate` 0.01-40 Hz sweeping the cutoff by `depth` 0-10000 Hz.
+- `chorus`: `delay` 0.001-0.05 s, moved by `depth` 0-0.01 s at `rate` 0.01-10 Hz, `mix` 0-1.
+- `phaser`: four all-pass stages at `center` 50-10000 Hz, swept by `depth` 0-5000 Hz at `rate` 0.01-10 Hz, `mix` 0-1.
 A new effect gets an id not on the track (`fx2`...).
 
 ## Words to moves (by about a quarter to a half of the range, never all the way)
@@ -41,7 +47,8 @@ A new effect gets an id not on the track (`fx2`...).
 - wider, bigger: more `detune`; for a pad, a longer `attack` and `release`.
 - more space, further away: add or raise a `reverb` (`mix` 0.3-0.45, `size` 2.5-4); echo: a `delay` of 0.75 beats.
 - punchier, tighter: shorter `decay` and `release`; a `compressor` (ratio 4, threshold -20).
-- dirtier, grittier: more `drive`.
+- dirtier, grittier: more `drive`, or a `saturator`.
+- louder without clipping: a `limiter` last, with some `gain`. Movement: an `autofilter` with `depth`, a `chorus` or a `phaser`.
 
 ## Writing a part
 Stay in the song's `key`. A bassline sits around MIDI 33-52, on the chord roots of the other tracks on bar lines, with passing notes between; leave room for the kick. Make a new track for a new part (a new id, a free colour), and don't change the others' notes.
@@ -50,7 +57,7 @@ Stay in the song's `key`. A bassline sits around MIDI 33-52, on the chord roots 
 When no built-in effect fits ("a tape delay that wobbles", "a filter that breathes with the beat"), add a device: `{"id":"fx3","kind":"device","on":true,"device":{...}}` in the track's `fx`. Its `device` is `{"name","about","parts":[...],"cables":[["from","to"]],"controls":[...]}`.
 - **parts** `{"id","kind",...settings}`, at most 24. One `input` and one `output`. The others:
   - `gain`: `gain` 0-16 (1 leaves it as it is).
-  - `filter`: `type` lowpass|highpass|bandpass|lowshelf|highshelf|peaking|notch, `cutoff` 20-20000 Hz, `resonance` 0.1-20, `gain` -24 to 24 dB (shelves and peaking).
+  - `filter`: `type` lowpass|highpass|bandpass|lowshelf|highshelf|peaking|notch|allpass, `cutoff` 20-20000 Hz, `resonance` 0.1-20, `gain` -24 to 24 dB (shelves and peaking).
   - `delay`: `time` 0.01-4 beats.
   - `lfo`: `rate` 0.01-40 Hz, `depth` (in the units of the setting it moves), `shape` sine|triangle|square|sawtooth.
   - `drive`: `amount` 0-1.

@@ -155,6 +155,26 @@ describe('a track\'s effects', () => {
     expect(fx.map((e) => e.sidechain)).toEqual([{ track: 'kick', gain: 24, mix: 0.5 }, { track: 'kick' }, undefined, undefined]);
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
   });
+  it('keeps the gate, limiter, saturator, auto filter, chorus and phaser, in range, with a keyed gate', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'g', kind: 'gate', threshold: -100, hold: 0.2, sidechain: { track: 'kick' } },
+      { id: 'l', kind: 'limiter', ceiling: 3 },
+      { id: 's', kind: 'saturator', drive: 12, shape: 0.5 },
+      { id: 'f', kind: 'autofilter', filter: 'highpass', shape: 'wobble', depth: 800 },
+      { id: 'c', kind: 'chorus', sidechain: { track: 'kick' } },
+      { id: 'p', kind: 'phaser', center: 1200 },
+    ] }] }));
+    const fx = s.tracks[0]!.fx!;
+    expect(fx.map((e) => e.kind)).toEqual(['gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser']);
+    expect(fx[0]).toMatchObject({ threshold: -80, return: 3, hold: 0.2, floor: -90, sidechain: { track: 'kick' } });
+    expect(fx[1]).toMatchObject({ gain: 0, ceiling: 0, release: 0.05 });
+    expect(fx[2]).toMatchObject({ drive: 12, shape: 0.5, output: 0, mix: 1 });
+    expect(fx[3]).toMatchObject({ filter: 'highpass', shape: 'sine', cutoff: 1000, depth: 800 });
+    expect(fx[4]).not.toHaveProperty('sidechain');
+    expect(fx[5]).toMatchObject({ center: 1200, rate: 0.5, depth: 600, mix: 0.5 });
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
+    expect(newEffect('autofilter', 'fx9')).toMatchObject({ filter: 'lowpass', shape: 'sine', cutoff: 1000 });
+  });
   it('keeps a stack\'s chains and macros, drops a stack inside one, and gives new ids past those in its chains', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
       { id: 'fx1', kind: 'stack', chains: [

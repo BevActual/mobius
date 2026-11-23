@@ -60,10 +60,10 @@ describe('the Workbench’s picture of a device', () => {
     }
   });
   it('shows a built-in effect as the device it is made of', () => {
-    const { boxes, cables } = benchPatch(builtinDevice(newEffect('delay', 'fx1') as BuiltinEffect));
+    const { boxes, cables } = benchPatch(builtinDevice(newEffect('delay', 'fx1') as BuiltinEffect)!);
     expect(boxes.map((b) => b.id)).toEqual(['in', 'echo', 'back', 'mix', 'out']);
     expect(cables.some((c) => c.from.box === 'back' && c.to.box === 'echo')).toBe(true);
-    const eq = benchPatch(builtinDevice({ ...(newEffect('eq', 'fx1') as BuiltinEffect), low: 3 } as BuiltinEffect));
+    const eq = benchPatch(builtinDevice({ ...(newEffect('eq', 'fx1') as BuiltinEffect), low: 3 } as BuiltinEffect)!);
     expect(eq.boxes.find((b) => b.id === 'low')!.settings.find((s) => s.key === 'gain')!.text).toBe('+3.0 dB');
     expect(eq.boxes.find((b) => b.id === 'low')!.settings.map((s) => s.key)).toEqual(['type', 'cutoff', 'gain']);
     expect(eq.boxes.find((b) => b.id === 'mid')!.settings.map((s) => s.key)).toContain('resonance');

@@ -253,6 +253,22 @@ export function fromSlider(t: number, lo: number, hi: number, log: boolean): num
 
 /** An effect setting as the Device panel shows it: dB, Hz, a ratio, a time or a share. */
 export function effectText(kind: EffectKind, k: string, v: number): string {
+  const db = (x: number) => `${x > 0 ? '+' : x < 0 ? '−' : ''}${Math.abs(x).toFixed(1)} dB`;
+  const hz = (x: number) => (x >= 1000 ? `${(x / 1000).toFixed(1)} kHz` : `${Math.round(x)} Hz`);
+  const secs = (x: number) => (x >= 1 ? `${x.toFixed(2)} s` : x >= 0.01 ? `${Math.round(x * 1000)} ms` : `${(x * 1000).toFixed(1)} ms`);
+  if (kind === 'gate' || kind === 'limiter') {
+    if (k === 'return' || k === 'gain' || k === 'ceiling') return db(v);
+    if (k === 'threshold' || k === 'floor') return `${v < 0 ? '−' : ''}${Math.abs(Math.round(v))} dB`;
+    return secs(v);
+  }
+  if (kind === 'saturator' && (k === 'drive' || k === 'output')) return db(v);
+  if (kind === 'autofilter' || kind === 'chorus' || kind === 'phaser') {
+    if (k === 'cutoff' || k === 'center') return hz(v);
+    if (k === 'depth') return kind === 'chorus' ? secs(v) : hz(v);
+    if (k === 'rate') return `${v < 10 ? v.toFixed(2) : v.toFixed(1)} Hz`;
+    if (k === 'resonance') return v.toFixed(1);
+    if (k === 'delay') return secs(v);
+  }
   if (k === 'midFreq') return v >= 1000 ? `${(v / 1000).toFixed(1)} kHz` : `${Math.round(v)} Hz`;
   if (kind === 'eq' || k === 'makeup') return `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`;
   if (k === 'threshold') return `${v < 0 ? '−' : ''}${Math.abs(Math.round(v))} dB`;
