@@ -149,14 +149,46 @@ fn room(rate: f64, size: f64, damp: f64, seed: &mut u32) -> [Vec<f32>; 2] {
     both
 }
 
+/// What a compressor or gate listens to (Live 12 manual, 29.9.1): its own sound, or another track's (raised by a gain,
+/// in a share `mix` of the two), through the sidechain EQ when it has one so that only that band triggers it.
+#[derive(Default)]
+struct Trigger {
+    side: Option<(f64, f64)>,
+    eq: Option<(Coefficients, [f64; 2])>,
+}
+
+impl Trigger {
+    /// The level it hears for a sample of its own sound and of the keying track's (as the louder side, with its sign).
+    fn level(&mut self, l: f32, r: f32, key: f32) -> f64 {
+        let own = f64::from(if l.abs() >= r.abs() { l } else { r });
+        let Some((c, z)) = &mut self.eq else {
+            return match self.side {
+                Some((gain, mix)) => (1.0 - mix) * own.abs() + mix * gain * f64::from(key).abs(),
+                None => own.abs(),
+            };
+        };
+        let x = match self.side {
+            Some((gain, mix)) => (1.0 - mix) * own + mix * gain * f64::from(key),
+            None => own,
+        };
+        // Transposed direct form II; a tail far below hearing is let go, as a filter's is.
+        let y = c[0] * x + z[0];
+        z[0] = c[1] * x - c[3] * y + z[1];
+        z[1] = c[2] * x - c[4] * y;
+        if z[0].abs() < 1e-20 && z[1].abs() < 1e-20 {
+            *z = [0.0; 2];
+        }
+        y.abs()
+    }
+}
+
 /// A compressor as browsers make Web Audio's `DynamicsCompressorNode` (Chromium's kernel, which Firefox shares): a
 /// static curve with a soft knee; a detector that follows the attenuation; a gain that slews down for attack at a
 /// rate set by the deepest cut asked for, and back up for release along an adaptive curve (faster from deeper cuts),
 /// updated every 32 samples; a 6 ms look-ahead; and the whole lifted by 0.6 of the gain it takes at full level.
 struct Compressor {
-    /// Keyed by another track (Live 12 manual, 29.9.1): that track's level, raised by `gain`, triggers it in the share
-    /// `mix` of the sidechain to its own sound.
-    side: Option<(f64, f64)>,
+    /// What triggers it.
+    trigger: Trigger,
     threshold: f64,
     knee_db: f64,
     slope: f64,
@@ -220,7 +252,7 @@ impl Compressor {
             -0.042_416_883_008_123_074 * y1 + 0.111_569_382_798_760_2 * y2 - 0.097_646_763_252_658_72 * y3 + 0.028_494_263_462_021_576 * y4,
         ];
         let mut c = Compressor {
-            side: None,
+            trigger: Trigger::default(),
             threshold,
             knee_db: threshold_db + knee,
             slope,
@@ -284,21 +316,17 @@ impl Compressor {
     /// Keys it to another track: its level is raised by `gain_db`, and `mix` (0 to 1) of what triggers it is that
     /// track's. Automatic makeup is off, as Live's is with a sidechain.
     fn key(&mut self, gain_db: f64, mix: f64) {
-        self.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
+        self.trigger.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
         self.makeup = 1.0;
     }
 
-    /// `key` is the keying track's level now (0 when it isn't keyed).
+    /// `key` is the keying track's sound now (the louder side) (0 when it isn't keyed).
     fn process(&mut self, l: f32, r: f32, key: f32) -> (f32, f32) {
         if self.division == 0 {
             self.plan();
         }
         self.division = (self.division + 1) % DIVISION;
-        let own = f64::from(l.abs().max(r.abs()));
-        let level = match self.side {
-            Some((gain, mix)) => (1.0 - mix) * own + mix * gain * f64::from(key),
-            None => own,
-        };
+        let level = self.trigger.level(l, r, key);
         let attenuation = if level <= 0.0001 { 1.0 } else { self.curve(level) / level };
         let sat_release = linear((-db(attenuation)).max(2.0) / self.sat_release_frames) - 1.0;
         let step = if attenuation > self.detector { sat_release } else { 1.0 };
@@ -328,7 +356,7 @@ struct Gate {
     fall: f64,
     hold: usize,
     floor: f64,
-    side: Option<(f64, f64)>,
+    trigger: Trigger,
     open: bool,
     held: usize,
     gain: f64,
@@ -344,7 +372,7 @@ impl Gate {
             fall: step(release),
             hold: (hold.max(0.0) * rate) as usize,
             floor: if floor_db <= -90.0 { 0.0 } else { linear(floor_db.min(0.0)) },
-            side: None,
+            trigger: Trigger::default(),
             open: false,
             held: 0,
             gain: 0.0,
@@ -353,15 +381,11 @@ impl Gate {
 
     /// Keys it to another track, as [`Compressor::key`].
     fn key(&mut self, gain_db: f64, mix: f64) {
-        self.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
+        self.trigger.side = Some((linear(gain_db.clamp(-70.0, 24.0)), mix.clamp(0.0, 1.0)));
     }
 
     fn process(&mut self, l: f32, r: f32, key: f32) -> (f32, f32) {
-        let own = f64::from(l.abs().max(r.abs()));
-        let level = match self.side {
-            Some((gain, mix)) => (1.0 - mix) * own + mix * gain * f64::from(key),
-            None => own,
-        };
+        let level = self.trigger.level(l, r, key);
         if level >= self.open_at {
             self.open = true;
             self.held = self.hold;
@@ -511,6 +535,20 @@ fn rms_db(energy: f64, n: usize) -> f64 {
     if rms > 0.0 { (20.0 * rms.log10()).max(-90.0) } else { -90.0 }
 }
 
+/// A filter's `type`, low-pass when it has none.
+fn filter_type(o: &Value) -> FilterType {
+    match o.get("type").and_then(Value::as_str).unwrap_or("lowpass") {
+        "highpass" => FilterType::HighPass,
+        "bandpass" => FilterType::BandPass,
+        "lowshelf" => FilterType::LowShelf,
+        "highshelf" => FilterType::HighShelf,
+        "peaking" => FilterType::Peaking,
+        "notch" => FilterType::Notch,
+        "allpass" => FilterType::AllPass,
+        _ => FilterType::LowPass,
+    }
+}
+
 fn num(o: &Value, key: &str, fallback: f64) -> f64 {
     o.get(key).and_then(Value::as_f64).filter(|v| v.is_finite()).unwrap_or(fallback)
 }
@@ -533,16 +571,7 @@ impl Device {
                     Kind::Gain
                 }
                 "filter" => {
-                    let kind = match p.get("type").and_then(Value::as_str).unwrap_or("lowpass") {
-                        "highpass" => FilterType::HighPass,
-                        "bandpass" => FilterType::BandPass,
-                        "lowshelf" => FilterType::LowShelf,
-                        "highshelf" => FilterType::HighShelf,
-                        "peaking" => FilterType::Peaking,
-                        "notch" => FilterType::Notch,
-                        "allpass" => FilterType::AllPass,
-                        _ => FilterType::LowPass,
-                    };
+                    let kind = filter_type(p);
                     // A shelf has no resonance in Web Audio, so it rests at the node's own 1.
                     let shelf = matches!(kind, FilterType::LowShelf | FilterType::HighShelf);
                     rest = [num(p, "cutoff", 1000.0), if shelf { 1.0 } else { num(p, "resonance", 1.0) }, num(p, "gain", 0.0)];
@@ -1219,6 +1248,17 @@ impl Chain {
                         }));
                     }
                 }
+                // The sidechain EQ, with or without another track: only its band of what triggers them counts.
+                if let Some(eq) = side.and_then(|s| s.get("eq")).filter(|q| q.is_object() && q.get("on").and_then(Value::as_bool) != Some(false)) {
+                    let c = biquad(filter_type(eq), num(eq, "freq", 100.0), num(eq, "q", 0.7), num(eq, "gain", 0.0), rate);
+                    for part in &mut d.parts {
+                        match &mut part.kind {
+                            Kind::Compressor(k) => k.trigger.eq = Some((c, [0.0; 2])),
+                            Kind::Gate(k) => k.trigger.eq = Some((c, [0.0; 2])),
+                            _ => {}
+                        }
+                    }
+                }
                 stereo = d.stereo_out();
                 order.push(Unit::Device(devices.len()));
                 devices.push(d);
@@ -1631,6 +1671,36 @@ mod tests {
         let (mut a, mut b) = (input.clone(), input);
         chain.process(&mut a, &mut b, f64::from(RATE));
         assert!(peak(&a) < 1e-6);
+    }
+
+    #[test]
+    fn a_sidechain_eq_has_only_its_band_trigger_a_gate_or_compressor() {
+        let low = sine(60.0, 48_000);
+        let shut = |l: &[f32]| peak(&l[24_000..]) < 1e-6;
+        // Its own loud low tone opens the gate, but not through a high-pass sidechain EQ.
+        let (open, _) = run(json!([{ "id": "g", "kind": "gate", "threshold": -20 }]), &low);
+        assert!(!shut(&open));
+        let (l, _) = run(json!([{ "id": "g", "kind": "gate", "threshold": -20, "sidechain": { "eq": { "type": "highpass", "freq": 4000 } } }]), &low);
+        assert!(shut(&l));
+        // Switched off, the EQ is not there.
+        let (l, _) = run(json!([{ "id": "g", "kind": "gate", "threshold": -20, "sidechain": { "eq": { "type": "highpass", "freq": 4000, "on": false } } }]), &low);
+        assert_eq!(l, open);
+        // Keyed by a track's low tone: a low-pass EQ lets it open the gate; a high-pass one does not.
+        let quiet: Vec<f32> = sine(1_000.0, 48_000).iter().map(|x| x * 0.01).collect();
+        let keyed = |eq: Value| {
+            let fx = json!([{ "id": "g", "kind": "gate", "threshold": -20, "sidechain": { "track": "k", "eq": eq } }]);
+            let mut chain = Chain::new(fx.as_array().unwrap(), RATE, 0.5, false).unwrap();
+            let (mut a, mut b) = (quiet.clone(), quiet.clone());
+            chain.process_keyed(&mut a, &mut b, f64::from(RATE), &[&low]);
+            a
+        };
+        assert!(!shut(&keyed(json!({ "type": "lowpass", "freq": 200 }))));
+        assert!(shut(&keyed(json!({ "type": "highpass", "freq": 4000 }))));
+        // A compressor hears the same: a loud low tone is not turned down through a high-pass EQ.
+        let loud: Vec<f32> = low.iter().map(|x| x * 0.9).collect();
+        let (squashed, _) = run(json!([{ "id": "c", "kind": "compressor", "threshold": -30, "ratio": 8, "makeup": 0 }]), &loud);
+        let (free, _) = run(json!([{ "id": "c", "kind": "compressor", "threshold": -30, "ratio": 8, "makeup": 0, "sidechain": { "eq": { "type": "highpass", "freq": 4000 } } }]), &loud);
+        assert!(rms(&free[24_000..]) > 2.0 * rms(&squashed[24_000..]), "{} {}", rms(&free[24_000..]), rms(&squashed[24_000..]));
     }
 
     #[test]
