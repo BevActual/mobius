@@ -42,6 +42,8 @@ struct Lane {
     /// Its Arrange clips with envelopes, in time order (none in the Session view), and each Session slot's envelopes.
     env_spans: Vec<EnvSpan>,
     slot_envs: Vec<Option<Envelopes>>,
+    /// The lanes keying its chain's compressors (sidechain, Live 12 manual 29.9.1), as a return's `key_from`.
+    key_from: Vec<Option<usize>>,
     /// Its effects' automated settings, each with where it lives in `chain` (none in the Session view).
     fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
     /// Its effects, and what they were made from (so a song changed while it plays keeps them ringing if unchanged).
@@ -189,6 +191,8 @@ struct ReturnLane {
     pan: f64,
     chain: Option<Chain>,
     fx_key: String,
+    /// The lanes keying its chain's compressors, by its sources' order (None for one not heard).
+    key_from: Vec<Option<usize>>,
     left: Vec<f32>,
     right: Vec<f32>,
     peak: (f32, f32),
@@ -524,6 +528,13 @@ pub struct Renderer {
     main: Option<Chain>,
     main_key: String,
     main_fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
+    /// The lanes keying Main's compressors, as a return's `key_from`.
+    main_key_from: Vec<Option<usize>>,
+    /// Each lane's level this block, after its volume and effects and before its pan, for the lanes keying a chain
+    /// (empty for the others).
+    keys: Vec<Vec<f32>>,
+    /// The order lanes are made in: a keying lane before the lanes it keys.
+    order: Vec<usize>,
     main_volume: f64,
     /// Main's volume automation (none in the Session view) and its level at each sample of a piece.
     main_auto: Vec<AutoPoint>,
@@ -663,12 +674,13 @@ impl Renderer {
                 pan: r.pan,
                 chain: Chain::new(&r.fx, sample_rate, 60.0 / song.tempo, true),
                 fx_key: serde_json::to_string(&r.fx).unwrap_or_default(),
+                key_from: Vec::new(),
                 left: vec![0.0; MAX_BLOCK],
                 right: vec![0.0; MAX_BLOCK],
                 peak: (0.0, 0.0),
             })
             .collect();
-        let lanes = heard
+        let lanes: Vec<Lane> = heard
             .into_iter()
             .map(|t| {
                 // The Session view plays its clips, not the song's.
@@ -775,6 +787,7 @@ impl Renderer {
                     sends,
                     env_spans,
                     slot_envs,
+                    key_from: Vec::new(),
                     pans: moves(&pan_auto, "pan"),
                     pan_auto,
                     audio,
@@ -785,7 +798,23 @@ impl Renderer {
                 }
             })
             .collect();
+        let mut lanes = lanes;
+        let mut returns = returns;
         let main = Chain::new(&song.main.fx, sample_rate, 60.0 / song.tempo, true);
+        // Sidechains: which lane keys each chain, each lane's level kept for those that key one, and the lanes in an
+        // order that has each keying lane made before the lanes it keys.
+        let ids: Vec<String> = lanes.iter().map(|l| l.id.clone()).collect();
+        let from = |chain: Option<&Chain>| chain.map_or_else(Vec::new, |c| c.sources().iter().map(|id| ids.iter().position(|i| i == id)).collect::<Vec<_>>());
+        for lane in &mut lanes {
+            lane.key_from = from(lane.chain.as_ref());
+        }
+        for ret in &mut returns {
+            ret.key_from = from(ret.chain.as_ref());
+        }
+        let main_key_from = from(main.as_ref());
+        let keying: Vec<bool> = (0..lanes.len()).map(|j| lanes.iter().map(|l| &l.key_from).chain(returns.iter().map(|r| &r.key_from)).chain([&main_key_from]).any(|k| k.contains(&Some(j)))).collect();
+        let keys = keying.iter().map(|&k| if k { vec![0.0; MAX_BLOCK] } else { Vec::new() }).collect();
+        let order = keyed_order(&lanes.iter().map(|l| l.key_from.iter().flatten().copied().collect()).collect::<Vec<Vec<usize>>>());
         let main_fx_auto = fx_autos(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, 60.0 / song.tempo);
         Renderer {
             clock,
@@ -793,6 +822,9 @@ impl Renderer {
             returns,
             main,
             main_fx_auto,
+            main_key_from,
+            keys,
+            order,
             main_key: serde_json::to_string(&song.main.fx).unwrap_or_default(),
             main_volume: song.main.volume.max(0.0),
             main_auto: if how.session { Vec::new() } else { song.main_auto_of("volume") },
@@ -1035,7 +1067,8 @@ impl Renderer {
                 returns[send.to].right[i] += r * level;
             }
         };
-        for (index, lane) in self.lanes.iter_mut().enumerate() {
+        for &index in &self.order {
+            let lane = &mut self.lanes[index];
             // The clip the Session view is playing on this track, if any.
             let clip = self.session.as_ref().and_then(|s| s.iter().find(|t| t.lane == Some(index))).and_then(|t| {
                 let (slot, start) = t.playing?;
@@ -1131,10 +1164,14 @@ impl Renderer {
                     *a *= v;
                     *b *= v;
                 }
-                run_chain(chain, &lane.fx_auto, scratch, right_scratch, rate, beat_of);
+                run_chain(chain, &lane.fx_auto, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames));
                 let stereo = chain.stereo_out();
+                let key = &mut self.keys[index];
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
+                    if !key.is_empty() {
+                        key[i] = scratch[i].abs().max(right_scratch[i].abs());
+                    }
                     let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                     let (a, b) = if p.abs() < 1e-9 { (a, b) } else { pan(a, b, p, stereo) };
                     out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
@@ -1145,6 +1182,9 @@ impl Renderer {
                 let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
                 let volume = if lane.volumes.is_empty() { lane.volume } else { f64::from(lane.volumes[i]) };
                 let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
+                if let Some(k) = self.keys[index].get_mut(i) {
+                    *k = (a.abs().max(b.abs()) * volume) as f32;
+                }
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
                 let (l, r) = if lane.stereo && p.abs() > 1e-9 {
                     pan(a * volume, b * volume, p, true)
@@ -1159,7 +1199,7 @@ impl Renderer {
         for ret in returns.iter_mut() {
             let (rl, rr) = (&mut ret.left[..frames], &mut ret.right[..frames]);
             if let Some(chain) = &mut ret.chain {
-                chain.process(rl, rr, rate);
+                chain.process_keyed(rl, rr, rate, &key_slices(&self.keys, &ret.key_from, frames));
             }
             for i in 0..frames {
                 let (a, b) = (f64::from(rl[i]) * ret.volume, f64::from(rr[i]) * ret.volume);
@@ -1176,7 +1216,7 @@ impl Renderer {
         }
         // Main: its effects, then its level.
         if let Some(chain) = &mut self.main {
-            run_chain(chain, &self.main_fx_auto, left, right, rate, |i| clock.beat(from + i as u64));
+            run_chain(chain, &self.main_fx_auto, left, right, rate, |i| clock.beat(from + i as u64), &key_slices(&self.keys, &self.main_key_from, frames));
         }
         for ((l, r), v) in left.iter_mut().zip(right.iter_mut()).zip(&self.main_volumes) {
             *l *= v;
@@ -1256,9 +1296,9 @@ fn fx_autos<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Ite
 
 /// Runs a block through `chain`, moving its automated settings at the start of each 128-sample piece (where its
 /// devices take their settings, as Web Audio's do).
-fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64) {
+fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>) {
     if autos.is_empty() {
-        chain.process(left, right, rate);
+        chain.process_keyed(left, right, rate, &keys.0[..keys.1]);
         return;
     }
     let n = left.len().min(right.len());
@@ -1268,9 +1308,58 @@ fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32
         for (aim, points) in autos {
             chain.set(*aim, auto_value_at(points, beat_of(done), 0.0));
         }
-        chain.process(&mut left[done..done + m], &mut right[done..done + m], rate);
+        let mut piece: [&[f32]; MAX_SOURCES] = [&[]; MAX_SOURCES];
+        for (to, key) in piece.iter_mut().zip(&keys.0[..keys.1]) {
+            *to = key.get(done..done + m).unwrap_or(&[]);
+        }
+        chain.process_keyed(&mut left[done..done + m], &mut right[done..done + m], rate, &piece[..keys.1]);
         done += m;
     }
+}
+
+/// The most tracks one chain can be keyed by (one for each of its effects).
+const MAX_SOURCES: usize = 16;
+
+/// The levels of the lanes keying a chain, in its sources' order, and how many: on the stack, as the audio thread
+/// allocates nothing.
+struct Keys<'a>([&'a [f32]; MAX_SOURCES], usize);
+
+impl<'a> std::ops::Deref for Keys<'a> {
+    type Target = [&'a [f32]];
+    fn deref(&self) -> &Self::Target {
+        &self.0[..self.1]
+    }
+}
+
+/// This block's levels of the lanes `from` names (a lane not heard, or keying nothing, is left empty: silent).
+fn key_slices<'a>(keys: &'a [Vec<f32>], from: &[Option<usize>], frames: usize) -> Keys<'a> {
+    let mut out: [&[f32]; MAX_SOURCES] = [&[]; MAX_SOURCES];
+    for (to, j) in out.iter_mut().zip(from) {
+        *to = j.and_then(|j| keys.get(j)).and_then(|k| k.get(..frames)).unwrap_or(&[]);
+    }
+    Keys(out, from.len().min(MAX_SOURCES))
+}
+
+/// An order for lanes where each lane named in another's `keyed_by` comes first; lanes keyed round in a circle go last,
+/// in their own order, hearing the last block's level.
+fn keyed_order(keyed_by: &[Vec<usize>]) -> Vec<usize> {
+    let n = keyed_by.len();
+    let mut done = vec![false; n];
+    let mut order = Vec::with_capacity(n);
+    loop {
+        let before = order.len();
+        for i in 0..n {
+            if !done[i] && keyed_by[i].iter().all(|&j| j >= n || done[j] || j == i) {
+                done[i] = true;
+                order.push(i);
+            }
+        }
+        if order.len() == before {
+            break;
+        }
+    }
+    order.extend((0..n).filter(|&i| !done[i]));
+    order
 }
 
 /// After a chain kept ringing through a change of song, its settings that were automated go back to the new song's,
@@ -1608,6 +1697,46 @@ mod tests {
         assert!(loudest(&moved[72_000 + 480..96_000]) < 1e-6);
         assert!(loudest(&moved[96_000 + 24_000..96_000 + 26_400]) > 0.01);
         assert!(loudest(&moved[96_000 + 72_000 + 480..192_000]) < 1e-6);
+    }
+
+    #[test]
+    fn a_compressor_keyed_by_another_track_ducks_when_that_track_plays() {
+        // A pad (first, so it is keyed by a lane after it) held through the bar, through a compressor keyed by a
+        // second track that plays one note on beat 2.
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5}"#;
+        let song = |side: &str| Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"tracks":[
+            {{"id":"p","instrument":"lead",{sound},"fx":[{{"id":"c","kind":"compressor","threshold":-40,"ratio":20,"attack":0.001,"release":0.05,"makeup":0{side}}}],"notes":[{{"pitch":57,"start":0,"length":4,"velocity":0.5}}]}},
+            {{"id":"k","instrument":"lead",{sound},"notes":[{{"pitch":45,"start":2,"length":0.5,"velocity":1}}]}}]}}"#)).unwrap();
+        // The pad's own sound, block by block.
+        let pad = |s: &Song| {
+            let mut r = Renderer::new(s, 48_000, 0.0).with_stems();
+            let mut out = Vec::new();
+            for _ in 0..24 {
+                r.render(&mut [0f32; 4_000], &mut [0f32; 4_000]);
+                out.extend_from_slice(r.stems(4_000).next().unwrap().0);
+            }
+            out
+        };
+        let at = |x: &[f32], beat: f64| loudest(&x[(beat * 24_000.0) as usize..(beat * 24_000.0) as usize + 2_400]);
+        let keyed = pad(&song(r#","sidechain":{"track":"k"}"#));
+        assert!(at(&keyed, 2.2) < at(&keyed, 1.5) * 0.3, "{} {}", at(&keyed, 2.2), at(&keyed, 1.5));
+        // It comes back after the note.
+        assert!(at(&keyed, 3.5) > at(&keyed, 1.5) * 0.9);
+        // Keyed by a track the song lacks, or with none of the trigger from the sidechain, it doesn't duck there.
+        for side in [r#","sidechain":{"track":"gone"}"#, r#","sidechain":{"track":"k","mix":0}"#] {
+            let plain = pad(&song(side));
+            assert!(at(&plain, 2.2) > at(&plain, 1.5) * 0.9, "{side}");
+        }
+        // Its gain raises the key: at -30 dB the note barely reaches the threshold.
+        let quiet = pad(&song(r#","sidechain":{"track":"k","gain":-30}"#));
+        assert!(at(&quiet, 2.2) > at(&keyed, 2.2) * 2.0);
+    }
+
+    #[test]
+    fn keying_lanes_come_first_and_a_circle_still_plays() {
+        assert_eq!(keyed_order(&[vec![1], vec![], vec![0]]), vec![1, 0, 2]);
+        assert_eq!(keyed_order(&[vec![1], vec![0], vec![]]), vec![2, 0, 1]);
+        assert_eq!(keyed_order(&[vec![0, 9]]), vec![0]);
     }
 
     #[test]
