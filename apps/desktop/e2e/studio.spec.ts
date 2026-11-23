@@ -326,6 +326,26 @@ test('effects are added to a track, switched off and moved, kept in the song', a
   await expect(device.getByRole('region', { name: 'Oscillator' })).toBeVisible();
 });
 
+test('an LFO and an envelope follower move a track setting, by a share of its range, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify(SONG));
+  await start();
+  const device = await openDevice('Keys');
+  const mods = device.getByRole('region', { name: 'Modulators' });
+  await mods.getByRole('button', { name: 'Add modulator' }).click();
+  await shell().getByRole('menuitem', { name: /^LFO/ }).click();
+  const saved0 = () => (saved().tracks[0] as { mods?: { kind: string; target: string; amount: number; sync?: number }[] }).mods;
+  await expect.poll(() => saved0()?.[0]).toMatchObject({ kind: 'lfo', target: 'volume', amount: 0.25, sync: 4 });
+  // Pan runs -1 to 1, so the same share of its range is twice the amount in its own units.
+  await mods.getByRole('combobox', { name: 'Moves' }).click();
+  await shell().getByRole('option', { name: 'Pan', exact: true }).click();
+  await expect.poll(() => saved0()?.[0]).toMatchObject({ target: 'pan', amount: 0.5 });
+  await mods.getByRole('button', { name: 'Add modulator' }).click();
+  await shell().getByRole('menuitem', { name: /^Envelope Follower/ }).click();
+  await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['lfo', 'follow']);
+  await mods.getByRole('button', { name: 'Remove LFO' }).click();
+  await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
+});
+
 test('a song’s own device plays on the track with the knobs its file names, kept in the song', async () => {
   const TONE = { name: 'Dark Echo', about: 'Echoes that get darker each time round', parts: [
     { id: 'in', kind: 'input' }, { id: 'echo', kind: 'delay', time: 0.75 }, { id: 'tone', kind: 'filter', type: 'lowpass', cutoff: 3000 },

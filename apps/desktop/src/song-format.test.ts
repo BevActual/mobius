@@ -198,6 +198,24 @@ describe('volume automation', () => {
     expect(again.song.tracks[0]!.auto).toEqual(t.auto);
     expect(again.song.tracks[0]!.autoOff).toEqual(['pan']);
   });
+  it('keeps a track\'s modulators, in range, with their defaults left out, and drops unknown kinds and targets', () => {
+    const r = parseSong(JSON.stringify({ version: 1, tempo: 100, key: 'C major', bars: 4, tracks: [{ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, notes: [], mods: [
+      { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, rate: 1, sync: 4, shape: 'square', phase: 0.25 },
+      { kind: 'lfo', target: 'pan', amount: 0.5, rate: 99, shape: 'sine', on: false },
+      { kind: 'follow', target: 'volume', amount: -0.5, attack: 0.01, release: 0.5 },
+      { kind: 'wobble', target: 'volume', amount: 1 }, { kind: 'lfo', target: 'bogus', amount: 1 }, { kind: 'lfo', target: 'pan' },
+    ] }] }));
+    if (!('song' in r)) throw new Error('no song');
+    const mods = r.song.tracks[0]!.mods;
+    expect(mods).toEqual([
+      { kind: 'lfo', target: 'fx:e:midFreq', amount: 400, sync: 4, shape: 'square', phase: 0.25 },
+      { kind: 'lfo', target: 'pan', amount: 0.5, rate: 40, on: false },
+      { kind: 'follow', target: 'volume', amount: -0.5, release: 0.5 },
+    ]);
+    const again = parseSong(writeSongForAuto(r.song));
+    if (!('song' in again)) throw new Error('no song');
+    expect(again.song.tracks[0]!.mods).toEqual(mods);
+  });
   it('bends a curved segment as the engine does', () => {
     const line = [{ beat: 0, value: 0, curve: 1 }, { beat: 4, value: 1 }];
     expect(autoValueAt(line, 2, 0)).toBeCloseTo(0.5 ** 0.25);
