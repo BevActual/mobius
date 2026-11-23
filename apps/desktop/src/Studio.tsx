@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -15,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, toLane } from './studio-auto';
+import { type AutoChoice, stackTargets, autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, setUnlinked, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -2030,11 +2030,19 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     // A looped clip's envelope goes round its loop as its notes do, so its lane ends at the loop's end.
     const own = clip ? span : arrClip!.loop ? arrClip!.loop.end : ownLength(arrClip!);
     const at = clip ? 0 : arrClip!.start - (arrClip!.offset ?? 0);
-    const choices = envelopeChoices(song.returns);
+    const choices = envelopeChoices(song.returns, track);
     const envKey = clip ? `${track.id}:${clipAt}` : arrClip!.id;
     const lane = choices.find((x) => x.name === envLane[envKey]) ?? choices[0]!;
     const was = c.envelopes?.[lane.name] ?? [];
     const name = (clip ? clip.name : arrClip!.name) ?? track.name;
+    // Unlinked (Live 12, 27.3): the envelope goes round its own loop from when the clip starts, so its lane runs to
+    // that loop's end, which may pass the clip's.
+    const loop = c.unlinked?.[lane.name];
+    const laneBeats = loop ? Math.max(own, loop.end) : own;
+    const unlink = (next: { start: number; end: number } | null) => {
+      if (clip && clipAt !== null) setClip(track.id, clipAt, (x) => setUnlinked(x, lane.name, next), `unlink:${lane.name}`);
+      else if (arrClip) editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; setUnlinked(y, lane.name, next); return y; }), `unlink:${arrClip.id}:${lane.name}`);
+    };
     const put = (next: { beat: number; value: number }[]) => {
       const points = fromLane(next, was, lane);
       if (clip && clipAt !== null) setClip(track.id, clipAt, (x) => setEnvelope(x, lane.name, points), `env:${lane.name}`);
@@ -2044,14 +2052,22 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <div className="studio-env" role="group" aria-label={`Envelopes of ${name}`} style={{ height: ENV_H, ['--keys' as string]: `${keysW}px` }}>
         <span className="studio-vel-label studio-env-label">
           <button type="button" className="studio-auto-name" aria-haspopup="menu" title="Choose the setting this envelope moves" aria-label={`${name} envelope: ${lane.label}`}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane((m) => ({ ...m, [envKey]: x.name })) })) }); }}>{lane.label}</button>
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: [...choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane((m) => ({ ...m, [envKey]: x.name })) })),
+              { label: `Unlink ${lane.label} from the clip`, checked: !!loop, separated: true, run: () => unlink(loop ? null : { start: 0, end: own }) }] }); }}>{lane.label}</button>
         </span>
         <div className="studio-env-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)` }}>
-          <div className="studio-env-clip" style={{ left: at * rbw, width: own * rbw }}>
-            <AutomationLane className="studio-env-lane" label={`${lane.label} envelope`} head={false} color={track.color} points={toLane(was, lane)} beats={own} pxPerBeat={rbw} empty={laneEmpty(lane)}
+          <div className="studio-env-clip" style={{ left: at * rbw, width: laneBeats * rbw }}>
+            {loop && <span className="studio-env-loop" aria-hidden="true" style={{ left: loop.start * rbw, width: (loop.end - loop.start) * rbw }} />}
+            <AutomationLane className="studio-env-lane" label={`${lane.label} envelope`} head={false} color={track.color} points={toLane(was, lane)} beats={laneBeats} pxPerBeat={rbw} empty={laneEmpty(lane)}
               format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : undefined} onChange={put} />
           </div>
         </div>
+        {loop && (
+          <div className="studio-env-unlinked" role="group" aria-label={`${lane.label} envelope loop`}>
+            <NumberField label="Loop start" value={loop.start} min={0} max={loop.end - 0.25} step={0.25} decimals={2} width={5} onChange={(v) => unlink({ start: v, end: loop.end })} />
+            <NumberField label="Loop end" value={loop.end} min={loop.start + 0.25} max={MAX_UNLINKED} step={0.25} decimals={2} width={5} onChange={(v) => unlink({ start: loop.start, end: v })} />
+          </div>
+        )}
       </div>
     );
   })()}

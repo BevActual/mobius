@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stackTargets, autoChoices, envelopeChoices, setEnvelope, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
+import { stackTargets, autoChoices, envelopeChoices, setEnvelope, setUnlinked, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
 import { newEffect, newStack, type Track } from './song-format';
 
 const track = (more: Partial<Track> = {}): Track => ({ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, pan: 0.5, muted: false, solo: false, color: 'blue', clips: [], ...more } as Track);
@@ -52,6 +52,14 @@ describe('a track automation lane', () => {
     expect(clip.envelopes).toEqual({ pan: [{ beat: 1, value: -0.5 }] });
     setEnvelope(clip, 'pan', []);
     expect(clip.envelopes).toBeUndefined();
+    // With the track, its effect settings too, in their own units.
+    const withFx = envelopeChoices([], track({ fx: [newEffect('reverb', 'fx1')] }));
+    expect(withFx.find((c) => c.name === 'fx:fx1:mix')).toMatchObject({ label: 'Reverb Mix', lo: 0, hi: 1 });
+    const linked: { unlinked?: Record<string, { start: number; end: number }> } = {};
+    setUnlinked(linked, 'volume', { start: 0, end: 6 });
+    expect(linked.unlinked).toEqual({ volume: { start: 0, end: 6 } });
+    setUnlinked(linked, 'volume', null);
+    expect(linked.unlinked).toBeUndefined();
   });
   it('offers a stack\'s macros and its chains\' effects, and lists what its macros can move', () => {
     const stack = { ...newStack('fx1'), chains: [{ fx: [newEffect('delay', 'fx1-1')] }, { name: 'Air', fx: [newEffect('reverb', 'fx1-2')] }] };
