@@ -300,6 +300,9 @@ interface Track {
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
   slots?: (Clip | null)[];                  // Session, one per scene
   auto?: Record<string, AutoPoint[]>;       // "volume", "pan", "send:<return id>", "fx:<id>:<setting>" -> points in song beats
+                                            // fx: a built-in effect's settings by their JSON names (eq low..highFreq, delay time/feedback/mix,
+                                            // compressor makeup, reverb mix); a Workbench device's "<part id>.<setting>"; moved every 128 samples.
+                                            // Not movable while playing: a reverb's size and damp, a compressor's threshold, ratio, attack and release.
   autoOff?: string[];                       // overridden: moving an automated control adds its name, Re-Enable Automation clears it (25.4)
 }
 interface AutoPoint {
@@ -355,7 +358,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Warping, with a stretcher in the engine.
    - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
-   - Automation for every setting, and clip envelopes (mixer automation in the engine done; device settings next).
+   - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings in the engine done; clip envelopes next).
    - Modulators and sidechain.
    - Stacks with macros.
    - Six more effects.
