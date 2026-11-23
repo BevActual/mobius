@@ -346,6 +346,23 @@ test('an LFO and an envelope follower move a track setting, by a share of its ra
   await expect.poll(() => saved0()?.map((m) => m.kind)).toEqual(['follow']);
 });
 
+test('the newer effects: a Saturator\'s Drive and an Auto Filter\'s type, kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Saturator', exact: true }).click();
+  const fx = () => (saved().tracks[0] as { fx?: Record<string, unknown>[] }).fx ?? [];
+  await expect.poll(() => fx()[0]).toMatchObject({ kind: 'saturator', drive: 6, mix: 1 });
+  await device.getByRole('group', { name: 'Saturator settings' }).getByRole('slider', { name: 'Drive' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect.poll(() => fx()[0]?.drive as number).toBeGreaterThan(6);
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Auto Filter', exact: true }).click();
+  await device.getByRole('combobox', { name: 'Filter' }).click();
+  await shell().getByRole('option', { name: 'High-pass', exact: true }).click();
+  await expect.poll(() => fx()[1]).toMatchObject({ kind: 'autofilter', filter: 'highpass', shape: 'sine' });
+});
+
 test('an instrument stack: chains with their own instruments and key zones, kept in the song', async () => {
   await start();
   const device = await openDevice('Keys');

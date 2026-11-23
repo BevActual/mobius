@@ -1,4 +1,4 @@
-import { parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
+import { LFO_SHAPES, parseDevice, PART_KINDS, type Device, type DevicePart, type PartSetting } from './device-format';
 /**
  * A song is JSON, notes rather than sound, so the agent can read and write it like a score:
  *
@@ -60,12 +60,25 @@ export function nextColour(tracks: readonly { color: TrackColour }[]): TrackColo
  *   `release` seconds, then lifts the whole track by `makeup` dB.
  * - `delay`: echoes `time` beats apart, each `feedback` (0 to 0.9) as loud as the last, blended in by `mix` (0 to 1).
  * - `reverb`: a room that rings for `size` seconds, its highs softened by `damp` (0 to 1), blended in by `mix`.
+ * - After Live 12's (manual, 26 "Live Audio Effect Reference"): `gate` (opens over `threshold` dB, closes `return` dB
+ *   under it, in `attack`, `hold` and `release` seconds, down to `floor` dB; keyable as the compressor is), `limiter`
+ *   (`gain` dB in, never over `ceiling` dB, letting go in `release` s), `saturator` (`drive` dB into soft clipping of
+ *   `shape` 0 to 1, then `output` dB, blended by `mix`), `autofilter` (a `filter` of `cutoff` Hz and `resonance`, swept
+ *   by an LFO of `shape` at `rate` Hz by `depth` Hz), `chorus` (a copy `delay` seconds late, its delay moved by `depth`
+ *   seconds at `rate` Hz, blended by `mix`) and `phaser` (four all-pass stages at `center` Hz, swept by `depth` Hz at
+ *   `rate` Hz, blended by `mix`).
  */
 export type Effect =
   | { id: string; kind: 'eq'; on: boolean; low: number; lowFreq: number; mid: number; midFreq: number; midQ: number; high: number; highFreq: number }
   | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number; sidechain?: Sidechain }
   | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
   | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number }
+  | { id: string; kind: 'gate'; on: boolean; threshold: number; return: number; attack: number; hold: number; release: number; floor: number; sidechain?: Sidechain }
+  | { id: string; kind: 'limiter'; on: boolean; gain: number; ceiling: number; release: number }
+  | { id: string; kind: 'saturator'; on: boolean; drive: number; shape: number; output: number; mix: number }
+  | { id: string; kind: 'autofilter'; on: boolean; filter: AutoFilterType; shape: LfoShape; cutoff: number; resonance: number; rate: number; depth: number }
+  | { id: string; kind: 'chorus'; on: boolean; delay: number; rate: number; depth: number; mix: number }
+  | { id: string; kind: 'phaser'; on: boolean; center: number; rate: number; depth: number; mix: number }
   | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain }
   | StackEffect;
 /**
@@ -142,8 +155,18 @@ export function readSidechain(v: unknown): Sidechain | undefined {
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
 export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
-export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'delay', 'reverb'];
-export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', delay: 'Delay', reverb: 'Reverb' };
+export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'gate', 'limiter', 'saturator', 'autofilter', 'chorus', 'phaser', 'delay', 'reverb'];
+export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', gate: 'Gate', limiter: 'Limiter', saturator: 'Saturator', autofilter: 'Auto Filter', chorus: 'Chorus', phaser: 'Phaser', delay: 'Delay', reverb: 'Reverb' };
+/** An auto filter's filter types and LFO shapes, as a device's filter and LFO parts take them. */
+export const AUTO_FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'notch'] as const;
+export type AutoFilterType = (typeof AUTO_FILTER_TYPES)[number];
+export type LfoShape = (typeof LFO_SHAPES)[number];
+/** Effects whose settings are words, not numbers, and where they start. */
+export const EFFECT_WORDS: Partial<Record<EffectKind, Record<string, { choices: readonly string[]; start: string }>>> = {
+  autofilter: { filter: { choices: AUTO_FILTER_TYPES, start: 'lowpass' }, shape: { choices: LFO_SHAPES, start: 'sine' } },
+};
+/** The effects another track can key (Live 12, 29.9.1). */
+export const KEYED_KINDS: readonly EffectKind[] = ['compressor', 'gate'];
 /** Each effect's settings: range, and where a new one starts. */
 export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi: number; start: number }> } = {
   eq: {
@@ -154,12 +177,18 @@ export const EFFECT_PARAMS: { [K in EffectKind]: Record<string, { lo: number; hi
   compressor: { threshold: { lo: -60, hi: 0, start: -18 }, ratio: { lo: 1, hi: 20, start: 4 }, attack: { lo: 0.001, hi: 0.5, start: 0.01 }, release: { lo: 0.02, hi: 1, start: 0.2 }, makeup: { lo: 0, hi: 24, start: 0 } },
   delay: { time: { lo: 0.25, hi: 2, start: 0.75 }, feedback: { lo: 0, hi: 0.9, start: 0.35 }, mix: { lo: 0, hi: 1, start: 0.25 } },
   reverb: { size: { lo: 0.3, hi: 8, start: 2 }, damp: { lo: 0, hi: 1, start: 0.4 }, mix: { lo: 0, hi: 1, start: 0.25 } },
+  gate: { threshold: { lo: -80, hi: 0, start: -40 }, return: { lo: 0, hi: 24, start: 3 }, attack: { lo: 0.0001, hi: 0.15, start: 0.001 }, hold: { lo: 0.001, hi: 3, start: 0.01 }, release: { lo: 0.001, hi: 4, start: 0.1 }, floor: { lo: -90, hi: 0, start: -90 } },
+  limiter: { gain: { lo: -24, hi: 24, start: 0 }, ceiling: { lo: -24, hi: 0, start: -0.3 }, release: { lo: 0.001, hi: 3, start: 0.05 } },
+  saturator: { drive: { lo: -36, hi: 36, start: 6 }, shape: { lo: 0, hi: 1, start: 0 }, output: { lo: -36, hi: 36, start: 0 }, mix: { lo: 0, hi: 1, start: 1 } },
+  autofilter: { cutoff: { lo: 20, hi: 20000, start: 1000 }, resonance: { lo: 0.1, hi: 20, start: 3 }, rate: { lo: 0.01, hi: 40, start: 1 }, depth: { lo: 0, hi: 10000, start: 0 } },
+  chorus: { delay: { lo: 0.001, hi: 0.05, start: 0.012 }, rate: { lo: 0.01, hi: 10, start: 0.8 }, depth: { lo: 0, hi: 0.01, start: 0.003 }, mix: { lo: 0, hi: 1, start: 0.5 } },
+  phaser: { center: { lo: 50, hi: 10000, start: 800 }, rate: { lo: 0.01, hi: 10, start: 0.5 }, depth: { lo: 0, hi: 5000, start: 600 }, mix: { lo: 0, hi: 1, start: 0.5 } },
 };
 /**
  * Each built-in effect as the device it is: the same parts and cables a song's own device would use, so the four
  * effects and every device are played by one piece of code. Heard exactly as before the effects were devices.
  */
-export function builtinDevice(e: BuiltinEffect): Device {
+export function builtinDevice(e: BuiltinEffect): Device | null {
   const p = (id: string, kind: DevicePart['kind'], settings: Record<string, string | number> = {}): DevicePart => ({ ...partStarts(kind), ...settings, id, kind });
   switch (e.kind) {
     case 'eq':
@@ -174,6 +203,20 @@ export function builtinDevice(e: BuiltinEffect): Device {
     case 'reverb':
       return { name: 'Reverb', parts: [p('in', 'input'), p('room', 'reverb', { size: e.size, damp: e.damp }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
         cables: [['in', 'mix.dry'], ['in', 'room'], ['room', 'mix.wet'], ['mix', 'out']], controls: [] };
+    case 'saturator':
+      return { name: 'Saturator', parts: [p('in', 'input'), p('drive', 'gain', { gain: 10 ** (e.drive / 20) }), p('shape', 'drive', { amount: e.shape }), p('output', 'gain', { gain: 10 ** (e.output / 20) }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
+        cables: [['in', 'mix.dry'], ['in', 'drive'], ['drive', 'shape'], ['shape', 'output'], ['output', 'mix.wet'], ['mix', 'out']], controls: [] };
+    case 'autofilter':
+      return { name: 'Auto Filter', parts: [p('in', 'input'), p('f', 'filter', { type: e.filter, cutoff: e.cutoff, resonance: e.resonance, gain: 0 }), p('lfo', 'lfo', { rate: e.rate, depth: e.depth, shape: e.shape }), p('out', 'output')],
+        cables: [['in', 'f'], ['lfo', 'f.cutoff'], ['f', 'out']], controls: [] };
+    case 'phaser': {
+      const stages = ['a1', 'a2', 'a3', 'a4'];
+      return { name: 'Phaser', parts: [p('in', 'input'), ...stages.map((id) => p(id, 'filter', { type: 'allpass', cutoff: e.center, resonance: 0.7, gain: 0 })), p('lfo', 'lfo', { rate: e.rate, depth: e.depth }), p('mix', 'mix', { amount: e.mix }), p('out', 'output')],
+        cables: [['in', 'mix.dry'], ['in', 'a1'], ['a1', 'a2'], ['a2', 'a3'], ['a3', 'a4'], ['a4', 'mix.wet'], ...stages.map((id): [string, string] => ['lfo', `${id}.cutoff`]), ['mix', 'out']], controls: [] };
+    }
+    // The gate and limiter are parts the Workbench doesn't draw yet, and the chorus's delay is in seconds, not beats.
+    default:
+      return null;
   }
 }
 /** A part kind's settings where they start. */
@@ -181,7 +224,7 @@ export const partStarts = (kind: DevicePart['kind']): Record<string, string | nu
 
 /** A new effect of a kind, with its starting settings. */
 export function newEffect(kind: EffectKind, id: string): Effect {
-  return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])) } as Effect;
+  return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])), ...Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, w.start])) } as Effect;
 }
 /** An effect id not yet on the track. */
 export function freshEffectId(track: { fx?: readonly Effect[] }): string {
@@ -270,7 +313,7 @@ export function readAuto(list: unknown, beats: number, range: { lo: number; hi: 
   const points = (Array.isArray(list) ? list : []).slice(0, 512).flatMap((p): AutoPoint[] => {
     const o = obj(p);
     if (typeof o.beat !== 'number' || typeof o.value !== 'number' || !Number.isFinite(o.beat) || !Number.isFinite(o.value)) return [];
-    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(range.lo, Math.min(range.hi, o.value)) * 1000) / 1000 };
+    const point: AutoPoint = { beat: Math.round(Math.max(0, Math.min(beats, o.beat)) * 1e4) / 1e4, value: Math.round(Math.max(range.lo, Math.min(range.hi, o.value)) * 1e6) / 1e6 };
     if (typeof o.curve === 'number' && Number.isFinite(o.curve) && Math.abs(o.curve) >= 0.001) point.curve = Math.round(Math.max(-1, Math.min(1, o.curve)) * 1000) / 1000;
     return [point];
   });
@@ -594,9 +637,11 @@ function readFx(list: unknown, where: string, refuse: (why: string) => void, nes
     }
     const kind = EFFECT_KINDS.includes(eo.kind as EffectKind) ? (eo.kind as EffectKind) : null;
     if (!kind) return [];
-    const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, num(eo[k], r.start, r.lo, r.hi)]));
-    const side = kind === 'compressor' ? readSidechain(eo.sidechain) : undefined;
-    return [{ id: fxId, kind, on: eo.on !== false, ...params, ...(side ? { sidechain: side } : {}) } as Effect];
+    // Kept to six decimals, not three: a chorus's depth and a gate's attack are fractions of a millisecond.
+    const params = Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, typeof eo[k] === 'number' && Number.isFinite(eo[k]) ? Math.min(r.hi, Math.max(r.lo, Math.round((eo[k] as number) * 1e6) / 1e6)) : r.start]));
+    const words = Object.fromEntries(Object.entries(EFFECT_WORDS[kind] ?? {}).map(([k, w]) => [k, typeof eo[k] === 'string' && w.choices.includes(eo[k] as string) ? eo[k] : w.start]));
+    const side = KEYED_KINDS.includes(kind) ? readSidechain(eo.sidechain) : undefined;
+    return [{ id: fxId, kind, on: eo.on !== false, ...params, ...words, ...(side ? { sidechain: side } : {}) } as Effect];
   });
 }
 

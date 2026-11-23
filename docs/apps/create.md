@@ -142,9 +142,13 @@ A small studio for writing songs as notes.
 - **Effects** follow the instrument, to its right. **Add effect** puts an EQ (three numbered bands on a curve: drag a
   band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
-  Damp, Mix) at the end of the track's chain. Each one has a switch to turn it off, a grip to drag it along the
+  Damp, Mix) at the end of the track's chain. After Live 12's (26), there are also a Gate (Threshold, Return, Floor,
+  Attack, Hold, Release), a Limiter (Gain, Ceiling, Release), a Saturator (Drive, Shape, Output, Dry/Wet), an Auto
+  Filter (a filter type, Frequency and Resonance, swept by an LFO of a Shape, Rate and Amount), a Chorus (Delay, Rate,
+  Amount, Dry/Wet) and a Phaser (Frequency, Rate, Amount, Dry/Wet). The Workbench can't draw the Gate, Limiter or
+  Chorus yet. Each one has a switch to turn it off, a grip to drag it along the
   chain (or move it with the arrow keys), and a button to remove it. They are saved in the song as `fx`.
-- **Sidechain**: a Compressor (and a song's own device with a compressor in it) has a Sidechain section, as in Live
+- **Sidechain**: a Compressor or Gate (and a song's own device with a compressor in it) has a Sidechain section, as in Live
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
   or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
   keyed. Saved as the effect's `sidechain`.
@@ -176,7 +180,7 @@ A small studio for writing songs as notes.
   the computer's input (Live 12, 19.2).
 - **Automation** (the line button in the toolbar, or A): a line under each track in the Arrange view. Its name (Volume
   at first) chooses the setting it moves: Volume, Pan, a send, or a setting of one of the track's effects (EQ bands, delay time,
-  feedback and mix, compressor makeup, reverb mix). Click the line to add a point and drag to place it, drag
+  feedback and mix, compressor makeup, reverb mix, and the newer effects' main settings). Click the line to add a point and drag to place it, drag
   a point to move it, double-click it (or Delete) to take it out. With points, the setting follows the line as it plays;
   with none, it stays where it is set. Moving an automated knob or fader by hand overrides its line, which greys with a
   Re-enable button; the track menu's Re-Enable Automation brings back every line (Live 12, 25.4). Saved as each

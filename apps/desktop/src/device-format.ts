@@ -25,7 +25,7 @@ export interface PartKind {
   moves: readonly string[];
 }
 
-export const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'peaking', 'notch'] as const;
+export const FILTER_TYPES = ['lowpass', 'highpass', 'bandpass', 'lowshelf', 'highshelf', 'peaking', 'notch', 'allpass'] as const;
 export const LFO_SHAPES = ['sine', 'triangle', 'square', 'sawtooth'] as const;
 
 export const PART_KINDS = {

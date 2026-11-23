@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -287,7 +287,15 @@ const EFFECT_CELLS: { [K in EffectKind]: readonly { k: string; name: string; ste
   compressor: [{ k: 'threshold', name: 'Threshold', step: 1, origin: 0 }, { k: 'ratio', name: 'Ratio', step: 0.1, log: true }, { k: 'attack', name: 'Attack', step: 0.001, log: true }, { k: 'release', name: 'Release', step: 0.01, log: true }, { k: 'makeup', name: 'Makeup', step: 0.5 }],
   delay: [{ k: 'feedback', name: 'Feedback', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
   reverb: [{ k: 'size', name: 'Size', step: 0.1, log: true }, { k: 'damp', name: 'Damp', step: 0.01 }, { k: 'mix', name: 'Mix', step: 0.01 }],
+  gate: [{ k: 'threshold', name: 'Threshold', step: 1, origin: 0 }, { k: 'return', name: 'Return', step: 0.5 }, { k: 'floor', name: 'Floor', step: 1, origin: 0 }, { k: 'attack', name: 'Attack', step: 0.0001, log: true }, { k: 'hold', name: 'Hold', step: 0.001, log: true }, { k: 'release', name: 'Release', step: 0.001, log: true }],
+  limiter: [{ k: 'gain', name: 'Gain', step: 0.5, origin: 0 }, { k: 'ceiling', name: 'Ceiling', step: 0.1, origin: 0 }, { k: 'release', name: 'Release', step: 0.001, log: true }],
+  saturator: [{ k: 'drive', name: 'Drive', step: 0.5, origin: 0 }, { k: 'shape', name: 'Shape', step: 0.01 }, { k: 'output', name: 'Output', step: 0.5, origin: 0 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
+  autofilter: [{ k: 'cutoff', name: 'Frequency', step: 1, log: true }, { k: 'resonance', name: 'Resonance', step: 0.1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }],
+  chorus: [{ k: 'delay', name: 'Delay', step: 0.0005 }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 0.0001 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
+  phaser: [{ k: 'center', name: 'Frequency', step: 1, log: true }, { k: 'rate', name: 'Rate', step: 0.01, log: true }, { k: 'depth', name: 'Amount', step: 1 }, { k: 'mix', name: 'Dry/Wet', step: 0.01 }],
 };
+/** The words an effect's choices read as. */
+const WORD_NAMES: Record<string, string> = { filter: 'Filter', shape: 'Shape', lowpass: 'Low-pass', highpass: 'High-pass', bandpass: 'Band-pass', notch: 'Notch', sine: 'Sine', triangle: 'Triangle', square: 'Square', sawtooth: 'Saw' };
 /** Which EQ setting each band's handle moves, low to high: what Mobius changed shows on the band it belongs to. */
 const EQ_FIELDS: readonly Partial<Record<'freq' | 'gain' | 'q', string>>[] = [
   { freq: 'lowFreq', gain: 'low' }, { freq: 'midFreq', gain: 'mid', q: 'midQ' }, { freq: 'highFreq', gain: 'high' },
@@ -298,6 +306,12 @@ const EFFECT_DETAILS: { [K in EffectKind]: string } = {
   compressor: 'Evens out loud and quiet notes',
   delay: 'Echoes that fade, in time with the song',
   reverb: 'Puts the track in a room or hall',
+  gate: 'Silences the track below a level',
+  limiter: 'Keeps the loudest peaks under a ceiling',
+  saturator: 'Warmth and grit from driving it hard',
+  autofilter: 'A filter that sweeps up and down by itself',
+  chorus: 'Thickens with slightly detuned copies',
+  phaser: 'A sweeping, swirling notch',
 };
 const DELAY_TIMES = [{ value: '0.25', label: '1/16' }, { value: '0.5', label: '1/8' }, { value: '0.75', label: '3/16' }, { value: '1', label: '1/4' }, { value: '1.5', label: '3/8' }, { value: '2', label: '1/2' }] as const;
 
@@ -361,7 +375,7 @@ const NO_SIDECHAIN = ' none';
  * The compressor's Sidechain section (Live 12 manual, 29.9.1): Audio From picks the track whose level triggers it, Gain
  * raises or lowers that level, and Dry/Wet blends the keyed compression with its own.
  */
-function SidechainSection({ effect, name, sources, onChange }: { effect: Extract<Effect, { kind: 'compressor' | 'device' }>; name: string; sources: readonly SideSource[]; onChange: (fn: (e: Effect) => void, tag?: string) => void }) {
+function SidechainSection({ effect, name, sources, onChange }: { effect: Extract<Effect, { kind: 'compressor' | 'gate' | 'device' }>; name: string; sources: readonly SideSource[]; onChange: (fn: (e: Effect) => void, tag?: string) => void }) {
   const side = effect.sidechain;
   const put = (fn: (s: Sidechain) => void, tag: string) => onChange((e) => { const x = e as { sidechain?: Sidechain }; if (x.sidechain) fn(x.sidechain); }, tag);
   const choices = [{ value: NO_SIDECHAIN, label: 'None' }, ...sources.map((t) => ({ value: t.id, label: t.name || 'Untitled track' }))];
@@ -553,13 +567,17 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
           })}
           onChange={(i, band) => onChange((e) => { Object.assign(e, eqFromBand(i, band)); }, `fx:band${i}`)} />
       )}
+      {Object.entries(EFFECT_WORDS[effect.kind] ?? {}).map(([k, w]) => (
+        <Select key={k} label={WORD_NAMES[k] ?? k} value={(effect as unknown as Record<string, string>)[k] ?? w.start} choices={w.choices.map((c) => ({ value: c, label: WORD_NAMES[c] ?? c }))}
+          onChange={(v) => onChange((e) => { (e as unknown as Record<string, string>)[k] = v; }, `fx:${k}`)} />
+      ))}
       {EFFECT_CELLS[effect.kind].length > 0 && <ParamGrid label={`${name} settings`} columns={4}>
         {EFFECT_CELLS[effect.kind].map(({ k, name: cell, step, log, origin }) => {
           const r = EFFECT_PARAMS[effect.kind][k]!;
           return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>}
-      {effect.kind === 'compressor' && <SidechainSection effect={effect} name={name} sources={sources} onChange={onChange} />}
+      {(effect.kind === 'compressor' || effect.kind === 'gate') && <SidechainSection effect={effect} name={name} sources={sources} onChange={onChange} />}
       </div>
     </DeviceFrame>
   );
@@ -767,7 +785,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
           <DeviceChain label={`${track.name} effects`} count={fx.length}
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
-              <EffectBlock key={e.id} effect={e} at={i} sources={sources} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
+              <EffectBlock key={e.id} effect={e} at={i} sources={sources} proposed={proposed} onOpen={e.kind === 'device' || (e.kind !== 'stack' && builtinDevice(e)) ? () => onOpen?.(e.id) : undefined} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
                 onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) { const before = { ...x }; fn(x); overrideEffect(t, before, x); } }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
@@ -1212,6 +1230,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const total = song.bars * BEATS_PER_BAR;
   // The Workbench shows its effect while that track stays chosen and the effect is still on it.
   const benchFx = bench && track && bench.track === track.id ? track.fx?.find((e): e is Exclude<Effect, StackEffect> => e.id === bench.fx && e.kind !== 'stack') ?? null : null;
+  // The device the Workbench draws: the song's own, or the parts a built-in effect is made of (none for those it can't draw yet).
+  const benchDevice = benchFx ? (benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)) : null;
   // In the Session view the bottom area edits the chosen clip, which goes round on its own length.
   const clip: Clip | null = view === 'session' && track && clipAt !== null ? (track.slots?.[clipAt] ?? null) : null;
   const span = clip ? clip.bars * BEATS_PER_BAR : total;
@@ -1876,8 +1896,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
         ) : null}
         </>}
       </div>
-  {detail === 'device' && benchFx ? (
-    <StudioWorkbench device={benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
+  {detail === 'device' && benchFx && benchDevice ? (
+    <StudioWorkbench device={benchDevice} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
     <StudioDevice track={track} returns={song.returns ?? []} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />

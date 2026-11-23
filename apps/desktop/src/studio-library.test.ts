@@ -10,7 +10,7 @@ describe('the Library', () => {
 
   it('a category narrows the results, sorted by name', () => {
     expect(names(search(LIBRARY, 'drums', '', {}))).toEqual(['Classic Kit', 'Deep Kit', 'Tight Kit']);
-    expect(names(search(LIBRARY, 'effects', '', {}))).toEqual(['Compressor', 'Delay', 'EQ', 'Reverb']);
+    expect(names(search(LIBRARY, 'effects', '', {}))).toEqual(['Auto Filter', 'Chorus', 'Compressor', 'Delay', 'EQ', 'Gate', 'Limiter', 'Phaser', 'Reverb', 'Saturator']);
   });
 
   it('every word must match a name or tag, and #word matches tags only', () => {
