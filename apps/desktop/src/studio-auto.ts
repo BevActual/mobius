@@ -22,18 +22,28 @@ export function autoChoices(track: Track, returns: readonly ReturnTrack[] = []):
     { name: 'pan', label: 'Pan', lo: -1, hi: 1, own: track.pan },
     ...returns.map((r, i) => ({ name: `send:${r.id}`, label: `Send ${returnName(r, i)}`, lo: 0, hi: 1, own: track.sends?.[r.id] ?? 0 })),
   ];
-  const counts = new Map<string, number>();
-  for (const e of track.fx ?? []) {
-    if (e.kind === 'device') continue;
-    const n = (counts.get(e.kind) ?? 0) + 1;
-    counts.set(e.kind, n);
-    const twice = (track.fx ?? []).filter((f) => f.kind === e.kind).length > 1;
-    const values = e as unknown as Record<string, number>;
-    for (const k of AUTOMATABLE[e.kind]) {
-      const r = EFFECT_PARAMS[e.kind][k]!;
-      out.push({ name: `fx:${e.id}:${k}`, label: `${EFFECT_NAMES[e.kind]}${twice ? ` ${n}` : ''} ${SETTING_NAMES[k] ?? k}`, lo: r.lo, hi: r.hi, own: values[k] ?? r.start, kind: e.kind, setting: k });
+  // Each built-in effect's settings, numbered when there are two of a kind; a stack's macros, then its chains' effects.
+  const builtins = (list: readonly Effect[], prefix: string) => {
+    const counts = new Map<string, number>();
+    for (const e of list) {
+      if (e.kind === 'device' || e.kind === 'stack') continue;
+      const n = (counts.get(e.kind) ?? 0) + 1;
+      counts.set(e.kind, n);
+      const twice = list.filter((f) => f.kind === e.kind).length > 1;
+      const values = e as unknown as Record<string, number>;
+      for (const k of AUTOMATABLE[e.kind]) {
+        const r = EFFECT_PARAMS[e.kind][k]!;
+        out.push({ name: `fx:${e.id}:${k}`, label: `${prefix}${EFFECT_NAMES[e.kind]}${twice ? ` ${n}` : ''} ${SETTING_NAMES[k] ?? k}`, lo: r.lo, hi: r.hi, own: values[k] ?? r.start, kind: e.kind, setting: k });
+      }
     }
-  }
+  };
+  builtins(track.fx ?? [], '');
+  const stacks = (track.fx ?? []).filter((e) => e.kind === 'stack');
+  stacks.forEach((s, si) => {
+    const stack = stacks.length > 1 ? `Stack ${si + 1}` : 'Stack';
+    s.macros.forEach((m, i) => out.push({ name: `fx:${s.id}:macro${i + 1}`, label: `${stack} ${m.name ?? `Macro ${i + 1}`}`, lo: 0, hi: 1, own: m.value }));
+    s.chains.forEach((c, ci) => builtins(c.fx, `${stack} ${c.name ?? `Chain ${ci + 1}`} `));
+  });
   return out;
 }
 
@@ -95,4 +105,12 @@ export function setEnvelope(clip: { envelopes?: Record<string, AutoPoint[]> }, n
   const env = { ...(clip.envelopes ?? {}) };
   if (points.length > 0) env[name] = points; else delete env[name];
   if (Object.keys(env).length > 0) clip.envelopes = env; else delete clip.envelopes;
+}
+
+/** The settings a stack's macros can move: each built-in effect's in its chains, by chain, with their ranges. */
+export function stackTargets(stack: { chains: readonly { name?: string; fx: readonly Effect[] }[] }): { target: string; label: string; lo: number; hi: number }[] {
+  return stack.chains.flatMap((c, ci) => c.fx.flatMap((e) => {
+    if (e.kind === 'device' || e.kind === 'stack') return [];
+    return AUTOMATABLE[e.kind].map((k) => ({ target: `fx:${e.id}:${k}`, label: `${c.name ?? `Chain ${ci + 1}`} ${EFFECT_NAMES[e.kind]} ${SETTING_NAMES[k] ?? k}`, lo: EFFECT_PARAMS[e.kind][k]!.lo, hi: EFFECT_PARAMS[e.kind][k]!.hi }));
+  }));
 }

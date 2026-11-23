@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { autoChoices, envelopeChoices, setEnvelope, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
-import { newEffect, type Track } from './song-format';
+import { stackTargets, autoChoices, envelopeChoices, setEnvelope, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
+import { newEffect, newStack, type Track } from './song-format';
 
 const track = (more: Partial<Track> = {}): Track => ({ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, pan: 0.5, muted: false, solo: false, color: 'blue', clips: [], ...more } as Track);
 
@@ -52,5 +52,13 @@ describe('a track automation lane', () => {
     expect(clip.envelopes).toEqual({ pan: [{ beat: 1, value: -0.5 }] });
     setEnvelope(clip, 'pan', []);
     expect(clip.envelopes).toBeUndefined();
+  });
+  it('offers a stack\'s macros and its chains\' effects, and lists what its macros can move', () => {
+    const stack = { ...newStack('fx1'), chains: [{ fx: [newEffect('delay', 'fx1-1')] }, { name: 'Air', fx: [newEffect('reverb', 'fx1-2')] }] };
+    const names = autoChoices(track({ fx: [stack] })).map((c) => c.label);
+    expect(names).toContain('Stack Macro 1');
+    expect(names).toContain('Stack Chain 1 Delay Mix');
+    expect(names).toContain('Stack Air Reverb Mix');
+    expect(stackTargets(stack).map((t) => t.target)).toEqual(['fx:fx1-1:time', 'fx:fx1-1:feedback', 'fx:fx1-1:mix', 'fx:fx1-2:mix']);
   });
 });

@@ -411,3 +411,15 @@
 .studio-page .studio-env-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); }
 .studio-page .studio-env-clip { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--tc, var(--ink)) 6%, transparent); }
 .studio-page .studio-env-clip .ui-lane { height: 100%; background: transparent; border-bottom: 0; }
+/* A stack (Live's Audio Effect Rack): macros with their Map buttons, the mappings, then its chains side by side. */
+.studio-fx-chain .studio-fx-stack { min-width: calc(var(--sp-8) * 14); }
+.studio-macro { display: grid; justify-items: center; gap: var(--sp-1); }
+.studio-macro-map { font-size: var(--fs-xs); }
+.studio-macro-maps { display: grid; gap: var(--sp-1); margin: 0; padding: 0; list-style: none; font-size: var(--fs-sm); }
+.studio-macro-maps li { display: flex; align-items: center; gap: var(--sp-2); }
+.studio-macro-maps li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+.studio-stack-chains { display: flex; gap: var(--sp-3); align-items: flex-start; overflow-x: auto; }
+.studio-stack-chain { display: grid; gap: var(--sp-2); padding: var(--sp-2); border: var(--hairline-w) solid var(--line-soft); border-radius: var(--radius-small); }
+.studio-stack-chain[data-muted] { opacity: 0.55; }
+.studio-stack-chain-head { display: flex; align-items: center; gap: var(--sp-1); }
+.studio-stack-chain-head .studio-dev-head { flex: 1; }

@@ -30,6 +30,7 @@ Starting points: piano shape 0.2 cutoff 5000 attack 0.005 decay 0.8 sustain 0.3 
 - `eq`: `low`/`mid`/`high` -18 to 18 dB, `lowFreq` 30-400, `midFreq` 200-8000, `midQ` 0.3-8, `highFreq` 2000-16000.
 - `compressor`: `threshold` -60-0 dB, `ratio` 1-20, `attack` 0.001-0.5 s, `release` 0.02-1 s, `makeup` 0-24 dB.
 - sidechain (ducking): a compressor, or a device with a compressor part, may have `"sidechain":{"track":<track id>,"gain"? -24 to 24 dB,"mix"? 0-1}`; that track's level then triggers it, as a kick ducks a bass or pad.
+- `stack` (an effect rack): `{"id","kind":"stack","chains":[{"name"?,"fx":[...],"volume"? 0-2,"pan"? -1 to 1,"muted"?}],"macros":[{"name"?,"value" 0-1,"maps":[{"target":"fx:<effect id in a chain>:<setting>","min","max"}]}]}`; up to 16 chains and 16 macros, no stack inside a stack. Chains run side by side and add up; each macro moves its mapped settings from `min` (at 0) to `max` (at 1). Automation and `mods` reach a macro as `fx:<stack id>:macro1`..`macro16`, and an effect in a chain by its own id (ids are unique across the track).
 - `delay`: `time` 0.25-2 beats, `feedback` 0-0.9, `mix` 0-1.
 - `reverb`: `size` 0.3-8 s, `damp` 0-1 (darker tail), `mix` 0-1.
 A new effect gets an id not on the track (`fx2`...).

@@ -66,7 +66,24 @@ export type Effect =
   | { id: string; kind: 'compressor'; on: boolean; threshold: number; ratio: number; attack: number; release: number; makeup: number; sidechain?: Sidechain }
   | { id: string; kind: 'delay'; on: boolean; time: number; feedback: number; mix: number }
   | { id: string; kind: 'reverb'; on: boolean; size: number; damp: number; mix: number }
-  | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain };
+  | { id: string; kind: 'device'; on: boolean; device: Device; sidechain?: Sidechain }
+  | StackEffect;
+/**
+ * A stack of effects (Live 12 manual, 22 "Instrument, Drum and Effect Racks"; Live's Audio Effect Rack): `chains` side
+ * by side, each hearing what comes in through its own effects, `volume` (gain, 1 when left out) and `pan`, added
+ * together; and `macros`, each moving settings of effects in its chains (`fx:<inner id>:<setting>`) from `min` with the
+ * macro at 0 to `max` at 1. Up to 16 of each; a stack holds no stacks. Automation and modulators reach a macro as
+ * `fx:<stack id>:macro1` to `macro16`, and an effect in a chain by its own id.
+ */
+export interface StackEffect { id: string; kind: 'stack'; on: boolean; chains: StackChain[]; macros: StackMacro[] }
+export interface StackChain { name?: string; fx: Effect[]; volume?: number; pan?: number; muted?: true }
+export interface StackMacro { name?: string; value: number; maps: MacroMap[] }
+export interface MacroMap { target: string; min: number; max: number }
+export const MAX_STACK = 16;
+/** Every effect in a list, those in a stack's chains after the stack itself. */
+export const allEffects = (fx: readonly Effect[]): Effect[] => fx.flatMap((e) => (e.kind === 'stack' ? [e, ...e.chains.flatMap((c) => c.fx)] : [e]));
+/** A new stack: one empty chain and eight macros at 0, as a new rack in Live shows. */
+export const newStack = (id: string): StackEffect => ({ id, kind: 'stack', on: true, chains: [{ fx: [] }], macros: Array.from({ length: 8 }, () => ({ value: 0, maps: [] })) });
 /**
  * Another track keying an effect's compressors (Live 12 manual, 29.9.1 "Sidechain Parameters"): that track's level after
  * its volume and effects, raised by `gain` dB (-24 to 24, 0 when left out), triggers them, in the share `mix` (0 to 1,
@@ -84,7 +101,7 @@ export function readSidechain(v: unknown): Sidechain | undefined {
   return side;
 }
 /** The four built-in effects; a song's own devices (`kind: "device"`) are the rest. */
-export type EffectKind = Exclude<Effect['kind'], 'device'>;
+export type EffectKind = Exclude<Effect['kind'], 'device' | 'stack'>;
 export type BuiltinEffect = Extract<Effect, { kind: EffectKind }>;
 export const EFFECT_KINDS: EffectKind[] = ['eq', 'compressor', 'delay', 'reverb'];
 export const EFFECT_NAMES: Record<EffectKind, string> = { eq: 'EQ', compressor: 'Compressor', delay: 'Delay', reverb: 'Reverb' };
@@ -128,8 +145,9 @@ export function newEffect(kind: EffectKind, id: string): Effect {
   return { id, kind, on: true, ...Object.fromEntries(Object.entries(EFFECT_PARAMS[kind]).map(([k, r]) => [k, r.start])) } as Effect;
 }
 /** An effect id not yet on the track. */
-export function freshEffectId(track: { fx?: readonly { id: string }[] }): string {
-  const used = new Set((track.fx ?? []).map((e) => e.id));
+export function freshEffectId(track: { fx?: readonly Effect[] }): string {
+  // Ids are unique across a stack's chains too, since automation reaches an effect in a chain by its own id.
+  const used = new Set(allEffects(track.fx ?? []).map((e) => e.id));
   let n = (track.fx?.length ?? 0) + 1;
   while (used.has(`fx${n}`)) n++;
   return `fx${n}`;
@@ -501,10 +519,35 @@ export function parseSong(text: string): { song: Song } | { error: string } {
 }
 
 /** A chain of effects from a file: built-in ones with their settings, and devices, which must be able to play. */
-function readFx(list: unknown, where: string, refuse: (why: string) => void): Effect[] {
+function readFx(list: unknown, where: string, refuse: (why: string) => void, nested = false, prefix = 'fx'): Effect[] {
   return (Array.isArray(list) ? list : []).slice(0, 8).flatMap((e, j): Effect[] => {
     const eo = obj(e);
-    const fxId = typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `fx${j + 1}`;
+    const fxId = typeof eo.id === 'string' && eo.id ? eo.id.slice(0, 20) : `${prefix}${j + 1}`;
+    if (eo.kind === 'stack') {
+      // A stack holds no stacks (the engine plays none inside one).
+      if (nested) return [];
+      const chains = (Array.isArray(eo.chains) ? eo.chains : []).slice(0, MAX_STACK).map((c, ci): StackChain => {
+        const co = obj(c);
+        const chain: StackChain = { fx: readFx(co.fx, `${where}, ${fxId} chain ${ci + 1}`, refuse, true, `${fxId}c${ci + 1}x`) };
+        if (typeof co.name === 'string' && co.name) chain.name = co.name.slice(0, 40);
+        if (typeof co.volume === 'number' && Number.isFinite(co.volume) && co.volume !== 1) chain.volume = Math.round(Math.max(0, Math.min(2, co.volume)) * 1000) / 1000;
+        if (typeof co.pan === 'number' && Number.isFinite(co.pan) && co.pan !== 0) chain.pan = Math.round(Math.max(-1, Math.min(1, co.pan)) * 100) / 100;
+        if (co.muted === true) chain.muted = true;
+        return chain;
+      });
+      const macros = (Array.isArray(eo.macros) ? eo.macros : []).slice(0, MAX_STACK).map((m): StackMacro => {
+        const mo = obj(m);
+        const macro: StackMacro = { value: num(mo.value, 0, 0, 1), maps: (Array.isArray(mo.maps) ? mo.maps : []).slice(0, 32).flatMap((x): MacroMap[] => {
+          const xo = obj(x);
+          if (typeof xo.target !== 'string' || !/^fx:[\w-]{1,20}:[\w.-]{1,80}$/.test(xo.target)) return [];
+          const fin = (v: unknown, d: number) => (typeof v === 'number' && Number.isFinite(v) ? Math.round(Math.max(-1e6, Math.min(1e6, v)) * 1e4) / 1e4 : d);
+          return [{ target: xo.target, min: fin(xo.min, 0), max: fin(xo.max, 1) }];
+        }) };
+        if (typeof mo.name === 'string' && mo.name) macro.name = mo.name.slice(0, 40);
+        return macro;
+      });
+      return [{ id: fxId, kind: 'stack', on: eo.on !== false, chains, macros }];
+    }
     if (eo.kind === 'device') {
       const read = parseDevice(eo.device);
       if ('error' in read) { refuse(`${where}, effect ${fxId}: ${read.error}`); return []; }
