@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, ownLength, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -306,8 +306,38 @@ const BENCH_ICON = 'M3.5 6.5h3M13.5 13.5h3M6.5 6.5c4 0 3 7 7 7M6.5 6.5a1.5 1.5 0
 /** The button on an effect's head that opens it up in the Workbench. */
 const BenchButton = ({ name, onOpen }: { name: string; onOpen: () => void }) => <IconButton label={`Open ${name} in Workbench`} title="See its parts and cables" icon={<Icon d={BENCH_ICON} />} onClick={onOpen} />;
 
-function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed }: {
+/** A track that can key a compressor: any other track, by id and name. */
+type SideSource = { id: string; name: string };
+const NO_SIDECHAIN = ' none';
+/**
+ * The compressor's Sidechain section (Live 12 manual, 29.9.1): Audio From picks the track whose level triggers it, Gain
+ * raises or lowers that level, and Dry/Wet blends the keyed compression with its own.
+ */
+function SidechainSection({ effect, name, sources, onChange }: { effect: Extract<Effect, { kind: 'compressor' | 'device' }>; name: string; sources: readonly SideSource[]; onChange: (fn: (e: Effect) => void, tag?: string) => void }) {
+  const side = effect.sidechain;
+  const put = (fn: (s: Sidechain) => void, tag: string) => onChange((e) => { const x = e as { sidechain?: Sidechain }; if (x.sidechain) fn(x.sidechain); }, tag);
+  const choices = [{ value: NO_SIDECHAIN, label: 'None' }, ...sources.map((t) => ({ value: t.id, label: t.name || 'Untitled track' }))];
+  if (side && !sources.some((t) => t.id === side.track)) choices.push({ value: side.track, label: 'A track no longer in the song' });
+  return (
+    <section className="studio-fx-side" aria-label={`${name} sidechain`}>
+      <h4 className="studio-dev-head">Sidechain</h4>
+      <Select label="Audio From" value={side?.track ?? NO_SIDECHAIN} choices={choices}
+        onChange={(id) => onChange((e) => { const x = e as { sidechain?: Sidechain }; if (id === NO_SIDECHAIN) delete x.sidechain; else x.sidechain = { ...(x.sidechain ?? {}), track: id }; }, 'fx:side')} />
+      {side && <ParamGrid label={`${name} sidechain settings`} columns={2}>
+        <Knob label="Gain" value={side.gain ?? 0} min={SIDECHAIN_GAIN.lo} max={SIDECHAIN_GAIN.hi} step={0.5} origin={0} reset={0} format={(v) => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`}
+          onChange={(v) => put((s) => { const g = Math.round(v * 10) / 10; if (g === 0) delete s.gain; else s.gain = g; }, 'fx:side-gain')} />
+        <Knob label="Dry/Wet" value={side.mix ?? 1} min={0} max={1} step={0.01} reset={1} format={(v) => `${Math.round(v * 100)}%`}
+          onChange={(v) => put((s) => { const m = Math.round(v * 100) / 100; if (m === 1) delete s.mix; else s.mix = m; }, 'fx:side-mix')} />
+      </ParamGrid>}
+      {side && <p className="studio-dev-note">Ducks under the other track's level. Automatic makeup is off while keyed.</p>}
+    </section>
+  );
+}
+
+function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed, sources = [] }: {
   effect: Effect; at: number;
+  /** The tracks that can key its compressors (sidechain). */
+  sources?: readonly SideSource[];
   /** Opens the effect in the Workbench. */
   onOpen: () => void;
   /** What Mobius changed on this effect and nobody has kept yet: `fx:<id>` for the whole effect, `fx:<id>:<setting>`. */
@@ -316,7 +346,7 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
   onRemove: () => void;
 }) {
-  if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} onChange={onChange} onRemove={onRemove} onOpen={onOpen} folded={folded} onFold={onFold} proposed={proposed} />;
+  if (effect.kind === 'device') return <DeviceBlock effect={effect} at={at} sources={sources} onChange={onChange} onRemove={onRemove} onOpen={onOpen} folded={folded} onFold={onFold} proposed={proposed} />;
   const name = EFFECT_NAMES[effect.kind];
   const values = effect as unknown as Record<string, number>;
   return (
@@ -340,14 +370,15 @@ function EffectBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
           return <Knob key={k} label={cell} value={values[k]!} min={r.lo} max={r.hi} step={step} scale={log ? 'log' : 'linear'} origin={origin} reset={r.start} format={(v) => effectText(effect.kind, k, v)} proposed={proposed?.has(`fx:${effect.id}:${k}`)} onChange={(v) => onChange((e) => { (e as unknown as Record<string, number>)[k] = v; }, `fx:${k}`)} />;
         })}
       </ParamGrid>}
+      {effect.kind === 'compressor' && <SidechainSection effect={effect} name={name} sources={sources} onChange={onChange} />}
       </div>
     </DeviceFrame>
   );
 }
 
 /** A song's own device on the track: its name, what it is for, and the knobs its file names as controls. */
-function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed }: {
-  effect: Extract<Effect, { kind: 'device' }>; at: number; proposed?: ReadonlySet<string>;
+function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, proposed, sources = [] }: {
+  effect: Extract<Effect, { kind: 'device' }>; at: number; proposed?: ReadonlySet<string>; sources?: readonly SideSource[];
   onOpen: () => void;
   folded: boolean; onFold: (folded: boolean) => void;
   onChange: (fn: (e: Effect) => void, tag?: string) => void;
@@ -368,6 +399,7 @@ function DeviceBlock({ effect, at, onChange, onRemove, onOpen, folded, onFold, p
               onChange={(v) => onChange((e) => { if (e.kind !== 'device') return; const part = e.device.parts.find((p) => p.id === c.part); if (part) part[c.param] = v; }, `fx:${key}`)} />;
           })}
         </ParamGrid>}
+        {device.parts.some((p) => p.kind === 'compressor') && <SidechainSection effect={effect} name={device.name} sources={sources} onChange={onChange} />}
       </div>
     </DeviceFrame>
   );
@@ -433,8 +465,10 @@ function SamplerSection({ track, songPath, onTrack }: { track: Track; songPath: 
  * The chosen track's devices, in the bottom area beside its notes (Shift+Tab switches): the track's own colour and
  * level first, then its instrument, then its effects, left to right in the order the sound goes.
  */
-export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }: {
+export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', sources = [] }: {
   track: Track | null;
+  /** The song's other tracks, which can key a compressor on this one (sidechain). */
+  sources?: readonly SideSource[];
   /** The open song's page, for a sample dropped on a sampler or a pad. */
   songPath?: string;
   /** Opens one of the track's effects in the Workbench, by its id. */
@@ -534,7 +568,7 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '' }
           <DeviceChain label={`${track.name} effects`} count={fx.length}
             onMove={(from, to) => onTrack((t) => { const list = t.fx ?? []; const [moved] = list.splice(from, 1); if (moved) list.splice(to, 0, moved); })}>
             {fx.map((e, i) => (
-              <EffectBlock key={e.id} effect={e} at={i} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
+              <EffectBlock key={e.id} effect={e} at={i} sources={sources} proposed={proposed} onOpen={() => onOpen?.(e.id)} folded={folded.has(`${track.id}:${e.id}`)} onFold={fold(`${track.id}:${e.id}`)}
                 onChange={(fn, tag) => onTrack((t) => { const x = t.fx?.find((f) => f.id === e.id); if (x) { const before = { ...x }; fn(x); overrideEffect(t, before, x); } }, tag ? `${tag}:${e.id}` : undefined)}
                 onRemove={() => onTrack((t) => { t.fx = (t.fx ?? []).filter((f) => f.id !== e.id); if (t.fx.length === 0) delete t.fx; })} />
             ))}
@@ -1627,7 +1661,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     <StudioWorkbench device={benchFx.kind === 'device' ? benchFx.device : builtinDevice(benchFx)} builtIn={benchFx.kind !== 'device'} on={benchFx.on} color={track.color}
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
-    <StudioDevice track={track} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+    <StudioDevice track={track} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
   ) : drumView === 'steps' ? (

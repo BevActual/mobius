@@ -1017,6 +1017,23 @@ impl Chain {
         Some(Aim { device, part, slot, scale })
     }
 
+    /// Where the setting `aim` names is now, as the song has it.
+    #[must_use]
+    pub fn get(&self, aim: Aim) -> f64 {
+        let Some(part) = self.devices.get(aim.device).and_then(|d| d.parts.get(aim.part)) else { return 0.0 };
+        let value = match (aim.slot, &part.kind) {
+            (Slot::Rest(k), _) => part.rest[k],
+            (Slot::Amount, Kind::Drive { amount } | Kind::Mix { amount }) => *amount,
+            (Slot::Rate, Kind::Lfo { rate, .. }) => *rate,
+            _ => 0.0,
+        };
+        match aim.scale {
+            Scale::Same => value,
+            Scale::Db => db(value),
+            Scale::Beats(spb) => value / spb,
+        }
+    }
+
     /// Puts the setting `aim` names at `value` (as the song has it), from the next sample on.
     pub fn set(&mut self, aim: Aim, value: f64) {
         let Some(part) = self.devices.get_mut(aim.device).and_then(|d| d.parts.get_mut(aim.part)) else { return };
@@ -1028,7 +1045,7 @@ impl Chain {
         match (aim.slot, &mut part.kind) {
             (Slot::Rest(k), _) => part.rest[k] = value,
             (Slot::Amount, Kind::Drive { amount }) => *amount = value.clamp(0.0, 1.0),
-            (Slot::Amount, Kind::Mix { amount }) => *amount = value,
+            (Slot::Amount, Kind::Mix { amount }) => *amount = value.clamp(0.0, 1.0),
             (Slot::Rate, Kind::Lfo { rate, .. }) => *rate = value.clamp(0.0, 40.0),
             _ => {}
         }

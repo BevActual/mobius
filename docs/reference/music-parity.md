@@ -91,7 +91,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | --- | --- | --- | --- |
 | About 40 audio effects | 5 built-in, plus Workbench | Saturation, auto filter, chorus, phaser, flanger, gate, limiter, multiband, utility, beat repeat, vocoder, shifter | M each |
 | Sidechain on compressor and gate | Compressor: in the engine, an effect's `sidechain: { track, gain?, mix? }` (dB, 0..1) keys it by that track after its volume and effects; no gate yet | Sidechain input | M |
-| LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices | Modulators on any setting | L |
+| LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO and envelope follower) on its volume, pan, sends and effect settings; no shaper yet | Modulators on any setting | L |
 | Automation of every parameter, clip envelopes | Track volume only | Any setting, in Arrange and in clips | L |
 | Effect racks, parallel chains, macros | Serial chain | Stacks for effects | L |
 
@@ -303,6 +303,9 @@ interface Track {
                                             // fx: a built-in effect's settings by their JSON names (eq low..highFreq, delay time/feedback/mix,
                                             // compressor makeup, reverb mix); a Workbench device's "<part id>.<setting>"; moved every 128 samples.
                                             // Not movable while playing: a reverb's size and damp, a compressor's threshold, ratio, attack and release.
+  mods?: { kind: "lfo" | "follow"; target: string; amount: number;   // target named as auto is; amount in its units,
+           rate?: number; sync?: number; shape?: "sine" | "triangle" | "square" | "saw" | "ramp"; phase?: number;  // LFO: Hz, or beats a round
+           attack?: number; release?: number; on?: false }[];   // follow: seconds; moves around the automated or set value
   autoOff?: string[];                       // overridden: moving an automated control adds its name, Re-Enable Automation clears it (25.4)
 }
 interface AutoPoint {
@@ -362,7 +365,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
    - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings, and clip envelopes of volume, pan and sends, in the engine done).
-   - Modulators and sidechain (the compressor's sidechain in the engine done).
+   - Modulators and sidechain (the compressor's sidechain, LFO and envelope follower in the engine done).
    - Stacks with macros.
    - Six more effects.
 5. **Notes tools** (about 2 weeks):

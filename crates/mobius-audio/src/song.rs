@@ -162,6 +162,10 @@ pub struct Track {
     /// control is moved (25.4 "Deleting Automation", the Re-Enable Automation button).
     #[serde(default)]
     pub auto_off: Vec<String>,
+    /// Its modulators: each moves one setting (named as automation names it) up and down around where it is, in the
+    /// Arrange and Session views alike.
+    #[serde(default)]
+    pub mods: Vec<Modulator>,
     /// The Session view's clips, one slot per scene; an empty slot is null.
     #[serde(default)]
     pub slots: Vec<Option<SlotClip>>,
@@ -272,6 +276,47 @@ pub fn auto_value_at(points: &[AutoPoint], beat: f64, empty: f64) -> f64 {
         }
     }
     last.value
+}
+
+/// A modulator on a track (Live 12's LFO and Envelope Follower, as devices that map to a setting): it moves `target`
+/// by `amount` (in the setting's own units) times what it makes, added to where the setting is (its automation, or
+/// its own value).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Modulator {
+    /// `"lfo"`, from -1 to 1 along its shape, or `"follow"`, from 0 to 1 with the track's level before its volume.
+    pub kind: String,
+    /// `"volume"`, `"pan"`, `"send:<return id>"` or `"fx:<effect id>:<setting>"`.
+    pub target: String,
+    pub amount: f64,
+    /// An LFO's speed in Hz, unless it is synced.
+    #[serde(default = "one")]
+    pub rate: f64,
+    /// Synced to the song: beats for once round (in place of `rate`).
+    #[serde(default)]
+    pub sync: Option<f64>,
+    /// An LFO's shape: `"sine"` (the default), `"triangle"`, `"square"`, `"saw"` (rising) or `"ramp"` (falling).
+    #[serde(default)]
+    pub shape: Option<String>,
+    /// Where in its round an LFO starts, 0 to 1, at the song's start.
+    #[serde(default)]
+    pub phase: f64,
+    /// An envelope follower's rise and fall times in seconds.
+    #[serde(default = "follow_attack")]
+    pub attack: f64,
+    #[serde(default = "follow_release")]
+    pub release: f64,
+    /// Off, it moves nothing.
+    #[serde(default)]
+    pub on: Option<bool>,
+}
+
+const fn follow_attack() -> f64 {
+    0.01
+}
+
+const fn follow_release() -> f64 {
+    0.2
 }
 
 /// A clip in a Session slot: `bars` long, going round while it plays.
@@ -493,6 +538,7 @@ impl Song {
         track.frozen = None;
         track.volume_auto.clear();
         track.auto.retain(|name, _| name.starts_with("fx:"));
+        track.mods.retain(|m| m.target.starts_with("fx:"));
         track.sends.clear();
         track.slots.clear();
         Some(Song { tracks: vec![track], returns: Vec::new(), main: Main { volume: 1.0, ..Main::default() }, ..self.clone() })

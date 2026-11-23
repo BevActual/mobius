@@ -144,6 +144,17 @@ describe('a track\'s effects', () => {
     expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
     expect(writeSong({ ...s, tracks: [s.tracks[1]!] })).not.toContain('"fx"');
   });
+  it('keeps a compressor\'s or device\'s sidechain, in range, and leaves its defaults out', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'c', kind: 'compressor', sidechain: { track: 'kick', gain: 40, mix: 0.5 } },
+      { id: 'd', kind: 'compressor', sidechain: { track: 'kick', gain: 0, mix: 1 } },
+      { id: 'e', kind: 'compressor', sidechain: { gain: 3 } },
+      { id: 'r', kind: 'reverb', sidechain: { track: 'kick' } },
+    ] }] }));
+    const fx = s.tracks[0]!.fx as { sidechain?: unknown }[];
+    expect(fx.map((e) => e.sidechain)).toEqual([{ track: 'kick', gain: 24, mix: 0.5 }, { track: 'kick' }, undefined, undefined]);
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(s.tracks[0]!.fx);
+  });
   it('starts a new effect from its defaults with the next free id', () => {
     const t = song(JSON.stringify({ tracks: [{ id: 'a', fx: [{ id: 'fx1', kind: 'reverb' }], notes: [] }] })).tracks[0]!;
     expect(freshEffectId(t)).toBe('fx2');

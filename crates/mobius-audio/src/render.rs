@@ -45,7 +45,12 @@ struct Lane {
     /// The lanes keying its chain's compressors (sidechain, Live 12 manual 29.9.1), as a return's `key_from`.
     key_from: Vec<Option<usize>>,
     /// Its effects' automated settings, each with where it lives in `chain` (none in the Session view).
-    fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
+    fx_auto: Vec<Move>,
+    /// Its modulators, and what each made this block.
+    mods: Vec<Mod>,
+    /// The modulators moving its volume and pan.
+    volume_mods: Vec<usize>,
+    pan_mods: Vec<usize>,
     /// Its effects, and what they were made from (so a song changed while it plays keeps them ringing if unchanged).
     chain: Option<Chain>,
     fx_key: String,
@@ -79,6 +84,8 @@ struct Lane {
 /// A track's send to a return: how much, or how that moves along the song and its level at each sample of a block.
 struct Send {
     to: usize,
+    /// The modulators moving it.
+    mods: Vec<usize>,
     /// `"send:<return id>"`, as automation and clip envelopes name it.
     name: String,
     level: f32,
@@ -89,6 +96,130 @@ struct Send {
 impl Send {
     fn at(&self, i: usize) -> f32 {
         if self.levels.is_empty() { self.level } else { self.levels[i] }
+    }
+}
+
+/// An effect setting that moves: where it is in the chain, where it rests (as the song has it), its automation and the
+/// modulators on it (by their place in the lane's).
+struct Move {
+    aim: Aim,
+    rest: f64,
+    points: Vec<AutoPoint>,
+    mods: Vec<usize>,
+}
+
+/// The most modulators a track runs.
+const MAX_MODS: usize = 16;
+
+/// A modulator as it runs: what it is, how far it moves its setting, and what it made at each sample of a block.
+struct Mod {
+    kind: ModKind,
+    amount: f64,
+    values: Vec<f32>,
+}
+
+enum ModKind {
+    /// Free in Hz, or synced to `sync` beats a round; from `phase`.
+    Lfo { shape: Shape, rate: f64, sync: Option<f64>, phase: f64 },
+    /// The track's level, rising and falling by these shares a sample.
+    Follow { rise: f64, fall: f64, level: f64 },
+}
+
+#[derive(Clone, Copy)]
+enum Shape {
+    Sine,
+    Triangle,
+    Square,
+    Saw,
+    Ramp,
+}
+
+impl Mod {
+    fn new(m: &crate::song::Modulator, sample_rate: u32) -> Mod {
+        let rate = f64::from(sample_rate);
+        let share = |seconds: f64| 1.0 - (-1.0 / (seconds.max(0.0001) * rate)).exp();
+        let kind = if m.kind == "follow" {
+            ModKind::Follow { rise: share(m.attack), fall: share(m.release), level: 0.0 }
+        } else {
+            let shape = match m.shape.as_deref() {
+                Some("triangle") => Shape::Triangle,
+                Some("square") => Shape::Square,
+                Some("saw") => Shape::Saw,
+                Some("ramp") => Shape::Ramp,
+                _ => Shape::Sine,
+            };
+            ModKind::Lfo { shape, rate: m.rate.clamp(0.0, 40.0), sync: m.sync.filter(|b| b.is_finite() && *b > 0.0), phase: m.phase.rem_euclid(1.0) }
+        };
+        Mod { kind, amount: m.amount, values: vec![0.0; MAX_BLOCK] }
+    }
+}
+
+/// One round of an LFO's shape at `p` (0 to 1), from -1 to 1. Sine and triangle start in the middle going up.
+fn wave(shape: Shape, p: f64) -> f64 {
+    match shape {
+        Shape::Sine => (p * std::f64::consts::TAU).sin(),
+        Shape::Triangle => {
+            let q = (p + 0.25).fract();
+            if q < 0.5 { 4.0 * q - 1.0 } else { 3.0 - 4.0 * q }
+        }
+        Shape::Square => if p < 0.5 { 1.0 } else { -1.0 },
+        Shape::Saw => 2.0 * p - 1.0,
+        Shape::Ramp => 1.0 - 2.0 * p,
+    }
+}
+
+/// What a lane's modulators move, sample by sample.
+struct Moving<'a> {
+    volumes: &'a mut [f32],
+    pans: &'a mut [f32],
+    sends: &'a mut [Send],
+    volume_mods: &'a [usize],
+    pan_mods: &'a [usize],
+}
+
+/// What each of a lane's modulators makes for this block from its `sound` (before its volume), then its volume, pan
+/// and sends moved by theirs.
+fn run_mods(mods: &mut [Mod], sound: (&[f32], &[f32]), moving: Moving<'_>, clock: &Clock, from: u64, frames: usize) {
+    let (scratch, scratch_right) = sound;
+    let Moving { volumes, pans, sends, volume_mods, pan_mods } = moving;
+    let seconds = 1.0 / clock.sample_rate;
+    for m in mods.iter_mut() {
+        match &mut m.kind {
+            ModKind::Lfo { shape, rate, sync, phase } => {
+                for (i, v) in m.values[..frames].iter_mut().enumerate() {
+                    let at = from + i as u64;
+                    let round = match sync {
+                        Some(beats) => clock.beat(at) / *beats,
+                        None => at as f64 * seconds * *rate,
+                    };
+                    *v = wave(*shape, (*phase + round).rem_euclid(1.0)) as f32;
+                }
+            }
+            ModKind::Follow { rise, fall, level } => {
+                for (i, v) in m.values[..frames].iter_mut().enumerate() {
+                    let now = f64::from(scratch[i].abs().max(scratch_right[i].abs()));
+                    *level += (now - *level) * if now > *level { *rise } else { *fall };
+                    *v = level.min(1.0) as f32;
+                }
+            }
+        }
+    }
+    let mods = &*mods;
+    let moved = |which: &[usize], i: usize| -> f32 { which.iter().map(|&k| (mods[k].amount * f64::from(mods[k].values[i])) as f32).sum() };
+    if !volume_mods.is_empty() {
+        for (i, v) in volumes[..frames].iter_mut().enumerate() {
+            *v = (*v + moved(volume_mods, i)).max(0.0);
+        }
+    }
+    if !pan_mods.is_empty() {
+        for (i, p) in pans[..frames].iter_mut().enumerate() {
+            *p = (*p + moved(pan_mods, i)).clamp(-1.0, 1.0);
+        }
+    }
+    for send in sends.iter_mut().filter(|s| !s.mods.is_empty()) {
+        for i in 0..frames {
+            send.levels[i] = (send.levels[i] + moved(&send.mods, i)).clamp(0.0, 1.0);
+        }
     }
 }
 
@@ -527,7 +658,7 @@ pub struct Renderer {
     /// Main's effects (and what they were made from) and its level.
     main: Option<Chain>,
     main_key: String,
-    main_fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
+    main_fx_auto: Vec<Move>,
     /// The lanes keying Main's compressors, as a return's `key_from`.
     main_key_from: Vec<Option<usize>>,
     /// Each lane's level this block, after its volume and effects and before its pan, for the lanes keying a chain
@@ -736,7 +867,10 @@ impl Renderer {
                 let chain = if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) };
                 // Clip envelopes: what they move gets a level for each sample, as automation does.
                 let enveloped: std::collections::BTreeSet<&str> = t.clips.iter().map(|c| &c.envelopes).chain(t.slots.iter().flatten().map(|c| &c.envelopes)).flat_map(|e| e.keys().map(String::as_str)).collect();
-                let moves = |auto: &[AutoPoint], name: &str| if auto.is_empty() && !enveloped.contains(name) { Vec::new() } else { vec![0.0; MAX_BLOCK] };
+                // Its modulators, and which of them move what.
+                let mods: Vec<(usize, &crate::song::Modulator)> = t.mods.iter().filter(|m| m.on != Some(false) && m.amount.is_finite() && m.amount != 0.0).take(MAX_MODS).enumerate().collect();
+                let modding = |name: &str| mods.iter().filter(|(_, m)| m.target == name).map(|(k, _)| *k).collect::<Vec<usize>>();
+                let moves = |auto: &[AutoPoint], name: &str| if auto.is_empty() && !enveloped.contains(name) && modding(name).is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] };
                 // A send that is automated counts even at 0.
                 let sends: Vec<Send> = returns
                     .iter()
@@ -745,7 +879,7 @@ impl Renderer {
                         let level = t.sends.get(&r.id).copied().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
                         let name = format!("send:{}", r.id);
                         let auto = arranged(&name);
-                        (level > 0.0 || !auto.is_empty()).then(|| Send { to, level, levels: moves(&auto, &name), auto, name })
+                        (level > 0.0 || !auto.is_empty() || !modding(&name).is_empty()).then(|| Send { to, level, levels: moves(&auto, &name), mods: modding(&name), auto, name })
                     })
                     .collect();
                 let mut env_spans: Vec<EnvSpan> = if how.session || is_frozen {
@@ -775,7 +909,10 @@ impl Renderer {
                     auto,
                     pan: t.pan,
                     stereo,
-                    fx_auto: fx_autos(chain.as_ref(), &t.fx, t.auto.keys(), |name| arranged(name), 60.0 / song.tempo),
+                    fx_auto: fx_moves(chain.as_ref(), &t.fx, t.auto.keys().chain(mods.iter().map(|(_, m)| &m.target)), |name| arranged(name), modding, 60.0 / song.tempo),
+                    mods: mods.iter().map(|(_, m)| Mod::new(m, sample_rate)).collect(),
+                    volume_mods: modding("volume"),
+                    pan_mods: modding("pan"),
                     chain,
                     fx_key: serde_json::to_string(&t.fx).unwrap_or_default(),
                     voices: Vec::with_capacity(MAX_VOICES),
@@ -815,7 +952,7 @@ impl Renderer {
         let keying: Vec<bool> = (0..lanes.len()).map(|j| lanes.iter().map(|l| &l.key_from).chain(returns.iter().map(|r| &r.key_from)).chain([&main_key_from]).any(|k| k.contains(&Some(j)))).collect();
         let keys = keying.iter().map(|&k| if k { vec![0.0; MAX_BLOCK] } else { Vec::new() }).collect();
         let order = keyed_order(&lanes.iter().map(|l| l.key_from.iter().flatten().copied().collect()).collect::<Vec<Vec<usize>>>());
-        let main_fx_auto = fx_autos(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, 60.0 / song.tempo);
+        let main_fx_auto = fx_moves(main.as_ref(), &song.main.fx, song.main.auto.keys(), |name| if how.session { Vec::new() } else { song.main_auto_of(name) }, |_| Vec::new(), 60.0 / song.tempo);
         Renderer {
             clock,
             lanes,
@@ -1157,6 +1294,11 @@ impl Renderer {
                     }
                 }
             }
+            // Its modulators, from the sound as it is now (before its volume), then what they move.
+            if !lane.mods.is_empty() {
+                let moving = Moving { volumes: &mut lane.volumes, pans: &mut lane.pans, sends: &mut lane.sends, volume_mods: &lane.volume_mods, pan_mods: &lane.pan_mods };
+                run_mods(&mut lane.mods, (scratch, right_scratch), moving, &clock, from, frames);
+            }
             if let Some(chain) = &mut lane.chain {
                 // The track's way into the mix, as the window's: its volume, then its effects, then its pan.
                 for (i, (a, b)) in scratch.iter_mut().zip(right_scratch.iter_mut()).enumerate() {
@@ -1164,7 +1306,7 @@ impl Renderer {
                     *a *= v;
                     *b *= v;
                 }
-                run_chain(chain, &lane.fx_auto, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames));
+                run_chain(chain, &lane.fx_auto, &lane.mods, scratch, right_scratch, rate, beat_of, &key_slices(&self.keys, &lane.key_from, frames));
                 let stereo = chain.stereo_out();
                 let key = &mut self.keys[index];
                 for i in 0..frames {
@@ -1216,7 +1358,7 @@ impl Renderer {
         }
         // Main: its effects, then its level.
         if let Some(chain) = &mut self.main {
-            run_chain(chain, &self.main_fx_auto, left, right, rate, |i| clock.beat(from + i as u64), &key_slices(&self.keys, &self.main_key_from, frames));
+            run_chain(chain, &self.main_fx_auto, &[], left, right, rate, |i| clock.beat(from + i as u64), &key_slices(&self.keys, &self.main_key_from, frames));
         }
         for ((l, r), v) in left.iter_mut().zip(right.iter_mut()).zip(&self.main_volumes) {
             *l *= v;
@@ -1280,23 +1422,27 @@ pub fn render_song(song: &Song, sample_rate: u32) -> (Vec<f32>, Vec<f32>) {
     (left, right)
 }
 
-/// The automation of a chain's effect settings (`"fx:<effect id>:<setting>"` among `names`), each with where it lives
-/// in `chain`; one the chain can't move is left out. `points` gives a name's points (none when overridden).
-fn fx_autos<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Iterator<Item = &'a String>, points: impl Fn(&str) -> Vec<AutoPoint>, seconds_per_beat: f64) -> Vec<(Aim, Vec<AutoPoint>)> {
+/// The effect settings of a chain that move (`"fx:<effect id>:<setting>"` among `names`), each with where it lives
+/// in `chain`, its automation (`points` gives a name's, none when overridden) and the modulators on it (`mods`); one
+/// the chain can't move is left out.
+fn fx_moves<'a>(chain: Option<&Chain>, fx: &[serde_json::Value], names: impl Iterator<Item = &'a String>, points: impl Fn(&str) -> Vec<AutoPoint>, mods: impl Fn(&str) -> Vec<usize>, seconds_per_beat: f64) -> Vec<Move> {
     let Some(chain) = chain else { return Vec::new() };
+    let mut seen = std::collections::BTreeSet::new();
     names
+        .filter(|name| seen.insert(name.as_str()))
         .filter_map(|name| {
             let (id, setting) = name.strip_prefix("fx:")?.split_once(':')?;
             let aim = chain.aim(fx, id, setting, seconds_per_beat)?;
-            let points = points(name);
-            (!points.is_empty()).then_some((aim, points))
+            let (points, mods) = (points(name), mods(name));
+            (!points.is_empty() || !mods.is_empty()).then(|| Move { aim, rest: chain.get(aim), points, mods })
         })
         .collect()
 }
 
 /// Runs a block through `chain`, moving its automated settings at the start of each 128-sample piece (where its
 /// devices take their settings, as Web Audio's do).
-fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>) {
+#[allow(clippy::too_many_arguments)]
+fn run_chain(chain: &mut Chain, autos: &[Move], mods: &[Mod], left: &mut [f32], right: &mut [f32], rate: f64, beat_of: impl Fn(usize) -> f64, keys: &Keys<'_>) {
     if autos.is_empty() {
         chain.process_keyed(left, right, rate, &keys.0[..keys.1]);
         return;
@@ -1305,8 +1451,10 @@ fn run_chain(chain: &mut Chain, autos: &[(Aim, Vec<AutoPoint>)], left: &mut [f32
     let mut done = 0;
     while done < n {
         let m = (n - done).min(QUANTUM);
-        for (aim, points) in autos {
-            chain.set(*aim, auto_value_at(points, beat_of(done), 0.0));
+        for m in autos {
+            let at = if m.points.is_empty() { m.rest } else { auto_value_at(&m.points, beat_of(done), m.rest) };
+            let moved: f64 = m.mods.iter().filter_map(|&k| mods.get(k)).map(|k| k.amount * f64::from(k.values[done])).sum();
+            chain.set(m.aim, at + moved);
         }
         let mut piece: [&[f32]; MAX_SOURCES] = [&[]; MAX_SOURCES];
         for (to, key) in piece.iter_mut().zip(&keys.0[..keys.1]) {
@@ -1364,10 +1512,10 @@ fn keyed_order(keyed_by: &[Vec<usize>]) -> Vec<usize> {
 
 /// After a chain kept ringing through a change of song, its settings that were automated go back to the new song's,
 /// as `fresh` (made from it) has them; any the song still automates are set again at the next piece.
-fn let_go(kept: Option<&mut Chain>, fresh: Option<&Chain>, autos: &[(Aim, Vec<AutoPoint>)]) {
+fn let_go(kept: Option<&mut Chain>, fresh: Option<&Chain>, autos: &[Move]) {
     if let (Some(kept), Some(fresh)) = (kept, fresh) {
-        for (aim, _) in autos {
-            kept.copy_setting(fresh, *aim);
+        for m in autos {
+            kept.copy_setting(fresh, m.aim);
         }
     }
 }
@@ -1737,6 +1885,43 @@ mod tests {
         assert_eq!(keyed_order(&[vec![1], vec![], vec![0]]), vec![1, 0, 2]);
         assert_eq!(keyed_order(&[vec![1], vec![0], vec![]]), vec![2, 0, 1]);
         assert_eq!(keyed_order(&[vec![0, 9]]), vec![0]);
+    }
+
+    #[test]
+    fn modulators_move_volume_pan_and_effect_settings() {
+        let at = |x: &[f32], beat: f64| loudest(&x[(beat * 24_000.0) as usize..(beat * 24_000.0) as usize + 2_400]);
+        // A square LFO synced to two beats, moving a fader at 0.5 by 0.5: full for the first beat, silent the next.
+        let lfo = held("", r#","volume":0.5,"mods":[{"kind":"lfo","target":"volume","amount":0.5,"shape":"square","sync":2}]"#);
+        let full = render_song(&held("", r#","volume":1"#), 48_000).0;
+        let (l, _) = render_song(&lfo, 48_000);
+        assert!((at(&l, 0.5) / at(&full, 0.5) - 1.0).abs() < 0.02);
+        assert!(at(&l, 1.2) < 1e-6);
+        assert!((at(&l, 2.5) / at(&full, 2.5) - 1.0).abs() < 0.02);
+        // Switched off, or with nothing to move, it does nothing.
+        let half = render_song(&held("", r#","volume":0.5"#), 48_000).0;
+        assert_eq!(render_song(&held("", r#","volume":0.5,"mods":[{"kind":"lfo","target":"volume","amount":0.5,"shape":"square","sync":2,"on":false}]"#), 48_000).0, half);
+        assert_eq!(render_song(&held("", r#","volume":0.5,"mods":[{"kind":"lfo","target":"fx:none:mix","amount":0.5}]"#), 48_000).0, half);
+        // An envelope follower on pan: the louder the track, the further right.
+        let (l, r) = render_song(&held("", r#","mods":[{"kind":"follow","target":"pan","amount":10,"attack":0.001}]"#), 48_000);
+        assert!(loudest(&r[24_000..48_000]) > 1.5 * loudest(&l[24_000..48_000]));
+        // On an effect setting, around where it rests: a delay's mix at 0, raised to 1 for the first beat of every two
+        // and held at nothing (it can't go under) for the second, so its echo is heard only after the first.
+        let fx = r#","fx":[{"id":"d","kind":"delay","time":0.25,"feedback":0,"mix":0}]"#;
+        let dry = render_song(&held("", fx), 48_000).0;
+        let moved = render_song(&held("", &format!(r#"{fx},"mods":[{{"kind":"lfo","target":"fx:d:mix","amount":1,"shape":"square","sync":2}}]"#)), 48_000).0;
+        assert!(moved[..24_000].iter().zip(&dry[..24_000]).any(|(a, b)| (a - b).abs() > 1e-3));
+        assert_eq!(&moved[24_000 + 256..48_000], &dry[24_000 + 256..48_000]);
+    }
+
+    #[test]
+    fn lfo_shapes_go_round_from_minus_one_to_one() {
+        for shape in [Shape::Sine, Shape::Triangle, Shape::Square, Shape::Saw, Shape::Ramp] {
+            let values: Vec<f64> = (0..100).map(|i| wave(shape, f64::from(i) / 100.0)).collect();
+            assert!(values.iter().all(|v| (-1.0..=1.0).contains(v)));
+            assert!(values.iter().any(|v| *v > 0.9) && values.iter().any(|v| *v < -0.9));
+        }
+        assert!(wave(Shape::Sine, 0.0).abs() < 1e-12 && wave(Shape::Triangle, 0.0).abs() < 1e-12);
+        assert!(wave(Shape::Saw, 0.25) < wave(Shape::Saw, 0.75) && wave(Shape::Ramp, 0.25) > wave(Shape::Ramp, 0.75));
     }
 
     #[test]
