@@ -349,6 +349,30 @@ test('a compressor keyed by another track: Audio From, Gain and Dry/Wet, kept in
   await expect.poll(keyed).toBeUndefined();
 });
 
+test('a stack runs chains of effects side by side, with a macro mapped to a setting in one, kept in the song', async () => {
+  fs.writeFileSync(file(), JSON.stringify(SONG));
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: /^Stack/ }).click();
+  const fx = () => (saved().tracks[0] as { fx?: { kind: string; chains: { fx: { id: string; kind: string }[] }[]; macros: { value: number; maps: { target: string }[] }[] }[] }).fx?.[0];
+  await expect.poll(() => fx()?.kind).toBe('stack');
+  const chain = device.getByRole('listitem', { name: 'Chain 1' });
+  await chain.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: /^Reverb/ }).click();
+  await expect.poll(() => fx()?.chains[0]?.fx.map((e) => e.kind)).toEqual(['reverb']);
+  const reverb = fx()!.chains[0]!.fx[0]!.id;
+  // Macro 1 maps to the reverb's Mix, and turning it is kept.
+  await device.getByRole('button', { name: 'Map' }).first().click();
+  await shell().getByRole('menuitemcheckbox', { name: /Reverb Mix/ }).click();
+  await expect.poll(() => fx()?.macros[0]?.maps.map((m) => m.target)).toEqual([`fx:${reverb}:mix`]);
+  await device.getByRole('slider', { name: 'Macro 1' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await expect.poll(() => fx()?.macros[0]?.value ?? 0).toBeGreaterThan(0);
+  await device.getByRole('button', { name: 'Add chain' }).click();
+  await expect.poll(() => fx()?.chains.length).toBe(2);
+});
+
 test('a song’s own device plays on the track with the knobs its file names, kept in the song', async () => {
   const TONE = { name: 'Dark Echo', about: 'Echoes that get darker each time round', parts: [
     { id: 'in', kind: 'input' }, { id: 'echo', kind: 'delay', time: 0.75 }, { id: 'tone', kind: 'filter', type: 'lowpass', cutoff: 3000 },

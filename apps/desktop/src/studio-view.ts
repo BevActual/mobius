@@ -398,6 +398,10 @@ export function soundChanges(was: Track | undefined, now: Track): SoundChange[] 
     const name = effectName(e);
     if (!o || o.kind !== e.kind) { out.push({ key: `fx:${e.id}`, text: `added ${name}` }); continue; }
     if (o.on !== e.on) out.push({ key: `fx:${e.id}`, text: `${name} ${e.on ? 'on' : 'off'}` });
+    if (e.kind === 'stack' || o.kind === 'stack') {
+      if (JSON.stringify(o) !== JSON.stringify(e)) out.push({ key: `fx:${e.id}`, text: `changed ${name}` });
+      continue;
+    }
     if (e.kind === 'device' || o.kind === 'device') {
       if (e.kind === 'device' && o.kind === 'device') out.push(...deviceChanges(e.id, o.device, e.device));
       continue;
@@ -413,7 +417,7 @@ export function soundChanges(was: Track | undefined, now: Track): SoundChange[] 
 }
 
 /** An effect's name: a built-in's, or a device's own. */
-export const effectName = (e: Effect): string => (e.kind === 'device' ? e.device.name : EFFECT_NAMES[e.kind]);
+export const effectName = (e: Effect): string => (e.kind === 'device' ? e.device.name : e.kind === 'stack' ? 'Stack' : EFFECT_NAMES[e.kind]);
 
 /** A device setting as it reads on its knob, from its unit: 2.4 kHz, −6.0 dB, 0.75 beats, 120 ms, or a share. */
 export function deviceSettingText(range: { lo: number; hi: number; unit?: string }, v: number): string {

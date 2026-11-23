@@ -144,6 +144,10 @@ A small studio for writing songs as notes.
   (29.9.1). **Audio From** picks another track whose level triggers it, so a kick can duck a bass or pad; **Gain** raises
   or lowers that level and **Dry/Wet** blends the ducking with the compressor's own. Automatic makeup is off while
   keyed. Saved as the effect's `sidechain`.
+- **Stack** (Live's Audio Effect Rack, 22): in Add effect, a Stack runs chains of effects side by side, each with its
+  own Volume, Pan, mute and effects (Add chain for another, up to 16). Its eight macros each have a **Map** menu of the
+  settings in its chains; a mapped setting moves between From and To as the macro turns. Automation and modulators can
+  move a macro or any effect in a chain. Saved as an effect with `kind: "stack"`.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
   started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at
