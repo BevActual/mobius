@@ -665,6 +665,23 @@ test('automation draws a volume or pan line under a track with points, kept in t
   await expect(lane).toHaveCount(0);
 });
 
+test('a clip envelope moves the open clip’s volume or pan in its own beats, kept with the clip', async () => {
+  await start();
+  await openNotes('Keys');
+  const env = shell().getByRole('group', { name: /^Envelopes of / });
+  const plot = env.getByRole('group', { name: 'Volume envelope automation' }).locator('.ui-lane-plot');
+  const box = (await plot.boundingBox())!;
+  await plot.click({ position: { x: box.width * 0.1, y: box.height * 0.8 } });
+  const envelopes = () => (saved().tracks[0]!.clips[0] as { envelopes?: Record<string, { beat: number; value: number }[]> }).envelopes;
+  await expect.poll(() => envelopes()?.volume?.length).toBe(1);
+  expect(envelopes()!.volume![0]!.value).toBeLessThan(0.5);
+  // Its name chooses the setting: Pan is added to the track's, -1 (left) to 1.
+  await env.getByRole('button', { name: /envelope: Volume/ }).click();
+  await shell().getByRole('menuitemcheckbox', { name: /^Pan/ }).click();
+  await env.getByRole('group', { name: 'Pan envelope automation' }).locator('.ui-lane-plot').click({ position: { x: box.width * 0.1, y: box.height * 0.1 } });
+  await expect.poll(() => envelopes()?.pan?.[0]?.value ?? 0).toBeGreaterThan(0.5);
+});
+
 test('Export as WAV renders the song and saves it in the Exports folder', async () => {
   await start();
   // Wide enough that Export stays in the toolbar rather than the ⋯ menu (it is the first control to drop).

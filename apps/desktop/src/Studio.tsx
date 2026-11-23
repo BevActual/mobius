@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, ownLength, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -15,7 +15,7 @@ import type { LibraryItem } from './studio-library';
 import { arpeggiate, chop, connect, fitKey, humanize, reverse, strum } from './note-transform';
 import { StudioWorkbench } from './StudioBench';
 import { recordOver, duplicateClip as duplicateArrange, followScroll, moveClip, resizeClip, toggleClipLoop, setClipLoop, scaleClipLoop, GRIDS, deviceSettingText, notesDiffer, soundChanges, recordedNote, joinNotes, splitNotes, keyboardDrum, keyboardPitch, nudgeKeyVelocity, spellIn, scaleRows, stepOctave, addNote, clipsOf, setStep, stepCells, effectText, eqBands, eqFromBand, type EqEffect, cycleOf, duplicateNotes, nudgeVelocity, isBlack, moveNotes, notesIn, pasteNotes, position, quantizeNotes, removeNotes, setVelocity, snap, soundText, kitText, panText, stretchNotes, type Cycle, type Picked } from './studio-view';
-import { autoChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
+import { autoChoices, envelopeChoices, fromLane, laneEmpty, overrideEffect, reEnable, setAuto, setEnvelope, toLane } from './studio-auto';
 import { AppSidebar, Button, Confirm, PadGrid, StepGrid, DeviceChain, DeviceFrame, Knob, EqGraph, EnvelopeGraph, FilterGraph, IconButton, Menu, NumberField, Segmented, Swatches, Switch, PanelLayout, PanelTab, ParamCell, Readout, ParamGrid, Select, SidebarRow, SidebarSearch, SidebarSection, Slider, TapTempo, TOOL_ICONS, ToolbarControls, ToolbarItem, Transport, UndoToast, useKeyboardClaim, AutomationLane, ViewSwitch, type MenuEntry, type PanelSpec } from './ui';
 import { SideNew } from './SideNew';
 import { statusText } from './notes-state';
@@ -121,6 +121,8 @@ const DRUM_ROW_H = 26;
 const DRUM_KEYS_W = 96;
 /** The velocity lane under the roll. */
 const VEL_H = 64;
+/** The clip envelope lane under the velocities (Live 12, 27). */
+const ENV_H = 64;
 
 const Icon = ({ d, fill }: { d: string; fill?: boolean }) => <svg viewBox="0 0 20 20" aria-hidden="true" data-fill={fill || undefined}><path d={d} /></svg>;
 /** How a clip opens is said on it until the person has opened clips a few times; after that the tip only gets in the way. */
@@ -597,6 +599,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [showAuto, setShowAuto] = useState(false);
   // The setting each track's automation lane shows, by track id (Volume when not chosen).
   const [autoLane, setAutoLane] = useState<Record<string, string>>({});
+  // The setting the open clip's envelope lane shows (Volume when not chosen).
+  const [envLane, setEnvLane] = useState('volume');
   // The track being frozen, while its render runs (a hook, so above the early returns).
   const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -963,11 +967,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // Where the playhead is in what the bottom area shows: the clip's own time round, or nowhere when it is not playing.
   const clipPlaying = clip && track ? sessionNow.playing[track.id] : undefined;
   const rollBeat = view === 'arrange' ? beat : clip && clipPlaying && clipPlaying.slot === clipAt ? (((beat - clipPlaying.start) % span) + span) % span : -1;
+  const arrClip = !clip && view === 'arrange' && track ? track.clips.find((c) => c.id === openClip) ?? null : null;
   const inKey = keyPitches(song.key);
   const drums = track?.instrument === 'drums';
   // Drum rows grow to fill the editor (there are only six), up to a comfortable pad size.
   // The list fits its tracks and the row for adding one after them.
-  const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((editorH - 38 - VEL_H - 2) / DRUMS.length))) : ROW_H;
+  const rowH = drums ? Math.max(DRUM_ROW_H, Math.min(40, Math.floor((editorH - 38 - VEL_H - ((clip ?? arrClip) ? ENV_H : 0) - 2) / DRUMS.length))) : ROW_H;
   const keysW = drums ? DRUM_KEYS_W : KEYS_W;
   const rows = drums ? DRUMS.map((d) => ({ pitch: d.pitch, label: d.name, shade: false, black: false, c: true })) : Array.from({ length: MELODY_TOP - MELODY_BOTTOM + 1 }, (_, i) => MELODY_TOP - i).map((p) => ({ pitch: p, label: noteName(p), shade: !inKey.has(p % 12), black: isBlack(p), c: p % 12 === 0 }));
   const rowOf = (pitch: number) => rows.findIndex((r) => r.pitch === pitch);
@@ -979,7 +984,6 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // Worked out on each render: this is after the early returns above, where no hook may be.
   const notes = clip ? clip.notes : track ? trackNotes(track) : [];
   // The Arrange clip opened from its block, while it's still there and the notes editor shows Arrange.
-  const arrClip = !clip && view === 'arrange' && track ? track.clips.find((c) => c.id === openClip) ?? null : null;
   // A looped clip's later passes, drawn faintly after its first: they play what the first pass holds, and change with it.
   const echoes = !clip && track ? track.clips.flatMap((c) => {
     if (!c.loop) return [];
@@ -1719,6 +1723,36 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       {rollBeat >= 0 && <span className="studio-playhead" style={{ left: rollBeat * rbw }} aria-hidden="true" />}
     </div>
   </div>
+  {(clip || arrClip) && (() => {
+    // The open clip's envelope (Live 12, 27), in its own beats: a Session clip fills the editor; an Arrange clip's own
+    // beat 0 sits where its start would be, its offset back, and the lane shows its first time round.
+    const c = (clip ?? arrClip)!;
+    const own = clip ? span : ownLength(arrClip!);
+    const at = clip ? 0 : arrClip!.start - (arrClip!.offset ?? 0);
+    const choices = envelopeChoices(song.returns);
+    const lane = choices.find((x) => x.name === envLane) ?? choices[0]!;
+    const was = c.envelopes?.[lane.name] ?? [];
+    const name = (clip ? clip.name : arrClip!.name) ?? track.name;
+    const put = (next: { beat: number; value: number }[]) => {
+      const points = fromLane(next, was, lane);
+      if (clip && clipAt !== null) setClip(track.id, clipAt, (x) => setEnvelope(x, lane.name, points), `env:${lane.name}`);
+      else if (arrClip) editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; setEnvelope(y, lane.name, points); return y; }), `env:${arrClip.id}:${lane.name}`);
+    };
+    return (
+      <div className="studio-env" role="group" aria-label={`Envelopes of ${name}`} style={{ height: ENV_H, ['--keys' as string]: `${keysW}px` }}>
+        <span className="studio-vel-label studio-env-label">
+          <button type="button" className="studio-auto-name" aria-haspopup="menu" title="Choose the setting this envelope moves" aria-label={`${name} envelope: ${lane.label}`}
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane(x.name) })) }); }}>{lane.label}</button>
+        </span>
+        <div className="studio-env-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)` }}>
+          <div className="studio-env-clip" style={{ left: at * rbw, width: own * rbw }}>
+            <AutomationLane className="studio-env-lane" label={`${lane.label} envelope`} head={false} color={track.color} points={toLane(was, lane)} beats={own} pxPerBeat={rbw} empty={laneEmpty(lane)}
+              format={lane.name === 'pan' ? (v) => panText(v * 2 - 1) : undefined} onChange={put} />
+          </div>
+        </div>
+      </div>
+    );
+  })()}
   </>}
     </div>
   ) } : null;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { autoChoices, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
+import { autoChoices, envelopeChoices, setEnvelope, fromLane, laneEmpty, override, overrideEffect, reEnable, setAuto, toLane } from './studio-auto';
 import { newEffect, type Track } from './song-format';
 
 const track = (more: Partial<Track> = {}): Track => ({ id: 'a', name: 'A', instrument: 'pad', volume: 0.8, pan: 0.5, muted: false, solo: false, color: 'blue', clips: [], ...more } as Track);
@@ -44,5 +44,13 @@ describe('a track automation lane', () => {
     setAuto(t, 'pan', []);
     expect(t.auto).toEqual({ volume: [{ beat: 0, value: 1 }] });
     expect(t.autoOff).toBeUndefined();
+  });
+  it('offers a clip\'s envelopes at their own resting values, and drops an empty one', () => {
+    expect(envelopeChoices([{ id: 'r1', volume: 1, pan: 0 }]).map((c) => [c.name, laneEmpty(c)])).toEqual([['volume', 1], ['pan', 0.5], ['send:r1', 1]]);
+    const clip: { envelopes?: Record<string, { beat: number; value: number }[]> } = {};
+    setEnvelope(clip, 'pan', [{ beat: 1, value: -0.5 }]);
+    expect(clip.envelopes).toEqual({ pan: [{ beat: 1, value: -0.5 }] });
+    setEnvelope(clip, 'pan', []);
+    expect(clip.envelopes).toBeUndefined();
   });
 });

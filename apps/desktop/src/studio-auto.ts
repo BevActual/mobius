@@ -80,3 +80,19 @@ export function reEnable(track: Track, name?: string): void {
   const left = name === undefined ? [] : (track.autoOff ?? []).filter((n) => n !== name);
   if (left.length > 0) track.autoOff = left; else delete track.autoOff;
 }
+
+/** The settings a clip's envelopes can move (Live 12, 27): volume and sends as a share of the track's, pan added to it. */
+export function envelopeChoices(returns: readonly ReturnTrack[] = []): AutoChoice[] {
+  return [
+    { name: 'volume', label: 'Volume', lo: 0, hi: 1, own: 1 },
+    { name: 'pan', label: 'Pan', lo: -1, hi: 1, own: 0 },
+    ...returns.map((r, i) => ({ name: `send:${r.id}`, label: `Send ${returnName(r, i)}`, lo: 0, hi: 1, own: 1 })),
+  ];
+}
+
+/** Sets one of a clip's envelopes, dropping it (and the clip's envelopes) when empty. */
+export function setEnvelope(clip: { envelopes?: Record<string, AutoPoint[]> }, name: string, points: AutoPoint[]): void {
+  const env = { ...(clip.envelopes ?? {}) };
+  if (points.length > 0) env[name] = points; else delete env[name];
+  if (Object.keys(env).length > 0) clip.envelopes = env; else delete clip.envelopes;
+}

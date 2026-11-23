@@ -403,3 +403,9 @@
 .studio-track-frozen { flex: none; font-size: var(--fs-xs); color: var(--muted); border: 1px solid var(--line); border-radius: var(--radius-pill); padding: 0 6px; }
 .studio-dev-lock { display: contents; }
 .studio-dev-lock[data-frozen] > * { opacity: 0.5; }
+/* The open clip's envelope (Live 12, 27) under the velocities: the clip's own beats, its span tinted. */
+.studio-page .studio-env { flex: none; position: relative; overflow: hidden; border-top: var(--hairline-w) solid var(--line); background: color-mix(in srgb, var(--ink) 2%, var(--paper)); }
+.studio-page .studio-env-label { padding-top: var(--sp-1); }
+.studio-page .studio-env-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); }
+.studio-page .studio-env-clip { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--tc, var(--ink)) 6%, transparent); }
+.studio-page .studio-env-clip .ui-lane { height: 100%; background: transparent; border-bottom: 0; }
