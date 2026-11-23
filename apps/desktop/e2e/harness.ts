@@ -138,7 +138,9 @@ async function launchLocal(userData: string, env: Record<string, string>): Promi
   // restart on the same folder finds what the page saved. A pretend camera and microphone, as the shell has in tests.
   const context = await chromium.launchPersistentContext(path.join(userData, 'webview'), {
     ...(chrome ? { executablePath: chrome } : {}),
-    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    // A container's /dev/shm can be small (64 MB under Docker), and a page that outgrows it crashes ("Target crashed"):
+    // Chromium keeps that memory in the temp folder instead.
+    args: ['--no-sandbox', '--disable-dev-shm-usage', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     viewport: { width: 1440, height: 900 },
     bypassCSP: true,
   });
