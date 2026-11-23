@@ -670,6 +670,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [recording, setRecording] = useState(false);
   // What arming the chosen audio track found: the input it hears, or why it hears none (Live 12, 19.1).
   const [armed, setArmed] = useState<(ArmHeard & { track: string }) | null>(null);
+  // The audio track armed with its Arm button. A chosen MIDI track arms itself; an audio track waits for its button,
+  // so choosing one doesn't open the computer's input (Live 12, 19.2: only MIDI tracks arm on selection).
+  const [audioArm, setAudioArm] = useState<string | null>(null);
   // A bar of ticks before recording starts from a stop, as in other studios. On unless turned off; kept for every song.
   const [counts, setCounts] = useState(() => { try { return window.localStorage.getItem(COUNT_IN_KEY) !== '0'; } catch { return true; } });
   const counting = useRef<{ stop(): void } | null>(null);
@@ -920,10 +923,12 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The engine reports the levels of the device open in the Workbench, for its cables.
   const watched = bench && editing && detail === 'device' ? bench : null;
   useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
+  const chosenAudio = song?.tracks.find((t) => t.id === selected)?.kind === 'audio';
+  const armTarget = chosenAudio ? (audioArm === selected ? selected : null) : selected;
   useEffect(() => {
     setArmed(null);
-    void engineReady().then(() => armKeys(selected, (heard) => { if (selected) setArmed({ track: selected, ...heard }); }));
-  }, [selected]);
+    void engineReady().then(() => armKeys(armTarget, (heard) => { if (armTarget) setArmed({ track: armTarget, ...heard }); }));
+  }, [armTarget]);
   // A take the engine saved becomes an audio clip on its track where it was recorded, as one step for undo.
   const changeNow = useRef(change);
   changeNow.current = change;
@@ -1518,6 +1523,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (recording) { if (audio) recordInput(false); finishAll.current?.(); setRecording(false); return; }
     if (view !== 'arrange' || !track) return;
     // An audio track records its input through the engine; it says first when it has none to hear.
+    if (audio && armTarget !== track.id) { setExported({ text: `Arm ${track.name} to record its input.`, kind: 'note' }); return; }
     if (audio && armed?.track === track.id && armed.input === null) { setExported({ text: armed.problem ?? 'There is no sound input to record from.', kind: 'note' }); return; }
     take.current = `record:${Date.now()}`;
     if (!audio) setKeyboard(true);
@@ -1963,6 +1969,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                     ? <button type="button" className="studio-track-sub studio-track-input" title="The sound input this track records: choose another" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>{armed.input}</button>
                     : <button type="button" className="studio-track-sub studio-track-input" data-problem title={`${armed.problem ?? 'No sound input'}. Choose an input`} onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>No input</button>)}
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
+                    {t.kind === 'audio' && <button type="button" className="studio-ms studio-arm" aria-label={`Arm ${t.name}`} title="Arm to record its input" aria-pressed={audioArm === t.id && selected === t.id} onClick={(e) => { e.stopPropagation(); const on = !(audioArm === t.id && selected === t.id); setAudioArm(on ? t.id : null); if (on) setSelected(t.id); }}><svg viewBox="0 0 10 10" width="8" height="8" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="currentColor" /></svg></button>}
                     <button type="button" className="studio-ms" aria-label={`Mute ${t.name}`} title="Mute (M)" aria-pressed={t.muted} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.muted = !x.muted; }); }}>M</button>
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
                   </div>

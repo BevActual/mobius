@@ -411,3 +411,5 @@
 .studio-page .studio-env-inner { position: absolute; top: 0; bottom: 0; left: var(--keys, 64px); }
 .studio-page .studio-env-clip { position: absolute; top: 0; bottom: 0; background: color-mix(in srgb, var(--tc, var(--ink)) 6%, transparent); }
 .studio-page .studio-env-clip .ui-lane { height: 100%; background: transparent; border-bottom: 0; }
+.studio-page .studio-arm { display: inline-grid; place-items: center; }
+.studio-page .studio-arm[aria-pressed="true"] { background: var(--danger); border-color: var(--danger); color: var(--on-ink); }

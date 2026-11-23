@@ -679,6 +679,28 @@ test('Record plays from the playhead and writes what is played on the computer k
   await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
 });
 
+test('an audio track arms with its Arm button, not by being chosen, and Record asks for it first', async () => {
+  const VOX = { id: 't2', name: 'Vox', kind: 'audio', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: 'teal', notes: [], clips: [] };
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, VOX] }));
+  await start();
+  await resizeWindow(mobius!.app, 1600, 900);
+  const vox = tracks().getByRole('listitem', { name: 'Vox' });
+  await vox.locator('.studio-lane').click({ position: { x: 4, y: 4 } });
+  const arm = vox.getByRole('button', { name: 'Arm Vox' });
+  await expect(arm).toHaveAttribute('aria-pressed', 'false');
+  // Chosen but not armed: Record says to arm it and doesn't start.
+  const rec = shell().getByRole('button', { name: 'Record' });
+  await rec.click();
+  await expect(shell().getByText('Arm Vox to record its input.')).toBeVisible();
+  await expect(rec).toHaveAttribute('aria-pressed', 'false');
+  await arm.click();
+  await expect(arm).toHaveAttribute('aria-pressed', 'true');
+  await arm.click();
+  await expect(arm).toHaveAttribute('aria-pressed', 'false');
+  // A MIDI track has no Arm button: choosing it arms it.
+  await expect(tracks().getByRole('listitem', { name: 'Keys' }).getByRole('button', { name: 'Arm Keys' })).toHaveCount(0);
+});
+
 test('automation draws a volume or pan line under a track with points, kept in the song', async () => {
   await start();
   // Wide enough that the Automation button stays in the toolbar rather than the ⋯ menu.
