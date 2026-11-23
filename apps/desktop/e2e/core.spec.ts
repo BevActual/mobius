@@ -92,7 +92,7 @@ test('the page-facing shell can read the core status but cannot call the core', 
   expect(surface.top).toEqual(['agent', 'app', 'appearance', 'boards', 'bookmarks', 'bots', 'browser', 'calendar', 'changes', 'clipboard', 'code', 'comments', 'contacts', 'context', 'core', 'databases', 'designs', 'docs', 'downloads', 'drives', 'extensions', 'files', 'googleDrive', 'history', 'launcherWindow', 'mail', 'memory', 'menu', 'messages', 'mini', 'models', 'music', 'notes', 'photos', 'platform', 'preferences', 'profiles', 'projects', 'providers', 'reading', 'research', 'schedules', 'share', 'sheets', 'signins', 'skills', 'slides', 'songs', 'space', 'surface', 'system', 'tasks', 'terminal', 'tray', 'updates', 'usage', 'video', 'views', 'voice', 'wiki', 'window']);
 });
 
-test('without a core binary the shell still works and says the core is unavailable', async () => {
+test('without a core binary the shell still works and says the core is unavailable', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await launch(fixture.origin + '/', { env: { MOBIUS_CORE_BIN: path.join(os.tmpdir(), 'no-such-mobius-cored.exe') } });
   await expect(indicator()).toHaveText('Core unavailable');
   await expect(mobius.shell.locator('.tab-title')).toHaveText(['Fixture home']);

@@ -72,7 +72,7 @@ test('Stop on the control bar ends the task', async () => {
   await expect(shell.getByRole('button', { name: 'Send', includeHidden: true })).toBeAttached();
 });
 
-test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s again on Hand back', async () => {
+test('a tab Mobius drives says so, becomes Yours on Take over, and is Mobius’s again on Hand back', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   model = await startModel([
     callsTool('browser-open', { url: fixture.origin + '/second' }),
     callsTool('files-read', { path: 'notes/Work/Plan.md' }),

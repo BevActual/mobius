@@ -572,31 +572,7 @@ fn main() {
             let handle = app.handle().clone();
             let slot: Arc<OnceLock<Arc<Bridge>>> = Arc::new(OnceLock::new());
             let (status_slot, note_slot, request_slot) = (slot.clone(), slot.clone(), slot.clone());
-            let mut args = vec!["--db".into(), data_dir.join("core.db").display().to_string(), "--conversations".into(), data_dir.join("conversations.db").display().to_string()];
-            args.extend(["--models-dir".into(), base_dir.join("models").display().to_string(), "--download-dir".into(), base_dir.join("models").display().to_string(), "--state-dir".into(), base_dir.display().to_string()]);
-            if test_mode {
-                args.extend(["--demo-tools".into(), "--no-default-models".into()]);
-                if let Ok(hub) = std::env::var("MOBIUS_TEST_HUB") {
-                    args.extend(["--hub".into(), hub]);
-                }
-                if let Ok(releases) = std::env::var("MOBIUS_TEST_ENGINE_RELEASES") {
-                    args.extend(["--engine-releases".into(), releases]);
-                }
-                if let Ok(llama) = std::env::var("MOBIUS_TEST_LLAMA") {
-                    args.extend(["--llama-server".into(), llama]);
-                }
-                // A fake Claude Code CLI and a fake Anthropic server, so tests never touch a real subscription.
-                if let Ok(claude) = std::env::var("MOBIUS_TEST_CLAUDE") {
-                    args.extend(["--claude-command".into(), claude]);
-                }
-                if let Ok(upstream) = std::env::var("MOBIUS_TEST_CLAUDE_UPSTREAM") {
-                    args.extend(["--claude-upstream".into(), upstream]);
-                }
-                // A pretend OpenAI: its sign-in (for the host) and its ChatGPT endpoint (for the core).
-                if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
-                    args.extend(["--chatgpt-upstream".into(), format!("{}/v1", openai.trim_end_matches('/'))]);
-                }
-            }
+            let args = mobius_host::start::core_args(&data_dir, &base_dir, test_mode);
             let core = Arc::new(CoreProcess::start(Options {
                 binary: daemon_path(),
                 args,
@@ -628,33 +604,8 @@ fn main() {
             bridge.start_schedules();
             // The core may have become ready before the bridge existed.
             bridge.on_core_status(core.status());
-            if test_mode && let Ok(url) = std::env::var("MOBIUS_AGENT_URL") {
-                let model = std::env::var("MOBIUS_AGENT_MODEL").unwrap_or_else(|_| "test-model".into());
-                let mut seed = serde_json::json!({ "baseUrl": url, "model": model });
-                if let Ok(system) = std::env::var("MOBIUS_AGENT_SYSTEM") {
-                    seed["system"] = serde_json::json!(system);
-                }
-                let seeded = bridge.clone();
-                let watcher = core.clone();
-                std::thread::spawn(move || {
-                    while watcher.status() != Status::Ready {
-                        std::thread::sleep(std::time::Duration::from_millis(30));
-                    }
-                    let _ = seeded.seed_agent(&seed);
-                });
-            }
             if test_mode {
-                bridge.enable_test_hooks();
-                // `MOBIUS_TEST_PROVIDER=openai=http://127.0.0.1:1234/v1` points one provider at a local fake server.
-                // Tests never ask the real Claude Code on this computer: without a fake one, there is none.
-                let claude = std::env::var("MOBIUS_TEST_CLAUDE").unwrap_or_else(|_| "no-claude-in-tests".into());
-                bridge.use_claude_for_tests(std::path::Path::new(&claude));
-                if let Ok(openai) = std::env::var("MOBIUS_TEST_CHATGPT") {
-                    bridge.use_chatgpt_for_tests(&openai);
-                }
-                if let Some((id, url)) = std::env::var("MOBIUS_TEST_PROVIDER").ok().as_deref().and_then(|v| v.split_once('=')) {
-                    bridge.redirect_provider_for_tests(id, url);
-                }
+                mobius_host::start::ready_for_tests(&bridge, &core);
             }
             let quit_handle = handle.clone();
             bridge.set_quit(Arc::new(move || quit_handle.exit(0)));

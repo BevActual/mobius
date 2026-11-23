@@ -74,7 +74,7 @@ test('there is no way to allow clicking for good', async () => {
   await expect(card('browser.click').getByRole('button', { name: 'Always allow' })).toHaveCount(0);
 });
 
-test('an ambiguous click is refused and the model is told which things matched', async () => {
+test('an ambiguous click is refused and the model is told which things matched', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-click', { text: 'More' }), says(['Which one?'])]);
   await say('click more');
   await card('browser.click').getByRole('button', { name: 'Allow once' }).click();
@@ -83,7 +83,7 @@ test('an ambiguous click is refused and the model is told which things matched',
   expect(await outText()).toBe('idle');
 });
 
-test('a password field is never typed into', async () => {
+test('a password field is never typed into', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([callsTool('browser-type', { field: 'Password', text: 'hunter2' }), says(['Could not.'])]);
   await say('log me in');
   await card('browser.type').getByRole('button', { name: 'Allow once' }).click();

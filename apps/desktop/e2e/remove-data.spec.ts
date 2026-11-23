@@ -31,7 +31,7 @@ test('removing data asks first, and cancelling changes nothing', async () => {
   expect(fs.existsSync(`${mobius!.userData}/appearance.json`) || fs.readdirSync(mobius!.userData).length > 0).toBe(true);
 });
 
-test('confirming empties the data folder', async () => {
+test('confirming empties the data folder', { tag: '@shell', annotation: { type: 'needs the shell', description: "the data is removed as the shell restarts" } }, async () => {
   await openPrivacy();
   const shell = mobius!.shell;
   fs.writeFileSync(`${mobius!.userData}/marker.txt`, 'x');

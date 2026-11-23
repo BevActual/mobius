@@ -210,7 +210,7 @@ test('the Agent app’s Activity tab shows what finished today, and what is sche
   await expect(activity.getByRole('list', { name: 'Scheduled requests' })).toContainText(/Weekdays at (?:0?8:00|8:00\s?AM)/);
 });
 
-test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', async () => {
+test('profiles: Personal is there, a new one can be made in Settings, and the open one is marked', { tag: '@shell', annotation: { type: 'needs the shell', description: "profiles are kept by the shell" } }, async () => {
   await start([]);
   await openSettings(shell());
   const page = shell().getByRole('region', { name: 'Settings' });

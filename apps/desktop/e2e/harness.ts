@@ -4,6 +4,7 @@ import http from 'node:http';
 import net from 'node:net';
 import type { AddressInfo } from 'node:net';
 import fs from 'node:fs';
+import { startDevBridge, tauriStandIn } from './dev-bridge';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -102,7 +103,7 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
     fs.mkdirSync(userData, { recursive: true });
     fs.writeFileSync(prefsFile, JSON.stringify(options.newPerson ? { agentPrivateUrls: true } : { agentPrivateUrls: true, approvalMode: 'manual' }));
   }
-  const launched = await launchTauri(startUrl, userData, options.env ?? {});
+  const launched = LOCAL ? await launchLocal(userData, options.env ?? {}) : await launchTauri(startUrl, userData, options.env ?? {});
   if (options.openMobius) {
     // Mobius opens in the right panel, beside the work, from the start.
     await launched.shell.locator('.dock.right > .chat').waitFor({ timeout: 20_000 });
@@ -114,6 +115,52 @@ export async function launch(startUrl: string, options: { env?: Record<string, s
 }
 
 export interface ViewInfo { id: string; visible: boolean; bounds: { x: number; y: number; width: number; height: number }; url: string }
+
+/**
+ * `npm run e2e:local` (Linux or macOS, no shell build): the real host behind the dev bridge, and the interface from the
+ * dev server in Chromium (e2e/dev-bridge.ts). What a test needs from the shell itself (the window, the browser's pages)
+ * skips the test there; Windows CI still runs it.
+ */
+export const LOCAL = process.env.MOBIUS_E2E_LOCAL === '1';
+
+/** The dev server `e2e:local` starts (playwright.config.ts `webServer`). */
+export const LOCAL_URL = 'http://127.0.0.1:5199/';
+
+/** A local run's own browser, which nothing else shares. */
+const localParts = new WeakMap<AppHandle, Page>();
+
+async function launchLocal(userData: string, env: Record<string, string>): Promise<Launched> {
+  const bridge = await startDevBridge(userData, env);
+  // A Chromium already on the computer (the cloud sessions' /opt/pw-browsers/chromium) when Playwright's own isn't.
+  const chrome = process.env.MOBIUS_E2E_CHROMIUM ?? (fs.existsSync('/opt/pw-browsers/chromium') ? '/opt/pw-browsers/chromium' : undefined);
+  // The page's policy lets it reach only its own server (connect-src 'self'); in the shell the bridge is no address at
+  // all, here it is the dev bridge's. Its storage is kept in the data folder, as the shell's web view keeps it, so a
+  // restart on the same folder finds what the page saved. A pretend camera and microphone, as the shell has in tests.
+  const context = await chromium.launchPersistentContext(path.join(userData, 'webview'), {
+    ...(chrome ? { executablePath: chrome } : {}),
+    args: ['--no-sandbox', '--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    viewport: { width: 1440, height: 900 },
+    bypassCSP: true,
+  });
+  await context.addInitScript(tauriStandIn, { url: bridge.url, token: bridge.token });
+  const shell = context.pages()[0] ?? await context.newPage();
+  shell.on('console', (message) => { if (message.text().startsWith('[mobius]')) console.log(`[e2e app] ${test.info().titlePath.slice(1).join(' › ')}: ${message.text()}`); });
+  await shell.goto(LOCAL_URL);
+  await shell.waitForSelector('html[data-keys-ready]', { state: 'attached', timeout: 20_000 }).catch(() => undefined);
+  const handle: AppHandle = {};
+  localParts.set(handle, shell);
+  tauriParts.set(handle, { browser: context.browser() as Awaited<ReturnType<typeof chromium.connectOverCDP>>, shell });
+  return {
+    app: handle,
+    shell,
+    userData,
+    close: async (closeOptions = {}) => {
+      await context.close();
+      await bridge.stop();
+      if (!closeOptions.keepUserData) removeTestData(userData);
+    },
+  };
+}
 
 /** For the Tauri shell: the CDP connection and the interface page, found from the stand-in `app` object. */
 const tauriParts = new WeakMap<AppHandle, { browser: Awaited<ReturnType<typeof chromium.connectOverCDP>>; shell: Page }>();
@@ -150,7 +197,22 @@ export const expectVisibleView = async (app: AppHandle) => {
   return (await views(app)).find((view) => view.visible)!;
 };
 
-const testHook = <T>(app: AppHandle, method: string, args: unknown[]): Promise<T> =>
+const testHook = async <T>(app: AppHandle, method: string, args: unknown[]): Promise<T> => {
+  const local = localParts.get(app);
+  if (local) {
+    // The window's size is the page's. The rest goes to the real host, except what only the shell answers.
+    if (method === 'probe' && args[0] === 'setSize') {
+      const { width, height } = args[1] as { width: number; height: number };
+      await local.setViewportSize({ width, height });
+      return undefined as T;
+    }
+    if (method === 'quit') return undefined as T;
+    if (method === 'views' || method === 'probe') test.skip(true, `needs the shell (test hook "${method}"): runs on Windows CI`);
+  }
+  return tauriHook<T>(app, method, args);
+};
+
+const tauriHook = <T>(app: AppHandle, method: string, args: unknown[]): Promise<T> =>
   tauriParts.get(app)!.shell.evaluate(
     async ({ method, args }) => {
       try {

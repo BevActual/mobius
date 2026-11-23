@@ -23,7 +23,7 @@ async function open(path: string): Promise<Launched> {
   return app;
 }
 
-test('Ctrl+F opens a find bar, counts matches without caring about case, steps through them, and Escape clears it', async () => {
+test('Ctrl+F opens a find bar, counts matches without caring about case, steps through them, and Escape clears it', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await open('/find');
   await mobius.shell.keyboard.press('Control+f');
   await expect(box()).toBeFocused();
@@ -46,7 +46,7 @@ test('Ctrl+F opens a find bar, counts matches without caring about case, steps t
   await expect(bar()).toHaveCount(0);
 });
 
-test('the buttons step through matches and the bar closes with its button', async () => {
+test('the buttons step through matches and the bar closes with its button', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   mobius = await open('/find');
   await mobius.shell.keyboard.press('Control+f');
   await box().fill('apple');

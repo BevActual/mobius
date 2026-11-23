@@ -113,7 +113,7 @@ test('the effort is chosen from the menu, kept, and sent with the next request',
   expect(model!.requests.at(-1)).not.toHaveProperty('reasoning_effort');
 });
 
-test('this page can be attached as a chip, removed, and sent with the message, and the conversation shows it', async () => {
+test('this page can be attached as a chip, removed, and sent with the message, and the conversation shows it', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['I read it.'])]);
   await visit('/article', 'Article');
   await shell().getByRole('button', { name: 'Add context' }).click();
@@ -166,7 +166,7 @@ test('a file that is not text is refused with a reason', async () => {
   await expect(shell().getByRole('list', { name: 'Attached to this message' })).toHaveCount(0);
 });
 
-test('Edit puts the words back in the box and the attachment back as a chip', async () => {
+test('Edit puts the words back in the box and the attachment back as a chip', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['first'])]);
   await visit('/article', 'Article');
   await shell().getByRole('button', { name: 'Add context' }).click();
@@ -178,7 +178,7 @@ test('Edit puts the words back in the box and the attachment back as a chip', as
   await expect(shell().getByRole('list', { name: 'Attached to this message' })).toContainText('Article');
 });
 
-test('Enter while a page is still being attached sends once it is, with the page', async () => {
+test('Enter while a page is still being attached sends once it is, with the page', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([says(['first'])]);
   await visit('/article', 'Article');
   // A slow page: reading it takes a while, as a big one does on a busy computer.

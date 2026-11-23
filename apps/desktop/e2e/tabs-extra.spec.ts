@@ -27,7 +27,7 @@ const openIn = async (path: string) => {
   await address.press('Enter');
 };
 
-test('a tab can be pinned, and unpinned', async () => {
+test('a tab can be pinned, and unpinned', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await openIn('/second');
   await expect(titles()).toHaveText(['Fixture home', 'Second page']);
   await shell().getByRole('button', { name: 'Pin Second page' }).click();
@@ -38,7 +38,7 @@ test('a tab can be pinned, and unpinned', async () => {
   await expect(shell().getByRole('button', { name: 'Pin Second page' })).toHaveAttribute('aria-pressed', 'false');
 });
 
-test('a tab can be duplicated and a closed one brought back', async () => {
+test('a tab can be duplicated and a closed one brought back', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await shell().getByRole('button', { name: 'Duplicate Fixture home' }).click();
   await expect(titles()).toHaveText(['Fixture home', 'Fixture home']);
   await openIn('/second');

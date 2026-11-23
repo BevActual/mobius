@@ -57,6 +57,13 @@ jobs:
           MOBIUS_TELEGRAM_API_HASH: ${{ secrets.MOBIUS_TELEGRAM_API_HASH }}
         run: npm run package -- --version ${{ steps.version.outputs.value }} --stage build
 
+      # The dev bridge (crates/mobius-host/src/dev_bridge.rs) must never ship: no program built here may carry its mark.
+      - name: The programs hold no dev bridge
+        shell: pwsh
+        run: |
+          $found = Get-ChildItem target\release -Filter *.exe | Where-Object { Select-String -Path $_.FullName -Pattern 'mobius-dev-bridge-0f3c' -SimpleMatch -Quiet }
+          if ($found) { throw "The dev bridge is in $($found.Name -join ', '): it is for development only." }
+
       # ---- Code signing (Windows), through Azure Artifact Signing; skipped until AZURE_SIGNING_ACCOUNT is set --------
       # Signs the programs, then the installer: Windows, its firewall and Defender then see Mobius's publisher on every
       # program it runs, not only on the installer. The core and mobius-inert-mcp are signed here; the shell by the

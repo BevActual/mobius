@@ -84,7 +84,7 @@ test('each kind of alert can be turned off, and sounds can be muted', async () =
   expect(await notices()).toHaveLength(1);
 });
 
-test('a finished download is announced ', async () => {
+test('a finished download is announced ', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([]);
   const address = shell().getByRole('textbox', { name: 'Address or question' });
   await address.fill(fixture.origin + '/file.txt');
@@ -93,7 +93,7 @@ test('a finished download is announced ', async () => {
   await expect.poll(async () => (await notices()).map((n) => `${n.kind}:${n.body}`)).toEqual(['download:file.txt']);
 });
 
-test('keeping the computer awake follows the setting and the work', async () => {
+test('keeping the computer awake follows the setting and the work', { tag: '@shell', annotation: { type: 'needs the shell', description: "keeping the computer awake is the shell's" } }, async () => {
   await start([callsTool('browser-tabs'), says(['Done ', 'slowly ', 'now.'], 700)]);
   expect(await awake()).toBe(false);
   await openPage('General');

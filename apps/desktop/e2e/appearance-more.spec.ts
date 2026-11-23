@@ -73,7 +73,7 @@ test('the conversation font and text direction change how messages are drawn', a
   await expect.poll(() => styleOfMessage('direction')).toBe('ltr');
 });
 
-test('compact density packs the tab list tighter', async () => {
+test('compact density packs the tab list tighter', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await start([]);
   const height = async () => (await shell().locator('.tab-main').first().boundingBox())!.height;
   const before = await height();

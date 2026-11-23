@@ -105,7 +105,7 @@ test('a project is a place: its rules, its memory page in the Wiki, its threads 
   await expect.poll(() => JSON.parse(fs.readFileSync(path.join(userData, 'projects.json'), 'utf8'))[0].threads.length).toBe(1);
 });
 
-test('the core counts a project’s rules in its threads only: Act goes ahead there, Ask first asks every time', async () => {
+test('the core counts a project’s rules in its threads only: Act goes ahead there, Ask first asks every time', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   const change = callsTool('files-write', { path: 'docs/Plan.md', content: '# Plan\n' });
   await start([
     change, says(['Not written outside.']),

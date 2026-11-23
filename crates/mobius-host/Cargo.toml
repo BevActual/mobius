@@ -45,6 +45,11 @@ tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-t
 grammers-client = { version = "0.12", default-features = false }
 grammers-session = { version = "0.12", default-features = false, features = ["serde"] }
 
+[features]
+# The dev bridge (src/dev_bridge.rs): the host behind a web server on 127.0.0.1, for `npm run e2e:local`. Development
+# only: a release build with it does not compile, and nothing that ships turns it on.
+dev-bridge = []
+
 [dev-dependencies]
 tempfile = "3"
 mobius-browser = { path = "../mobius-browser", features = ["fake"] }
@@ -52,6 +57,11 @@ mobius-browser = { path = "../mobius-browser", features = ["fake"] }
 [[bin]]
 name = "fake-core"
 path = "src/bin/fake_core.rs"
+
+[[bin]]
+name = "mobius-dev-bridge"
+path = "src/bin/dev_bridge.rs"
+required-features = ["dev-bridge"]
 
 [lints]
 workspace = true

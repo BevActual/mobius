@@ -47,7 +47,7 @@ async function both(shell: Page, name: string): Promise<void> {
   await shell.emulateMedia({ colorScheme: 'light' });
 }
 
-test('screens: every app, Home, Settings and the Mobius panel, light and dark', async () => {
+test('screens: every app, Home, Settings and the Mobius panel, light and dark', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   test.setTimeout(240_000);
   fs.mkdirSync(OUT, { recursive: true });
   const fixture = await startFixture();

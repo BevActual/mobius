@@ -68,6 +68,9 @@ pub mod notify;
 pub mod process;
 pub mod quick_entry;
 pub mod protocol;
+pub mod start;
+#[cfg(feature = "dev-bridge")]
+pub mod dev_bridge;
 
 pub use bridge::{Bridge, BridgeError};
 pub use process::{CallError, CoreProcess, Options, Status};

@@ -16,7 +16,7 @@ test.afterEach(async () => {
 const address = () => mobius.shell.getByRole('textbox', { name: 'Address or question' });
 const tabTitles = () => mobius.shell.locator('.tab-title');
 
-test('opens one window with a single visible page glued to the slot', async () => {
+test('opens one window with a single visible page glued to the slot', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await expect(mobius.shell.locator('.strip-title')).toHaveText('Fixture home');
   const view = await expectVisibleView(mobius.app);
   expect(view.url).toBe(fixture.origin + '/');
@@ -43,7 +43,7 @@ test('the page stays glued to the slot when the window resizes and the panel tog
   await expect(mobius.shell.getByRole('complementary', { name: 'Tabs' })).toHaveCount(0);
 });
 
-test('the address field navigates, and the tab list follows the page title', async () => {
+test('the address field navigates, and the tab list follows the page title', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   // Wait for the first page to finish loading, or the navigation below would replace it instead of following it.
   await expect(tabTitles()).toHaveText(['Fixture home']);
   await address().fill(fixture.origin.replace('http://', '') + '/second');
@@ -55,7 +55,7 @@ test('the address field navigates, and the tab list follows the page title', asy
   await expect(mobius.shell.getByRole('button', { name: 'Forward' })).toBeEnabled();
 });
 
-test('questions are not navigated, and non-web schemes are refused', async () => {
+test('questions are not navigated, and non-web schemes are refused', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   // Wait for the first page to finish loading, or its own request would be counted as a navigation below.
   await expect(tabTitles()).toHaveText(['Fixture home']);
   const before = fixture.hits.length;
@@ -71,13 +71,13 @@ test('questions are not navigated, and non-web schemes are refused', async () =>
   expect(fixture.hits.length).toBe(before);
 });
 
-test('web pages cannot see Node, Electron, or the Mobius bridge', async () => {
+test('web pages cannot see Node, Electron, or the Mobius bridge', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await address().fill(fixture.origin + '/probe');
   await address().press('Enter');
   await expect(tabTitles()).toHaveText(['probe:undefined,undefined,undefined,undefined,undefined']);
 });
 
-test('pages are denied every permission', async () => {
+test('pages are denied every permission', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await address().fill(fixture.origin + '/perm');
   await address().press('Enter');
   await expect(tabTitles()).toHaveText(['perm:denied']);
@@ -94,7 +94,7 @@ test('window.open becomes a new tab for web addresses only, and pages cannot nav
   expect((await views(mobius.app)).find((v) => v.id === first!.id)!.url).toBe(fixture.origin + '/');
 });
 
-test('a new tab shows the start page instead of a page view, and closing the last tab opens a fresh one', async () => {
+test('a new tab shows the start page instead of a page view, and closing the last tab opens a fresh one', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await mobius.shell.getByTitle('New tab (Ctrl+T)').click();
   await expect(tabTitles()).toHaveCount(2);
   // Mobius draws the start page itself: no page view shows, so nothing of it reaches a web page.
@@ -130,7 +130,7 @@ test('the launcher hides the native page while open and returns focus on Escape'
   await expect(opener).toBeFocused();
 });
 
-test('the launcher finds an open page and activates it', async () => {
+test('the launcher finds an open page and activates it', { tag: '@shell', annotation: { type: 'needs the shell', description: "the browser's own pages and tabs" } }, async () => {
   await mobius.shell.getByTitle('New tab (Ctrl+T)').click();
   await expect(tabTitles()).toHaveCount(2);
   await mobius.shell.keyboard.press('Control+K');
