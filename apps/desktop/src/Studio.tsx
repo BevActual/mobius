@@ -599,8 +599,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [showAuto, setShowAuto] = useState(false);
   // The setting each track's automation lane shows, by track id (Volume when not chosen).
   const [autoLane, setAutoLane] = useState<Record<string, string>>({});
-  // The setting the open clip's envelope lane shows (Volume when not chosen).
-  const [envLane, setEnvLane] = useState('volume');
+  // The setting each clip's envelope lane shows, by clip (Volume when not chosen).
+  const [envLane, setEnvLane] = useState<Record<string, string>>({});
   // The track being frozen, while its render runs (a hook, so above the early returns).
   const [freezing, setFreezing] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -1725,12 +1725,14 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   </div>
   {(clip || arrClip) && (() => {
     // The open clip's envelope (Live 12, 27), in its own beats: a Session clip fills the editor; an Arrange clip's own
-    // beat 0 sits where its start would be, its offset back, and the lane shows its first time round.
+    // beat 0 sits where its start would be, its offset back, and the lane shows its first time round its loop.
     const c = (clip ?? arrClip)!;
-    const own = clip ? span : ownLength(arrClip!);
+    // A looped clip's envelope goes round its loop as its notes do, so its lane ends at the loop's end.
+    const own = clip ? span : arrClip!.loop ? arrClip!.loop.end : ownLength(arrClip!);
     const at = clip ? 0 : arrClip!.start - (arrClip!.offset ?? 0);
     const choices = envelopeChoices(song.returns);
-    const lane = choices.find((x) => x.name === envLane) ?? choices[0]!;
+    const envKey = clip ? `${track.id}:${clipAt}` : arrClip!.id;
+    const lane = choices.find((x) => x.name === envLane[envKey]) ?? choices[0]!;
     const was = c.envelopes?.[lane.name] ?? [];
     const name = (clip ? clip.name : arrClip!.name) ?? track.name;
     const put = (next: { beat: number; value: number }[]) => {
@@ -1742,7 +1744,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       <div className="studio-env" role="group" aria-label={`Envelopes of ${name}`} style={{ height: ENV_H, ['--keys' as string]: `${keysW}px` }}>
         <span className="studio-vel-label studio-env-label">
           <button type="button" className="studio-auto-name" aria-haspopup="menu" title="Choose the setting this envelope moves" aria-label={`${name} envelope: ${lane.label}`}
-            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane(x.name) })) }); }}>{lane.label}</button>
+            onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenu({ x: r.left, y: r.bottom, label: `${name} envelopes`, items: choices.map((x) => ({ label: `${x.label}${c.envelopes?.[x.name]?.length ? ' •' : ''}`, checked: x.name === lane.name, run: () => setEnvLane((m) => ({ ...m, [envKey]: x.name })) })) }); }}>{lane.label}</button>
         </span>
         <div className="studio-env-inner" style={{ width: span * rbw, transform: `translateX(${-scrollX}px)` }}>
           <div className="studio-env-clip" style={{ left: at * rbw, width: own * rbw }}>
