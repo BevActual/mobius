@@ -244,7 +244,7 @@ host, written in Rust. The window becomes the UI only.
 | Live | Mobius's engine |
 | --- | --- |
 | 32-bit float inside; a track can go over 0 dB without clipping, only the main output and export clip | The same: float all the way, clipped only by the output |
-| Volume automation is applied every sample | The same (part 5) |
+| Volume automation is applied every sample | The same for every track's volume, pan and sends and for Main's volume, curves included (phase 4); the Session view plays none |
 | Export matches playback when nothing non-neutral is applied; render at 32 bits, dither once at the end | Playback and export are the same code; WAV export is 32-bit float |
 | Constant-power pan: 0 dB in the middle, +3 dB hard to one side | The same: constant power, 0 dB in the middle and +3 dB hard over (22 November) |
 | Devices' delays are compensated automatically | Every device today has no delay (the reverb is zero-latency), so nothing to compensate yet; needed with plug-ins or lookahead |
@@ -285,7 +285,7 @@ interface Song {
   changes?: { beat: number; tempo?: number; meter?: [number, number] }[];   // along the song
   tracks: Track[];
   returns?: Return[];                       // shared effects that tracks send to
-  main?: { volume: number; fx?: Effect[] };   // the Main track (Live's name for the master)
+  main?: { volume: number; fx?: Effect[]; auto?: Record<string, AutoPoint[]>; autoOff?: string[] };   // the Main track (Live's name for the master); auto "volume"
   metronome?: { volume: number };          // 0..1, the metronome's own level apart from Main (0.8 if left out)
   scenes?: string[];
 }
@@ -299,7 +299,15 @@ interface Track {
   sends?: Record<string, number>;           // return id -> level 0..1
   clips: ArrangeClip[];                     // Arrange, in time order, never overlapping
   slots?: (Clip | null)[];                  // Session, one per scene
-  auto?: Record<string, AutoPoint[]>;       // "volume", "pan", "fx:<id>:<setting>" -> points in song beats
+  auto?: Record<string, AutoPoint[]>;       // "volume", "pan", "send:<return id>", "fx:<id>:<setting>" -> points in song beats
+                                            // fx: a built-in effect's settings by their JSON names (eq low..highFreq, delay time/feedback/mix,
+                                            // compressor makeup, reverb mix); a Workbench device's "<part id>.<setting>"; moved every 128 samples.
+                                            // Not movable while playing: a reverb's size and damp, a compressor's threshold, ratio, attack and release.
+  autoOff?: string[];                       // overridden: moving an automated control adds its name, Re-Enable Automation clears it (25.4)
+}
+interface AutoPoint {
+  beat: number; value: number;              // volume and sends 0..1, pan -1..1; flat before the first point and after the last
+  curve?: number;                           // -1..1, how the segment to the next point bends (25.5.2); 0 or absent straight
 }
 interface SamplerSound {                    // a sampler track's sound, or a drum pad's `sample`
   file: string;                             // relative to the song's folder
@@ -350,7 +358,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Warping, with a stretcher in the engine.
    - Freeze, and exporting stems (stems in the engine done; freeze next).
 4. **Devices and movement** (about 3 weeks):
-   - Automation for every setting, and clip envelopes.
+   - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings in the engine done; clip envelopes next).
    - Modulators and sidechain.
    - Stacks with macros.
    - Six more effects.
