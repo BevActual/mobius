@@ -148,6 +148,10 @@ A small studio for writing songs as notes.
   own Volume, Pan, mute and effects (Add chain for another, up to 16). Its eight macros each have a **Map** menu of the
   settings in its chains; a mapped setting moves between From and To as the macro turns. Automation and modulators can
   move a macro or any effect in a chain. Saved as an effect with `kind: "stack"`.
+- **Modulators** follow the effects: **Add modulator** puts an LFO (Shape, a Rate synced to the song or in Hz, Phase)
+  or an Envelope Follower (Attack, Release) on the track, as Live's devices of those names. **Moves** picks the setting
+  (Volume, Pan, a send or an effect setting) and **Amount** how far, as a share of that setting's range. Saved as the
+  track's `mods`, in the setting's own units.
 - **The notes editor** draws, moves and stretches notes, selects with
   a box and snaps to the grid. **Draw** (the pencil, or B) makes a drag write a note in each grid step along the row it
   started on, or take notes out when it starts on one; each stroke is one Undo. With notes picked, Ctrl+E cuts each at the playhead (or at

@@ -251,6 +251,45 @@ export function readAutomation(v: unknown, beats: number, old?: unknown): Automa
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** An LFO's shapes, as the engine plays them: "saw" rises, "ramp" falls. */
+export const MOD_SHAPES = ['sine', 'triangle', 'square', 'saw', 'ramp'] as const;
+export type ModShape = (typeof MOD_SHAPES)[number];
+export const MOD_RANGE = { rate: { lo: 0.01, hi: 40 }, sync: { lo: 0.0625, hi: 64 }, attack: { lo: 0.001, hi: 2 }, release: { lo: 0.01, hi: 5 } } as const;
+/**
+ * A modulator on a track (Live 12's LFO and Envelope Follower, as devices mapped to a setting): it moves `target`
+ * (named as automation is) by `amount`, in that setting's own units, times what it makes, added around where the setting
+ * is. An LFO makes -1 to 1 along `shape` (sine when left out), at `rate` Hz, or once every `sync` beats, starting
+ * `phase` (0 to 1) round at the song's start. A follower makes 0 to 1 from the track's level, rising over `attack`
+ * seconds and falling over `release`. `on: false` turns it off.
+ */
+export interface Modulator { kind: 'lfo' | 'follow'; target: string; amount: number; rate?: number; sync?: number; shape?: ModShape; phase?: number; attack?: number; release?: number; on?: false }
+/** Whether a name is one a modulator or an automation line can move. */
+export const isAutoName = (name: string): boolean => AUTO_NAME.test(name);
+/** A track's modulators from a file: a known kind and target, the rest in range and left out at their defaults. */
+export function readMods(v: unknown): Modulator[] | undefined {
+  const fit = (x: unknown, r: { lo: number; hi: number }) => (typeof x === 'number' && Number.isFinite(x) ? Math.round(Math.max(r.lo, Math.min(r.hi, x)) * 1e4) / 1e4 : undefined);
+  const mods = (Array.isArray(v) ? v : []).slice(0, 16).flatMap((m): Modulator[] => {
+    const o = obj(m);
+    if ((o.kind !== 'lfo' && o.kind !== 'follow') || typeof o.target !== 'string' || !AUTO_NAME.test(o.target)) return [];
+    if (typeof o.amount !== 'number' || !Number.isFinite(o.amount)) return [];
+    const mod: Modulator = { kind: o.kind, target: o.target, amount: Math.round(Math.max(-1e6, Math.min(1e6, o.amount)) * 1e4) / 1e4 };
+    if (o.kind === 'lfo') {
+      const rate = fit(o.rate, MOD_RANGE.rate), sync = fit(o.sync, MOD_RANGE.sync), phase = fit(o.phase, { lo: 0, hi: 1 });
+      if (rate !== undefined && rate !== 1) mod.rate = rate;
+      if (sync !== undefined) mod.sync = sync;
+      if (typeof o.shape === 'string' && (MOD_SHAPES as readonly string[]).includes(o.shape) && o.shape !== 'sine') mod.shape = o.shape as ModShape;
+      if (phase) mod.phase = phase;
+    } else {
+      const attack = fit(o.attack, MOD_RANGE.attack), release = fit(o.release, MOD_RANGE.release);
+      if (attack !== undefined && attack !== 0.01) mod.attack = attack;
+      if (release !== undefined && release !== 0.2) mod.release = release;
+    }
+    if (o.on === false) mod.on = false;
+    return [mod];
+  });
+  return mods.length > 0 ? mods : undefined;
+}
+
 /**
  * A clip's envelopes from a file (Live 12 manual, 27 "Clip Envelopes"), in the clip's own beats: "volume" (0 to 1, a
  * share of the track's volume), "pan" (-1 to 1, added to the track's pan) and "send:<return id>" (0 to 1, a share of
@@ -297,7 +336,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[]; /** Main's volume along the song. */ auto?: Automation; autoOff?: string[] }
@@ -417,6 +456,8 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     if (auto) track.auto = auto;
     const autoOff = readAutoOff(to.autoOff);
     if (autoOff) track.autoOff = autoOff;
+    const mods = readMods(to.mods);
+    if (mods) track.mods = mods;
     const slots = (Array.isArray(to.slots) ? to.slots : []).slice(0, MAX_SCENES).map((c) => readClip(c, track.name));
     while (slots.length > 0 && slots[slots.length - 1] === null) slots.pop();
     if (slots.length > 0) track.slots = slots;
@@ -551,6 +592,7 @@ export function writeSong(song: Song): string {
     if (t.fx && t.fx.length > 0) head.fx = t.fx;
     if (t.auto && Object.keys(t.auto).length > 0) head.auto = t.auto;
     if (t.autoOff && t.autoOff.length > 0) head.autoOff = t.autoOff;
+    if (t.mods && t.mods.length > 0) head.mods = t.mods;
     if (t.slots && t.slots.some((c) => c !== null)) head.slots = t.slots;
     const last = i === song.tracks.length - 1;
     if (t.clips.length === 0) { lines.push(`    ${JSON.stringify({ ...head, clips: [] })}${last ? '' : ','}`); return; }

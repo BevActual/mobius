@@ -47,7 +47,7 @@ export const PART_KINDS = {
   },
   reverb: { about: 'A room that rings for size seconds, its highs softened by damp.', settings: { size: { lo: 0.3, hi: 8, start: 2, unit: 's' }, damp: { lo: 0, hi: 1, start: 0.4 } }, inputs: ['in'], sends: true, moves: [] },
   pan: { about: 'Left (-1) to right (1).', settings: { pan: { lo: -1, hi: 1, start: 0 } }, inputs: ['in'], sends: true, moves: ['pan'] },
-  mix: { about: 'Blends dry and wet: the wet by amount, the dry turned down by half as much.', settings: { amount: { lo: 0, hi: 1, start: 0.25 } }, inputs: ['dry', 'wet'], sends: true, moves: [] },
+  mix: { about: 'Blends dry and wet: all dry at 0, all wet at 1.', settings: { amount: { lo: 0, hi: 1, start: 0.25 } }, inputs: ['dry', 'wet'], sends: true, moves: [] },
 } satisfies Record<string, PartKind>;
 
 export type PartKindName = keyof typeof PART_KINDS;
