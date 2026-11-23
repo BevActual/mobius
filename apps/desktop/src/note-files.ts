@@ -1,4 +1,5 @@
 import Image from '@tiptap/extension-image';
+import { Marked, marked } from 'marked';
 
 /** A link in a page that points beside it (`Battery%20files/cell.png`), not to the web or another place. */
 export const isPageFile = (src: string) => !!src && !/^[a-z][a-z0-9+.-]*:/i.test(src) && !src.startsWith('/') && !src.startsWith('#');
@@ -32,6 +33,15 @@ export function readFile(file: File): Promise<string> {
     reader.onerror = () => reject(reader.error ?? new Error('unreadable'));
     reader.readAsDataURL(file);
   });
+}
+
+/**
+ * A Markdown reader for one editor. The shared `marked` keeps every tokenizer an editor registers, and through them
+ * every editor that was ever open; this one goes with its editor. `getDefaults` is the shared one's (the type asks for
+ * the module's function, whose other parts the editor doesn't use).
+ */
+export function ownMarked(): typeof marked {
+  return Object.assign(new Marked(), { getDefaults: marked.getDefaults }) as unknown as typeof marked;
 }
 
 /** Pictures in a page: kept in Markdown with the link as written (beside the page), shown from the page's files. */

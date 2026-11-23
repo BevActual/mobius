@@ -26,7 +26,7 @@ import type { NoteComment } from '@mobius/shared';
 import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
 import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
 import { tidyMarkdown } from './note-insert';
-import { fileMarkdown, noteImage, readFile } from './note-files';
+import { fileMarkdown, noteImage, ownMarked, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
 import { NoteHistory, dayOf } from './NoteHistory';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
@@ -504,7 +504,9 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
       TaskList,
       TaskItem.configure({ nested: true }),
       BulletToTask,
-      Markdown,
+      // A Markdown reader of its own: the shared one keeps every editor's tokenizers, and with them every editor that
+      // was ever open (about 100 DOM nodes a visit to Docs in the speed test).
+      Markdown.configure({ marked: ownMarked() }),
       Placeholder.configure({ placeholder: ({ node }) => (node.type.name === 'heading' ? 'Title' : 'Write here…') }),
       image,
       commentMarks,

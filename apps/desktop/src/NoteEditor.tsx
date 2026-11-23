@@ -42,7 +42,7 @@ import { NoteHistory, dayOf } from './NoteHistory';
 import './notes.css';
 import { CommentComposer, CommentList, useNoteComments } from './NoteComments';
 import { copyFormatted, copyText, pageAsHtml } from './note-share';
-import { fileMarkdown, noteImage, readFile } from './note-files';
+import { fileMarkdown, noteImage, ownMarked, readFile } from './note-files';
 import { linkTo, linkedFrom, pageOfLink, pagesMatching } from './note-links';
 import { afterPaint } from './ui/frame';
 
@@ -349,7 +349,9 @@ export function NoteEditor({ notes, autoFocus = true, onSelection, onAsk, record
       TaskItem.configure({ nested: true }),
       BulletToTask,
       CheckedLast,
-      Markdown,
+      // A Markdown reader of its own: the shared one keeps every editor's tokenizers, and with them every editor that
+      // was ever open (about 100 DOM nodes a visit to Docs in the speed test).
+      Markdown.configure({ marked: ownMarked() }),
       // The hints are for a page still to be written: an empty title, and the first line under it. A page with words
       // in it shows none, so the empty line kept at its end does not read as a prompt.
       Placeholder.configure({ placeholder: ({ editor: e, node, pos }) => (node.type.name === 'heading' ? (pos === 0 ? 'Title' : '') : e.state.doc.childCount <= 2 ? 'Start writing, or type # for a tag' : '') }),
