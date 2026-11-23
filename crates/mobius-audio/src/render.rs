@@ -1925,6 +1925,15 @@ mod tests {
     }
 
     #[test]
+    fn a_stack_macro_follows_its_automation() {
+        let stack = |value: f64| format!(r#","fx":[{{"id":"s","kind":"stack","chains":[{{"fx":[{{"id":"d","kind":"delay","time":0.25,"feedback":0,"mix":0}}]}}],"macros":[{{"value":{value},"maps":[{{"target":"fx:d:mix","min":0,"max":1}}]}}]}}]"#);
+        let at_one = render_song(&held("", &stack(1.0)), 48_000).0;
+        let automated = render_song(&held("", &format!(r#"{},"auto":{{"fx:s:macro1":[{{"beat":0,"value":1}}]}}"#, stack(0.0))), 48_000).0;
+        assert_eq!(automated, at_one);
+        assert_ne!(at_one, render_song(&held("", &stack(0.0)), 48_000).0);
+    }
+
+    #[test]
     fn the_session_view_goes_round_a_clip_and_launches_land_on_the_bar() {
         // Tempo 120: a beat is 24 000 samples, a bar 96 000. Slot 0 is a one-bar clip with a note on its first beat
         // lasting two bars (cut at the clip's end); slot 1 has a note on beat 2.

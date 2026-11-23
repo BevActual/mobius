@@ -835,6 +835,130 @@ pub struct Chain {
     stereo_out: bool,
     /// The tracks keying its effects' compressors (by id), each once.
     sources: Vec<String>,
+    /// Its stacks, and the order its devices and stacks run in.
+    stacks: Vec<Stack>,
+    order: Vec<Unit>,
+}
+
+/// A device or a stack of a chain, by its place in the chain's list of them.
+#[derive(Clone, Copy)]
+enum Unit {
+    Device(usize),
+    Stack(usize),
+}
+
+/// The most chains and macros a stack has, as Live's racks (16 macros in Live 12).
+const MAX_STACK: usize = 16;
+
+/// A stack of effects (Live 12's Audio Effect Rack): chains side by side, each hearing what comes in, through its own
+/// effects, volume and pan, added together; and macros, each moving settings in the chains between their own ends.
+struct Stack {
+    key: u64,
+    chains: Vec<StackChain>,
+    macros: Vec<Macro>,
+    dry: [[f32; QUANTUM]; 2],
+    wet: [[f32; QUANTUM]; 2],
+    sum: [[f32; QUANTUM]; 2],
+}
+
+struct StackChain {
+    chain: Option<Chain>,
+    /// What its chain was made from, to find settings in.
+    fx: Vec<Value>,
+    volume: f64,
+    pan: f64,
+    muted: bool,
+}
+
+struct Macro {
+    value: f64,
+    /// Each setting it moves (in a chain, by its place): from `min` with the macro at 0 to `max` at 1.
+    maps: Vec<(usize, Aim, f64, f64)>,
+}
+
+impl Stack {
+    fn new(e: &Value, rate: u32, seconds_per_beat: f64, stereo_in: bool) -> Stack {
+        let chains: Vec<StackChain> = e
+            .get("chains")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .take(MAX_STACK)
+            .map(|c| {
+                let fx: Vec<Value> = c.get("fx").and_then(Value::as_array).cloned().unwrap_or_default();
+                StackChain {
+                    chain: Chain::build(&fx, rate, seconds_per_beat, stereo_in, true),
+                    fx,
+                    volume: num(c, "volume", 1.0).max(0.0),
+                    pan: num(c, "pan", 0.0).clamp(-1.0, 1.0),
+                    muted: c.get("muted").and_then(Value::as_bool) == Some(true),
+                }
+            })
+            .collect();
+        let macros = e
+            .get("macros")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .take(MAX_STACK)
+            .map(|m| Macro {
+                value: num(m, "value", 0.0).clamp(0.0, 1.0),
+                maps: m
+                    .get("maps")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|map| {
+                        let (id, setting) = map.get("target")?.as_str()?.strip_prefix("fx:")?.split_once(':')?;
+                        let (c, aim) = chains.iter().enumerate().find_map(|(c, sc)| Some((c, sc.chain.as_ref()?.aim(&sc.fx, id, setting, seconds_per_beat)?)))?;
+                        Some((c, aim, num(map, "min", 0.0), num(map, "max", 1.0)))
+                    })
+                    .collect(),
+            })
+            .collect();
+        let mut stack = Stack { key: fx_key(e.get("id").and_then(Value::as_str).unwrap_or_default()), chains, macros, dry: [[0.0; QUANTUM]; 2], wet: [[0.0; QUANTUM]; 2], sum: [[0.0; QUANTUM]; 2] };
+        for k in 0..stack.macros.len() {
+            stack.set_macro(k, stack.macros[k].value);
+        }
+        stack
+    }
+
+    /// Puts macro `k` at `value` (0 to 1), and the settings it moves with it.
+    fn set_macro(&mut self, k: usize, value: f64) {
+        let Some(m) = self.macros.get_mut(k) else { return };
+        m.value = value.clamp(0.0, 1.0);
+        for &(c, aim, min, max) in &m.maps {
+            if let Some(chain) = self.chains.get_mut(c).and_then(|c| c.chain.as_mut()) {
+                chain.set(aim, min + m.value * (max - min));
+            }
+        }
+    }
+
+    /// Runs `l` and `r` (at most `QUANTUM` long) through each chain and adds them up, in place.
+    fn process(&mut self, l: &mut [f32], r: &mut [f32], rate: f64) {
+        let n = l.len().min(r.len()).min(QUANTUM);
+        let Stack { chains, dry, wet, sum, .. } = self;
+        dry[0][..n].copy_from_slice(&l[..n]);
+        dry[1][..n].copy_from_slice(&r[..n]);
+        sum[0][..n].fill(0.0);
+        sum[1][..n].fill(0.0);
+        for c in chains.iter_mut().filter(|c| !c.muted) {
+            let [wl, wr] = wet;
+            wl[..n].copy_from_slice(&dry[0][..n]);
+            wr[..n].copy_from_slice(&dry[1][..n]);
+            if let Some(chain) = &mut c.chain {
+                chain.process(&mut wl[..n], &mut wr[..n], rate);
+            }
+            for i in 0..n {
+                let (a, b) = (f64::from(wl[i]) * c.volume, f64::from(wr[i]) * c.volume);
+                let (a, b) = if c.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, c.pan, true) };
+                sum[0][i] += a as f32;
+                sum[1][i] += b as f32;
+            }
+        }
+        l[..n].copy_from_slice(&sum[0][..n]);
+        r[..n].copy_from_slice(&sum[1][..n]);
+    }
 }
 
 impl Chain {
@@ -842,13 +966,28 @@ impl Chain {
     /// sound comes in with two channels (a drum panned on its pad).
     #[must_use]
     pub fn new(fx: &[Value], rate: u32, seconds_per_beat: f64, stereo_in: bool) -> Option<Chain> {
-        let rate = f64::from(rate);
+        Chain::build(fx, rate, seconds_per_beat, stereo_in, false)
+    }
+
+    /// As [`Chain::new`]; a chain inside a stack (`nested`) holds no stacks of its own.
+    fn build(fx: &[Value], sample_rate: u32, seconds_per_beat: f64, stereo_in: bool, nested: bool) -> Option<Chain> {
+        let rate = f64::from(sample_rate);
+        let mut stacks = Vec::new();
+        let mut order = Vec::new();
         let mut seed = 0x2545_F491u32;
         let mut stereo = stereo_in;
         let mut devices = Vec::new();
         let mut sources: Vec<String> = Vec::new();
         for e in fx.iter().take(16) {
             if e.get("on").and_then(Value::as_bool) == Some(false) {
+                continue;
+            }
+            if e.get("kind").and_then(Value::as_str) == Some("stack") {
+                if !nested {
+                    order.push(Unit::Stack(stacks.len()));
+                    stacks.push(Stack::new(e, sample_rate, seconds_per_beat, stereo));
+                    stereo = true;
+                }
                 continue;
             }
             let device = match e.get("kind").and_then(Value::as_str) {
@@ -877,10 +1016,11 @@ impl Chain {
                     }
                 }
                 stereo = d.stereo_out();
+                order.push(Unit::Device(devices.len()));
                 devices.push(d);
             }
         }
-        (!devices.is_empty()).then_some(Chain { devices, stereo_out: stereo, sources })
+        (!order.is_empty()).then_some(Chain { devices, stereo_out: stereo, sources, stacks, order })
     }
 
     /// Whether what comes out has two channels (so the track's pan moves it as a stereo sound).
@@ -935,12 +1075,19 @@ impl Chain {
         let mut done = 0;
         while done < n {
             let m = (n - done).min(QUANTUM);
-            for d in &mut self.devices {
-                let key = match d.side {
-                    Some(k) => keys.get(k).and_then(|k| k.get(done..done + m)).unwrap_or(&SILENT[..m]),
-                    None => &[],
-                };
-                d.process(&mut left[done..done + m], &mut right[done..done + m], rate, key);
+            for &unit in &self.order {
+                let (l, r) = (&mut left[done..done + m], &mut right[done..done + m]);
+                match unit {
+                    Unit::Device(i) => {
+                        let d = &mut self.devices[i];
+                        let key = match d.side {
+                            Some(k) => keys.get(k).and_then(|k| k.get(done..done + m)).unwrap_or(&SILENT[..m]),
+                            None => &[],
+                        };
+                        d.process(l, r, rate, key);
+                    }
+                    Unit::Stack(i) => self.stacks[i].process(l, r, rate),
+                }
             }
             done += m;
         }
@@ -951,6 +1098,8 @@ impl Chain {
 /// the song's value becomes the part's.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Aim {
+    /// Inside a stack: which (by its place in the chain's stacks) and which of its chains.
+    stack: Option<(usize, usize)>,
     device: usize,
     part: usize,
     slot: Slot,
@@ -965,6 +1114,8 @@ enum Slot {
     Amount,
     /// An LFO's rate in Hz.
     Rate,
+    /// A stack's macro (its stack's chain is not used).
+    Macro(usize),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -984,7 +1135,16 @@ impl Chain {
     #[must_use]
     pub fn aim(&self, fx: &[Value], id: &str, setting: &str, seconds_per_beat: f64) -> Option<Aim> {
         let key = fx_key(id);
-        let device = self.devices.iter().position(|d| d.key == key)?;
+        // A stack's macro ("macro1" to "macro16"), or a setting of an effect in one of its chains.
+        if let Some(s) = self.stacks.iter().position(|s| s.key == key) {
+            let k = setting.strip_prefix("macro")?.parse::<usize>().ok()?.checked_sub(1)?;
+            return (k < self.stacks[s].macros.len()).then_some(Aim { stack: Some((s, 0)), device: 0, part: 0, slot: Slot::Macro(k), scale: Scale::Same });
+        }
+        let Some(device) = self.devices.iter().position(|d| d.key == key) else {
+            return self.stacks.iter().enumerate().find_map(|(s, stack)| {
+                stack.chains.iter().enumerate().find_map(|(c, sc)| Some(Aim { stack: Some((s, c)), ..sc.chain.as_ref()?.aim(&sc.fx, id, setting, seconds_per_beat)? }))
+            });
+        };
         let e = fx.iter().find(|e| e.get("id").and_then(Value::as_str) == Some(id))?;
         let (part_id, name, scale) = match e.get("kind").and_then(Value::as_str)? {
             "device" => {
@@ -1014,12 +1174,19 @@ impl Chain {
             _ => return None,
         };
         let scale = if matches!(self.devices[device].parts[part].kind, Kind::Delay { .. }) { Scale::Beats(seconds_per_beat) } else { scale };
-        Some(Aim { device, part, slot, scale })
+        Some(Aim { stack: None, device, part, slot, scale })
     }
 
     /// Where the setting `aim` names is now, as the song has it.
     #[must_use]
     pub fn get(&self, aim: Aim) -> f64 {
+        if let Some((s, c)) = aim.stack {
+            let Some(stack) = self.stacks.get(s) else { return 0.0 };
+            return match aim.slot {
+                Slot::Macro(k) => stack.macros.get(k).map_or(0.0, |m| m.value),
+                _ => stack.chains.get(c).and_then(|c| c.chain.as_ref()).map_or(0.0, |chain| chain.get(Aim { stack: None, ..aim })),
+            };
+        }
         let Some(part) = self.devices.get(aim.device).and_then(|d| d.parts.get(aim.part)) else { return 0.0 };
         let value = match (aim.slot, &part.kind) {
             (Slot::Rest(k), _) => part.rest[k],
@@ -1036,6 +1203,18 @@ impl Chain {
 
     /// Puts the setting `aim` names at `value` (as the song has it), from the next sample on.
     pub fn set(&mut self, aim: Aim, value: f64) {
+        if let Some((s, c)) = aim.stack {
+            let Some(stack) = self.stacks.get_mut(s) else { return };
+            match aim.slot {
+                Slot::Macro(k) => stack.set_macro(k, value),
+                _ => {
+                    if let Some(chain) = stack.chains.get_mut(c).and_then(|c| c.chain.as_mut()) {
+                        chain.set(Aim { stack: None, ..aim }, value);
+                    }
+                }
+            }
+            return;
+        }
         let Some(part) = self.devices.get_mut(aim.device).and_then(|d| d.parts.get_mut(aim.part)) else { return };
         let value = match aim.scale {
             Scale::Same => value,
@@ -1054,6 +1233,10 @@ impl Chain {
     /// Puts the setting `aim` names back as `from` (a chain made from the same effects) has it: how a chain kept
     /// ringing through a change of song lets go of automation the song no longer has.
     pub fn copy_setting(&mut self, from: &Chain, aim: Aim) {
+        if aim.stack.is_some() {
+            self.set(aim, from.get(aim));
+            return;
+        }
         let (Some(to), Some(from)) = (self.devices.get_mut(aim.device).and_then(|d| d.parts.get_mut(aim.part)), from.devices.get(aim.device).and_then(|d| d.parts.get(aim.part))) else { return };
         match (aim.slot, &mut to.kind, &from.kind) {
             (Slot::Rest(k), _, _) => to.rest[k] = from.rest[k],
@@ -1129,6 +1312,67 @@ mod tests {
         moved.set(aim, 1.0);
         moved.copy_setting(&chain, aim);
         assert!(matches!(moved.devices[0].parts[aim.part].kind, Kind::Mix { amount } if (amount - 0.25).abs() < 1e-12));
+    }
+
+    /// `fx` run over a test sound in one go.
+    fn through(fx: &Value) -> (Vec<f32>, Vec<f32>) {
+        let input: Vec<f32> = (0..9_600).map(|i| ((i as f32) * 0.05).sin() * if i % 2_400 < 300 { 0.9 } else { 0.1 }).collect();
+        match Chain::new(fx.as_array().unwrap(), RATE, 0.5, false) {
+            Some(mut chain) => {
+                let (mut l, mut r) = (input.clone(), input);
+                chain.process(&mut l, &mut r, f64::from(RATE));
+                (l, r)
+            }
+            None => (input.clone(), input),
+        }
+    }
+
+    fn close(a: &[f32], b: &[f32]) -> bool {
+        a.iter().zip(b).all(|(x, y)| (x - y).abs() < 1e-5)
+    }
+
+    #[test]
+    fn a_stack_adds_up_its_chains_each_through_its_own_effects() {
+        let eq = json!({ "id": "e", "kind": "eq", "low": -12, "lowFreq": 300, "mid": 0, "midFreq": 1000, "midQ": 1, "high": 0, "highFreq": 6000 });
+        let delay = json!({ "id": "d", "kind": "delay", "time": 0.25, "feedback": 0.3, "mix": 1 });
+        let (dry, _) = through(&json!([]));
+        let (eqd, _) = through(&json!([eq]));
+        let (echo, _) = through(&json!([delay]));
+        // Two empty chains at half volume: what comes in.
+        let halves = through(&json!([{ "id": "s", "kind": "stack", "chains": [{ "fx": [], "volume": 0.5 }, { "fx": [], "volume": 0.5 }] }]));
+        assert!(close(&halves.0, &dry));
+        // An EQ'd chain and an echo chain side by side: the two added; a muted chain adds nothing.
+        let (both, _) = through(&json!([{ "id": "s", "kind": "stack", "chains": [{ "fx": [eq] }, { "fx": [delay] }, { "fx": [], "muted": true }] }]));
+        let sum: Vec<f32> = eqd.iter().zip(&echo).map(|(a, b)| a + b).collect();
+        assert!(close(&both, &sum));
+        // A chain panned hard right is heard only on the right.
+        let (l, r) = through(&json!([{ "id": "s", "kind": "stack", "chains": [{ "fx": [], "pan": 1 }] }]));
+        assert!(l.iter().all(|x| x.abs() < 1e-6) && r.iter().any(|x| x.abs() > 0.1));
+        // A stack in a stack's chain is left out.
+        let nested = through(&json!([{ "id": "s", "kind": "stack", "chains": [{ "fx": [{ "id": "t", "kind": "stack", "chains": [{ "fx": [], "volume": 0 }] }] }] }]));
+        assert!(close(&nested.0, &dry));
+    }
+
+    #[test]
+    fn a_macro_moves_its_settings_between_their_ends_and_can_be_aimed_at() {
+        let stack = |low: f64, value: f64| json!([{ "id": "s", "kind": "stack",
+            "chains": [{ "fx": [{ "id": "e", "kind": "eq", "low": low, "lowFreq": 300, "mid": 0, "midFreq": 1000, "midQ": 1, "high": 0, "highFreq": 6000 }] }],
+            "macros": [{ "value": value, "maps": [{ "target": "fx:e:low", "min": -20, "max": 0 }] }] }]);
+        // At 0.5 the macro puts the EQ's low at -10, whatever the EQ itself says.
+        let plain = through(&json!([{ "id": "s", "kind": "stack", "chains": [{ "fx": [{ "id": "e", "kind": "eq", "low": -10, "lowFreq": 300, "mid": 0, "midFreq": 1000, "midQ": 1, "high": 0, "highFreq": 6000 }] }] }]));
+        assert!(close(&through(&stack(0.0, 0.5)).0, &plain.0));
+        // Aimed at by automation as "macro1", and an effect inside by its own id.
+        let fx = stack(0.0, 0.0);
+        let fx = fx.as_array().unwrap();
+        let mut chain = Chain::new(fx, RATE, 0.5, false).unwrap();
+        let aim = chain.aim(fx, "s", "macro1", 0.5).unwrap();
+        assert_eq!(chain.get(aim), 0.0);
+        chain.set(aim, 0.5);
+        assert_eq!(chain.get(aim), 0.5);
+        let low = chain.aim(fx, "e", "low", 0.5).unwrap();
+        assert!((chain.get(low) + 10.0).abs() < 1e-9);
+        assert_eq!(chain.aim(fx, "s", "macro2", 0.5), None);
+        assert_eq!(chain.aim(fx, "s", "volume", 0.5), None);
     }
 
     fn run(fx: Value, input: &[f32]) -> (Vec<f32>, Vec<f32>) {

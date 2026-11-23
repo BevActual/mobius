@@ -92,8 +92,8 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | About 40 audio effects | 5 built-in, plus Workbench | Saturation, auto filter, chorus, phaser, flanger, gate, limiter, multiband, utility, beat repeat, vocoder, shifter | M each |
 | Sidechain on compressor and gate | Compressor: in the engine, an effect's `sidechain: { track, gain?, mix? }` (dB, 0..1) keys it by that track after its volume and effects; no gate yet | Sidechain input | M |
 | LFO, envelope follower, shaper on any parameter | LFOs inside Workbench devices; in the engine, a track's `mods` (LFO and envelope follower) on its volume, pan, sends and effect settings; no shaper yet | Modulators on any setting | L |
-| Automation of every parameter, clip envelopes | Track volume only | Any setting, in Arrange and in clips | L |
-| Effect racks, parallel chains, macros | Serial chain | Stacks for effects | L |
+| Automation of every parameter, clip envelopes | In the engine: Arrangement automation of volume, pan, sends, Main and effect settings (curves, overrides); clip envelopes of volume, pan and sends | Device-setting clip envelopes, transposition, unlinked envelopes | M |
+| Effect racks, parallel chains, macros | In the engine: an effect `{ kind: "stack", chains: [{ fx, volume?, pan?, muted? }], macros: [{ value, maps: [{ target: "fx:<id>:<setting>", min, max }] }] }`, up to 16 chains and macros, automated as `fx:<stack id>:macro<N>`; no stack in a stack | The window; instrument stacks | M |
 
 ### Mixing
 
