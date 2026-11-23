@@ -64,7 +64,9 @@ the media address) is not there. A test that needs it is tagged `@shell`, with t
 out; Windows CI runs it. So a local run is all green, and anything red is a real failure. Tag a new test `@shell` only
 when it needs one of those. Windows CI stays the gate.
 
-A local run needs a few GB of free disk: the core refuses a model download that would leave the disk nearly full.
+A local run needs a few GB of free disk: the core refuses a model download that would leave the disk nearly full. Its
+builds skip Cargo's incremental cache (`CARGO_INCREMENTAL=0`), which grows past 10 GB and can use up a cloud
+session's disk; if an earlier build left one, delete `target/debug/incremental`.
 
 The dev bridge (`crates/mobius-host/src/dev_bridge.rs`) is development only. It sits behind the `dev-bridge` cargo
 feature, which no other crate turns on (CI checks); a release build with it does not compile; and the release workflow

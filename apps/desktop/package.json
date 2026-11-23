@@ -16,7 +16,7 @@
     "typecheck": "tsc -p . --noEmit",
     "test": "vitest run --passWithNoTests",
     "e2e": "npm run build && playwright test",
-    "e2e:local": "cargo build -q --workspace --bins --exclude mobius-shell && cargo build -q -p mobius-host --features dev-bridge --bin mobius-dev-bridge && MOBIUS_E2E_LOCAL=1 MOBIUS_SHELL=tauri playwright test"
+    "e2e:local": "CARGO_INCREMENTAL=0 cargo build -q --workspace --bins --exclude mobius-shell && CARGO_INCREMENTAL=0 cargo build -q -p mobius-host --features dev-bridge --bin mobius-dev-bridge && MOBIUS_E2E_LOCAL=1 MOBIUS_SHELL=tauri playwright test"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
