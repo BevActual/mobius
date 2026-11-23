@@ -106,6 +106,14 @@ pub fn pan(l: f64, r: f64, pan: f64, stereo: bool) -> (f64, f64) {
     }
 }
 
+/// A track's pan, as Live's: each side keeps its own channel, by the constant-power law of [`crate::voice::pan_gains`]
+/// (0 dB in the middle, +3 dB hard over), so a stereo sound panned hard is its near channel alone, not both folded in.
+#[must_use]
+pub fn balance(l: f64, r: f64, pan: f64) -> (f64, f64) {
+    let (gl, gr) = crate::voice::pan_gains(pan);
+    (l * gl, r * gr)
+}
+
 /// The window's reverb room: decaying noise, its highs softened more as it goes on (studio-audio.ts `impulse`).
 fn room(rate: f64, size: f64, damp: f64, seed: &mut u32) -> [Vec<f32>; 2] {
     let length = ((rate * size).round() as usize).max(1);
@@ -765,7 +773,8 @@ impl Device {
                 }
             }
             Kind::Mix { amount } => {
-                let (dry, wet) = ((1.0 - *amount * 0.5) as f32, *amount as f32);
+                // A crossfade: all dry at 0, all wet at 1 (as Live's Dry/Wet).
+                let (dry, wet) = ((1.0 - *amount) as f32, *amount as f32);
                 for ch in 0..2 {
                     for i in 0..n {
                         out[ch][i] = ins[0][ch][i] * dry + ins[1][ch][i] * wet;
@@ -951,7 +960,7 @@ impl Stack {
             }
             for i in 0..n {
                 let (a, b) = (f64::from(wl[i]) * c.volume, f64::from(wr[i]) * c.volume);
-                let (a, b) = if c.pan.abs() < 1e-9 { (a, b) } else { pan(a, b, c.pan, true) };
+                let (a, b) = balance(a, b, c.pan);
                 sum[0][i] += a as f32;
                 sum[1][i] += b as f32;
             }
@@ -1406,8 +1415,8 @@ mod tests {
         let fx = json!([{ "id": "fx1", "kind": "delay", "on": true, "time": 1, "feedback": 0.5, "mix": 1 }]);
         let (l, r) = run(fx, &click);
         assert_eq!(l, r);
-        // Dry at half (1 - mix / 2), the first echo one beat (0.5 s) later at full, the next at half that.
-        assert!((l[0] - 0.5).abs() < 1e-6);
+        // No dry at mix 1 (all wet, as Live's Dry/Wet), the first echo one beat (0.5 s) later at full, the next at half.
+        assert!(l[0].abs() < 1e-6);
         assert!((l[24_000] - 1.0).abs() < 1e-6, "{}", l[24_000]);
         // The second comes round the loop, so 128 samples later as Web Audio has it.
         assert!((l[48_128] - 0.5).abs() < 1e-6, "{}", l[48_128]);
@@ -1460,6 +1469,15 @@ mod tests {
         let (lo, hi) = windows.iter().fold((f64::MAX, 0.0f64), |(a, b), x| (a.min(*x), b.max(*x)));
         assert!(hi > 3.0 * lo, "{windows:?}");
         assert!(l.iter().all(|x| x.abs() <= 1.0));
+    }
+
+    #[test]
+    fn a_tracks_pan_keeps_each_side_to_its_own_channel() {
+        assert_eq!(balance(0.3, 0.7, 0.0), (0.3, 0.7));
+        let (l, r) = balance(1.0, 1.0, 1.0);
+        assert!(l.abs() < 1e-12 && (r - std::f64::consts::SQRT_2).abs() < 1e-12);
+        let (l, r) = balance(1.0, 0.0, 1.0);
+        assert!(l.abs() < 1e-12 && r.abs() < 1e-12, "the far channel is not folded in");
     }
 
     #[test]
