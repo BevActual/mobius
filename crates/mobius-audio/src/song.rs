@@ -283,6 +283,10 @@ pub struct SlotClip {
     /// On an audio track, the sound it plays.
     #[serde(default)]
     pub audio: Option<Audio>,
+    /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
+    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    #[serde(default)]
+    pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
 }
 
 /// A clip in Arrange: `length` song beats from `start`, playing its own notes from `offset`, going round `loop` if it
@@ -302,6 +306,10 @@ pub struct Clip {
     /// On an audio track, the sound it plays.
     #[serde(default)]
     pub audio: Option<Audio>,
+    /// Its clip envelopes (Live 12 manual, 27), in the clip's own beats: `"volume"` (0 to 1, a share of the track's
+    /// volume), `"pan"` (-1 to 1, added to the track's pan) and `"send:<return id>"` (0 to 1, a share of the send).
+    #[serde(default)]
+    pub envelopes: std::collections::BTreeMap<String, Vec<AutoPoint>>,
 }
 
 /// An audio clip's sound (Live 12 manual, chapter 9): a WAV file in the song's folder, from `offset` seconds in, at
@@ -498,7 +506,7 @@ impl Song {
 }
 
 /// The points of `name` in `auto` (or `fallback` when it has none), finite and in beat order; none when it is overridden.
-fn points_of(auto: &std::collections::BTreeMap<String, Vec<AutoPoint>>, off: &[String], name: &str, fallback: &[AutoPoint]) -> Vec<AutoPoint> {
+pub(crate) fn points_of(auto: &std::collections::BTreeMap<String, Vec<AutoPoint>>, off: &[String], name: &str, fallback: &[AutoPoint]) -> Vec<AutoPoint> {
     if off.iter().any(|n| n == name) {
         return Vec::new();
     }

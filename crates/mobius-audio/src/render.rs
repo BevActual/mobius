@@ -4,6 +4,8 @@
 
 use crate::clock::Clock;
 use crate::drum::Hit;
+use std::collections::BTreeMap;
+
 use crate::fx::{pan, Aim, Chain, QUANTUM};
 use crate::sample::{Placed, Stretch};
 use crate::sampler::{SampleVoice, Samplers};
@@ -37,6 +39,9 @@ struct Lane {
     pan: f64,
     /// Whether its sound comes in with two channels: a drum panned on its pad.
     stereo: bool,
+    /// Its Arrange clips with envelopes, in time order (none in the Session view), and each Session slot's envelopes.
+    env_spans: Vec<EnvSpan>,
+    slot_envs: Vec<Option<Envelopes>>,
     /// Its effects' automated settings, each with where it lives in `chain` (none in the Session view).
     fx_auto: Vec<(Aim, Vec<AutoPoint>)>,
     /// Its effects, and what they were made from (so a song changed while it plays keeps them ringing if unchanged).
@@ -72,6 +77,8 @@ struct Lane {
 /// A track's send to a return: how much, or how that moves along the song and its level at each sample of a block.
 struct Send {
     to: usize,
+    /// `"send:<return id>"`, as automation and clip envelopes name it.
+    name: String,
     level: f32,
     auto: Vec<AutoPoint>,
     levels: Vec<f32>,
@@ -79,8 +86,63 @@ struct Send {
 
 impl Send {
     fn at(&self, i: usize) -> f32 {
-        if self.auto.is_empty() { self.level } else { self.levels[i] }
+        if self.levels.is_empty() { self.level } else { self.levels[i] }
     }
+}
+
+/// A clip's envelopes (Live 12 manual, 27), in its own beats, as they move what its track plays: a share of its
+/// volume, an amount added to its pan, a share of each send (by its place in the track's sends).
+#[derive(Default)]
+struct Envelopes {
+    volume: Vec<AutoPoint>,
+    pan: Vec<AutoPoint>,
+    sends: Vec<Vec<AutoPoint>>,
+}
+
+impl Envelopes {
+    /// The envelopes of `env` that move a track with these `sends`; None when there are none.
+    fn of(env: &BTreeMap<String, Vec<AutoPoint>>, sends: &[Send]) -> Option<Envelopes> {
+        let points = |name: &str| crate::song::points_of(env, &[], name, &[]);
+        let e = Envelopes { volume: points("volume"), pan: points("pan"), sends: sends.iter().map(|s| points(&s.name)).collect() };
+        (!e.volume.is_empty() || !e.pan.is_empty() || e.sends.iter().any(|p| !p.is_empty())).then_some(e)
+    }
+}
+
+/// An Arrange clip with envelopes: the song beats it covers, its own beat at its start, and its loop.
+struct EnvSpan {
+    start: f64,
+    end: f64,
+    own: f64,
+    cycle: Option<(f64, f64)>,
+    env: Envelopes,
+}
+
+impl EnvSpan {
+    /// The clip's own beat at song beat `beat` (inside it), going round its loop as its notes do.
+    fn own_beat(&self, beat: f64) -> f64 {
+        let played = beat - self.start;
+        match self.cycle {
+            Some((from, to)) if self.own < to => {
+                let first = to - self.own;
+                if played < first { self.own + played } else { from + (played - first).rem_euclid(to - from) }
+            }
+            Some((from, to)) => from + (self.own - from + played).rem_euclid(to - from),
+            None => self.own + played,
+        }
+    }
+}
+
+/// An envelope's value at `beat`, as [`crate::song::auto_value_at`] but found by halving (an envelope is read every sample).
+fn env_at(points: &[AutoPoint], beat: f64) -> f64 {
+    let at = points.partition_point(|p| p.beat <= beat);
+    if at == 0 {
+        return points.first().map_or(0.0, |p| p.value);
+    }
+    if at == points.len() {
+        return points[at - 1].value;
+    }
+    let (a, b) = (points[at - 1], points[at]);
+    a.value + crate::song::bend((beat - a.beat) / (b.beat - a.beat), a.curve) * (b.value - a.value)
 }
 
 /// An audio clip in Arrange: `length` song beats from `start`, playing its own beats from `offset`, going round
@@ -133,6 +195,45 @@ struct ReturnLane {
 }
 
 impl Lane {
+    /// Moves this block's volume, pan and sends by the envelopes of the clip playing at each sample: a Session
+    /// `slot` playing (its length, the beat it started and its place) or the Arrange clip there. Volume and sends are
+    /// shares of where they are, pan is added to it (Live 12 manual, 27).
+    fn modulate(&mut self, beat_of: impl Fn(usize) -> f64, frames: usize, slot: Option<(f64, f64, usize)>) {
+        let Lane { env_spans, slot_envs, volumes, pans, sends, .. } = self;
+        let slot = match slot {
+            Some((length, start, at)) => match slot_envs.get(at).and_then(Option::as_ref) {
+                Some(env) => Some((length, start, env)),
+                None => return,
+            },
+            None => None,
+        };
+        if env_spans.is_empty() && slot.is_none() {
+            return;
+        }
+        for i in 0..frames {
+            let beat = beat_of(i);
+            let at = match slot {
+                Some((length, start, env)) => (beat >= start).then(|| (env, (beat - start).rem_euclid(length))),
+                None => {
+                    let k = env_spans.partition_point(|s| s.end <= beat);
+                    env_spans.get(k).filter(|s| s.start <= beat).map(|s| (&s.env, s.own_beat(beat)))
+                }
+            };
+            let Some((env, own)) = at else { continue };
+            if !env.volume.is_empty() && !volumes.is_empty() {
+                volumes[i] *= env_at(&env.volume, own).clamp(0.0, 1.0) as f32;
+            }
+            if !env.pan.is_empty() && !pans.is_empty() {
+                pans[i] = (f64::from(pans[i]) + env_at(&env.pan, own)).clamp(-1.0, 1.0) as f32;
+            }
+            for (send, points) in sends.iter_mut().zip(&env.sends) {
+                if !points.is_empty() && !send.levels.is_empty() {
+                    send.levels[i] *= env_at(points, own).clamp(0.0, 1.0) as f32;
+                }
+            }
+        }
+    }
+
     /// Starts a note `offset` samples into this block. A voice sounds into the scratch from there at once; a drum
     /// hit waits for the second pass, as it can be panned.
     fn start(&mut self, note: &Note, offset: usize, frames: usize, spb: f64, rate: f64) {
@@ -621,6 +722,33 @@ impl Renderer {
                 // An audio track's sound comes in with two channels, as a sampler's does.
                 let stereo = is_frozen || Song::is_audio(t) || Song::sampler_of(t).is_some() || !samplers.pads.is_empty() || (t.instrument == Instrument::Drums && t.pads.values().any(|p| p.pan.abs() > 1e-9));
                 let chain = if is_frozen { None } else { Chain::new(&t.fx, sample_rate, 60.0 / song.tempo, stereo) };
+                // Clip envelopes: what they move gets a level for each sample, as automation does.
+                let enveloped: std::collections::BTreeSet<&str> = t.clips.iter().map(|c| &c.envelopes).chain(t.slots.iter().flatten().map(|c| &c.envelopes)).flat_map(|e| e.keys().map(String::as_str)).collect();
+                let moves = |auto: &[AutoPoint], name: &str| if auto.is_empty() && !enveloped.contains(name) { Vec::new() } else { vec![0.0; MAX_BLOCK] };
+                // A send that is automated counts even at 0.
+                let sends: Vec<Send> = returns
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(to, r)| {
+                        let level = t.sends.get(&r.id).copied().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
+                        let name = format!("send:{}", r.id);
+                        let auto = arranged(&name);
+                        (level > 0.0 || !auto.is_empty()).then(|| Send { to, level, levels: moves(&auto, &name), auto, name })
+                    })
+                    .collect();
+                let mut env_spans: Vec<EnvSpan> = if how.session || is_frozen {
+                    Vec::new()
+                } else {
+                    t.clips
+                        .iter()
+                        .filter(|c| !c.muted && c.length > 0.0)
+                        .filter_map(|c| {
+                            Some(EnvSpan { start: c.start, end: c.start + c.length, own: c.offset, cycle: c.cycle.filter(|l| l.end > l.start).map(|l| (l.start, l.end)), env: Envelopes::of(&c.envelopes, &sends)? })
+                        })
+                        .collect()
+                };
+                env_spans.sort_by(|a, b| a.start.total_cmp(&b.start));
+                let slot_envs = if how.session { t.slots.iter().map(|c| c.as_ref().and_then(|c| Envelopes::of(&c.envelopes, &sends))).collect() } else { Vec::new() };
                 Lane {
                     id: t.id.clone(),
                     notes,
@@ -631,7 +759,7 @@ impl Renderer {
                     pads: t.pads.iter().filter_map(|(pitch, pad)| Some((pitch.parse().ok()?, pad.clone()))).collect(),
                     gains: pan_gains(t.pan),
                     volume: t.volume,
-                    volumes: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
+                    volumes: moves(&auto, "volume"),
                     auto,
                     pan: t.pan,
                     stereo,
@@ -644,17 +772,10 @@ impl Renderer {
                     scratch: vec![0.0; MAX_BLOCK],
                     scratch_right: vec![0.0; MAX_BLOCK],
                     peak: (0.0, 0.0),
-                    // A send that is automated counts even at 0.
-                    sends: returns
-                        .iter()
-                        .enumerate()
-                        .filter_map(|(to, r)| {
-                            let level = t.sends.get(&r.id).copied().unwrap_or(0.0).clamp(0.0, 1.0) as f32;
-                            let auto = arranged(&format!("send:{}", r.id));
-                            (level > 0.0 || !auto.is_empty()).then(|| Send { to, level, levels: if auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] }, auto })
-                        })
-                        .collect(),
-                    pans: if pan_auto.is_empty() { Vec::new() } else { vec![0.0; MAX_BLOCK] },
+                    sends,
+                    env_spans,
+                    slot_envs,
+                    pans: moves(&pan_auto, "pan"),
                     pan_auto,
                     audio,
                     slot_stretch: Stretch::default(),
@@ -919,7 +1040,7 @@ impl Renderer {
             let clip = self.session.as_ref().and_then(|s| s.iter().find(|t| t.lane == Some(index))).and_then(|t| {
                 let (slot, start) = t.playing?;
                 let (length, notes, audio) = t.slots.get(slot)?.as_ref()?;
-                Some((*length, notes, start, audio.as_ref()))
+                Some((*length, notes, start, audio.as_ref(), slot))
             });
             lane.scratch[..frames].fill(0.0);
             // Voices already sounding, for the whole block.
@@ -938,7 +1059,7 @@ impl Renderer {
                 let note = *note;
                 lane.start(&note, offset, frames, spb, rate);
             }
-            if let Some((length, notes, start, _)) = clip {
+            if let Some((length, notes, start, _, _)) = clip {
                 // Each time round the clip that a note starts in this piece; it is cut at the clip's end.
                 let from_beat = clock.beat(from);
                 for note in notes {
@@ -958,15 +1079,17 @@ impl Renderer {
             lane.voices.retain(|v| !v.done());
             // The volume, pan and sends at each sample, where they move: to the sample (25).
             let beat_of = |i: usize| clock.beat(from + i as u64);
-            if !lane.auto.is_empty() {
+            if !lane.volumes.is_empty() {
                 fill_auto(&lane.auto, beat_of, &mut lane.volumes[..frames], lane.volume);
             }
-            if !lane.pan_auto.is_empty() {
+            if !lane.pans.is_empty() {
                 fill_auto(&lane.pan_auto, beat_of, &mut lane.pans[..frames], lane.pan);
             }
-            for send in lane.sends.iter_mut().filter(|s| !s.auto.is_empty()) {
+            for send in lane.sends.iter_mut().filter(|s| !s.levels.is_empty()) {
                 fill_auto(&send.auto, beat_of, &mut send.levels[..frames], f64::from(send.level));
             }
+            // Then the playing clip's envelopes move them, relative to where they are (27).
+            lane.modulate(beat_of, frames, clip.map(|(length, _, start, _, slot)| (length, start, slot)));
             let scratch = &mut lane.scratch[..frames];
             let right_scratch = &mut lane.scratch_right[..frames];
             right_scratch.copy_from_slice(scratch);
@@ -981,7 +1104,7 @@ impl Renderer {
             }
             lane.sample_voices.retain(|(v, _, _)| !v.done());
             // Audio clips, sample by sample at the file's frame for each beat.
-            let slot_audio = clip.and_then(|(length, _, start, audio)| Some((length, start, audio?)));
+            let slot_audio = clip.and_then(|(length, _, start, audio, _)| Some((length, start, audio?)));
             if !lane.audio.is_empty() || slot_audio.is_some() {
                 for i in 0..frames {
                     let beat = clock.beat(from + i as u64);
@@ -1004,7 +1127,7 @@ impl Renderer {
             if let Some(chain) = &mut lane.chain {
                 // The track's way into the mix, as the window's: its volume, then its effects, then its pan.
                 for (i, (a, b)) in scratch.iter_mut().zip(right_scratch.iter_mut()).enumerate() {
-                    let v = if lane.auto.is_empty() { lane.volume as f32 } else { lane.volumes[i] };
+                    let v = if lane.volumes.is_empty() { lane.volume as f32 } else { lane.volumes[i] };
                     *a *= v;
                     *b *= v;
                 }
@@ -1012,7 +1135,7 @@ impl Renderer {
                 let stereo = chain.stereo_out();
                 for i in 0..frames {
                     let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
-                    let p = if lane.pan_auto.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
+                    let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                     let (a, b) = if p.abs() < 1e-9 { (a, b) } else { pan(a, b, p, stereo) };
                     out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (a as f32, b as f32), left, right);
                 }
@@ -1020,13 +1143,13 @@ impl Renderer {
             }
             for i in 0..frames {
                 let (a, b) = (f64::from(scratch[i]), f64::from(right_scratch[i]));
-                let volume = if lane.auto.is_empty() { lane.volume } else { f64::from(lane.volumes[i]) };
-                let p = if lane.pan_auto.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
+                let volume = if lane.volumes.is_empty() { lane.volume } else { f64::from(lane.volumes[i]) };
+                let p = if lane.pans.is_empty() { lane.pan } else { f64::from(lane.pans[i]) };
                 // A drum panned on its pad makes the track stereo: its pan then moves the far side over, as Web Audio's does.
                 let (l, r) = if lane.stereo && p.abs() > 1e-9 {
                     pan(a * volume, b * volume, p, true)
                 } else {
-                    let (gl, gr) = if lane.pan_auto.is_empty() { lane.gains } else { pan_gains(p) };
+                    let (gl, gr) = if lane.pans.is_empty() { lane.gains } else { pan_gains(p) };
                     (a * gl * volume, b * gr * volume)
                 };
                 out(&mut lane.peak, &mut lane.stem, &lane.sends, returns, i, (l as f32, r as f32), left, right);
@@ -1422,6 +1545,69 @@ mod tests {
         };
         let automated = after(&held("", &format!(r#"{fx},"auto":{{"fx:d:mix":[{{"beat":0,"value":1}}]}}"#)));
         assert_eq!(automated, after(&held("", fx)));
+    }
+
+    /// A track holding one note through an Arrange clip of `clip` (start, length, loop, envelopes), over two bars.
+    fn enveloped(rest: &str, track: &str, clip: &str) -> Song {
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5}"#;
+        Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":2,{rest}"tracks":[{{"id":"t","instrument":"lead",{sound}{track},"clips":[{{"id":"c","notes":[{{"pitch":69,"start":0,"length":8,"velocity":1}}],{clip}}}]}}]}}"#)).unwrap()
+    }
+
+    #[test]
+    fn a_clip_envelope_moves_its_track_relative_to_where_it_is() {
+        let level = |s: &Song, beat: f64| {
+            let l = render_song(s, 48_000).0;
+            let at = (beat * 24_000.0) as usize;
+            loudest(&l[at..at + 480])
+        };
+        let plain = enveloped("", r#","volume":0.8"#, r#""start":0,"length":8"#);
+        // Volume: a share of the track's volume. A step at the clip's own beat 0.5, with the clip starting at beat 2:
+        // heard at song beat 2.5.
+        let stepped = enveloped("", r#","volume":0.8"#, r#""start":2,"length":6,"envelopes":{"volume":[{"beat":0,"value":0.5},{"beat":0.499999,"value":0.5},{"beat":0.5,"value":1}]}"#);
+        assert!(level(&stepped, 1.0) < 1e-6, "nothing before the clip");
+        assert!((level(&stepped, 2.1) / level(&plain, 2.1) - 0.5).abs() < 0.02);
+        assert!((level(&stepped, 2.6) / level(&plain, 2.6) - 1.0).abs() < 0.02);
+        // On top of automation: half of a fader automated to half.
+        let both = enveloped("", r#","volume":0.8,"auto":{"volume":[{"beat":0,"value":0.4}]}"#, r#""start":0,"length":8,"envelopes":{"volume":[{"beat":0,"value":0.5}]}"#);
+        assert!((level(&both, 1.0) / level(&plain, 1.0) - 0.25).abs() < 0.02);
+        // Round the clip's loop: silent for the first half of each time round a one-beat loop.
+        let looped = enveloped("", "", r#""start":0,"length":8,"loop":{"start":0,"end":1},"envelopes":{"volume":[{"beat":0,"value":0},{"beat":0.499999,"value":0},{"beat":0.5,"value":1}]}"#);
+        let lp = enveloped("", "", r#""start":0,"length":8,"loop":{"start":0,"end":1}"#);
+        for beat in [3.1, 6.2] {
+            assert!(level(&looped, beat) < 1e-6, "{beat}");
+            assert!((level(&looped, beat + 0.5) / level(&lp, beat + 0.5) - 1.0).abs() < 0.02, "{beat}");
+        }
+        // Pan is added to the track's: a track at -0.5 with an envelope of +1 sits at +0.5.
+        let (l, r) = render_song(&enveloped("", r#","pan":-0.5"#, r#""start":0,"length":8,"envelopes":{"pan":[{"beat":0,"value":1}]}"#), 48_000);
+        let (l2, r2) = render_song(&enveloped("", r#","pan":0.5"#, r#""start":0,"length":8"#), 48_000);
+        assert!((loudest(&l[24_000..48_000]) / loudest(&l2[24_000..48_000]) - 1.0).abs() < 0.01);
+        assert!((loudest(&r[24_000..48_000]) / loudest(&r2[24_000..48_000]) - 1.0).abs() < 0.01);
+        // A send: a share of it. Sending all of it to a plain return doubles the sound; half of it, one and a half.
+        let send = enveloped(r#""returns":[{"id":"a"}],"#, r#","sends":{"a":1}"#, r#""start":0,"length":8,"envelopes":{"send:a":[{"beat":0,"value":0.5}]}"#);
+        let dry = enveloped("", "", r#""start":0,"length":8"#);
+        assert!((level(&send, 1.0) / level(&dry, 1.0) - 1.5).abs() < 0.02);
+    }
+
+    #[test]
+    fn a_session_clip_envelope_goes_round_with_its_clip() {
+        let sound = r#""sound":{"shape":0,"detune":0,"sub":0,"drive":0,"cutoff":12000,"resonance":0,"envAmount":0,"attack":0.001,"decay":0.1,"sustain":1,"release":0.02,"vibrato":0,"rate":5}"#;
+        let song = |env: &str| Song::parse(&format!(r#"{{"version":2,"tempo":120,"bars":1,"tracks":[{{"id":"t","instrument":"lead",{sound},"slots":[{{"bars":1,"notes":[{{"pitch":69,"start":0,"length":4,"velocity":1}}]{env}}}]}}]}}"#)).unwrap();
+        let play = |s: &Song| {
+            let mut r = Renderer::playing(s, 48_000, Playing { session: true, ..Playing::default() });
+            r.launch(0, Some(0));
+            let (mut l, mut rt) = (vec![0f32; 96_000 * 2], vec![0f32; 96_000 * 2]);
+            for (x, y) in l.chunks_mut(512).zip(rt.chunks_mut(512)) {
+                r.render(x, y);
+            }
+            l
+        };
+        // Quiet for the clip's last beat, each time round.
+        let plain = play(&song(""));
+        let moved = play(&song(r#","envelopes":{"volume":[{"beat":0,"value":1},{"beat":2.999999,"value":1},{"beat":3,"value":0}]}"#));
+        assert!((loudest(&moved[24_000..26_400]) / loudest(&plain[24_000..26_400]) - 1.0).abs() < 0.02);
+        assert!(loudest(&moved[72_000 + 480..96_000]) < 1e-6);
+        assert!(loudest(&moved[96_000 + 24_000..96_000 + 26_400]) > 0.01);
+        assert!(loudest(&moved[96_000 + 72_000 + 480..192_000]) < 1e-6);
     }
 
     #[test]
