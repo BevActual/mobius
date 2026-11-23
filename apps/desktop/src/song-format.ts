@@ -93,6 +93,45 @@ export interface StackChain { name?: string; fx: Effect[]; volume?: number; pan?
 export interface StackMacro { name?: string; value: number; maps: MacroMap[] }
 export interface MacroMap { target: string; min: number; max: number }
 export const MAX_STACK = 16;
+/**
+ * A track's instrument stack (Live 12 manual, 22 "Instrument, Drum and Effect Racks"; Live's Instrument Rack): each
+ * chain whose key zone (`keys`, MIDI notes 0 to 127) and velocity zone (`velocities`, 1 to 127) hold a note plays it
+ * on its own `instrument` and `sound`, through its `volume` (gain, 1 when left out) and `pan`, in place of the track's
+ * own instrument. No zone plays every note; a drums chain plays nothing; no chain plays the track's own. Up to 16.
+ */
+export interface InstrumentStack { chains: InstrumentChain[] }
+export interface InstrumentChain { instrument: Instrument; sound?: Sound; keys?: Zone; velocities?: Zone; volume?: number; pan?: number; muted?: true }
+export interface Zone { low: number; high: number }
+/** A key or velocity zone from a file, its ends in range and in order; none when it is missing or covers everything. */
+function readZone(v: unknown, lo: number, hi: number): Zone | undefined {
+  const o = obj(v);
+  if (typeof o.low !== 'number' || typeof o.high !== 'number' || !Number.isFinite(o.low) || !Number.isFinite(o.high)) return undefined;
+  const a = Math.round(Math.max(lo, Math.min(hi, o.low))), b = Math.round(Math.max(lo, Math.min(hi, o.high)));
+  const zone = { low: Math.min(a, b), high: Math.max(a, b) };
+  return zone.low === lo && zone.high === hi ? undefined : zone;
+}
+/** A track's instrument stack from a file: up to 16 chains, each in range; none when it has no chain. */
+export function readInstrumentStack(v: unknown): InstrumentStack | undefined {
+  const chains = (Array.isArray(obj(v).chains) ? (obj(v).chains as unknown[]) : []).slice(0, MAX_STACK).map((c): InstrumentChain => {
+    const co = obj(c);
+    const instrument = INSTRUMENTS.includes(co.instrument as Instrument) ? (co.instrument as Instrument) : 'piano';
+    const chain: InstrumentChain = { instrument };
+    const so = obj(co.sound);
+    if (instrument !== 'drums' && Object.keys(so).length > 0) chain.sound = readSound(so, instrument);
+    const keys = readZone(co.keys, 0, 127), velocities = readZone(co.velocities, 1, 127);
+    if (keys) chain.keys = keys;
+    if (velocities) chain.velocities = velocities;
+    const volume = num(co.volume, 1, 0, 2), pan = num(co.pan, 0, -1, 1);
+    if (volume !== 1) chain.volume = volume;
+    if (pan !== 0) chain.pan = pan;
+    if (co.muted === true) chain.muted = true;
+    return chain;
+  });
+  return chains.length > 0 ? { chains } : undefined;
+}
+/** A sound from a file, each key in range, those left out at the instrument's own. */
+const readSound = (so: Record<string, unknown>, instrument: Exclude<Instrument, 'drums'>): Sound =>
+  Object.fromEntries((Object.keys(SOUND_RANGE) as (keyof Sound)[]).map((k) => [k, num(so[k], SOUND_DEFAULTS[instrument][k], SOUND_RANGE[k].lo, SOUND_RANGE[k].hi)])) as unknown as Sound;
 /** Every effect in a list, those in a stack's chains after the stack itself. */
 export const allEffects = (fx: readonly Effect[]): Effect[] => fx.flatMap((e) => (e.kind === 'stack' ? [e, ...e.chains.flatMap((c) => c.fx)] : [e]));
 /** A new stack: one empty chain and eight macros at 0, as a new rack in Live shows. */
@@ -379,7 +418,7 @@ export function autoValueAt(points: readonly AutoPoint[], beat: number, empty: n
  */
 export interface ArrangeClip { id: string; start: number; length: number; name?: string; muted?: boolean; loop?: { start: number; end: number }; offset?: number; notes: SongNote[]; /** On an audio track: the sound it plays. */ audio?: ClipAudio; /** Its clip envelopes (Live 12, 27), in its own beats, going round its loop: see `readEnvelopes`. */ envelopes?: Automation }
 
-export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
+export interface Track { id: string; name: string; /** "audio" for an audio track (it plays its clips' sounds, not notes); left out, a MIDI track. */ kind?: 'audio' | 'sampler'; /** A sampler track's sound: its notes play it (none until a sample is dropped on it). */ sampler?: SamplerSound; /** Frozen (Live 12, 38.1.4): this render plays in Arrange in place of its notes, clips and effects, which can't be edited until it is unfrozen. */ frozen?: { file: string }; /** An audio track's input, by channel of the sound input (Live 12, 19.1). */ input?: number; instrument: Instrument; volume: number; pan: number; muted: boolean; solo: boolean; color: TrackColour; /** False when the instrument is switched off (bypassed); the track's effects stay as they are. */ instrumentOn?: false; /** The Arrange view's clips, in time order. */ clips: ArrangeClip[]; sound?: Sound; /** An instrument stack (Live 12's Instrument Rack): see `InstrumentStack`. */ stack?: InstrumentStack; kit?: KitSound; pads?: Record<number, DrumPad>; fx?: Effect[]; /** How the track's settings move along the song, by name ("volume", "pan", "send:<return id>"); none keeps each where it is set. A pre-`auto` file's `volumeAuto` is read as `auto.volume`. */ auto?: Automation; /** Automated settings moved by hand, playing their own value until automation is re-enabled (Live 12, 25.4). */ autoOff?: string[]; /** LFOs and envelope followers moving its settings (Live 12's LFO and Envelope Follower devices). */ mods?: Modulator[]; /** The Session view's clips, one slot per scene; an empty slot is null. */ slots?: (Clip | null)[]; /** How much goes to each return track (0 to 1), after the fader, by the return's id. */ sends?: Record<string, number> }
 export interface Song { version: 2; tempo: number; key: string; bars: number; tracks: Track[]; /** The Session view's scene names, top to bottom; a scene with no name is numbered. */ scenes?: string[]; /** The Main track (Live 12's name for the master): its volume and effects. Left out, it is at 0.8 with none. */ main?: MainTrack; /** Return tracks, fed by each track's `sends`; at most 12, as in Live. */ returns?: ReturnTrack[]; /** The metronome's and count-in's level (0 to 1), apart from Main; left out, 0.8. */ metronome?: { volume: number } }
 /** The Main track: everything heard goes through its effects, then its volume (0 to 1). */
 export interface MainTrack { volume: number; fx?: Effect[]; /** Main's volume along the song. */ auto?: Automation; autoOff?: string[] }
@@ -489,10 +528,9 @@ export function parseSong(text: string): { song: Song } | { error: string } {
     }
     if (typeof to.input === 'number' && Number.isInteger(to.input) && to.input >= 0 && to.input < 64) track.input = to.input;
     const so = obj(to.sound);
-    if (instrument !== 'drums' && Object.keys(so).length > 0) {
-      const base = SOUND_DEFAULTS[instrument];
-      track.sound = Object.fromEntries((Object.keys(SOUND_RANGE) as (keyof Sound)[]).map((k) => [k, num(so[k], base[k], SOUND_RANGE[k].lo, SOUND_RANGE[k].hi)])) as unknown as Sound;
-    }
+    if (instrument !== 'drums' && Object.keys(so).length > 0) track.sound = readSound(so, instrument);
+    const stack = readInstrumentStack(to.stack);
+    if (stack) track.stack = stack;
     const fx = readFx(to.fx, `Track “${track.name}”`, (why) => { refused ??= why; });
     if (fx.length > 0) track.fx = fx;
     const auto = readAutomation(to.auto, bars * BEATS_PER_BAR, to.volumeAuto);
@@ -628,6 +666,7 @@ export function writeSong(song: Song): string {
     if (t.sends && Object.keys(t.sends).length > 0) head.sends = t.sends;
     if (t.sound && t.instrument !== 'drums') head.sound = t.sound;
     if (t.kind === 'sampler' && t.sampler) head.sampler = t.sampler;
+    if (t.stack && t.stack.chains.length > 0) head.stack = t.stack;
     if (t.frozen) head.frozen = t.frozen;
     if (t.kit && t.instrument === 'drums') head.kit = t.kit;
     if (t.pads && t.instrument === 'drums') {

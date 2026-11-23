@@ -3,7 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
@@ -404,6 +404,61 @@ const dbText = (g: number) => (g <= 0.0001 ? '−∞ dB' : `${20 * Math.log10(g)
  * A stack of effects (Live 12's Audio Effect Rack, manual 22): its macros as knobs, each mapped to settings in its
  * chains between two ends, then its chains side by side, each with its own volume, pan, mute and effects.
  */
+/**
+ * A track's instrument stack (Live 12 manual, 22; Live's Instrument Rack): chains side by side, each an instrument of
+ * its own that plays the notes in its key and velocity zones, through its own volume and pan, in place of the track's.
+ */
+function InstrumentStackBlock({ stack, at, on, onToggle, onChange, onRemove, folded, onFold }: {
+  stack: InstrumentStack; at: number; on: boolean; onToggle: (on: boolean) => void;
+  folded: boolean; onFold: (folded: boolean) => void;
+  onChange: (fn: (s: InstrumentStack) => void, tag?: string) => void;
+  onRemove: () => void;
+}) {
+  const setChain = (ci: number, fn: (c: InstrumentChain) => void, tag = '') => onChange((s) => { const c = s.chains[ci]; if (c) fn(c); }, tag);
+  /** A zone's end moved: the zone kept in order, and left out once it covers everything again. */
+  const zone = (ci: number, which: 'keys' | 'velocities', end: 'low' | 'high', v: number) => setChain(ci, (c) => {
+    const [lo, hi] = which === 'keys' ? [0, 127] : [1, 127];
+    const z = { low: c[which]?.low ?? lo, high: c[which]?.high ?? hi, [end]: Math.round(v) };
+    if (end === 'low') z.high = Math.max(z.high, z.low); else z.low = Math.min(z.low, z.high);
+    if (z.low === lo && z.high === hi) delete c[which]; else c[which] = z;
+  }, `istack-${which}-${end}:${ci}`);
+  return (
+    <DeviceFrame className="studio-instrument-stack" title="Instrument Stack" index={at} on={on} onToggle={onToggle} collapsed={folded} onCollapse={onFold}
+      actions={<IconButton label="Remove Instrument Stack" icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={onRemove} />}>
+      <div className="studio-fx-body">
+        <p className="studio-fx-about">Each note plays on every chain whose keys and velocities hold it, in place of the track&rsquo;s instrument.</p>
+        <div className="studio-stack-chains" role="list" aria-label="Instrument chains">
+          {stack.chains.map((c, ci) => {
+            const name = `Chain ${ci + 1}`;
+            return (
+              <section key={ci} className="studio-stack-chain" role="listitem" aria-label={name} data-muted={c.muted || undefined}>
+                <div className="studio-stack-chain-head">
+                  <span className="studio-dev-head">{name}</span>
+                  <IconButton label={`Mute ${name}`} pressed={!!c.muted} icon={<span aria-hidden="true">M</span>} onClick={() => setChain(ci, (x) => { if (x.muted) delete x.muted; else x.muted = true; })} />
+                  {stack.chains.length > 1 && <IconButton label={`Remove ${name}`} icon={<Icon d="M6 6l8 8M14 6l-8 8" />} onClick={() => onChange((s) => { s.chains.splice(ci, 1); })} />}
+                </div>
+                <Select label={`${name} instrument`} value={c.instrument} choices={INSTRUMENT_CHOICES.filter((i) => i.value !== 'drums' || c.instrument === 'drums')}
+                  onChange={(i) => setChain(ci, (x) => { x.instrument = i; delete x.sound; }, `istack-inst:${ci}`)} />
+                <ParamGrid label={`${name} zones`} columns={2}>
+                  <Knob label="Key low" value={c.keys?.low ?? 0} min={0} max={127} step={1} reset={0} format={(v) => noteName(Math.round(v))} onChange={(v) => zone(ci, 'keys', 'low', v)} />
+                  <Knob label="Key high" value={c.keys?.high ?? 127} min={0} max={127} step={1} reset={127} format={(v) => noteName(Math.round(v))} onChange={(v) => zone(ci, 'keys', 'high', v)} />
+                  <Knob label="Velocity low" value={c.velocities?.low ?? 1} min={1} max={127} step={1} reset={1} format={(v) => String(Math.round(v))} onChange={(v) => zone(ci, 'velocities', 'low', v)} />
+                  <Knob label="Velocity high" value={c.velocities?.high ?? 127} min={1} max={127} step={1} reset={127} format={(v) => String(Math.round(v))} onChange={(v) => zone(ci, 'velocities', 'high', v)} />
+                </ParamGrid>
+                <ParamGrid label={`${name} mix`} columns={2}>
+                  <Knob label="Volume" value={c.volume ?? 1} min={0} max={2} step={0.01} reset={1} format={dbText} onChange={(v) => setChain(ci, (x) => { const g = Math.round(v * 1000) / 1000; if (g === 1) delete x.volume; else x.volume = g; }, `istack-vol:${ci}`)} />
+                  <Knob label="Pan" value={c.pan ?? 0} min={-1} max={1} step={0.01} origin={0} reset={0} format={panText} onChange={(v) => setChain(ci, (x) => { const p = Math.round(v * 100) / 100; if (p === 0) delete x.pan; else x.pan = p; }, `istack-pan:${ci}`)} />
+                </ParamGrid>
+              </section>
+            );
+          })}
+          {stack.chains.length < MAX_STACK && <Button kind="quiet" icon={<Icon d="M10 4.5v11M4.5 10h11" />} onClick={() => onChange((s) => { s.chains = [...s.chains, { instrument: 'piano' }]; })}>Add chain</Button>}
+        </div>
+      </div>
+    </DeviceFrame>
+  );
+}
+
 function StackBlock({ effect, at, onChange, onRemove, folded, onFold }: {
   effect: StackEffect; at: number;
   folded: boolean; onFold: (folded: boolean) => void;
@@ -660,7 +715,11 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
       {/* Then the instrument, as sound flows: its switch bypasses it alone, as each effect's does (M mutes the track). */}
       <DeviceFrame className="studio-instrument" title={track.kind === 'sampler' ? 'Sampler' : 'Instrument'} index={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
         collapsed={folded.has(`${track.id}:instrument`)} onCollapse={fold(`${track.id}:instrument`)}
-        actions={track.kind === 'sampler' ? undefined : <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />}>
+        actions={track.kind === 'sampler' ? undefined : <>
+          <Select inline quiet hideLabel label="Instrument" value={track.instrument} choices={INSTRUMENT_CHOICES} onChange={(i) => onTrack((t) => { t.instrument = i; delete t.sound; delete t.kit; delete t.pads; })} />
+          {!track.kind && !track.stack && track.instrument !== 'drums' && <IconButton label="Stack instruments" icon={<Icon d="M4 6h12M4 10h12M4 14h12" />}
+            onClick={() => onTrack((t) => { if (t.instrument === 'drums') return; t.stack = { chains: [{ instrument: t.instrument, ...(t.sound ? { sound: { ...t.sound } } : {}) }] }; })} />}
+        </>}>
         <div className="studio-dev-cols">
           {track.kind === 'sampler' && <SamplerSection track={track} songPath={songPath} onTrack={onTrack} />}
           {sound && base && SOUND_GROUPS.filter((g) => track.kind !== 'sampler' || g.name === 'Envelope').map((g) => (
@@ -716,6 +775,10 @@ export function StudioDevice({ track, onTrack, onOpen, proposed, songPath = '', 
           })()}
         </div>
       </DeviceFrame>
+      {track.stack && <InstrumentStackBlock stack={track.stack} at={0} on={track.instrumentOn !== false} onToggle={(on) => onTrack((t) => { if (on) delete t.instrumentOn; else t.instrumentOn = false; })}
+        folded={folded.has(`${track.id}:stack`)} onFold={fold(`${track.id}:stack`)}
+        onChange={(fn, tag) => onTrack((t) => { if (t.stack) fn(t.stack); }, tag)}
+        onRemove={() => onTrack((t) => { delete t.stack; })} />}
       {/* Then the effects, left to right in the order the sound goes through them. */}
       <section className="studio-fx-chain" aria-label="Effects">
         {fx.length > 0 && (
@@ -775,6 +838,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   const [recording, setRecording] = useState(false);
   // What arming the chosen audio track found: the input it hears, or why it hears none (Live 12, 19.1).
   const [armed, setArmed] = useState<(ArmHeard & { track: string }) | null>(null);
+  // The audio track armed with its Arm button. A chosen MIDI track arms itself; an audio track waits for its button,
+  // so choosing one doesn't open the computer's input (Live 12, 19.2: only MIDI tracks arm on selection).
+  const [audioArm, setAudioArm] = useState<string | null>(null);
   // A bar of ticks before recording starts from a stop, as in other studios. On unless turned off; kept for every song.
   const [counts, setCounts] = useState(() => { try { return window.localStorage.getItem(COUNT_IN_KEY) !== '0'; } catch { return true; } });
   const counting = useRef<{ stop(): void } | null>(null);
@@ -1025,10 +1091,14 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
   // The engine reports the levels of the device open in the Workbench, for its cables.
   const watched = bench && editing && detail === 'device' ? bench : null;
   useEffect(() => { void engineReady().then(() => watchDevice(watched?.track ?? null, watched?.fx ?? null)); }, [watched?.track, watched?.fx]);
+  const chosenAudio = song?.tracks.find((t) => t.id === selected)?.kind === 'audio';
+  const armTarget = chosenAudio ? (audioArm === selected ? selected : null) : selected;
   useEffect(() => {
     setArmed(null);
-    void engineReady().then(() => armKeys(selected, (heard) => { if (selected) setArmed({ track: selected, ...heard }); }));
-  }, [selected]);
+    // The engine has the song before a track is armed, or arming right after the window opens finds no input.
+    const now = song, path = songs.page?.path ?? null;
+    void engineReady().then(() => { if (now) loadSong(now, path); armKeys(armTarget, (heard) => { if (armTarget) setArmed({ track: armTarget, ...heard }); }); });
+  }, [armTarget]); // eslint-disable-line react-hooks/exhaustive-deps
   // A take the engine saved becomes an audio clip on its track where it was recorded, as one step for undo.
   const changeNow = useRef(change);
   changeNow.current = change;
@@ -1047,7 +1117,8 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     }, `take:${take.file}`);
     if (take.lost) setExported({ text: 'The disk fell behind while recording, so the take has gaps.', kind: 'note' });
   }), []);
-  useEffect(() => { if (song) loadSong(song, songs.page?.path ?? null); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Waits for the engine to open, so a song read before it is ready still reaches it.
+  useEffect(() => { if (!song) return; const now = song, path = songs.page?.path ?? null; void engineReady().then(() => loadSong(now, path)); }, [songs.text]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { stop(); setBeat(0); setSelected(null); setPicked(new Set()); setRange(null); setClipAt(null); }, [songs.page?.path, stop]);
   // Each view plays its own way, so switching stops what is playing.
   useEffect(() => { stop(); setBeat(0); setClipAt(null); setPicked(new Set()); }, [view, stop]);
@@ -1625,6 +1696,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
     if (recording) { if (audio) recordInput(false); finishAll.current?.(); setRecording(false); return; }
     if (view !== 'arrange' || !track) return;
     // An audio track records its input through the engine; it says first when it has none to hear.
+    if (audio && armTarget !== track.id) { setExported({ text: `Arm ${track.name} to record its input.`, kind: 'note' }); return; }
     if (audio && armed?.track === track.id && armed.input === null) { setExported({ text: armed.problem ?? 'There is no sound input to record from.', kind: 'note' }); return; }
     take.current = `record:${Date.now()}`;
     if (!audio) setKeyboard(true);
@@ -2070,6 +2142,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
                     ? <button type="button" className="studio-track-sub studio-track-input" title="The sound input this track records: choose another" onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>{armed.input}</button>
                     : <button type="button" className="studio-track-sub studio-track-input" data-problem title={`${armed.problem ?? 'No sound input'}. Choose an input`} onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); void inputMenu(t, r.left, r.bottom); }}>No input</button>)}
                   <div className="studio-track-buttons" data-on={t.muted || t.solo || undefined}>
+                    {t.kind === 'audio' && <button type="button" className="studio-ms studio-arm" aria-label={`Arm ${t.name}`} title="Arm to record its input" aria-pressed={audioArm === t.id && selected === t.id} onClick={(e) => { e.stopPropagation(); const on = !(audioArm === t.id && selected === t.id); setAudioArm(on ? t.id : null); if (on) setSelected(t.id); }}><svg viewBox="0 0 10 10" width="8" height="8" aria-hidden="true"><circle cx="5" cy="5" r="4" fill="currentColor" /></svg></button>}
                     <button type="button" className="studio-ms" aria-label={`Mute ${t.name}`} title="Mute (M)" aria-pressed={t.muted} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.muted = !x.muted; }); }}>M</button>
                     <button type="button" className="studio-ms" aria-label={`Solo ${t.name}`} title="Solo (S)" aria-pressed={t.solo} onClick={(e) => { e.stopPropagation(); setTrack(t.id, (x) => { x.solo = !x.solo; }); }}>S</button>
                   </div>

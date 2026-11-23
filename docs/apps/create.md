@@ -135,6 +135,10 @@ A small studio for writing songs as notes.
   Volume is a slider; the other settings are knobs, two to a row, with their value in mono under each. Drag a knob
   up or down (Shift for finer), or use the arrows, and double-click it to put it back. Everything is saved in the song
   (`pan`, `sound`, `kit`, `pads`), so Mobius can read and set it too.
+- **Instrument Stack** (the stack button by the instrument's name, as Live's Instrument Rack, 22): chains side by side,
+  each with its own instrument, a key zone (Key low and high), a velocity zone, Volume, Pan and Mute. Each note plays on
+  every chain whose zones hold it, in place of the track's instrument, so a split or a layer is a couple of chains.
+  **Add chain** adds one, up to 16. Saved as the track's `stack`.
 - **Effects** follow the instrument, to its right. **Add effect** puts an EQ (three numbered bands on a curve: drag a
   band across for its frequency and up for its level, and scroll on the bell to make it wider or narrower), a
   Compressor (Threshold, Ratio, Attack, Release, Makeup), a Delay (a time in notes, Feedback, Mix) or a Reverb (Size,
@@ -171,7 +175,9 @@ A small studio for writing songs as notes.
   softer or louder (the octave and velocity show beside the button). On a drums track, A S D F G H are the drums from the
   top. The keys you hold light up on the notes editor's keyboard. **Record** (the dot after Stop, or F9) plays from the playhead with the computer
   keyboard on and writes what you play into the chosen track as notes, as you play them; Record or Stop ends the take,
-  and one Undo takes the take back. It records in the Arrange view for now.
+  and one Undo takes the take back. It records in the Arrange view for now. A chosen MIDI track is armed for its notes;
+  an audio track records its input only once its **Arm** button (the dot by M and S) is on, so choosing one never opens
+  the computer's input (Live 12, 19.2).
 - **Automation** (the line button in the toolbar, or A): a line under each track in the Arrange view. Its name (Volume
   at first) chooses the setting it moves: Volume, Pan, a send, or a setting of one of the track's effects (EQ bands, delay time,
   feedback and mix, compressor makeup, reverb mix, and the newer effects' main settings). Click the line to add a point and drag to place it, drag

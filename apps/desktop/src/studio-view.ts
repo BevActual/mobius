@@ -408,6 +408,7 @@ export function soundChanges(was: Track | undefined, now: Track): SoundChange[] 
       if (x[k] !== y[k]) out.push({ key: `kit:${k}`, text: `${KIT_WORDS[k]} ${kitText(k, x[k])} → ${kitText(k, y[k])}` });
     }
   }
+  if (JSON.stringify(was.stack ?? null) !== JSON.stringify(now.stack ?? null)) out.push({ key: 'stack', text: now.stack ? (was.stack ? 'changed Instrument Stack' : 'added Instrument Stack') : 'removed Instrument Stack' });
   const before = new Map((was.fx ?? []).map((e) => [e.id, e]));
   for (const e of now.fx ?? []) {
     const o = before.get(e.id);
