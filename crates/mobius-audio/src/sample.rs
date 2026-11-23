@@ -130,13 +130,18 @@ pub fn peaks(sound: &Sound, per: usize) -> (usize, Vec<[f32; 2]>) {
 pub struct Stretch {
     grain: i64,
     starts: [f64; 2],
+    /// How fast each of the two grains reads the file: 1 at its own pitch, 2 an octave up.
+    speeds: [f64; 2],
 }
 
 impl Default for Stretch {
     fn default() -> Stretch {
-        Stretch { grain: i64::MIN, starts: [0.0; 2] }
+        Stretch { grain: i64::MIN, starts: [0.0; 2], speeds: [1.0; 2] }
     }
 }
+
+/// The most a clip is transposed, either way, in semitones (Live 12 manual, 27.2.2).
+pub const MAX_TRANSPOSE: f64 = 48.0;
 
 /// An audio clip's sound placed on its own beats: which frame of the file each beat of the clip plays.
 #[derive(Clone)]
@@ -150,6 +155,8 @@ pub struct Placed {
     grain: Option<f64>,
     /// The file's frames in a second of the song's time, as a grain reads them.
     frames_per_beat: f64,
+    /// Its own transposition, in semitones (kept at its pitch only).
+    transpose: f64,
 }
 
 impl Placed {
@@ -183,7 +190,8 @@ impl Placed {
             Some("texture") => Some(0.1 / seconds_per_beat),
             Some(_) => Some(0.06 / seconds_per_beat),
         };
-        Placed { sound, gain: 10f64.powf(audio.gain_db.clamp(-70.0, 24.0) / 20.0) as f32, map, grain, frames_per_beat: seconds_per_beat * rate }
+        let transpose = if audio.transpose.is_finite() { audio.transpose.clamp(-MAX_TRANSPOSE, MAX_TRANSPOSE) } else { 0.0 };
+        Placed { sound, gain: 10f64.powf(audio.gain_db.clamp(-70.0, 24.0) / 20.0) as f32, map, grain, frames_per_beat: seconds_per_beat * rate, transpose }
     }
 
     /// The file's frame at a beat of the clip.
@@ -199,7 +207,16 @@ impl Placed {
     #[must_use]
     /// Beats are asked for in order as it plays; `stretch` keeps where its grains start, for a mode that keeps pitch.
     pub fn at(&self, beat: f64, stretch: &mut Stretch) -> (f32, f32) {
+        self.at_transposed(beat, stretch, 0.0)
+    }
+
+    /// As [`Placed::at`], transposed by `more` semitones beyond its own (a clip's transposition envelope, added to
+    /// its Transpose: 27.2.2), all of it kept within ±48. Each grain reads the file faster or slower from where the
+    /// warp puts it, so the clip keeps its timing and changes its pitch; a grain keeps the speed it started with.
+    pub fn at_transposed(&self, beat: f64, stretch: &mut Stretch, more: f64) -> (f32, f32) {
         let Some(grain) = self.grain else { return self.at_frame(self.frame(beat)) };
+        let more = if more.is_finite() { more } else { 0.0 };
+        let speed = 2f64.powf((self.transpose + more).clamp(-MAX_TRANSPOSE, MAX_TRANSPOSE) / 12.0);
         // The two grains sounding at this beat, half a grain apart, each under a Hann window (the two windows always
         // add up to one). A new grain starts near where the warp puts it, lined up with the one before; after a jump
         // (a seek, or round a loop) both start where the warp puts them.
@@ -207,11 +224,11 @@ impl Placed {
         let k = (beat / half).floor() as i64;
         if k != stretch.grain {
             let at = |k: i64| self.frame(k as f64 * half);
-            stretch.starts = if stretch.grain != i64::MIN && k == stretch.grain + 1 {
-                let before = stretch.starts[1];
-                [before, self.line_up(before + half * self.frames_per_beat, at(k))]
+            (stretch.starts, stretch.speeds) = if stretch.grain != i64::MIN && k == stretch.grain + 1 {
+                let (before, was) = (stretch.starts[1], stretch.speeds[1]);
+                ([before, self.line_up(before + half * self.frames_per_beat * was, at(k))], [was, speed])
             } else {
-                [at(k - 1), at(k)]
+                ([at(k - 1), at(k)], [speed; 2])
             };
             stretch.grain = k;
         }
@@ -220,7 +237,7 @@ impl Placed {
             let start_beat = start as f64 * half;
             let u = (beat - start_beat) / grain;
             let w = (std::f64::consts::PI * u).sin().powi(2) as f32;
-            let (a, b) = self.at_frame(stretch.starts[i] + (beat - start_beat) * self.frames_per_beat);
+            let (a, b) = self.at_frame(stretch.starts[i] + (beat - start_beat) * self.frames_per_beat * stretch.speeds[i]);
             l += a * w;
             r += b * w;
         }
@@ -381,6 +398,31 @@ mod tests {
         let mid = &s[s.len() / 5..s.len() * 4 / 5];
         let ups: Vec<usize> = mid.windows(2).enumerate().filter(|(_, w)| w[0] < 0.0 && w[1] >= 0.0).map(|(i, _)| i).collect();
         (ups.len() - 1) as f64 * 48_000.0 / (ups[ups.len() - 1] - ups[0]) as f64
+    }
+
+    #[test]
+    fn transpose_changes_the_pitch_and_keeps_the_timing_but_not_in_re_pitch() {
+        let at = |mode: &str, transpose: f64| Placed::new(&audio(&format!(r#"{{"file":"a.wav","warp":true,"mode":"{mode}","bpm":60,"transpose":{transpose}}}"#)), tone(), 120.0);
+        let cents = |hz: f64, want: f64| (1200.0 * (hz / want).log2()).abs();
+        for mode in ["beats", "tones", "texture", "complex"] {
+            // An octave up, a fifth down, and a semitone and a half up as cents: still played in half the time.
+            for (st, want) in [(12.0, 880.0), (-7.0, 440.0 * 2f64.powf(-7.0 / 12.0)), (1.5, 440.0 * 2f64.powf(1.5 / 12.0))] {
+                let s = play(&at(mode, st), 0.5);
+                assert!(cents(pitch(&s), want) < 8.0, "{mode} {st}: {} Hz", pitch(&s));
+                for w in s[4_800..19_200].chunks(480) {
+                    let rms = (w.iter().map(|x| x * x).sum::<f32>() / w.len() as f32).sqrt();
+                    assert!((20.0 * (rms / (0.251 / 2f32.sqrt())).log10()).abs() < 2.0, "{mode} {st}");
+                }
+            }
+        }
+        // Re-Pitch deactivates it (9.3.4): an octave up from the speed alone.
+        assert!(cents(pitch(&play(&at("repitch", 12.0), 0.5)), 880.0) < 2.0);
+        // An envelope's semitones add to the clip's own, and the sum stays within 48.
+        let p = at("complex", 5.0);
+        let mut st = Stretch::default();
+        let s: Vec<f32> = (0..24_000).map(|i| p.at_transposed(i as f64 / 24_000.0, &mut st, 7.0).0).collect();
+        assert!(cents(pitch(&s), 880.0) < 8.0, "{}", pitch(&s));
+        assert!(Placed::new(&audio(r#"{"file":"a.wav","warp":true,"mode":"complex","transpose":90}"#), tone(), 120.0).transpose == MAX_TRANSPOSE);
     }
 
     #[test]
