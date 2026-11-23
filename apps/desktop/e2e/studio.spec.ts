@@ -672,7 +672,7 @@ test('a clip envelope moves the open clip’s volume or pan in its own beats, ke
   const plot = env.getByRole('group', { name: 'Volume envelope automation' }).locator('.ui-lane-plot');
   const box = (await plot.boundingBox())!;
   await plot.click({ position: { x: box.width * 0.1, y: box.height * 0.8 } });
-  const envelopes = () => (saved().tracks[0]!.clips[0] as { envelopes?: Record<string, { beat: number; value: number }[]> }).envelopes;
+  const envelopes = () => (saved().tracks[0]!.clips?.[0] as { envelopes?: Record<string, { beat: number; value: number }[]> } | undefined)?.envelopes;
   await expect.poll(() => envelopes()?.volume?.length).toBe(1);
   expect(envelopes()!.volume![0]!.value).toBeLessThan(0.5);
   // Its name chooses the setting: Pan is added to the track's, -1 (left) to 1.
