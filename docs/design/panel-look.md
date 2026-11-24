@@ -61,6 +61,7 @@ under "New in the apps" below.
 | Music | Browser panel after Live 12's browser ([manual](https://www.ableton.com/en/live-manual/12/working-with-the-browser/)): search, Collections, Library categories, Places (This song, Songs, Packs, User Library, folders), tag filters by sound type and character, name and type list, preview strip with Similar sounds · Arrangement panel · tool row: Session/Arrange, transport group, one mono readout, icons for loop, metronome, tap, mixer, automation, export |
 | Browser | Tabs panel after Arc: spaces switched at its foot, favourites as tiles, Pinned, Today with Clear, From Mobius, Ask about this page · the page fills its panel · address bar in the middle of the tool row |
 | Settings | Settings panel with search and iconed sections · centred page with grouped rows |
+| Messages | Conversations panel after Slack with a rail of places (All, Mobius space, each account) · runs, not bubbles, in a centred column · reply box with Draft with Mobius in it · Thread, Person or Details on the right. See [Messages](messages.md) |
 
 ![Music in the panel look, dark](panel-look/music-dark.png)
 ![Browser in the panel look, dark](panel-look/browser-dark.png)
