@@ -444,14 +444,14 @@ describe('Main and return tracks (Live 12 calls the master Main)', () => {
 describe('audio tracks', () => {
   it('keeps an audio track, its input and each clip’s sound through a read and a write, as the engine reads them', () => {
     const text = JSON.stringify({ version: 2, bars: 4, tracks: [{ id: 'a1', name: 'Vox', kind: 'audio', input: 1, instrument: 'piano', clips: [
-      { id: 'c1', start: 0, length: 8, notes: [], audio: { file: 'Samples/Recorded/take 1.wav', gainDb: -3, offset: 1.25, warp: true, mode: 'repitch', bpm: 96, markers: [{ sample: 0, beat: 0 }, { sample: 44100, beat: 2 }] } },
+      { id: 'c1', start: 0, length: 8, notes: [], audio: { file: 'Samples/Recorded/take 1.wav', gainDb: -3, transpose: -7.25, offset: 1.25, warp: true, mode: 'repitch', bpm: 96, markers: [{ sample: 0, beat: 0 }, { sample: 44100, beat: 2 }] } },
     ], slots: [{ name: 'Loop', bars: 1, notes: [], audio: { file: 'loop.wav' } }] }] });
     const read = parseSong(text);
     if ('error' in read) throw new Error(read.error);
     const t = read.song.tracks[0]!;
     expect(t.kind).toBe('audio');
     expect(t.input).toBe(1);
-    expect(t.clips[0]!.audio).toEqual({ file: 'Samples/Recorded/take 1.wav', gainDb: -3, offset: 1.25, warp: true, mode: 'repitch', bpm: 96, markers: [{ sample: 0, beat: 0 }, { sample: 44100, beat: 2 }] });
+    expect(t.clips[0]!.audio).toEqual({ file: 'Samples/Recorded/take 1.wav', gainDb: -3, transpose: -7.25, offset: 1.25, warp: true, mode: 'repitch', bpm: 96, markers: [{ sample: 0, beat: 0 }, { sample: 44100, beat: 2 }] });
     expect(t.slots?.[0]?.audio).toEqual({ file: 'loop.wav' });
     const again = parseSong(writeSong(read.song));
     if ('error' in again) throw new Error(again.error);
