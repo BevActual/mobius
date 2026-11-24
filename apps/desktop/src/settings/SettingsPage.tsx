@@ -206,7 +206,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
 
   return (
     <section ref={root} className="settings-page" role="region" aria-label="Settings">
-      <ToolbarControls label="Settings">
+      <ToolbarControls label="Settings" above>
         <IconButton label="Back" keys={MAC ? 'Cmd+[' : 'Alt+Left'} icon={BACK} disabled={trail.at === 0} onClick={() => step(-1)} />
         <IconButton label="Forward" keys={MAC ? 'Cmd+]' : 'Alt+Right'} icon={FORWARD} disabled={trail.at >= trail.places.length - 1} onClick={() => step(1)} />
       </ToolbarControls>
