@@ -3,9 +3,10 @@ import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent a
 import { newItemIn, type SidebarWords } from './NotesSidebar';
 import { EmptyState } from './EmptyState';
 import { controlRange, controlValue } from './device-format';
-import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
+import { MAX_UNLINKED, builtinDevice, EFFECT_WORDS, BEATS_PER_BAR, CLIP_BARS, MAX_SCENES, METRONOME_VOLUME, sceneCount, sceneName, type Clip, COLOUR_NAMES, DRUMS, INSTRUMENTS, INSTRUMENT_NAMES, KEYS, KIT_DEFAULTS, EFFECT_KINDS, EFFECT_NAMES, EFFECT_PARAMS, freshEffectId, newEffect, type Effect, type EffectKind, KIT_RANGE, kitOf, PAD_DEFAULTS, PAD_RANGE, padOf, type DrumPad, type PadSetting, type SamplerSound, type StackEffect, type StackChain, type InstrumentStack, type InstrumentChain, MAX_STACK, newStack, type Modulator, MOD_RANGE, type ReturnTrack, ownLength, type Sidechain, type SideEq, SIDE_EQ_RANGE, SIDECHAIN_GAIN, TRACK_COLOURS, nextColour, SOUND_DEFAULTS, SOUND_RANGE, changedTracks, freshTrackId, keyPitches, noteName, parseSong, putNotes, playedNotes, firstPass, soundOf, trackNotes, writeSong, type ArrangeClip, type ClipAudio, type Instrument, type Song, type SongNote, type KitSound, type Sound, type Track, type TrackColour } from './song-format';
 import type { CSSProperties } from 'react';
 import { ClipWave, loadPeaks } from './studio-wave';
+import { AudioClipDetail } from './studio-audio-clip';
 import { SAMPLE_DRAG, SampleSlot, sampleName, withFile } from './StudioSample';
 import { pressKey, soundInputs, chooseInput, armKeys, countIn, engineOn, engineReady, loadSong, onTake, play, recordInput, takeClip, type ArmHeard, playSession, previewOn, watchDevice, type Player, type SessionPlayer, type SessionPlaying, type SessionQueued } from './studio-engine';
 import { SessionGrid } from './StudioSession';
@@ -225,13 +226,13 @@ function Clips({ track, proposed, bw, onOpen, actions, songPath, tempo }: { trac
             data-dragging={drag?.id === c.id || undefined}
             style={{ left: start * bw + 1, width: length * bw - 3 }}
             aria-label={`${c.name ?? (c.audio ? fileName(c.audio.file) : track.name)}, ${words}${c.audio ? ', audio' : ''}${c.loop ? ', looped' : ''}${c.muted ? ', muted' : ''}${proposed ? ', proposed by Mobius' : ''}`}
-            {...(clipTipWanted() ? { title: 'Double-click to edit the notes. Drag to move, or its right edge to stretch it', 'data-tip-at': 'pointer' } : {})}
+            {...(clipTipWanted() ? { title: `Double-click to ${c.audio ? 'open the clip' : 'edit the notes'}. Drag to move, or its right edge to stretch it`, 'data-tip-at': 'pointer' } : {})}
             onPointerDown={(e) => grab(e, c.id, false)}
             onPointerMove={follow}
             onPointerUp={drop}
             onPointerCancel={() => setDrag(null)}
             onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); actions.onMenu(c.id, e.clientX, e.clientY); }}
-            onDoubleClick={(e) => { e.stopPropagation(); if (c.audio) return; clipEdited(); onOpen(c.start, c.id); }}
+            onDoubleClick={(e) => { e.stopPropagation(); clipEdited(); onOpen(c.start, c.id); }}
             onKeyDown={(e) => {
               const mod = e.ctrlKey || e.metaKey;
               if (e.key === 'Enter') { e.preventDefault(); clipEdited(); onOpen(c.start, c.id); return; }
@@ -1921,7 +1922,7 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
           </span>
         )}
         <Segmented label="Show" value={detail} choices={DETAIL_VIEWS} onChange={setDetail} />
-        {detail === 'notes' && (view === 'arrange' || clip) && <>
+        {detail === 'notes' && (view === 'arrange' || clip) && !arrClip?.audio && <>
         <Segmented label="View" value={drumView} choices={STEP_VIEWS} onChange={setDrumView} />
         {drumView === 'steps' ? (
           <Select inline hideLabel label="Bar" value={String(Math.min(stepBar, spanBars - 1))} choices={Array.from({ length: spanBars }, (_, b) => ({ value: String(b), label: `Bar ${b + 1}` }))} onChange={(b) => setStepBar(Number(b))} />
@@ -1949,6 +1950,9 @@ export function StudioEditor({ songs, review, working = false, listPanels = [] }
       levelOf={(part) => (session.current ?? player.current)?.level?.(track.id, benchFx.id, part) ?? null} onClose={() => setBench(null)} />
   ) : detail === 'device' ? (
     <StudioDevice track={track} returns={song.returns ?? []} sources={song.tracks.filter((x) => x.id !== track.id).map((x) => ({ id: x.id, name: x.name }))} songPath={songs.page?.path ?? ''} proposed={proposedKeys} onOpen={(fx) => setBench({ track: track.id, fx })} onTrack={(fn, tag) => setTrack(track.id, fn, tag ? `${tag}:${track.id}` : '')} />
+  ) : arrClip?.audio ? (
+    <AudioClipDetail clip={arrClip as ArrangeClip & { audio: ClipAudio }} track={track} returns={song.returns ?? []} tempo={song.tempo} songPath={songs.page?.path ?? ''}
+      onClip={(fn, tag) => editClips(track.id, (cs) => cs.map((x) => { if (x.id !== arrClip.id) return x; const y = { ...x }; fn(y); return y; }), tag)} />
   ) : view === 'session' && !clip ? (
     <p className="studio-dev-note studio-pick-clip">Pick a clip to see its notes, or click an empty slot to make one.</p>
   ) : drumView === 'steps' ? (

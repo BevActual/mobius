@@ -777,6 +777,31 @@ test('Record plays from the playhead and writes what is played on the computer k
   await expect.poll(() => saved().tracks[0]!.notes).toHaveLength(2);
 });
 
+test('an audio clip in the Detail panel: Warp, its mode, and a Pitch heard only in a mode that keeps pitch', async () => {
+  const take = { id: 'a1', start: 0, length: 4, name: 'Take', notes: [], audio: { file: 'Samples/take.wav' } };
+  const VOX = { id: 't2', name: 'Vox', kind: 'audio', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: 'teal', clips: [take] };
+  fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, VOX] }));
+  await start();
+  await tracks().getByRole('listitem', { name: 'Vox' }).getByRole('button', { name: /^Take, .*audio/ }).dblclick();
+  const detail = shell().getByRole('group', { name: 'Audio clip Take' });
+  await expect(detail).toBeVisible();
+  const pitch = detail.getByRole('slider', { name: 'Pitch' });
+  // Unwarped, and then in Re-Pitch, its Pitch is not heard, so it can't be set.
+  await expect(pitch).toHaveAttribute('aria-disabled', 'true');
+  await detail.getByRole('switch', { name: 'Warp' }).click();
+  await expect(pitch).toHaveAttribute('aria-disabled', 'true');
+  await detail.getByRole('combobox', { name: 'Warp mode' }).click();
+  await shell().getByRole('option', { name: 'Complex', exact: true }).click();
+  await pitch.focus();
+  await shell().keyboard.press('ArrowUp');
+  await shell().keyboard.press('ArrowUp');
+  const audio = () => ((saved().tracks[1] as { clips: { audio?: unknown }[] }).clips[0]!.audio);
+  await expect.poll(audio).toEqual({ file: 'Samples/take.wav', warp: true, mode: 'complex', transpose: 2 });
+  // Its clip envelopes offer Transposition (27.2.2).
+  await detail.getByRole('combobox', { name: 'Envelope' }).click();
+  await expect(shell().getByRole('option', { name: 'Transposition', exact: true })).toBeVisible();
+});
+
 test('an audio track arms with its Arm button, not by being chosen, and Record asks for it first', async () => {
   const VOX = { id: 't2', name: 'Vox', kind: 'audio', instrument: 'piano', volume: 0.8, pan: 0, muted: false, solo: false, color: 'teal', notes: [], clips: [] };
   fs.writeFileSync(file(), JSON.stringify({ ...SONG, tracks: [...SONG.tracks, VOX] }));
