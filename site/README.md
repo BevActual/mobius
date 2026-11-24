@@ -1,17 +1,56 @@
 # Mobius Workspace website
 
-The home page and the privacy policy. Google needs both on a domain the publisher owns before Mobius can offer Sign in
-with Google (Drive first, Calendar later).
+The website at **[mobiusworkspace.com](https://mobiusworkspace.com)**: the home page and the privacy policy. It is live.
+Google needs both pages on a domain the publisher owns before Mobius can offer Sign in with Google (Drive first,
+Calendar later).
 
-**Not published yet.** The site is for **mobiusworkspace.com**, the public name being Mobius Workspace (build plan,
-#496). The domain is registered at Cloudflare, with its DNS pointing at GitHub Pages. To publish:
+Plain HTML, one stylesheet and one small script, with no build step, no trackers and nothing loaded from anyone else.
 
-1. Check that `privacy/index.html` still matches the app (its date and publisher are filled in),
-   including which Google scopes Mobius asks for and anything new that leaves the computer.
-2. In the repository's **Settings › Pages**, set **Source** to **GitHub Actions** and the custom domain to
-   `mobiusworkspace.com`, then tick **Enforce HTTPS** once the certificate is ready.
-3. Run **Actions › website › Run workflow** (`.github/workflows/pages.yml`). It only ever runs by hand.
-4. Give Google the home page and privacy policy addresses on the OAuth consent screen.
+## Look at it on your computer
+
+The pages use root paths (`/assets/style.css`), so open them through a small local server rather than by
+double-clicking the file:
+
+```
+cd site
+python -m http.server 8000      # or: npx serve .
+```
+
+Then open http://localhost:8000. Switch your system between light and dark to see both looks.
+
+## Update it
+
+1. Make the change in `site/` on a branch and open a pull request, like any other change.
+2. Once it has merged, run **Actions › website › Run workflow** (`.github/workflows/pages.yml`). It only ever runs by
+   hand, so nothing goes live by accident. The site is up a minute or two later.
+3. If the change touches what Mobius does with data (a new Google scope, something new that leaves the computer, a
+   paid service or an account), update `privacy/index.html` and its effective date in the same pull request.
+
+### With each release
+
+- The Download buttons point at `https://github.com/BevActual/mobius/releases/latest`, so they never need a new
+  version number. Check the platform line under the hero ("Windows 10 and 11, 64-bit · macOS is on the way") when a
+  new platform ships.
+- If an app is added, folded or renamed, update the **Every app** section and the count ("23 apps") in the page, its
+  description and the facts row.
+
+### Pictures
+
+The screenshots in `assets/shots/` are WebP copies of the README's pictures in `docs/readme/` (light and dark), cut to
+1600 px wide. To refresh them, retake the README's pictures (`npm run readme-shots` in `apps/desktop`, and
+`docs/readme/hero-*.png` for Calendar), then convert:
+
+```
+python -c "from PIL import Image; im = Image.open('docs/readme/apps/music-dark.png').convert('RGB'); im.thumbnail((1600, 1600)); im.save('site/assets/shots/music-dark.webp', quality=82, method=6)"
+```
+
+`assets/social.png` is the picture shown when the site is shared (a copy of `docs/readme/social-dark.png`).
+`assets/fonts/inter.woff2` is Inter, the app's own typeface, under the SIL Open Font License (`LICENSE-inter.txt`).
+
+## Hosting
+
+GitHub Pages serves the `site/` folder at the custom domain in `CNAME`, with **Settings › Pages › Source** set to
+**GitHub Actions** (the workflow above deploys it). Keep **Enforce HTTPS** ticked there.
 
 DNS at Cloudflare, all set to DNS only (grey cloud) so GitHub can issue the certificate: four `A` records for `@`
 (185.199.108.153, 185.199.109.153, 185.199.110.153, 185.199.111.153) and a `CNAME` for `www` to `bevactual.github.io`.
@@ -31,11 +70,14 @@ The addresses of the pages below stay put as the site grows, because Google and 
 | --- | --- |
 | `/` | Home page (`index.html`) |
 | `/privacy/` | Privacy policy (`privacy/index.html`) |
-| `/assets/` | Stylesheet, mark and pictures shared by every page |
+| `/assets/` | Stylesheet, script, font, mark and pictures shared by every page |
 
 Later sections get their own folders beside these, such as `/docs/`, `/store/` and `/account/`, without moving anything
-above. Links use root paths (`/assets/style.css`), so the site expects to be served at the root of its own domain.
+above. Links use root paths, so the site expects to be served at the root of its own domain.
+
+`assets/style.css` uses the app's panel-look colours ([docs/design/panel-look.md](../docs/design/panel-look.md)):
+a neutral frame, panels one step above it, ink for buttons, and indigo only for Mobius, with a dashed indigo edge for
+what Mobius proposes. A plain page such as the privacy policy needs no classes: a `<main>` with a `<header>`, headings,
+paragraphs and tables is styled as one readable column.
 
 The privacy policy covers only what Mobius does today. Any paid service or account adds a section to it before launch.
-
-Plain HTML and one stylesheet, with no build step. The pictures are copies of `docs/readme/` files.
