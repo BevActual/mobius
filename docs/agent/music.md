@@ -40,7 +40,7 @@ Starting points: piano shape 0.2 cutoff 5000 attack 0.005 decay 0.8 sustain 0.3 
 - `limiter`: `gain` -24 to 24 dB in, `ceiling` -24-0 dB it never goes over, `release` 0.001-3 s.
 - `saturator`: `drive` -36 to 36 dB, `shape` 0-1 (harder clipping), `output` -36 to 36 dB, `mix` 0-1.
 - `autofilter`: `filter` lowpass|highpass|bandpass|notch, `cutoff` 20-20000 Hz, `resonance` 0.1-20, an LFO of `shape` sine|triangle|square|sawtooth at `rate` 0.01-40 Hz sweeping the cutoff by `depth` 0-10000 Hz.
-- `chorus`: `delay` 0.001-0.05 s, moved by `depth` 0-0.01 s at `rate` 0.01-10 Hz, `mix` 0-1.
+- `chorus` (Live's Chorus-Ensemble): `mode` "chorus" (with the dry sound) or "vibrato" (the moving copy alone, pitch wobble; starts at delay 0.005, rate 5, depth 0.002), `delay` 0.001-0.05 s, moved by `depth` 0-0.01 s at `rate` 0.01-10 Hz, `feedback` 0-0.95 (Chorus only; `invert` true flips it, hollower), `highpass` 0 (off) or 20-2000 Hz (keeps the lows steady), `mix` 0-1 (Chorus only).
 - `phaser`: four all-pass stages at `center` 50-10000 Hz, swept by `depth` 0-5000 Hz at `rate` 0.01-10 Hz, `mix` 0-1.
 - `beatrepeat` (stutters, Live's Beat Repeat): every `interval` sixteenths (0.5 is 1/32, 16 a bar, up to 64), `offset` 0-15 sixteenths in and by `chance` 0-1, it takes a `grid` of 0.5-16 sixteenths and repeats it for `gate` 1-64 sixteenths, each repeat quieter by `decay` 0-1, at `volume` -36 to 12 dB; `mix` is "mix" (with the track), "insert" (in its place while repeating) or "gate" (only the repeats). It follows the song's beat.
 A new effect gets an id not on the track (`fx2`...).

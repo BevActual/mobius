@@ -23,8 +23,9 @@ import { EmptyState } from './EmptyState';
 import type { NotesState } from './useNotes';
 import type { ReactNode } from 'react';
 import type { NoteComment } from '@mobius/shared';
-import { ReviewActions, TryAnotherContext, WhyThis } from './ReviewBar';
+import { ReviewActions, TryAnotherContext, WhyThis, useTurnAsk, whyLine } from './ReviewBar';
 import { changeBlocks, useTallChanges, type ChangeView } from './change-blocks';
+import { usePublishSuggestions } from './Comments';
 import { tidyMarkdown } from './note-insert';
 import { fileMarkdown, noteImage, ownMarked, readFile } from './note-files';
 import { CommentComposer, CommentList, commentLine, useNoteComments } from './NoteComments';
@@ -855,7 +856,11 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
   // The page is told to mark the changes again whenever what it should show changes.
   changesNow.current = null;
   // Which changes are taller than the view, measured once they are drawn; told to the page when that changes.
-  const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}:${busy ? 'w' : ''}` : '';
+  // Mobius's open suggestions here count on the window's Comments badge.
+  usePublishSuggestions(review ? 'docs' : null, review && !kept && diff ? (before === null ? 1 : new Set(changeGroups(diff).filter((g) => g !== null)).size) : 0);
+  // What was asked, for each change bar's Why.
+  const ask = useTurnAsk(review && !kept ? review.conversation : null, path ? `docs/${path}` : undefined);
+  const changesKey = review && !kept && diff && before !== null ? `${path}:${before.length}:${diff.length}:${diff.map((l) => l.kind[0]).join('')}:${busy ? 'w' : ''}:${ask ? 'y' : ''}` : '';
   const tallGroups = useTallChanges(editor, scroller, changesKey, changesNow);
 
   if (!docs.page) {
@@ -876,7 +881,7 @@ export function DocEditor({ docs, autoFocus = true, review, onTool, onComments, 
     if (!editor || editor.isDestroyed || !editor.markdown || !markdown.trim()) return null;
     try { return generateHTML(editor.markdown.parse(markdown), editor.extensionManager.extensions); } catch { return null; }
   };
-  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, keepAll: () => void keepAll(), waiting: busy, tall: tallGroups.current };
+  if (showing) changesNow.current = { diff, render: renderMarkdown, keep: keepOne, discard: discardOne, again: tryAnother ? (g) => { discardOne(g); tryAnother(); } : undefined, keepAll: () => void keepAll(), waiting: busy, tall: tallGroups.current, why: ask ? whyLine(ask) : null };
   const saving = docs.status === 'saving' || docs.status === 'unsaved' ? 'Saving…' : docs.status === 'error' ? 'Not saved' : 'Saved';
   const margin = !inFrame && own && commentState.available && commentsOpen && commentState.comments.length > 0;
   return (

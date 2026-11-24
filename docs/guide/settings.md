@@ -1,7 +1,7 @@
 # Settings
 
-Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Settings groups them, and the search box
-at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
+Ctrl+, opens Settings. Its sections are grouped in the Sections panel on the left the way System Settings groups
+them. That panel is always there, as System Settings' is, so every section stays one click away. The search box at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
 and where it is explained.
 
 The toolbar names the section, and the page opens on one grey line on what it is for. Then come its settings, one per
@@ -58,8 +58,8 @@ Save button.
 
 - **Theme:** follow the system (light by day, dark by night), or always use Light, Mid grey, Dark or Cool dark. Every theme keeps the frame neutral so your own colours stand out.
 - **Typography:** interface zoom, and the conversation's text size and font (system, serif or mono).
-- **Layout:** which apps the rail lists and in what order, whether the tab and conversation list and the Mobius panel
-  are attached or float over the page, sidebar sizes, list density, and key hints under lists.
+- **Layout:** the apps pinned at the top of Go (Ctrl+1 to Ctrl+9 open the first nine), whether the Mobius panel is
+  attached or floats over the page and its size, list density, **Panels on the frame**, and key hints under lists.
 - **Conversation:** text direction, and whether finished tool steps are shown or hidden.
 
 ## Usage

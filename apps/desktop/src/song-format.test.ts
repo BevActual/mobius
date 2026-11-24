@@ -178,6 +178,21 @@ describe('a track\'s effects', () => {
     const fine = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [{ id: 'c', kind: 'chorus', depth: 0.0045 }, { id: 'g', kind: 'gate', attack: 0.0004 }] }] }));
     expect(song(writeSong(fine)).tracks[0]!.fx).toMatchObject([{ depth: 0.0045 }, { attack: 0.0004 }]);
   });
+  it('keeps Chorus-Ensemble\'s mode, feedback, invert and high-pass, in range, and an old chorus as it sounded', () => {
+    const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
+      { id: 'c', kind: 'chorus', mode: 'vibrato', feedback: 2, invert: true, highpass: 5000 },
+      { id: 'd', kind: 'chorus', mode: 'ensemble', delay: 0.02, invert: 'yes' },
+      { id: 'e', kind: 'chorus', mode: 'vibrato', delay: 0.008 },
+    ] }] }));
+    const fx = s.tracks[0]!.fx!;
+    // A Vibrato with no delay, rate or depth of its own starts where the engine's Vibrato does.
+    expect(fx[0]).toMatchObject({ mode: 'vibrato', feedback: 0.95, invert: true, highpass: 2000, delay: 0.005, rate: 5, depth: 0.002 });
+    // An unknown mode is a Chorus; a setting that isn't on or off is off. Nothing new is switched on.
+    expect(fx[1]).toMatchObject({ mode: 'chorus', delay: 0.02, rate: 0.8, depth: 0.003, feedback: 0, invert: false, highpass: 0, mix: 0.5 });
+    expect(fx[2]).toMatchObject({ mode: 'vibrato', delay: 0.008, rate: 5 });
+    expect(song(writeSong(s)).tracks[0]!.fx).toEqual(fx);
+    expect(newEffect('chorus', 'fx9')).toMatchObject({ mode: 'chorus', feedback: 0, invert: false, highpass: 0 });
+  });
   it('keeps Beat Repeat, its sixteenths and its mix mode, in range', () => {
     const s = song(JSON.stringify({ tracks: [{ id: 'a', notes: [], fx: [
       { id: 'r', kind: 'beatrepeat', interval: 4, grid: 2 / 3, gate: 200, chance: 0.5, volume: -6, mix: 'insert' },

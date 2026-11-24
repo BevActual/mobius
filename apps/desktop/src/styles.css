@@ -1887,8 +1887,9 @@ li:hover > .list-pin, .list-pin:focus-visible { opacity: 1; }
   transition: height var(--dur-med) var(--ease), flex-grow var(--dur-med) var(--ease), opacity var(--dur-med) var(--ease), visibility 0s linear var(--dur-med); }
 @media (prefers-reduced-motion: reduce) { [data-fold-body], [data-fold-body][data-folded], [data-fold]::after { transition: none; } }
 
-/* Rows: 30px, 13px, a soft tinted selection rather than a bar, a subtle hover. */
-.ui-dock[data-dock="left"] :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: var(--row-side); height: auto; padding-block: 0; font-size: var(--fs-md); border-radius: 8px; }
+/* Rows: 28px (the panel look's side lists, in both densities), a soft tinted selection rather than a bar, a subtle hover.
+   A row with a second line (a note's first words) grows to fit. */
+.ui-dock[data-dock="left"] :is(.list-row, .side-new-row, .files-row, .calendar-row, .design-row) { min-height: var(--row-side-panel, 28px); height: auto; padding-block: 0; font-size: var(--fs-md); border-radius: 8px; }
 .ui-dock[data-dock="left"] .note-row { min-height: var(--row-side); padding-block: 5px; font-size: var(--fs-md); border-radius: 8px; }
 .ui-dock[data-dock="left"] :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item, .side-new-row):hover:not([aria-current="page"]) { background: var(--side-hover); }
 .ui-dock[data-dock="left"] :is(.list-row, .note-row, .files-row, .calendar-row, .design-row, .clist-item)[aria-current="page"],

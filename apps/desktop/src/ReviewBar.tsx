@@ -12,18 +12,36 @@ export const TryAnotherContext = createContext<(() => void) | null>(null);
 export const TRY_ANOTHER_ASK = 'I discarded that change. Try another way: a clearly different approach from the one I discarded, not a reworded or longer version of it, and in fewer words than it had. Say nothing about its length or size.';
 
 /**
+ * What was asked in the turn that changed `file` (or the last turn), for a Why. Null while it is read, when the turn
+ * had no words, or when the turns cannot be read.
+ */
+export function useTurnAsk(conversation: string | null | undefined, file?: string): string | null {
+  const [ask, setAsk] = useState<string | null>(null);
+  useEffect(() => {
+    setAsk(null);
+    if (!conversation) return undefined;
+    let live = true;
+    void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? ((file && r.turns.find((t) => t.files?.includes(file))) || r.turns[0])?.ask?.trim() || null : null); }).catch(() => undefined);
+    return () => { live = false; };
+  }, [conversation, file]);
+  return ask;
+}
+
+/** The ask as a Why line says it: "You asked “…”", cut to one line. */
+export const whyLine = (ask: string) => `You asked “${ask.length > 140 ? `${ask.slice(0, 139)}…` : ask}”`;
+
+/**
  * "Why this": what was asked in the turn that made a proposal, so the change can be judged against it. Nothing is shown
  * when the turn had no words (a schedule, say) or the turns cannot be read.
  */
 export function WhyThis({ conversation, file }: { conversation: string; /** Music (marked): the file under review, to quote the turn that changed it. */ file?: string }) {
-  const [ask, setAsk] = useState<string | null>(null);
+  const ask = useTurnAsk(conversation, file);
   const [from, setFrom] = useState<string[]>([]);
   useEffect(() => {
     let live = true;
-    void window.mobius.changes?.turns?.(conversation).then((r) => { if (live) setAsk(r.ok ? ((file && r.turns.find((t) => t.files?.includes(file))) || r.turns[0])?.ask?.trim() || null : null); }).catch(() => undefined);
     void window.mobius.agent.history(conversation).then((h) => { if (live) setFrom(linkedFrom(h)); }).catch(() => undefined);
     return () => { live = false; };
-  }, [conversation, file]);
+  }, [conversation]);
   return (
     <>
       {ask && <span className="review-why" title={ask}>Why this: you asked “{ask.length > 90 ? `${ask.slice(0, 89)}…` : ask}”</span>}

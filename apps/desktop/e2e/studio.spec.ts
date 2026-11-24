@@ -403,6 +403,26 @@ test('Beat Repeat: its Interval and Grid as note values, its mix mode and Chance
   expect(fx()).toMatchObject({ interval: 4, grid: 1, mix: 'insert' });
 });
 
+test('Chorus-Ensemble: Vibrato mode, the high-pass and inverted feedback, kept in the song', async () => {
+  await start();
+  const device = await openDevice('Keys');
+  await device.getByRole('button', { name: 'Add effect' }).click();
+  await shell().getByRole('menuitem', { name: 'Chorus-Ensemble', exact: true }).click();
+  const fx = () => ((saved().tracks[0] as { fx?: Record<string, unknown>[] }).fx ?? [])[0];
+  await expect.poll(fx).toMatchObject({ kind: 'chorus', mode: 'chorus', feedback: 0, invert: false, highpass: 0 });
+  const knobs = device.getByRole('group', { name: 'Chorus-Ensemble settings' });
+  await knobs.getByRole('slider', { name: 'Feedback' }).focus();
+  await shell().keyboard.press('ArrowUp');
+  await device.getByRole('switch', { name: 'Invert feedback' }).click();
+  await device.getByRole('switch', { name: 'High-pass filter' }).click();
+  await expect.poll(fx).toMatchObject({ invert: true, highpass: 200 });
+  expect(fx()?.feedback as number).toBeGreaterThan(0);
+  // A fresh Chorus switched to Vibrato takes Vibrato's quicker wobble, and its Feedback and Dry/Wet rest.
+  await device.getByRole('radiogroup', { name: 'Mode' }).getByRole('radio', { name: 'Vibrato' }).click();
+  await expect.poll(fx).toMatchObject({ mode: 'vibrato', delay: 0.005, rate: 5, depth: 0.002 });
+  await expect(knobs.getByRole('slider', { name: 'Dry/Wet' })).toBeDisabled();
+});
+
 test('an instrument stack: chains with their own instruments and key zones, kept in the song', async () => {
   await start();
   const device = await openDevice('Keys');

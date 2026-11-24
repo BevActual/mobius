@@ -309,6 +309,10 @@ form.cal-editor textarea { field-sizing: content; resize: none; min-height: calc
 .cal-quick-hint { align-items: center; }
 .cal-quick-hint .cal-pill { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; border-radius: 10px; background: var(--soft); color: var(--ink); font-size: var(--fs-xs); white-space: nowrap; }
 .cal-quick-hint .cal-pill[data-kind="calendar"] { color: var(--muted); }
+/* With more than one calendar the pill is a menu: the same pill, with a chevron, and a fill on hover. */
+.cal-quick-hint button.cal-pill { gap: 4px; padding-right: 6px; border: 0; font: inherit; font-size: var(--fs-xs); cursor: default; }
+.cal-quick-hint button.cal-pill:hover, .cal-quick-hint button.cal-pill[aria-expanded="true"] { background: var(--line); color: var(--ink); }
+.cal-quick-hint button.cal-pill svg { width: 10px; height: 10px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
 
 /* Month: an event across days is one bar per week row: the edge only where it truly starts, its title once. */
 .calendar-page .cal-month-cell .cal-event.cal-event[data-joins-before], .calendar-page .cal-month-cell .cal-event.cal-event[data-compact][data-span][data-joins-before]:not([data-all-day]) { border-left: 0; padding-left: 9px; }

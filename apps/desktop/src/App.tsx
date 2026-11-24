@@ -24,7 +24,7 @@ import { Resizer } from './Resizer';
 import { useAutoHide } from './useAutoHide';
 import { UpdateNotice } from './UpdateNotice';
 import { pressOf, takeEarlyKeys } from './early-keys';
-import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments } from './Comments';
+import { CommentButton, CommentLayer, CommentsGroup, useCommentThreads, useOpenComments, useSuggestions } from './Comments';
 import type { Side } from './resize';
 import { useAgentSettings } from './useAgentSettings';
 import { useBrowser } from './useBrowser';
@@ -95,7 +95,7 @@ import { APP_ICONS, type OwnApp } from './Rail';
 import { useMobiusStepAside } from './ui/PanelTabs';
 import { SidebarHead } from './SidebarHead';
 import { WEB_LINK_EVENT, sameUrl, type WebLink } from './web-link';
-import { parseLayout, pressIs } from './ui/PanelLayout';
+import { pressIs } from './ui/PanelLayout';
 import { AppFrame, InspectorDock, PanelLayout, PanelsMenu, TooltipLayer, usePanelEntries, type PanelsOfApp, type ShellPanel, type MenuEntry, useAnyMenuOpen, type AppMenuState, type PanelSpec } from './ui';
 import { SideHeadMenu } from './SideHeadMenu';
 import { AppHub, type HubAction } from './AppHub';
@@ -837,6 +837,7 @@ export function App() {
   const commentDoc = inSheets && sheets.data ? `${sheets.data.workbook}/${sheets.data.sheet}` : inMail && mail.open ? mail.open.id : inNotes && notes.page ? notes.page.path : inDocs && docs.page ? docs.page.path : inTasks ? (tasks.view.kind === 'list' ? tasks.view.name : tasks.view.id) : inCalendar ? 'calendar' : inBrowser ? (active?.url ?? null) : place || appName(app);
   const commentThreads = useCommentThreads(app, commentDoc);
   const openComments = useOpenComments(app);
+  const openSuggestions = useSuggestions(app);
   useEffect(() => { setCommenting(false); }, [app]);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -1265,23 +1266,15 @@ export function App() {
   };
   ownListRef.current = ownListBody;
   const settingsPanels = useMemo<readonly PanelSpec[]>(() => [
-    { id: 'list', name: 'Settings', label: 'Sections', dock: 'left', shown: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
+    // Settings' Sections panel: always there, as in System Settings. Hidden, it left only the page that was open and no
+    // way to another.
+    { id: 'list', name: 'Sections', dock: 'left', shown: true, fixed: true, render: () => <div ref={setSettingsSlot} className="settings-side" /> },
   ], []);
   const listFor = (id: AppId): readonly PanelSpec[] => (settingsOpen ? NO_PANELS : ownListPanels[id] ?? NO_PANELS);
   const withOwnList = (id: AppId, content: ReactNode): ReactNode => {
     const panels = ownListPanels[id];
     return panels && !LIST_HANDED.includes(id) ? <PanelLayout app={id} panels={settingsOpen ? NO_PANELS : panels}>{content}</PanelLayout> : content;
   };
-  // Whether the open app's own list is showing, as it was kept (for the View menu's tick).
-  const ownListShown = (() => {
-    try { return parseLayout(window.localStorage.getItem(`mobius.layout.${app}`)).shown.list ?? true; } catch { return true; }
-  })();
-  // The View menu's Sidebar, in an app with its own list: the same as its key, which the app's layout answers.
-  const toggleOwnList = () => {
-    const mac = window.mobius.platform === 'darwin';
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: '\\', code: 'Backslash', ctrlKey: !mac, metaKey: mac, bubbles: true, cancelable: true }));
-  };
-
   // A short message about something done without the agent, such as a task made from a selection.
   const [toast, setToast] = useState<string | null>(null);
   useEffect(() => { if (!toast) return undefined; const t = window.setTimeout(() => setToast(null), 2600); return () => window.clearTimeout(t); }, [toast]);
@@ -1344,8 +1337,7 @@ export function App() {
     apps: APPS.filter((a) => isListed(a) && isAvailable(a.id)),
     keys: bindings,
     state: {
-      // The sidebar is the open app's own list, a panel of its layout.
-      sidebarShown: ownListShown, hasSidebar: true, agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
+      agentShown: chatOpen, hasAgentPanel: hasRight, commenting, split, canSplit: !narrow, miniOpen,
       zoom: appearance.value.zoom,
       browser: { hasPage: active !== undefined && /^https?:/.test(active.url), canBack: active?.canGoBack ?? false, canForward: active?.canGoForward ?? false, bookmarked: saved, pinned: pagePinned },
       notes: { hasPage: notes.page !== null, pinned: notes.page !== null && pinnedNotes.has(notes.page.path), changed: notes.page !== null && turnMarks.notes.has(notes.page.path), checkedLast: checkedLastOn },
@@ -1364,7 +1356,6 @@ export function App() {
       about: () => openSettingsAt('about'),
       edit,
       find: openFind,
-      toggleSidebar: toggleOwnList,
       toggleAgent: () => setChatOpen((open) => !open),
       toggleComments: () => setCommenting((on) => !on),
       toggleSplit,
@@ -2038,7 +2029,7 @@ export function App() {
           />
         ),
         trail: (appMenu) => <>
-          <CommentButton on={commenting} count={openComments.length} onToggle={() => setCommenting((on) => !on)} />
+          <CommentButton on={commenting} count={openComments.length} suggestions={openSuggestions} onToggle={() => setCommenting((on) => !on)} />
           {/* Agents app (marked): Run now, the one filled button, before the More menu. */}
           {shownAgent && agentView?.kind !== 'new' && !(agentView?.kind === 'show' && agentView.editing) && (shownAgent.id === MAIN_BOT_ID
             ? <button type="button" className="btn primary agent-run" onClick={() => { conversation.startFresh(MAIN_BOT_ID); setAgentView(null); setSideMode('sessions'); }}>New session</button>
