@@ -218,27 +218,28 @@
 .settings-page .settings-column > .slist .hit-where { font-size: var(--fs-sm); color: var(--muted); }
 .settings-page .settings-column > .slist .hit-desc { font-size: var(--fs-sm); color: var(--muted); }
 
-/* Accounts: the page's card steps aside, so each kind is its own card under a small grey heading, as the other groups. */
+/* Accounts: one card of accounts (the rows themselves and an account's page are in settings/accounts.css). The rows are
+   shared with the Add Account sheet, which opens over Settings. The page's card steps aside, so each kind is its own card under a small grey heading, as the other groups. */
 .settings-page .settings-group .settings-card:has(> .conn) { border: 0; border-radius: 0; background: transparent; overflow: visible; }
 .settings-page .conn { display: grid; gap: var(--sp-5); }
 .settings-page .conn-top { display: flex; }
 .settings-page .conn-group-title { margin: 0 0 var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--muted); }
-.settings-page .conn-list { margin: 0; padding: 0; list-style: none; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised, var(--paper)); overflow: hidden; }
-.settings-page .conn-row { position: relative; display: flex; align-items: center; gap: var(--sp-3); min-height: 52px; padding: 8px var(--sp-2) 8px var(--sp-4); }
-.settings-page .conn-row + .conn-row::before { content: ''; position: absolute; top: 0; left: var(--sp-4); right: 0; height: var(--hairline-w); background: var(--line-soft); }
-.settings-page .conn-mark { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-small); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1; color: #fff; background: var(--chip, var(--muted)); }
+:is(.settings-page, .acct-sheet) .conn-list { margin: 0; padding: 0; list-style: none; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); background: var(--raised, var(--paper)); overflow: hidden; }
+:is(.settings-page, .acct-sheet) .conn-row { position: relative; display: flex; align-items: center; gap: var(--sp-3); min-height: 52px; padding: 8px var(--sp-2) 8px var(--sp-4); }
+:is(.settings-page, .acct-sheet) .conn-row + .conn-row::before { content: ''; position: absolute; top: 0; left: var(--sp-4); right: 0; height: var(--hairline-w); background: var(--line-soft); }
+:is(.settings-page, .acct-sheet) .conn-mark { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-control); font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1; color: #fff; background: var(--chip, var(--muted)); }
 .conn-mark[data-hue="0"] { --chip: #4a86c8; }
 .conn-mark[data-hue="1"] { --chip: #c99a2e; }
 .conn-mark[data-hue="2"] { --chip: #3f9f74; }
 .conn-mark[data-hue="3"] { --chip: #d0703a; }
 .conn-mark[data-hue="4"] { --chip: #2f9aa0; }
 .conn-mark[data-hue="5"] { --chip: #7c8591; }
-.settings-page .conn-main { flex: 1 1 auto; min-width: 0; display: grid; }
-.settings-page .conn-account { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
-.settings-page .conn-service { font-size: var(--fs-xs); color: var(--muted); }
+:is(.settings-page, .acct-sheet) .conn-main { flex: 1 1 auto; min-width: 0; display: grid; }
+:is(.settings-page, .acct-sheet) .conn-account { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+:is(.settings-page, .acct-sheet) .conn-service { font-size: var(--fs-xs); color: var(--muted); }
 .settings-page .conn-state { flex: none; max-width: 260px; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-xs); color: var(--muted); text-align: right; }
 .settings-page .conn-state.field-error { color: var(--ink); }
-.settings-page .conn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
+:is(.settings-page, .acct-sheet) .conn-dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); }
 .settings-page .conn-more { flex: none; }
 .settings-page .conn-more-glyph { width: 16px; height: 16px; fill: currentColor; }
 .settings-page .conn-confirm { display: inline-flex; gap: var(--sp-1); }

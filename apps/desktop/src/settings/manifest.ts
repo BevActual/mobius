@@ -1,4 +1,4 @@
-export type SectionId = 'connections' | 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
+export type SectionId = 'connections' | 'general' | 'appearance' | 'model' | 'providers' | 'voice' | 'safety' | 'memory' | 'privacy' | 'schedules' | 'browser' | 'mail' | 'calendar' | 'contacts' | 'messages' | 'notifications' | 'sessions' | 'keyboard' | 'extensions' | 'usage' | 'advanced' | 'about';
 
 export interface SettingRow {
   id: string;
@@ -35,7 +35,13 @@ const SECTIONS: readonly SettingsSection[] = [
     keywords: ['connections', 'accounts', 'sign in', 'signed in', 'log in'],
     subpages: [
       { id: 'accounts', label: 'Accounts', rows: [
-        row('connections', 'Accounts', 'Mail and calendars, drives, chat and model gateways: which are connected, which need you to sign in again, and Disconnect.', 'connections', 'accounts', 'gmail', 'outlook', 'icloud', 'fastmail', 'slack', 'teams', 'matrix', 'telegram', 'dropbox', 'onedrive', 'webdav', 's3', 'drive', 'disconnect', 'sign in again', 'connected'),
+        row('connections', 'Accounts', 'Every account, one row each: Google and Microsoft signed in to once for Calendar and Files, mail, contacts, drives and chat. Which apps each is on for, which need you to sign in again, and Remove.', 'connections', 'accounts', 'google', 'microsoft', 'contacts', 'plans', 'connectors', 'internet accounts', 'gmail', 'outlook', 'icloud', 'fastmail', 'slack', 'teams', 'matrix', 'telegram', 'dropbox', 'onedrive', 'webdav', 's3', 'drive', 'disconnect', 'sign in again', 'connected'),
+      ] },
+      { id: 'plans', label: 'Model Plans', rows: [
+        row('plans', 'Plans and keys', 'The model plans you are signed in to and the services you keep a key for. Each opens in Gateways.', 'plans', 'model plans', 'subscription', 'claude', 'chatgpt', 'copilot', 'keys', 'api keys', 'gateways'),
+      ] },
+      { id: 'connectors', label: 'Connectors', rows: [
+        row('connectors', 'Your connectors', 'The connectors Mobius runs, and which need you to sign in again. Each opens in Store.', 'connectors', 'mcp', 'servers', 'store', 'extensions', 'sign in again'),
       ] },
     ],
   },
@@ -151,6 +157,15 @@ const SECTIONS: readonly SettingsSection[] = [
     description: 'The calendars Calendar reads from elsewhere.',
     subpages: [
       { id: 'accounts', label: 'Accounts', rows: [row('calendar-accounts', 'Calendar accounts', 'Subscribe to a calendar link, or connect iCloud, Fastmail or Nextcloud. Refresh or remove one.', 'calendar', 'caldav', 'subscribe', 'webcal', 'ics', 'icloud', 'fastmail', 'nextcloud', 'google calendar', 'outlook', 'add account', 'remove account', 'refresh')] },
+    ],
+  },
+  // Contacts: address books on a CardDAV server (iCloud, Fastmail, Nextcloud), each kept in step with its folder.
+  {
+    id: 'contacts',
+    label: 'Contacts',
+    description: 'The address books Contacts keeps in step with a server.',
+    subpages: [
+      { id: 'accounts', label: 'Accounts', rows: [row('contacts-accounts', 'Contacts accounts', 'Connect iCloud, Fastmail or Nextcloud contacts with an app password, or remove an account. Its cards stay here and on the server.', 'contacts', 'address book', 'carddav', 'vcard', 'icloud', 'fastmail', 'nextcloud', 'people', 'add account', 'remove account')] },
     ],
   },
   // Messages: the chat accounts it reads and sends through as you.
@@ -324,7 +339,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'], ['sessions', 'Mobius'], ['schedules', 'Mobius'],
   ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['contacts', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 

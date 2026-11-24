@@ -31,6 +31,8 @@ pub const CALDAV: &str = "https://apidata.googleusercontent.com/caldav/v2";
 /// Google's CalDAV endpoint takes only the whole calendar scope.
 const CALENDAR_SCOPE: &str = "https://www.googleapis.com/auth/calendar";
 const SCOPES: &str = "openid email https://www.googleapis.com/auth/calendar";
+/// Calendar and the files the person picks, asked for together when one Google account is added for both.
+pub const CALENDAR_AND_FILES: &str = "openid email https://www.googleapis.com/auth/calendar https://www.googleapis.com/auth/drive.file";
 const SKEW_SECONDS: u64 = 5 * 60;
 const MAX_WAIT: Duration = Duration::from_secs(15 * 60);
 const MAX_JSON: u64 = 4 * 1024 * 1024;
@@ -81,9 +83,16 @@ pub struct Tokens {
     pub expires: u64,
     #[serde(default)]
     pub email: Option<String>,
+    /// What Google gave, when the sign-in asked for more than one app's access. Not kept: each app keeps its own copy.
+    #[serde(default, skip_serializing)]
+    pub granted: Option<String>,
 }
 
 impl Tokens {
+    /// Whether Google gave `scope` at the sign-in these tokens came from.
+    pub fn allows(&self, scope: &str) -> bool {
+        self.granted.as_deref().is_some_and(|g| g.split_whitespace().any(|s| s == scope))
+    }
     /// Good for a few minutes more.
     pub fn fresh(&self) -> bool {
         self.expires > now() + SKEW_SECONDS
@@ -102,6 +111,8 @@ pub struct Found {
 
 pub struct SignIn {
     google: Option<Google>,
+    /// What the sign-in asks for: the calendars, or (one account for several apps) the calendars and picked files.
+    scopes: &'static str,
     at: Endpoints,
     pending: Mutex<Option<(String, Arc<AtomicBool>)>>,
     refreshing: Mutex<()>,
@@ -126,7 +137,15 @@ impl SignIn {
             .into();
         let trim = |s: String| s.trim_end_matches('/').to_owned();
         let at = Endpoints { auth: at.auth, token: at.token, api: trim(at.api), caldav: trim(at.caldav) };
-        SignIn { google, at, pending: Mutex::new(None), refreshing: Mutex::new(()), http }
+        SignIn { google, at, scopes: SCOPES, pending: Mutex::new(None), refreshing: Mutex::new(()), http }
+    }
+
+    /// The same sign-in, asking for `scopes` instead of the calendars alone. It succeeds when Google gives any of the
+    /// apps' access asked for; the tokens say which.
+    #[must_use]
+    pub fn with_scopes(mut self, scopes: &'static str) -> SignIn {
+        self.scopes = scopes;
+        self
     }
 
     fn google(&self) -> Res<&Google> {
@@ -158,7 +177,9 @@ impl SignIn {
             .append_pair("client_id", &google.client_id)
             .append_pair("redirect_uri", &redirect)
             .append_pair("response_type", "code")
-            .append_pair("scope", SCOPES)
+            .append_pair("scope", self.scopes)
+            // Keeps what this account already gave Mobius for its other apps, so one app's sign-in doesn't drop another's.
+            .append_pair("include_granted_scopes", "true")
             .append_pair("access_type", "offline")
             .append_pair("prompt", "consent")
             .append_pair("state", &state)
@@ -190,17 +211,18 @@ impl SignIn {
         if status != 200 {
             return Err(if tokens.get("error").and_then(Value::as_str) == Some("invalid_grant") { "The sign-in code had expired. Try again.".into() } else { format!("Google refused the sign-in (HTTP {status}).") });
         }
-        // Google lets people untick what an app asks for; without the calendars there is nothing to show.
+        // Google lets people untick what an app asks for; with none of the apps' access there is nothing to show.
         let granted = tokens.get("scope").and_then(Value::as_str).unwrap_or("");
-        if !granted.split_whitespace().any(|s| s == CALENDAR_SCOPE) {
-            return Err("Google didn't give Mobius access to your calendars. Sign in again and leave that box ticked.".into());
+        let asked = self.scopes.split_whitespace().filter(|s| s.starts_with("https://"));
+        if !asked.clone().any(|a| granted.split_whitespace().any(|s| s == a)) {
+            return Err(if asked.count() > 1 { "Google didn't give Mobius access to anything it asked for. Sign in again and leave the boxes ticked.".into() } else { "Google didn't give Mobius access to your calendars. Sign in again and leave that box ticked.".into() });
         }
         // The ID token comes straight from Google's token endpoint over TLS, so its claims are checked, not its signature.
         let email = tokens.get("id_token").and_then(Value::as_str).and_then(jwt_claims).filter(|c| c.get("aud").and_then(Value::as_str) == Some(google.client_id.as_str())).and_then(|c| c.get("email").and_then(Value::as_str).map(str::to_owned)).filter(|e| e.len() <= 200);
         let access = tokens.get("access_token").and_then(Value::as_str).filter(|s| !s.is_empty()).ok_or("Google did not send a token.")?.to_owned();
         let refresh = tokens.get("refresh_token").and_then(Value::as_str).unwrap_or("").to_owned();
         let expires = now() + tokens.get("expires_in").and_then(Value::as_u64).unwrap_or(3600);
-        Ok(Tokens { access, refresh, expires, email })
+        Ok(Tokens { access, refresh, expires, email, granted: Some(granted.chars().take(2000).collect()) })
     }
 
     /// Fresh tokens for stale ones. `EXPIRED` when Google won't refresh them: the person signs in again.
@@ -221,7 +243,7 @@ impl SignIn {
         let access = fresh.get("access_token").and_then(Value::as_str).filter(|s| !s.is_empty()).ok_or("Google did not send a token.")?.to_owned();
         let refresh = fresh.get("refresh_token").and_then(Value::as_str).filter(|s| !s.is_empty()).map_or_else(|| tokens.refresh.clone(), str::to_owned);
         let expires = now() + fresh.get("expires_in").and_then(Value::as_u64).unwrap_or(3600);
-        Ok(Tokens { access, refresh, expires, email: tokens.email.clone() })
+        Ok(Tokens { access, refresh, expires, email: tokens.email.clone(), granted: None })
     }
 
     /// Where Google's CalDAV endpoint starts, for the account's address.
@@ -300,7 +322,7 @@ pub(crate) mod tests {
                 let path = line.split_whitespace().nth(1).unwrap_or("").to_owned();
                 let claims = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(r#"{"aud":"client","email":"ana@example.com"}"#);
                 let (status, reply) = if path == "/token" && body.contains("grant_type=authorization_code") {
-                    (200, json!({ "access_token": "a1", "refresh_token": "r1", "expires_in": 3600, "scope": format!("openid email {CALENDAR_SCOPE}"), "id_token": format!("x.{claims}.y") }))
+                    (200, json!({ "access_token": "a1", "refresh_token": "r1", "expires_in": 3600, "scope": format!("openid email {CALENDAR_SCOPE} https://www.googleapis.com/auth/drive.file"), "id_token": format!("x.{claims}.y") }))
                 } else if path == "/token" && refused.load(Ordering::SeqCst) {
                     (400, json!({ "error": "invalid_grant" }))
                 } else if path == "/token" {
@@ -368,7 +390,7 @@ pub(crate) mod tests {
         let refused = Arc::new(AtomicBool::new(false));
         let base = google(refused.clone(), Arc::default());
         let sign_in = SignIn::new(app(), endpoints(&base, CALDAV));
-        let stale = Tokens { access: "a1".into(), refresh: "r1".into(), expires: 0, email: Some("ana@example.com".into()) };
+        let stale = Tokens { access: "a1".into(), refresh: "r1".into(), expires: 0, email: Some("ana@example.com".into()), granted: None };
         assert!(!stale.fresh());
         let fresh = sign_in.refresh(&stale).unwrap();
         assert_eq!((fresh.access.as_str(), fresh.refresh.as_str()), ("a2", "r1"), "Google keeps the refresh token");

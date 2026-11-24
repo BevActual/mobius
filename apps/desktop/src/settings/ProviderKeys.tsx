@@ -157,7 +157,7 @@ function ProviderRow({ provider: p, onChanged, firstRun = false }: { provider: P
   const status = !p.needsKey ? 'No key needed' : p.hasKey ? `${p.storage === 'session' ? 'Key saved until Mobius quits' : 'Key saved'}${p.place?.value ? ` · ${p.place.value}` : ''}` : 'No key';
 
   return (
-    <li className="prow" aria-label={p.name} data-active={p.active || undefined}>
+    <li className="prow" aria-label={p.name} data-active={p.active || undefined} data-setting={`providers.keys.service-${p.id}`}>
       <div className="prow-main">
         <span className="prow-name">{p.name}{p.active && <span className="prow-badge">In use</span>}</span>
         <span className="prow-note">{p.note}</span>
@@ -280,7 +280,7 @@ function AccountRow({ account: a, onChanged, hideMissing = false, firstRun = fal
   if (hideMissing && status !== null && !status.installed) return null;
   const said = status === null ? 'Checking…' : !status.installed ? (a.id === 'copilot' ? 'Copilot CLI is not installed' : 'Claude Code is not installed') : status.signedIn ? `Signed in${status.account ? ` as ${status.account}` : ''}` : waiting ? 'Waiting for you to sign in' : 'Not signed in';
   return (
-    <li className="prow" aria-label={a.name} data-active={a.active || undefined}>
+    <li className="prow" aria-label={a.name} data-active={a.active || undefined} data-setting={`providers.keys.service-${a.id}`}>
       <div className="prow-main">
         <span className="prow-name">{a.name}{a.active && <span className="prow-badge">In use</span>}</span>
         <span className="prow-note">{a.note}</span>

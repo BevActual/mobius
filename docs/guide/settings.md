@@ -18,8 +18,29 @@ so a half-filled form isn't lost, and the next Esc closes Settings.
 
 | Section | What it holds | Explained in |
 | --- | --- | --- |
-| **Accounts** | Every account Mobius signs in to (mail, calendars, drives, chat, model gateways): which are connected, which need you to sign in again, and Disconnect | This page |
+| **Accounts** | Every account, one row each: Google and Microsoft accounts, mail, contacts, drives and chat, with Model Plans and Connectors in their own cards below. Which apps each is on for, which need you to sign in again, and Remove Account | [Accounts](#accounts) |
 | **Gateways** | Plans you sign in to, API keys, local and custom servers, instructions | [Models and gateways](models-and-gateways.md#gateways) |
+
+### Accounts
+
+Accounts works like Internet Accounts on a Mac: one row per account, whatever apps use it. The grey line under each
+says which apps it's on for, or **Sign in again** with a red dot when it needs you. Choose a row to open the account's
+own page.
+
+- **Use this account for** has a switch for each app the account can serve. Turning one off removes only that app's
+  part (its mail, events and files stay with the provider). Turning the last one off keeps the account listed.
+- **Add Account…** lists the providers: Google, Microsoft, iCloud, Fastmail, Slack and Dropbox, then **Other
+  Account…** for a mail account, a CalDAV calendar, a calendar subscription, CardDAV contacts, a WebDAV or S3 drive,
+  Matrix or Telegram. Google and Microsoft sign in once, in your browser, for Calendar and Files together, and the
+  account's page then turns each on or off. The others open the app that adds them. Mail still takes an app password,
+  added in **Mail**; Teams keeps its own sign-in in **Messages**.
+- **Remove Account…** asks once more, then removes every app's part of the account.
+
+Below the accounts, **Model Plans** lists the plans you're signed in to and the services you keep a key for; a row
+opens **Gateways** at that service. **Connectors** lists the connectors Mobius runs; a row opens **Store**. Only
+**Sign in again** gets a red dot.
+
+While Mobius is in Google's testing, a Google sign-in lasts 7 days; the account then shows **Sign in again**.
 
 ## Mobius
 
@@ -55,6 +76,7 @@ so a half-filled form isn't lost, and the next Esc closes Settings.
 | **Browser** | Allowed sites, local addresses, bookmarks, history | [Browser](../apps/browse-and-find.md#browser) |
 | **Mail** | Mail accounts: add one with an app password, or remove one | [Mail](../apps/browse-and-find.md#mail) |
 | **Calendar** | Calendar accounts: subscribe to a link, connect iCloud, Fastmail or Nextcloud, or sign in to Google or Outlook | [Calendar](../apps/write-and-plan.md#calendar) |
+| **Contacts** | Contacts accounts: connect iCloud, Fastmail or Nextcloud address books with an app password, or remove one | This page |
 | **Messages** | Chat accounts: sign in to Slack, or remove a workspace | [Messages](../apps/browse-and-find.md#messages) |
 | **Store** | Opens the Store | [Store](abilities.md) |
 

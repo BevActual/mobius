@@ -14,9 +14,10 @@ import '../settings.css';
 import { MailAccountsSettings } from '../MailAccounts';
 import { ConnectionsList } from './AccountsPage';
 import { CalendarAccountsSettings } from '../CalendarAccounts';
+import { ContactsAccountsSettings } from '../ContactsAccounts';
 import { MessagesAccountsSettings } from '../MessagesAccounts';
 
-type Passed = Omit<SectionProps, 'subpage' | 'highlight'>;
+type Passed = Omit<SectionProps, 'subpage' | 'highlight' | 'detail' | 'onOpen'>;
 
 // The same glyphs as Files' Back and Forward, so the two toolbars match.
 const BACK = <svg viewBox="0 0 20 20" aria-hidden="true">{GLYPH.back}</svg>;
@@ -33,10 +34,11 @@ export function typingIn(target: EventTarget | null): boolean {
 }
 
 /** A place in Settings, for Back and Forward. */
-interface Place { section: SectionId; subpage: string }
+/** A place in Settings: a section's page, and (Accounts) one account's own page. */
+interface Place { section: SectionId; subpage: string; detail?: string }
 
 const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
-  connections: ({ onGo, onOpenApp }) => <ConnectionsList onGo={onGo ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
+  connections: ({ subpage, onGo, onOpenApp, detail, onOpen }) => <ConnectionsList card={subpage === 'plans' || subpage === 'connectors' ? subpage : 'accounts'} onGo={onGo ?? (() => {})} detail={detail ?? null} onOpen={onOpen ?? (() => {})} {...(onOpenApp ? { onOpenApp } : {})} />,
   general: GeneralSection,
   voice: VoiceSection,
   memory: MemorySection,
@@ -53,6 +55,8 @@ const VIEWS: Record<SectionId, (props: SectionProps) => React.JSX.Element> = {
   mail: ({ highlight }) => <MailAccountsSettings highlight={highlight === 'mail-accounts'} />,
   // Calendar's accounts (from the Calendar app).
   calendar: ({ highlight }) => <CalendarAccountsSettings highlight={highlight === 'calendar-accounts'} />,
+  // Contacts' address books on a CardDAV server.
+  contacts: ({ highlight }) => <ContactsAccountsSettings highlight={highlight === 'contacts-accounts'} />,
   // Messages' accounts (from the Messages app).
   messages: ({ highlight }) => <MessagesAccountsSettings highlight={highlight === 'messages-accounts'} />,
   notifications: NotificationsSection,
@@ -68,6 +72,8 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   const [subpage, setSubpage] = useState<string>(() => initialSubpage ?? findSection(initial ?? 'general')?.subpages[0]?.id ?? '');
   const [query, setQuery] = useState('');
   const [highlight, setHighlight] = useState<string | null>(null);
+  // An account's own page under Accounts, as System Settings opens one from Internet Accounts.
+  const [detail, setDetail] = useState<string | null>(null);
   // Bumped on every move to a page, so the page is scrolled to even when it is the one already open.
   const [moved, setMoved] = useState(0);
   // Back and Forward, as in System Settings: every section visited, and where in that list Settings is now.
@@ -141,32 +147,40 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
   // Each move lands where it was going: the setting a search found, the page asked for (Appearance's Layout from the
   // View menu), or the top of the section, not wherever the last section had been scrolled to.
   useEffect(() => {
-    const row = highlight && root.current?.querySelector(`[data-setting$=".${highlight}"]`);
+    const find = () => (highlight ? root.current?.querySelector(`[data-setting$=".${highlight}"]`) : null);
+    const row = find();
     const first = findSection(section)?.subpages[0]?.id;
     const page = subpage && subpage !== first && root.current?.querySelector(`[data-subpage="${subpage}"]`);
     if (row) row.scrollIntoView({ block: 'center' });
     else if (page) page.scrollIntoView({ block: 'start' });
     else content.current?.scrollTo?.({ top: 0 });
+    // A row that loads after the page (a gateway Accounts opened) is scrolled to when it comes, for a moment.
+    if (row || !highlight || !root.current || typeof MutationObserver === 'undefined') return;
+    const watch = new MutationObserver(() => { const late = find(); if (late) { watch.disconnect(); late.scrollIntoView({ block: 'center' }); } });
+    watch.observe(root.current, { childList: true, subtree: true });
+    const stop = window.setTimeout(() => watch.disconnect(), 3000);
+    return () => { watch.disconnect(); window.clearTimeout(stop); };
   }, [moved]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /** Shows a place without adding it to Back and Forward. */
-  const show = (id: SectionId, sub: string, row?: string) => {
+  const show = (id: SectionId, sub: string, row?: string, page?: string) => {
     setSection(id);
     setSubpage(sub);
+    setDetail(page ?? null);
     setHighlight(row ?? null);
     setQuery('');
     setMoved((n) => n + 1);
   };
   /** Opens a section, at one of its pages and one of its settings when given; Back returns to where it was. */
-  const go = (id: SectionId, sub?: string, row?: string) => {
+  const go = (id: SectionId, sub?: string, row?: string, open?: string) => {
     const page = sub ?? findSection(id)?.subpages[0]?.id ?? '';
     setTrail((t) => {
       const here = t.places[t.at];
-      if (here && here.section === id && here.subpage === page) return t;
-      const places = [...t.places.slice(0, t.at + 1), { section: id, subpage: page }];
+      if (here && here.section === id && here.subpage === page && here.detail === open) return t;
+      const places = [...t.places.slice(0, t.at + 1), { section: id, subpage: page, ...(open ? { detail: open } : {}) }];
       return { places, at: places.length - 1 };
     });
-    show(id, page, row);
+    show(id, page, row, open);
   };
   /** One place back (-1) or forward (1). */
   const step = (by: -1 | 1) => {
@@ -174,7 +188,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
     const place = trail.places[at];
     if (!place) return;
     setTrail({ ...trail, at });
-    show(place.section, place.subpage);
+    show(place.section, place.subpage, undefined, place.detail);
   };
   const openSection = (id: SectionId) => go(id);
   // Opened again at another section while it is open (Help › Keyboard Shortcuts, View › Layout), it goes there.
@@ -224,7 +238,10 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
               </ul>
             )
           ) : (
-            current && (
+            current && detail && section === 'connections' ? (
+              // An account's page draws its own crumb and heading: they name the account.
+              <PageBoundary key={`account.${detail}`}><View subpage={subpage} highlight={highlight} detail={detail} onOpen={(next) => (next ? go(section, subpage, undefined, next) : step(-1))} onGo={(id, sub, row) => go(id, sub, row)} {...rest} /></PageBoundary>
+            ) : current && (
               <>
                 {/* Where it is (its group › its name), the name, one quiet line on what it is for, then each of its pages
                     as a group: a small grey heading over one rounded card of rows, as in System Settings and Linear. */}
@@ -234,7 +251,7 @@ export function SettingsPage({ onClose, initial, initialSubpage, sidebar = null,
                 {current.subpages.map((page) => (
                   <section key={page.id} className="settings-group" aria-label={page.label} data-subpage={page.id}>
                     {(current.subpages.length > 1 || page.label !== current.label) && !(page.rows.length === 1 && page.rows[0]!.label === page.label) && <h3 className="settings-group-title">{page.label}</h3>}
-                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} onGo={(id, sub) => go(id, sub)} {...rest} /></PageBoundary></div>
+                    <div className="settings-card"><PageBoundary key={`${section}.${page.id}`}><View subpage={page.id} highlight={highlight} onGo={(id, sub, row) => go(id, sub, row)} onOpen={(next) => { if (next) go(section, page.id, undefined, next); }} {...rest} /></PageBoundary></div>
                   </section>
                 ))}
               </>

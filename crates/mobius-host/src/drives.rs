@@ -813,6 +813,11 @@ impl Drives {
         Ok(json!(account))
     }
 
+    /// The OneDrive kept for the Microsoft account `email`, if there is one.
+    pub(crate) fn onedrive_of(&self, email: &str) -> Option<DriveAccount> {
+        self.lock().iter().find(|a| a.kind == "onedrive" && !email.is_empty() && a.username.eq_ignore_ascii_case(email)).cloned()
+    }
+
     fn onedrive(&self) -> Arc<crate::onedrive::Service> {
         self.onedrive.lock().unwrap_or_else(std::sync::PoisonError::into_inner).clone()
     }
@@ -852,7 +857,7 @@ impl Drives {
         Ok(json!(pending))
     }
 
-    fn keep_onedrive(&self, name: Option<&str>, folder: &str, link: &str, again: Option<&DriveAccount>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
+    pub(crate) fn keep_onedrive(&self, name: Option<&str>, folder: &str, link: &str, again: Option<&DriveAccount>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
         let tokens = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
         if let Some(account) = again {
             if !account.username.is_empty() && !signed.email.is_empty() && !account.username.eq_ignore_ascii_case(&signed.email) {

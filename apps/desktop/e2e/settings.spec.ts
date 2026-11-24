@@ -90,7 +90,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Store', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Contacts', 'Messages', 'Store', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -472,14 +472,52 @@ test('Usage counts a model call, groups it by model and app, and clears after as
   await expect(page().getByText('Nothing used in this period.').first()).toBeVisible();
 });
 
-test('Accounts lists every connection in one place, and Adjust goes to its own page', async () => {
+test('Accounts lists one row per account, opens its own page, and Add Account offers each provider', async () => {
   await start([]);
+  // An account signed in to once and switched off for every app stays listed, as Internet Accounts keeps it.
+  await shell().evaluate(() => window.mobius.accounts!.remember({ provider: 'google', email: 'ana@gmail.com' }));
   await openSettings();
   await go('Accounts');
   await expect(shell().locator('.toolbar-sub')).toHaveText('Accounts');
-  await expect(page().getByRole('button', { name: 'Add a connection…' })).toBeVisible();
+  const list = page().getByRole('list', { name: 'Accounts' });
+  const ana = list.getByRole('button', { name: /ana@gmail\.com/ });
+  await expect(ana).toContainText('Not on for any app');
+  // Model plans and connectors each have their own card below.
+  await expect(page().getByRole('heading', { name: 'Model Plans' })).toBeVisible();
+  await expect(page().getByRole('list', { name: 'Model plans' })).toBeVisible();
+  await expect(page().getByRole('list', { name: 'Connectors' })).toBeVisible();
   await expect(page().getByRole('button', { name: 'Find more in Store' })).toBeVisible();
-  await page().getByRole('button', { name: 'Add a connection…' }).click();
-  await shell().getByRole('menuitem', { name: 'Model gateway…' }).click();
-  await expect(shell().locator('.toolbar-sub')).toHaveText('Gateways');
+
+  await ana.click();
+  await expect(page().locator('.settings-crumb')).toHaveText('Connections › Accounts › ana@gmail.com');
+  await expect(page().getByRole('heading', { name: 'ana@gmail.com' })).toBeVisible();
+  await expect(page().getByText('Google · Connected')).toBeVisible();
+  const apps = page().getByRole('list', { name: 'Apps' });
+  await expect(apps.getByRole('switch')).toHaveCount(3);
+  for (const app of ['Mail', 'Calendar', 'Files']) await expect(apps.getByRole('switch', { name: app })).not.toBeChecked();
+  // An account's page is a step: Back returns to the list, Forward to the account.
+  await shell().keyboard.press('Alt+ArrowLeft');
+  await expect(ana).toBeVisible();
+  await shell().keyboard.press('Alt+ArrowRight');
+  await expect(page().getByRole('heading', { name: 'ana@gmail.com' })).toBeVisible();
+
+  // Remove Account… asks once more, then the account is gone.
+  await page().getByRole('button', { name: 'Remove Account…' }).click();
+  const sheet = shell().getByRole('alertdialog', { name: 'Remove ana@gmail.com' });
+  await expect(sheet).toContainText('stay with Google');
+  await sheet.getByRole('button', { name: 'Remove' }).click();
+  await expect(list.getByRole('button', { name: /ana@gmail\.com/ })).toHaveCount(0);
+  expect(await shell().evaluate(() => window.mobius.accounts!.list())).toEqual([]);
+
+  await list.getByRole('button', { name: 'Add Account…' }).click();
+  const add = shell().getByRole('dialog', { name: 'Add Account' });
+  // Each row's name, without its mark's letter.
+  await expect(add.getByRole('list', { name: 'Providers' }).locator('.conn-account')).toHaveText(['Google', 'Microsoft', 'iCloud', 'Fastmail', 'Slack', 'Dropbox', 'Other Account…']);
+  await add.getByRole('button', { name: 'Other Account…' }).click();
+  await expect(add.getByRole('list', { name: 'Kinds of account' }).locator('.conn-account')).toHaveText(['Mail account', 'CalDAV calendar', 'Calendar subscription', 'CardDAV contacts', 'WebDAV or S3 drive', 'Matrix', 'Telegram']);
+  await add.getByRole('button', { name: 'Back' }).click();
+  await expect(add.getByRole('list', { name: 'Providers' })).toBeVisible();
+  await add.getByRole('button', { name: 'Other Account…' }).click();
+  await add.getByRole('button', { name: 'CardDAV contacts' }).click();
+  await expect(shell().locator('.toolbar-sub')).toHaveText('Contacts');
 });

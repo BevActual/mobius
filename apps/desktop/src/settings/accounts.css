@@ -1,0 +1,31 @@
+/* Settings › Accounts: the rows that open an account, the Add Account sheet, and an account's own page
+   (docs/design/settings-accounts.md). The card, its rows, marks and hairlines are settings.css's conn-* rules, shared
+   with the sheet; this file has only what Accounts adds. */
+
+/* A row is one button: mark, address over its grey line, chevron. 52px with two lines, 44px with one (Add Account…,
+   and each provider in the sheet). */
+:is(.settings-page, .acct-sheet) .acct-row { padding: 0; }
+:is(.settings-page, .acct-sheet) .acct-row-button { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 44px; padding: 6px var(--sp-2) 6px var(--sp-4); border: 0; border-radius: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.settings-page .acct-row-button:has(> .conn-main) { min-height: 52px; padding-block: 8px; }
+:is(.settings-page, .acct-sheet) .acct-row-button:hover:not(:disabled), :is(.settings-page, .acct-sheet) .acct-row-button:focus-visible { background: var(--soft); }
+:is(.settings-page, .acct-sheet) .acct-row-button:disabled { color: var(--muted); cursor: default; }
+:is(.settings-page, .acct-sheet) .acct-row-button:disabled .conn-mark { opacity: 0.5; }
+.settings-page .acct-row-button .conn-service { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.settings-page .acct-chevron { flex: none; width: 16px; height: 16px; margin-left: auto; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Add Account… (a plus) and Other Account… (an ellipsis): outlined, not filled, so they read as actions, not accounts. */
+:is(.settings-page, .acct-sheet) .conn-mark.acct-plus { --chip: transparent; color: var(--muted); border: var(--hairline-w) solid var(--line); font-size: var(--fs-md); font-weight: var(--fw-regular); }
+:is(.settings-page, .acct-sheet) .acct-row-button:hover .acct-plus { color: var(--ink); }
+.acct-sheet .conn-list { margin-top: var(--sp-1); }
+
+/* An account's page: the mark at 40px beside its address and state, then its cards, then Remove Account… alone. */
+.settings-page .acct-head { display: flex; align-items: center; gap: var(--sp-3); margin: var(--sp-1) 0 var(--sp-5); }
+.settings-page .conn-mark.acct-mark-large { width: 40px; height: 40px; border-radius: 10px; font-size: var(--fs-lg); }
+.settings-page .acct-head-text { min-width: 0; }
+.settings-page .acct-head .settings-heading { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-page .acct-state { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.settings-page .acct-app { justify-content: space-between; min-height: 44px; padding-right: var(--sp-4); }
+.settings-page .acct-switch[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.settings-page .acct-remove-line { margin: var(--sp-5) 0 0; }
+.settings-page .acct-remove { height: var(--control-h); padding: 0 var(--sp-2); margin-left: calc(-1 * var(--sp-2)); border: 0; border-radius: var(--radius-control); background: none; font: inherit; color: var(--danger); cursor: pointer; }
+.settings-page .acct-remove:hover:not(:disabled), .settings-page .acct-remove:focus-visible { background: var(--soft); }
+.settings-page .acct-remove:disabled { opacity: 0.5; cursor: default; }

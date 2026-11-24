@@ -340,6 +340,8 @@ pub struct Bridge {
     place_watcher: Mutex<Option<::notify::RecommendedWatcher>>,
     /// Files picked on Google Drive, opened from Files (`drive.file` only).
     google_drive: Mutex<Arc<crate::google_drive::GoogleDrive>>,
+    /// Google and Microsoft accounts signed in to once for several apps (Settings › Accounts).
+    identities: Arc<crate::identities::Identities>,
     /// Workspace folders synced with a folder on a drive.
     syncs: Arc<crate::sync_pairs::Syncs>,
     /// Address books on CardDAV servers, each synced with its folder under `contacts/`.
@@ -564,6 +566,7 @@ impl Bridge {
             messages: Arc::new(crate::messages::Accounts::new(&data_dir, secrets.clone())),
             drives,
             google_drive: Mutex::new(Arc::new(crate::google_drive::GoogleDrive::new(crate::google_drive::App::built_in(), crate::google_drive::Endpoints::default(), secrets.clone(), &data_dir.join("google-drive.json")))),
+            identities: Arc::new(crate::identities::Identities::new(&data_dir)),
             contact_accounts,
             syncs,
             mail: Arc::new(crate::mail::store::Mail::new(&data_dir, secrets.clone())),
@@ -780,6 +783,7 @@ impl Bridge {
             ("messages", _) => Ok(self.messages_call(method, args)),
             ("drives", _) => Ok(self.drives_call(method, args)),
             ("googleDrive", _) => Ok(self.google_drive_call(method, args)),
+            ("accounts", _) => Ok(self.accounts_call(method, args)),
             ("providers", _) => Ok(self.providers_call(method, args)),
             ("share", "status") => Ok(self.mcp_server.status()),
             ("share", "token") => Ok(self.mcp_server.reveal_token().map_or(Value::Null, Value::String)),
@@ -2250,6 +2254,60 @@ impl Bridge {
 
     /// Files' "Open from Google Drive". Every answer is what was asked for or `{ ok: false, message }`; a pick's
     /// result comes later as `mobius:google-drive-changed` with the files `opened` and those that `failed`.
+    /// Settings › Accounts: the accounts signed in to once, and one sign-in for several apps. How it ends comes as
+    /// `mobius:accounts-sign-in`; each app that kept it also says so in its own event.
+    fn accounts_call(&self, method: &str, args: &[Value]) -> Value {
+        let ids = Arc::clone(&self.identities);
+        let field = |k: &str| args.first().and_then(|a| a.get(k)).and_then(Value::as_str).unwrap_or("");
+        let result: Result<Value, String> = match method {
+            "list" => Ok(json!(ids.list())),
+            "status" => Ok(ids.status()),
+            "cancel" => {
+                ids.cancel();
+                Ok(json!({ "ok": true }))
+            }
+            "remember" => {
+                ids.remember(field("provider"), field("email"));
+                Ok(json!({ "ok": true }))
+            }
+            "forget" => {
+                ids.forget(field("provider"), field("email"));
+                Ok(json!({ "ok": true }))
+            }
+            "signIn" => {
+                let apps: Vec<crate::identities::App> = args.first().and_then(|a| a.get("apps")).and_then(Value::as_array).map(|a| a.iter().filter_map(Value::as_str).filter_map(crate::identities::App::parse).collect()).unwrap_or_default();
+                let emit = self.emit.clone();
+                let done: Arc<dyn Fn(Result<Value, String>) + Send + Sync> = Arc::new(move |kept: Result<Value, String>| match kept {
+                    Ok(done) => {
+                        let on = |app: &str| done.get("on").and_then(Value::as_array).is_some_and(|a| a.iter().any(|x| x == app));
+                        if on("calendar") {
+                            emit("mobius:calendar-sign-in", json!({ "ok": true, "account": { "id": done["calendar"], "name": done["email"] } }));
+                        }
+                        if on("files") {
+                            emit("mobius:google-drive-changed", Value::Null);
+                            emit("mobius:drives-changed", json!({ "drive": "", "path": "", "by": "person" }));
+                        }
+                        emit("mobius:accounts-sign-in", json!({ "ok": true, "account": done }));
+                    }
+                    Err(message) if message == "cancelled" => {}
+                    Err(message) => emit("mobius:accounts-sign-in", json!({ "ok": false, "message": message })),
+                });
+                let calendar = Arc::clone(&self.calendar_accounts);
+                match field("provider") {
+                    "google" => {
+                        let drive = lock(&self.google_drive).clone();
+                        let drive = drive.status().get("setUp").and_then(Value::as_bool).unwrap_or(false).then_some(drive);
+                        ids.google_sign_in(&apps, calendar, drive, done).map(|url| json!({ "url": url }))
+                    }
+                    "microsoft" => ids.microsoft_sign_in(&apps, calendar, Arc::clone(&self.drives), done).map(|url| json!({ "url": url })),
+                    _ => Err("Choose Google or Microsoft.".to_owned()),
+                }
+            }
+            other => Err(format!("unknown accounts method {other}")),
+        };
+        result.unwrap_or_else(|message| json!({ "ok": false, "message": message }))
+    }
+
     fn google_drive_call(&self, method: &str, args: &[Value]) -> Value {
         use crate::google_drive::CHANGED;
         let google = lock(&self.google_drive).clone();
@@ -2263,7 +2321,8 @@ impl Bridge {
                 Ok(json!({ "ok": true }))
             }
             "signOut" => {
-                google.sign_out();
+                // Google ends every app's access when one token is revoked, so a sign-in Calendar shares is only forgotten.
+                if google.account().is_some_and(|email| self.calendar_accounts.find("google", &email).is_some()) { google.forget_sign_in() } else { google.sign_out() }
                 emit("mobius:google-drive-changed", Value::Null);
                 Ok(json!({ "ok": true }))
             }

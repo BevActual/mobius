@@ -1935,6 +1935,21 @@ fn google_drive_says_it_is_not_set_up_until_mobius_is_registered() {
 }
 
 #[test]
+fn accounts_are_remembered_and_forgotten_and_say_when_a_provider_is_not_set_up() {
+    let (b, _c) = bridge();
+    assert_eq!(call(&b, "accounts", "list", json!([])), json!([]));
+    assert_eq!(call(&b, "accounts", "status", json!([]))["google"]["setUp"], false);
+    let ana = json!([{ "provider": "google", "email": "ana@gmail.com" }]);
+    assert_eq!(call(&b, "accounts", "remember", ana.clone())["ok"], true);
+    assert_eq!(call(&b, "accounts", "list", json!([])), json!([{ "provider": "google", "email": "ana@gmail.com" }]));
+    assert_eq!(call(&b, "accounts", "forget", ana)["ok"], true);
+    assert_eq!(call(&b, "accounts", "list", json!([])), json!([]));
+    let sign_in = call(&b, "accounts", "signIn", json!([{ "provider": "google", "apps": ["calendar", "files"] }]));
+    assert_eq!((sign_in["ok"].clone(), sign_in["message"].clone()), (json!(false), json!(mobius_host::calendar_sign_in::NOT_SET_UP)));
+    assert_eq!(call(&b, "accounts", "signIn", json!([{ "provider": "yahoo", "apps": ["calendar"] }]))["ok"], false);
+}
+
+#[test]
 fn onedrive_says_it_is_not_set_up_until_mobius_is_registered() {
     let (b, _c) = bridge();
     assert_eq!(call(&b, "drives", "onedriveStatus", json!([]))["setUp"], false);
