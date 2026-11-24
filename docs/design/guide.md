@@ -46,12 +46,12 @@ Checked 24 November 2026; pull requests not merged yet are marked (open).
 | Mail | Yes | #772 | Threads, attachment chips, Done and Later on hover (review B4 to B8) |
 | Music | Yes | #782 | Engine parity work, not look |
 | Browser | Yes | #783 | Nothing for the look |
-| Settings | Yes | #786, #863 (open) | Sections always shown (#863) |
-| Calendar | Yes | #798, #800, #862 (open) | Autosave on the docked event page |
+| Settings | Yes | #786, #863 | A full pass with Andrew, next |
+| Calendar | Yes | #798, #800, #862 | Autosave on the docked event page |
 | Tasks | Yes | #801 | Part B: When and Deadline, Things-style views |
-| Notes | Yes | #804, #862 (open) | Nothing for the look |
-| Docs | Yes | #809, #862 (open) | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
-| Files | In review | #865 (open) | Screens from a PC check |
+| Notes | Yes | #804, #862 | Nothing for the look |
+| Docs | Yes | #809, #862 | Part B: Editing, Suggesting and Viewing; comment on a selection; Page setup |
+| Files | Yes | #865 | Screens from a PC check |
 | Messages | Spec written | Its own pull request, next | The app work |
 | Home | No | | Next: its spec is in the Hub's review files |
 | Everything else | Frame only | #770 | Each app's own pass, after the seven folded apps move to their new homes |
