@@ -274,6 +274,12 @@ export interface CalendarSuggestion { id: string; calendar: string; title: strin
 export interface CalendarSource { name: string; account: string | null; readOnly: boolean }
 /** A calendar kept elsewhere: a subscribed link, or a CalDAV account (iCloud, Fastmail, Nextcloud). */
 /** How a calendar sign-in in the browser ended. */
+/** A Google or Microsoft account signed in to once, for several apps (Settings › Accounts). */
+export interface Identity { /** "google" or "microsoft" for one signed in to here; any provider for one kept listed. */ provider: string; email: string }
+/** How a sign-in for several apps ended: the apps that kept it, and why any did not. */
+export type IdentitySignIn = { ok: true; account: { provider: 'google' | 'microsoft'; email: string; on: IdentityApp[]; off: { app: IdentityApp; why: string }[] } } | { ok: false; message: string };
+/** The apps one Google or Microsoft sign-in can serve. Mail keeps app passwords; Teams keeps its own sign-in. */
+export type IdentityApp = 'calendar' | 'files';
 export type CalendarSignIn = { ok: true; account: { id: string; name: string } } | { ok: false; message: string };
 
 export interface CalendarAccount { id: string; kind: 'subscription' | 'caldav' | 'google' | 'microsoft'; name: string; url: string; username: string; calendars: string[]; /** Its task lists, shown in Tasks. */ taskLists: string[]; lastSyncMs: number; problem: string | null }
@@ -1070,6 +1076,19 @@ export interface MobiusBridge {
    * browser; the files picked are copied into the workspace and come back as `mobius:google-drive-changed` with
    * `opened` and `failed`. A copy saves back over its file unless the file changed on Drive since (`conflict`).
    */
+  /** Settings › Accounts: one Google or Microsoft sign-in for several apps. Only the Tauri shell has it. */
+  accounts?: {
+    list(): Promise<Identity[]>;
+    status(): Promise<Record<'google' | 'microsoft', { setUp: boolean; pending: string | null }>>;
+    /** Starts one sign-in for `apps` and answers the page to open; how it ends comes to `onSignIn`. */
+    signIn(request: { provider: 'google' | 'microsoft'; apps: IdentityApp[] }): Promise<{ url: string } | NotesFailure>;
+    cancel(): Promise<{ ok: true }>;
+    /** Keeps an account listed though no app uses it now. */
+    remember(identity: Identity): Promise<{ ok: true }>;
+    /** Stops listing it; each app's own part is removed by that app. */
+    forget(identity: Identity): Promise<{ ok: true }>;
+    onSignIn(listener: (done: IdentitySignIn) => void): () => void;
+  };
   googleDrive?: {
     status(): Promise<GoogleDriveStatus>;
     /** The page to open in the browser to sign in. */

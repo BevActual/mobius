@@ -40,6 +40,7 @@ pub mod drives;
 pub mod local_drive;
 pub mod google_drive;
 pub mod graph_calendar;
+pub mod identities;
 pub mod s3;
 pub mod dropbox;
 pub mod onedrive;

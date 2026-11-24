@@ -320,6 +320,8 @@ impl GoogleDrive {
             .append_pair("redirect_uri", &redirect)
             .append_pair("response_type", "code")
             .append_pair("scope", SCOPES)
+            // Keeps what this account already gave Mobius for Calendar.
+            .append_pair("include_granted_scopes", "true")
             .append_pair("access_type", "offline")
             .append_pair("prompt", "consent")
             .append_pair("state", &state)
@@ -580,6 +582,28 @@ impl GoogleDrive {
     }
 
     /// Forget the sign-in, and ask Google to end it. The links are kept, so signing in again can save back.
+    /// Keeps a Google sign-in made for several apps at once (Settings › Accounts), when it gave access to picked files.
+    /// Replaces the sign-in Drive had.
+    pub fn adopt(&self, access: &str, refresh: &str, expires: u64, email: Option<&str>, granted: &str) -> Result<(), String> {
+        self.app()?;
+        if !granted.split_whitespace().any(|s| s == FILE_SCOPE) {
+            return Err("Google didn't give Mobius access to the files you pick.".into());
+        }
+        self.save(&Tokens { access: access.to_owned(), refresh: refresh.to_owned(), expires, email: email.map(str::to_owned) })
+    }
+
+    /// Stops using Google Drive without ending the sign-in at Google, for an account another app (Calendar) still uses:
+    /// Google ends every app's access at once when one token is revoked.
+    pub fn forget_sign_in(&self) {
+        self.cancel();
+        self.secrets.delete(SECRET);
+    }
+
+    /// The address signed in, if any.
+    pub fn account(&self) -> Option<String> {
+        self.tokens().and_then(|t| t.email)
+    }
+
     pub fn sign_out(&self) {
         self.cancel();
         if let Some(tokens) = self.tokens() {

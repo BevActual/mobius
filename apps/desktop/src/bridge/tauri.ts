@@ -30,6 +30,7 @@ import {
   type ChatSignIn,
   type CalendarChanged,
   type CalendarSignIn,
+  type IdentitySignIn,
   type ContactsChanged,
   type GoogleDriveChanged,
   type DrivesChanged,
@@ -562,6 +563,15 @@ export function createTauriBridge(): MobiusBridge {
       matrixRecover: (account, key) => call('messages', 'matrixRecover', [account, key], () => ({ ok: false as const, message: 'Messages is not available.' })),
       matrixVerify: (account, step) => call('messages', 'matrixVerify', [account, step], () => ({ ok: false as const, message: 'Messages is not available.' })),
       onSignIn: (listener) => on<ChatSignIn>('mobius:messages-sign-in', listener),
+    },
+    accounts: {
+      list: () => call('accounts', 'list', [], () => []),
+      status: () => call('accounts', 'status', [], () => ({ google: { setUp: false, pending: null }, microsoft: { setUp: false, pending: null } })),
+      signIn: (request) => call('accounts', 'signIn', [request], () => ({ ok: false as const, message: 'Accounts are not available.' })),
+      cancel: () => call('accounts', 'cancel', [], () => ({ ok: true as const })),
+      remember: (identity) => call('accounts', 'remember', [identity], () => ({ ok: true as const })),
+      forget: (identity) => call('accounts', 'forget', [identity], () => ({ ok: true as const })),
+      onSignIn: (listener) => on<IdentitySignIn>('mobius:accounts-sign-in', listener),
     },
     googleDrive: {
       status: () => call('googleDrive', 'status', [], () => ({ setUp: false, signedIn: false, account: null, pending: null, hint: null })),

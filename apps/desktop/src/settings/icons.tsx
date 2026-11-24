@@ -20,6 +20,7 @@ export const SECTION_ICONS: Record<SectionId, ReactNode> = {
   browser: APP_ICONS.browser,
   mail: APP_ICONS.mail,
   calendar: APP_ICONS.calendar,
+  contacts: <><circle cx="10" cy="7.5" r="3" /><path d="M4.5 16.5c.8-2.8 3-4.5 5.5-4.5s4.7 1.7 5.5 4.5" /></>,
   messages: APP_ICONS.messages,
   sessions: <path d="M3 4.5h14v9H8l-4 3v-3H3z" />,
   extensions: <><rect x="3" y="3" width="6" height="6" rx="1" /><rect x="11" y="3" width="6" height="6" rx="1" /><rect x="3" y="11" width="6" height="6" rx="1" /><rect x="11" y="11" width="6" height="6" rx="1" /></>,

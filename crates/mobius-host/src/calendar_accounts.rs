@@ -539,6 +539,11 @@ impl Accounts {
         Ok(json!({ "ok": true }))
     }
 
+    /// The account of `kind` ("google" or "microsoft") signed in as `email`, if there is one.
+    pub(crate) fn find(&self, kind: &str, email: &str) -> Option<String> {
+        self.lock().iter().find(|a| a.kind == kind && !email.is_empty() && a.username.eq_ignore_ascii_case(email)).map(|a| a.id.clone())
+    }
+
     // ---- Google ----
 
     fn google(&self) -> Arc<SignIn> {
@@ -575,7 +580,7 @@ impl Accounts {
         Ok(json!({ "url": url }))
     }
 
-    fn keep_google(&self, name: &str, again: Option<&str>, tokens: &Tokens) -> Res<Value> {
+    pub(crate) fn keep_google(&self, name: &str, again: Option<&str>, tokens: &Tokens) -> Res<Value> {
         let text = serde_json::to_string(tokens).map_err(|e| e.to_string())?;
         if let Some(id) = again {
             let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That account is gone.")?;
@@ -671,7 +676,7 @@ impl Accounts {
         Ok(json!({ "url": pending.url }))
     }
 
-    fn keep_microsoft(&self, name: &str, again: Option<&str>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
+    pub(crate) fn keep_microsoft(&self, name: &str, again: Option<&str>, signed: &crate::onedrive::SignedIn) -> Res<Value> {
         let text = serde_json::to_string(&signed.tokens).map_err(|e| e.to_string())?;
         if let Some(id) = again {
             let account = self.lock().iter().find(|a| a.id == id).cloned().ok_or("That account is gone.")?;
@@ -1285,6 +1290,42 @@ mod tests {
 
         accounts.remove(&id).unwrap();
         assert!(secrets.get(&secret_name(&id)).is_none(), "the sign-in goes with it");
+    }
+
+    #[test]
+    fn one_google_sign_in_serves_calendar_and_files_and_the_account_is_remembered() {
+        use crate::calendar_sign_in::tests::{agree, app, endpoints, google};
+        use crate::identities::{App, Identities};
+        use std::sync::atomic::AtomicBool;
+        let (base, _store, _log) = server();
+        let at = google(Arc::new(AtomicBool::new(false)), Arc::new(Mutex::new(0)));
+        let dir = tempfile::tempdir().unwrap();
+        let secrets = Arc::new(MemorySecrets::new(true));
+        let accounts = Arc::new(Accounts::new(dir.path(), secrets.clone()));
+        accounts.use_google(app(), endpoints(&at, &format!("{base}/g")));
+        let drive_app = crate::google_drive::App { client_id: "client".into(), client_secret: "not-secret".into(), api_key: "key".into() };
+        let drive = Arc::new(crate::google_drive::GoogleDrive::new(Some(drive_app), crate::google_drive::Endpoints::default(), secrets.clone(), &dir.path().join("links.json")));
+        let ids = Arc::new(Identities::new(dir.path()));
+        ids.use_google(app(), endpoints(&at, &format!("{base}/g")));
+        let sign_in = || {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let page = ids.google_sign_in(&[App::Calendar, App::Files], Arc::clone(&accounts), Some(Arc::clone(&drive)), Arc::new(move |r| tx.send(r).unwrap())).unwrap();
+            assert!(page.contains("drive.file") && page.contains("auth%2Fcalendar") && page.contains("include_granted_scopes=true"), "one page asks for both: {page}");
+            agree(&page);
+            rx.recv_timeout(Duration::from_secs(10)).unwrap().unwrap()
+        };
+        let done = sign_in();
+        assert_eq!((done["email"].clone(), done["on"].clone()), (json!("ana@example.com"), json!(["calendar", "files"])));
+        assert_eq!(accounts.list()[0]["username"], "ana@example.com");
+        assert_eq!(drive.status()["account"], "ana@example.com", "Files keeps the same sign-in");
+        assert_eq!(ids.list().iter().map(|i| (i.provider.as_str(), i.email.as_str())).collect::<Vec<_>>(), [("google", "ana@example.com")]);
+        // Signing in again renews what there is, not a second account.
+        sign_in();
+        assert_eq!(accounts.list().as_array().unwrap().len(), 1);
+        // Files stops without ending Calendar's access at Google.
+        drive.forget_sign_in();
+        assert_eq!(drive.status()["signedIn"], false);
+        assert_eq!(accounts.list()[0]["problem"], Value::Null);
     }
 
     #[test]

@@ -66,6 +66,10 @@ import { APPLY_EVENT, PERMISSIONS, loadApply, permissionOf, saveApply, type Perm
 export interface SectionProps {
   subpage: string;
   highlight: string | null;
+  /** Accounts: the account whose own page is open, if one is. */
+  detail?: string | null;
+  /** Opens an item's own page (an account), or goes back from it with null. */
+  onOpen?: (detail: string | null) => void;
   settings: AgentSettings | null;
   onSaveSettings: (request: AgentConfigureRequest) => Promise<AgentResult>;
   appearance: AppearanceSettings;

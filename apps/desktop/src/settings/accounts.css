@@ -1,0 +1,22 @@
+/* Settings › Accounts: the rows that open an account, and an account's own page (docs/design/settings-accounts.md).
+   The Design lead owns the look; these only lay out what the page has, on settings.css's tokens. */
+.settings-page .acct-row { padding: 0; }
+.settings-page .acct-row-button { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: var(--sp-3); min-height: 52px; padding: 8px var(--sp-2) 8px var(--sp-4); border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.settings-page .acct-row-button:hover, .settings-page .acct-row-button:focus-visible { background: var(--soft); }
+.settings-page .acct-row-button .conn-service { display: inline-flex; align-items: center; gap: 6px; }
+.settings-page .acct-chevron { flex: none; width: 16px; height: 16px; fill: none; stroke: var(--muted); stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.settings-page .acct-plus { --chip: transparent; color: var(--ink); border: var(--hairline-w) solid var(--line); font-size: var(--fs-md); }
+.acct-sheet .conn-list { margin: 0; padding: 0; list-style: none; border: var(--hairline-w) solid var(--line); border-radius: var(--radius-panel); overflow: hidden; }
+.acct-sheet .conn-row { display: flex; }
+.acct-sheet .acct-row-button { flex: 1; display: flex; align-items: center; gap: var(--sp-3); min-height: 44px; padding: 6px var(--sp-3); border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.acct-sheet .acct-row-button:hover, .acct-sheet .acct-row-button:focus-visible { background: var(--soft); }
+.acct-sheet .conn-mark { flex: none; display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--radius-small); font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: #fff; background: var(--chip, var(--muted)); }
+.settings-page .acct-head { display: flex; align-items: center; gap: var(--sp-3); margin: var(--sp-1) 0 var(--sp-4); }
+.settings-page .acct-mark-large { width: 40px; height: 40px; border-radius: 10px; font-size: var(--fs-lg); }
+.settings-page .acct-head .settings-heading { margin: 0; }
+.settings-page .acct-state { display: inline-flex; align-items: center; gap: 6px; margin: 2px 0 0; font-size: var(--fs-sm); color: var(--muted); }
+.settings-page .acct-app { justify-content: space-between; min-height: 44px; }
+.settings-page .acct-switch[aria-disabled="true"] { opacity: 0.5; pointer-events: none; }
+.settings-page .acct-remove-line { margin: var(--sp-4) 0 0; }
+.settings-page .acct-remove { padding: 0; border: 0; background: none; font: inherit; color: var(--danger); cursor: pointer; }
+.settings-page .acct-remove:disabled { opacity: 0.5; cursor: default; }
