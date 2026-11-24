@@ -32,6 +32,10 @@ pub enum BridgeError {
     Invalid(String),
 }
 
+/// Mail sort on the quick model, asking the chat model again only about what it was unsure of. Off until the
+/// comparison in tests/mail_sort_eval.rs shows it matching the chat model alone.
+const SORT_ON_QUICK: bool = false;
+
 impl BridgeError {
     pub fn message(&self) -> &str {
         match self {
@@ -1745,12 +1749,29 @@ impl Bridge {
                 // Two rounds for forty messages (each call can be its own process, so many at once pays).
                 at_once: Some(20),
                 // On the chat model: Haiku as the quick model sorted more loosely (30L), and the counts rest on it.
-                // Moving it back waits on the comparison in tests/mail_sort_eval.rs.
-                chat: true,
+                // With SORT_ON_QUICK, the quick model sorts and the chat model is asked again about what it was
+                // unsure of; turned on once tests/mail_sort_eval.rs shows that matching the chat model.
+                chat: !SORT_ON_QUICK,
                 format: Some(crate::mail::store::sort_format()),
                 ..Default::default()
             };
-            let answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            let mut answers = if job.asks.is_empty() { Vec::new() } else { self.ask_each(&job, &mut |_, _| {})? };
+            if SORT_ON_QUICK {
+                let unsure: Vec<crate::ask_each::Ask> = job.asks.iter()
+                    .filter(|a| answers.iter().find(|(id, _)| *id == a.id).is_none_or(|(_, t)| !t.as_ref().is_ok_and(|t| !crate::mail::store::sort_unsure(t))))
+                    .cloned()
+                    .collect();
+                if !unsure.is_empty() {
+                    let again = crate::ask_each::Job { asks: unsure, chat: true, ..job.clone() };
+                    // A chat answer takes the quick one's place; where the chat model failed, the quick one stays.
+                    for (id, answer) in self.ask_each(&again, &mut |_, _| {}).unwrap_or_default() {
+                        if answer.is_ok() {
+                            answers.retain(|(a, _)| *a != id);
+                            answers.push((id, answer));
+                        }
+                    }
+                }
+            }
             return Ok(Value::String(self.mail.sort_result(&answers).to_string()));
         }
         if tool == "mail.draft_replies" {
