@@ -103,7 +103,7 @@ and XL needs a new foundation first (named under "Shaping Music" below).
 | Master track with its own effects | The engine plays `main` (effects, then level; 0.8 when unset) | Main in the format and the Mixer | M (format) |
 | Return tracks and sends | The engine plays `returns` (up to 12) and each track's post-fader `sends` | Returns and sends in the format and the Mixer | M (format) |
 | A mixer view | None | Mixer, in Session and as a panel in Arrange | M (library `Mixer` exists) |
-| Freeze and flatten | Freeze in the engine: a track's instrument, clips and effects rendered to Samples/Processed/Freeze and played in their place in Arrange, its volume, pan and sends still live (Live 12 manual, 38.1.4 "Track Freeze") | The window's Freeze/Unfreeze; Session clips; flatten | S |
+| Freeze and flatten | Freeze in the engine: a track's instrument, clips and effects rendered to Samples/Processed/Freeze and played in their place in Arrange, and each Session clip two times round (`<track> Freeze Clip <n>.wav`, kept as `frozen.slots` by slot) played in its place in Session, its volume, pan and sends still live (Live 12 manual, 38.1.4 "Track Freeze") | The window's Freeze/Unfreeze keeping `frozen.slots`; flatten | S |
 | Latency compensation, track delay | Not needed yet | Comes with the engine | — |
 
 ### Audio
@@ -367,7 +367,7 @@ first. Phase 1 (the engine) and phase 2 (the format and the layout) run at the s
    - Audio clips and tracks, recording from an input with monitoring.
    - The Sampler, and drum pads that hold samples (engine done; the window next).
    - Warping, with a stretcher in the engine.
-   - Freeze, and exporting stems (stems in the engine done; freeze next).
+   - Freeze, and exporting stems (both in the engine done, Session clips frozen too).
 4. **Devices and movement** (about 3 weeks):
    - Automation for every setting, and clip envelopes (automation of the mixer and of effect settings, and clip envelopes of volume, pan and sends, in the engine done).
    - Modulators and sidechain (the compressor's sidechain, LFO, shaper and envelope follower in the engine done).
