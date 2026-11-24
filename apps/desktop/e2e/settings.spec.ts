@@ -90,7 +90,7 @@ test('the sections are the ones Mobius has, in order, and each shows its own pag
   const nav = shell().getByRole('navigation', { name: 'Settings sections' });
   // As in System Settings: sections with icons under headings, search at the top of the sidebar.
   await expect(nav.locator('.side-title')).toHaveText(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
-  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Advanced', 'About']);
+  await expect(nav.getByRole('button')).toHaveText(['Accounts', 'Gateways', 'General', 'Appearance', 'Notifications', 'Keyboard', 'Conversations', 'Schedules', 'Models', 'Voice', 'Usage', 'Approvals and safety', 'Memory', 'Privacy', 'Browser', 'Mail', 'Calendar', 'Messages', 'Store', 'Advanced', 'About']);
   await expect(shell().getByRole('complementary', { name: 'Sections' }).getByRole('searchbox', { name: 'Search settings' })).toBeVisible();
   await expect(page().getByRole('switch', { name: 'Reopen the last conversation' })).toBeVisible();
   await go('Approvals and safety');
@@ -122,6 +122,41 @@ test('search finds a setting by what it is about and jumps to it', async () => {
   await expect(search).toHaveValue('');
   await search.fill('qqqzzz');
   await expect(page().getByText('No settings match')).toBeVisible();
+});
+
+test('the arrow keys move through search results, and each section opens at its top', async () => {
+  await start([]);
+  await openSettings();
+  const search = shell().getByRole('searchbox', { name: 'Search settings' });
+  await search.fill('zoom');
+  const results = page().getByRole('list', { name: 'Search results' }).getByRole('button');
+  await expect(results.first()).toBeVisible();
+  await search.press('ArrowDown');
+  await expect(results.first()).toBeFocused();
+  await shell().keyboard.press('ArrowUp');
+  await expect(search).toBeFocused();
+  await search.press('ArrowDown');
+  await shell().keyboard.press('Enter');
+  await expect(page().locator('[data-highlight="true"]')).toBeInViewport();
+  // Scrolled down one section, the next one starts at its top, not where the last one was.
+  const content = page().locator('.settings-content');
+  await content.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+  await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await go('Advanced');
+  await expect.poll(() => content.evaluate((el) => el.scrollTop)).toBe(0);
+});
+
+test('Keyboard lists the keys Mobius keeps, and Little Mobius no longer shares Ctrl+Shift+M with showing Mobius', async () => {
+  await start([]);
+  await openSettings();
+  await go('Keyboard');
+  await expect(page().getByRole('button', { name: 'Show or hide Mobius beside the work: Ctrl+Shift+M, cannot be changed' })).toBeDisabled();
+  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Not set');
+  // A shortcut can't take one of them.
+  await page().getByRole('button', { name: 'Change Open or close Little Mobius' }).click();
+  await shell().keyboard.press('Control+Shift+M');
+  await expect(page().getByRole('alert')).toContainText('Mobius keeps these keys');
+  await expect(page().getByTestId('keys-littleMobius')).toHaveText('Not set');
 });
 
 test('theme: choosing dark changes the whole app, and it is remembered', async () => {

@@ -308,11 +308,11 @@ const SECTIONS: readonly SettingsSection[] = [
   },
   {
     id: 'extensions',
-    label: 'Abilities',
-    description: 'Apps, skills, connectors and plugins live in the Abilities app.',
+    label: 'Store',
+    description: 'Apps, skills, connectors and plugins live in the Store.',
     subpages: [
-      { id: 'open', label: 'Abilities', rows: [
-        row('extensions-app', 'Open Abilities', 'Add and remove apps, and install, update and turn off skills, connectors and plugins.', 'extensions', 'add apps', 'remove apps', 'apps', 'skills', 'connectors', 'plugins', 'mcp', 'catalogue', 'install', 'updates'),
+      { id: 'open', label: 'Store', rows: [
+        row('extensions-app', 'Open Store', 'Add and remove apps, and install, update and turn off skills, connectors and plugins.', 'extensions', 'abilities', 'add apps', 'remove apps', 'apps', 'skills', 'connectors', 'plugins', 'mcp', 'catalogue', 'install', 'updates'),
       ] },
     ],
   },
@@ -324,7 +324,7 @@ const ORDER: ReadonlyArray<[SectionId, string]> = [
   ['general', 'Mobius'], ['appearance', 'Mobius'], ['notifications', 'Mobius'], ['keyboard', 'Mobius'], ['sessions', 'Mobius'], ['schedules', 'Mobius'],
   ['model', 'Models'], ['voice', 'Models'], ['usage', 'Models'],
   ['safety', 'Safety'], ['memory', 'Safety'], ['privacy', 'Safety'],
-  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'],
+  ['browser', 'Apps'], ['mail', 'Apps'], ['calendar', 'Apps'], ['messages', 'Apps'], ['extensions', 'Apps'],
   ['advanced', 'System'], ['about', 'System'],
 ];
 

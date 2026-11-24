@@ -3,7 +3,7 @@ import { SETTINGS, findSection, searchSettings, settingPath } from './manifest';
 
 describe('the settings map', () => {
   it('has the sections in a fixed order, each with at least one subpage', () => {
-    expect(SETTINGS.map((s) => s.id)).toEqual(['connections', 'providers', 'general', 'appearance', 'notifications', 'keyboard', 'sessions', 'schedules', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'messages', 'advanced', 'about']);
+    expect(SETTINGS.map((s) => s.id)).toEqual(['connections', 'providers', 'general', 'appearance', 'notifications', 'keyboard', 'sessions', 'schedules', 'model', 'voice', 'usage', 'safety', 'memory', 'privacy', 'browser', 'mail', 'calendar', 'messages', 'extensions', 'advanced', 'about']);
     // Under headings, as in System Settings.
     expect([...new Set(SETTINGS.map((s) => s.group))]).toEqual(['Connections', 'Mobius', 'Models', 'Safety', 'Apps', 'System']);
     for (const section of SETTINGS) {
@@ -26,6 +26,12 @@ describe('the settings map', () => {
     expect(findSection('model')?.label).toBe('Models');
     expect(findSection('providers')?.label).toBe('Gateways');
     expect(findSection('nope')).toBeUndefined();
+  });
+
+  it('lists the Store, so a search for plugins or the old name finds the way to it', () => {
+    expect(findSection('extensions')?.label).toBe('Store');
+    expect(searchSettings('plugins').map((h) => h.row)).toContain('extensions-app');
+    expect(searchSettings('abilities').map((h) => h.row)).toContain('extensions-app');
   });
 });
 

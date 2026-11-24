@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { MobiusMark } from '../MobiusMark';
 import { Select } from '../ui';
 import { ChatModelPopUp, FallbackPopUp, ImagesRow, QuickPopUp } from './ModelDefaults';
@@ -17,6 +17,9 @@ import {
   comboOfPress,
   comboProblem,
   conflictFor,
+  FIXED_KEYS,
+  fixedKeyFor,
+  settleBindings,
   describeCombo,
   formatCombo,
   type AboutInfo,
@@ -758,7 +761,9 @@ function ShortcutRow({ action, bindings, onChange, note }: { action: ShortcutAct
       const reason = comboProblem(combo);
       const text = formatCombo(combo);
       const other = conflictFor(bindings, action, text);
+      const fixed = fixedKeyFor(text);
       if (reason) setProblem(reason);
+      else if (fixed) setProblem(`Mobius keeps these keys for "${fixed.label}". Choose different keys.`);
       else if (other) setProblem(`Already used for "${SHORTCUT_INFO[other].label}". Change or clear that one first.`);
       else {
         setProblem('');
@@ -771,7 +776,7 @@ function ShortcutRow({ action, bindings, onChange, note }: { action: ShortcutAct
   }, [capturing, bindings, action, onChange]);
 
   const keys = binding === '' ? 'Not set' : describeCombo(binding, window.mobius.platform);
-  const canReset = binding !== DEFAULT_KEYBINDINGS[action] && conflictFor(bindings, action, DEFAULT_KEYBINDINGS[action]) === null;
+  const canReset = binding !== DEFAULT_KEYBINDINGS[action] && conflictFor(bindings, action, DEFAULT_KEYBINDINGS[action]) === null && !fixedKeyFor(DEFAULT_KEYBINDINGS[action]);
   return (
     <li className="shortcut-item">
       <span className="shortcut-name">
@@ -810,7 +815,8 @@ function FixedShortcut({ keys, what }: { keys: string; what: string }) {
 }
 
 export function KeyboardSection({ subpage, highlight, preferences, onPreferences }: SectionProps) {
-  const bindings = preferences.keybindings;
+  // As the app uses them: one saved on a key Mobius keeps for itself shows its usual keys again.
+  const bindings = useMemo(() => settleBindings(preferences.keybindings), [preferences.keybindings]);
   const change = useCallback((next: KeyBindings) => void onPreferences({ keybindings: next }), [onPreferences]);
   const [working, setWorking] = useState<boolean | null>(null);
   const [launcherWorking, setLauncherWorking] = useState<boolean | null>(null);
@@ -829,6 +835,7 @@ export function KeyboardSection({ subpage, highlight, preferences, onPreferences
       <Row path={path('shortcut-list')} title="Keyboard shortcuts" description="Click a shortcut and press the new keys. Esc cancels. On a Mac, Ctrl means Command." highlight={highlight === 'shortcut-list'}>
         <ul className="shortcut-list" aria-label="Keyboard shortcuts">
           {IN_APP.map((action) => <ShortcutRow key={action} action={action} bindings={bindings} onChange={change} />)}
+          {FIXED_KEYS.map(({ binding, label }) => <FixedShortcut key={binding} keys={describeCombo(binding, window.mobius.platform)} what={label} />)}
           {FIXED_SHORTCUTS.map(([keys, what]) => <FixedShortcut key={keys} keys={keys} what={what} />)}
         </ul>
         {changed ? <p className="shortcut-foot"><button type="button" className="btn" onClick={() => change(DEFAULT_KEYBINDINGS)}>Reset all shortcuts</button></p> : null}

@@ -52,6 +52,7 @@ effect as soon as you change them; there is no Save button.
 | **Mail** | Mail accounts: add one with an app password, or remove one | [Mail](../apps/browse-and-find.md#mail) |
 | **Calendar** | Calendar accounts: subscribe to a link, connect iCloud, Fastmail or Nextcloud, or sign in to Google or Outlook | [Calendar](../apps/write-and-plan.md#calendar) |
 | **Messages** | Chat accounts: sign in to Slack, or remove a workspace | [Messages](../apps/browse-and-find.md#messages) |
+| **Store** | Opens the Store | [Store](abilities.md) |
 
 ## System
 
