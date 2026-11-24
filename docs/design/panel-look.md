@@ -94,12 +94,14 @@ and in Mobius itself.
 
 ## Mobius
 
-- The panel is docked right as today. At rest it shows **Waiting for you** as real objects (the Pad idea, the reply to
-  Priya) with Open or Review, then the ideas as chips above the composer. It is never an empty column.
+- **The panel starts closed in every app** (Andrew, 24 November 2026: "the mobius pannel should default to staying
+  closed"). The Mobius icon at the end of the tool row, its key (Ctrl Shift M) or a Mobius action in the app opens it,
+  docked right. Home and the Agent app are Mobius at full size and need no panel.
+- Once open, it shows **Waiting for you** as real objects (the Pad idea, the reply to Priya) with Open or Review, then
+  the ideas as chips above the composer. Opened, it is never an empty column.
 - A change Mobius made stays dashed where it happens, with one floating **Why · Discard · Try another · Keep** bar near
   it and the request in one line under it. No banners across the top.
-- Browser and Settings start with the panel closed. Browser has "Ask about this page (Ctrl L)" at the foot of its tabs
-  panel; nothing floats over the web page.
+- Browser has "Ask about this page (Ctrl L)" at the foot of its Tabs panel; nothing floats over the web page.
 
 ## The apps
 

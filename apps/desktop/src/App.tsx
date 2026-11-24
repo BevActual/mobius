@@ -308,9 +308,8 @@ export function App() {
   useEffect(() => {
     if (!appearance.loaded || startedUp.current) return;
     startedUp.current = true;
-    // Mobius sits in the right panel, beside the work, from the start (the layout adopted 2026-11-13).
-    // Browser (marked): already moved to the Browser, which keeps Mobius closed, it opens on leaving instead.
-    if (appearance.value.rightSidebar !== 'floating') { if (chatBeforeBrowser.current !== null) chatBeforeBrowser.current = true; else setChatOpen(true); }
+    // The Mobius panel starts closed in every app (Andrew, 24 November 2026); the Mobius icon, its key or a Mobius
+    // action opens it. Home is the conversation itself.
     if (!appearance.value.resumeLast) conversation.startFresh();
   }, [appearance.loaded, appearance.value, conversation]);
   const [settingsOpen, setSettingsOpen] = useState(false);
