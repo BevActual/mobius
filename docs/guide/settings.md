@@ -1,7 +1,7 @@
 # Settings
 
-Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Settings groups them, and the search box
-at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
+Ctrl+, opens Settings. Its sections are grouped in the sidebar the way System Settings groups them. The sidebar is
+always there, as System Settings' is, so every section stays one click away. The search box at the top finds any setting by what it does ("dark", "fallback", "dictation"). This page says what each section holds
 and where it is explained.
 
 The toolbar names the section, and the page opens on one grey line on what it is for. Then come its settings, one per

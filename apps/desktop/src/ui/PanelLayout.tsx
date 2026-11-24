@@ -35,6 +35,9 @@ export interface PanelSpec {
   /** Panels with the same group in one dock share a place there, as tabs in one header (Code's Terminal, Tests and
    *  Problems at the bottom). Each is still shown and hidden on its own; showing one brings its tab to the front. */
   group?: string;
+  /** Always there, as System Settings' sidebar is: no Hide button, not in the Panels menu, and the dock's key and a
+   *  layout kept from before leave it shown (Settings' sections, without which its pages cannot be reached). */
+  fixed?: boolean;
   /** The name screen readers hear, when it must differ from the header's (Settings' panel, beside a page also named Settings). */
   label?: string;
   /** The panel's body. Its own controls go here, never in the header. */
@@ -150,7 +153,7 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   const update = useCallback((change: (was: SavedLayout) => SavedLayout) => {
     setSaved((was) => { const next = change(was); writeLayout(app, next); return next; });
   }, [app]);
-  const isShown = useCallback((p: PanelSpec) => saved.shown[p.id] ?? p.shown ?? false, [saved.shown]);
+  const isShown = useCallback((p: PanelSpec) => p.fixed || (saved.shown[p.id] ?? p.shown ?? false), [saved.shown]);
   const isFront = useCallback((p: PanelSpec) => {
     if (!p.group) return true;
     const place = dockPlaces(panels.filter((x) => x.dock === p.dock && isShown(x)), saved.front).find((x) => x.panels.includes(p));
@@ -158,7 +161,7 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   }, [panels, isShown, saved.front]);
   const toggle = useCallback((id: string) => {
     const p = panels.find((x) => x.id === id);
-    if (!p) return;
+    if (!p || p.fixed) return;
     const on = isShown(p);
     // A panel shown behind another tab comes to the front rather than hiding.
     if (on && p.group && !isFront(p)) { update((was) => ({ ...was, front: { ...was.front, [p.group!]: id } })); return; }
@@ -177,7 +180,7 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   // The frame lists this app's panels in its Panels menu while the app is on screen.
   const register = useContext(Registry);
   const listed = useMemo<PanelsOfApp>(() => ({
-    panels: panels.map((p) => ({ id: p.id, name: p.name, dock: p.dock, shown: isShown(p), ...(p.keys ? { keys: p.keys } : {}) })),
+    panels: panels.filter((p) => !p.fixed).map((p) => ({ id: p.id, name: p.name, dock: p.dock, shown: isShown(p), ...(p.keys ? { keys: p.keys } : {}) })),
     toggle,
     reset,
   }), [panels, isShown, toggle, reset]);
@@ -192,9 +195,12 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
       const dock = DOCKS.find((d) => pressIs(DOCK_KEYS[d], e, mac()));
       // A place that uses the key for itself says so (Music's notes join with Ctrl+J, as in a studio).
       if (dock && (e.target as Element | null)?.closest?.(`[data-own-keys~="${DOCK_KEYS[dock]}"]`)) return;
-      const inDock = dock ? panels.filter((p) => p.dock === dock) : [];
-      if (inDock.length === 0) return;
+      const all = dock ? panels.filter((p) => p.dock === dock) : [];
+      if (all.length === 0) return;
       e.preventDefault();
+      // A dock of fixed panels keeps the key, so it doesn't reach the shell's list hidden behind them.
+      const inDock = all.filter((p) => !p.fixed);
+      if (inDock.length === 0) return;
       const anyShown = inDock.some(isShown);
       if (anyShown) inDock.filter((p) => p.onHide && isShown(p)).forEach((p) => p.onHide!());
       update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(inDock.filter((p) => !(anyShown && p.onHide)).map((p) => [p.id, !anyShown])) } }));
@@ -237,7 +243,7 @@ export function PanelLayout({ app, panels, children }: { app: string; panels: re
   // Close in a tab group's header hides the whole group.
   const hide = (place: DockPlace) => {
     place.panels.filter((p) => p.onHide).forEach((p) => p.onHide!());
-    const rest = place.panels.filter((p) => !p.onHide);
+    const rest = place.panels.filter((p) => !p.onHide && !p.fixed);
     if (rest.length > 0) update((was) => ({ ...was, shown: { ...was.shown, ...Object.fromEntries(rest.map((p) => [p.id, false])) } }));
   };
   const choose = (p: PanelSpec) => update((was) => withFront(was, [p]));
@@ -319,9 +325,11 @@ function Panel({ place, onHide, onChoose }: { place: DockPlace; onHide: () => vo
         ) : (
           <h2 className="ui-panel-name">{spec.name}</h2>
         )}
-        <button type="button" className="ui-panel-close" aria-label={hideLabel} title={hideLabel} onClick={onHide}>
-          <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>
-        </button>
+        {!place.panels.every((p) => p.fixed) && (
+          <button type="button" className="ui-panel-close" aria-label={hideLabel} title={hideLabel} onClick={onHide}>
+            <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M3 3l6 6M9 3l-6 6" /></svg>
+          </button>
+        )}
       </header>
       <div className="ui-panel-body" id={`panel-body-${spec.id}`} {...(tabbed ? { role: 'tabpanel', 'aria-labelledby': `panel-tab-${spec.id}` } : {})}>{spec.render()}</div>
     </section>
