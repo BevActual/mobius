@@ -816,7 +816,10 @@ impl Device {
                 continue;
             }
             let feedback_delay = matches!(self.parts[p].kind, Kind::Delay { feedback: true, .. });
-            if !feedback_delay {
+            if feedback_delay {
+                // Its time, moved by what was worked out last piece (it is read before anything else in this one).
+                self.gather_settings(p, n);
+            } else {
                 self.gather(p, n);
             }
             self.run(p, n, rate, feedback_delay, key, clock);
@@ -849,10 +852,21 @@ impl Device {
 
     /// Adds up what comes into part `p` down its cables: sound to its inputs, movement to its settings.
     fn gather(&mut self, p: usize, n: usize) {
+        self.gather_into(p, n, true);
+    }
+
+    /// Adds up only the movement coming into part `p`'s settings.
+    fn gather_settings(&mut self, p: usize, n: usize) {
+        self.gather_into(p, n, false);
+    }
+
+    fn gather_into(&mut self, p: usize, n: usize, sound: bool) {
         let part = &mut self.parts[p];
-        for port in &mut part.ins {
-            for ch in port.iter_mut() {
-                ch[..n].fill(0.0);
+        if sound {
+            for port in &mut part.ins {
+                for ch in port.iter_mut() {
+                    ch[..n].fill(0.0);
+                }
             }
         }
         for (i, moved) in part.moved.iter_mut().enumerate() {
@@ -860,7 +874,7 @@ impl Device {
         }
         for c in 0..self.cables.len() {
             let (from, to, end) = self.cables[c];
-            if to != p {
+            if to != p || (!sound && matches!(end, End::Port(_))) {
                 continue;
             }
             let (src_l, src_r) = (self.parts[from].out[0], self.parts[from].out[1]);
@@ -1134,16 +1148,35 @@ fn builtin(e: &Value) -> Option<Value> {
             ],
             vec![["in", "f"], ["lfo", "f.cutoff"], ["f", "out"]],
         ),
-        "chorus" => (
-            vec![
+        // Live 12's Chorus-Ensemble (29.8) in its Chorus and Vibrato modes: a delayed voice whose time an LFO moves,
+        // with an optional high-pass on it and feedback (inverted with `invert`); Vibrato plays the voice alone.
+        "chorus" => {
+            let vibrato = e.get("mode").and_then(Value::as_str) == Some("vibrato");
+            let highpass = n("highpass", 0.0).clamp(0.0, 2000.0);
+            let feedback = n("feedback", 0.0).clamp(0.0, 0.95) * if e.get("invert").and_then(Value::as_bool) == Some(true) { -1.0 } else { 1.0 };
+            let mut parts = vec![
                 part("in", "input", serde_json::json!({})),
-                part("voice", "delay", serde_json::json!({ "seconds": n("delay", 0.012) })),
-                part("lfo", "lfo", serde_json::json!({ "rate": n("rate", 0.8), "depth": n("depth", 0.003) })),
-                part("mix", "mix", serde_json::json!({ "amount": n("mix", 0.5) })),
+                part("voice", "delay", serde_json::json!({ "seconds": n("delay", if vibrato { 0.005 } else { 0.012 }) })),
+                part("lfo", "lfo", serde_json::json!({ "rate": n("rate", if vibrato { 5.0 } else { 0.8 }), "depth": n("depth", if vibrato { 0.002 } else { 0.003 }) })),
+                part("mix", "mix", serde_json::json!({ "amount": if vibrato { 1.0 } else { n("mix", 0.5) } })),
                 part("out", "output", serde_json::json!({})),
-            ],
-            vec![["in", "mix.dry"], ["in", "voice"], ["lfo", "voice.time"], ["voice", "mix.wet"], ["mix", "out"]],
-        ),
+            ];
+            let mut cables = vec![["lfo", "voice.time"], ["voice", "mix.wet"], ["mix", "out"]];
+            if !vibrato {
+                cables.push(["in", "mix.dry"]);
+            }
+            if highpass >= 20.0 {
+                parts.push(part("hp", "filter", serde_json::json!({ "type": "highpass", "cutoff": highpass, "resonance": 0.7, "gain": 0 })));
+                cables.extend([["in", "hp"], ["hp", "voice"]]);
+            } else {
+                cables.push(["in", "voice"]);
+            }
+            if feedback != 0.0 && !vibrato {
+                parts.push(part("back", "gain", serde_json::json!({ "gain": feedback })));
+                cables.extend([["voice", "back"], ["back", "voice"]]);
+            }
+            (parts, cables)
+        }
         "phaser" => {
             let stage = |id: &str| part(id, "filter", serde_json::json!({ "type": "allpass", "cutoff": n("center", 800.0), "resonance": 0.7, "gain": 0 }));
             (
@@ -1640,6 +1673,46 @@ mod tests {
     use serde_json::json;
 
     const RATE: u32 = 48_000;
+
+    /// `fx`'s left channel for `input` (both channels), a piece at a time.
+    fn run_fx(fx: &Value, input: &[f32]) -> Vec<f32> {
+        let mut chain = Chain::new(std::slice::from_ref(fx), RATE, 0.5, false).unwrap();
+        let (mut l, mut r) = (input.to_vec(), input.to_vec());
+        chain.process(&mut l, &mut r, f64::from(RATE));
+        l
+    }
+
+    #[test]
+    fn chorus_vibrato_feedback_and_high_pass() {
+        let mut click = vec![0.0f32; 9_600];
+        click[0] = 1.0;
+        let still = |mode: &str| json!({ "id": "c", "kind": "chorus", "mode": mode, "delay": 0.01, "depth": 0.0, "mix": 0.5 });
+        // Chorus hears the dry sound and one echo 10 ms on; Vibrato only the echo.
+        let chorus = run_fx(&still("chorus"), &click);
+        assert!((chorus[0] - 0.5).abs() < 1e-6 && (chorus[480] - 0.5).abs() < 1e-3, "{} {}", chorus[0], chorus[480]);
+        let vibrato = run_fx(&still("vibrato"), &click);
+        assert!(vibrato[0].abs() < 1e-6 && (vibrato[480] - 1.0).abs() < 1e-3, "{} {}", vibrato[0], vibrato[480]);
+        // Feedback sends the echo round again, a little quieter each time (a piece later, as the window hears a loop),
+        // and Invert turns it over.
+        let mut fed = still("chorus");
+        fed["feedback"] = json!(0.5);
+        let echoes = run_fx(&fed, &click);
+        let late: f32 = echoes[600..2_000].iter().map(|x| x.abs()).sum();
+        // 10 ms, then 10 ms and a piece (128 samples) each time round: 0.25 at 1088, 0.125 at 1696.
+        assert!((late - 0.375).abs() < 0.01, "{late}");
+        fed["invert"] = json!(true);
+        let inverted = run_fx(&fed, &click);
+        assert!(echoes[600..2_000].iter().zip(&inverted[600..2_000]).all(|(a, b)| (a + b).abs() < 1e-6 || (a - b).abs() < 1e-6));
+        let peaks: Vec<_> = echoes.iter().zip(&inverted).enumerate().filter(|(_, (a, _))| a.abs() > 0.05).map(|(i, (a, b))| (i, *a, *b)).collect();
+        assert!(echoes[600..2_000].iter().zip(&inverted[600..2_000]).any(|(a, b)| (a + b).abs() < 1e-6 && a.abs() > 0.1), "{peaks:?}");
+        // The high-pass keeps a steady level out of the voice.
+        let steady = vec![0.5f32; 48_000];
+        let mut hp = still("vibrato");
+        hp["highpass"] = json!(200.0);
+        let out = run_fx(&hp, &steady);
+        assert!(out[40_000].abs() < 1e-3, "{}", out[40_000]);
+        assert!((run_fx(&still("vibrato"), &steady)[40_000] - 0.5).abs() < 1e-3);
+    }
 
     #[test]
     fn beat_repeat_passes_its_input_while_the_song_is_stopped_and_moves_its_chance_decay_and_volume() {
